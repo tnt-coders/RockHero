@@ -35,6 +35,7 @@
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -1545,6 +1546,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
         case EditorCommandId::RestateSelection:
+        case EditorCommandId::RenameSelection:
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
@@ -1636,37 +1638,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         }
     }
 }
-
-namespace
-{
-
-// THE marker grammar, one shape for every marker kind: a SELECTED marker of the chord's kind is
-// restated; otherwise the marker position decides, SELECTING the marker already standing there and
-// inserting only where none does; and with no marker at all — no caret armed — the press is inert.
-// Shared by the section and tone chords, because the precedence IS the rule — stated in two places
-// it would eventually disagree with itself. The marker position is the kind's own projection of
-// the published marker (the raw grid position, or its measure downbeat).
-template <typename Marker, typename Restate, typename Select, typename Insert>
-void performMarkerChord(
-    const Marker* const selected, const Marker* const at_marker,
-    const std::optional<common::core::GridPosition>& marker_position, const Restate& restate,
-    const Select& select, const Insert& insert)
-{
-    if (selected != nullptr)
-    {
-        restate(*selected);
-    }
-    else if (at_marker != nullptr)
-    {
-        select(*at_marker);
-    }
-    else if (marker_position.has_value())
-    {
-        insert(*marker_position);
-    }
-}
-
-} // namespace
 
 // The guards mirror getCommandInfo's enablement on purpose: the mapping set and menus already
 // gate on it, but direct invocation paths (tests, the preview-window filter) must stay safe too.
@@ -1783,78 +1754,79 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
+        // The four marker verbs below open exactly the prompt or picker the core's published verb
+        // names — the marker grammar (restate a marker standing at the cursor, else insert; Enter
+        // and Ctrl+R act on the selection) is decided in the core and published as the verb, so
+        // nothing here looks a marker up or gates on the transport or the project: a verb of
+        // nothing is inert rather than declined, which is what keeps JUCE from sounding the alert
+        // for a chord its mapping set matched.
         case EditorCommandId::InsertToneChange:
         {
-            // The marker grammar, shared with the section chord. A tone change IS a region
-            // boundary, so the marker standing EXACTLY on a region's start reaches that change,
-            // while the marker anywhere inside a region splits it into a new one. Landing on a
-            // boundary used to fall through to the insert, which found no region to split and did
-            // nothing at all; selecting there replaces a press that was silently dead.
-            performMarkerChord(
-                selectedToneRegion(),
-                toneRegionStartingAtMarker(),
-                m_state.marker_grid_position,
-                [this](const core::ToneRegionViewState& region) { restateToneRegion(region); },
-                [this](const core::ToneRegionViewState& region) {
-                    onToneRegionSelected(region.id);
-                },
-                [this](common::core::GridPosition marker) { createToneMarkerAt(marker); });
+            if (const auto* const retone =
+                    std::get_if<core::RetoneRegionTarget>(&m_state.tone_chord_target))
+            {
+                restateToneRegion(*retone);
+            }
+            else if (
+                const auto* const split =
+                    std::get_if<core::SplitToneRegionTarget>(&m_state.tone_chord_target)
+            )
+            {
+                splitToneRegion(*split);
+            }
             return true;
         }
         case EditorCommandId::RestateSelection:
         {
-            // Enter restates the selected marker, dispatching on its kind the way Delete does:
-            // restating a section is renaming it, restating a tone region is repointing it at
-            // another catalog tone. Each kind's restate is the very one its chord uses, so the
-            // selection key and the marker chord can never mean different things by the word. On
-            // the "+" row beneath the lanes it opens the parameter picker the "+" chip opens.
-            // With nothing selected the press is inert rather than declined, which is what keeps
-            // JUCE from sounding the system alert for a chord its mapping set matched.
-            if (!m_state.project_loaded)
+            if (const auto* const section =
+                    std::get_if<core::RenameSectionTarget>(&m_state.restate_target))
             {
-                return true;
-            }
-            if (const core::SongSectionViewState* const section = selectedSongSection();
-                section != nullptr)
-            {
-                restateSongSection(*section);
+                renameSection(*section);
             }
             else if (
-                const core::ToneRegionViewState* const region = selectedToneRegion();
-                region != nullptr
+                const auto* const region =
+                    std::get_if<core::RetoneRegionTarget>(&m_state.restate_target)
             )
             {
                 restateToneRegion(*region);
             }
-            else if (m_state.tone_automation.add_lane_row_selected)
+            else if (
+                std::holds_alternative<core::OpenAutomationPickerTarget>(m_state.restate_target)
+            )
             {
                 m_tone_automation_lanes_view.openParameterPicker();
             }
             return true;
         }
+        case EditorCommandId::RenameSelection:
+        {
+            if (const auto* const section =
+                    std::get_if<core::RenameSectionTarget>(&m_state.rename_target))
+            {
+                renameSection(*section);
+            }
+            else if (
+                const auto* const tone = std::get_if<core::RenameToneTarget>(&m_state.rename_target)
+            )
+            {
+                onToneRenamePromptRequested(tone->tone_document_ref, tone->name);
+            }
+            return true;
+        }
         case EditorCommandId::InsertSongSection:
         {
-            if (!m_state.project_loaded)
+            if (const auto* const rename =
+                    std::get_if<core::RenameSectionTarget>(&m_state.section_chord_target))
             {
-                return true;
+                renameSection(*rename);
             }
-            // The same marker grammar the tone chord follows, on the section's own snap: a
-            // SELECTED chip wins and is restated on its own name; otherwise the MEASURE the marker
-            // sits in decides, handing the selection to the section standing on that downbeat and
-            // inserting only where it is free. A chip and an armed caret never disagree by
-            // accident — arming a caret replaces the whole selection, and selecting a chip demotes
-            // the caret — and Esc drops the chip when the next section belongs elsewhere.
-            performMarkerChord(
-                selectedSongSection(),
-                sectionAtMarker(),
-                m_state.section_marker_downbeat,
-                [this](const core::SongSectionViewState& section) { restateSongSection(section); },
-                [this](const core::SongSectionViewState& section) {
-                    onSongSectionSelected(section.position);
-                },
-                [this](common::core::GridPosition downbeat) {
-                    onSongSectionInsertPromptRequested(downbeat);
-                });
+            else if (
+                const auto* const insert =
+                    std::get_if<core::InsertSectionTarget>(&m_state.section_chord_target)
+            )
+            {
+                onSongSectionInsertPromptRequested(insert->downbeat);
+            }
             return true;
         }
         case EditorCommandId::OpenFileMenu:
@@ -3262,10 +3234,17 @@ void EditorView::onToneBoundaryMoveRequested(
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
-// Opens the tone picker for an Alt-click (or region-menu) tone-change insert at a position.
-void EditorView::onToneChangeInsertRequested(common::core::GridPosition position)
+// Opens the tone picker for an Alt-click (or region-menu) tone-change insert at a position. The
+// row hands over the tone of the region it hit, so the picker excludes it without a second
+// containment lookup here.
+void EditorView::onToneChangeInsertRequested(
+    common::core::GridPosition position, std::string containing_tone_document_ref)
 {
-    createToneMarkerAt(position);
+    splitToneRegion(
+        core::SplitToneRegionTarget{
+            .position = position,
+            .containing_tone_document_ref = std::move(containing_tone_document_ref),
+        });
 }
 
 // Routes a region-menu delete to the controller, exactly like the Delete key on a selection.
@@ -3376,12 +3355,11 @@ void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition p
         });
 }
 
-// Restates a selected section: reopens the rename prompt on its own name. The one restate the
-// section chord and Enter share, so the selection key and the marker chord can never mean
-// different things by the word.
-void EditorView::restateSongSection(const core::SongSectionViewState& section)
+// The one rename prompt behind the section chord's restate, Enter and Ctrl+R, opened on the name
+// the core published with the verb.
+void EditorView::renameSection(const core::RenameSectionTarget& target)
 {
-    onSongSectionRenamePromptRequested(section.position, juce::String{section.name});
+    onSongSectionRenamePromptRequested(target.position, juce::String{target.name});
 }
 
 // The section menu's Delete mirrors the Delete key: both act on the editor-wide selection, which
@@ -3398,52 +3376,19 @@ void EditorView::onSongSectionMoveRequested(bool later)
         later ? core::ChartStepDirection::Right : core::ChartStepDirection::Left);
 }
 
-// The selection lives on the view state as a per-chip flag; the core's variant is not visible
-// here.
-const core::SongSectionViewState* EditorView::selectedSongSection() const
-{
-    const auto selected =
-        std::ranges::find_if(m_state.sections, [](const core::SongSectionViewState& section) {
-            return section.selected;
-        });
-    return selected != m_state.sections.end() ? &*selected : nullptr;
-}
-
-// The section standing where a section verb would land, or null when that downbeat is free. The
-// downbeat is the core's answer (EditorViewState::section_marker_downbeat), so this asks only
-// whether the published list already holds one there.
-const core::SongSectionViewState* EditorView::sectionAtMarker() const
-{
-    const auto at_marker =
-        std::ranges::find_if(m_state.sections, [this](const core::SongSectionViewState& section) {
-            return section.position == m_state.section_marker_downbeat;
-        });
-    return at_marker != m_state.sections.end() ? &*at_marker : nullptr;
-}
-
 // Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the
-// shared tail of the playhead accelerator (Ctrl+T) and the tone row's Alt-click/menu insert. The
-// menu offers reusing an existing catalog tone (any but the one already sounding there, which
+// shared tail of the tone chord (Ctrl+T, whose verb the core published) and the tone row's
+// Alt-click/menu insert (whose position and containing tone the row read off the region it hit).
+// The menu offers reusing an existing catalog tone (any but the one already sounding there, which
 // would make it no change at all) or minting a fresh empty one.
-void EditorView::createToneMarkerAt(common::core::GridPosition position)
+void EditorView::splitToneRegion(const core::SplitToneRegionTarget& target)
 {
-    // The marker splits the one region whose span strictly contains it; endpoints order by exact
-    // musical position, so a marker landing on a boundary belongs to
-    // neither side and splits nothing.
-    const auto containing = std::ranges::find_if(
-        m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
-            return region.grid_start < position && position < region.grid_end;
-        });
-    if (containing == m_state.tone_track.regions.end())
-    {
-        return; // The marker fell on a boundary or outside any region; there is nothing to split.
-    }
-
     // Only the tone being split is excluded: the new region would sound it already, so choosing it
     // changes nothing. The NEXT region's tone is offered — choosing it moves that tone's start
     // back to the marker, which is a change the core makes by merging the two. Offer every other
     // distinct catalog tone, then a fresh-tone option.
-    auto tones = reusableTones(containing->tone_document_ref);
+    auto tones = reusableTones(target.containing_tone_document_ref);
+    const common::core::GridPosition position = target.position;
     if (tones.empty())
     {
         // No other tone exists to reuse, so skip the picker and prompt for a fresh tone directly.
@@ -3458,30 +3403,6 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
                 position, common::core::generatePackageId(), std::move(ref));
         },
         [this, position] { promptForNewTone(position); });
-}
-
-// The selection lives on the view state as a per-chip flag; the core's variant is not visible
-// here.
-const core::ToneRegionViewState* EditorView::selectedToneRegion() const
-{
-    const auto selected = std::ranges::find_if(
-        m_state.tone_track.regions,
-        [](const core::ToneRegionViewState& region) { return region.selected; });
-    return selected != m_state.tone_track.regions.end() ? &*selected : nullptr;
-}
-
-// The tone region whose START is exactly the marker, or null when the marker stands inside a region
-// instead. A region's start IS the tone change that opens it, so this is the tone's answer to
-// sectionAtMarker: landing on one reaches that change, landing anywhere else splits the region.
-// The first region's start is included deliberately — restating it repoints the opening tone, and
-// an insert there would be a zero-width split the core refuses.
-const core::ToneRegionViewState* EditorView::toneRegionStartingAtMarker() const
-{
-    const auto at_marker = std::ranges::find_if(
-        m_state.tone_track.regions, [this](const core::ToneRegionViewState& region) {
-            return region.grid_start == m_state.marker_grid_position;
-        });
-    return at_marker != m_state.tone_track.regions.end() ? &*at_marker : nullptr;
 }
 
 // Collects the distinct catalog tones the tone track references. A region with no ref yet names no
@@ -3556,16 +3477,17 @@ void EditorView::showTonePicker(
         });
 }
 
-// Restates a selected tone region by repointing it at another tone — one already in the catalog, or
-// a fresh one minted on the spot. Only the region's own tone is excluded from the REUSE list:
-// choosing it would change nothing. A neighbour's tone is offered, and choosing it merges the two
-// regions into one — the charter asked for that tone across this span, and a boundary with no
-// change across it is no boundary. "New tone" is always offered, which is what keeps the restate
-// from dying silently when the exclusion leaves nothing to reuse.
-void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
+// Restates a tone region — the one at the cursor for the chord, the selected one for Enter — by
+// repointing it at another tone: one already in the catalog, or a fresh one minted on the spot.
+// Only the region's own tone is excluded from the REUSE list: choosing it would change nothing. A
+// neighbour's tone is offered, and choosing it merges the two regions into one — the charter asked
+// for that tone across this span, and a boundary with no change across it is no boundary. "New
+// tone" is always offered, which is what keeps the restate from dying silently when the exclusion
+// leaves nothing to reuse.
+void EditorView::restateToneRegion(const core::RetoneRegionTarget& target)
 {
-    auto tones = reusableTones(region.tone_document_ref);
-    auto ask_for_new_tone = [this, id = region.id] {
+    auto tones = reusableTones(target.tone_document_ref);
+    auto ask_for_new_tone = [this, id = target.region_id] {
         promptForNewToneName([this, id](std::string name) {
             m_controller.onToneRegionNewToneRequested(id, std::move(name));
         });
@@ -3579,7 +3501,7 @@ void EditorView::restateToneRegion(const core::ToneRegionViewState& region)
     }
     showTonePicker(
         std::move(tones),
-        [this, id = region.id](std::string ref) {
+        [this, id = target.region_id](std::string ref) {
             m_controller.onToneRegionToneRequested(id, std::move(ref));
         },
         std::move(ask_for_new_tone));

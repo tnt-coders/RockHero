@@ -504,6 +504,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneRegionToneRequested(std::string region_id, std::string tone_document_ref);
     void onToneRegionNewToneRequested(std::string region_id, std::string name);
+    // What the tone chord would do at the cursor right now (the published verb).
+    [[nodiscard]] ToneChordTarget toneChordTarget() const;
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
@@ -511,10 +513,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimeSignatureSelected(int measure);
     void onSongSectionInsertRequested(common::core::GridPosition position, std::string name);
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
-    // THE marker position every marker verb lands on (see the definition for the rule).
-    [[nodiscard]] std::optional<common::core::GridPosition> markerGridPosition() const;
-    // The marker rule for a section verb, snapped to that measure's downbeat.
-    [[nodiscard]] std::optional<common::core::GridPosition> markerSongSectionDownbeat() const;
+    // What the section chord would do at the cursor right now (the published verb; see the
+    // definition for the rule it derives).
+    [[nodiscard]] SectionChordTarget sectionChordTarget() const;
     // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
     // Left or Right only; the move dispatch refuses a vertical direction for every marker kind.
     void moveSelectedSongSection(
@@ -1339,6 +1340,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // this moves the cursor to the selected marker's start in that case and leaves it alone
     // otherwise, so what a step off the marker lands on is found at the marker.
     void moveCursorIntoSelectedMarker();
+    // THE position a marker verb authors at: the armed caret, else the paused cursor read at the
+    // quantum the kind places on; nothing while the transport plays or with no song loaded.
+    [[nodiscard]] std::optional<common::core::GridPosition> cursorPosition(
+        common::core::Fraction quantum) const;
+    // What Enter and Ctrl+R would do to the selection right now (the published verbs). Each reads
+    // the selection through the two payload lookups below, so neither verb's meaning depends on
+    // the other's.
+    [[nodiscard]] RestateTarget restateTarget() const;
+    [[nodiscard]] RenameTarget renameTarget() const;
+    // The selected section, as the rename verb would address it; nothing when no section is
+    // selected or the selected one is gone.
+    [[nodiscard]] std::optional<RenameSectionTarget> selectedSectionTarget() const;
+    // The selected tone region and the tone it sounds; nothing when no region is selected or the
+    // selected one is gone.
+    [[nodiscard]] std::optional<RetoneRegionTarget> selectedRegionTarget() const;
 
     // Ends a landed selection move of a marker (Alt+arrows, or a chip menu's Move): brings the
     // paused cursor to the marker's new start so the edit is in view, and publishes. Leaves a

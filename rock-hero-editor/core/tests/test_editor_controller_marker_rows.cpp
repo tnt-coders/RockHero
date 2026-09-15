@@ -10,6 +10,7 @@
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <stdexcept>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -52,6 +53,15 @@ using common::core::SongSection;
         SongSection{.position = downbeat(3), .name = "Verse"},
         SongSection{.position = downbeat(7), .name = "Chorus"},
     };
+}
+
+// The same with a third section, so a step from the MIDDLE one has a neighbour either way and a
+// step that read the cursor instead of the selection would land somewhere else.
+[[nodiscard]] std::vector<SongSection> makeThreeMarkerSections()
+{
+    std::vector<SongSection> sections = makeMarkerSections();
+    sections.push_back(SongSection{.position = downbeat(11), .name = "Bridge"});
+    return sections;
 }
 
 // Owns the fakes and a controller with the six-string chart loaded over the marker tempo map.
@@ -99,11 +109,18 @@ struct MarkerRowEditor
         controller.onChartCaretStepRequested(direction, reach);
     }
 
-    // Parks the passive cursor on a measure downbeat and arms the caret there on string 1.
-    void armAtMeasure(int measure)
+    // Parks the passive cursor on a measure downbeat, the state a pointer selection leaves behind.
+    // Every measure of the marker tempo map lasts two seconds, on both sides of its meter change.
+    void parkAtMeasure(int measure)
     {
         controller.onTimelineSeekRequested(
             common::core::TimePosition{static_cast<double>(measure - 1) * 2.0});
+    }
+
+    // Parks the passive cursor on a measure downbeat and arms the caret there on string 1.
+    void armAtMeasure(int measure)
+    {
+        parkAtMeasure(measure);
         step(ChartStepDirection::Right);
     }
 
@@ -312,9 +329,12 @@ TEST_CASE("EditorController releases a marker selection an undo takes away", "[c
     CHECK_FALSE(editor.state().selected_row_cursor.has_value());
 }
 
-// Tab on a marker row steps from the SELECTED marker to its neighbour, selecting it and bringing
-// the cursor to its start; past either end the press is inert. Ctrl+Tab steps a marker row exactly
-// as Tab does, since only a string has keyframes to step over.
+// Tab on a marker row steps from the CURSOR, as it does on every row: the column rule brings the
+// cursor into the selected marker first, then the step goes to the start strictly beyond it. From
+// the lead-in — the one place the selected marker's start lies AFTER the cursor, since a row's
+// first marker owns whatever precedes it — the first Tab therefore lands on that marker's own
+// start. Past either end the press is inert. Ctrl+Tab steps a marker row exactly as Tab does,
+// since only a string has keyframes to step over.
 TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[core][marker-rows]")
 {
     MarkerRowEditor editor;
@@ -323,6 +343,11 @@ TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[co
     editor.step(ChartStepDirection::Up);
     editor.step(ChartStepDirection::Up);
     REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+    REQUIRE(editor.transport.position().seconds == Catch::Approx(0.0));
+
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+    CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
 
     editor.controller.onRowObjectStepRequested(true, false);
     CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
@@ -343,6 +368,111 @@ TEST_CASE("EditorController steps a marker row to the neighbouring marker", "[co
     CHECK(editor.state().selected_time_signature_measure == std::optional{1});
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
     CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
+}
+
+// Tab reads the cursor on a marker row (Phase 3 re-ruling), which is what makes a step from inside
+// a marker land on that marker's OWN start first — the media player's "previous" — while a chip
+// selected far from the cursor still steps from the CHIP, because the column rule brings the cursor
+// into it before the step measures anything.
+TEST_CASE("EditorController steps a marker row from the cursor", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeThreeMarkerSections()};
+
+    SECTION("a step back from inside a section lands on its own start, then on the previous one")
+    {
+        editor.parkAtMeasure(9);
+        editor.controller.onSongSectionSelected(downbeat(7));
+        REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
+        CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
+
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
+    }
+
+    SECTION("a step forward from inside a section reaches the next section's start")
+    {
+        editor.parkAtMeasure(9);
+        editor.controller.onSongSectionSelected(downbeat(7));
+
+        editor.controller.onRowObjectStepRequested(true, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{2});
+        CHECK(editor.transport.position().seconds == Catch::Approx(20.0));
+    }
+
+    SECTION("a chip selected far from the cursor steps forward from the chip")
+    {
+        // Reading the cursor where it stands would reach the FIRST section; the column rule moves
+        // it into the selected chip first, so the step reaches the chip's later neighbour.
+        editor.parkAtMeasure(1);
+        editor.controller.onSongSectionSelected(downbeat(7));
+
+        editor.controller.onRowObjectStepRequested(true, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{2});
+        CHECK(editor.transport.position().seconds == Catch::Approx(20.0));
+    }
+
+    SECTION("a chip selected far from the cursor steps back from the chip")
+    {
+        // Reading the cursor where it stands would find nothing before it and do nothing at all.
+        editor.parkAtMeasure(1);
+        editor.controller.onSongSectionSelected(downbeat(7));
+
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
+    }
+
+    SECTION("a step past either end of the row is inert")
+    {
+        editor.parkAtMeasure(3);
+        editor.controller.onSongSectionSelected(downbeat(3));
+        editor.controller.onRowObjectStepRequested(false, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        CHECK(editor.transport.position().seconds == Catch::Approx(4.0));
+
+        editor.parkAtMeasure(11);
+        editor.controller.onSongSectionSelected(downbeat(11));
+        editor.controller.onRowObjectStepRequested(true, false);
+        CHECK(editor.selectedSectionIndex() == std::optional<std::size_t>{2});
+        CHECK(editor.transport.position().seconds == Catch::Approx(20.0));
+    }
+}
+
+// Enter and Ctrl+R are the SELECTION's verbs, published as the verb each selected kind has: a
+// section restates and renames on its own name, while a tempo anchor and a time signature state no
+// name at all and answer nothing to either — as does an empty selection.
+TEST_CASE(
+    "EditorController publishes the selection's restate and rename verbs", "[core][marker-rows]")
+{
+    MarkerRowEditor editor;
+    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+
+    editor.controller.onSongSectionSelected(downbeat(3));
+    const RestateTarget& section_restate = editor.state().restate_target;
+    const auto* const restate_section = std::get_if<RenameSectionTarget>(&section_restate);
+    REQUIRE(restate_section != nullptr);
+    CHECK(restate_section->position == downbeat(3));
+    CHECK(restate_section->name == "Verse");
+    const RenameTarget& section_rename = editor.state().rename_target;
+    const auto* const rename_section = std::get_if<RenameSectionTarget>(&section_rename);
+    REQUIRE(rename_section != nullptr);
+    CHECK(rename_section->position == downbeat(3));
+    CHECK(rename_section->name == "Verse");
+
+    editor.controller.onTempoAnchorSelected(downbeat(5));
+    REQUIRE(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
+    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+
+    editor.controller.onTimeSignatureSelected(5);
+    REQUIRE(editor.state().selected_time_signature_measure == std::optional{5});
+    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 
 } // namespace rock_hero::editor::core

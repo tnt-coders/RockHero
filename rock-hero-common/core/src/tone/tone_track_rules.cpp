@@ -10,10 +10,16 @@
 namespace rock_hero::common::core
 {
 
+// Valid on the tempo map's grid and strictly before its terminal anchor; the twin of the section
+// rule's songSectionCanStartAt.
+bool toneRegionCanStartAt(const GridPosition& start, const TempoMap& tempo_map)
+{
+    return isValidGridPosition(start, tempo_map) && start < terminalGridPosition(tempo_map);
+}
+
 std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
 {
-    const GridPosition terminal_position = terminalGridPosition(tempo_map);
     std::set<std::string> region_ids;
     const ToneRegion* previous = nullptr;
 
@@ -59,7 +65,9 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        if (region.start >= terminal_position)
+        // The grid half already held above, so only the terminal half of the shared place rule can
+        // fire here; it is asked the same way the tone chord's projection asks it.
+        if (!toneRegionCanStartAt(region.start, tempo_map))
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,

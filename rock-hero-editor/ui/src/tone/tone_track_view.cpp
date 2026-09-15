@@ -472,7 +472,7 @@ void ToneTrackView::showRegionContextMenu(
             }
             else if (result == 3 && insert_position.has_value())
             {
-                m_listener.onToneChangeInsertRequested(*insert_position);
+                m_listener.onToneChangeInsertRequested(*insert_position, ref);
             }
         });
 }
@@ -563,7 +563,10 @@ void ToneTrackView::finishGesture(const juce::MouseEvent& event)
         m_insert_drag.reset();
         setInsertGhostX(std::nullopt);
         emitSnapGuide(std::nullopt);
-        m_listener.onToneChangeInsertRequested(insert.preview);
+        // The drag began on a region the hit test named, and pushes were deferred while it ran, so
+        // the index still addresses the region the position falls inside.
+        m_listener.onToneChangeInsertRequested(
+            insert.preview, m_state.regions[insert.region_index].tone_document_ref);
         return;
     }
 

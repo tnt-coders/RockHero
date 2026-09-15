@@ -256,11 +256,14 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
    verb and no pointer needed. The build records the claim in keymap-matrix.md, the map of
    record.
 
-   **Superseded 2026-09-12:** the marker grammar reserves `Ctrl+H` for the span marker (what the
-   hand holds) and `Ctrl+P` for the position marker, both inserting at the cursor and restating
-   on selection; `Shift+S` is withdrawn. The premise that the map has no `Alt`+letter chord no
-   longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`). Whether span and
-   position markers are one object or two remains this plan's first ruling.
+   **Superseded 2026-09-12, re-ruled 2026-09-14:** the marker grammar reserves `Ctrl+H` for the
+   span marker (what the hand holds) and `Ctrl+P` for the position marker. Both read the cursor
+   (the armed caret, else the paused cursor) and never the selection — a marker of that kind
+   standing exactly there is restated, otherwise one is inserted there — and both are inert while
+   playing and with no song; `Ctrl+Shift+H` and `Ctrl+Shift+P` select, and `Enter` and `Ctrl+R`
+   are the selection verbs. `Shift+S` is withdrawn. The premise that the map has no `Alt`+letter
+   chord no longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`). Whether
+   span and position markers are one object or two remains this plan's first ruling.
 2. Save-file record: grid position only, under the key **`"span"`** (user ruled, overriding the
    `span_markers` suggestion): the record is a manually SPECIFIED span — the charter's own, as
    opposed to the derived ones that are never stored — and the short name says exactly that.

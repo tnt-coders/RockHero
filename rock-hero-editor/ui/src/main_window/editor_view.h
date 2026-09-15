@@ -457,14 +457,8 @@ private:
     /*! \copydoc TimelineRuler::Listener::onSongSectionMoveRequested */
     void onSongSectionMoveRequested(bool later) override;
 
-    /*! \brief The selected section's view state, or null when none is selected. */
-    [[nodiscard]] const core::SongSectionViewState* selectedSongSection() const;
-
-    /*! \brief The section standing on the marker's measure downbeat, or null when it is free. */
-    [[nodiscard]] const core::SongSectionViewState* sectionAtMarker() const;
-
-    /*! \brief Restates a section: the rename prompt on its own name. */
-    void restateSongSection(const core::SongSectionViewState& section);
+    /*! \brief Opens the rename prompt the core's published rename verb names. */
+    void renameSection(const core::RenameSectionTarget& target);
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
@@ -472,20 +466,14 @@ private:
     /*! \copydoc ToneTrackView::Listener::onPlaybackFrameAdvanced */
     void onPlaybackFrameAdvanced() override;
 
-    /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
-    void createToneMarkerAt(common::core::GridPosition position);
+    /*! \brief Shows the tone-picker menu that splits a region at the published verb's position. */
+    void splitToneRegion(const core::SplitToneRegionTarget& target);
 
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
     void promptForNewTone(common::core::GridPosition position);
 
     /*! \brief Asks for a new tone's name, then hands the trimmed name to the caller's request. */
     void promptForNewToneName(std::function<void(std::string)> on_named);
-
-    /*! \brief The selected tone region's view state, or null when none is selected. */
-    [[nodiscard]] const core::ToneRegionViewState* selectedToneRegion() const;
-
-    /*! \brief The region whose start IS the marker, or null when the marker would split one. */
-    [[nodiscard]] const core::ToneRegionViewState* toneRegionStartingAtMarker() const;
 
     /*! \brief One catalog tone the picker can offer: a region's document ref and display name. */
     struct ReusableTone final
@@ -516,12 +504,11 @@ private:
         std::optional<std::function<void()>> on_new_tone);
 
     /*!
-    \brief Shows the picker to repoint a selected tone region at a different catalog tone.
+    \brief Shows the picker to repoint a tone region at a different catalog tone.
 
-    \param region Region to repoint, which must be an element of `m_state.tone_track.regions`:
-    its address is what locates its neighbours.
+    \param target The region and the tone it sounds now, as the core published them.
     */
-    void restateToneRegion(const core::ToneRegionViewState& region);
+    void restateToneRegion(const core::RetoneRegionTarget& target);
 
     /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
@@ -532,7 +519,8 @@ private:
         std::string tone_document_ref, std::string current_name) override;
 
     /*! \copydoc ToneTrackView::Listener::onToneChangeInsertRequested */
-    void onToneChangeInsertRequested(common::core::GridPosition position) override;
+    void onToneChangeInsertRequested(
+        common::core::GridPosition position, std::string containing_tone_document_ref) override;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionDeleteRequested */
     void onToneRegionDeleteRequested(std::string region_id) override;

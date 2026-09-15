@@ -121,25 +121,28 @@ Full text in `keymap-matrix.md` → *Fold-in issue resolutions*. Summary of the 
 - **A2** — the plugin chain is a **separate modal focus scope**, NOT a variant of `EditorSelection`
   (no `PluginSlotSelection`). Verbs are scope-dependent; the timeline selection is *parked*, not
   cleared, while the chain has focus.
-- **B** — the tone-region row's armed caret selects the **containing region** (a span,
-  `ToneRegionSelection`, which exists); a deliberate caret step **re-derives** it (rides), passive
-  transport still clears — the `clearCursorCoupledSelection` split. No new marker *kind*. Resize
-  moves the region's **end** boundary (note-sustain parallel).
+- **B** — the tone row selects the **containing region** (a span, `ToneRegionSelection`, which
+  exists); passive transport still clears it — the `clearCursorCoupledSelection` split. No new
+  marker *kind*. **Amended 2026-09-13/14 (`keyboard-focus-rows.md`):** the tone row carries no
+  armed caret at all — it is reached by SELECTION, with the caret demoted in place — so there is
+  no caret step to re-derive the region from; and a region stores only its START, so a boundary
+  move is `moveToneBoundary` on a start rather than a resize of an `end` the region no longer has.
 - **C** — strict grid-lock + operation-`Ctrl`: the ruler drag is a *selection* using grid-locked
   semantics (not `placementModeFor`); `Ctrl+ruler-drag` = measure-snap; a time-selection anchored
   from an off-grid caret snaps to grid. **Amends plan 47** (drop its `Ctrl`-off-grid endpoints).
 - **D** — object- and time-selection are **mutually exclusive** kinds; resolves plan 52 Q6/Q10/Q12;
   overrides its "complements, not competitors."
-- **E2** — **keep `Ctrl+T`** (from anywhere) alongside the tone-row caret insert;
-  fix the `Ctrl+Alt+T` bug by guarding `Ctrl+T` against `Alt`, not by removal. **Amended
-  2026-07-21 (user-signed): the anchor is the marker rule** — the armed caret when one exists,
-  else the transport position — extending play-from-the-marker's one-position-concept to the
-  insert; the original "playhead" (raw transport) anchor predated that unification. Command
-  named "Insert Tone Change at Cursor". **Amended 2026-09-12 (user-signed): the insert-at-cursor
-  family is realised as the `Ctrl` MARKER family** — `Ctrl`+letter inserts a marker of that kind
-  at the cursor and the same chord restates a selected one: `Ctrl+T` (tone, unchanged) and
-  `Ctrl+M` (section) live, with `Ctrl+B` (tempo anchor), `Ctrl+/` (meter), `Ctrl+P` (position)
-  and `Ctrl+H` (span) reserved for plan 41 and the FHP gate.
+- **E2** — **keep `Ctrl+T`** (from anywhere) alongside the tone-row insert; fix the `Ctrl+Alt+T`
+  bug by guarding `Ctrl+T` against `Alt`, not by removal. Command named "Insert Tone Change at
+  Cursor". **Amended 2026-09-12 (user-signed): the insert-at-cursor family is realised as the
+  `Ctrl` MARKER family**; **re-ruled 2026-09-14** — every `Ctrl`+letter marker chord reads the
+  CURSOR (the armed caret, else the paused cursor) and never the selection: a marker of that kind
+  standing exactly there is RESTATED, otherwise one is INSERTED there, and the chord is inert
+  while the transport plays and with no song. `Enter` and `Ctrl+R` are the selection verbs. The
+  2026-07-21 anchor ("the armed caret when one exists, else the transport position") is retired
+  with that ruling: the fallback is the PAUSED cursor, never a rolling transport. `Ctrl+T` (tone)
+  and `Ctrl+M` (section) are live, with `Ctrl+B` (tempo anchor), `Ctrl+/` (meter), `Ctrl+P`
+  (position) and `Ctrl+H` (span) reserved for plan 41 and the FHP gate.
 - **F** — "Insert never mutates" gains **one** named exception (filled plugin slot = replace-with-
   confirm); the tone-row split is a *create*, inside the rule.
 - **G** — the chain must render a **loud active-scope indicator** (slot focus ring + active panel +

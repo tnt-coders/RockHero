@@ -395,8 +395,8 @@ format-side decisions) and the design docs — a fresh session needs no other co
   "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still governs
   load, import and the MOVE verb, which is where truncation now lives. `Ctrl+M`'s section insert
   moved to `Shift`+`Insert` in the same ruling, and back to `Ctrl+M` on 2026-09-12 under the signed
-  marker grammar: `Ctrl`+letter inserts a marker of that kind at the cursor and the same chord
-  restates a selected one.
+  marker grammar, re-ruled 2026-09-14: `Ctrl`+letter reads the cursor and never the selection — a
+  marker of that kind standing exactly there is restated, otherwise one is inserted there.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
   `docs/plans/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and

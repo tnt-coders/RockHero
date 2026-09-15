@@ -2,10 +2,11 @@
 
 *Status: **Phases 1a, 1b and 2 BUILT 2026-09-13** (commits `7bfb2d33`, `c46f0874`, `0bb42bfc`;
 records under each) and SIGHTED. The one open leaning, arrows on a marker row, is RULED 2026-09-14:
-they leave the row. Phase 3, the marker grammar: its chord precedence RULED 2026-09-14 (author at
-the cursor, never the selection) with `Ctrl+R` as the rename, not built — except the selection-verb
-move (`Alt+←/→` on a selected tone region, the paused cursor following to the new start), built
-2026-09-14 in `5d33a1fc` and recorded in `marker-verb-grammar.md`. **Phase 4 — the `Ctrl+Shift`
+they leave the row. Phase 3, the marker grammar — author at the cursor, never the selection, with
+`Ctrl+R` as the rename — is **BUILT 2026-09-14, awaiting its sighting** (build record under it);
+the selection-verb move it carries (`Alt+←/→` on a selected tone region, the paused cursor
+following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb-grammar.md`.
+**Phase 4 — the `Ctrl+Shift`
 selection chords and the hand rows — PLANNED 2026-09-14** (decisions listed under it before
 building). Supersedes the armed-caret row model of `d320e7ac` (kept on `master` for reference
 only).*
@@ -374,8 +375,8 @@ direction cleaner than the armed-caret rows it replaced. More sighting may follo
 The `Alt+←/→` tone-region move (`5d33a1fc`) was sighted 2026-09-14 and looks right: the refusals
 read as refusals, and the paused cursor arriving at the new start keeps the edit in view.
 
-### Phase 3 — grammar (separate discussion before building)
-Questions to settle, with current leanings:
+### Phase 3 — grammar (BUILT 2026-09-14, awaiting its sighting)
+The questions it settled, and the rulings each one reached:
 1. **Rule 4 and the armed caret — RULED 2026-09-13, then RE-RULED the same day:** an insert
    leaves its product SELECTED, as a typed note does, and restating a selected marker keeps it
    selected; the caret the chord was typed from demotes in place. The first ruling (keep the caret
@@ -415,8 +416,10 @@ Questions to settle, with current leanings:
      without adding a UI ladder arm.
    - **Rule 4 moves into the core.** Before, a restate only ever reached a selected marker, so it held
      for free. `RenameSongSection` selects its section after the commit; `SetToneRegionTone` deletes
-     `was_selected` and always selects the surviving region; `DeleteToneRegion`'s sole-region reset
-     deselects AFTER its commit rather than before (check the ordering against the minted-tone reload).
+     `was_selected` and always selects the surviving region. The sole-region reset needed nothing:
+     since the commit-funnel refactor it retones through the common-core primitive rather than
+     through `SetToneRegionTone`, so the always-select never reaches it, and its release-first
+     ordering stands (built 2026-09-14).
    - **What the charter sees change.** A chip clicked far from the cursor is no longer what `Ctrl+M`
      renames — `Enter` or a double-click is. `Ctrl+T` on the tone row, with a region selected and the
      cursor inside it, splits at the cursor. The double press survives positionally: the first
@@ -481,12 +484,14 @@ Questions to settle, with current leanings:
      2026-09-14: `Enter` keeps retoning until that model is built.** The model is an explicit
      roadmap item, plan 53 Phase 5 ("Plugin-chain keyboard model"), re-stamped the same day with this
      drill as its entry and this ruling as its gate; the drill is decided there, not here.
-4. **Plan 41's wording.** `Ctrl+B` still reads "the armed caret when one exists, else the transport
-   position" (retired by `804879d6`) and "with an anchor already selected is REFUSED"; `Ctrl+/` reads
-   "with a meter selected RESTATES it". Both become the cursor precedence: an anchor on the cursor's
-   beat is selected (a restate with no payload), and the meter on the cursor's downbeat is restated.
-   Its re-addressing list must add the editor selections and `ChartCursor::column`, which is now a
-   marker-verb input.
+4. **Plan 41's wording — SWEPT 2026-09-14.** `Ctrl+B` read "the armed caret when one exists, else
+   the transport position" (retired by `804879d6`) and "with an anchor already selected is REFUSED";
+   `Ctrl+/` read "with a meter selected RESTATES it". Both now state the cursor precedence: an
+   anchor on the cursor's beat is restated — a no-payload restate, which only selects it and is
+   what stops a duplicate insert on an occupied beat — else inserted, and the meter on the
+   cursor's measure downbeat likewise. Plan 41's Phase 6 re-addressing list gained the editor's
+   marker selections and
+   `ChartCursor::column` as marker-verb inputs.
 5. **Marker-row `Tab` reads the cursor — RULED 2026-09-14.** Phase 2 built the marker step from the
    selection's index (±1), which never puts the cursor on the selected marker's own start. Instead
    it takes the point rows' own rule (`nextRowObjectStop`: the next object strictly beyond the caret
@@ -507,6 +512,39 @@ Questions to settle, with current leanings:
    common "next marker"; and a jump that moves the cursor to the marker's start, which would send the
    cursor to measure 1 on any song with one time signature or tempo, lose the place `←/→` return to,
    and make the jump land differently from the walk.
+
+**Build record (2026-09-14).**
+- **The projection.** `cursorPosition(quantum)` is the one position authority — the armed caret,
+  else the paused cursor at the kind's quantum, nothing while playing or with no song. From it the
+  core publishes four verbs on `EditorViewState`: `section_chord_target` (nothing /
+  `RenameSectionTarget{position, name}` / `InsertSectionTarget{downbeat}`, the downbeat read from
+  the tick and gated by the shared `songSectionCanStartAt`), `tone_chord_target` (nothing /
+  `RetoneRegionTarget{region_id, tone_document_ref}` / `SplitToneRegionTarget{position,
+  containing_tone_document_ref}`, the slot read at the placement quantum and gated by the shared
+  `toneRegionCanStartAt`), `restate_target` (nothing / rename section / retone region /
+  `OpenAutomationPickerTarget`) and `rename_target` (nothing / rename section /
+  `RenameToneTarget{tone_document_ref, name}`), the last two from two selection lookups so
+  neither depends on the other. The view's `perform` opens the prompt or picker each verb names
+  and reads nothing else: `performMarkerChord`, `sectionAtMarker`, `toneRegionStartingAtMarker`,
+  `selectedSongSection`, `selectedToneRegion`, the containment scan in `createToneMarkerAt` and the
+  two `project_loaded` guards are deleted, as are `marker_grid_position` and
+  `section_marker_downbeat`. The tone row's insert hands the listener the tone of the region it
+  hit, so the pointer path needs no lookup either. `RenameSelection` is `0x1405` on `Ctrl+R`.
+- **Rule 4 in the core.** `RenameSongSection` selects its section when the commit lands or records
+  nothing (a same-name rename still selects); `SetToneRegionTone` selects the surviving region from
+  every input. The sole-region reset is outside rule 4 (see item 2).
+- **`Tab` from the cursor** through one `adjacentPosition` helper in `chart_navigation`, shared
+  with the section stops of PageUp/PageDown so the two strictness rules cannot drift; the marker
+  branch runs the column rule, finds the start from the tick cursor, and publishes even when the
+  step is refused, since the column rule may already have moved the cursor. One rule for all four
+  marker rows; from the lead-in, which the first marker owns, `Tab` lands on that marker's own
+  start.
+- **Item 4 (plan 41's wording) was swept in this change**, not deferred — see the item above for
+  what `41-tempo-map-authoring.md` now says. The rest of the sweep: `keymap-matrix.md` (the chord,
+  `Ctrl+R` and `Tab` rows, the Markers intro, the tick/slot edge), `marker-verb-grammar.md` (the
+  projection and the new-kind checklist), `editing-interaction-model.md`, `00-roadmap.md`, plans 40,
+  53 and both span-marker documents, and the developer guide's `keyboard-input.md` and
+  `the-editor-2d-views.md`.
 
    The build: the marker branch of `StepToRowObject` runs the column rule
    (`moveCursorIntoSelectedMarker`), so a marker the pointer selected away from the cursor still
@@ -1024,8 +1062,9 @@ marker at the front (plan 61), which is also what gives a span a durable identit
    caret requirement, so until the gate is in place a marker chord typed into a text field would
    author at the cursor in many more states than it can today. **4.0c** (keymap restore) and
    **4.0b** (Export/Import) are independent commits, in any order, any time before 4a ships.
-2. **Phase 3** (the author-at-cursor grammar) before or with **4a** — one registry pass: the letter
-   constants and the five jumps; **4.0d** alongside if the user wants the macOS defaults. **Sighting.**
+2. **Phase 3** (the author-at-cursor grammar) — BUILT 2026-09-14, before **4a** as planned. 4a is
+   then one registry pass: the letter constants and the five jumps; **4.0d** alongside if the user
+   wants the macOS defaults. **Sighting.**
 3. **4b** — the FHP row and its jump. **Sighting.**
 4. **4c** — the span row and its jump. **Sighting.**
 
@@ -1033,7 +1072,8 @@ If plan 60 rules that the FHP and span markers are one object, 4b and 4c merge i
 before 4c is built. The select-only FHP row stays valid as the model for it.
 
 #### Out of scope
-- **Phase 3's build** — the author-at-cursor precedence (ruled; sequenced before or with 4a above).
+- **Phase 3's build** — the author-at-cursor precedence (built 2026-09-14, ahead of 4a as
+  sequenced above).
 - **`Shift+Enter`** — turning a selected marker into its time span (plans 47/52).
 - **The span template picker and plan 61's span verbs.**
 - **Plan 60's derived FHPs**, which would reuse 4c's cache.

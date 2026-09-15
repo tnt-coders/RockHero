@@ -88,6 +88,23 @@ primitive" law the plain grid step already follows.
 }
 
 /*!
+\brief The position strictly after (later) or before (earlier) a reference among sorted positions.
+
+The one step rule behind every "next or previous object" key over a sorted list — the section stops
+of PageUp/PageDown and the marker starts of Tab on a marker row: strictly beyond the reference, so
+stepping onto a neighbour is one press and "previous" from inside a span is that span's own start.
+
+\param positions Sorted ascending.
+\param reference Position the search starts from.
+\param later True for the forward direction.
+
+\return The adjacent position, or nullopt when none lies in that direction.
+*/
+[[nodiscard]] std::optional<common::core::GridPosition> adjacentPosition(
+    const std::vector<common::core::GridPosition>& positions,
+    const common::core::GridPosition& reference, bool later);
+
+/*!
 \brief The nearest section stop strictly after (later) or before (earlier) a reference.
 
 The section stops are the chart start, every section start and the chart end, as one set: from

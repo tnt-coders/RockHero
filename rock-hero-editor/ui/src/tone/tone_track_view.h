@@ -84,8 +84,12 @@ public:
         change to the same tone on both sides would be a no-op boundary the editor refuses.
 
         \param position Exact musical position for the new tone change, strictly inside a region.
+        \param containing_tone_document_ref Tone of the region the position falls inside, which the
+        new region cannot keep; the row read it off the region it hit, so the listener looks nothing
+        up.
         */
-        virtual void onToneChangeInsertRequested(common::core::GridPosition position) = 0;
+        virtual void onToneChangeInsertRequested(
+            common::core::GridPosition position, std::string containing_tone_document_ref) = 0;
 
         /*!
         \brief Called when the region context menu requests deleting a region.

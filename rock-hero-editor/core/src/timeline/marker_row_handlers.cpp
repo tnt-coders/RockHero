@@ -253,4 +253,110 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectTimeSig
     updateView();
 }
 
+// THE marker rule, for every marker kind: a marker verb authors at the cursor — the armed caret
+// where one is armed (a caret riding an automation lane included, since that is an armed caret
+// naming its lane), else the paused cursor read at the quantum the kind places on: the tick for a
+// section, which snaps to its measure's downbeat from there, the placement quantum for a tone
+// change, which lands where an arrow press would arm. Never the selection: the chords are
+// authoring verbs, and Enter and Ctrl+R are the selection's. Nothing while the transport plays —
+// the marker plane is paused-only, and a chord must not land a beat late off a moving transport —
+// and nothing with no song to hold a marker; those two gates live here, once, rather than in each
+// projection or in the view.
+std::optional<common::core::GridPosition> EditorController::Impl::cursorPosition(
+    const common::core::Fraction quantum) const
+{
+    if (!m_project.has_value() || m_transport.state().playing)
+    {
+        return std::nullopt;
+    }
+    if (const ChartCaret* const armed = armedChartCaret(); armed != nullptr)
+    {
+        return armed->position;
+    }
+    return pausedCursorPosition(quantum);
+}
+
+// A selection naming a section that is gone answers nothing, as the release that follows every
+// commit and undo will confirm.
+std::optional<RenameSectionTarget> EditorController::Impl::selectedSectionTarget() const
+{
+    const auto* const section = std::get_if<SongSectionSelection>(&m_selection);
+    if (section == nullptr)
+    {
+        return std::nullopt;
+    }
+    const std::vector<common::core::SongSection>& sections = session().song().sections;
+    const auto standing =
+        std::ranges::find(sections, section->position, &common::core::SongSection::position);
+    if (standing == sections.end())
+    {
+        return std::nullopt;
+    }
+    return RenameSectionTarget{.position = section->position, .name = standing->name};
+}
+
+std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget() const
+{
+    const auto* const selected = std::get_if<ToneRegionSelection>(&m_selection);
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (selected == nullptr || arrangement == nullptr)
+    {
+        return std::nullopt;
+    }
+    const std::vector<common::core::ToneRegion>& regions = arrangement->tone_track.regions;
+    const auto region =
+        std::ranges::find(regions, selected->region_id, &common::core::ToneRegion::id);
+    if (region == regions.end())
+    {
+        return std::nullopt;
+    }
+    return RetoneRegionTarget{
+        .region_id = region->id, .tone_document_ref = region->tone_document_ref
+    };
+}
+
+// Enter's verb, dispatched on the selection's kind here so the view opens what it names and
+// decides nothing: a section restates on its name, a tone region on its tone (until the signal
+// chain has a keyboard model to drill into, plan 53 Phase 5), the "+" row opens the parameter
+// picker, and every other kind has no restate.
+RestateTarget EditorController::Impl::restateTarget() const
+{
+    if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();
+        section.has_value())
+    {
+        return *section;
+    }
+    if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value())
+    {
+        return *region;
+    }
+    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    {
+        return OpenAutomationPickerTarget{};
+    }
+    return {};
+}
+
+// Ctrl+R's verb: rename the selection where its kind has a name — a section's own, a tone region's
+// TONE, shared by every region on it — and nothing elsewhere, the synthesized default tone
+// included, which has no document to name. Read from the selection directly rather than from
+// Enter's verb, so the day Enter's meaning on a region changes this one does not move with it.
+RenameTarget EditorController::Impl::renameTarget() const
+{
+    if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();
+        section.has_value())
+    {
+        return *section;
+    }
+    if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget();
+        region.has_value() && !region->tone_document_ref.empty())
+    {
+        return RenameToneTarget{
+            .tone_document_ref = region->tone_document_ref,
+            .name = toneNameForRef(region->tone_document_ref),
+        };
+    }
+    return {};
+}
+
 } // namespace rock_hero::editor::core

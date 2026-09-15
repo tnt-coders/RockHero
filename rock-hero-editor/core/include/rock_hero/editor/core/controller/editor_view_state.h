@@ -455,6 +455,133 @@ struct SelectedRowCursorViewState
 };
 
 /*!
+\brief The verb that renames a section: the one starting at a position, under its current name.
+
+Published as a marker chord's or a selection verb's answer
+(\ref EditorViewState::section_chord_target, \ref EditorViewState::restate_target,
+\ref EditorViewState::rename_target); the view opens the rename prompt this names and nothing else.
+*/
+struct RenameSectionTarget
+{
+    /*! \brief Measure downbeat the section starts on; the rename addresses it by this. */
+    common::core::GridPosition position{};
+
+    /*! \brief The section's current name, the prompt's starting text. */
+    std::string name{};
+
+    /*! \brief Compares two targets field by field. */
+    bool operator==(const RenameSectionTarget&) const = default;
+};
+
+/*!
+\brief The verb that inserts a section at a downbeat the core has already found free and able to
+carry one.
+*/
+struct InsertSectionTarget
+{
+    /*! \brief Measure downbeat the new section will start on. */
+    common::core::GridPosition downbeat{};
+
+    /*! \brief Compares two targets field by field. */
+    bool operator==(const InsertSectionTarget&) const = default;
+};
+
+/*!
+\brief What `Ctrl+M` would do right now: rename the section standing exactly at the cursor's
+downbeat, insert one there, or nothing.
+
+THE section chord's answer, derived once in the core from the cursor — the armed caret, else the
+paused cursor — and never from the selection. Nothing while the transport plays, with no song, or
+where a section cannot stand (the terminal downbeat), so the chord is inert exactly where the
+commit would refuse it, and the view keeps no gate of its own.
+*/
+using SectionChordTarget = std::variant<std::monostate, RenameSectionTarget, InsertSectionTarget>;
+
+/*!
+\brief The verb that repoints a tone region at another tone: the region, and the tone it sounds
+now, which the picker leaves out because choosing it would change nothing.
+*/
+struct RetoneRegionTarget
+{
+    /*! \brief Stable id of the region to repoint. */
+    std::string region_id{};
+
+    /*! \brief Tone document the region references now; empty for the synthesized default. */
+    std::string tone_document_ref{};
+
+    /*! \brief Compares two targets field by field. */
+    bool operator==(const RetoneRegionTarget&) const = default;
+};
+
+/*!
+\brief The verb that splits a tone region at a position strictly inside it: the position, and the
+tone on both sides of it now, which the picker leaves out.
+*/
+struct SplitToneRegionTarget
+{
+    /*! \brief Exact position the new tone change will stand on. */
+    common::core::GridPosition position{};
+
+    /*! \brief Tone document the containing region references; the new region cannot keep it. */
+    std::string containing_tone_document_ref{};
+
+    /*! \brief Compares two targets field by field. */
+    bool operator==(const SplitToneRegionTarget&) const = default;
+};
+
+/*!
+\brief What `Ctrl+T` would do right now: retone the region starting exactly at the cursor, split
+the region the cursor stands inside, or nothing.
+
+The tone chord's answer, the twin of \ref SectionChordTarget: derived from the cursor at the
+placement quantum, nothing while playing, with no song, or on the terminal position.
+*/
+using ToneChordTarget = std::variant<std::monostate, RetoneRegionTarget, SplitToneRegionTarget>;
+
+/*!
+\brief The verb that renames a tone document: the document, under its current name.
+*/
+struct RenameToneTarget
+{
+    /*! \brief Package-relative tone document to rename. */
+    std::string tone_document_ref{};
+
+    /*! \brief The tone's current name, the prompt's starting text. */
+    std::string name{};
+
+    /*! \brief Compares two targets field by field. */
+    bool operator==(const RenameToneTarget&) const = default;
+};
+
+/*! \brief The verb that opens the automation parameter picker the "+" row offers. */
+struct OpenAutomationPickerTarget
+{
+    /*! \brief Two picker targets are always the same verb. */
+    bool operator==(const OpenAutomationPickerTarget&) const = default;
+};
+
+/*!
+\brief What `Enter` would do to the selection right now: rename a selected section, retone a
+selected tone region, open the "+" row's picker, or nothing.
+
+The selection's own verb, dispatched on its kind here rather than in the view: restating a section
+is renaming it, restating a tone region is repointing it. A retone stays `Enter`'s meaning on a
+region until the signal chain has a keyboard model to drill into (plan 53 Phase 5).
+*/
+using RestateTarget = std::variant<
+    std::monostate, RenameSectionTarget, RetoneRegionTarget, OpenAutomationPickerTarget>;
+
+/*!
+\brief What `Ctrl+R` would do to the selection right now: rename a selected section, rename a
+selected tone region's TONE, or nothing.
+
+Nothing for every kind with no name of its own — tempo anchors, time signatures, the "+" row,
+automation points, notes — and for a region on the synthesized default tone, which has no document
+to name.
+*/
+using RenameTarget = std::variant<std::monostate, RenameSectionTarget, RenameToneTarget>;
+
+/*!
 \brief A grid slot resolved for drawing: where a typed value would land.
 
 One overlay draws at it — an insert entry's pending fret box (\ref ChartPendingFretViewState),
@@ -941,26 +1068,39 @@ struct EditorViewState
     std::optional<SelectedRowCursorViewState> selected_row_cursor{};
 
     /*!
-    \brief The position a marker verb would land on right now: the armed caret, or nothing.
+    \brief What the section chord (`Ctrl+M`) would do at the cursor right now.
 
-    The marker rule, published once so no surface reconstructs it: the armed caret (a caret riding
-    an automation lane included, since that is an armed caret naming its lane), and no marker at
-    all while none is armed — a marker lands exactly where the charter placed the caret, never off
-    a moving transport. Every marker chord reads this to tell an insert from a press that lands on
-    a marker already standing there — the tone chord compares it against each region's start, and
-    \ref section_marker_downbeat is this same answer under the section's own snap. With no marker
-    the chords' positional halves are inert; a selected marker still restates.
+    The marker grammar, published as the VERB rather than as a position for the view to reason
+    about: the core reads the cursor — the armed caret, else the paused cursor's tick, snapped to
+    its measure's downbeat — and answers rename-this, insert-here or nothing. The view opens the
+    prompt the verb names; it never looks up a section itself, and it keeps no playback or no-song
+    gate of its own, since "nothing" is that gate.
     */
-    std::optional<common::core::GridPosition> marker_grid_position{};
+    SectionChordTarget section_chord_target{};
 
     /*!
-    \brief The measure downbeat a section verb would land on right now, or nothing.
+    \brief What the tone chord (`Ctrl+T`) would do at the cursor right now.
 
-    \ref marker_grid_position snapped to its measure's downbeat, which is the only place a section
-    can start. Published because the chord's halves differ by what is ALREADY there: with a section
-    on this downbeat the press hands it the selection, and with the downbeat free it inserts.
+    The tone twin of \ref section_chord_target, read at the placement quantum: retone the region
+    starting exactly at the cursor, split the region the cursor stands inside, or nothing.
     */
-    std::optional<common::core::GridPosition> section_marker_downbeat{};
+    ToneChordTarget tone_chord_target{};
+
+    /*!
+    \brief What `Enter` would do to the selection right now.
+
+    The selection's own verb, so the view dispatches on no kind of its own: the core names the
+    rename, the retone or the picker, or nothing when nothing selected has a restate.
+    */
+    RestateTarget restate_target{};
+
+    /*!
+    \brief What `Ctrl+R` would do to the selection right now.
+
+    Rename the selected section, rename the selected region's tone, or nothing for every kind
+    without a name of its own.
+    */
+    RenameTarget rename_target{};
 
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.

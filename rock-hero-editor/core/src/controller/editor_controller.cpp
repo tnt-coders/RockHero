@@ -2610,8 +2610,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
     // a marker rule of its own: the raw position the tone chord compares against region starts,
     // and the measure downbeat the section chord snaps to.
-    state.marker_grid_position = markerGridPosition();
-    state.section_marker_downbeat = markerSongSectionDownbeat();
+    state.section_chord_target = sectionChordTarget();
+    state.tone_chord_target = toneChordTarget();
+    state.restate_target = restateTarget();
+    state.rename_target = renameTarget();
     state.grid_note_value = m_grid_note_value;
     state.grid_snap = m_grid_snap;
     state.grid_snap_warning_prompt = m_grid_snap_warning_prompt;

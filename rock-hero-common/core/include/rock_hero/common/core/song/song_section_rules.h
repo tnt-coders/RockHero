@@ -71,6 +71,20 @@ nothing to promote.
 [[nodiscard]] GridPosition songSectionDownbeat(const GridPosition& position) noexcept;
 
 /*!
+\brief Whether a section may start on a downbeat: on the tempo map's grid and strictly before the
+terminal anchor.
+
+The one place rule, shared by the validator and by the editor's projection of where a section verb
+would land, so a chord never offers an insert the commit then refuses. A section starting on the
+closing barline would name a passage of no length.
+
+\param downbeat A measure downbeat (\ref songSectionDownbeat).
+\param tempo_map Tempo map the position must address.
+\return True when a section may start there.
+*/
+[[nodiscard]] bool songSectionCanStartAt(const GridPosition& downbeat, const TempoMap& tempo_map);
+
+/*!
 \brief Validates the structural song-section rules shared by editing and persistence.
 
 Checks non-empty names (after \ref trimmedSongSectionName), positions that are real measure

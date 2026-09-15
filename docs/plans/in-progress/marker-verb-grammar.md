@@ -1,10 +1,10 @@
 # The Marker Verb Grammar
 
 *Status: LIVE for sections and tone changes as of 2026-09-13, reviewed and simplified the same day
-(see [The review pass](#the-review-pass-of-2026-09-13)). **The precedence was RE-RULED 2026-09-14:
-every chord authors at the cursor and never reads the selection. That ruling is not built yet** — it
-is Phase 3 of `keyboard-focus-rows.md` — and the sections below say where today's code still follows
-the 2026-09-13 form. Binding on every marker kind added from here, including the four still
+(see [The review pass](#the-review-pass-of-2026-09-13)). **The precedence was RE-RULED and BUILT
+2026-09-14: every chord authors at the cursor and never reads the selection, and the core publishes
+the VERB each chord would perform** — Phase 3 of `keyboard-focus-rows.md`, whose build record
+names the fields. Binding on every marker kind added from here, including the four still
 RESERVED. Decisions that were judgment calls rather than forced moves are collected under
 [Open questions for review](#open-questions-for-review) at the end; they are the ones to push on.*
 
@@ -19,6 +19,14 @@ the marker is (ruled 2026-09-14):
 1. a marker of that kind stands **EXACTLY at the cursor**, under the kind's quantum — the chord
    **RESTATES** it, reopening its payload;
 2. else — the chord **INSERTS** one there.
+
+**Built 2026-09-14.** The precedence is not restated on any surface: the CORE publishes, per kind,
+the VERB the chord would perform at the cursor, and the UI only opens the prompt or picker that verb
+names. A section chord target is rename-this / insert-here / nothing; the tone twin is retone-this /
+split-here / nothing; `Enter`'s and `Ctrl+R`'s verbs are published the same way. "Nothing" is where
+the playback and no-song gates live, stated once in the projection rather than in availability or in
+five UI guards. Rule 4 (below) moved into the core with it: a restate can now reach a marker nobody
+selected, so each restate verb selects its target after the commit.
 
 The selection is never consulted. A marker selected elsewhere does not redirect the chord, and a
 selected marker at the cursor is restated because it stands at the cursor, not because it is
@@ -51,9 +59,9 @@ And four rules ride along with it:
 - **A verb that authors or restates a marker leaves it SELECTED**, so the next verb acts on what
   was just made — as a typed note is left selected. Confirmed 2026-09-13 with the focus rows
   (`keyboard-focus-rows.md`): the caret the chord was typed from demotes in place, and the next
-  `←/→` re-arms it exactly where it stood. Under the 2026-09-14 ruling a restate can reach a marker
-  that was NOT selected, so the core's restate verbs select their target after the commit, as the
-  inserts already do.
+  `←/→` re-arms it exactly where it stood. Since 2026-09-14 a restate can reach a marker that
+  was NOT selected, so the core's restate verbs select their target after the commit, as the inserts
+  already do — rule 4, now stated in the core rather than holding for free.
 - **`Esc` drops the selection**, and `Delete` leaves nothing selected behind it.
 
 **Superseded 2026-09-14.** The form built 2026-09-13 read three rules: a SELECTED marker is restated
@@ -95,27 +103,31 @@ Earlier in the same sequence, `dd81a395` made the section chord positional and `
 
 ## The design
 
-### One marker position, published once
+### One cursor position, one authority
 
-`EditorController::Impl::markerGridPosition()` is the sole authority. A caret riding an automation
-lane needs no branch of its own, because it IS an armed caret that names a lane — which the core
-knew all along and the view had been reconstructing.
+`EditorController::Impl::cursorPosition(quantum)` is the sole position authority: the armed caret's
+position, else the paused cursor at the quantum asked for (its trusted column, else the nearest line
+of that quantum), and nothing at all while the transport plays or with no song loaded. A caret
+riding an automation lane needs no branch of its own, because it IS an armed caret that names a
+lane — which the core knew all along and the view had been reconstructing.
 
-- **Built (ruled 2026-09-13):** the armed caret, and nothing else. Until then the transport
-  position, quantised to the placement grid, stood in when no caret was armed.
-- **Ruled 2026-09-14, to build:** the armed caret, else the paused cursor's slot
-  (`pausedCursorPosition(placementQuantum())`: the trusted column, else the nearest placement-grid
-  slot), and nothing while the transport plays or with no song loaded.
+- **Built 2026-09-13:** the armed caret, and nothing else (`markerGridPosition`). Until then the
+  transport position, quantised to the placement grid, stood in when no caret was armed.
+- **Built 2026-09-14:** the armed-aware helper above. `trustedCursorColumn`, `pausedCursorSlot` and
+  `pausedCursorPosition` were one rule differing only in its quantum and became one
+  `pausedCursorPosition(quantum)` (which also deleted `JumpChartCaret`'s inline restatement of it);
+  making that ARMED-AWARE finished the fold, and it is what gives Phase 4c's planned `focusColumn()`
+  one authority instead of a second.
 
-It is published as `EditorViewState::marker_grid_position`, an optional. `section_marker_downbeat`
-is the same answer under the section's own snap, computed in the core beside it; under the ruling
-it snaps from the cursor's TICK position (`pausedCursorPosition(g_tick_quantum_note_value)`), so an
-untrusted cursor paused just before a barline still names the measure it is IN rather than rounding
-into the next. One rule, two projections; each verb applies its own quantum and nothing re-derives
-the rule.
+Each verb applies its OWN quantum to it and nothing re-derives the rule: a chord reads the placement
+quantum — the slot an arrow press would arm on — while a section and a meter read the TICK
+(`g_tick_quantum_note_value`) and snap to the downbeat of the measure the cursor is IN, so a cursor
+paused just before a barline does not round into the next measure. `EditorViewState`'s
+`marker_grid_position` and `section_marker_downbeat` are deleted with the projection below: the view
+needs no position at all, because it is handed a verb.
 
 **Why the paused cursor is not the retired transport fallback.** The 2026-09-13 retirement answered
-a marker landing a beat late off a ROLLING transport. The ruled cursor is paused-only, and it is the
+a marker landing a beat late off a ROLLING transport. This cursor is paused-only, and it is the
 exact slot an arrow press would arm on, so a chord behaves as "arm, then press" with no rule of its
 own; a caret demoted in place writes its exact slot into the column, so a second chord lands on the
 first one's marker. Two gates are needed for correctness, stated once in the authority rather than
@@ -129,28 +141,34 @@ Before the ruling, caret-only settled the playback question without a gate, beca
 a paused transport; the ruling moves that answer into the authority. The ruler's own menu inserts at
 the CLICK's measure ("Insert Section Here"), the pointer form, so it needs neither gate.
 
-Recommended with the build, and the quantum half LANDED 2026-09-14: `pausedCursorSlot` and
-`pausedCursorPosition` were one rule that differed only in its quantum, and are now one
-`pausedCursorPosition(quantum)` — which also deleted `JumpChartCaret`'s inline restatement of it.
-Making that helper ARMED-AWARE is still owed, and is what gives Phase 4c's planned `focusColumn()`
-its one authority instead of a second.
+### One precedence, published as a verb
 
-### One precedence, shared by both chords
+The precedence lives in the CORE, once, and reaches each surface as the VERB that chord would
+perform. `EditorViewState::section_chord_target` is nothing /
+`RenameSectionTarget{position, name}` / `InsertSectionTarget{downbeat}`;
+`EditorViewState::tone_chord_target` is nothing /
+`RetoneRegionTarget{region_id, tone_document_ref}` /
+`SplitToneRegionTarget{position, containing_tone_document_ref}`. The UI opens the prompt or picker
+the variant names and decides nothing. `Enter`'s verb is published the same way as `restate_target`
+(nothing / `RenameSectionTarget` / `RetoneRegionTarget` / `OpenAutomationPickerTarget`) and
+`Ctrl+R`'s as `rename_target` (nothing / `RenameSectionTarget` /
+`RenameToneTarget{tone_document_ref, name}`), so a new selection verb adds a projection rather than
+a UI ladder arm.
 
-`performMarkerChord` (a file-local template in `editor_view.cpp`) holds the precedence, and both
-chords call it. The precedence IS the rule, and stating it twice would guarantee eventual
-disagreement.
+- **Built 2026-09-13:** `performMarkerChord`, a file-local template in `editor_view.cpp`, taking the
+  selected marker, the marker at the cursor, and three callables for restate / select / insert.
+- **Built 2026-09-14:** that template is DELETED, together with `sectionAtMarker`,
+  `toneRegionStartingAtMarker`, the containment scan in `createToneMarkerAt` and the UI's
+  `project_loaded` guards. The design review found the precedence living in the UI over published
+  lists, restating the core's "a marker stands exactly here" predicate in five places. "Nothing" is
+  the playback and no-song gate, stated once in the projection. A kind with no payload still
+  publishes a restate target: the no-op restate is what stops a duplicate insert on an occupied
+  start.
 
-- **Built:** it takes the selected marker, the marker at the cursor, and three callables for
-  restate / select / insert.
-- **Ruled 2026-09-14:** it loses the selected input and the select callable, leaving "restate the
-  marker at the cursor, else insert at the published position". A kind with no payload still passes
-  a restate: the no-op restate is what stops a duplicate insert on an occupied start.
+Each kind's "exactly at the cursor" predicate is the core's, stated once where the verb is chosen:
 
-Each kind supplies its own "exactly at the cursor" predicate:
-
-- **Section** — a section whose position equals the marker's measure downbeat.
-- **Tone change** — a region whose `grid_start` equals the marker position, because a region's
+- **Section** — a section whose position equals the downbeat of the measure the cursor is in.
+- **Tone change** — a region whose `grid_start` equals the cursor's slot, because a region's
   start *is* the tone change that opens it. Anywhere else inside a region still splits.
 
 ### Selection is the caller's business, never the action's
@@ -162,10 +180,12 @@ to the same question.
 
 The rig-activation step never selects; the verb does, after its commit. A split selects the region
 it made, onto an existing tone or a minted one alike; a restate keeps the region already pointed at;
-a delete clears. Under the 2026-09-14 ruling a restate selects its target too, because the chord can
-now restate a marker nobody selected: `RenameSongSection` selects its section, `SetToneRegionTone`
-always selects the surviving region (its `was_selected` guard is deleted), and the sole-region
-reset's deselect moves after its commit so `Delete` still leaves nothing selected. Selecting in the
+a delete clears. Since 2026-09-14 a restate selects its target too, because the chord can restate a
+marker nobody selected: `RenameSongSection` selects its section, `SetToneRegionTone`
+always selects the surviving region (its `was_selected` guard is deleted). The sole-region reset
+sits outside rule 4: it retones through the common-core primitive rather than through
+`SetToneRegionTone`, and releases the selection first, so `Delete` still leaves nothing selected
+without any ordering to keep. Selecting in the
 view before the prompt would be wrong: a cancelled prompt would still demote the caret. The select id the activation step once carried is gone (2026-09-13): both
 activation paths now end by pointing the rig at the active tone, which was the other thing that id
 was doing, and folding a selection choice into the step raced the asynchronous rig reload besides.
@@ -275,8 +295,9 @@ file — kept and collected at publish, as every removed tone's is.
 
 ### The section chord
 
-`Enter` and `Ctrl+M` restate a section through one member (`restateSongSection`), so the two
-cannot drift. The section insert now captures its downbeat AT THE PRESS and carries it through the
+`Enter`, `Ctrl+M` and, since 2026-09-14, `Ctrl+R` restate a section through one member (then
+`restateSongSection`, now `EditorView::renameSection` over the published `RenameSectionTarget`), so
+the three cannot drift. The section insert now captures its downbeat AT THE PRESS and carries it through the
 prompt (`InsertSongSection` gained a position), the shape the tone insert already had; the
 recorded drift is fixed and its backlog entry removed.
 
@@ -285,21 +306,26 @@ recorded drift is fixed and its backlog entry removed.
 The four reserved kinds — tempo anchor (`Ctrl+B`), meter (`Ctrl+/`), position marker (`Ctrl+P`),
 span marker (`Ctrl+H`) — inherit all of the above. Building one means:
 
-1. Call `performMarkerChord` from the chord's case. Do not write the precedence again.
-2. Supply a "marker exactly at `marker_grid_position`" predicate, under the kind's own quantum.
-3. Read the published marker position. Never re-derive the cursor on a surface.
-4. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
+1. **Publish the kind's CHORD TARGET beside the section and tone targets** — a variant of
+   nothing / restate-this / insert-here, chosen in the core under the kind's own quantum — and its
+   restate and rename targets too if it has a name. Do not write the precedence again anywhere
+   else, and never re-derive the cursor on a surface: read `cursorPosition(quantum)` in the core
+   and hand the UI a verb.
+2. In the UI, open exactly what the published verb names. The surface decides nothing, and holds no
+   position, predicate or gate of its own.
+3. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
    one select that demotes the caret and re-syncs the rig. A kind with its own ruler or track row
    joins `MarkerRow` (`markerStarts`, `selectedMarker`, `markerSelectionAt`) and the focus-row
    stack (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
    have selectable chips there, awaiting their verbs.
-5. Add the kind to `RestateSelection`'s dispatch, to `Delete`'s and to `MoveSelection`'s, all of
-   which switch on the selection's kind; a landed move ends with `followMovedMarker(start)`.
-6. Select the marker in the core after authoring or restating it, including a restate of a marker
+4. Add the kind to `RestateSelection`'s dispatch, to `RenameSelection`'s where it has a name, to
+   `Delete`'s and to `MoveSelection`'s, all of which switch on the selection's kind; a landed move
+   ends with `followMovedMarker(start)`.
+5. Select the marker in the core after authoring or restating it, including a restate of a marker
    that was not selected.
-7. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
+6. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
    is what stops a duplicate insert on an occupied start.
-8. Commit through `commitMarkerModel` (`marker_model_commit.h`) and nothing else, by supplying a
+7. Commit through `commitMarkerModel` (`marker_model_commit.h`) and nothing else, by supplying a
    snapshot type with `capture` / `applyTo` / `normalize` / `validate` / equality. The verb builds
    its result on a COPY of the captured model and never touches the live one, so a refusal costs
    nothing; the funnel owns the undo entry, the refusal log, the release of a selection naming a
@@ -322,7 +348,7 @@ section intro, which was updated in `cb33ca39` from the old two-move form.
 
 *Historical: the recommendation below was overruled 2026-09-13 (open question 1), and the
 2026-09-14 author-at-cursor ruling keeps that answer (ruled the same day) through an explicit gate
-in `markerGridPosition` instead of the armed-implies-paused invariant. The later 2026-09-14 ruling
+in the chord's verb projection instead of the armed-implies-paused invariant. The later ruling
 went further than either: the whole marker plane is paused-only, selection included, so the "what
 stays reachable is the workflow" reading below describes the shipped editor only up to that date.*
 
@@ -365,7 +391,8 @@ Each of these was a judgment call. The forced moves are not listed; these are.
    won: editing needs precision, and a late press off a rolling transport lands a tone change a
    beat off. The capture-at-press discipline stays as the prompt's shape but is no longer
    load-bearing. **2026-09-14:** the author-at-cursor ruling no longer needs a caret, and the
-   answer stays "no" (ruled the same day), enforced by a playing gate in `markerGridPosition`.
+   answer stays "no" (ruled the same day), enforced by a playing gate in `cursorPosition(quantum)`,
+   which publishes the chord's verb as "nothing" while the transport rolls.
    **Widened the same day:** the answer is now the whole marker plane's, not the chords' — marker
    selection and every marker edit are unavailable while playing, enforced in the availability
    table, with the tone designer excluded.

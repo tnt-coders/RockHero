@@ -1,10 +1,15 @@
+#include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -78,6 +83,17 @@ constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d
     return song;
 }
 
+// The two-region song carrying a bare six-string chart: Tab reads the displayed tablature to know
+// the row stack exists at all, so the tone row's own step needs one even with no notes on it.
+[[nodiscard]] common::core::Song makeTwoRegionChartedSong()
+{
+    common::core::Song song = makeTwoRegionSong();
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    song.arrangements.front().chart = std::move(chart);
+    return song;
+}
+
 // Owns the fakes and a controller with the supplied song loaded, ready to drive tone edits.
 struct LoadedToneEditor
 {
@@ -112,6 +128,36 @@ struct LoadedToneEditor
     [[nodiscard]] const std::vector<common::core::ToneRegion>& regions() const
     {
         return arrangement().tone_track.regions;
+    }
+
+    // What the tone chord would do right now, as the surface reads it: the verb the core publishes.
+    [[nodiscard]] ToneChordTarget publishedToneChordTarget() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        return state != nullptr ? state->tone_chord_target : ToneChordTarget{};
+    }
+
+    // The id of the region drawn selected, or empty while none is.
+    [[nodiscard]] std::string selectedRegionId() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        if (state == nullptr)
+        {
+            return {};
+        }
+        // Not named "regions": a local of that name would shadow this fixture's own accessor, which
+        // GCC's -Wshadow rejects and MSVC says nothing about.
+        const std::vector<ToneRegionViewState>& published = state->tone_track.regions;
+        const auto selected = std::ranges::find_if(
+            published, [](const ToneRegionViewState& region) { return region.selected; });
+        return selected != published.end() ? selected->id : std::string{};
+    }
+
+    // Turns snapping off, which only the warning's own answer can do.
+    void turnSnapOff()
+    {
+        controller.onGridSnapToggleRequested();
+        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
 };
 
@@ -719,12 +765,18 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
         },
     };
     const int loads_before = editor.live_rig.load_call_count;
+    // Selected first, so the deselect below is a change rather than an already-empty selection.
+    editor.controller.onToneRegionSelected(only_id);
+    REQUIRE(editor.selectedRegionId() == only_id);
 
     editor.controller.onToneRegionDeleteRequested(only_id);
 
     // Coverage is preserved: the region stays but is repointed to a fresh empty "Default" tone.
     REQUIRE(editor.regions().size() == 1);
     CHECK(editor.regions().front().id == only_id);
+    // A delete leaves NOTHING selected, and this one survives its own delete — so the reset
+    // deselects explicitly rather than riding the retone's own rule 4 selection.
+    CHECK(editor.selectedRegionId().empty());
     CHECK(editor.regions().front().tone_document_ref == g_minted_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Default");
     CHECK(editor.live_rig.mint_call_count == 1);
@@ -810,6 +862,161 @@ TEST_CASE(
     REQUIRE(state != nullptr);
     REQUIRE(state->tone_track.regions.size() == 1);
     CHECK_FALSE(state->tone_track.regions[0].selected);
+}
+
+// The chord's whole decision is published as the VERB: the cursor standing exactly on a region's
+// start restates that change — a region's start IS the tone change that opens it, the first
+// region's included, since restating that repoints the opening tone and a split there would have no
+// width — and the core hands over the tone it sounds now, which the picker leaves out.
+TEST_CASE(
+    "The published tone chord retones the region starting at the cursor",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.0});
+    const ToneChordTarget at_first = editor.publishedToneChordTarget();
+    const auto* const first_retone = std::get_if<RetoneRegionTarget>(&at_first);
+    REQUIRE(first_retone != nullptr);
+    CHECK(first_retone->region_id == g_region_a);
+    CHECK(first_retone->tone_document_ref == g_tone_document_ref);
+
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.0});
+    const ToneChordTarget at_second = editor.publishedToneChordTarget();
+    const auto* const second_retone = std::get_if<RetoneRegionTarget>(&at_second);
+    REQUIRE(second_retone != nullptr);
+    CHECK(second_retone->region_id == g_region_b);
+    CHECK(second_retone->tone_document_ref == g_second_tone_ref);
+}
+
+// A cursor strictly inside a region splits it, at the PLACEMENT quantum — the slot an arrow press
+// would arm at — rather than at the tick the section chord reads: a tone change may stand anywhere
+// on the grid, so the snap the charter set is the one that decides where it lands.
+TEST_CASE(
+    "The published tone chord splits the region the cursor stands inside",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+
+    // 2.6 s is inside the later region; the nearest quarter line is measure 2 beat 2 at 2.5 s.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.6});
+    const ToneChordTarget snapped = editor.publishedToneChordTarget();
+    const auto* const snapped_split = std::get_if<SplitToneRegionTarget>(&snapped);
+    REQUIRE(snapped_split != nullptr);
+    CHECK(snapped_split->position == gridAt(2, 2));
+    CHECK(snapped_split->containing_tone_document_ref == g_second_tone_ref);
+
+    // With snap off the placement quantum IS the tick, so the change lands on the exact sub-beat.
+    editor.turnSnapOff();
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.25});
+    const ToneChordTarget unsnapped = editor.publishedToneChordTarget();
+    const auto* const unsnapped_split = std::get_if<SplitToneRegionTarget>(&unsnapped);
+    REQUIRE(unsnapped_split != nullptr);
+    CHECK(
+        unsnapped_split->position ==
+        common::core::GridPosition{
+            .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
+        });
+    CHECK(unsnapped_split->containing_tone_document_ref == g_second_tone_ref);
+}
+
+// The verb is nothing exactly where the commit would refuse it, so the press is inert rather than
+// opening a picker that could author nothing: the terminal position holds no region to split, and
+// the whole marker plane is paused-only.
+TEST_CASE(
+    "The published tone chord is nothing at the song end and while playing",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    // Measure 3 beat 1 closes the song: a region opened there would have no length.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{4.0});
+    CHECK(std::holds_alternative<std::monostate>(editor.publishedToneChordTarget()));
+
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+    REQUIRE(std::holds_alternative<SplitToneRegionTarget>(editor.publishedToneChordTarget()));
+    editor.transport.current_state.playing = true;
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+    CHECK(std::holds_alternative<std::monostate>(editor.publishedToneChordTarget()));
+}
+
+// A restate SELECTS its target (grammar rule 4), from whichever input asked for it: the chord
+// authors at the cursor and selects nothing first, so the retone itself is what leaves the region
+// outlined for Enter, Ctrl+R and Delete.
+TEST_CASE("EditorController selects the region a retone produced", "[core][editor-controller]")
+{
+    common::core::Song song = makeTwoRegionSong();
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = g_third_tone_ref, .name = "Solo"});
+    LoadedToneEditor editor{std::move(song)};
+    REQUIRE(editor.selectedRegionId().empty());
+
+    editor.controller.onToneRegionToneRequested(g_region_b, g_third_tone_ref);
+    CHECK(editor.selectedRegionId() == g_region_b);
+}
+
+// And when the retone merges the region away, the SURVIVOR is what stays selected — the region now
+// holding the start the charter pointed at, whatever its id.
+TEST_CASE("EditorController selects the survivor of a merging retone", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.selectedRegionId().empty());
+
+    editor.controller.onToneRegionToneRequested(g_region_b, g_tone_document_ref);
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.selectedRegionId() == g_region_a);
+}
+
+// Tab on the tone row rides the same generic marker branch the ruler rows do, so it reads the
+// CURSOR: from inside a region Shift+Tab lands on that region's own start first, then on the
+// previous one, and Tab comes back.
+TEST_CASE("EditorController steps the tone row from the cursor", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionChartedSong()};
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+    editor.controller.onToneRegionSelected(g_region_b);
+    REQUIRE(editor.selectedRegionId() == g_region_b);
+
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.selectedRegionId() == g_region_b);
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.selectedRegionId() == g_region_a);
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
+
+    // The first start is the end of the row: a further step back is inert.
+    editor.controller.onRowObjectStepRequested(false, false);
+    CHECK(editor.selectedRegionId() == g_region_a);
+
+    editor.controller.onRowObjectStepRequested(true, false);
+    CHECK(editor.selectedRegionId() == g_region_b);
+    CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+}
+
+// Enter and Ctrl+R are the SELECTION's verbs, published as the verb the selected kind has:
+// restating a region repoints it, renaming one names the TONE it sounds — the catalog document
+// every region on that tone shares, which is what the tone row's own double-click renames.
+TEST_CASE(
+    "EditorController publishes a selected region's restate and rename verbs",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onToneRegionSelected(g_region_b);
+
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    const auto* const retone = std::get_if<RetoneRegionTarget>(&state->restate_target);
+    REQUIRE(retone != nullptr);
+    CHECK(retone->region_id == g_region_b);
+    CHECK(retone->tone_document_ref == g_second_tone_ref);
+
+    const auto* const rename = std::get_if<RenameToneTarget>(&state->rename_target);
+    REQUIRE(rename != nullptr);
+    CHECK(rename->tone_document_ref == g_second_tone_ref);
+    CHECK(rename->name == "Dirty");
 }
 
 } // namespace rock_hero::editor::core

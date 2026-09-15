@@ -135,21 +135,21 @@ namespace
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
-            // The marker grammar: Ctrl+letter inserts a marker of that kind at the cursor (the
-            // marker rule: the armed caret when one exists, else the transport position), and the
-            // same chord with a marker of that kind selected restates it. Exact modifier matching
-            // keeps Ctrl+Alt+T from matching.
-            .name = "Insert Tone Change at Cursor",
+            // The marker grammar: Ctrl+letter authors a marker of that kind at the cursor — the
+            // armed caret, else the paused cursor — restating one standing exactly there and
+            // inserting otherwise; it never reads the selection. Exact modifier matching keeps
+            // Ctrl+Alt+T from matching.
+            .name = "Insert or Retone Tone Change at Cursor",
             .category = "Tone",
             .default_keypresses = {chord('t', command)},
         });
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertSongSection,
-            // Ctrl+M, the section's letter on the marker plane; with a section selected the chord
-            // renames it instead of inserting (the digit law's create-or-retype, applied to
-            // markers).
-            .name = "Insert or Rename Section",
+            // Ctrl+M, the section's letter on the marker plane: the section on the cursor's
+            // downbeat is renamed, a free downbeat takes a new one (the digit law's
+            // create-or-retype, applied to markers).
+            .name = "Insert or Rename Section at Cursor",
             .category = "Section",
             .default_keypresses = {chord('m', command)},
         });
@@ -157,12 +157,21 @@ namespace
         EditorCommandSpec{
             .id = EditorCommandId::RestateSelection,
             // Enter edits what is selected, which on a marker is whatever that marker states: a
-            // section's name, a region's tone. Each reopens the very prompt or picker its own
-            // chord reopens. Bare Enter is free — nothing else in the editor binds it — and the
-            // command self-gates on a marker actually being selected.
+            // section's name, a region's tone. Bare Enter is free — nothing else in the editor
+            // binds it — and the command self-gates on the core naming a restate.
             .name = "Restate Selection",
             .category = "Marker",
             .default_keypresses = {chord(juce::KeyPress::returnKey)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::RenameSelection,
+            // Ctrl+R renames the selection where its kind has a name: a section, or a tone
+            // region's tone. Free until 2026-09-14 (plain R is tremolo); it self-gates on the core
+            // naming a rename.
+            .name = "Rename Selection",
+            .category = "Marker",
+            .default_keypresses = {chord('r', command)},
         });
 
     // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)

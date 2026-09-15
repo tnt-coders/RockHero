@@ -1520,14 +1520,17 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     updateView();
 }
 
-// Tab (docs/plans/in-progress/keyboard-focus-rows.md, Phase 2): the next or previous OBJECT on the
-// row focus stands on, the grid ignored. A string's objects are its notes and their keyframes (its
-// notes alone under notes_only), a lane's its points, and a marker row's its markers, where the
-// step moves from the SELECTED marker — not from the cursor, which a pointer selection may have
-// left elsewhere — selecting its neighbour and bringing the cursor to that marker's start. A held
-// stop's satellite is part of its note rather than an object of its own, so a string step always
-// lands on a note's head. Past either end, and on the "+" row, which holds no objects, the press is
-// inert; from the passive marker it arms in place, as the arrows' first press does.
+// Tab (docs/plans/in-progress/keyboard-focus-rows.md, Phase 2, re-ruled in Phase 3): the next or
+// previous OBJECT on the row focus stands on, the grid ignored, read from the CURSOR on every row.
+// A string's objects are its notes and their keyframes (its notes alone under notes_only), a
+// lane's its points, and a marker row's its marker starts: the column rule first brings the cursor
+// into a marker the pointer selected elsewhere, then Tab reaches the start strictly after the
+// cursor and Shift+Tab the start strictly before it — from inside a marker past its start, that is
+// the marker's OWN start, the media player's "previous" — and the marker starting there is
+// selected with the cursor on it. A held stop's satellite is part of its note rather than an object
+// of its own, so a string step always lands on a note's head. Past either end, and on the "+" row,
+// which holds no objects, the press is inert; from the passive marker it arms in place, as the
+// arrows' first press does.
 void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObject& action)
 {
     const common::core::ChartViewState* const tab = displayedTabProjection();
@@ -1538,15 +1541,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
 
     if (const std::optional<SelectedMarker> selected = selectedMarker(); selected.has_value())
     {
-        const std::optional<std::size_t> index = selected->index;
-        const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
-        if (!index.has_value() || (action.later ? *index + 1 >= starts.size() : *index == 0))
+        // Published even when the step is refused: the column rule may already have moved the
+        // cursor, and a refusal must not leave the view showing where it stood before.
+        moveCursorIntoSelectedMarker();
+        if (const std::optional<common::core::GridPosition> start = adjacentPosition(
+                markerStarts(selected->row),
+                pausedCursorPosition(g_tick_quantum_note_value),
+                action.later);
+            start.has_value())
         {
-            return;
+            moveCursorTo(*start);
+            selectMarkerStartingAt(selected->row, *start);
         }
-        const std::size_t neighbour = action.later ? *index + 1 : *index - 1;
-        moveCursorTo(starts[neighbour]);
-        selectMarker(markerSelectionAt(selected->row, neighbour));
         updateView();
         return;
     }

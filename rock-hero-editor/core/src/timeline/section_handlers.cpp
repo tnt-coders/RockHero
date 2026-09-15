@@ -31,33 +31,34 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
     return std::get_if<SongSectionSelection>(&m_selection);
 }
 
-// THE marker rule, for every marker kind: the armed caret, and nothing else. A marker verb lands
-// exactly where the charter placed the caret, never a beat late off a moving transport; the marker
-// plane is paused-only anyway, refused for the whole transport's roll by the availability table.
-// With no caret armed there is no marker, and the chords' positional halves are inert (a selected
-// marker still restates). A caret riding an automation lane is an armed caret that names its lane,
-// so it needs no branch of its own — and it carries an exact grid position, which is why this is
-// the core's answer to give rather than something a surface reconstructs.
-std::optional<common::core::GridPosition> EditorController::Impl::markerGridPosition() const
+// The section chord authors at the cursor and never reads the selection: the measure the cursor is
+// IN, read from the tick so a cursor near a barline is not rounded into the next measure, snapped
+// to that measure's downbeat, the only place a section can start. A section already standing
+// there is restated (renamed) — which is what makes the double press work: the first inserts and
+// selects, the second finds that section in the cursor's measure. Where none stands and a section
+// may start, the verb is an insert; on the terminal downbeat it is nothing, so the chord is inert
+// exactly where the commit would refuse it rather than prompting for a name it cannot use.
+SectionChordTarget EditorController::Impl::sectionChordTarget() const
 {
-    const ChartCaret* const armed = armedChartCaret();
-    if (armed == nullptr)
+    const std::optional<common::core::GridPosition> position =
+        cursorPosition(g_tick_quantum_note_value);
+    if (!position.has_value())
     {
-        return std::nullopt;
+        return {};
     }
-    return armed->position;
-}
-
-// The measure a section verb lands in: the marker, snapped to its measure's downbeat, the only
-// place a section can start. The snap belongs to the section; the position it snaps is shared.
-std::optional<common::core::GridPosition> EditorController::Impl::markerSongSectionDownbeat() const
-{
-    const std::optional<common::core::GridPosition> marker = markerGridPosition();
-    if (!marker.has_value())
+    const common::core::GridPosition downbeat = common::core::songSectionDownbeat(*position);
+    const std::vector<common::core::SongSection>& sections = session().song().sections;
+    if (const auto standing =
+            std::ranges::find(sections, downbeat, &common::core::SongSection::position);
+        standing != sections.end())
     {
-        return std::nullopt;
+        return RenameSectionTarget{.position = downbeat, .name = standing->name};
     }
-    return common::core::songSectionDownbeat(*marker);
+    if (!common::core::songSectionCanStartAt(downbeat, session().song().tempo_map))
+    {
+        return {};
+    }
+    return InsertSectionTarget{.downbeat = downbeat};
 }
 
 void EditorController::Impl::onSongSectionSelected(
@@ -120,9 +121,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
     }
 }
 
-// Renames the section at a position. Position-anchored like the tone rename beside it, so Ctrl+M
-// on a selected chip and the chip double-click reach a section the same way. A name that changes
-// nothing pushes nothing, and a blank one is refused by the section rules at the commit.
+// Renames the section at a position. Position-anchored like the tone rename beside it, so Ctrl+M at
+// the cursor, Enter and Ctrl+R on a selected chip, and the chip double-click reach a section the
+// same way. A name that changes nothing pushes nothing, and a blank one is refused by the section
+// rules at the commit. A restate SELECTS its target (rule 4) — whether the name changed or not, so
+// the chord typed at the cursor leaves the section it addressed under Enter, Delete and
+// Alt+arrows — and only a refused rename leaves the selection where it was.
 void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSection& action)
 {
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
@@ -137,8 +141,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     const std::string before_name = match->name;
     const std::string name = common::core::trimmedSongSectionName(action.name);
     match->name = name;
-    commitMarkerModel(
-        std::move(before), std::move(after), "Rename Section " + before_name + " to " + name);
+    if (commitMarkerModel(
+            std::move(before), std::move(after), "Rename Section " + before_name + " to " + name))
+    {
+        selectMarker(SongSectionSelection{.position = action.position});
+        updateView();
+    }
 }
 
 // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).

@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
+#include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
@@ -733,6 +734,43 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
     commitMarkerModel(std::move(before), std::move(after), label);
 }
 
+// The tone chord authors at the cursor and never reads the selection: a region starting EXACTLY at
+// the cursor's placement slot is restated (retoned) — a region's start is the tone change that
+// opens it, the first region's included, since restating that repoints the opening tone and a split
+// there would be zero-width — and a slot strictly inside a region splits it. The terminal position
+// holds no region to split, so there the verb is nothing, inert exactly where the commit would
+// refuse.
+ToneChordTarget EditorController::Impl::toneChordTarget() const
+{
+    const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (!position.has_value() || arrangement == nullptr)
+    {
+        return {};
+    }
+    // The region whose start is the last at or before the slot; the first region starts at the
+    // song's start, so only a slot before it — impossible for a paused cursor — finds nothing.
+    const common::core::ToneRegion* const region =
+        common::core::toneRegionAt(arrangement->tone_track, *position);
+    if (region == nullptr)
+    {
+        return {};
+    }
+    if (region->start == *position)
+    {
+        return RetoneRegionTarget{
+            .region_id = region->id, .tone_document_ref = region->tone_document_ref
+        };
+    }
+    if (!common::core::toneRegionCanStartAt(*position, session().song().tempo_map))
+    {
+        return {};
+    }
+    return SplitToneRegionTarget{
+        .position = *position, .containing_tone_document_ref = region->tone_document_ref
+    };
+}
+
 // Points one tone region at a tone. The target is either a tone already in the catalog or one to
 // MINT, which is why this is the only retone: the two differ solely in whether the tone exists
 // yet, and both are one change to one region and so one undo entry. A region that comes to share
@@ -753,7 +791,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
         return;
     }
     const common::core::GridPosition start = region->start;
-    const bool was_selected = selectedToneRegionId() == action.region_id;
 
     std::string after_ref;
     bool minted_tone = false;
@@ -813,15 +850,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
         return;
     }
 
-    // The region the charter pointed at may have merged into its predecessor; the region now
-    // holding its start is the one the retone produced either way. Re-selected after the commit,
-    // so it publishes with this refresh — the commit's own publish released the selection the
-    // merge took.
-    if (was_selected)
-    {
-        selectMarker(ToneRegionSelection{.region_id = surviving_region_id});
-        updateView();
-    }
+    // A restate SELECTS its target (rule 4), from whichever input asked for it — Enter on a
+    // selected region or the chord at the cursor — so the next verb acts on what the charter just
+    // made. The region the charter pointed at may have merged into its predecessor; the region now
+    // holding its start is the one the retone produced either way. Selected after the commit, so
+    // it publishes with this refresh — the commit's own publish released any selection the merge
+    // took.
+    selectMarker(ToneRegionSelection{.region_id = surviving_region_id});
+    updateView();
 
     // An existing tone already has its branch; a freshly minted one needs one.
     if (minted_tone && !activateEmptyToneBranch(after_ref))

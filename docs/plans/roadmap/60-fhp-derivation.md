@@ -17,11 +17,14 @@ moment 60-Q1 closes. Re-verify the inventory below before execution. An interim 
 FHPs and CURRENT derived spans into hand-editable marker objects so charts can be corrected
 manually now — ripped out wholesale when this plan and the span-marker redesign land.
 
-**Chord reservation (2026-09-12, the signed marker grammar).** `Ctrl+P` is reserved for the
-fret-hand position marker and `Ctrl+H` for the span marker, both inserting a marker of that kind
-at the cursor and restating one of that kind when it is selected. They are chords only — there is
-no pointer authoring gesture — and the object model (one marker kind or two) stays this gate's
-ruling, which is what decides whether both chords survive.
+**Chord reservation (2026-09-12, re-ruled 2026-09-14).** `Ctrl+P` is reserved for the fret-hand
+position marker and `Ctrl+H` for the span marker. Both read the CURSOR — the armed caret, else the
+paused cursor — and never the selection: a marker of that kind standing exactly there is RESTATED,
+otherwise one is INSERTED there; both are inert while the transport plays and with no song.
+`Ctrl+Shift+P` and `Ctrl+Shift+H` are the matching select chords, and `Enter` and `Ctrl+R` are the
+selection verbs. They are chords only — there is no pointer authoring gesture — and the object
+model (one marker kind or two) stays this gate's ruling, which is what decides whether both chords
+survive.
 
 ## 2. Goal
 

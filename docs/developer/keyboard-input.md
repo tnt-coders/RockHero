@@ -214,11 +214,17 @@ ride the same route, and command-backed menu items display their live shortcut a
 the popup queries the mapping set per item.
 
 `Ctrl+T` (the tone-change chord) is a registered command whose `perform` opens a UI popup (the tone
-picker) before any action runs. Under the marker grammar it checks for a SELECTED tone region
-first and restates it — reopening the picker to repoint that region — and inserts at the cursor
-only when none is selected (the marker rule: the armed caret when one exists, else the transport
-position). `Ctrl+M` is the section command with the same insert-or-restate shape: it renames the
-selected section, else inserts one at the cursor's measure downbeat. `F3`/`F8` are commands that
+picker) before any action runs, and `Ctrl+M` is the section command with the same shape. Under the
+marker grammar (2026-09-14) neither chord decides anything: the CORE publishes the VERB each one
+would perform at the cursor — `EditorViewState::tone_chord_target` as nothing /
+`RetoneRegionTarget{region_id, tone_document_ref}` / `SplitToneRegionTarget{position,
+containing_tone_document_ref}`, and `section_chord_target` as nothing /
+`RenameSectionTarget{position, name}` / `InsertSectionTarget{downbeat}` — and the view opens the
+picker or prompt that variant names. The chords read the CURSOR and never the selection: the armed
+caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's
+slot and at the tick for the section's measure downbeat). "Nothing" carries the playback and no-song
+gates, stated once in the projection rather than in five UI guards, so a chord typed while the
+transport rolls finds no verb to perform. `F3`/`F8` are commands that
 toggle UI panels directly — trigger-only commands with no core policy. Two more UI-only families
 ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
@@ -431,13 +437,19 @@ optionally an automation-lane row, and a `ChartCursor` remembers the row the nex
 the string, and the lane while the caret rode one — plus the exact position the editor last put
 the cursor at, which `pausedCursorPosition(quantum)` trusts only while the transport still stands
 there — one trust rule, read at the placement quantum by an arming and at the tick by the marker
-rows, which coincide once snap is off). Up/Down walk ONE stack of focus rows through `stepFocusRow`
+rows, which coincide once snap is off. `cursorPosition(quantum)` is its ARMED-AWARE wrapper: the
+armed caret's position, else that paused answer, and nothing at all while playing or with no song.
+That wrapper is the one position authority every marker verb reads). Up/Down walk ONE stack of
+focus rows through `stepFocusRow`
 — the ruler's section, tempo and time-signature rows, the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
 marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that
 keeps the marker's row arms on. The four marker rows share one model in
 `rock-hero-editor/core/src/timeline/marker_row_handlers.cpp` — `markerStarts`, `markerHolderIndex`,
+`adjacentMarkerStart` (the next or previous start strictly beyond the CURSOR, which is how `Tab` and
+`Shift+Tab` step every one of the four rows, so from a cursor inside a marker past its start
+`Shift+Tab` lands on that marker's own start first rather than skipping to the one before),
 `selectedMarker` and its inverse `markerSelectionAt`, and `selectMarker`, the one select every
 pointer and keyboard path to a marker goes through;
 `Ctrl+Up/Down` pass the same step's `reach` flag, which along time is the measure jump

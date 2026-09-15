@@ -91,8 +91,10 @@ Every chip is an object the one editor-wide selection can hold, so every row rai
 intents, two of them prompts the ruler must not own). A click on any chip reports a selection; the
 **section** row, the one chip row that is also an editing surface, adds a double-click rename prompt
 and the right-click section menu. The chip double-click is the pointer form of the rename; the
-keyboard form is the section's one chord, `Ctrl+M` — insert a section at the cursor's measure
-downbeat, rename it when one is selected (`F2` is gone as of 2026-09-12). The tempo and
+keyboard forms are `Enter` and `Ctrl+R` on a selected chip, plus the section's own chord `Ctrl+M`,
+which reads the CURSOR and never the selection: a section standing on the downbeat of the measure
+the cursor is in is renamed, otherwise one is inserted there (2026-09-14; `F2` is gone as of
+2026-09-12). The tempo and
 time-signature chips carry no verbs yet: they are selectable so the keyboard's vertical walk can
 stand on them. A chip click deliberately does **not** seek, unlike every other click on the ruler: a
 chip is an object, and a seek would clear the very selection the click just made. **The exception is
@@ -157,12 +159,16 @@ SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, AutomationPo
 AddAutomationLaneRowSelection, TimeSelection>`
 (`editor/core/src/controller/editor_selection.h`).
 Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
-and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active. That dispatch is
-why the ruler's section chips needed almost no chords of their own: `Delete` deletes the selected
-section and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a
-measure is its step) purely by reaching a new alternative. The one chord a section does own is
-`Ctrl+M` — insert at the cursor, rename when selected — under the marker grammar signed
-2026-09-12; `F2` is retired. A selected tone region answers `Alt+←/→` on its START, the tone
+and verbs (`Enter`, `Ctrl+R`, Delete, Alt+arrow moves) dispatch on whichever alternative is active.
+That dispatch is why the ruler's section chips needed almost no chords of their own: `Enter`
+restates the selected section, `Ctrl+R` renames it (`RenameSelection`, `0x1405`, which also renames
+a selected tone region's TONE and is silently inert on every kind with no name), `Delete` deletes it
+and `Alt+←/→` moves it one MEASURE (a section starts on a downbeat and nowhere else, so a
+measure is its step) — all by reaching a new alternative. The one chord a section owns is
+`Ctrl+M`, which under the marker grammar signed 2026-09-12 and re-ruled 2026-09-14 reads the cursor
+and never the selection: it restates the section standing at the cursor's measure downbeat, else
+inserts one there. `F2` is retired. A selected tone region answers `Alt+←/→` on its START, the
+tone
 change it opens, one placement-quantum line per press. Either marker's landed move ends in
 `followMovedMarker`, which brings the paused cursor to the new start so the edit is in view; a
 pointer drag of a tone boundary leaves the cursor, since the edge is already under the mouse.

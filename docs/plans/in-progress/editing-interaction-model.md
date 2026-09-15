@@ -243,12 +243,12 @@ Verified against the vendored JUCE source — everything needed ships in
   boundary, which the editor refuses — the picker is the payload chooser, exactly as the "+" lane
   picker chooses a parameter. Drag a boundary to move the change (both neighbors adjust; coverage
   stays gap-free). Delete removes the selected change/region and merges left; the region menu
-  mirrors it. Ctrl+T stays as the "insert at cursor" keyboard accelerator (guarded against Alt,
-  2026-07-20; anchor amended 2026-07-21 to the marker rule — the armed caret when one exists,
-  else the transport position — matching play-from-the-marker's one position concept). **Amended
-  2026-09-12 (marker grammar):** the command looks for a selected tone region first and RESTATES
-  it — reopening the picker to repoint that region — inserting at the cursor only when no tone
-  region is selected.
+  mirrors it. Ctrl+T stays the tone chord (guarded against Alt, 2026-07-20). **Amended 2026-09-12,
+  re-ruled 2026-09-14 (marker grammar):** it reads the CURSOR — the armed caret, else the paused
+  cursor — and never the selection. A region whose start stands exactly there is RESTATED,
+  reopening the picker to repoint it; anywhere else inside a region it SPLITS at the cursor. It is
+  inert while playing and with no song. `Enter` restates the selection and `Ctrl+R` renames the
+  region's tone, so the chord never selects.
   Double-click on a region body keeps its primary-edit meaning (rename prompt today).
   The tone strip is **also a keyboard region-row** now (2026-07-20) — see *Tone-region row*.
 - **Automation lanes** (keyboard-first amendment 2026-07-18 — lanes are full marker rows):
@@ -327,14 +327,16 @@ Verified against the vendored JUCE source — everything needed ships in
 - **Ruler bands** (future): anchors per the section above; time signatures are point objects on
   the signature band with double-click = type the signature.
 
-Keyboard accelerators form one family: Ctrl+T inserts a tone change at the **cursor** (guarded
+Keyboard accelerators form one family: Ctrl+T authors a tone change at the **cursor** (guarded
 against Alt, 2026-07-20 — `Ctrl` and not `Alt`, matching undo/redo), where "cursor" means the
-marker rule (amended 2026-07-21): the armed caret when one exists, else the transport position —
-the same "one position concept per transport state" that play-from-the-marker follows, so the
-insert always lands where play would pick up. Future position-anchored insert commands follow the
-same marker-rule shape for anchors and notes. Ctrl+T (works from anywhere, no caret required)
-coexists with the tone-region row's `Insert` (requires that row's armed caret) — different
-invocation scopes, one position rule.
+marker rule (amended 2026-07-21, re-ruled 2026-09-14): the armed caret, else the PAUSED cursor —
+its trusted column, else the nearest placement-quantum slot, which is exactly where an arrow press
+would arm — and nothing at all while the transport plays or with no song. The 2026-07-21 form read
+"else the transport position"; a rolling transport lands a marker a beat late, so the fallback is
+paused-only. Every `Ctrl`+letter marker chord follows this one rule, each applying its own quantum
+on top of it: a section and a meter snap to the downbeat of the measure the cursor is IN, read from
+the tick, and a tempo anchor floors to the beat it is in. Ctrl+T works from anywhere, with no caret
+required.
 
 **That family IS the marker grammar, signed 2026-09-12:** letters touch the note, `Ctrl` touches
 the document, and `Alt`+letter does what the platform expects, which is open a menu. `Ctrl`+letter
@@ -652,11 +654,14 @@ whole amendment, not a note stacked on top of them.
    chords, `Alt`+arrows and `Alt`+wheel. The other surfaces keep their own `Insert` and `Alt`+click
    creates untouched — "Alt+click plants a fret-0 note on the tab lane" and the chart Alt ghost, the
    2026-07-18 record's two headline items, are exactly what this retires.
-4. **Amended 2026-09-12 (user-signed): the marker grammar.** `Ctrl`+letter inserts a marker of that
-   kind at the cursor and the same chord restates a selected one; `Ctrl+M` is the section chord
-   again, `Ctrl+T` the tone change, with `Ctrl+B` / `Ctrl+/` / `Ctrl+P` / `Ctrl+H` reserved for
-   tempo anchors, meter, position and span markers. `Alt`+letter is the platform's menu-access
-   plane (`Alt+F/E/V`), and `Shift`+`Insert` and `F2` are unbound.
+4. **Amended 2026-09-12 (user-signed), re-ruled 2026-09-14: the marker grammar.** `Ctrl`+letter
+   reads the CURSOR — the armed caret, else the paused cursor — and never the selection: a
+   marker of that kind standing exactly there is RESTATED, else one is INSERTED there; the chord is
+   inert while the transport plays and with no song. `Enter` restates the selection and `Ctrl+R`
+   renames it, so the chords never select. `Ctrl+M` is the section chord again, `Ctrl+T` the tone
+   change, with `Ctrl+B` / `Ctrl+/` / `Ctrl+P` / `Ctrl+H` reserved for tempo anchors, meter,
+   position and span markers. `Alt`+letter is the platform's menu-access plane (`Alt+F/E/V`), and
+   `Shift`+`Insert` and `F2` are unbound.
 5. **A digit with a non-empty selection still retypes it**, bare or under `Alt`: a selection is an
    operand neither chord has to choose between, so only a digit at a bare caret standing on a ring's
    exact end has anything to choose. A digit continues a live pending entry, bare or under `Alt`, and

@@ -21,12 +21,16 @@ using testing::getStopButton;
 
 } // namespace
 
-// With no chip selected the section chord is positional, and over an existing section it SELECTS
-// it: that press is the keyboard's only way onto a chip, and Enter and Delete act on the
-// selection, so renaming or removing a section never needs the mouse. The prompt branches (a
-// selected chip, and a free measure) open modal windows, so this covers the branch that does not:
-// a section at the marker's measure with nothing selected.
-TEST_CASE("EditorView section chord selects the section at the marker", "[ui][editor-view]")
+// The marker verbs read the core's published VERB and nothing else — not the drawn selection, not
+// the project gate they used to keep. Phase 3 retired the grammar's rule 2 (a chord SELECTS the
+// marker at the cursor) and moved the restate off the selection's flags, so a chord over an
+// outlined chip authors nothing, and with every verb published as nothing all four presses are
+// inert: no select, no author, no prompt raised. Inert rather than declined, which is what keeps
+// JUCE from sounding the system alert for a chord its own mapping set matched.
+//
+// The branches that DO act open modal prompts or popup menus, which a headless view test cannot
+// dismiss; what each verb names is pinned in the core's own suites instead.
+TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -38,64 +42,48 @@ TEST_CASE("EditorView section chord selects the section at the marker", "[ui][ed
     constexpr common::core::GridPosition chorus{.measure = 3, .beat = 1};
     core::EditorViewState state{};
     state.project_loaded = true;
-    state.section_marker_downbeat = chorus;
+    // A chip and a region drawn SELECTED, with every published verb left at its default nothing:
+    // under the old rule the section chord would have restated the chip and Enter its name.
     state.sections = {
         core::SongSectionViewState{
             .seconds = 4.0,
             .position = chorus,
             .name = "Chorus",
-            .selected = false,
+            .selected = true,
         },
     };
-    view.setState(state);
-
-    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
-        EditorCommandId::InsertSongSection)};
-    CHECK(view.perform(info));
-    CHECK(controller.song_section_select_count == 1);
-    CHECK(controller.last_selected_song_section == std::optional{chorus});
-    // Selecting is the whole of that press: nothing was authored.
-    CHECK(controller.last_inserted_song_section_name.empty());
-}
-
-// With no region selected the tone chord is positional, and a marker standing EXACTLY on a region's
-// start SELECTS that tone change instead of splitting: a boundary has nothing to split, so that
-// press used to die silently. Selecting is the keyboard's way onto a region, which is what lets
-// Enter restate and Delete remove one without the mouse. The other two branches (a selected region,
-// and a marker inside a region) open menus, so this covers the branch that does not.
-TEST_CASE("EditorView tone chord selects the region starting at the marker", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    constexpr common::core::GridPosition solo_start{.measure = 3, .beat = 1};
-    core::EditorViewState state{};
-    state.project_loaded = true;
-    state.marker_grid_position = solo_start;
     state.tone_track.regions = {
         core::ToneRegionViewState{
             .id = "solo-region",
             .name = "Solo",
             .tone_document_ref = "tones/solo.rht",
-            .grid_start = solo_start,
+            .grid_start = chorus,
             .grid_end = common::core::GridPosition{.measure = 5, .beat = 1},
             .time_range = {},
             .active = false,
-            .selected = false,
+            .selected = true,
         },
     };
     view.setState(state);
+    const int windows_before = juce::TopLevelWindow::getNumTopLevelWindows();
 
-    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
-        EditorCommandId::InsertToneChange)};
-    CHECK(view.perform(info));
-    CHECK(controller.last_selected_tone_region_id == "solo-region");
-    // Selecting is the whole of that press: nothing was created.
+    const auto press = [&view](EditorCommandId command) {
+        const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
+            command)};
+        return view.perform(info);
+    };
+    CHECK(press(EditorCommandId::InsertSongSection));
+    CHECK(press(EditorCommandId::InsertToneChange));
+    CHECK(press(EditorCommandId::RestateSelection));
+    CHECK(press(EditorCommandId::RenameSelection));
+
+    CHECK(controller.song_section_select_count == 0);
+    CHECK(controller.last_selected_tone_region_id.empty());
+    CHECK(controller.last_inserted_song_section_name.empty());
     CHECK(controller.last_created_tone_region_id.empty());
+    CHECK(controller.last_renamed_song_section_name.empty());
+    CHECK(controller.last_renamed_tone_document_ref.empty());
+    CHECK(juce::TopLevelWindow::getNumTopLevelWindows() == windows_before);
 }
 
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
@@ -367,6 +355,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::RestateSelection,
          .value = 0x1404,
          .chords = {chord(juce::KeyPress::returnKey)}},
+        {.id = EditorCommandId::RenameSelection, .value = 0x1405, .chords = {chord('r', command)}},
         {.id = EditorCommandId::CaretStepLeft,
          .value = 0x1501,
          .chords = {chord(juce::KeyPress::leftKey)}},

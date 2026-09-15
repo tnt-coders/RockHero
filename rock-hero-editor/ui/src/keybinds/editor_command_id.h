@@ -87,29 +87,30 @@ enum class EditorCommandId : std::uint16_t
     // deleted once its decision settled; retired ids are never revived.
 
     /*!
-    \brief Insert a tone change at the cursor, select the one already there, or restate it on a
-    second press (`Ctrl+T`).
+    \brief Insert a tone change at the cursor, or retone the region starting exactly there
+    (`Ctrl+T`).
 
-    The marker grammar, shared verbatim with \ref InsertSongSection: a SELECTED region is restated
-    — for a tone region, restating means picking a different catalog tone for it — and otherwise
-    the marker position decides. A tone change IS a region boundary, so the marker standing exactly
-    on one SELECTS that change, while the marker anywhere inside a region splits it into a new one.
-    That select press is the keyboard's way onto a region, which is what lets \ref RestateSelection
-    and Delete reach an existing tone change without the mouse.
+    The marker grammar, shared verbatim with \ref InsertSongSection: the chord AUTHORS at the
+    cursor — the armed caret, else the paused cursor — and never reads the selection. A tone change
+    IS a region boundary, so the cursor standing exactly on a region's start restates that change
+    (picks another catalog tone for the region), while the cursor anywhere inside a region splits
+    it into a new one; a restate selects its target, as every insert does. The core publishes the
+    verb (`EditorViewState::tone_chord_target`) and the view opens the picker it names; the press
+    is inert while the transport plays and with no song. The walk, Tab and a click are the ways
+    onto an existing region; \ref RestateSelection and \ref RenameSelection are its verbs.
     */
     InsertToneChange = 0x1401,
 
     /*!
-    \brief Insert a section at the cursor's measure, select the one already there, or rename it
-    on a second press (`Ctrl+M`).
+    \brief Insert a section at the cursor's measure, or rename the one starting there (`Ctrl+M`).
 
-    Shares the tone change's marker grammar. A SELECTED chip wins: the press restates it, on its
-    own name. Otherwise the chord reads the MEASURE the cursor is in — the downbeat is the only
-    place a section can start — so a free one takes a new section and a prompt names it, while an
-    occupied one hands the selection to the section standing there. That select press is the
-    keyboard's way onto a chip, which is what lets \ref RestateSelection and Delete reach an
-    existing section without the mouse. A chip and an armed caret never disagree by accident:
-    arming a caret replaces the whole selection, and selecting a chip demotes the caret.
+    Shares the tone change's marker grammar. The chord reads the MEASURE the cursor is in — the
+    downbeat is the only place a section can start — and renames the section standing on that
+    downbeat or inserts one where it is free, a prompt naming it; the terminal downbeat, which can
+    carry no section, makes the press inert. The core publishes the verb
+    (`EditorViewState::section_chord_target`); the view opens the prompt it names. A second press
+    after an insert therefore renames what the first made, since the cursor is still in its
+    measure.
     */
     InsertSongSection = 0x1402,
 
@@ -119,14 +120,25 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief Restate the selected marker (`Enter`).
 
-    The marker plane's chords state a marker at the cursor; this is the SELECTION's own verb, so
-    the key that edits what is selected elsewhere restates a marker too, dispatching on its kind
-    the way Delete does: a section's name through the prompt \ref InsertSongSection reopens, a tone
-    region's tone through the picker \ref InsertToneChange reopens. A separate command rather than
-    a second chord on either of those, because Enter must never ADD a marker: with nothing selected
-    this press is inert.
+    The marker plane's chords author at the cursor; this is the SELECTION's own verb: a section's
+    name through the rename prompt, a tone region's tone through the picker, the "+" row's
+    parameter picker. The core publishes the verb (`EditorViewState::restate_target`), so the view
+    dispatches on no kind of its own. A separate command rather than a second chord on either
+    marker chord, because Enter must never ADD a marker: with nothing selected this press is inert.
     */
     RestateSelection = 0x1404,
+
+    /*!
+    \brief Rename the selected marker where its kind has a name (`Ctrl+R`).
+
+    A section's own name, or a tone region's TONE — the document every region on that tone
+    shares, which is what the tone row's double-click renames. Silently inert on every kind with
+    no name of its own. The core publishes the verb (`EditorViewState::rename_target`). It sits on
+    the document plane with `Ctrl+S` and `Ctrl+G`, not on the marker plane: R is no marker's
+    letter, and the verb reads the selection, never the cursor. F2's retired id is not reused,
+    since saved keymaps key off the numeric id.
+    */
+    RenameSelection = 0x1405,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,

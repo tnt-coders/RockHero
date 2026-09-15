@@ -28,13 +28,20 @@ GridPosition songSectionDownbeat(const GridPosition& position) noexcept
     return GridPosition{.measure = position.measure, .beat = 1, .offset = {}};
 }
 
+// Valid on the tempo map's grid and strictly before its terminal anchor. The downbeat snap is the
+// caller's (songSectionDownbeat); this answers only whether the snapped position may hold a
+// section.
+bool songSectionCanStartAt(const GridPosition& downbeat, const TempoMap& tempo_map)
+{
+    return isValidGridPosition(downbeat, tempo_map) && downbeat < terminalGridPosition(tempo_map);
+}
+
 // Walks the list once in stored order, because two of the four rules are about a section's relation
 // to the one before it. The first violation is the whole answer: a caller that has one rule to fix
 // has no use for the rest, and every caller here refuses the whole list anyway.
 std::expected<void, SongSectionError> validateSongSectionRules(
     const std::vector<SongSection>& sections, const TempoMap& tempo_map)
 {
-    const GridPosition terminal_position = terminalGridPosition(tempo_map);
     const SongSection* previous = nullptr;
 
     for (const SongSection& section : sections)
@@ -48,9 +55,10 @@ std::expected<void, SongSectionError> validateSongSectionRules(
             }};
         }
 
-        // Valid on the tempo map's grid AND exactly its own measure's downbeat; asking
-        // songSectionDownbeat rather than restating beat-1-no-offset keeps the snap the verbs apply
-        // and the position this accepts the same rule.
+        // Exactly its own measure's downbeat; asking songSectionDownbeat rather than restating
+        // beat-1-no-offset keeps the snap the verbs apply and the position this accepts the same
+        // rule. The grid and terminal checks are the shared place rule, asked the same way the
+        // section chord's projection asks it.
         if (!isValidGridPosition(section.position, tempo_map) ||
             !(section.position == songSectionDownbeat(section.position)))
         {
@@ -61,7 +69,9 @@ std::expected<void, SongSectionError> validateSongSectionRules(
             }};
         }
 
-        if (section.position >= terminal_position)
+        // The grid half already held above, so only the terminal half of the shared place rule can
+        // fire here.
+        if (!songSectionCanStartAt(section.position, tempo_map))
         {
             return std::unexpected{SongSectionError{
                 .code = SongSectionErrorCode::SectionPastTerminalAnchor,

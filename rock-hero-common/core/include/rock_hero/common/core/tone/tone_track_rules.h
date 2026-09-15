@@ -77,4 +77,18 @@ concern checked by package code, not here.
 [[nodiscard]] std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map);
 
+/*!
+\brief Whether a tone region may start at a position: on the tempo map's grid and strictly before
+the terminal anchor.
+
+The one place rule, shared by \ref validateToneTrackRules and by the editor's projection of where a
+tone change would land, so a chord never offers a split the commit then refuses. A region starting
+on the closing barline would sound for no time at all.
+
+\param start Candidate region start.
+\param tempo_map Tempo map the position must address.
+\return True when a region may start there.
+*/
+[[nodiscard]] bool toneRegionCanStartAt(const GridPosition& start, const TempoMap& tempo_map);
+
 } // namespace rock_hero::common::core

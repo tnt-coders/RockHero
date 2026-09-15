@@ -15,6 +15,7 @@
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -119,12 +120,12 @@ struct LoadedSectionEditor
             common::core::TimePosition{static_cast<double>(measure - 1) * 2.0});
     }
 
-    // The measure downbeat a section verb would land on, as the surface reads it: nothing while no
-    // caret is armed.
-    [[nodiscard]] std::optional<GridPosition> publishedMarkerDownbeat() const
+    // What the section chord would do right now, as the surface reads it: the verb the core
+    // publishes, which is the whole of the chord's decision.
+    [[nodiscard]] SectionChordTarget publishedSectionChordTarget() const
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
-        return state != nullptr ? state->section_marker_downbeat : std::nullopt;
+        return state != nullptr ? state->section_chord_target : SectionChordTarget{};
     }
 
     // Arms the caret at the parked cursor: the first arrow press on a passive marker arms without
@@ -132,6 +133,13 @@ struct LoadedSectionEditor
     void armCaretAtCursor()
     {
         controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    }
+
+    // Turns snapping off, which only the warning's own answer can do.
+    void turnSnapOff()
+    {
+        controller.onGridSnapToggleRequested();
+        controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
 
     // The published section views, which is where the selection outline is read from.
@@ -169,6 +177,14 @@ struct LoadedSectionEditor
         const EditorViewState* const state = stateOrNull(view.last_state);
         return state != nullptr && state->undo_enabled;
     }
+
+    // How many entries the undo history holds, so a verb that must record NOTHING can be told from
+    // one that records an entry restoring the same list.
+    [[nodiscard]] std::size_t undoEntryCount() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        return state != nullptr ? state->undo_history.labels.size() : 0;
+    }
 };
 
 } // namespace
@@ -192,60 +208,167 @@ TEST_CASE("EditorController adds a section at the marker's measure", "[core][sec
     CHECK(editor.sections().front().name == "Chorus");
 }
 
-// The chord's two halves differ by what already stands where the press would land, so the measure
-// it targets is published rather than re-derived by the surface: the section chord reads it to
-// decide between inserting and restating, and a press over an existing section reopens that
-// section's prompt on its own name. The marker IS the armed caret: a parked cursor with no caret
-// publishes no marker at all, so a marker verb can never land a beat late off a moving transport.
-TEST_CASE(
-    "The published marker downbeat names the measure a section verb lands on", "[core][sections]")
+// The chord's whole decision is published as the VERB, so no surface reconstructs it: the core
+// reads the cursor, snaps it to its measure's downbeat, and answers insert-here or rename-this. The
+// cursor is the PAUSED cursor where no caret is armed and the caret where one is, so the chord is
+// reachable without arming first and the two readings are one rule rather than two.
+TEST_CASE("The published section chord names the verb at the cursor's measure", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(3), .name = "Chorus"}})};
 
     editor.seekToMeasure(2);
-    CHECK_FALSE(editor.publishedMarkerDownbeat().has_value());
-
-    editor.armCaretAtCursor();
-    CHECK(editor.publishedMarkerDownbeat() == downbeat(2));
-    // Nothing stands there, so the surface would insert.
+    const SectionChordTarget parked = editor.publishedSectionChordTarget();
+    const auto* const parked_insert = std::get_if<InsertSectionTarget>(&parked);
+    REQUIRE(parked_insert != nullptr);
+    CHECK(parked_insert->downbeat == downbeat(2));
+    // Nothing stands there, which is why the verb is an insert.
     CHECK(std::ranges::none_of(editor.publishedSections(), [](const SongSectionViewState& section) {
         return section.position == GridPosition{.measure = 2, .beat = 1};
     }));
 
-    // A mid-measure caret snaps back to the downbeat, the only place a section can start.
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    // Arming a caret at that same cursor answers the same verb.
     editor.armCaretAtCursor();
-    CHECK(editor.publishedMarkerDownbeat() == downbeat(3));
-    // And the section already standing there is the one the chord would restate, name and all.
-    // The published list is bound once: the accessor returns by value, so searching the call
-    // itself would leave the iterator dangling.
-    const std::vector<SongSectionViewState> published = editor.publishedSections();
-    const auto at_marker = std::ranges::find_if(published, [](const SongSectionViewState& section) {
-        return section.position == GridPosition{.measure = 3, .beat = 1};
-    });
-    REQUIRE(at_marker != published.end());
-    CHECK(at_marker->name == "Chorus");
+    const SectionChordTarget armed = editor.publishedSectionChordTarget();
+    const auto* const armed_insert = std::get_if<InsertSectionTarget>(&armed);
+    REQUIRE(armed_insert != nullptr);
+    CHECK(armed_insert->downbeat == downbeat(2));
+
+    // A cursor in the measure a section already opens renames it, on its own name — the name the
+    // core publishes with the verb, so the prompt needs no lookup of its own.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
+    const SectionChordTarget over_section = editor.publishedSectionChordTarget();
+    const auto* const rename = std::get_if<RenameSectionTarget>(&over_section);
+    REQUIRE(rename != nullptr);
+    CHECK(rename->position == downbeat(3));
+    CHECK(rename->name == "Chorus");
 }
 
-// An insert leaves what it made selected, as a typed note does, so the next verb acts on the new
-// section; the caret it was typed from demotes in place, and an arrow re-arms it where it stood.
-TEST_CASE("Section insert selects the new section and demotes the caret", "[core][sections]")
+// The chord reads the cursor's TICK, not the slot an arrow press would take there: a cursor late in
+// a measure names the measure it is IN, where a section can actually start, even when the nearest
+// grid line lies in the next one. Snap moves the slot and never this, so the two states agree.
+TEST_CASE("The section chord names the measure the cursor is in", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong({})};
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+
+    // 3.8 s is measure 2, three and a half beats in; the nearest quarter line is measure 3's
+    // downbeat, so reading the slot would author a measure late.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.8});
+    const SectionChordTarget snapped = editor.publishedSectionChordTarget();
+    const auto* const snapped_insert = std::get_if<InsertSectionTarget>(&snapped);
+    REQUIRE(snapped_insert != nullptr);
+    CHECK(snapped_insert->downbeat == downbeat(2));
+
+    editor.turnSnapOff();
+    const SectionChordTarget unsnapped = editor.publishedSectionChordTarget();
+    const auto* const unsnapped_insert = std::get_if<InsertSectionTarget>(&unsnapped);
+    REQUIRE(unsnapped_insert != nullptr);
+    CHECK(unsnapped_insert->downbeat == downbeat(2));
+}
+
+// The verb is nothing exactly where the commit would refuse it, so the press is inert rather than
+// prompting for a name it cannot use: the terminal downbeat carries no section, a playing transport
+// closes the whole marker plane, and with no song there is nothing to hold a marker.
+TEST_CASE("The section chord is nothing where no section can start", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong({})};
+
+    // Measure 5 beat 1 is the closing barline: a section there would name a passage of no length.
+    editor.seekToMeasure(5);
+    const SectionChordTarget terminal = editor.publishedSectionChordTarget();
+    CHECK(std::holds_alternative<std::monostate>(terminal));
+
+    // A chord must never land a beat late off a moving transport, so it answers nothing at all.
+    editor.transport.current_state.playing = true;
+    editor.seekToMeasure(2);
+    const SectionChordTarget playing = editor.publishedSectionChordTarget();
+    CHECK(std::holds_alternative<std::monostate>(playing));
+
+    editor.transport.current_state.playing = false;
+    editor.controller.onCloseRequested();
+    const SectionChordTarget closed = editor.publishedSectionChordTarget();
+    CHECK(std::holds_alternative<std::monostate>(closed));
+}
+
+// The chord AUTHORS at the cursor and never reads the selection (Phase 3 retired the grammar's
+// select-at-the-cursor rule): a chip outlined elsewhere leaves the verb naming the cursor's own
+// measure, so Ctrl+M cannot rename a section the charter is not standing in.
+TEST_CASE("The section chord ignores the selected chip", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(3), .name = "Chorus"}})};
+
+    // Park the cursor in a free measure first: selecting a chip seeks nothing, while a cursor move
+    // would release the chip.
+    editor.seekToMeasure(4);
+    editor.controller.onSongSectionSelected(downbeat(3));
+    const std::vector<SongSectionViewState> published = editor.publishedSections();
+    REQUIRE(published.size() == 1);
+    REQUIRE(published.front().selected);
+
+    const SectionChordTarget target = editor.publishedSectionChordTarget();
+    const auto* const insert = std::get_if<InsertSectionTarget>(&target);
+    REQUIRE(insert != nullptr);
+    CHECK(insert->downbeat == downbeat(4));
+}
+
+// An insert leaves what it made selected, as a typed note does, so Enter, Delete and Alt+arrows act
+// on the new section; the caret it was typed from demotes in place. The cursor never left its
+// measure, so the chord's own verb becomes the RENAME of what the first press made — which is what
+// makes the double press a create-then-name.
+TEST_CASE(
+    "Section insert selects the new section and leaves the chord renaming it", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong({})};
     editor.seekToMeasure(3);
     editor.armCaretAtCursor();
-    REQUIRE(editor.publishedMarkerDownbeat() == downbeat(3));
+    const SectionChordTarget before = editor.publishedSectionChordTarget();
+    REQUIRE(std::holds_alternative<InsertSectionTarget>(before));
 
     editor.controller.onSongSectionInsertRequested(downbeat(3), "Chorus");
     REQUIRE(editor.sections().size() == 1);
-    CHECK_FALSE(editor.publishedMarkerDownbeat().has_value());
     const std::vector<SongSectionViewState> published = editor.publishedSections();
     REQUIRE(published.size() == 1);
     CHECK(published.front().selected);
 
+    const SectionChordTarget after = editor.publishedSectionChordTarget();
+    const auto* const rename = std::get_if<RenameSectionTarget>(&after);
+    REQUIRE(rename != nullptr);
+    CHECK(rename->position == downbeat(3));
+    CHECK(rename->name == "Chorus");
+
+    // Re-arming the caret changes nothing: the caret is the cursor, at the same slot.
     editor.armCaretAtCursor();
-    CHECK(editor.publishedMarkerDownbeat() == downbeat(3));
+    const SectionChordTarget rearmed = editor.publishedSectionChordTarget();
+    CHECK(std::holds_alternative<RenameSectionTarget>(rearmed));
+}
+
+// A restate SELECTS its target (grammar rule 4), so the section the chord addressed is left under
+// Enter, Delete and Alt+arrows. A rename to the same name records nothing — and still selects,
+// because what the press addressed is what the charter is now working on either way.
+TEST_CASE("A section rename selects the section it addressed", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(2), .name = "Verse"}})};
+    REQUIRE_FALSE(editor.selectionPresent());
+
+    editor.controller.onSongSectionRenameRequested(downbeat(2), "Chorus");
+    const std::vector<SongSectionViewState> renamed = editor.publishedSections();
+    REQUIRE(renamed.size() == 1);
+    CHECK(renamed.front().name == "Chorus");
+    CHECK(renamed.front().selected);
+    const std::size_t entries = editor.undoEntryCount();
+    REQUIRE(entries == 1);
+
+    editor.controller.onSongSectionSelected(std::nullopt);
+    REQUIRE_FALSE(editor.selectionPresent());
+
+    editor.controller.onSongSectionRenameRequested(downbeat(2), "Chorus");
+    const std::vector<SongSectionViewState> restated = editor.publishedSections();
+    REQUIRE(restated.size() == 1);
+    CHECK(restated.front().selected);
+    CHECK(editor.undoEntryCount() == entries);
 }
 
 // A section starts on a downbeat and nowhere else, so a marker resting mid-measure snaps back to

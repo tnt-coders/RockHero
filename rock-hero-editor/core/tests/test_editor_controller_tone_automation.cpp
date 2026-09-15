@@ -17,6 +17,7 @@
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <stdexcept>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -1641,6 +1642,29 @@ TEST_CASE("EditorController walks the focus rows below the strings", "[core][ton
     CHECK(on_string(3));
     step(ChartStepDirection::Down, true);
     CHECK(on_tone_row());
+}
+
+// The "+" row is reached by selection like a marker row, but it names no document object: Enter
+// opens the parameter picker, and Ctrl+R has nothing to rename. Both verbs are published by the
+// core, so the view dispatches on no kind of its own.
+TEST_CASE("EditorController publishes the add-lane row's restate verb", "[core][tone-automation]")
+{
+    AutomationEditor editor{makeChartedAutomationSong()};
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    // String, tone row, lane, "+" row: the walk's own route down the stack.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    for (int press = 0; press < 3; ++press)
+    {
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    }
+
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_automation.add_lane_row_selected);
+    CHECK(std::holds_alternative<OpenAutomationPickerTarget>(state->restate_target));
+    CHECK(std::holds_alternative<std::monostate>(state->rename_target));
 }
 
 // A horizontal press or a jump from a marker row returns to the row the caret was reached from, a

@@ -1,3 +1,4 @@
+#include "keybinds/editor_command_registry.h"
 #include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 #include "timeline/timeline_cursor.h"
@@ -1581,6 +1582,45 @@ TEST_CASE("EditorView routes Tab to the row object step", "[ui][editor-view]")
     CHECK(controller.last_row_object_step_notes_only);
     CHECK(controller.row_object_step_count == 4);
     CHECK(controller.chart_caret_step_count == 0);
+}
+
+// `Ctrl+R` is the selection's rename, and plain `R` still reaches the tremolo toggle: one letter,
+// two verbs, told apart by the exact modifier matching the mapping set installs. The chord
+// self-gates on the core's published verb, so with no rename target it reaches the controller with
+// nothing at all — the prompt the verb opens is modal, so what it names is pinned in the core's own
+// suite instead.
+TEST_CASE("EditorView routes Ctrl+R to the selection rename", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
+    REQUIRE(mappings != nullptr);
+    const juce::KeyPress ctrl_r{'r', juce::ModifierKeys{juce::ModifierKeys::commandModifier}, 0};
+    CHECK(
+        mappings->findCommandForKeyPress(ctrl_r) ==
+        toJuceCommandId(EditorCommandId::RenameSelection));
+
+    CHECK(mappings->keyPressed(juce::KeyPress{'r', juce::ModifierKeys{}, 0}, &view));
+    CHECK(
+        controller.chart_technique_toggles ==
+        std::vector<core::ChartTechnique>{core::ChartTechnique::Tremolo});
+
+    CHECK(mappings->keyPressed(ctrl_r, &view));
+    CHECK(controller.last_renamed_tone_document_ref.empty());
+    CHECK(controller.last_renamed_song_section_name.empty());
+    CHECK(
+        controller.chart_technique_toggles ==
+        std::vector<core::ChartTechnique>{core::ChartTechnique::Tremolo});
 }
 
 // `Shift+L` reaches the junction toggle, and plain `L` still reaches the connection verb it

@@ -308,13 +308,16 @@ is a coherent commit (or small series) with imperative subjects.
     free-time** — no grid snap, the anchor defines the grid — rounded to the millisecond grid;
     Delete/context menu removes the hovered anchor. While dragging, show the two adjacent span
     BPMs from `spanBpmPreview`.
-  - **Insert gesture amended 2026-09-12 (the signed marker grammar).** The anchor insert is
-    `Ctrl+B` at the cursor — the armed caret when one exists, else the transport position,
-    snapped to the beat — pinning the time the map currently assigns to that beat, so the insert
-    changes nothing audible. The `Alt`+click-on-a-beat-tick proposal above is **withdrawn**:
-    click authoring was retired 2026-09-11. `Ctrl+B` with an anchor already selected is
-    REFUSED — an anchor carries no payload, so there is nothing to restate. The ms nudge stays
-    on `Alt+←/→` and the grid lock stays exactly as specified below.
+  - **Insert gesture amended 2026-09-12, re-ruled 2026-09-14 (the marker grammar).** The anchor
+    chord is `Ctrl+B` at the cursor — the armed caret, else the paused cursor, floored to the beat
+    it is in — pinning the time the map currently assigns to that beat, so the insert changes
+    nothing audible. The chord reads the cursor and never the selection: an anchor standing on the
+    cursor's beat is RESTATED, and since an anchor carries no payload that restate only selects it
+    — which is what stops a duplicate insert on an occupied beat; otherwise one is INSERTED there.
+    Inert while the transport plays and with no song. The `Alt`+click-on-a-beat-tick proposal above
+    is **withdrawn**: click authoring was retired 2026-09-11. `Ctrl+Shift+B` is the anchor's select
+    chord (`keyboard-focus-rows.md` Phase 4a). The ms nudge stays on `Alt+←/→` and the grid lock
+    stays exactly as specified below.
   - **Grid lock** (the interaction model's anchor interlock): a toolbar toggle, default
     **locked**, that disables anchor insert, move, and delete — cursor feedback shows the lock
     and menu items disable with the reason. Anchors are the one object class whose drags are
@@ -405,10 +408,14 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
   - Pure re-addressing transform `rock-hero-editor/core/src/timeline/signature_edits.{h,cpp}`:
     map every position token (anchors; per-arrangement chart notes, shapes, fhps, sections; tone
     regions; **plus the position tokens added since this list was written — the armed chart
-    caret's grid address, in-session and in its persisted `caret:` marker token, and plan 47's
-    loop-selection GridPosition pair** (2026-07-18 fold-in audit: without these the caret and
-    loop land on different musical content after a signature edit while everything else is
-    time-preserved)) to its global-beat position (+ fraction) under the old signature list, then
+    caret's grid address, in-session and in its persisted `caret:` marker token, plan 47's
+    loop-selection GridPosition pair, and (2026-09-14) the editor's own marker selections
+    (`TempoAnchorSelection`'s GridPosition, `TimeSignatureSelection`'s measure, a
+    `SongSectionSelection`'s position) together with `ChartCursor::column`, which the
+    author-at-cursor grammar makes a marker-verb input** (2026-07-18 fold-in audit: without these
+    the caret and loop land on different musical content after a signature edit while everything
+    else is time-preserved)) to its global-beat position (+ fraction) under the old signature list,
+    then
     re-address under the new one. Anchors sit on integer global beats, so re-bucketing always
     yields valid on-beat tokens; anchor seconds are untouched, so **the transform is
     time-preserving**: every item resolves to identical absolute seconds before and after. The
@@ -420,10 +427,12 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
   - UI: click/context on the signature band opens a small numerator/denominator popover at that
     measure; measure renumbering downstream is automatic because ruler labels derive from the
     map; flash-highlight the renumbered range once so the shift is visible rather than silent.
-  - **Insert chord (2026-09-12, the signed marker grammar):** `Ctrl+/` inserts a meter at the
-    cursor's measure downbeat, and the same chord with a meter selected RESTATES it — reopening
-    the numerator/denominator prompt. The click/context popover above is the pointer form of the
-    same two verbs. Q1 still gates the whole phase.
+  - **Insert chord (2026-09-12, re-ruled 2026-09-14):** `Ctrl+/` reads the cursor and never the
+    selection. A meter standing on the cursor's measure downbeat — the downbeat of the measure the
+    cursor is IN, read from its tick — is RESTATED, reopening the numerator/denominator prompt;
+    otherwise one is INSERTED there. Inert while playing and with no song. The click/context
+    popover above is the pointer form of the same two verbs, and `Ctrl+Shift+/` is the signature's
+    select chord. Q1 still gates the whole phase.
   - Coordinate with docs/plans/roadmap/42-chart-validation.md: post-edit content validation (if any
     residual issues are possible under the chosen outcome) reports through 42's rule set, not a
     plan-local validator.
