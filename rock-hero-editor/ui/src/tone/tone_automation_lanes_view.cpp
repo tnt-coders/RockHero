@@ -2025,27 +2025,69 @@ void ToneAutomationLanesView::setValueReadout(std::optional<ValueReadout> readou
     }
 }
 
+// The readout shows the value of the point being EDITED: the dragged point while a pointer drag
+// runs, otherwise the selected point, which is what the keyboard nudges (Alt+↑/↓) — so a nudge
+// shows its value on every press, and so does a plain click on a point. Derived here at paint
+// time from the published selection and the current geometry rather than stored, so a scroll or
+// a nudge repositions it with the point and nothing can go stale; the drag's readout is the one
+// that is stored, because it rides the mouse rather than a published position.
+std::optional<ToneAutomationLanesView::ValueReadout> ToneAutomationLanesView::selectedPointReadout()
+    const
+{
+    if (!m_state.selected_point.has_value() || m_state.drag_preview.has_value())
+    {
+        return std::nullopt;
+    }
+    const core::ToneAutomationSelectedPointRef& ref = *m_state.selected_point;
+    if (ref.lane_index >= m_state.lanes.size() ||
+        ref.point_index >= m_state.lanes[ref.lane_index].points.size())
+    {
+        return std::nullopt;
+    }
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[ref.lane_index];
+    const core::ToneAutomationPointViewState& point = lane.points[ref.point_index];
+    const std::vector<LaneExtent> extents = laneExtents();
+    const std::optional<float> x = xForSeconds(point.seconds);
+    if (ref.lane_index >= extents.size() || !x.has_value())
+    {
+        return std::nullopt;
+    }
+    const float y = valueBandY(valueBandFor(extents[ref.lane_index]), point.norm_value);
+    return ValueReadout{
+        .anchor = juce::Point<int>{juce::roundToInt(*x), juce::roundToInt(y)},
+        .text = readoutTextFor(point.position, lane, point.norm_value),
+    };
+}
+
+std::optional<ToneAutomationLanesView::ValueReadout> ToneAutomationLanesView::activeValueReadout()
+    const
+{
+    return m_value_readout.has_value() ? m_value_readout : selectedPointReadout();
+}
+
 void ToneAutomationLanesView::paintValueReadout(juce::Graphics& graphics) const
 {
-    if (!m_value_readout.has_value())
+    const std::optional<ValueReadout> readout = activeValueReadout();
+    if (!readout.has_value())
     {
         return;
     }
-    const juce::Rectangle<int> bounds = readoutBounds(*m_value_readout);
+    const juce::Rectangle<int> bounds = readoutBounds(*readout);
     graphics.setColour(g_chip_fill);
     graphics.fillRoundedRectangle(bounds.toFloat(), g_chip_corner_radius);
     graphics.setColour(g_chip_text);
     graphics.setFont(juce::Font{juce::FontOptions{g_readout_font_height}});
-    graphics.drawText(m_value_readout->text, bounds, juce::Justification::centred);
+    graphics.drawText(readout->text, bounds, juce::Justification::centred);
 }
 
 std::optional<juce::String> ToneAutomationLanesView::valueReadoutTextForTest() const
 {
-    if (!m_value_readout.has_value())
+    const std::optional<ValueReadout> readout = activeValueReadout();
+    if (!readout.has_value())
     {
         return std::nullopt;
     }
-    return m_value_readout->text;
+    return readout->text;
 }
 
 } // namespace rock_hero::editor::ui

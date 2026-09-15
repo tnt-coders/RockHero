@@ -580,6 +580,46 @@ TEST_CASE(
     CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
 }
 
+// The readout names the point being edited even when no pointer is involved: the selected point
+// carries its own readout, derived from the published state, so a keyboard nudge shows the value
+// it produced on every press, and clearing the selection takes the readout with it.
+TEST_CASE(
+    "Lanes view shows the selected point's value without a pointer", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    core::ToneAutomationViewState state = makeState();
+    state.lanes.front().points = {
+        core::ToneAutomationPointViewState{
+            .position = {.measure = 1, .beat = 1, .offset = {}},
+            .seconds = 0.1,
+            .norm_value = 0.85F,
+        },
+    };
+    state.selected_point = core::ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 0};
+    harness.view.setState(state);
+
+    std::optional<juce::String> readout = harness.view.valueReadoutTextForTest();
+    REQUIRE(readout.has_value());
+    if (readout.has_value())
+    {
+        CHECK(readout->contains("[0.85]"));
+    }
+
+    // A nudge republishes the point with its new value; the readout follows it.
+    state.lanes.front().points.front().norm_value = 0.6F;
+    harness.view.setState(state);
+    readout = harness.view.valueReadoutTextForTest();
+    REQUIRE(readout.has_value());
+    if (readout.has_value())
+    {
+        CHECK(readout->contains("[0.60]"));
+    }
+
+    state.selected_point.reset();
+    harness.view.setState(state);
+    CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
+}
+
 TEST_CASE("Lanes view double-click never edits a point directly", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;

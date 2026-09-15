@@ -621,6 +621,13 @@ private:
     // controller owns. A no-op when no preview is standing.
     void applyDragPreviewReadout(juce::Point<int> anchor);
 
+    // The readout for the selected point, derived from the published selection and the current
+    // geometry; empty while a drag preview stands or nothing is selected.
+    [[nodiscard]] std::optional<ValueReadout> selectedPointReadout() const;
+
+    // The readout to show right now: the drag's while a drag runs, else the selected point's.
+    [[nodiscard]] std::optional<ValueReadout> activeValueReadout() const;
+
     // Paints the value-readout chip when one is active.
     void paintValueReadout(juce::Graphics& graphics) const;
 
