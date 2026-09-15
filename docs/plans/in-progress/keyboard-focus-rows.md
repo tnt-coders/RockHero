@@ -10,8 +10,9 @@ following to the new start) landed first in `5d33a1fc`, recorded in `marker-verb
 BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT and SIGHTED
 2026-09-15**. Steps 4b (the fret-hand position row) and 4c (the span row) were HANDED OFF
 2026-09-15 to `docs/plans/roadmap/60-hand-markers.md` §8: the position marker and the span marker
-are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. This
-plan is complete once the Phase 4 doc sweep lands. Supersedes the armed-caret row model of `d320e7ac`
+are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. Step 4d
+(reveal the acted-on selection, user-observed and ruled 2026-09-15) is owed on the shipped rows;
+this plan is complete once 4d and the Phase 4 doc sweep land. Supersedes the armed-caret row model of `d320e7ac`
 (kept on `master` for reference only).*
 
 ## Context
@@ -603,7 +604,7 @@ registry, and both default chords are composed from it, so the pair cannot drift
 | Time signature | `Ctrl+/` (reserved, plan 41) | `Ctrl+Shift+/` | `0x1513` | 4a — see D1 for its macOS and layout limits |
 | Tone | `Ctrl+T` (live) | `Ctrl+Shift+T` | `0x1514` | 4a |
 | "+" row | — | `Ctrl+Shift+A` | `0x1515` | 4a |
-| Hand (position + shape, one object) | `Ctrl+H` (reserved, plan 60; letter open as 60-H2) | `Ctrl+Shift+H` | `0x1516` | plan 60 Phase 3 |
+| Hand (position + shape, one object) | `Ctrl+H` (reserved, plan 60; letter RULED as 60-H2) | `Ctrl+Shift+H` | `0x1516` | plan 60 Phase 3 |
 
 Rulings already made on this table:
 - **One hand row — RULED 2026-09-15 (plan 60, 60-H1).** The fret-hand position marker and the
@@ -687,7 +688,8 @@ research, not a ruling.
   there); **D11 RULED** — pointer selection of hand chips and rails is in from day one; **D12
   RULED** — the selected pinned chip yields exactly as the ruler's does, skipping only the early
   handover. D7 (release), D8 (zero-length spans), D9 (the resolutions cache) stand as
-  recommended; D10 (`Cmd+H`) stays open and is weighed in plan 60's letter ruling 60-H2.
+  recommended; D10 (`Cmd+H` is Hide on macOS) is accepted as H's cost in plan 60's letter ruling
+  60-H2 (ruled the same day), decided as a macOS default when that author chord ships.
 - **D13 — adjacent defects the research found. RECOMMENDED: record them in `docs/tracking/backlog.md`,
   including the capture-dialog bug unless 4.0d is built.**
   - The `Shift` grid and zoom aliases (`Shift+=`, `Shift+-`, `Ctrl+Shift+=`, `Ctrl+Shift+-`) and the
@@ -1026,6 +1028,39 @@ either design was dropped; what changed is that one row, one selection kind and 
 replace two of each, and the former span row's "gap" applies only to the shape half of a hand
 event, so the row always has a holder.
 
+#### 4d — Reveal the acted-on selection (RULED 2026-09-15, not built)
+**Observed (user, 2026-09-15):** click a section chip, scroll on through the next section until
+the selected chip is off-screen, then act on the selection by keyboard — the verb runs without
+bringing the section into view. It is every marker row's behaviour, not the section row's: the
+view glides only on a state push whose caret seconds or `selected_row_cursor` seconds CHANGED
+(`EditorView::setState`), and a chip click seeks nothing, so the cursor stays wherever it was.
+What reveals today is therefore only a cursor MOVE — `Alt+←/→` (the moved marker brings the paused
+cursor along) and the column rule's seek before a step or `Tab` (only when the marker's reach does
+NOT hold the cursor). Rename (`Enter`, `Ctrl+R`), `Delete`, the restate chord, and a step or `Tab`
+from a marker whose reach already holds the cursor move nothing and so glide nothing; the walk's
+landing caret then glides to the CURSOR, which may be nowhere near the chip.
+
+**The rule:** a keyboard verb that reads the selection ends with the selected marker in view — its
+start, or the landing focus for a step — while a click still never scrolls away from what was
+clicked, because a click creates the focus rather than acting under it. Mouse-wheel scrolling
+pushes no state, so it never fights the rule.
+
+**Shape to weigh at the build (not decided):** the view already derives every glide from a
+state-to-state diff, and the missing datum is only "what the keyboard acted on". Publish the
+focus's ANCHOR — the selected marker's start on a marker row, the caret on a point row — in place
+of the bare `selected_row_cursor` seconds, and glide when the anchor changes OR when a marker edit
+lands under a standing marker selection (rename bumps the model; delete releases the selection, so
+the previous anchor is what a glide would show). That keeps the click rule for free (a click
+creates the anchor; no previous anchor, no glide) and needs no per-verb flag. The alternative —
+each selection verb calling a reveal — restates the rule at every verb site and is the shape to
+avoid. Verify against `test_editor_view_state.cpp`'s glide tests and add: rename off-screen →
+glide; delete off-screen → glide to where it stood; step from a holding marker → glide to the
+chip, not only the cursor; click → no glide.
+
+**Sighting brief:** the observed figure on sections, then the same on a tone region (rename,
+retone, `Alt+←/→`, `Delete`) and on tempo/time-signature chips (walk and `Tab` only, since they
+have no verbs yet); a click on a chip at the view's far edge must not scroll.
+
 #### Order, commits and sightings
 0. **The baseline refactor — DONE and SIGHTED 2026-09-14** (`fd895fcf`, `cdbc17c1`,
    `3cf7b1b1`, `80fe0c47`). Before 4.0a and Phase 3 build on it, the design review of the same day
@@ -1043,8 +1078,10 @@ event, so the row always has a holder.
    was then one registry pass: the letter constants and the five jumps — BUILT 2026-09-15, awaiting
    its **sighting**; **4.0d** alongside if the user wants the macOS defaults.
 3. **4b and 4c** — HANDED OFF 2026-09-15 to plan 60 §8 as one hand row (the merge this list
-   anticipated: plan 60 ruled the FHP and span markers one object). This plan closes with the
-   Phase 4 doc sweep below.
+   anticipated: plan 60 ruled the FHP and span markers one object).
+4. **4d — reveal the acted-on selection** (user-observed 2026-09-15; ruled as plan 60's 60-H6,
+   owed here first because the shipped rows have the defect). **Sighting.** This plan closes
+   with 4d and the Phase 4 doc sweep below.
 
 #### Out of scope
 - **Phase 3's build** — the author-at-cursor precedence (built 2026-09-14, ahead of 4a as

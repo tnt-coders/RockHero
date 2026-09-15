@@ -267,7 +267,7 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
    chord no longer holds either: `Alt`+letter is the menu-access plane (`Alt+F/E/V`).
    **RULED 2026-09-15: span and position markers are ONE object, the hand marker**
    (`docs/plans/roadmap/60-hand-markers.md` §2, the roadmap plan this record now executes under;
-   it absorbed plan 61's seat). One chord pair — `Ctrl+H` / `Ctrl+Shift+H` recommended there as
+   it absorbed plan 61's seat). One chord pair — `Ctrl+H` / `Ctrl+Shift+H`, ruled there as
    60-H2 — and `Ctrl+P` / `Ctrl+Shift+P` return to the pool. The record key `"span"` chosen in
    item 2 below was chosen for a span-only record and is re-asked as part of 60-H2.
 2. Save-file record: grid position only, under the key **`"span"`** (user ruled, overriding the

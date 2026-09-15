@@ -208,7 +208,7 @@ statement** (record shape only; range-clamped) — but NO authoring verbs ship h
 user-facing is lost: no FHP authoring surface exists today, the sighting reels stop needing to
 author `fhps`, and the external converter migrates in its own window.
 
-### Phase 3 — the hand marker and the hand row (gated on 60-H2, 60-H3; needs Phase 2)
+### Phase 3 — the hand marker and the hand row (needs Phase 2; H2 and H3 ruled)
 
 The marker half of the former plan 60 Phase 3 and plan 61 Phase 1, plus the keyboard rows:
 
@@ -249,7 +249,7 @@ edge (the 2-note statement-founded bracket the sighting reel's measure 3 keeps O
 decided here — one rule, not both. The ≥3 minimum is already signed; what lands is the census
 re-sign of the accumulation checklist's section G.
 
-### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5, 60-H4)
+### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5)
 
 Plan 61's Phase 3 and the fingering half of the former plan 60 Phase 3, one arc: the template save
 format and the template editor (the home of span-wide fret editing); markers reference entries in
@@ -331,10 +331,10 @@ away as an ordinary chip. Two chips are never both pinned. The exemption is spel
 named helper beside `pinYieldsToIncomingLabel` in `sticky_label.h`, used by the ruler and the tab
 lane.
 
-**Acting on an off-screen selection.** Already the marker-row rule: a vertical step or a `Tab`
-first seeks the cursor to the selected marker's start when its reach does not hold the cursor
-(the column rule), and the moved cursor glides the view. The one shared gap — the reach holds the
-cursor, so nothing moves and nothing glides — is 60-H6.
+**Acting on an off-screen selection** reveals it (60-H6), a rule built on the shipped marker rows
+first and inherited here. Today only a cursor MOVE glides the view: the column rule's seek before
+a step or `Tab`, and the marker move. Rename, delete, and a step from a marker whose reach already
+holds the cursor act blind.
 
 **View state and marks.** `ChartEditViewState::selected_hand_event`, an index into the projected
 events under the same contract as `selected_notes`. The TabView host draws the accent outline on
@@ -372,7 +372,9 @@ clicking chips and rails; the outline and rail-highlight strength.
 ## 9. Decision gate G60-RULINGS
 
 All rulings are recorded with their evidence in the design records. Q1 blocks Phase 1, Q4 blocks
-Phase 2, H2/H3 block Phase 3, Q3+Q5+H4 shape Phase 5, Q2 is product scope.
+Phase 2, Q3+Q5 shape Phase 5, Q2 is product scope. The six hand rulings were all RULED 2026-09-15
+(H2–H6 as recommended), so no H gates a phase; they are kept below as the record of what was
+decided and why.
 
 ### The five derivation rulings (unchanged from the former plan 60)
 
@@ -432,34 +434,37 @@ Phase 2, H2/H3 block Phase 3, Q3+Q5+H4 shape Phase 5, Q2 is product scope.
 - **60-Q5** — the derived-default suggestion for unreferenced grips (reverses the killed
   auto-match of 2026-08-31; reconciled via derived styling; needs explicit re-confirmation).
 
-### The hand rulings (opened 2026-09-15)
+### The hand rulings (opened and RULED 2026-09-15)
 
 - **60-H1 — one object. RULED 2026-09-15** (§2).
-- **60-H2 — the letter, the id and the record's name. RECOMMENDED: `Ctrl+H` / `Ctrl+Shift+H`, id
-  `0x1516`; re-ask the record key and the selection kind's name with the naming expert at Phase
-  3.** H reads as "what the hand holds" and its Shift claimant (pinch harmonic) is untouched.
-  Cost: `Cmd+H` is Hide on macOS (60-D10), which bites only when the AUTHOR chord ships; `P`
-  ("position") is the fallback if that cost is weighed higher, and under the pair law changing
-  the letter moves both chords together. The 2026-08-31 key `"span"` was chosen for a span-only
-  record and no longer says what the record is.
-- **60-H3 — the hand row's objects. RECOMMENDED: the derived hand events, with authored markers
-  among them** (§8), not authored markers alone. The signed boundary gestures and Phase 4's
-  `Delete`-authors-a-zone act on DERIVED spans, which need a selection; a fresh import has no
-  markers and must still have a row.
-- **60-H4 — the open-stretch window statement. RECOMMENDED: an optional field of the hand marker,
-  valid only over silence, refused by the funnel elsewhere** (as a mid-ring statement is refused),
-  rather than a fourth record kind. One marker kind, one row, one tell. Decide at Phase 5, when
-  the field's writer exists.
-- **60-H5 — the pinned chip. RECOMMENDED: selectable, like the ruler's pin**, revisiting the
-  inert-chrome ruling. The ruler's pin is an ordinary entry in its chip vector and a click selects
-  its marker; the tab lane's pin was made inert because a press there would otherwise place a
-  note under the legend, which selecting the event now answers better than inertness.
-- **60-H6 — reveal on focus-row change. RECOMMENDED: glide when the focus ROW changes under a
-  standing focus, not only when the focus position moves.** Today the view glides only on a
-  seconds change of the caret or the selected-row cursor, so a keyboard press under an off-screen
-  focus whose reach holds the cursor acts without revealing. Publishing the focus row's identity
-  makes a row change a trigger; the "a click never scrolls away" rule survives because a click
-  creates the focus rather than acting under it. Shared by every marker row; build with Phase 3.
+- **60-H2 — the letter, the id and the record's name. RULED 2026-09-15: `Ctrl+H` /
+  `Ctrl+Shift+H`, id `0x1516`.** H reads as "what the hand holds" and its Shift claimant (pinch
+  harmonic) is untouched. The cost is accepted: `Cmd+H` is Hide on macOS (60-D10), which bites
+  only when the AUTHOR chord ships in Phase 3, where the macOS default is decided (under the pair
+  law a different letter would move both chords together). The record key and the selection
+  kind's name are re-asked with the naming expert at Phase 3 — the 2026-08-31 key `"span"` was
+  chosen for a span-only record and no longer says what the record is.
+- **60-H3 — the hand row's objects. RULED 2026-09-15: the derived hand events, with authored
+  markers among them** (§8), not authored markers alone. The signed boundary gestures and
+  Phase 4's `Delete`-authors-a-zone act on DERIVED spans, which need a selection; a fresh import
+  has no markers and must still have a row.
+- **60-H4 — the open-stretch window statement. RULED 2026-09-15: an optional field of the hand
+  marker, valid only over silence, refused by the funnel elsewhere** (as a mid-ring statement is
+  refused), rather than a fourth record kind. One marker kind, one row, one tell. The field
+  lands in Phase 5 with its writer.
+- **60-H5 — the pinned chip. RULED 2026-09-15: selectable, like the ruler's pin**, revisiting
+  the inert-chrome ruling. The ruler's pin is an ordinary entry in its chip vector and a click
+  selects its marker; the tab lane's pin was made inert because a press there would otherwise
+  place a note under the legend, which selecting the event now answers better than inertness.
+- **60-H6 — acting on an off-screen selection reveals it. RULED 2026-09-15**, and it is not this
+  plan's to build: the user observed the same day that a section selected by click, scrolled out
+  of view, then acted on by keyboard acts BLIND, so the rule is owed on the shipped marker rows
+  first (`keyboard-focus-rows.md` step 4d, buildable now) and the hand row inherits it. What
+  reveals today is only a cursor MOVE: the marker move and the column rule's seek glide, while
+  rename, delete, and a walk from a marker whose reach already holds the cursor move nothing and
+  so glide nothing. The rule: a keyboard verb that reads the selection ends with the selected
+  marker (or the landing focus) in view; a click still never scrolls away from what was clicked,
+  because a click creates the focus rather than acting under it.
 
 ### The row decisions carried from the keyboard plan (D6–D12; D13 stayed there)
 
@@ -474,7 +479,8 @@ Phase 2, H2/H3 block Phase 3, Q3+Q5+H4 shape Phase 5, Q2 is product scope.
 - **60-D7 — release. RECOMMENDED stands:** "the front names nothing", not "any chart edit".
 - **60-D8 — zero-length spans stay out of the row. RECOMMENDED stands;** the kind's name is H2.
 - **60-D9 — the `ChartResolutions` cache. RECOMMENDED stands;** lands in Phase 2.
-- **60-D10 — `Cmd+H` is Hide on macOS. OPEN;** weighed in H2.
+- **60-D10 — `Cmd+H` is Hide on macOS. Accepted as H's cost in 60-H2;** the macOS default is
+  decided when the author chord ships (Phase 3).
 - **60-D11 — pointer selection. RULED 2026-09-15: in** (§8).
 - **60-D12 — the selected pin. RULED 2026-09-15: yields exactly as the ruler's does** (§8).
 
