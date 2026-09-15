@@ -140,6 +140,64 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
     CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F12Key}) == 0);
 }
 
+// A restored override keeps its chord even when a newer default has since claimed that chord for
+// another command: the one-owner law strips the default's owner, so dispatch and lookup agree and
+// the user's rebind wins. JUCE's own restore would have left two owners.
+TEST_CASE(
+    "EditorKeymapPersistence keeps one owner when a restored chord is a default elsewhere",
+    "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingKeymapSettings settings;
+    // F3 is TogglePreview3D's default; the stored keymap moved it to ToggleUndoHistory (0x1302)
+    // as if that default had shipped after the user's rebind, so no UNMAPPING names it.
+    settings.stored_keymap = std::string{R"(<KEYMAPPINGS basedOnDefaults="1">)"
+                                         R"(<MAPPING commandId="1302" description="F3" key="F3"/>)"
+                                         R"(</KEYMAPPINGS>)"};
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    const EditorKeymapPersistence persistence{view.commandManager(), settings};
+
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPress f3{juce::KeyPress::F3Key};
+    CHECK(
+        mappings.findCommandForKeyPress(f3) == toJuceCommandId(EditorCommandId::ToggleUndoHistory));
+    CHECK_FALSE(
+        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
+            .contains(f3));
+}
+
+// A stored removal names a default the user took off a command. One for a default that no longer
+// exists removes nothing and restores cleanly; one for a live default removes exactly that chord.
+TEST_CASE("EditorKeymapPersistence restores removals cleanly", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingKeymapSettings settings;
+    // F11 was never ToggleUndoHistory's default (a stale entry from an older default set); F3 is
+    // TogglePreview3D's default today.
+    settings.stored_keymap =
+        std::string{R"(<KEYMAPPINGS basedOnDefaults="1">)"
+                    R"(<UNMAPPING commandId="1302" description="F11" key="F11"/>)"
+                    R"(<UNMAPPING commandId="1303" description="F3" key="F3"/>)"
+                    R"(</KEYMAPPINGS>)"};
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    const EditorKeymapPersistence persistence{view.commandManager(), settings};
+
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F3Key}) == 0);
+    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F11Key}) == 0);
+    // Every other default stands.
+    CHECK(
+        mappings.findCommandForKeyPress(
+            juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
+        toJuceCommandId(EditorCommandId::Undo));
+}
+
 // A corrupt blob must never brick startup: restore falls back to pure defaults.
 TEST_CASE("EditorKeymapPersistence tolerates an unparseable blob", "[ui][keybinds]")
 {

@@ -2,6 +2,7 @@
 
 #include "keybinds/editor_command_registry.h"
 #include "keybinds/key_chord_text.h"
+#include "keybinds/keymap_ownership.h"
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
 #include "shared/themed_message_box.h"
@@ -360,19 +361,16 @@ void KeymapEditorView::applyBindingChange(
 
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
 
-    // The remove-then-add dance: strip the chord from whichever command owns it, drop the
-    // bindings being replaced, then assign — exactly one owner remains. addKeyPress alone must
-    // never be trusted to resolve conflicts (its documented removal does not exist in code).
-    // Replaced indices are removed highest-first so the earlier ones stay valid; the new chord
-    // lands at the group's first position.
-    mappings.removeKeyPress(key);
+    // Drop the bindings being replaced, highest-first so the earlier indices stay valid, then
+    // assign through the one-owner law, which strips the chord from whatever command holds it;
+    // the new chord lands at the group's first position.
     std::ranges::sort(replace_indices, std::ranges::greater{});
     for (const int replace_index : replace_indices)
     {
         mappings.removeKeyPress(toJuceCommandId(command), replace_index);
     }
     const int insert_index = replace_indices.empty() ? -1 : replace_indices.back();
-    mappings.addKeyPress(toJuceCommandId(command), key, insert_index);
+    assignKeyPressToCommand(mappings, toJuceCommandId(command), key, insert_index);
 }
 
 void KeymapEditorView::removeBindings(EditorCommandId command, std::vector<int> key_indices)
@@ -393,15 +391,15 @@ void KeymapEditorView::resetCommandToDefault(EditorCommandId command)
         return;
     }
 
-    // Strip each default chord from whatever command took it meanwhile, so the one-owner law
-    // holds through the reset (the mapping set's resetToDefaultMapping re-adds defaults
-    // without any conflict cleanup).
+    // The command's bindings go, then each default returns through the one-owner law, which takes
+    // it from whatever command took it meanwhile (the mapping set's own resetToDefaultMapping
+    // re-adds defaults with no conflict cleanup).
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
+    mappings.clearAllKeyPresses(toJuceCommandId(command));
     for (const juce::KeyPress& key : spec->default_keypresses)
     {
-        mappings.removeKeyPress(key);
+        assignKeyPressToCommand(mappings, toJuceCommandId(command), key, -1);
     }
-    mappings.resetToDefaultMapping(toJuceCommandId(command));
 }
 
 bool KeymapEditorView::isCommandAtDefaults(EditorCommandId command) const

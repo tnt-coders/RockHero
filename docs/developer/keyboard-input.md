@@ -518,11 +518,18 @@ plugin-chain scope, lane multi-select) land phase by phase.*
 `EditorKeymapPersistence` (`ui/src/keybinds/editor_keymap_persistence.cpp`, owned by the
 `Editor` composition wrapper) stores user rebinds through the `IEditorSettings` port as an
 opaque blob: the mapping set's **diff-versus-defaults** XML, so shipped default changes merge
-under user overrides, and a defaults-only keymap clears the stored value entirely. Three
+under user overrides, and a defaults-only keymap clears the stored value entirely. Four
 invariants live here:
 
-- **Restore order is a contract**: every command must be registered before `restoreFromXml`,
-  which the composition guarantees by constructing persistence after the view.
+- **Restore order is a contract**: every command must be registered before the restore, which
+  the composition guarantees by constructing persistence after the view.
+- **One owner per chord, on every write**: the keymap editor's assign, its reset to defaults and
+  the restore all bind a chord through `assignKeyPressToCommand` (`keymap_ownership.h`), which
+  strips the chord from whatever command holds it first. The restore is the editor's own loop
+  over the stored `MAPPING`/`UNMAPPING` entries rather than JUCE's `restoreFromXml`, because
+  JUCE's loop adds a second owner whenever a chord the user moved has since become another
+  command's default; here the user's override wins. With one owner, the preview window's
+  first-owner lookup and the mapping set's first-enabled-owner dispatch agree by construction.
 - **Stored entries are filtered before restore**: unknown command ids (a newer editor's blob
   would trip the mapping set's debug assertion) are dropped. A corrupt blob falls back to pure
   defaults; the next mapping change overwrites it.

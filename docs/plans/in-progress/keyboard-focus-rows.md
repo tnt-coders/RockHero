@@ -668,8 +668,8 @@ research, not a ruling.
   - the method name — `Project::exportSong`, since `export` is a C++ keyword;
   - what command `0x1005` means — Export (recommended), which may later grow GIMP-style re-export; a
     song Export As, if ever needed, is menu-only, since `Ctrl+Shift+E` now exports the tone.
-- **D5 — restoring a saved keymap must keep one owner per chord. RECOMMENDED: fix before any new
-  default ships.** The keymap editor enforces one owner per chord (strip, then add), but restoring a
+- **D5 — restoring a saved keymap must keep one owner per chord. BUILT 2026-09-15 (step 4.0c),
+  before any new default shipped.** The keymap editor enforced one owner per chord (strip, then add), but restoring a
   saved keymap does not: `addKeyPress` removes no conflicts. Any user override on a chord that a NEW
   default now claims (`Ctrl+E`, `Ctrl+I`, the jump chords) would leave two owners, with dispatch picking
   one by mapping order. The fix is one keybinds helper used by assign, reset and restore; the user's
@@ -892,6 +892,16 @@ that twin. Rebinding stays the answer on non-US layouts until per-language keyma
    file-scope helper outside it fails macOS CI's `-Wmissing-prototypes`). `InsertSongSection` and
    `InsertToneChange` switch to the author helper, and the five jump rows go at the end of the Navigation
    block. A table-driven loop was rejected: it would reorder the registry and need optional author ids.
+**Build record (2026-09-15).** Built as specified: `keymap_ownership.{h,cpp}` holds
+`assignKeyPressToCommand` (strip the chord from whatever command holds it, then add) and
+`removeKeyPressFromCommand`; the keymap editor's assign drops the replaced bindings and then
+assigns through it, its reset clears the command's bindings and reassigns each default through it,
+and `EditorKeymapPersistence` restores with its own loop over the stored `MAPPING`/`UNMAPPING`
+entries in place of JUCE's `restoreFromXml`. The two tests named above pin a restored override
+winning a chord a default now claims, and removals of a live and of a vanished default. The
+backlog's preview-forwarder item is closed by it: with one owner, first-owner lookup and
+first-enabled-owner dispatch agree.
+
 7. **EditorView.** The five ids join the always-active group (a silent jump must never beep), with one
    perform case each. The Navigate discovery menu gains a jump group.
 

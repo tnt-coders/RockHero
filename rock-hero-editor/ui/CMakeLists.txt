@@ -32,6 +32,8 @@ target_sources(
             src/keybinds/key_chord_text.h
             src/keybinds/keymap_editor_view.cpp
             src/keybinds/keymap_editor_view.h
+            src/keybinds/keymap_ownership.cpp
+            src/keybinds/keymap_ownership.h
             src/keybinds/plugin_window_shortcut_sync.cpp
             src/keybinds/plugin_window_shortcut_sync.h
             src/main_window/composed_character_filter.cpp

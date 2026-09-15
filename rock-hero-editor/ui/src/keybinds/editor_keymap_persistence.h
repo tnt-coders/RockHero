@@ -18,9 +18,11 @@ Construction restores any stored overrides into the command manager's key mappin
 every command must already be registered, which the owning composition guarantees by
 constructing this after the view. Stored entries whose command id is unknown (a newer
 editor's blob) are dropped before restore, so a downgraded settings file cannot trip the
-mapping set's debug assertion. After restore, every mapping-set change saves the current
-diff; a defaults-only keymap clears the stored value entirely (pure diff persistence, so
-shipped default changes merge under user overrides).
+mapping set's debug assertion. A restored binding takes its chord through the one-owner law
+(keymap_ownership.h), so a user override keeps a chord that a newer shipped default has since
+claimed for another command. After restore, every mapping-set change saves the current diff; a
+defaults-only keymap clears the stored value entirely (pure diff persistence, so shipped default
+changes merge under user overrides).
 */
 class EditorKeymapPersistence final : private juce::ChangeListener
 {

@@ -1,6 +1,7 @@
 #include "keybinds/editor_keymap_persistence.h"
 
 #include "keybinds/editor_command_registry.h"
+#include "keybinds/keymap_ownership.h"
 
 #include <expected>
 #include <memory>
@@ -30,6 +31,46 @@ void removeUnrestorableEntries(juce::XmlElement& keymap)
     }
 }
 
+// Restores a stored blob the way KeyPressMappingSet::restoreFromXml would, except that a restored
+// binding takes its chord through the one-owner law. JUCE's loop adds a second owner whenever a
+// chord the user moved to one command has since become another command's DEFAULT — the stored
+// UNMAPPING for the old owner never names the new one — and dispatch then picks an owner by
+// mapping order. Here the user's override wins. Every blob this editor writes is a diff from the
+// defaults; a whole-set blob is honoured the way JUCE honours it, for a file from another source.
+void restoreKeymap(juce::KeyPressMappingSet& mappings, const juce::XmlElement& keymap)
+{
+    if (!keymap.hasTagName("KEYMAPPINGS"))
+    {
+        return;
+    }
+    if (keymap.getBoolAttribute("basedOnDefaults", true))
+    {
+        mappings.resetToDefaultMappings();
+    }
+    else
+    {
+        mappings.clearAllKeyPresses();
+    }
+    for (const juce::XmlElement* const entry : keymap.getChildIterator())
+    {
+        const juce::CommandID command = entry->getStringAttribute("commandId").getHexValue32();
+        if (command == 0)
+        {
+            continue;
+        }
+        const juce::KeyPress key =
+            juce::KeyPress::createFromDescription(entry->getStringAttribute("key"));
+        if (entry->hasTagName("MAPPING"))
+        {
+            assignKeyPressToCommand(mappings, command, key, -1);
+        }
+        else if (entry->hasTagName("UNMAPPING"))
+        {
+            removeKeyPressFromCommand(mappings, command, key);
+        }
+    }
+}
+
 } // namespace
 
 EditorKeymapPersistence::EditorKeymapPersistence(
@@ -44,7 +85,7 @@ EditorKeymapPersistence::EditorKeymapPersistence(
         if (const std::unique_ptr<juce::XmlElement> keymap = juce::parseXML(juce::String{*stored}))
         {
             removeUnrestorableEntries(*keymap);
-            m_command_manager.getKeyMappings()->restoreFromXml(*keymap);
+            restoreKeymap(*m_command_manager.getKeyMappings(), *keymap);
         }
     }
 

@@ -932,6 +932,7 @@ written down.
   second — runs in the main window and does nothing in the preview, and a chord whose first owner is
   outside the preview whitelist is refused even when an enabled whitelisted owner is also bound to
   it. Pre-existing, reachable only through the keymap editor today.
-  Fix: step 4.0c of `docs/plans/in-progress/keyboard-focus-rows.md` restores one owner per chord on
-  keymap restore, which makes the two paths agree by construction; after that the forwarder's
-  single-owner lookup is correct rather than merely usually right.
+  **Closed 2026-09-15** by step 4.0c of `docs/plans/in-progress/keyboard-focus-rows.md`: every
+  write of a binding — assign, reset and restore — goes through `assignKeyPressToCommand`
+  (`rock-hero-editor/ui/src/keybinds/keymap_ownership.h`), so a chord has one owner and the two
+  paths agree by construction.
