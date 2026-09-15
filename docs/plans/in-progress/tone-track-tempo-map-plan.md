@@ -425,9 +425,11 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
 
    **Status (2026-07-07).** Runtime tone switching is complete and clean, but it is delivered by a
    simpler mechanism than the baked automation this slice originally specified.
-   `ToneTrackView::advanceActiveRegion()` runs on a vblank attachment; when the transport crosses a
-   region boundary it emits one discrete `onToneRegionSelected` intent →
-   `EditorController::Impl::selectMarker` → `ILiveRig::setAudibleTone` → the multi-tone rack's
+   `ToneTrackView::reportPlaybackFrame()` runs on a vblank attachment and reports each playing frame
+   as one payload-less `onPlaybackFrameAdvanced` intent; the controller decides there whether the
+   frame crossed a region boundary (`toneRegionIdAt` against the region its last transport-driven
+   entry resolved) and, when it did, runs `activateToneAtCursor()` →
+   `syncAudibleTone` → `ILiveRig::setAudibleTone` → the multi-tone rack's
    `setAudibleBranch`, whose `ToneBranchGainPlugin` per-sample smoother makes the swap click-free.
    Sub-phases **5a** (branch-gain plugin) and **5b** (multi-tone rack) shipped and are the audio
    substrate this rests on. Sub-phases **5c–5e** (edit-timeline schedule baking,

@@ -777,7 +777,15 @@ Each re-verified against the code before being written down.
   pre-existing: moving a boundary past the cursor flips the view state's `active` flag to the other
   region while the rig stays on the old tone, on the FORWARD path, so its undo never diverges
   because it never converged. Every marker verb now syncs on its FORWARD path (`commitMarkerModel`
-  calls `syncAudibleTone()` after each landed commit); the undo path still does not. The one-authority fix is an unconditional `syncAudibleTone()` after every
+  calls `syncAudibleTone()` after each landed commit); the undo path still does not. **Not rescued
+  by the playback frame path added 2026-09-14** (`onPlaybackFrameAdvanced`,
+  `rock-hero-editor/core/src/tone/tone_handlers.cpp:346-390`): that test asks whether the region the
+  rig is audibly on is still the one under the playhead, and a non-merging retone's undo changes
+  neither the region id nor which region holds the playhead, so `m_audible_region_id` still matches
+  and no frame corrects it — exactly as the old view-side `active`-flag comparison could not see it
+  either. `completeUndoTransition` (`editor_controller.cpp:2030-2062`) still reaches a rig call only
+  through the `!loadedRigCoversModelTones()` branch, which a repoint between two already-hosted tones
+  does not take. The one-authority fix is an unconditional `syncAudibleTone()` after every
   committed undo transition, beside the reconciliations already there. Taking it as-is turns nine
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
@@ -874,4 +882,16 @@ written down.
   `markerHolderAt` replaces `markerHolderIndex` for every row including a span row with real gaps —
   at which point "what holds this position" needs ONE answer rather than two that happen never to be
   asked the same question.
+
+- **No test drives the tone row's vblank tick.** `ToneTrackView::reportPlaybackFrame`
+  (`rock-hero-editor/ui/src/tone/tone_track_view.cpp:783-791`) is private and reachable only from
+  the `juce::VBlankAttachment` in the constructor, so its `playing` gate — fire the frame intent
+  while playing, never while paused — is asserted nowhere; `test_tone_track_view.cpp` records the
+  intent on its listener double but cannot provoke it. Accepted as-is rather than widened for a
+  test: the sibling tick `ToneAutomationLanesView::repaintMovedAnchorLanes`
+  (`rock-hero-editor/ui/src/tone/tone_automation_lanes_view.h:581`, private below the `private:` at
+  :337) is untested the same way, and `component_test_helpers.h` offers no vblank facility, so
+  exposing one tick would make it the only public one. **Remedy** if it ever earns the cost: a
+  shared test seam that drives a view's frame tick, applied to both rows at once — never a
+  public method on one of them.
 

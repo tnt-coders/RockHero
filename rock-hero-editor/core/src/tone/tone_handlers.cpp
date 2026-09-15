@@ -159,16 +159,22 @@ namespace
 
 } // namespace
 
-// Names the authored region whose span contains a timeline position, for cursor-follow
-// selection. Spans resolve through the one region-span rule (toneRegionSpanSeconds — sub-beat
-// exact, baseline lead-in), so cursor-follow can never disagree with the drawn tone row or the
-// automation editable window about where a region begins.
-std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition position) const
+// THE seconds-space containment rule: the authored region whose span contains a timeline position,
+// or null when none does. Spans resolve through the one region-span rule (toneRegionSpanSeconds —
+// sub-beat exact, baseline lead-in), so cursor-follow can never disagree with the drawn tone row or
+// the automation editable window about where a region begins. (Not to be confused with
+// common::core::toneRegionAt, the GRID-space lookup, which hands the lead-in to nothing instead —
+// the disagreement docs/tracking/backlog.md records.)
+//
+// Hands back the region rather than its id so the per-frame playback check can compare ids without
+// copying one; toneRegionIdAt below names the same answer for everything that wants the string.
+const common::core::ToneRegion* EditorController::Impl::toneRegionAtPosition(
+    common::core::TimePosition position) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr)
     {
-        return {};
+        return nullptr;
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
@@ -184,11 +190,19 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
         const double end = is_last ? std::numeric_limits<double>::infinity() : span.end.seconds;
         if (position.seconds >= span.start.seconds && position.seconds < end)
         {
-            return regions[index].id;
+            return &regions[index];
         }
     }
 
-    return {};
+    return nullptr;
+}
+
+// Names the region the containment rule above resolves, for cursor-follow selection; empty when
+// none does.
+std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition position) const
+{
+    const common::core::ToneRegion* const region = toneRegionAtPosition(position);
+    return region != nullptr ? region->id : std::string{};
 }
 
 // Resolves the active tone region: the formally selected region if one is selected, otherwise the
@@ -280,7 +294,12 @@ void EditorController::Impl::syncAudibleTone()
         return;
     }
 
+    // The one place the audible region is DECIDED, so the one place it is recorded. Written before
+    // the empty early return below, so the datum names the answer this derivation reached even when
+    // the answer is "nothing", and the playback frame test can never chase a region no rig call was
+    // ever made for.
     const std::string active_region_id = activeToneRegionId();
+    m_audible_region_id = active_region_id;
     if (active_region_id.empty())
     {
         return;
@@ -330,11 +349,56 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
     runAction(EditorAction::SelectToneRegion{std::move(region_id)});
 }
 
-// The tone row reports that the playhead crossed into a new region at render cadence. This makes
-// that tone active (following the cursor) without a formal selection, so playback never leaves a
-// deletable selection behind. Transient view state, so it does not route through an action.
-void EditorController::Impl::onToneRegionActivated()
+// One rendered frame elapsed while the transport was playing. The view supplies only the TICK — it
+// has nothing to decide, and the controller, which reads the transport clock itself, has no way to
+// learn that a frame went by. THE CROSSING DECISION IS HERE, against the same toneRegionAtPosition
+// containment rule every other cursor-follow site resolves through, so no surface can hold a second
+// opinion about where a region begins.
+//
+// THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays. So the frame asks one
+// question — is the region the rig is AUDIBLY on still the one under the playhead? — and hands the
+// tone back to the cursor whenever it is not. One question covers every way the two can part,
+// because m_audible_region_id is written where the audible tone is decided, not where the transport
+// moved: a boundary crossing moves the playhead out from under it, a click elsewhere moves it out
+// from under the playhead (a selection outranks the cursor in activeToneRegionId), and an edit that
+// changes which region holds the playhead moves it through the funnel's own sync. Keying on the
+// last TRANSPORT move instead would misread that last case, firing on an insert made behind the
+// playhead and wiping the selection the insert had just made.
+//
+// Comparing region IDS — not tones — is exact because the coalesce law forbids a boundary with no
+// tone change across it, so adjacent regions never share a tone and "the region changed" IS "the
+// tone changed".
+//
+// A selection on the playhead's OWN region therefore survives until the crossing: it already names
+// the tone that should be playing, so the question answers "yes" and the frame does nothing. Other
+// marker kinds — section, tempo anchor, time signature — can never TRIGGER a correction, none of
+// them being an input to the audible tone; but a frame that does correct clears every
+// cursor-coupled kind, exactly as a seek does, because it goes through the same
+// activateToneAtCursor.
+//
+// Cost on a quiet frame: one scan over the regions, each resolving its span through the tempo map,
+// plus one id comparison — no allocation, no rig call and no view push. That is what makes this
+// affordable sixty times a second.
+//
+// Transient cursor state, not an edit, so it does not route through an action — exactly as the
+// handler it replaces did not.
+void EditorController::Impl::onPlaybackFrameAdvanced()
 {
+    if (session().currentArrangement() == nullptr)
+    {
+        return;
+    }
+
+    const common::core::ToneRegion* const under_playhead =
+        toneRegionAtPosition(m_transport.position());
+    const bool audible_is_under_playhead = under_playhead != nullptr
+                                               ? under_playhead->id == m_audible_region_id
+                                               : m_audible_region_id.empty();
+    if (audible_is_under_playhead)
+    {
+        return;
+    }
+
     activateToneAtCursor();
     updateView();
 }

@@ -372,8 +372,16 @@ Three related rules keep repaint and publish traffic proportional to actual chan
 Anything animated by playback samples its ports from a `juce::VBlankAttachment` on the message
 thread — never `juce::Timer` — so cadence matches the display and the controller pushes nothing
 per-frame. Exemplar: the viewport's cursor follow (`track_viewport.h`); recurring in the tone
-track's active-region highlight and the lanes' live-value tracking. Pair with a change key
+track's per-frame playback report and the lanes' live-value tracking. Pair with a change key
 (above) so a stationary frame does no work.
+
+The cadence is the view's; a DECISION taken at that cadence is not. Where a frame has to be judged
+against a domain rule, the view reports the elapsed frame and the controller judges it — the tone
+row's `onPlaybackFrameAdvanced()` is the exemplar: the row supplies the frame TICK the headless
+controller has no source for (it reads the transport clock itself, but nothing tells it a frame
+went by), and the controller compares the region under the transport against the one the rig is
+audibly on. Stating the rule once in the core is what keeps a second containment test from
+drifting in the adapter.
 
 ## Input coalescing windows
 

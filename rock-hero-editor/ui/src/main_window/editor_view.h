@@ -469,8 +469,8 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
-    /*! \copydoc ToneTrackView::Listener::onToneRegionActivated */
-    void onToneRegionActivated() override;
+    /*! \copydoc ToneTrackView::Listener::onPlaybackFrameAdvanced */
+    void onPlaybackFrameAdvanced() override;
 
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
     void createToneMarkerAt(common::core::GridPosition position);

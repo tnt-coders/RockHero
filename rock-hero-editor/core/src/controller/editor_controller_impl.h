@@ -465,6 +465,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+    // The one seconds-space containment rule; toneRegionIdAt names its answer (see the
+    // definitions).
+    [[nodiscard]] const common::core::ToneRegion* toneRegionAtPosition(
+        common::core::TimePosition position) const;
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -491,7 +495,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Rebuilds the sole tone region on a fresh empty "Default" tone (see the definition).
     void resetSoleToneRegion(const std::string& region_id);
     void onToneRegionSelected(std::string region_id);
-    void onToneRegionActivated();
+    // The render-cadence frame intent: notices a playback boundary crossing (see the definition).
+    void onPlaybackFrameAdvanced();
     void onToneRegionCreateRequested(
         common::core::GridPosition position, std::string new_region_id,
         std::string tone_document_ref);
@@ -1574,6 +1579,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Undo/redo can restore model references to tones a later reload dropped (reset repoints and
     // reloads); comparing against this set detects the divergence so the rig can reload.
     std::vector<std::string> m_loaded_tone_refs{};
+
+    // Tone region the rig is audibly on: the region syncAudibleTone last derived the audible tone
+    // from. Its ONE writer is that sync — the one place the audible tone is decided — so the datum
+    // cannot drift from what the rig was actually told, whichever input moved (cursor, selection or
+    // the tone model). Remembered rather than re-derived because the playback frame test compares
+    // the rig's standing answer against the region under the playhead NOW, and the standing answer
+    // is by definition from an earlier moment. Not cleared on project close, and it does not need
+    // to be: its only reader guards on a loaded arrangement, and every load syncs before playback
+    // can report a frame.
+    std::string m_audible_region_id{};
 
     // Session-scoped automation lanes opened by the picker that have no authored points yet;
     // they show only their derived anchor. Not persisted and not undoable (a lane with no

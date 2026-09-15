@@ -34,9 +34,9 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
         select_count += 1;
     }
 
-    void onToneRegionActivated() override
+    void onPlaybackFrameAdvanced() override
     {
-        activate_count += 1;
+        playback_frame_count += 1;
     }
 
     void onToneBoundaryMoveRequested(
@@ -66,7 +66,7 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
 
     std::string last_selected_region_id;
     int select_count = 0;
-    int activate_count = 0;
+    int playback_frame_count = 0;
     std::string last_boundary_region_id;
     int boundary_move_count = 0;
     int rename_count = 0;
@@ -76,7 +76,7 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
     int delete_count = 0;
 };
 
-// Manually controlled transport; the view samples position() at render cadence only.
+// Manually controlled transport; the view reads only state().playing, to gate its per-frame report.
 struct StubTransport final : public common::audio::ITransport
 {
     void play() override
@@ -157,7 +157,7 @@ struct StubTransport final : public common::audio::ITransport
     void removeListener(Listener& /*listener*/) override
     {}
 
-    // Position returned to the view's render-cadence sampling.
+    // Seek target this stub records; the row itself no longer reads the transport position.
     common::core::TimePosition current_position{};
 
     // Engaged normalized loop region; nullopt while looping is disengaged.

@@ -52,12 +52,13 @@ public:
         virtual void onToneRegionSelected(std::string region_id) = 0;
 
         /*!
-        \brief Called when the playhead crosses into a new region at render cadence.
+        \brief Called once per rendered frame while the transport is playing.
 
-        Makes that region's tone active (following the cursor) without a formal selection, so
-        playback never leaves a deletable selection behind.
+        Reports the frame tick and nothing else: the listener owns the containment rule and decides
+        whether the audible tone has to be handed back to the playhead, which is what keeps the tone
+        row from holding a second opinion about where a region begins.
         */
-        virtual void onToneRegionActivated() = 0;
+        virtual void onPlaybackFrameAdvanced() = 0;
 
         /*!
         \brief Called when an edge drag commits a new position for the shared boundary between two
@@ -127,8 +128,8 @@ public:
     \param listener Listener that receives tone-region intents.
     \param tempo_map Tempo map used to snap edge drags; referenced, not copied, so the owner must
     keep it alive for this view's lifetime.
-    \param transport Read-only transport sampled at render cadence so the active region
-    follows the playhead without controller round trips.
+    \param transport Read-only transport whose playing flag gates the per-frame report, so the
+    controller is told about elapsed frames only while playback can move the playhead.
     */
     ToneTrackView(
         Listener& listener, const common::core::TempoMap& tempo_map,
@@ -344,15 +345,14 @@ private:
     // Receives the transient snap guide while an edge drag is active.
     SnapGuideCallback m_on_snap_guide;
 
-    // Reports one payload-less activation when playback carries the playhead into a region the
-    // pushed state does not mark active. Debounces against that flag alone: the controller owns
-    // which region the playhead is in.
-    void advanceActiveRegion();
+    // Vblank tick: reports the elapsed frame while the transport is playing, so the controller can
+    // notice the audible tone drifting off the playhead. Tick only — this row decides nothing.
+    void reportPlaybackFrame();
 
-    // Read-only transport sampled at render cadence for cursor-follow highlighting.
+    // Read-only transport, read only for its playing flag: the gate on the per-frame report.
     const common::audio::ITransport& m_transport;
 
-    // Vblank-driven callback keeping the selection in step with playback crossings.
+    // Vblank-driven callback feeding the controller the frame tick it has no source for.
     juce::VBlankAttachment m_vblank_attachment;
 
     // Live edge-drag state; empty while no drag is active.

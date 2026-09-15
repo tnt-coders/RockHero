@@ -47,7 +47,7 @@ ToneTrackView::ToneTrackView(
     : m_listener(listener)
     , m_tempo_map(tempo_map)
     , m_transport(transport)
-    , m_vblank_attachment(this, [this] { advanceActiveRegion(); })
+    , m_vblank_attachment(this, [this] { reportPlaybackFrame(); })
 {}
 
 void ToneTrackView::setVisibleTimeline(common::core::TimeRange visible_timeline)
@@ -769,44 +769,27 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
     return snapped;
 }
 
-// Notices at render cadence that the moving playhead has entered a region the controller does not
-// yet consider active, and reports it once so the tone follows the cursor without a formal
-// selection. Only playback needs this: every seek, Stop, and Play already activates the region
-// under the cursor inside the controller, so a paused seek must not fire here as well.
+// Supplies the frame TICK the controller has no source for — it reads the transport clock itself,
+// but nothing tells a headless controller that a frame went by. This reports the elapsed frame and
+// nothing more: whether that frame needs the audible tone handed back to the playhead is the
+// controller's decision, resolved against the one containment rule it already owns, so this row
+// cannot disagree with the drawn `active` flag about where a region begins.
 //
-// This is a debounce, not a second containment rule. The region under the playhead is simply the
-// last one starting at or before it — the tone schedule is gapless and the last region owns
-// everything after its start — so there is no end-boundary test to disagree with the controller
-// about, and the spans come from the same one region-span rule the controller resolves. The
-// comparison is against the pushed `active` flag, never a display index, so a rebuild push cannot
-// make it misfire; the payload-less intent leaves naming the region to the controller, which
-// republishes `active` synchronously and settles the comparison in the same frame.
-void ToneTrackView::advanceActiveRegion()
+// Only playback needs the cadence: every seek, Stop, and Play already activates the region under
+// the cursor inside the controller, so the `playing` gate is what keeps a paused seek from being
+// told twice. The gesture guard the old decision needed is gone with it: it existed because
+// setState defers pushes while a drag reads m_state, which froze the `active` flag this row used
+// to compare against. The controller compares against its own remembered region instead, which no
+// view-local preview can freeze — an edge drag mutates nothing but m_drag until mouseUp emits its
+// intent, so the model the controller reads is the same one all through the gesture.
+void ToneTrackView::reportPlaybackFrame()
 {
-    // The gesture guard is load-bearing: setState defers pushes while a drag reads m_state, so
-    // mid-gesture the frozen `active` flag can never settle the comparison below and the intent
-    // would fire every vblank. The first tick after the gesture adopts the pending push re-derives
-    // the crossing, so nothing is lost by waiting.
-    if (!m_transport.state().playing || gestureActive())
+    if (!m_transport.state().playing)
     {
         return;
     }
 
-    const double position = m_transport.position().seconds;
-    const core::ToneRegionViewState* region_at_playhead = nullptr;
-    for (const core::ToneRegionViewState& region : m_state.regions)
-    {
-        if (region.time_range.start.seconds > position)
-        {
-            break;
-        }
-        region_at_playhead = &region;
-    }
-
-    if (region_at_playhead != nullptr && !region_at_playhead->active)
-    {
-        m_listener.onToneRegionActivated();
-    }
+    m_listener.onPlaybackFrameAdvanced();
 }
 
 // Reports the current snap guide, or clears it with an empty value.

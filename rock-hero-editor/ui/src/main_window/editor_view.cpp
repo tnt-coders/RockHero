@@ -3247,11 +3247,11 @@ void EditorView::onToneRegionSelected(std::string region_id)
     m_controller.onToneRegionSelected(std::move(region_id));
 }
 
-// Routes a playhead-driven region crossing to the controller as an
-// activation (no formal selection).
-void EditorView::onToneRegionActivated()
+// Routes the tone row's render cadence to the controller, which decides whether the frame carried
+// the playhead into a new region.
+void EditorView::onPlaybackFrameAdvanced()
 {
-    m_controller.onToneRegionActivated();
+    m_controller.onPlaybackFrameAdvanced();
 }
 
 // Routes a committed tone-boundary move to the controller.

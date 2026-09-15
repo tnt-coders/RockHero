@@ -1159,9 +1159,9 @@ void EditorController::onToneRegionSelected(std::string region_id)
     m_impl->onToneRegionSelected(std::move(region_id));
 }
 
-void EditorController::onToneRegionActivated()
+void EditorController::onPlaybackFrameAdvanced()
 {
-    m_impl->onToneRegionActivated();
+    m_impl->onPlaybackFrameAdvanced();
 }
 
 void EditorController::onToneRegionCreateRequested(

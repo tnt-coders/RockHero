@@ -62,13 +62,16 @@ end (symmetric addition), guaranteeing every cursor position maps to exactly one
 
 ## The click-vs-follow intent split (key mechanism)
 
-Today both a click and the render-cadence playback follow (`ToneTrackView::advanceActiveRegion`)
+Today both a click and the render-cadence playback follow (`ToneTrackView::advanceActiveRegion`,
+*renamed 2026-09-14 to `reportPlaybackFrame` when the crossing decision moved into the controller*)
 emit the single `onToneRegionSelected` intent, so playback formally *selects* tones. The split needs
 two intents:
 
 - `onToneRegionSelected(id)` — deliberate **click** → formal selection (white outline, Delete target).
 - `onToneRegionActivated(id)` — the view's **playback/cursor follow** (and the controller's seek/load
-  handlers) → set the active tone and **clear** the formal selection.
+  handlers) → set the active tone and **clear** the formal selection. *Shipped payload-less, and
+  since 2026-09-14 narrowed further to `onPlaybackFrameAdvanced()`: the row reports only the render
+  cadence and the controller owns the crossing decision.*
 
 Selection therefore exists only between a click and the next transport move: play-start, seek, and
 boundary crossings all route through the "activate" path, which clears it. That is exactly "selected

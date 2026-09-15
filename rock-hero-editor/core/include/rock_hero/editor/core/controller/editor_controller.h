@@ -513,8 +513,8 @@ public:
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
-    /*! \copydoc IEditorController::onToneRegionActivated */
-    void onToneRegionActivated() override;
+    /*! \copydoc IEditorController::onPlaybackFrameAdvanced */
+    void onPlaybackFrameAdvanced() override;
 
     /*! \copydoc IEditorController::onToneRegionCreateRequested */
     void onToneRegionCreateRequested(

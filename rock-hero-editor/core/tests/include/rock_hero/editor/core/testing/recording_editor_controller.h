@@ -382,10 +382,10 @@ public:
         last_selected_tone_region_id = std::move(region_id);
     }
 
-    /*! \copydoc IEditorController::onToneRegionActivated */
-    void onToneRegionActivated() override
+    /*! \copydoc IEditorController::onPlaybackFrameAdvanced */
+    void onPlaybackFrameAdvanced() override
     {
-        ++tone_region_activated_count;
+        ++playback_frame_advanced_count;
     }
 
     /*! \copydoc IEditorController::onToneRegionCreateRequested */
@@ -933,8 +933,8 @@ public:
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};
 
-    /*! \brief Number of times onToneRegionActivated() was reported. */
-    int tone_region_activated_count{0};
+    /*! \brief Number of times onPlaybackFrameAdvanced() was reported. */
+    int playback_frame_advanced_count{0};
 
     /*! \brief Last marker position reported through onToneRegionCreateRequested(). */
     common::core::GridPosition last_created_tone_region_position{};

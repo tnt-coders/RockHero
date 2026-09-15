@@ -573,12 +573,19 @@ public:
     virtual void onToneRegionSelected(std::string region_id) = 0;
 
     /*!
-    \brief Handles the tone row's cursor/playback follow crossing into a new region.
+    \brief Handles one rendered frame elapsing while the transport is playing.
 
-    Makes the region under the cursor the active tone (audible and edited) without formally
-    selecting it, and clears any existing selection so a stray Delete cannot remove a tone.
+    Payload-less: the view reports only the render cadence, because it has no decision to make and
+    no frame tick the controller could get for itself. The controller enforces here that while the
+    transport plays, the PLAYHEAD'S tone is what plays: it asks whether the region the rig is
+    audibly on is still the one under the playhead, and whenever it is not — a boundary crossing, a
+    click selected some other region, an edit moved which region holds the playhead — makes the
+    region under the playhead the active tone (audible and edited) without formally selecting it,
+    clearing any cursor-coupled selection so a stray Delete cannot remove a tone. A selection on the
+    playhead's own region already names the right tone and survives until the next crossing. A frame
+    with nothing to correct costs one scan over the regions and does nothing else.
     */
-    virtual void onToneRegionActivated() = 0;
+    virtual void onPlaybackFrameAdvanced() = 0;
 
     /*!
     \brief Handles a request to insert a tone-change region at a grid position.

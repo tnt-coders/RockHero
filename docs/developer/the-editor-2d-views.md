@@ -898,7 +898,21 @@ commit to.
 Every gesture ends as **one intent** through its `Listener`
 (`onToneBoundaryMoveRequested`, `onToneChangeInsertRequested`, ...) — the view never
 mutates the model. Its input is the `makeToneTrackViewState` projection; the active region
-highlight advances by sampling `ITransport` at vblank cadence.
+highlight advances from a **split** between cadence and decision — the row samples `ITransport`
+only for its playing flag and reports each frame as one payload-less
+`onPlaybackFrameAdvanced()`, and the controller decides there what that frame has to correct. The
+rule it enforces: **while the transport plays, the playhead's tone is what plays.** It asks one
+question — is the region the rig is *audibly* on still the one under the playhead? — comparing the
+region under the transport (`toneRegionAtPosition`, the one seconds-space containment rule) against
+`m_audible_region_id`, which `syncAudibleTone` records wherever it decides the audible tone. One
+question covers every way the two can part: a boundary crossing, a click that selects some other
+region (selection outranks the cursor in `activeToneRegionId`), and an edit that changes which
+region holds a standing playhead. A selection on the playhead's *own* region survives until the
+crossing, because it already names the tone that should be playing. Section, tempo-anchor and
+time-signature selections can never *trigger* a correction — none is an input to the audible tone —
+but a frame that does correct clears every cursor-coupled selection, exactly as a seek does, since
+it runs the same `activateToneAtCursor`. The row therefore holds no containment rule of its own to
+disagree with the drawn `active` flag.
 
 *Design in flux: the active-vs-selected semantics of tone regions are proposed to change
 (`docs/plans/in-progress/tone-active-vs-selected.md`, awaiting sign-off) — treat the selection
