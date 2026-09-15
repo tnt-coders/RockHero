@@ -752,7 +752,8 @@ become a preview-window-only note) and `keymap-matrix.md`.
 owner (`editor_view.cpp:1138-1152`) while JUCE invokes the first enabled owner; 4.0c's one-owner restore
 makes the two agree.
 
-**Build record (2026-09-14).**
+**Build record (2026-09-14; sighted the same day, with the paused-only marker plane and the
+section stops).**
 - Built as specified: the `MainWindow::keyPressed` override gated on
   `ComponentPeer::findCurrentTextInputTarget`, the mapping-set `addKeyListener`/`removeKeyListener`
   pair deleted, and the Tab pair's text-field branch deleted from `EditorView::stepToRowObject`.
@@ -1002,7 +1003,7 @@ focus-column trap, the settle, and front uniqueness.
 marker at the front (plan 61), which is also what gives a span a durable identity.
 
 #### Order, commits and sightings
-0. **The baseline refactor — DONE 2026-09-14, awaiting its sighting** (`fd895fcf`, `cdbc17c1`,
+0. **The baseline refactor — DONE and SIGHTED 2026-09-14** (`fd895fcf`, `cdbc17c1`,
    `3cf7b1b1`, `80fe0c47`). Before 4.0a and Phase 3 build on it, the design review of the same day
    removed the rules the built code stated twice: every marker verb commits through one
    `commitMarkerModel<Snapshot>` funnel with the section rules in common core; the audible tone is
