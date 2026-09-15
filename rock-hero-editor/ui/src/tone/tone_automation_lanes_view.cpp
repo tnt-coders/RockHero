@@ -352,6 +352,13 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     publishCaretMask();
 }
 
+// Adopts the core's published marker-plane availability. Nothing repaints: the flag gates only
+// menus and the callout, which are resolved when they open.
+void ToneAutomationLanesView::setMarkerEditsEnabled(const bool marker_edits_enabled)
+{
+    m_marker_edits_enabled = marker_edits_enabled;
+}
+
 void ToneAutomationLanesView::setEditableWindow(common::core::TimeRange window)
 {
     // Equality-gated like every sibling setter here: the editor re-pushes the whole state on every
@@ -1525,6 +1532,12 @@ void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
     {
         return;
     }
+    // Nothing opens while the marker plane is closed: the callout commits a points edit the core
+    // refuses there, and a typed-value field is a stronger promise than the menu row it mirrors.
+    if (!m_marker_edits_enabled)
+    {
+        return;
+    }
     // The controller ignores a double-click's second press (its click count is two), so no drag is
     // in flight to drop: the editor simply opens over the point the first click already selected.
     showPointValueEditor(*point_hit);
@@ -1718,8 +1731,11 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
     {
         return;
     }
+    // Removing an AUTHORED lane clears its points first, which is a marker edit, so the row is
+    // disabled while the marker plane is closed — half an edit landing would be worse than none.
+    // The flag is the core's own availability answer as published; this view adds no second gate.
     juce::PopupMenu menu;
-    menu.addItem(1, "Remove Lane");
+    menu.addItem(1, "Remove Lane", m_marker_edits_enabled, false);
     menu.showMenuAsync(
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this,
@@ -1748,10 +1764,14 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
 void ToneAutomationLanesView::showPointMenu(const PointHit& hit)
 {
     const core::ToneAutomationLaneViewState& lane = m_state.lanes[hit.lane_index];
+    // A lane's points ARE markers, so all three rows are disabled while the marker plane is closed:
+    // each commits through the one points-edit intent the core refuses there, and a menu row is too
+    // strong a promise to leave lying. The flag is the core's answer as published, not a reading of
+    // the transport this view makes for itself.
     juce::PopupMenu menu;
-    menu.addItem(1, "Delete Point");
-    menu.addItem(2, "Set Value...");
-    menu.addItem(3, "Reset to Default");
+    menu.addItem(1, "Delete Point", m_marker_edits_enabled, false);
+    menu.addItem(2, "Set Value...", m_marker_edits_enabled, false);
+    menu.addItem(3, "Reset to Default", m_marker_edits_enabled, false);
     // Identify the point by its musical position captured now, not by index: a state push while
     // the menu is open must not act on a different point.
     menu.showMenuAsync(

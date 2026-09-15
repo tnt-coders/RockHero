@@ -298,12 +298,21 @@ void TimelineRuler::resized()
     refreshRulerGeometry();
 }
 
+// Adopts the core's published marker-plane availability.
+void TimelineRuler::setMarkerEditsEnabled(const bool marker_edits_enabled)
+{
+    m_marker_edits_enabled = marker_edits_enabled;
+}
+
 // Converts ruler clicks into timeline seek positions using scrollable timeline coordinates, except
 // on the chips, which are objects rather than positions: a chip click selects the marker it stands
 // for and seeks nothing, which is exactly what lets the selection survive the cursor-coupled clear
-// that a seek would otherwise trigger. A right-click anywhere opens the section menu, since the
-// ruler is the sections' only surface and carries no competing menu. Each listener call returns at
-// once: it republishes the rows the chip lives in, so nothing may be read through it afterwards.
+// that a seek would otherwise trigger. While the marker plane is CLOSED there is no selection to
+// make, so a chip column behaves like every other ruler column and seeks — swallowing the press
+// would make the chips dead zones on a surface whose whole job is placing the cursor. A right-click
+// anywhere opens the section menu, since the ruler is the sections' only surface and carries no
+// competing menu. Each listener call returns at once: it republishes the rows the chip lives in, so
+// nothing may be read through it afterwards.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_content_width <= 0)
@@ -322,7 +331,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     {
         return;
     }
-    if (m_listener != nullptr)
+    if (m_listener != nullptr && m_marker_edits_enabled)
     {
         if (section_chip != nullptr)
         {
@@ -362,9 +371,11 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 
 // Opens the rename prompt for a double-clicked chip, the same shortcut the tone strip's regions
 // carry. The first click of the double already selected it, so the prompt names what is outlined.
+// Nothing opens while the marker plane is closed: a prompt is a stronger promise than the menu row
+// it mirrors, and that row is disabled there.
 void TimelineRuler::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    if (!m_project_loaded || m_listener == nullptr)
+    if (!m_project_loaded || m_listener == nullptr || !m_marker_edits_enabled)
     {
         return;
     }
@@ -442,17 +453,21 @@ void TimelineRuler::showSectionContextMenu(const RulerChip* chip, juce::Point<fl
         m_listener->onSongSectionSelected(position);
     }
 
+    // Every row here is a marker verb — a section's rename included, unlike a tone DOCUMENT's — so
+    // all five are disabled while the marker plane is closed rather than left to click and do
+    // nothing. The flag is the core's own availability answer as published; the ruler adds no
+    // second gate of its own.
     juce::PopupMenu menu;
     if (insert_position.has_value())
     {
-        menu.addItem(1, "Insert Section Here");
+        menu.addItem(1, "Insert Section Here", m_marker_edits_enabled, false);
     }
     if (over_chip)
     {
-        menu.addItem(2, "Rename");
-        menu.addItem(3, "Move a Measure Earlier");
-        menu.addItem(4, "Move a Measure Later");
-        menu.addItem(5, "Delete");
+        menu.addItem(2, "Rename", m_marker_edits_enabled, false);
+        menu.addItem(3, "Move a Measure Earlier", m_marker_edits_enabled, false);
+        menu.addItem(4, "Move a Measure Later", m_marker_edits_enabled, false);
+        menu.addItem(5, "Delete", m_marker_edits_enabled, false);
     }
     menu.showMenuAsync(
         // Force a cancel result if the ruler is deleted while the menu is open, so the callback

@@ -32,12 +32,12 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
 }
 
 // THE marker rule, for every marker kind: the armed caret, and nothing else. A marker verb lands
-// exactly where the charter placed the caret, never a beat late off a moving transport; and since
-// arming requires a paused transport, no marker verb is reachable while playing without any gate
-// saying so. With no caret armed there is no marker, and the chords' positional halves are inert
-// (a selected marker still restates). A caret riding an automation lane is an armed caret that
-// names its lane, so it needs no branch of its own — and it carries an exact grid position, which
-// is why this is the core's answer to give rather than something a surface reconstructs.
+// exactly where the charter placed the caret, never a beat late off a moving transport; the marker
+// plane is paused-only anyway, refused for the whole transport's roll by the availability table.
+// With no caret armed there is no marker, and the chords' positional halves are inert (a selected
+// marker still restates). A caret riding an automation lane is an armed caret that names its lane,
+// so it needs no branch of its own — and it carries an exact grid position, which is why this is
+// the core's answer to give rather than something a surface reconstructs.
 std::optional<common::core::GridPosition> EditorController::Impl::markerGridPosition() const
 {
     const ChartCaret* const armed = armedChartCaret();

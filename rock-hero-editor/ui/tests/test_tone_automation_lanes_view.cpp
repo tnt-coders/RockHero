@@ -231,6 +231,8 @@ struct LanesHarness
                 .start = common::core::TimePosition{0.0},
                 .end = common::core::TimePosition{4.0},
             });
+        // A lane's points are markers, so the editing scenarios need the marker plane OPEN.
+        view.setMarkerEditsEnabled(true);
         view.setState(makeState());
     }
 };

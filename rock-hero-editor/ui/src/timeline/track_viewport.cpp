@@ -438,6 +438,12 @@ void TrackViewport::setSelectedTempoMapChips(
     m_timeline_ruler.setSelectedTempoMapChips(tempo_anchor, signature_measure);
 }
 
+// Forwards the core's published marker-plane availability to the pinned ruler.
+void TrackViewport::setMarkerEditsEnabled(const bool marker_edits_enabled)
+{
+    m_timeline_ruler.setMarkerEditsEnabled(marker_edits_enabled);
+}
+
 // Forwards the ruler chips' listener to the pinned ruler.
 void TrackViewport::setRulerListener(TimelineRuler::Listener& listener)
 {

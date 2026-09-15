@@ -229,16 +229,28 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
+        // A tone rename names a CATALOG DOCUMENT, not a marker, so it is not one of the paused-only
+        // marker verbs below: the live rig keeps its name while the song plays.
+        case EditorAction::Id::RenameTone:
+        {
+            return conditions.has_loaded_arrangement;
+        }
+        // THE MARKER PLANE IS PAUSED-ONLY, selection included: while the transport plays the
+        // PLAYHEAD owns the timeline, so a marker the charter picked or moved would be a second
+        // opinion about where the song is — and Play clears the selection rather than carrying one
+        // through. The editor-wide move and delete ride here because every operand they dispatch on
+        // is a marker, a lane point, or a chart selection play already cleared.
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
-        case EditorAction::Id::RenameTone:
         case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
         {
-            return conditions.has_loaded_arrangement;
+            return conditions.has_loaded_arrangement && !conditions.transport_playing;
         }
         case EditorAction::Id::Stop:
         {
@@ -301,19 +313,15 @@ namespace
         {
             return conditions.has_chart && !conditions.transport_playing;
         }
-        // The editor-wide selection verbs dispatch on the selection's kind, lane points included,
-        // and the lane branches are reachable while playing; each verb reads its operand itself.
-        case EditorAction::Id::MoveSelection:
-        case EditorAction::Id::DeleteSelection:
-        {
-            return conditions.has_loaded_arrangement;
-        }
         // The armed caret is the gate; which ROW it rides is the verb's own question, since only a
         // lane row has a point to place (a string row's objects are all typed). One condition
         // rather than a second "armed on a lane" flag: the verb already reads the caret it needs.
+        // Paused-only with the rest of the marker plane, stated here rather than left to the armed
+        // caret's own paused-only lifetime, so the table answers for every marker verb alike.
         case EditorAction::Id::InsertLanePoint:
         {
-            return conditions.has_loaded_arrangement && conditions.has_armed_caret;
+            return conditions.has_loaded_arrangement && conditions.has_armed_caret &&
+                   !conditions.transport_playing;
         }
         // A digit inserts at an armed caret or retypes the selection; which, the verb decides.
         case EditorAction::Id::TypeChartFretDigit:
@@ -341,14 +349,15 @@ namespace
         }
         // Sections are SONG-level, so they need a project rather than a loaded arrangement: the
         // list is the same under every tab and survives the arrangement switch. The tempo map is
-        // song-level too, so its chips follow the same rule.
+        // song-level too, so its chips follow the same rule. Paused-only like every other marker
+        // verb; only the base condition differs.
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         {
-            return conditions.has_project;
+            return conditions.has_project && !conditions.transport_playing;
         }
     }
 

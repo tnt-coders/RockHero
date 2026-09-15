@@ -169,6 +169,18 @@ public:
     void setPlacementQuantum(common::core::Fraction placement_quantum);
 
     /*!
+    \brief Publishes whether the marker plane is open for selection and editing.
+
+    The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
+    this row derives nothing of its own from it and never reads the transport to decide it. While
+    false the boundary drag and the Alt insert do not start, their affordances stay away, and the
+    region menu's two edit rows are disabled.
+
+    \param marker_edits_enabled Published marker-plane availability.
+    */
+    void setMarkerEditsEnabled(bool marker_edits_enabled);
+
+    /*!
     \brief Installs the callback that receives the transient edge-drag snap guide.
     \param on_snap_guide Callback receiving the guide, or empty when the drag ends.
     */
@@ -332,6 +344,10 @@ private:
 
     // Note value edge drags and inserts snap to, shared with every placing surface.
     common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
+
+    // The core's published marker-plane availability: the one gate on this row's editing gestures,
+    // their affordances, and its menu's edit rows. Never derived here.
+    bool m_marker_edits_enabled{false};
 
     // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
     int m_visible_content_left{0};

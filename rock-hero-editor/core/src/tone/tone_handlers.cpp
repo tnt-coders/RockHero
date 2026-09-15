@@ -357,24 +357,19 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
 //
 // THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays. So the frame asks one
 // question — is the region the rig is AUDIBLY on still the one under the playhead? — and hands the
-// tone back to the cursor whenever it is not. One question covers every way the two can part,
-// because m_audible_region_id is written where the audible tone is decided, not where the transport
-// moved: a boundary crossing moves the playhead out from under it, a click elsewhere moves it out
-// from under the playhead (a selection outranks the cursor in activeToneRegionId), and an edit that
-// changes which region holds the playhead moves it through the funnel's own sync. Keying on the
-// last TRANSPORT move instead would misread that last case, firing on an insert made behind the
-// playhead and wiping the selection the insert had just made.
+// tone back to the cursor whenever it is not. Two things can part them while playing: a BOUNDARY
+// CROSSING, and an UNDO OR REDO of a marker edit — undo stays live mid-play (the tone designer
+// edits mid-play and must stay undoable), so that is the one way the MODEL can still move under a
+// standing playhead. No marker selection can exist to outrank the cursor (Play clears it, and
+// selecting is refused), and no forward marker edit can land. Comparing against the AUDIBLE region
+// rather than the last transport move is what covers the undo case: m_audible_region_id is written
+// where the audible tone is decided, so a transition that changes WHICH REGION holds the playhead
+// is seen on the next frame. A transition changing only which TONE the same region names is not —
+// that gap is the undo-resync item in docs/tracking/backlog.md, not the frame tick's to close.
 //
 // Comparing region IDS — not tones — is exact because the coalesce law forbids a boundary with no
 // tone change across it, so adjacent regions never share a tone and "the region changed" IS "the
 // tone changed".
-//
-// A selection on the playhead's OWN region therefore survives until the crossing: it already names
-// the tone that should be playing, so the question answers "yes" and the frame does nothing. Other
-// marker kinds — section, tempo anchor, time signature — can never TRIGGER a correction, none of
-// them being an input to the audible tone; but a frame that does correct clears every
-// cursor-coupled kind, exactly as a seek does, because it goes through the same
-// activateToneAtCursor.
 //
 // Cost on a quiet frame: one scan over the regions, each resolving its span through the tempo map,
 // plus one id comparison — no allocation, no rig call and no view push. That is what makes this
@@ -1368,6 +1363,15 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
 
     if (grabbed.has_value())
     {
+        // Both ends of the gesture — the move and the click's select — are paused-only with the
+        // rest of the marker plane, so while playing the press on a handle reaches nothing rather
+        // than arming a drag whose commit the availability gate would refuse.
+        if (m_transport.state().playing)
+        {
+            refresh_dismissed_ghost();
+            return;
+        }
+
         // A point grab begins a move drag but stays a click until the pointer crosses the drag
         // threshold, so a plain click selects the point without an
         // accidental move (resolved on Up).
@@ -1469,10 +1473,17 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
     }
 }
 
+// Arms the anchor's and the Alt insert's shared placement drag, or reports that the placement
+// refused — an occupied slot, a window edge, an unresolved parameter, or a playing transport, which
+// makes this a marker edit the availability gate would refuse at commit.
 bool EditorController::Impl::beginLanePointInsertDrag(
     const ToneAutomationPointerEvent& event, const ToneAutomationLaneExtent& extent,
     common::core::GridPosition position, ToneLaneDragOrigin origin)
 {
+    if (m_transport.state().playing)
+    {
+        return false;
+    }
     std::optional<LanePointPlan> plan = planLanePointAtCaret(
         ChartCaret{
             .position = position,
@@ -1943,32 +1954,18 @@ common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
 // other surface had selected (one selection, structurally). Direct like the chart pointer
 // intents rather than an action: selection is display policy, not an undoable edit. The caret
 // arms at the clicked slot, so keyboard verbs continue from the object just touched; arming
-// re-derives the selection from the slot, which is the clicked point. Armed implies paused, so
-// while playing the click only selects.
+// re-derives the selection from the slot, which is the clicked point. Paused-only with the rest of
+// the marker plane, so while playing the click reaches nothing at all.
 void EditorController::Impl::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
-    if (isBusy())
+    if (isBusy() || m_transport.state().playing)
     {
         return;
     }
-    if (m_transport.state().playing)
-    {
-        setSelection(
-            AutomationPointSelection{
-                .instance_id = std::move(instance_id),
-                .param_id = std::move(param_id),
-                .position = position,
-            });
-    }
-    else
-    {
-        armLaneCaret(
-            position,
-            AutomationLaneRow{
-                .instance_id = std::move(instance_id), .param_id = std::move(param_id)
-            });
-    }
+    armLaneCaret(
+        position,
+        AutomationLaneRow{.instance_id = std::move(instance_id), .param_id = std::move(param_id)});
     updateView();
 }
 

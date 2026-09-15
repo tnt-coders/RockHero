@@ -260,7 +260,11 @@ own (ruled 2026-09-14; not yet built — `marker-verb-grammar.md` records what t
 2. else — the chord INSERTS one there.
 
 The cursor is the armed caret, else the paused cursor's slot (where an arrow press would arm), and
-the chord is inert while the transport plays. The selection is never read: a marker selected
+the chord is inert while the transport plays — one case of the wider rule: **while the transport
+plays, marker selection and every marker edit are unavailable** (ruled 2026-09-14), pointer gestures
+included, for every kind in this table and for automation points. The tone designer is outside it:
+the plugin chain, plugin parameters and the output gain stay live mid-play, and renaming a tone
+document is not a marker edit. The selection is never read: a marker selected
 elsewhere does not redirect the chord. The selection has its own verbs — `Enter` restates it and
 `Ctrl+R` renames it where its kind has a name. The keyboard's route onto an existing marker is the focus-row walk, `Tab`, and the planned
 `Ctrl+Shift`+letter jumps — each kind's `Ctrl` pair is author / select.
@@ -295,7 +299,8 @@ the cursor is IN, never the nearest one. Every chord is a default and rebinds li
 
 Sections are song-level markers on the pinned ruler, and the chip is a fourth object kind the one
 editor-wide selection can hold. One chord is the section's own; the rest are the selection verbs
-already in the tables above, reaching a new alternative rather than gaining a chord.
+already in the tables above, reaching a new alternative rather than gaining a chord. Every row below
+is paused-only, the chip click included, under the marker-plane rule above (2026-09-14).
 
 | Keybind / gesture | Behavior | Status |
 |---|---|---|
@@ -306,12 +311,13 @@ already in the tables above, reaching a new alternative rather than gaining a ch
 | `Alt+↑/↓` | *(nothing — a marker on one timeline row has no vertical axis)* | `—` unbound |
 | **Click chip** | select it. Seeks nothing, which is what lets the selection survive the cursor-move rule that clears it (the tone region's lifecycle, shared) | Live |
 | **Double-click chip** | rename prompt, the pointer form of `Enter` on a selected chip | Live |
-| **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. A chord alone is undiscoverable, which is why the menu exists | Live |
+| **Right-click ruler** | the section menu: add always, plus rename / move / delete over a chip, which the menu selects first. A chord alone is undiscoverable, which is why the menu exists. Every row is DISABLED while the transport plays (2026-09-14) — greyed, not hidden, so the menu still says what the row is | Live |
 
 ## Tempo and time-signature chips (the ruler's lower chip rows)
 
 Selectable so the keyboard's vertical walk can stand on them (`keyboard-focus-rows.md`); they carry
-no verbs until tempo-map authoring (plan 41) gives them some. A selected chip is always drawn: on a
+no verbs until tempo-map authoring (plan 41) gives them some. Selecting one is paused-only, like
+every marker kind (2026-09-14). A selected chip is always drawn: on a
 dense map its neighbours give way instead, and as the row's pinned chip it never yields to the
 chip scrolling in.
 
@@ -479,7 +485,10 @@ The tone strip is a **single selectable region-row** in the vertical stack, betw
 strings and the automation lanes, and the keyboard reaches it by SELECTION, never with an armed
 caret: nothing is typed on a span surface, and the caret arms only where a keystroke authors a point
 (re-ruled 2026-09-13, `keyboard-focus-rows.md`). `↓` from string 1 selects **the region holding the
-cursor**, the caret demoted in place. The **signal chain is not in the arrow flow**.
+cursor**, the caret demoted in place. The **signal chain is not in the arrow flow**. Every verb here
+is paused-only, and so are the strip's pointer gestures — the boundary drag and the `Alt` insert
+do not even start while the transport plays (2026-09-14); the region's own SIGNAL CHAIN stays live
+mid-play, which is the point of the live rig.
 
 With a tone region selected:
 - `↑` arms string 1 at the cursor, `↓` arms the first lane (or selects the "+" row when the tone has
@@ -521,6 +530,9 @@ has zero lanes or ten), reached by selection like the tone row:
   chip; choosing one opens the lane and arms the caret on it. `Insert` is not paired with the row
   yet.
 - Edge: if the tone has **no plugins**, there is nothing to automate — the picker says so.
+- The "+" row is reached only by the walk, which is paused-only, and a lane's POINTS are markers
+  too: selecting, creating, moving and deleting one is refused while the transport plays
+  (2026-09-14).
 
 The plugin-centric path — `Ctrl+↑` from a selected plugin reveals (or offers to create) *that
 plugin's* lanes — is filed under the deferred **targeted drill**; both can coexist later.

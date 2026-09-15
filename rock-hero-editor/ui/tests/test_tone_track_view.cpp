@@ -212,6 +212,9 @@ struct ToneTrackHarness
         // Scenario positions in this file are stated in quarter-note grid slots, so pin the
         // quantum there explicitly instead of riding the editor default.
         view.setPlacementQuantum(common::core::Fraction{1, 4});
+        // The editing scenarios are the paused ones, so the marker plane starts OPEN here; the one
+        // closed-plane case turns it off explicitly.
+        view.setMarkerEditsEnabled(true);
         view.setState(makeState());
     }
 };
@@ -277,6 +280,38 @@ TEST_CASE("Tone track plain click selects without inserting", "[ui][tone]")
     CHECK(harness.listener.last_selected_region_id == "region-a");
     CHECK(harness.listener.insert_count == 0);
     CHECK(harness.listener.boundary_move_count == 0);
+}
+
+// With the marker plane closed neither preview gesture starts: the Alt insert places no ghost and
+// the boundary drag grabs no edge, so neither release commits an intent. The plain-click select
+// still goes out — the core's availability gate is the one that refuses it, and this row never adds
+// a second gate.
+TEST_CASE("Tone track starts no edit gesture while the marker plane is closed", "[ui][tone]")
+{
+    ToneTrackHarness harness;
+    harness.view.setMarkerEditsEnabled(false);
+
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 250.0f, 20.0f, g_alt_click));
+    harness.view.mouseDrag(
+        testing::makeMouseDragEvent(harness.view, 310.0f, 20.0f, 250.0f, 20.0f, g_alt_click));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 310.0f, 20.0f, g_alt_click));
+    CHECK(harness.listener.insert_count == 0);
+
+    // x 400 = 4 s is the shared boundary; dragging it right would otherwise move both neighbors.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 400.0f, 20.0f));
+    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 440.0f, 20.0f, 400.0f, 20.0f));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 440.0f, 20.0f));
+    CHECK(harness.listener.boundary_move_count == 0);
+    CHECK_FALSE(harness.view.cancelActiveGesture());
+
+    // A sub-threshold press-release over a region body still emits exactly one select intent, which
+    // the core refuses: the click is never swallowed here. Counted as a delta, because a press that
+    // starts no gesture IS a plain click — so the two releases above each selected as well.
+    const int selects_before = harness.listener.select_count;
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 250.0f, 20.0f));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 250.0f, 20.0f));
+    CHECK(harness.listener.select_count == selects_before + 1);
+    CHECK(harness.listener.last_selected_region_id == "region-a");
 }
 
 // Cancelling an in-flight edge drag (the editor routes Esc here) commits nothing on release.

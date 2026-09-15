@@ -28,6 +28,14 @@ selected. The selection has its own verbs, below.
 placement-grid slot, which is exactly where an arrow press would arm. While the transport plays the
 chord is inert (ruled 2026-09-14): "the cursor" never means the rolling playhead.
 
+**The whole marker plane is paused-only, not only the chords** (ruled 2026-09-14). While the
+transport plays, marker SELECTION and every marker EDIT are unavailable — for every kind here, for
+automation points, and through the pointer as much as the keyboard: the availability table refuses
+each verb (`editor_action_availability.cpp`) and the tone strip will not even start a boundary drag
+or an `Alt` insert. The tone designer is deliberately outside the rule: the plugin chain, plugin
+parameters and the output gain stay live mid-play, which is the point of the live rig, and renaming
+a tone DOCUMENT is not a marker edit.
+
 And four rules ride along with it:
 
 - **Selecting a marker disarms the armed caret**, demoted in place so the cursor line stays put.
@@ -314,7 +322,9 @@ section intro, which was updated in `cb33ca39` from the old two-move form.
 
 *Historical: the recommendation below was overruled 2026-09-13 (open question 1), and the
 2026-09-14 author-at-cursor ruling keeps that answer (ruled the same day) through an explicit gate
-in `markerGridPosition` instead of the armed-implies-paused invariant.*
+in `markerGridPosition` instead of the armed-implies-paused invariant. The later 2026-09-14 ruling
+went further than either: the whole marker plane is paused-only, selection included, so the "what
+stays reachable is the workflow" reading below describes the shipped editor only up to that date.*
 
 Raised while reviewing the drift above: if authoring during playback is what exposes it, why not
 simply disable editing while the transport rolls?
@@ -356,6 +366,9 @@ Each of these was a judgment call. The forced moves are not listed; these are.
    beat off. The capture-at-press discipline stays as the prompt's shape but is no longer
    load-bearing. **2026-09-14:** the author-at-cursor ruling no longer needs a caret, and the
    answer stays "no" (ruled the same day), enforced by a playing gate in `markerGridPosition`.
+   **Widened the same day:** the answer is now the whole marker plane's, not the chords' — marker
+   selection and every marker edit are unavailable while playing, enforced in the availability
+   table, with the tone designer excluded.
 2. **The catalog prunes a tone that loses its last reference, on every tone verb.** An
    unreferenced tone is already unofferable because the picker is built from tones regions
    reference. The cost: retoning away from a tone destroys its chain, recoverable only by undo

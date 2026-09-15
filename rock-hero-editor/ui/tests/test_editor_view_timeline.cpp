@@ -309,6 +309,8 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
             tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
     ruler.setListener(listener);
+    // The chip verbs are marker verbs, so the plane has to be OPEN for a click to reach one.
+    ruler.setMarkerEditsEnabled(true);
     int placement_count = 0;
     ruler.setCursorPlacementCallback(
         [&placement_count](common::core::TimePosition) { placement_count += 1; });
@@ -393,6 +395,8 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
             tempo_map, grid_note_value, window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
     ruler.setListener(listener);
+    // The chip verbs are marker verbs, so the plane has to be OPEN for a click to reach one.
+    ruler.setMarkerEditsEnabled(true);
 
     // Unselected, the first chip covers the fourth anchor's column (x = 30), which draws no chip.
     constexpr common::core::GridPosition fourth_beat{.measure = 1, .beat = 4};

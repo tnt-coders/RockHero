@@ -790,7 +790,16 @@ Each re-verified against the code before being written down.
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
-  first, then take the unconditional sync. The canned answer carries the same lie about the GAIN:
+  first, then take the unconditional sync. **Re-measured 2026-09-14** while making the marker plane
+  paused-only: taking the unconditional sync still turns 7 cases / 15 assertions red (5 in
+  `test_editor_controller_plugins.cpp`, `Output gain undo redo restores live rig`, and the section
+  workaround below). A blocker the earlier note missed: the plugin tests compose through
+  `audioPorts(transport, audio, audio_devices, plugin_host)`, whose live rig is the SHARED STATIC
+  `defaultLiveRig()`, so the per-tone chain cannot simply be pointed at the test's own
+  `RecordingPluginHost::chain` — the static outlives each test and the pointer would dangle
+  between them. The per-tone-chain work therefore has to move those call sites onto a caller-owned
+  `FakeLiveRig` (or give the fake a lifetime-safe indirection) first; it is a harness design change,
+  not a local fix. The canned answer carries the same lie about the GAIN:
   `editor_controller_test_harness.h:862-872` answers with `next_load_result.output_gain` rather than
   the `current_output_gain` the fake's own `setOutputGain` recorded, where the real rig answers with
   the branch's exact stored value (`engine_live_rig.cpp:535-537`). "Section rename leaves the
@@ -894,4 +903,17 @@ written down.
   exposing one tick would make it the only public one. **Remedy** if it ever earns the cost: a
   shared test seam that drives a view's frame tick, applied to both rows at once — never a
   public method on one of them.
+
+## Found while making the marker plane paused-only (2026-09-14)
+
+- **`tone-active-vs-selected.md`'s selection semantics need re-reading against the playback ruling
+  before that plan is signed.** Its 2026-07-08 confirmations
+  (`docs/plans/in-progress/tone-active-vs-selected.md:48-56`) settle the active/selected split
+  partly on "editing during playback is unusual, so this is acceptable" and on the selection
+  clearing at any transport move. Marker selection and every marker edit are now unavailable while
+  the transport plays (ruled 2026-09-14), so the playback half of those answers is no longer a
+  tradeoff but a structural fact — re-verify each of the four against the current code before the
+  plan is executed.
+  (The automation lanes' point and lane menus were on this list for the same reason; they now grey
+  their editing rows from the published `marker_edits_enabled` flag, so the item is closed.)
 

@@ -151,9 +151,23 @@ returns to the lane (today it lands on a string).
 6. **Mouse:** tempo and meter chips become click-selectable exactly like section chips (select, no
    seek). Clicks keep seeking nothing.
 7. **Playback ends marker focus** — RULED 2026-09-13: keep the signed "play clears the selection"
-   rule; after pausing, walk back onto the row. Revisit only if it bites in sighting.
-8. **Chartless arrangements:** the walk rides `StepChartCaret` (gated `has_chart`), so it is chart-only
-   for now; recorded as a limitation.
+   rule; after pausing, walk back onto the row. Revisit only if it bites in sighting. **RULED
+   2026-09-14: while the transport plays, marker selection and every marker edit are
+   unavailable** — one rule for every marker kind (sections, tempo anchors, time signatures, tone
+   regions, the "+" row) and for automation points, enforced by `isActionAvailable` in
+   `editor_action_availability.cpp`, and published to the views as one flag,
+   `EditorViewState::marker_edits_enabled`. The tone designer is excluded: the plugin chain, plugin
+   parameters and the output gain stay live mid-play (that is the point of the live rig), and
+   renaming a tone document is not a marker edit either.
+   Weighed and set aside the same day: letting a tone region be selected during playback with
+   its tone LOCKED as the audible one until deselected, so the tone under edit does not change
+   out from under the charter. The lock is a real workflow, but it gives one marker kind playback
+   semantics the others lack. It returns later as an explicit **tone audition** state — not a
+   selection — that overrides the derived audible tone while set and that the playback follow
+   ignores; the frame handler already derives the audible tone from its inputs, so an audition
+   is one more input, not a second rule. Unplanned; record it as a plan when it is wanted.
+8. **Chartless arrangements:** the walk rides `StepChartCaret` (gated `has_chart`), so it is
+   chart-only for now; recorded as a limitation.
 9. **The 3D preview** keeps its whitelist (plain and `Ctrl` Up/Down stay main-window); Phase 2 adds
    Tab/Shift+Tab.
 10. **Returning to a group lands on its nearest edge**, exactly as the plain arrows do (`Ctrl+↓` from
@@ -411,7 +425,10 @@ Questions to settle, with current leanings:
    - **Sequencing.** Land this before or with Phase 4a, so rule 2's prose is rewritten once.
    - **Owed before building:**
      - **Playback — RULED 2026-09-14: inert while playing.** It keeps the 2026-09-13 "editing
-       during playback: no", and play already clears the selection.
+       during playback: no", and play already clears the selection. The same day's wider ruling
+       makes the whole marker plane paused-only (recommended default 7), so the chord's own
+       projection gate is a second line of defence rather than the only one: the core refuses every
+       marker select and every marker edit while the transport plays.
      - **The playback gate is the projection, not a UI check.** The chord commands are
        always-active in `EditorView` on purpose (a disabled matching chord beeps), and
        `EditorViewState` publishes no playing flag, so "inert while playing" means the marker

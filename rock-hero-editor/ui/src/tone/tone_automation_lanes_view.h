@@ -224,6 +224,19 @@ public:
     void setEditableWindow(common::core::TimeRange window);
 
     /*!
+    \brief Publishes whether the marker plane is open for selection and editing.
+
+    The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
+    these lanes derive nothing of their own from it and never read the transport to decide it. A
+    lane's POINTS are markers, so while false the point and lane menus grey their editing rows and
+    the typed-value callout does not open. The gestures are refused in the controller, which owns
+    them.
+
+    \param marker_edits_enabled Published marker-plane availability.
+    */
+    void setMarkerEditsEnabled(bool marker_edits_enabled);
+
+    /*!
     \brief Installs the shared snap-guide sink used during point drags.
     \param callback Callback receiving guide updates; empty clears the guide immediately.
     */
@@ -625,6 +638,10 @@ private:
 
     // Note value snapped placement lands on, shared with every placing surface.
     common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
+
+    // The core's published marker-plane availability: the one gate on the menus' editing rows and
+    // the typed-value callout. Never derived here.
+    bool m_marker_edits_enabled{false};
 
     // Automation lanes for the selected tone.
     core::ToneAutomationViewState m_state{};

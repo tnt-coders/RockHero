@@ -369,7 +369,9 @@ nothing is typed there. Down from string 1, Up from the first lane, `Ctrl+Down` 
 caret demoted in place so the cursor line stays put. A region selected with the pointer seeks nothing, so it may
 not hold the cursor; the moment the keyboard steps off it, the cursor moves to its start first, so
 the lanes below are the ones that region owns. A transport or playback move still clears the
-selection. With a region selected:
+selection — and no new one can be made while the transport plays: **marker selection and every
+marker edit are paused-only** (ruled 2026-09-14), so the pointer click, the boundary drag, the `Alt`
+insert and each verb below are all refused mid-play. With a region selected:
 
 - `↑` arms string 1 at the cursor; `↓` arms the first lane there, or selects the "+" row when the
   tone has no lanes.

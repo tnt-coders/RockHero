@@ -134,6 +134,28 @@ void ToneTrackView::setPlacementQuantum(common::core::Fraction placement_quantum
     m_placement_quantum = placement_quantum;
 }
 
+// Adopts the core's published marker-plane availability. A closing plane drops any standing
+// affordance with it: an Alt ghost resolved before play started would otherwise sit there until the
+// pointer moves, promising an insert the core now refuses.
+void ToneTrackView::setMarkerEditsEnabled(const bool marker_edits_enabled)
+{
+    if (m_marker_edits_enabled == marker_edits_enabled)
+    {
+        return;
+    }
+    m_marker_edits_enabled = marker_edits_enabled;
+    if (!m_marker_edits_enabled)
+    {
+        setInsertGhostX(std::nullopt);
+        // The two gated affordances were the ghost and the resize cursor; the row still SELECTS, so
+        // the cursor falls back to the plain body's hover cursor rather than waiting for a move.
+        setMouseCursor(
+            isMouseOver() && hitAt(getMouseXYRelative()).has_value()
+                ? juce::MouseCursor::PointingHandCursor
+                : juce::MouseCursor::NormalCursor);
+    }
+}
+
 void ToneTrackView::setSnapGuideCallback(SnapGuideCallback on_snap_guide)
 {
     m_on_snap_guide = std::move(on_snap_guide);
@@ -296,10 +318,16 @@ void ToneTrackView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<RegionHit> hit = hitAt(event.getPosition());
 
+    // No editing affordance while the marker plane is closed, since neither gesture can start then:
+    // the ghost and the resize cursor would each advertise an edit the core refuses, and an
+    // affordance never promises what the press would not perform. The row still reads as
+    // selectable.
+    //
     // Alt over a region body previews the tone change a click would insert: a ghost boundary
     // line at the snapped position, under the arrow-with-plus copy cursor.
     std::optional<float> ghost_x;
-    if (hit.has_value() && !hit->edge.has_value() && event.mods.isAltDown())
+    if (m_marker_edits_enabled && hit.has_value() && !hit->edge.has_value() &&
+        event.mods.isAltDown())
     {
         if (const std::optional<common::core::GridPosition> position =
                 insertPositionForX(static_cast<float>(event.getPosition().x), hit->region_index);
@@ -314,7 +342,7 @@ void ToneTrackView::mouseMove(const juce::MouseEvent& event)
     {
         setMouseCursor(juce::MouseCursor::CopyingCursor);
     }
-    else if (hit.has_value() && hit->edge.has_value())
+    else if (m_marker_edits_enabled && hit.has_value() && hit->edge.has_value())
     {
         setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
     }
@@ -364,9 +392,14 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
+    // Neither preview gesture starts while the marker plane is closed: the core's availability gate
+    // is the authority that would refuse the intent on release, so previewing one here could only
+    // promise a change that never lands. A plain click below still sends its select intent, which
+    // the core refuses — this row is never the second gate.
+    //
     // Alt on a region body starts the insert placement: press-drag-release places the ghost
     // boundary and commits the tone-change intent on release (a plain click commits in place).
-    if (!hit->edge.has_value() && event.mods.isAltDown())
+    if (m_marker_edits_enabled && !hit->edge.has_value() && event.mods.isAltDown())
     {
         if (const std::optional<common::core::GridPosition> position =
                 insertPositionForX(static_cast<float>(event.getPosition().x), hit->region_index);
@@ -379,7 +412,7 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    if (hit->edge.has_value())
+    if (m_marker_edits_enabled && hit->edge.has_value())
     {
         m_drag = DragState{
             .region_index = hit->region_index,
@@ -400,10 +433,13 @@ void ToneTrackView::showRegionContextMenu(
     const core::ToneRegionViewState& region,
     std::optional<common::core::GridPosition> insert_position)
 {
+    // The two marker EDITS are disabled while the marker plane is closed rather than left to click
+    // and do nothing — a menu row is too strong a promise to leave lying, and the flag is the
+    // core's own answer as published. Rename stays enabled: it names a tone DOCUMENT, not a marker.
     juce::PopupMenu menu;
     if (insert_position.has_value())
     {
-        menu.addItem(3, "Insert Tone Change Here");
+        menu.addItem(3, "Insert Tone Change Here", m_marker_edits_enabled, false);
     }
     // The synthesized default region has no catalog tone to rename or delete.
     if (!region.tone_document_ref.empty())
@@ -411,7 +447,7 @@ void ToneTrackView::showRegionContextMenu(
         menu.addItem(1, "Rename");
         if (!region.id.empty())
         {
-            menu.addItem(2, "Delete");
+            menu.addItem(2, "Delete", m_marker_edits_enabled, false);
         }
     }
     if (menu.getNumItems() == 0)

@@ -805,6 +805,13 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setSelectedTempoMapChips(
         m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 
+    // One published fact reaches all three marker-row surfaces, pushed as its own setter exactly as
+    // the placement quantum is: every one greys and refuses from this alone, so none derives marker
+    // enablement itself and none reads the transport to decide it.
+    m_track_viewport->setMarkerEditsEnabled(m_state.marker_edits_enabled);
+    m_tone_track_view.setMarkerEditsEnabled(m_state.marker_edits_enabled);
+    m_tone_automation_lanes_view.setMarkerEditsEnabled(m_state.marker_edits_enabled);
+
     m_tone_track_view.setPlacementQuantum(placement_quantum);
     m_tone_track_view.setState(m_state.tone_track);
 

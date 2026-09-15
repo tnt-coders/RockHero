@@ -1750,11 +1750,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     const ChartStepDirection direction = action.direction;
     // The handlers below run full action dispatches that may reassign the selection variant or
     // the marker; the dispatched value is copied here so no handler ever holds a reference into
-    // the object it (or a reentrant view callback) might replace. The lane branches are
-    // deliberately reachable while playing — live automation editing during playback is a
-    // supported workflow (the points port edits safely mid-play) — while chart branches stay
-    // structurally paused-only because play clears the chart selection. A marker selected with the
-    // pointer during playback still moves, and leaves the playhead where it is.
+    // the object it (or a reentrant view callback) might replace. Every branch is paused-only: the
+    // verb itself is refused while the transport plays, alongside the rest of the marker plane.
     //
     // A marker of any kind lives on ONE timeline row, so it moves horizontally only: the vertical
     // refusal is stated here, once, rather than by each kind's own mover. The point, chart and lane

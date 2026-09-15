@@ -456,17 +456,25 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
+        case EditorAction::Id::RenameTone:
+        case EditorAction::Id::ScanPluginCatalog:
+        {
+            return "no-loaded-arrangement";
+        }
+        // The marker plane's two base conditions, each paired with the paused-only gate, so a
+        // refusal while playing names the transport rather than the state that was actually met.
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
-        case EditorAction::Id::RenameTone:
         case EditorAction::Id::SetToneRegionTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
-        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
         {
-            return "no-loaded-arrangement";
+            return conditions.has_loaded_arrangement ? "transport-playing"
+                                                     : "no-loaded-arrangement";
         }
         case EditorAction::Id::Stop:
         {
@@ -512,14 +520,13 @@ namespace
         {
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
-        case EditorAction::Id::MoveSelection:
-        case EditorAction::Id::DeleteSelection:
-        {
-            return "no-loaded-arrangement";
-        }
         case EditorAction::Id::InsertLanePoint:
         {
-            return conditions.has_loaded_arrangement ? "no-armed-caret" : "no-loaded-arrangement";
+            if (!conditions.has_loaded_arrangement)
+            {
+                return "no-loaded-arrangement";
+            }
+            return conditions.transport_playing ? "transport-playing" : "no-armed-caret";
         }
         case EditorAction::Id::TypeChartFretDigit:
         {
@@ -544,7 +551,7 @@ namespace
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         {
-            return "no-project";
+            return conditions.has_project ? "transport-playing" : "no-project";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -2549,6 +2556,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.suggested_publish_file.replace_extension(".rock");
     }
     state.close_enabled = isActionAvailable(EditorAction::Id::CloseProject, action_conditions);
+    // The marker plane's one published answer, read off the marker verb with the weakest base
+    // condition, so every marker-row surface greys and refuses from this alone.
+    state.marker_edits_enabled =
+        isActionAvailable(EditorAction::Id::SelectSongSection, action_conditions);
     state.project_loaded = action_conditions.has_loaded_arrangement;
     state.project_load_id = m_project_load_id;
     state.save_requires_destination = m_save_requires_destination;

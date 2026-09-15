@@ -820,6 +820,22 @@ struct EditorViewState
     /*! \brief Enables or disables the File > Close command. */
     bool close_enabled{false};
 
+    /*!
+    \brief One published answer for the whole marker plane: may a marker be selected or edited now?
+
+    Derived as the availability of \ref EditorActionId::SelectSongSection, the marker verb with the
+    WEAKEST base condition — a project, and a paused transport — so it answers for every marker kind
+    (sections, tempo anchors, time signatures, tone regions, automation points) and for the "+" row
+    at once. Every marker-row surface greys its affordances and refuses its gestures from this flag
+    alone: no view derives marker enablement itself, and none reads the transport to decide it.
+
+    It is not the whole availability answer for any one verb — a tone-region verb also needs a
+    loaded arrangement, a lane point also needs its lane — so the core still refuses each verb on
+    its own conditions. This says only "the marker plane is open", which is the question an
+    affordance asks.
+    */
+    bool marker_edits_enabled{false};
+
     /*! \brief Reports whether a project arrangement is currently loaded for display. */
     bool project_loaded{false};
 

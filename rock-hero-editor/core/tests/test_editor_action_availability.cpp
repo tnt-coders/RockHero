@@ -296,12 +296,16 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
 
-    // The caret moves are paused-only; the edits on a selection are not gated on the transport
-    // because play clears the chart selection structurally.
+    // The caret moves are paused-only, and so are the editor-wide move and delete, which dispatch
+    // over the marker plane. The typed and technique verbs are not gated on the transport because
+    // play clears the chart selection structurally.
     conditions.transport_playing = true;
     CHECK_FALSE(isActionAvailable(ActionId::StepChartCaret, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::DeleteSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
 
     // Busy refuses every chart verb, and none of them takes over a busy operation.
@@ -312,6 +316,62 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartSilentHold));
+}
+
+// One rule for the whole marker plane: while the transport plays, no marker can be selected and no
+// marker edit can land. The tone designer is outside it — the live rig stays editable mid-play —
+// and a tone rename names a catalog document rather than a marker, so both stay available.
+TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
+{
+    ActionConditions conditions{
+        .live_input_audition_available = true,
+        .has_project = true,
+        .has_loaded_arrangement = true,
+        .has_loaded_plugins = true,
+        .has_armed_caret = true,
+    };
+
+    CHECK(isActionAvailable(ActionId::SelectToneRegion, conditions));
+    CHECK(isActionAvailable(ActionId::CreateToneRegion, conditions));
+    CHECK(isActionAvailable(ActionId::DeleteToneRegion, conditions));
+    CHECK(isActionAvailable(ActionId::SetToneRegionTone, conditions));
+    CHECK(isActionAvailable(ActionId::MoveToneBoundary, conditions));
+    CHECK(isActionAvailable(ActionId::CreateNewTone, conditions));
+    CHECK(isActionAvailable(ActionId::SetToneAutomationPoints, conditions));
+    CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
+    CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
+    CHECK(isActionAvailable(ActionId::SelectSongSection, conditions));
+    CHECK(isActionAvailable(ActionId::InsertSongSection, conditions));
+    CHECK(isActionAvailable(ActionId::RenameSongSection, conditions));
+    CHECK(isActionAvailable(ActionId::SelectTempoAnchor, conditions));
+    CHECK(isActionAvailable(ActionId::SelectTimeSignature, conditions));
+
+    conditions.transport_playing = true;
+
+    CHECK_FALSE(isActionAvailable(ActionId::SelectToneRegion, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::CreateToneRegion, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::DeleteToneRegion, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetToneRegionTone, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MoveToneBoundary, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::CreateNewTone, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetToneAutomationPoints, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::DeleteSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SelectSongSection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertSongSection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::RenameSongSection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SelectTempoAnchor, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SelectTimeSignature, conditions));
+
+    // The live rig is the point of playing back: the chain, its plugins and the tone catalog's
+    // names stay reachable, and so do the transport verbs themselves.
+    CHECK(isActionAvailable(ActionId::RenameTone, conditions));
+    CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK(isActionAvailable(ActionId::PlayPause, conditions));
+    CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
 }
 
 } // namespace rock_hero::editor::core

@@ -95,7 +95,12 @@ keyboard form is the section's one chord, `Ctrl+M` — insert a section at the c
 downbeat, rename it when one is selected (`F2` is gone as of 2026-09-12). The tempo and
 time-signature chips carry no verbs yet: they are selectable so the keyboard's vertical walk can
 stand on them. A chip click deliberately does **not** seek, unlike every other click on the ruler: a
-chip is an object, and a seek would clear the very selection the click just made. Each placed
+chip is an object, and a seek would clear the very selection the click just made. **The exception is
+a closed marker plane** (`marker_edits_enabled` false, i.e. while the transport plays): there is no
+selection to make, so a chip column behaves like every other ruler column and seeks —
+swallowing the press would turn the chips into dead zones on a surface whose whole job is placing
+the cursor. The
+double-click rename does not open there either, and every section-menu row is disabled. Each placed
 `RulerChip` remembers the index of the marker it stands for in its row's source, so a click resolves
 to a `GridPosition` or measure rather than inverting the ruler's own pixel mapping — the pinned
 active chip included, whose anchor is off-screen.
@@ -886,12 +891,20 @@ preview being active both count, and where the pointer sits never matters), so t
 sampler is the only one that cannot be wrong about where the pointer is. \ref guide_keyboard has
 the rule and the facts behind it.
 
-## Tone track — `ToneTrackView`
-
-Renders the gap-free tone regions as spans with name chips pinned to the visible left edge, and
-carries the editing grammar for boundaries: click selects, edge-drag moves a shared boundary
-(snapped to the placement quantum), Alt enters the insert quasimode with a ghost boundary, Esc
-cancels.
+## Tone track — `ToneTrackView`  Renders the gap-free tone regions as spans with name chips pinned
+to the visible left edge, and carries the editing grammar for boundaries: click selects, edge-drag
+moves a shared boundary (snapped to the placement quantum), Alt enters the insert quasimode with a
+ghost boundary, Esc cancels. All of it is **paused-only** (ruled 2026-09-14: marker selection and
+every marker edit are unavailable while the transport plays). The core's availability table is the
+authority and the row reads its published answer, `EditorViewState::marker_edits_enabled` — **one
+published fact for all three marker-row surfaces** (this row, the ruler, the automation lanes),
+pushed to each as its own setter beside the placement quantum, so no view derives marker enablement
+itself and none reads the transport to decide it. The click still sends its select intent for the
+core to refuse; what the row adds is only what an affordance would otherwise promise falsely —
+neither preview gesture STARTS, the Alt ghost and the resize cursor stay away (dropped the moment
+the flag closes, not on the next pointer move), and the region menu's "Insert Tone Change Here" and
+"Delete" rows are disabled
+("Rename" stays live, naming a tone *document* rather than a marker).
 Boundaries and the split ghost render on the tempo grid's own integer pixel columns
 (`gridAlignedX`; the ghost is a 1px column fill), so a preview sits exactly on the line it will
 commit to.
@@ -904,14 +917,16 @@ only for its playing flag and reports each frame as one payload-less
 rule it enforces: **while the transport plays, the playhead's tone is what plays.** It asks one
 question — is the region the rig is *audibly* on still the one under the playhead? — comparing the
 region under the transport (`toneRegionAtPosition`, the one seconds-space containment rule) against
-`m_audible_region_id`, which `syncAudibleTone` records wherever it decides the audible tone. One
-question covers every way the two can part: a boundary crossing, a click that selects some other
-region (selection outranks the cursor in `activeToneRegionId`), and an edit that changes which
-region holds a standing playhead. A selection on the playhead's *own* region survives until the
-crossing, because it already names the tone that should be playing. Section, tempo-anchor and
-time-signature selections can never *trigger* a correction — none is an input to the audible tone —
-but a frame that does correct clears every cursor-coupled selection, exactly as a seek does, since
-it runs the same `activateToneAtCursor`. The row therefore holds no containment rule of its own to
+`m_audible_region_id`, which `syncAudibleTone` records wherever it decides the audible tone. Two
+things can part them while playing: **a boundary crossing, or an undo or redo of a marker edit** —
+undo stays live mid-play (the tone designer edits mid-play and must stay undoable), so that is the
+one way the MODEL can still move under a standing playhead. Nothing else can: the marker plane is
+paused-only, so no selection exists to outrank the cursor in `activeToneRegionId` (play clears it
+and selecting is refused) and no forward edit can land. Comparing against the AUDIBLE region rather
+than the last transport move is what covers the undo case — a transition that changes which REGION
+holds the playhead is seen on the next frame. One that changes only which TONE the same region names
+is not; that gap is the undo-resync item in `docs/tracking/backlog.md`, and closing it is blocked on
+the live-rig test fake, not on this row. The row therefore holds no containment rule of its own to
 disagree with the drawn `active` flag.
 
 *Design in flux: the active-vs-selected semantics of tone regions are proposed to change
@@ -931,8 +946,15 @@ release**. The point gesture needs no defer-mid-push guard: the controller freez
 mid-drag lane rebuild republishes the preview instead of yanking the point from under the user (the
 view still defers state pushes during the presentational lane-resize drag). Selection is identified
 by value (instance id, parameter id, exact grid position), not by index, so it survives rebuild
-pushes.
-
+pushes.  **A lane's POINTS are markers**, so the whole editing half is paused-only (ruled
+2026-09-14). The controller refuses the gestures it owns — a point grab (its move, and the click's
+select on release) and the shared placement drag behind the anchor press and the `Alt` insert — and
+the view greys what it owns from the published `marker_edits_enabled`: the point menu's "Delete
+Point", "Set Value..." and "Reset to Default", the lane menu's "Remove Lane" (which clears an
+authored lane's points before closing it, so half of it is a marker edit), and the typed-value
+callout, which the point double-click no longer opens. The plain lane-area click still SEEKS, as it
+always did. Nothing here reads the transport: one published flag is the gate, so this row cannot
+hold a second opinion about what the core would refuse.
 **The chip column pins to the SELECTED TONE.** Every chip in this row — the lane names and the
 trailing "+" alike — sits at the left of the tone the lanes belong to (`pinnedChipLeft`, off the
 editable window, which IS the active region's span), scrolls with it, and sticks at the window's

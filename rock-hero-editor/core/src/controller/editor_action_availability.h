@@ -78,7 +78,15 @@ struct ActionConditions
     /*! \brief True when the current arrangement carries a chart. */
     bool has_chart{false};
 
-    /*! \brief True while the transport plays; the chart caret verbs are paused-only. */
+    /*!
+    \brief True while the transport plays; the chart caret verbs and the marker plane are
+    paused-only.
+
+    Marker selection and every marker edit — sections, tempo anchors, time signatures, tone regions,
+    automation points — are refused while this is set. The tone designer is deliberately outside it:
+    the plugin chain, plugin parameters and the output gain stay live, which is the point of the
+    live rig.
+    */
     bool transport_playing{false};
 
     /*! \brief True when the editor-wide selection holds chart notes. */

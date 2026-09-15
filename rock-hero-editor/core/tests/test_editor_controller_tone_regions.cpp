@@ -200,121 +200,67 @@ TEST_CASE(
     CHECK(editor.view.set_state_call_count == pushes_after);
 }
 
-// While the transport plays, the PLAYHEAD'S tone is what plays. A selection outranks the cursor in
-// activeToneRegionId, so a click elsewhere would otherwise keep a foreign tone audible until the
-// next crossing; the frame after it has to take the playhead's side. A selection on the playhead's
-// own region is the exception that proves the rule: it already names the right tone, so the frame
-// has nothing to correct and the click survives until the crossing actually arrives.
+// The boundary crossing is the frame handler's ONLY input, because a playing transport admits no
+// other: marker selection and every marker edit are paused-only, so a click on a region while the
+// song plays reaches nothing and the frame after it still finds no selection to reconcile.
 TEST_CASE(
-    "EditorController yields a playing frame to the playhead over a foreign selection",
-    "[core][editor-controller]")
+    "EditorController refuses a tone region select while playing", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
     REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
     editor.transport.current_state.playing = true;
 
-    // Clicking the LATER region while the playhead sits in the earlier one makes Dirty audible.
+    // Clicking the LATER region leaves the playhead's own tone audible: the select is refused, so
+    // nothing ever outranks the cursor.
     editor.controller.onToneRegionSelected(g_region_b);
-    REQUIRE(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-
-    // The next frame corrects it: the selection clears, Clean is audible again, and the earlier
-    // region is the drawn active one.
-    editor.controller.onPlaybackFrameAdvanced();
     CHECK(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK(state->tone_track.regions[0].active);
     CHECK_FALSE(state->tone_track.regions[0].selected);
     CHECK_FALSE(state->tone_track.regions[1].selected);
 
-    // The correction happens ONCE, not once per frame: with nothing left to correct the following
-    // frame is free again. (The correcting frame itself re-derives the audible tone twice, because
-    // clearCursorCoupledSelection routes through setSelection, which re-derives on its own before
-    // activateToneAtCursor's explicit sync — a pre-existing property of every selection-clearing
-    // cursor entry, not of the frame path, so it is not pinned here.)
-    const int rig_calls_corrected = editor.live_rig.set_audible_tone_call_count;
-    const int pushes_corrected = editor.view.set_state_call_count;
+    // With no selection in play the next frame has nothing to correct, so it costs nothing.
+    const int rig_calls = editor.live_rig.set_audible_tone_call_count;
+    const int pushes = editor.view.set_state_call_count;
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_corrected);
-    CHECK(editor.view.set_state_call_count == pushes_corrected);
-
-    // Selecting the region the playhead is already in names the tone that should be playing, so a
-    // frame inside it decides nothing and the selection stands.
-    editor.controller.onToneRegionSelected(g_region_a);
-    const int rig_calls_own = editor.live_rig.set_audible_tone_call_count;
-    const int pushes_own = editor.view.set_state_call_count;
-    editor.transport.current_position = common::core::TimePosition{1.5};
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_own);
-    CHECK(editor.view.set_state_call_count == pushes_own);
-    REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK(state->tone_track.regions[0].selected);
-
-    // The crossing still clears it: transport motion out of the selected region is exactly what the
-    // cursor-coupled lifecycle means, so Delete can never fire from playback alone.
-    editor.transport.current_position = common::core::TimePosition{2.5};
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-    REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK_FALSE(state->tone_track.regions[0].selected);
-    CHECK(state->tone_track.regions[1].active);
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls);
+    CHECK(editor.view.set_state_call_count == pushes);
 }
 
-// The regression a datum keyed on the last TRANSPORT move would carry: a standing playhead can
-// change which region holds it without the transport moving at all, because the MODEL moved under
-// it. An insert BEHIND the playhead is exactly that — and it selects what it made, so a frame that
-// mistook the new region for a crossing would wipe the charter's selection 16 ms later. Keying on
-// the region the rig is audibly on gets both directions right, because the insert's own commit is
-// what recorded it.
+// The MODEL can still move under a standing playhead, because undo and redo stay live while the
+// transport plays (the tone designer edits mid-play and must stay undoable). Keying the frame test
+// on the AUDIBLE region rather than on the last transport move is what sees it: the playhead has
+// not moved, but the region holding it has been replaced, so the next frame hands the tone back to
+// the cursor. Restored from the insert-behind-the-playhead case that the forward gate retired —
+// undo is now the only verb that can reach this state.
 TEST_CASE(
-    "EditorController leaves an insert behind the playhead alone and corrects one ahead of it",
+    "EditorController follows an undone tone-region delete under a standing playhead",
     "[core][editor-controller]")
 {
-    LoadedToneEditor editor{makeSingleRegionSong()};
-    REQUIRE(editor.regions().size() == 1);
-
-    // Playing at measure 1 beat 4 (1.5 s at 120 BPM 4/4), inside the sole region.
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.5});
-    editor.transport.current_state.playing = true;
-    REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
-
-    // Insert a tone change at beat 3 (1.0 s), BEHIND the playhead: the new region now holds the
-    // playhead, is selected, and its tone is audible.
-    editor.controller.onToneRegionCreateRequested(gridAt(1, 3), g_region_new, g_second_tone_ref);
+    LoadedToneEditor editor{makeTwoRegionSong()};
     REQUIRE(editor.regions().size() == 2);
-    REQUIRE(editor.regions()[1].id == g_region_new);
-    REQUIRE(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
 
-    // The next frame has nothing to correct — the audible region IS the one under the playhead — so
-    // the selection the insert made survives and the frame costs nothing.
-    const int rig_calls_behind = editor.live_rig.set_audible_tone_call_count;
-    const int pushes_behind = editor.view.set_state_call_count;
+    // Delete the later region while paused, leaving Clean covering the whole song, then park the
+    // playhead at 2.5 s — inside where the deleted region stood — and start playing.
+    editor.controller.onToneRegionDeleteRequested(g_region_b);
+    REQUIRE(editor.regions().size() == 1);
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+    REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
+    editor.transport.current_state.playing = true;
+
+    // Undo restores the later region under the standing playhead. The transport never moved.
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.regions().size() == 2);
+
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_behind);
-    CHECK(editor.view.set_state_call_count == pushes_behind);
     CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK(state->tone_track.regions[1].selected);
+    CHECK_FALSE(state->tone_track.regions[0].active);
     CHECK(state->tone_track.regions[1].active);
-
-    // The mirror case: an insert AHEAD of the playhead selects a region the playhead is not in, so
-    // the next frame hands the tone back to the cursor and clears that selection.
-    editor.controller.onUndoRequested();
-    REQUIRE(editor.regions().size() == 1);
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
-    editor.controller.onToneRegionCreateRequested(gridAt(1, 3), g_region_new, g_second_tone_ref);
-    REQUIRE(editor.regions().size() == 2);
-    REQUIRE(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
-    REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK(state->tone_track.regions[0].active);
-    CHECK_FALSE(state->tone_track.regions[1].selected);
 }
 
 TEST_CASE(
@@ -665,22 +611,27 @@ TEST_CASE(
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(3.75, 1e-9));
 }
 
-// A pointer can select a region while the song plays; the move still lands, but the playhead is
-// not the move's to seek.
+// A marker move is paused-only: pressed while the song plays it changes nothing at all — no start
+// moves, no seek fires, and nothing reaches the undo history to be taken back.
 TEST_CASE(
-    "EditorController moves a tone region start during playback without seeking",
-    "[core][editor-controller]")
+    "EditorController refuses a tone region start move while playing", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
     editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     editor.controller.onToneRegionSelected(g_region_b);
     editor.transport.current_state.playing = true;
     const auto seeks_before = editor.transport.seek_call_count;
+    const EditorViewState* const before = stateOrNull(editor.view.last_state);
+    REQUIRE(before != nullptr);
+    const std::size_t entries_before = before->undo_history.labels.size();
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
 
-    CHECK(editor.regions()[1].start == gridAt(2, 2));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK(editor.transport.seek_call_count == seeks_before);
+    const EditorViewState* const after = stateOrNull(editor.view.last_state);
+    REQUIRE(after != nullptr);
+    CHECK(after->undo_history.labels.size() == entries_before);
 }
 
 TEST_CASE(

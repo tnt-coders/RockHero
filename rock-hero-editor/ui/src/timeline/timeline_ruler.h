@@ -206,6 +206,18 @@ public:
     void setCursorPosition(std::optional<common::core::TimePosition> cursor_position, bool paused);
 
     /*!
+    \brief Publishes whether the marker plane is open for selection and editing.
+
+    The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
+    the ruler derives nothing of its own from it and never reads the transport to decide it. While
+    false a chip click falls through to cursor placement and seeks like any other ruler column, the
+    double-click rename does not open, and every section-menu row is disabled.
+
+    \param marker_edits_enabled Published marker-plane availability.
+    */
+    void setMarkerEditsEnabled(bool marker_edits_enabled);
+
+    /*!
     \brief Stores the tempo map that supplies anchors and click snapping, plus the note value ruler
     clicks quantize onto.
 
@@ -407,6 +419,10 @@ private:
 
     // Whether the mark draws in the paused cursor color instead of the playback color.
     bool m_cursor_paused{false};
+
+    // The core's published marker-plane availability: the one gate on the chip clicks, the
+    // double-click rename and the section menu's rows. Never derived here.
+    bool m_marker_edits_enabled{false};
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};

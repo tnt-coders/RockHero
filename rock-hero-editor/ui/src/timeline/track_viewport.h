@@ -312,6 +312,12 @@ public:
         std::optional<int> signature_measure);
 
     /*!
+    \brief Forwards the core's published marker-plane availability to the pinned ruler.
+    \param marker_edits_enabled Published \ref core::EditorViewState::marker_edits_enabled.
+    */
+    void setMarkerEditsEnabled(bool marker_edits_enabled);
+
+    /*!
     \brief Forwards the ruler chips' listener to the pinned ruler.
 
     The chips' intents leave the viewport untouched: two of them raise a prompt, which belongs to

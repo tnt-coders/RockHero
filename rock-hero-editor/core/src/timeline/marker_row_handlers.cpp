@@ -196,13 +196,11 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
 }
 
 // Only the edit's visibility asks for this. Keeping a selected marker holding the cursor for the
-// walk and Tab is the column rule's job (moveCursorIntoSelectedMarker), done before each step.
+// walk and Tab is the column rule's job (moveCursorIntoSelectedMarker), done before each step. No
+// transport test is needed: a marker move is paused-only, so the cursor is always the caret's.
 void EditorController::Impl::followMovedMarker(const common::core::GridPosition start)
 {
-    if (!m_transport.state().playing)
-    {
-        moveCursorTo(start);
-    }
+    moveCursorTo(start);
     updateView();
 }
 
