@@ -243,23 +243,6 @@ std::string EditorController::Impl::activeToneName() const
     return toneNameForRef(activeToneDocumentRef());
 }
 
-// Formally selects a region (a deliberate click): the selection is the Delete target and draws a
-// white outline, and it becomes the active tone (a preview) until the cursor moves off it.
-void EditorController::Impl::applyToneSelection(std::string region_id)
-{
-    if (!region_id.empty())
-    {
-        selectMarker(ToneRegionSelection{.region_id = std::move(region_id)});
-        return;
-    }
-    // A region deselect only releases the region alternative; it must not disturb a chart or
-    // automation selection made since (one selection editor-wide, per-kind lifecycles).
-    if (std::holds_alternative<ToneRegionSelection>(m_selection))
-    {
-        setSelection(std::monostate{});
-    }
-}
-
 // One of the two cursor-move entries, and the one the TRANSPORT moved under: playback crossing a
 // region boundary, and the Play, Stop and seek handoffs. The cursor-coupled selection goes with the
 // move (so Delete can never fire from mere transport motion) and the rig re-derives at the new
@@ -491,14 +474,21 @@ void EditorController::Impl::onToneAutomationPointsEditRequested(
         });
 }
 
-// Stores the selection when the id names an authored region; anything else clears it.
+// Stores the selection when the id names an authored region; anything else releases it.
 void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion action)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const common::core::ToneRegion* const region =
         arrangement == nullptr ? nullptr
                                : findToneRegion(arrangement->tone_track, action.region_id);
-    applyToneSelection(region != nullptr ? std::move(action.region_id) : std::string{});
+    if (region != nullptr)
+    {
+        selectMarker(ToneRegionSelection{.region_id = std::move(action.region_id)});
+    }
+    else
+    {
+        releaseSelectionIfHeld<ToneRegionSelection>();
+    }
     updateView();
 }
 
@@ -543,7 +533,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     }
 
     // The region holding the inserted start is the new one even when the next region's tone was
-    // pulled back into it; read from the produced track, which is what the commit installs.
+    // pulled back into it; read from the produced track, which is what the commit installs. A
+    // region holds that position for certain: the create just succeeded, which means it split one
+    // open there, so the lookup below cannot come back empty.
     const std::string created_region_id =
         common::core::toneRegionAt(after.tone_track, action.position)->id;
     const std::string tone_name = toneNameForRef(action.tone_document_ref);
@@ -554,7 +546,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     {
         // The insert selects what it made; a selection made after the commit publishes with this
         // refresh, because the commit's own publish ran before it existed.
-        applyToneSelection(created_region_id);
+        selectMarker(ToneRegionSelection{.region_id = created_region_id});
         updateView();
     }
 }
@@ -615,7 +607,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
 // only frees a selection naming a marker that is gone, has nothing to free here.
 void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
 {
-    applyToneSelection({});
+    releaseSelectionIfHeld<ToneRegionSelection>();
 
     auto minted = m_live_rig.mintEmptyTone(currentSongDirectory());
     if (!minted.has_value())
@@ -750,6 +742,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     // The label names the tone the region comes to reference, which a mint has only just put in
     // the produced catalog — so the name is read from there rather than from the live one.
     const std::string after_name = toneNameIn(after.tones, after_ref);
+    // A region always holds `start`: it is the start of a region that existed before the retone, so
+    // the track's first region begins at or before it, and a retone never empties the track — it
+    // can only coalesce neighbours, which keeps the earlier of each pair.
     const std::string surviving_region_id = common::core::toneRegionAt(after.tone_track, start)->id;
     if (!commitMarkerModel(
             std::move(before),
@@ -765,7 +760,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     // merge took.
     if (was_selected)
     {
-        applyToneSelection(surviving_region_id);
+        selectMarker(ToneRegionSelection{.region_id = surviving_region_id});
         updateView();
     }
 
@@ -806,15 +801,12 @@ bool EditorController::Impl::commitToneBoundaryMove(
 
 // A region's start IS the tone change it opens, so the start is the marker a keyboard move
 // addresses, stepping by the placement quantum's lattice exactly as a lane point does (an off-grid
-// start lands on the grid line beyond it). Up/Down has no meaning on one timeline row. A landed
-// move brings the paused cursor to the new start, so the edit is in view.
+// start lands on the grid line beyond it). The direction is Left or Right: the move dispatch
+// refuses a vertical one for every marker kind before it reaches here. A landed move brings the
+// paused cursor to the new start, so the edit is in view.
 void EditorController::Impl::moveSelectedToneRegionStart(
     const std::string& region_id, const ChartStepDirection direction)
 {
-    if (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right)
-    {
-        return;
-    }
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr)
     {
@@ -878,6 +870,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
         return;
     }
 
+    // A region holds the position for certain: the create just succeeded, so one was split open
+    // there (the same reasoning as CreateToneRegion above).
     const std::string created_region_id =
         common::core::toneRegionAt(after.tone_track, action.position)->id;
     if (!commitMarkerModel(
@@ -891,7 +885,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     {
         reloadLiveRigForToneSet();
     }
-    applyToneSelection(created_region_id);
+    selectMarker(ToneRegionSelection{.region_id = created_region_id});
     updateView();
 }
 

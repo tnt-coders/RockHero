@@ -31,23 +31,6 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
     return std::get_if<SongSectionSelection>(&m_selection);
 }
 
-// Selects a section chip, or releases the section alternative when no position is named. A
-// deselect must not disturb a selection made on another surface since, exactly as the tone
-// region's deselect does not.
-void EditorController::Impl::applySongSectionSelection(
-    const std::optional<common::core::GridPosition> position)
-{
-    if (position.has_value())
-    {
-        selectMarker(SongSectionSelection{.position = *position});
-        return;
-    }
-    if (selectedSongSection() != nullptr)
-    {
-        setSelection(std::monostate{});
-    }
-}
-
 // THE marker rule, for every marker kind: the armed caret, and nothing else. A marker verb lands
 // exactly where the charter placed the caret, never a beat late off a moving transport; and since
 // arming requires a paused transport, no marker verb is reachable while playing without any gate
@@ -99,7 +82,17 @@ void EditorController::Impl::onSongSectionRenameRequested(
 // section selection alive under the cursor-coupled clear that a ruler-body click would trigger.
 void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSection& action)
 {
-    applySongSectionSelection(action.position);
+    // Bound once so the guard and the read are provably the same optional (the CI
+    // unchecked-optional-access check cannot tie two separate member accesses together).
+    if (const std::optional<common::core::GridPosition>& position = action.position;
+        position.has_value())
+    {
+        selectMarker(SongSectionSelection{.position = *position});
+    }
+    else
+    {
+        releaseSelectionIfHeld<SongSectionSelection>();
+    }
     updateView();
 }
 
@@ -122,7 +115,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
     {
         // The insert selects what it made, and a selection made after the commit publishes with
         // this refresh: the commit's own publish ran before it existed.
-        applySongSectionSelection(downbeat);
+        selectMarker(SongSectionSelection{.position = downbeat});
         updateView();
     }
 }
@@ -155,15 +148,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
 void EditorController::Impl::moveSelectedSongSection(
     const SongSectionSelection& selection, const ChartStepDirection direction)
 {
-    const int delta = direction == ChartStepDirection::Left    ? -1
-                      : direction == ChartStepDirection::Right ? 1
-                                                               : 0;
-    if (delta == 0)
-    {
-        // Up/Down has no meaning for a marker on one timeline row; a silent no-op, like a string
-        // step over a keyframe that has no string.
-        return;
-    }
+    // Left or Right, always: a marker moves horizontally only, and the move dispatch refuses a
+    // vertical direction for every marker kind before it reaches here.
+    const int delta = direction == ChartStepDirection::Left ? -1 : 1;
 
     // Stepped by MEASURE, then put through the one downbeat snap: the step is the only part of the
     // target this verb decides, and where a section may sit is not its rule to restate.
@@ -184,7 +171,7 @@ void EditorController::Impl::moveSelectedSongSection(
         // The position IS the section's identity, so the commit released a selection that now
         // names nothing; the moved section is re-selected here, and followMovedMarker publishes it
         // together with the cursor it brings along.
-        applySongSectionSelection(target);
+        selectMarker(SongSectionSelection{.position = target});
         followMovedMarker(target);
     }
 }

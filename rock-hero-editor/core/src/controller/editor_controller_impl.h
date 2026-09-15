@@ -64,6 +64,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -441,6 +442,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the fret-entry invalidation invariant lives in exactly one place.
     void setSelection(EditorSelection selection);
     void clearSelection();
+    // Releases the selection only while it still holds this kind: THE deselect, for every kind.
+    // One selection is editor-wide, so a deselect arriving from one surface must not disturb a
+    // selection another surface made since — which is what asking for the kind states.
+    template <typename Kind> void releaseSelectionIfHeld()
+    {
+        if (std::holds_alternative<Kind>(m_selection))
+        {
+            setSelection(std::monostate{});
+        }
+    }
     // Clears only the selection kinds that follow the cursor — every kind but a chart selection
     // and the time span, which deliberately survive seeks (the marker model's lifecycle split).
     void clearCursorCoupledSelection();
@@ -470,7 +481,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::string automationParameterName(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
-    void applyToneSelection(std::string region_id);
     void activateToneAtCursor();
     void syncAudibleTone();
     // Refuses a typed tone name the produced catalog would then hold twice, reporting it to the
@@ -496,12 +506,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimeSignatureSelected(int measure);
     void onSongSectionInsertRequested(common::core::GridPosition position, std::string name);
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
-    void applySongSectionSelection(std::optional<common::core::GridPosition> position);
     // THE marker position every marker verb lands on (see the definition for the rule).
     [[nodiscard]] std::optional<common::core::GridPosition> markerGridPosition() const;
     // The marker rule for a section verb, snapped to that measure's downbeat.
     [[nodiscard]] std::optional<common::core::GridPosition> markerSongSectionDownbeat() const;
     // Moves the selected section one measure (the Alt+arrow dispatch for the section alternative).
+    // Left or Right only; the move dispatch refuses a vertical direction for every marker kind.
     void moveSelectedSongSection(
         const SongSectionSelection& selection, ChartStepDirection direction);
     // Deletes the selected section (the Delete-key dispatch for the section alternative).
@@ -512,7 +522,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // and commits it as one undo entry. Returns whether the move was committed.
     bool commitToneBoundaryMove(const std::string& region_id, common::core::GridPosition position);
     // Moves the selected tone region's start one placement-quantum line (the Alt+arrow dispatch
-    // for the tone-region alternative).
+    // for the tone-region alternative). Left or Right only; the move dispatch refuses a vertical
+    // direction for every marker kind.
     void moveSelectedToneRegionStart(const std::string& region_id, ChartStepDirection direction);
     void onToneCreateNewRequested(common::core::GridPosition position, std::string name);
     void onToneAutomationLaneAddRequested(const std::string& instance_id, std::string param_id);
@@ -1206,7 +1217,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the row the next arming lands on — the caret's string, and its lane while it rode one, so an
     // arrow from a marker row returns to the lane it was reached from — and the exact musical
     // position the editor last put the cursor at, which the transport's seconds cannot carry
-    // exactly (pausedCursorSlot trusts it only while the transport still stands there).
+    // exactly (pausedCursorPosition trusts it only while the transport still stands there).
     struct ChartCursor
     {
         int string{1};
@@ -1340,11 +1351,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // One row of the keyboard's vertical walk (docs/plans/in-progress/keyboard-focus-rows.md),
     // computed per press and never stored. The caret names a string or lane row; the selection
-    // names a marker row or the "+" row beneath the lanes. Each GROUP of rows Ctrl's reach jumps
-    // between is exactly one alternative, so a row's alternative index is its group; a new group
-    // must be a new alternative, and two groups may never share one. focusRowStack sets the order.
-    template <MarkerRow Row> struct MarkerFocusRow
+    // names a marker row or the "+" row beneath the lanes. The alternatives are in no particular
+    // order — only their DISTINCTNESS is used — because the order the rows are walked in is
+    // authored once, in focusRowStack.
+    struct MarkerFocusRow
     {
+        // No member initializer, unlike its siblings below: a focus row must always name WHICH
+        // marker row it is, and there is no row that could honestly stand as the default, so the
+        // field is left bare and a construction that forgets it fails to compile.
+        MarkerRow row;
+
         friend bool operator==(const MarkerFocusRow& lhs, const MarkerFocusRow& rhs) = default;
     };
     struct StringFocusRow
@@ -1357,13 +1373,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         friend bool operator==(const AddLaneFocusRow& lhs, const AddLaneFocusRow& rhs) = default;
     };
-    using FocusRow = std::variant<
-        MarkerFocusRow<MarkerRow::Section>, MarkerFocusRow<MarkerRow::Tempo>,
-        MarkerFocusRow<MarkerRow::TimeSignature>, StringFocusRow, MarkerFocusRow<MarkerRow::Tone>,
-        AutomationLaneRow, AddLaneFocusRow>;
+    using FocusRow =
+        std::variant<MarkerFocusRow, StringFocusRow, AutomationLaneRow, AddLaneFocusRow>;
 
-    // The focus row a marker row walks as.
-    [[nodiscard]] static FocusRow markerFocusRow(MarkerRow row);
+    // Whether two rows sit in the same reach group — the only question the groups are ever asked,
+    // since Ctrl's step skips to the first row of the NEXT one. The strings are one group and the
+    // visible lanes another, while each marker row is a group of its own.
+    [[nodiscard]] static bool sameReachGroup(const FocusRow& lhs, const FocusRow& rhs);
 
     // The row keyboard focus stands on: the armed caret's row, the marker or "+" row the selection
     // names, or none while the marker is passive over any other selection.
@@ -1386,18 +1402,22 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the ones under the cursor, not those of a region selected elsewhere with the pointer.
     [[nodiscard]] FocusRow prepareLandingRow(int string_count);
 
-    // The exact position the editor last put the paused cursor at, while the transport still stands
-    // there; empty once the transport has moved away or the marker is armed.
-    [[nodiscard]] std::optional<common::core::GridPosition> trustedCursorColumn() const;
+    // The passive marker's answer to a horizontal key: arms in place on the remembered row at the
+    // paused cursor and publishes, without stepping, so the first press yields a caret to work from
+    // rather than moving anything. The arrows always take it; Tab takes it wherever no marker or
+    // "+" row holds the selection, since on those rows Tab steps to the neighbouring marker
+    // instead.
+    void armMarkerInPlace(int string_count);
 
-    // The slot an arming at the paused cursor takes: the trusted column, so a caret walked off an
-    // off-grid slot walks back onto it; anywhere else, the nearest placement-quantum slot.
-    [[nodiscard]] common::core::GridPosition pausedCursorSlot() const;
-
-    // The paused cursor's musical position, which decides the marker holding it: the trusted
-    // column, else the nearest tick. Musical rather than seconds, so a marker the cursor was moved
-    // onto still holds it after the transport's sample-rounded write-back.
-    [[nodiscard]] common::core::GridPosition pausedCursorPosition() const;
+    // The paused cursor's musical position, read at the caller's quantum: the exact column the
+    // editor last put the cursor at while the transport still stands within tolerance of it — so a
+    // caret walked off an off-grid slot walks back onto it — and the nearest line of the given
+    // quantum anywhere else. An arming asks with placementQuantum() for the slot it takes; the
+    // marker rows ask with the tick for the position deciding which marker holds the cursor, which
+    // survives the transport's sample-rounded write-back. With snap off the placement quantum IS
+    // the tick, so the two readings coincide.
+    [[nodiscard]] common::core::GridPosition pausedCursorPosition(
+        common::core::Fraction quantum) const;
 
     // THE landing, for every row. A point row arms at the column, or at the paused cursor's slot
     // when none is given, with the channel meaning something on a string row only. A marker row

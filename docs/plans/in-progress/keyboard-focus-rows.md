@@ -170,17 +170,20 @@ returns to the lane (today it lands on a string).
 - `selectedMarker() -> optional<{MarkerRow row; optional<size_t> index}>`, and its inverse
   `markerSelectionAt(row, index)`, which builds the selection naming a row's marker;
 - `selectMarker(MarkerSelection)` — dissolves the caret, sets the selection and re-syncs the rig.
-  It is the select half of `applySongSectionSelection` and `applyToneSelection`, which keep only
-  their deselect halves, and of the tempo and signature chip clicks.
+  Every path that SELECTS a marker calls it directly, the chip clicks included; every path that
+  DESELECTS one calls the generic `releaseSelectionIfHeld<Kind>()`, which frees the selection only
+  while it still holds that kind. (`applySongSectionSelection` and `applyToneSelection`, which first
+  carried both halves behind an empty-sentinel argument, were deleted 2026-09-14.)
 
 **Marker-row helpers** — `Impl` members beside the pair, since each reads the session:
 - `enum class MarkerRow { Section, Tempo, TimeSignature, Tone };`
 - `markerStarts(row) -> std::vector<GridPosition>`, ascending;
 - `markerHolderIndex(starts, position)` — one `upper_bound` in musical space: the last start at or
   before the position, else the first marker, which owns the lead-in. The position is the paused
-  cursor's (`pausedCursorPosition`: the trusted column, else the nearest tick), so a marker the
-  cursor was moved onto still holds it after Tracktion's write-back. `toneRegionIdAt` keeps its
-  seconds-space loop, because the drawn tone row and the automation window share that span rule.
+  cursor's (`pausedCursorPosition(g_tick_quantum_note_value)`: the trusted column, else the nearest
+  line of the quantum asked for), so a marker the cursor was moved onto still holds it after
+  Tracktion's write-back. `toneRegionIdAt` keeps its seconds-space loop, because the drawn tone row
+  and the automation window share that span rule.
 
 **The "+" row selection** (built in 1a). One more alternative, `AddAutomationLaneRowSelection{}`,
 beside the marker kinds: mutually exclusive with every other selection by construction, disarms the
@@ -375,12 +378,15 @@ Questions to settle, with current leanings:
    restates the selection. The user's reason: the chord is an authoring verb, not a "replace the
    selected object" verb. The record is `marker-verb-grammar.md`; the build shape researched with the
    ruling:
-   - **The position.** `markerGridPosition()` returns the armed caret, else `pausedCursorSlot()`, and
-     nothing while playing or with no song — two gates stated once in the authority, never in
-     availability, which the pointer inserts share. Sections and meters snap to the downbeat of the
-     measure the cursor is IN, from the tick (`pausedCursorPosition()`), not from the slot; the tempo
-     anchor floors to the beat it is in. Recommended with it: fold the two paused-cursor functions into
-     one armed-aware `cursorPosition(quantum)`, which Phase 4c's `focusColumn()` then is.
+   - **The position.** `markerGridPosition()` returns the armed caret, else
+     `pausedCursorPosition(placementQuantum())`, and nothing while playing or with no song — two
+     gates stated once in the authority, never in availability, which the pointer inserts share.
+     Sections and meters snap to the downbeat of the measure the cursor is IN, from the tick
+     (`pausedCursorPosition(g_tick_quantum_note_value)`), not from the slot; the tempo anchor floors
+     to the beat it is in. The recommended fold of the two paused-cursor functions into one
+     quantum-taking helper LANDED 2026-09-14 (`trustedCursorColumn`, `pausedCursorSlot` and
+     `pausedCursorPosition` became one `pausedCursorPosition(quantum)`); what remains for Phase 3 is
+     only making it ARMED-AWARE, which is what Phase 4c's `focusColumn()` then is.
    - **The template.** `performMarkerChord` loses its selected input and its select callable; both
      perform cases lose `selectedSongSection()`/`selectedToneRegion()` and their select lambdas.
      `sectionAtMarker`/`toneRegionStartingAtMarker` stay as the at-cursor predicates (or fold into the
@@ -840,10 +846,11 @@ in-session edits FHPs today, so no new release hook is needed.
    time-signature kinds. It is cursor-coupled for free, and every dispatch ladder already falls through
    correctly (Delete, Alt-move, Enter inert; Esc releases; left out of `selection_present`). Add no
    explicit no-op arms.
-3. **The model.** `MarkerRow::FretHandPosition`, handled in all three switches over `MarkerRow`
+3. **The model.** `MarkerRow::FretHandPosition`, handled in both switches over `MarkerRow`
    (`markerStarts` reads the current chart, bound once and guarded for the CI optional-access check;
-   `markerSelectionAt`; `markerFocusRow`), plus a `selectedMarker` arm. A new `FocusRow` alternative
-   between the time signature and the strings, and `focusRowStack` lists it there.
+   `markerSelectionAt`), plus a `selectedMarker` arm. No new `FocusRow` alternative: every marker
+   row walks as `MarkerFocusRow{row}`, and `focusRowStack` lists the new row between the time
+   signature and the strings (`sameReachGroup` already gives each marker row its own reach group).
 4. **Behaviour on charts with FHPs.** `Ctrl+↑` from a string now reaches the FHP row, and `Ctrl+↓` from
    the time signature lands on it. Update the `CaretJumpSurfaceAbove/Below` Doxygen. Charts without FHPs
    (every existing test fixture) are unchanged.
@@ -883,8 +890,9 @@ Spans are derived and store nothing, never overlap, and routinely leave gaps. Wh
 what gaps and derived data force:
 1. **Fronts and closes (D9).** A lazy `ChartResolutions` cache behind a const accessor, self-refreshing
    on arrangement and chart revision.
-2. **The kind (D8).** `HandSpanSelection { GridPosition front; }`, `MarkerRow::HandSpan`, a `FocusRow`
-   alternative, and the stack order time signature · span · FHP · strings.
+2. **The kind (D8).** `HandSpanSelection { GridPosition front; }`, `MarkerRow::HandSpan` (no new
+   `FocusRow` alternative — every marker row walks as `MarkerFocusRow{row}`), and the stack order
+   time signature · span · FHP · strings.
 3. **One holder function.** `markerHolderAt(MarkerRow, GridPosition) -> std::optional<std::size_t>`
    replaces `markerHolderIndex`:
    - tiling rows keep today's rule, and return nothing only when empty;
@@ -972,8 +980,8 @@ before 4c is built. The select-only FHP row stays valid as the model for it.
 - **`keymap-matrix.md`:** the jump row goes Live; the Markers table gains a jump column; the File row;
   the time-signature and Actions chords; the stale rule-2 prose.
 - **`marker-verb-grammar.md`:** the new-kind checklist gains: declare the letter once, register the
-  jump beside the author chord, add the kind to `FocusRowJump`, `MarkerRow`, `markerFocusRow`,
-  `markerHolderAt` and the stack. (Rule 2's retirement is already recorded there, with Phase 3.)
+  jump beside the author chord, add the kind to `FocusRowJump`, `MarkerRow`, `markerHolderAt` and
+  the stack. (Rule 2's retirement is already recorded there, with Phase 3.)
 - **`docs/developer/keyboard-input.md`:** where key events enter (the typing gate), the path (b) action
   list, the focus-row paragraph, the preview whitelist paragraph, and the keybind recipe.
 - **`docs/developer/the-editor-2d-views.md`:** the FHP pin and inert chrome, the span reveal grounds,

@@ -1238,13 +1238,25 @@ std::optional<EditorController::Impl::FocusRow> EditorController::Impl::currentF
     }
     if (const std::optional<SelectedMarker> selected = selectedMarker(); selected.has_value())
     {
-        return markerFocusRow(selected->row);
+        return MarkerFocusRow{.row = selected->row};
     }
     if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
     {
         return AddLaneFocusRow{};
     }
     return std::nullopt;
+}
+
+bool EditorController::Impl::sameReachGroup(const FocusRow& lhs, const FocusRow& rhs)
+{
+    if (lhs.index() != rhs.index())
+    {
+        return false;
+    }
+    // Same kind, so only the marker rows are left to tell apart: they share one alternative and
+    // each is its own group, while the strings share theirs and the lanes share theirs.
+    const auto* const marker = std::get_if<MarkerFocusRow>(&lhs);
+    return marker == nullptr || marker->row == std::get<MarkerFocusRow>(rhs).row;
 }
 
 std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowStack(
@@ -1254,7 +1266,7 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     const auto push_marker_row = [this, &stack](const MarkerRow row) {
         if (!markerStarts(row).empty())
         {
-            stack.push_back(markerFocusRow(row));
+            stack.push_back(MarkerFocusRow{.row = row});
         }
     };
     // The ruler draws its rows top down as sections, tempo, time signature.
@@ -1290,8 +1302,6 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
         landOnRow(prepareLandingRow(string_count), std::nullopt);
         return;
     }
-    const std::size_t group = current->index();
-
     // A marker selected with the pointer need not hold the cursor. Stepping off it brings the
     // cursor inside first, so the next row's holder and the lanes the stack lists are the ones
     // found at that marker, and a lane caret armed below a tone region sits inside its own tone.
@@ -1316,7 +1326,7 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
     for (auto target = here; up ? target != stack.begin() : std::next(target) != stack.end();)
     {
         target = up ? std::prev(target) : std::next(target);
-        if (!reach || target->index() != group)
+        if (!reach || !sameReachGroup(*target, *current))
         {
             landOnRow(*target, column);
             return;
@@ -1324,6 +1334,10 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
     }
 }
 
+// The selection release below is the same reconciliation the column rule
+// (moveCursorIntoSelectedMarker) performs for a walk OFF a marker: both establish that the CURSOR's
+// tone owns the lanes before the row is judged. The walk brings the cursor to the marker; a landing
+// that keeps the marker's row drops the selection instead.
 EditorController::Impl::FocusRow EditorController::Impl::prepareLandingRow(const int string_count)
 {
     if (armedChartCaret() == nullptr)
@@ -1341,29 +1355,28 @@ EditorController::Impl::FocusRow EditorController::Impl::prepareLandingRow(const
     return StringFocusRow{.string = std::clamp(chartMarkerString(), 1, string_count)};
 }
 
-std::optional<common::core::GridPosition> EditorController::Impl::trustedCursorColumn() const
+// The trust test runs in SECONDS because that is the only currency the transport and the remembered
+// musical column share — the write-back the tolerance forgives is a sample rounding, which has no
+// musical spelling. Once the column is untrusted the answer is the caller's own quantum, not a
+// canonical one: an arming and a holder lookup want different roundings of the same instant, and
+// resolving that here rather than at the call sites is what keeps the trust rule single.
+common::core::GridPosition EditorController::Impl::pausedCursorPosition(
+    const common::core::Fraction quantum) const
 {
-    if (const auto* const passive = std::get_if<ChartCursor>(&m_chart_marker);
-        passive != nullptr && passive->column.has_value() &&
-        std::abs(
-            secondsAtGridPosition(session().song().tempo_map, *passive->column) -
-            m_transport.position().seconds) <= g_cursor_column_tolerance_seconds)
+    if (const auto* const passive = std::get_if<ChartCursor>(&m_chart_marker); passive != nullptr)
     {
-        return passive->column;
+        // Bound once so the guard and both reads are provably the same optional: the CI
+        // unchecked-optional-access check cannot tie two separate member accesses together.
+        const std::optional<common::core::GridPosition>& column = passive->column;
+        if (column.has_value() &&
+            std::abs(
+                secondsAtGridPosition(session().song().tempo_map, *column) -
+                m_transport.position().seconds) <= g_cursor_column_tolerance_seconds)
+        {
+            return *column;
+        }
     }
-    return std::nullopt;
-}
-
-common::core::GridPosition EditorController::Impl::pausedCursorSlot() const
-{
-    return trustedCursorColumn().value_or(nearestTempoGridPosition(
-        session().song().tempo_map, placementQuantum(), m_transport.position()));
-}
-
-common::core::GridPosition EditorController::Impl::pausedCursorPosition() const
-{
-    return trustedCursorColumn().value_or(nearestTempoGridPosition(
-        session().song().tempo_map, g_tick_quantum_note_value, m_transport.position()));
+    return nearestTempoGridPosition(session().song().tempo_map, quantum, m_transport.position());
 }
 
 void EditorController::Impl::landOnRow(
@@ -1374,17 +1387,23 @@ void EditorController::Impl::landOnRow(
         Overloaded{
             [&](const StringFocusRow& string_row) {
                 armChartCaret(
-                    column.has_value() ? *column : pausedCursorSlot(), string_row.string, channel);
+                    column.has_value() ? *column : pausedCursorPosition(placementQuantum()),
+                    string_row.string,
+                    channel);
             },
             [&](const AutomationLaneRow& lane) {
-                armLaneCaret(column.has_value() ? *column : pausedCursorSlot(), lane);
+                armLaneCaret(
+                    column.has_value() ? *column : pausedCursorPosition(placementQuantum()), lane);
             },
-            [&]<MarkerRow Row>(const MarkerFocusRow<Row>&) {
+            [&](const MarkerFocusRow& marker) {
                 // The caret dissolves first, so the holder found is the one under its column. The
                 // stack lists only rows with markers, so a holder always exists.
                 dissolveChartCaretInPlace();
                 selectMarker(markerSelectionAt(
-                    Row, markerHolderIndex(markerStarts(Row), pausedCursorPosition())));
+                    marker.row,
+                    markerHolderIndex(
+                        markerStarts(marker.row),
+                        pausedCursorPosition(g_tick_quantum_note_value))));
             },
             [&](const AddLaneFocusRow&) {
                 dissolveChartCaretInPlace();
@@ -1392,6 +1411,14 @@ void EditorController::Impl::landOnRow(
             },
         },
         row);
+}
+
+// The landing row is prepared here rather than by the caller, so the two arrow sites share one
+// spelling of the law rather than repeating it.
+void EditorController::Impl::armMarkerInPlace(const int string_count)
+{
+    landOnRow(prepareLandingRow(string_count), std::nullopt);
+    updateView();
 }
 
 // Arrow keys on the marker (the marker model): Up/Down walk the focus rows (stepFocusRow).
@@ -1419,8 +1446,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     const ChartCaret* const armed = armedChartCaret();
     if (armed == nullptr)
     {
-        landOnRow(prepareLandingRow(tab->stringCount()), std::nullopt);
-        updateView();
+        armMarkerInPlace(tab->stringCount());
         return;
     }
 
@@ -1532,8 +1558,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
     const ChartCaret* const armed = armedChartCaret();
     if (armed == nullptr)
     {
-        landOnRow(prepareLandingRow(tab->stringCount()), std::nullopt);
-        updateView();
+        armMarkerInPlace(tab->stringCount());
         return;
     }
     if (const std::optional<common::core::GridPosition> stop =
@@ -1565,7 +1590,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
     const ChartCaret* const armed = armedChartCaret();
     const FocusRow row = prepareLandingRow(tab->stringCount());
     const common::core::GridPosition reference =
-        armed != nullptr ? armed->position : pausedCursorSlot();
+        armed != nullptr ? armed->position : pausedCursorPosition(placementQuantum());
 
     std::optional<common::core::GridPosition> destination;
     switch (target)
@@ -1595,8 +1620,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
     if (!destination.has_value())
     {
         // A refused section jump keeps an armed caret exactly where it was; a first press with
-        // nothing armed still arms at the reference, so the key always yields a caret to work from
-        // (matching the arrow keys' arm-first press).
+        // nothing armed still arms at the reference — the paused cursor, on the row prepared
+        // above — so the key always yields a caret to work from (the arrow keys' arm-first press).
         if (armed == nullptr)
         {
             landOnRow(row, reference);
@@ -1730,6 +1755,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     // supported workflow (the points port edits safely mid-play) — while chart branches stay
     // structurally paused-only because play clears the chart selection. A marker selected with the
     // pointer during playback still moves, and leaves the playhead where it is.
+    //
+    // A marker of any kind lives on ONE timeline row, so it moves horizontally only: the vertical
+    // refusal is stated here, once, rather than by each kind's own mover. The point, chart and lane
+    // branches below all give Up/Down a meaning of their own, and none of them is a marker.
+    if (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right &&
+        selectedMarker().has_value())
+    {
+        return;
+    }
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
     {
         const AutomationPointSelection selected = *point;

@@ -43,9 +43,13 @@ tone runs up to it. The caller supplies the tone document (a fresh empty tone, o
 to reuse) and validates canonical ids and grid positions separately. Splitting with the containing
 region's own tone changes nothing, so the track comes back unchanged.
 
+The new id must be non-empty, which is a precondition rather than a rejection because every caller
+mints it. A region is addressed by its id everywhere outside this track — the editor's selection
+included — so an empty one would build a region nothing can name or select.
+
 \param tone_track Tone track to modify in place; unchanged on failure.
 \param position Grid position at which the tone changes; must fall strictly inside a region.
-\param new_region_id Canonical id for the new region beginning at \p position.
+\param new_region_id Canonical id for the new region beginning at \p position; must be non-empty.
 \param new_tone_document_ref Package-relative tone document the new region references.
 \return Empty success, or the reason the create was rejected.
 */

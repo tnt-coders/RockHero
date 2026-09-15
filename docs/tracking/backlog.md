@@ -810,12 +810,14 @@ written down.
 
 - **A lane caret's keyboard steps can leave the active tone region's window.** The horizontal step
   is the grid union the row's own objects with no region bound
-  (`rock-hero-editor/core/src/chart/chart_handlers.cpp:1433-1474`), and `prepareLandingRow`
-  (`:1308-1323`) re-activates the tone at the cursor only when NO caret is armed, so an armed lane
+  (`rock-hero-editor/core/src/chart/chart_handlers.cpp:1459-1506`), and `prepareLandingRow`
+  (`:1341-1356`) re-activates the tone at the cursor only when NO caret is armed, so an armed lane
   caret steps past its region's start or end while keeping its lane. `Up` then lands through
-  `landOnRow`'s marker arm (`:1363-1369`), whose holder is
-  `markerHolderIndex(markerStarts(MarkerRow::Tone), pausedCursorPosition())` at the position the
-  dissolve just moved the cursor to — a DIFFERENT region from the one whose lane the caret was on.
+  `landOnRow`'s marker arm (`:1398-1407`), whose holder is `markerHolderIndex`
+  (`rock-hero-editor/core/src/timeline/marker_row_handlers.cpp:77-87`) over
+  `markerStarts(MarkerRow::Tone)` at `pausedCursorPosition(g_tick_quantum_note_value)` — the
+  position the dissolve just moved the cursor to, a DIFFERENT region from the one whose lane the
+  caret was on.
   Either clamp the lane step to the region's window, or state in the row's doc block that walking
   out of it is how the region changes.
 
@@ -853,4 +855,23 @@ written down.
   (`coalesceToneRegions`, `rock-hero-common/core/src/tone/tone_track_edits.cpp:42-49`, applied by
   every edit and by the reader). The cost is a meaningless chip on the meter row and a `Tab` stop
   that changes nothing. Consider it under plan 41, which is where that row first gains verbs.
+
+## Found while tidying the focus-row walk (2026-09-14)
+
+- **Two holder rules disagree about the tone row's lead-in.** The walk's rule,
+  `markerHolderIndex` (`rock-hero-editor/core/src/timeline/marker_row_handlers.cpp:76-86`), hands a
+  position that precedes every start to the FIRST marker, so the lead-in before the first tone
+  region belongs to that region. The tone model's own lookup,
+  `common::core::toneRegionAt` (`rock-hero-common/core/src/tone/tone_track_edits.cpp:34-40`), runs
+  the same `upper_bound` and hands the lead-in to NOTHING (a null region below the first start).
+  The seconds-space reader sides with the walk: `toneRegionIdAt`
+  (`rock-hero-editor/core/src/tone/tone_handlers.cpp:166-192`) resolves spans through
+  `toneRegionSpanSeconds` (`rock-hero-editor/core/src/tone/tone_track_projection.cpp:17-35`), whose
+  first span deliberately extends back to time 0. Unreachable today: the tone schedule is gapless
+  from the chart start and the first region's start cannot move (`moveToneBoundary` refuses index 0,
+  `tone_track_edits.cpp` `CannotMoveSongStart`), so no addressable position lies below it. It stops
+  being unreachable at Phase 4c of `docs/plans/in-progress/keyboard-focus-rows.md`, whose
+  `markerHolderAt` replaces `markerHolderIndex` for every row including a span row with real gaps —
+  at which point "what holds this position" needs ONE answer rather than two that happen never to be
+  asked the same question.
 

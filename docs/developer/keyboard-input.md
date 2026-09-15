@@ -421,9 +421,11 @@ marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 state (passive cursor or armed caret; a `ChartCaret` holds a grid position, a string, and
 optionally an automation-lane row, and a `ChartCursor` remembers the row the next arming lands on —
 the string, and the lane while the caret rode one — plus the exact position the editor last put
-the cursor at, which `pausedCursorSlot` trusts only while the transport still stands there). Up/Down
-walk ONE stack of focus rows through `stepFocusRow` — the ruler's section, tempo and time-signature
-rows, the strings, the tone-region row, the visible lanes, the "+" row — and every landing goes
+the cursor at, which `pausedCursorPosition(quantum)` trusts only while the transport still stands
+there — one trust rule, read at the placement quantum by an arming and at the tick by the marker
+rows, which coincide once snap is off). Up/Down walk ONE stack of focus rows through `stepFocusRow`
+— the ruler's section, tempo and time-signature rows, the strings, the tone-region row, the visible
+lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
 marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that
 keeps the marker's row arms on. The four marker rows share one model in

@@ -2588,7 +2588,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     if (armedChartCaret() == nullptr && currentFocusRow().has_value())
     {
-        const CaretTimeBounds bounds = caretTimeBounds(state.tempo_map, pausedCursorPosition());
+        const CaretTimeBounds bounds =
+            caretTimeBounds(state.tempo_map, pausedCursorPosition(g_tick_quantum_note_value));
         state.selected_row_cursor = SelectedRowCursorViewState{
             .seconds = bounds.seconds,
             .measure_start_seconds = bounds.measure_start_seconds,

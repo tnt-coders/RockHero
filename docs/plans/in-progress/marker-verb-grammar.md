@@ -96,14 +96,15 @@ knew all along and the view had been reconstructing.
 - **Built (ruled 2026-09-13):** the armed caret, and nothing else. Until then the transport
   position, quantised to the placement grid, stood in when no caret was armed.
 - **Ruled 2026-09-14, to build:** the armed caret, else the paused cursor's slot
-  (`pausedCursorSlot()`: the trusted column, else the nearest placement-grid slot), and nothing
-  while the transport plays or with no song loaded.
+  (`pausedCursorPosition(placementQuantum())`: the trusted column, else the nearest placement-grid
+  slot), and nothing while the transport plays or with no song loaded.
 
 It is published as `EditorViewState::marker_grid_position`, an optional. `section_marker_downbeat`
 is the same answer under the section's own snap, computed in the core beside it; under the ruling
-it snaps from the cursor's TICK position (`pausedCursorPosition()`), so an untrusted cursor paused
-just before a barline still names the measure it is IN rather than rounding into the next. One
-rule, two projections; each verb applies its own quantum and nothing re-derives the rule.
+it snaps from the cursor's TICK position (`pausedCursorPosition(g_tick_quantum_note_value)`), so an
+untrusted cursor paused just before a barline still names the measure it is IN rather than rounding
+into the next. One rule, two projections; each verb applies its own quantum and nothing re-derives
+the rule.
 
 **Why the paused cursor is not the retired transport fallback.** The 2026-09-13 retirement answered
 a marker landing a beat late off a ROLLING transport. The ruled cursor is paused-only, and it is the
@@ -120,10 +121,11 @@ Before the ruling, caret-only settled the playback question without a gate, beca
 a paused transport; the ruling moves that answer into the authority. The ruler's own menu inserts at
 the CLICK's measure ("Insert Section Here"), the pointer form, so it needs neither gate.
 
-Recommended with the build, not ruled: `pausedCursorSlot` and `pausedCursorPosition` are one rule
-that differs only in its quantum. Folding them into one armed-aware `cursorPosition(quantum)` also
-deletes `JumpChartCaret`'s inline restatement of it, and gives Phase 4c's planned `focusColumn()` its
-one authority instead of a second.
+Recommended with the build, and the quantum half LANDED 2026-09-14: `pausedCursorSlot` and
+`pausedCursorPosition` were one rule that differed only in its quantum, and are now one
+`pausedCursorPosition(quantum)` — which also deleted `JumpChartCaret`'s inline restatement of it.
+Making that helper ARMED-AWARE is still owed, and is what gives Phase 4c's planned `focusColumn()`
+its one authority instead of a second.
 
 ### One precedence, shared by both chords
 
@@ -145,8 +147,8 @@ Each kind supplies its own "exactly at the cursor" predicate:
 
 ### Selection is the caller's business, never the action's
 
-Selecting a marker demotes the armed caret, in the core's shared selection paths
-(`applySongSectionSelection`, `applyToneSelection`) so the mouse gets it too. An armed caret is
+Selecting a marker demotes the armed caret, in the core's one shared select (`selectMarker`, which
+every section and tone-region select now calls directly) so the mouse gets it too. An armed caret is
 where the next keystroke would author, so one standing beside a selected marker is a second answer
 to the same question.
 

@@ -5,6 +5,7 @@
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -153,33 +154,13 @@ EditorController::Impl::MarkerSelection EditorController::Impl::markerSelectionA
         }
         case MarkerRow::Tone:
         {
-            return ToneRegionSelection{
-                .region_id = session().currentArrangement()->tone_track.regions[index].id
-            };
-        }
-    }
-    std::unreachable();
-}
-
-EditorController::Impl::FocusRow EditorController::Impl::markerFocusRow(const MarkerRow row)
-{
-    switch (row)
-    {
-        case MarkerRow::Section:
-        {
-            return MarkerFocusRow<MarkerRow::Section>{};
-        }
-        case MarkerRow::Tempo:
-        {
-            return MarkerFocusRow<MarkerRow::Tempo>{};
-        }
-        case MarkerRow::TimeSignature:
-        {
-            return MarkerFocusRow<MarkerRow::TimeSignature>{};
-        }
-        case MarkerRow::Tone:
-        {
-            return MarkerFocusRow<MarkerRow::Tone>{};
+            // The one row whose markers live on the ARRANGEMENT rather than the song, and reaching
+            // this arm proves one is loaded: markerStarts reads the tone row's starts from that
+            // same arrangement, so without it the starts are empty and the .at above has already
+            // thrown. Read through .at for the same reason the start is — an index out of range is
+            // a broken precondition, not a walk off the end.
+            const common::core::Arrangement* const arrangement = session().currentArrangement();
+            return ToneRegionSelection{.region_id = arrangement->tone_track.regions.at(index).id};
         }
     }
     std::unreachable();
@@ -208,7 +189,7 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
         return;
     }
     const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
-    if (markerHolderIndex(starts, pausedCursorPosition()) != *index)
+    if (markerHolderIndex(starts, pausedCursorPosition(g_tick_quantum_note_value)) != *index)
     {
         moveCursorTo(starts[*index]);
     }

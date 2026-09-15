@@ -81,7 +81,8 @@ while paused" and keeps Delete safe.
   `syncAudibleTone` and the signal-chain / automation scoping from it (rename
   `selectedToneDocumentRef`/`selectedToneName` to `activeTone*` to match). Cursor-change handlers
   (`SeekTimeline`, open/import completions, `Stop`, `PlayPause`, the playback follow) set active +
-  clear selection instead of calling `applyToneSelection(toneRegionIdAt(...))`. `onToneRegionSelected`
+  clear selection instead of selecting the region at the cursor (then `applyToneSelection`, since
+  2026-09-14 `selectMarker`). `onToneRegionSelected`
   (click) sets the formal selection + active.
 - **View state:** `ToneRegionViewState` gains an `active` flag (current color) distinct from
   `selected` (white outline).
