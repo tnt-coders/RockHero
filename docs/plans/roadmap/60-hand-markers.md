@@ -478,7 +478,8 @@ decided and why.
   unconfirmed. Phase 0 is the interim form on the stored stream.
 - **60-D7 — release. RECOMMENDED stands:** "the front names nothing", not "any chart edit".
 - **60-D8 — zero-length spans stay out of the row. RECOMMENDED stands;** the kind's name is H2.
-- **60-D9 — the `ChartResolutions` cache. RECOMMENDED stands;** lands in Phase 2.
+- **60-D9 — the lazy hand-stream cache. RECOMMENDED stands;** lands in Phase 2 (its name is open:
+  `ChartResolutions`, the keyboard plan's proposal, already names the legato resolution result).
 - **60-D10 — `Cmd+H` is Hide on macOS. Accepted as H's cost in 60-H2;** the macOS default is
   decided when the author chord ships (Phase 3).
 - **60-D11 — pointer selection. RULED 2026-09-15: in** (§8).
