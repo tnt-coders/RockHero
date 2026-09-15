@@ -306,23 +306,35 @@ TEST_CASE("EditorController jumps the caret between sections", "[core][chart]")
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(4.0));
 
-    // PageUp again -> no section before measure 3: refused, caret stays at 4.0s.
+    // PageUp again -> no section before measure 3, so the chart start (0.0s) is the stop.
     controller.onChartCaretJumpRequested(ChartCaretJump::PreviousSection);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
-    CHECK(caret->seconds == Catch::Approx(4.0));
+    CHECK(caret->seconds == Catch::Approx(0.0));
 
-    // PageDown -> the next section (measure 7 = 12.0s).
+    // PageUp at the chart start -> nothing before it: refused, caret stays.
+    controller.onChartCaretJumpRequested(ChartCaretJump::PreviousSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(0.0));
+
+    // PageDown twice -> the two sections (measure 3 = 4.0s, measure 7 = 12.0s).
+    controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
     controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(12.0));
 
-    // PageDown again -> no section after measure 7: refused, caret stays at 12.0s.
+    // PageDown again -> no section after measure 7, so the chart end (30.0s) is the stop; a
+    // further press is refused there.
     controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
     caret = caretOrNull(state->chart_edit);
     REQUIRE(caret != nullptr);
-    CHECK(caret->seconds == Catch::Approx(12.0));
+    CHECK(caret->seconds == Catch::Approx(30.0));
+    controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(30.0));
 }
 
 // Shift+arrows build and extend the grid-locked time selection from the marker: a first press
@@ -526,12 +538,18 @@ TEST_CASE("EditorController extends the time selection by section", "[core][char
         TimeSelectionExtent::Section, ChartStepDirection::Right);
     CHECK(time_selection->end.seconds == Catch::Approx(12.0));
 
-    // Again -> no section past measure 7: refused, the range stays put.
+    // Again -> no section past measure 7, so the chart end (30.0s) is the stop; a further press
+    // is refused and the range stays put.
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::Section, ChartStepDirection::Right);
     time_selection = timeSelectionOrNull(*state);
     REQUIRE(time_selection != nullptr);
-    CHECK(time_selection->end.seconds == Catch::Approx(12.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(30.0));
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Section, ChartStepDirection::Right);
+    time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->end.seconds == Catch::Approx(30.0));
 }
 
 // Playback dissolves the marker's armed state (the marker model): play clears the note

@@ -43,8 +43,9 @@ TEST_CASE("Chart navigation resolves caret destinations", "[core][chart]")
         CHECK(measureJumpPosition(chartStartPosition(), false) == chartStartPosition());
     }
 
-    SECTION("the adjacent section is the nearest strictly past the reference")
+    SECTION("the adjacent section stop is the nearest strictly past the reference")
     {
+        const common::core::GridPosition chart_end{.measure = 13, .beat = 1, .offset = {}};
         const std::vector<common::core::SongSection> sections{
             common::core::SongSection{
                 .position = {.measure = 1, .beat = 1, .offset = {}}, .name = "Intro"
@@ -58,20 +59,43 @@ TEST_CASE("Chart navigation resolves caret destinations", "[core][chart]")
         };
         const common::core::GridPosition inside_verse{.measure = 6, .beat = 1, .offset = {}};
         CHECK(
-            adjacentSectionPosition(sections, inside_verse, true) ==
+            adjacentSectionStop(sections, chart_end, inside_verse, true) ==
             std::optional{common::core::GridPosition{.measure = 9, .beat = 1, .offset = {}}});
         CHECK(
-            adjacentSectionPosition(sections, inside_verse, false) ==
+            adjacentSectionStop(sections, chart_end, inside_verse, false) ==
             std::optional{common::core::GridPosition{.measure = 5, .beat = 1, .offset = {}}});
         // Strictly: standing ON a section start, "earlier" is the one before it.
         const common::core::GridPosition on_verse{.measure = 5, .beat = 1, .offset = {}};
         CHECK(
-            adjacentSectionPosition(sections, on_verse, false) ==
+            adjacentSectionStop(sections, chart_end, on_verse, false) ==
             std::optional{common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}}});
-        // Nothing past the last one, nothing before the first.
+        // Past the last section the chart end is the stop; nothing lies past it. Before the
+        // first section nothing lies before the chart start it stands on.
         const common::core::GridPosition past{.measure = 12, .beat = 1, .offset = {}};
-        CHECK_FALSE(adjacentSectionPosition(sections, past, true).has_value());
-        CHECK_FALSE(adjacentSectionPosition(sections, chartStartPosition(), false).has_value());
+        CHECK(adjacentSectionStop(sections, chart_end, past, true) == std::optional{chart_end});
+        CHECK_FALSE(adjacentSectionStop(sections, chart_end, chart_end, true).has_value());
+        CHECK_FALSE(
+            adjacentSectionStop(sections, chart_end, chartStartPosition(), false).has_value());
+
+        // A first section that starts late has the chart start before it, from inside it and
+        // from its own start alike.
+        const std::vector<common::core::SongSection> late{sections[1]};
+        const common::core::GridPosition before_verse{.measure = 3, .beat = 1, .offset = {}};
+        CHECK(
+            adjacentSectionStop(late, chart_end, before_verse, false) ==
+            std::optional{chartStartPosition()});
+        CHECK(
+            adjacentSectionStop(late, chart_end, on_verse, false) ==
+            std::optional{chartStartPosition()});
+
+        // With no sections the stops are the two bounds.
+        const std::vector<common::core::SongSection> none;
+        CHECK(
+            adjacentSectionStop(none, chart_end, chartStartPosition(), true) ==
+            std::optional{chart_end});
+        CHECK(
+            adjacentSectionStop(none, chart_end, chart_end, false) ==
+            std::optional{chartStartPosition()});
     }
 
     SECTION("the caret's time bounds are its seconds and its measure's span")

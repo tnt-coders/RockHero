@@ -88,16 +88,23 @@ primitive" law the plain grid step already follows.
 }
 
 /*!
-\brief The nearest song section starting strictly after (later) or before (earlier) a reference.
+\brief The nearest section stop strictly after (later) or before (earlier) a reference.
 
-\param sections Song sections, sorted by position.
+The section stops are the chart start, every section start and the chart end, as one set: from
+the first section PageUp reaches the start unless that section stands on it, from the last
+section PageDown reaches the end, and on a song with no sections the keys are start and end
+jumps. Shift+PageUp/PageDown extend the time selection over the same stops.
+
+\param sections Song sections, sorted by position, each strictly inside the chart.
+\param chart_end The tempo map's terminal position, the last stop.
 \param reference Position the search starts from.
 \param later True for the forward direction.
 
-\return The adjacent section's position, or nullopt when there is none in that direction.
+\return The adjacent stop, or nullopt when no stop lies in that direction.
 */
-[[nodiscard]] std::optional<common::core::GridPosition> adjacentSectionPosition(
+[[nodiscard]] std::optional<common::core::GridPosition> adjacentSectionStop(
     const std::vector<common::core::SongSection>& sections,
-    const common::core::GridPosition& reference, bool later);
+    const common::core::GridPosition& chart_end, const common::core::GridPosition& reference,
+    bool later);
 
 } // namespace rock_hero::editor::core

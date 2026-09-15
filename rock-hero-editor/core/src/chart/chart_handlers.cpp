@@ -1607,12 +1607,20 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
         }
         case ChartCaretJump::PreviousSection:
         {
-            destination = adjacentSectionPosition(session().song().sections, reference, false);
+            destination = adjacentSectionStop(
+                session().song().sections,
+                common::core::terminalGridPosition(tempo_map),
+                reference,
+                false);
             break;
         }
         case ChartCaretJump::NextSection:
         {
-            destination = adjacentSectionPosition(session().song().sections, reference, true);
+            destination = adjacentSectionStop(
+                session().song().sections,
+                common::core::terminalGridPosition(tempo_map),
+                reference,
+                true);
             break;
         }
     }
@@ -1700,8 +1708,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
         }
         case TimeSelectionExtent::Section:
         {
-            next_focus =
-                adjacentSectionPosition(session().song().sections, focus, later).value_or(focus);
+            next_focus = adjacentSectionStop(
+                             session().song().sections,
+                             common::core::terminalGridPosition(tempo_map),
+                             focus,
+                             later)
+                             .value_or(focus);
             break;
         }
         case TimeSelectionExtent::ChartBound:

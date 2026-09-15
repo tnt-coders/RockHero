@@ -162,7 +162,7 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Ctrl+↑/↓` | → nearest row of the adjacent **group** — section, tempo, time signature, the strings, the tone row, the lanes, the "+" row: `Ctrl+↑` from any string selects the time-signature chip, `Ctrl+↓` the tone region | `Ctrl+↑` from any lane selects the tone region; `Ctrl+↓` selects the "+" row | `Ctrl+↑` arms string 1; `Ctrl+↓` arms the first lane (or the "+" row) | Live (2026-09-13, `CaretJumpSurfaceAbove`/`Below`, `0x150B`/`0x150C`; unsighted) |
 | `Tab` / `Shift+Tab` | → next / previous **object** on the caret's string, grid ignored: a note or a keyframe, always landing on a note's head (a held stop's satellite is not an object of its own) | → next / previous **point** | from a selected region: the next / previous region, its start becoming the cursor (every marker row steps the same way, from the SELECTED marker); inert on the "+" row; from the passive marker the first press arms in place | Live (2026-09-13, `CaretStepNextObject`/`PreviousObject`, `0x150D`/`0x150E`; unsighted) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | → next / previous **note**, over the string's keyframes | same as `Tab` (a lane has no keyframes) | same as `Tab` | Live (2026-09-13, `CaretStepNextNote`/`PreviousNote`, `0x150F`/`0x1510`; the PHYSICAL Ctrl key on every platform, since Cmd+Tab is the macOS app switcher; unsighted) |
-| `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl rides along as an alias — accepted 2026-07-20) |
+| `PageUp` / `PageDn` | → prev / next **section stop**: the chart start, every section start, the chart end, as one set | same | `✗` | Live (ae0e7ad5; the chart bounds joined the stops 2026-09-14, so PageUp from the first section reaches the start and PageDn from the last reaches the end; Ctrl rides along as an alias — accepted 2026-07-20) |
 | `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
 | `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
 
@@ -172,7 +172,7 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 |---|---|---|
 | `Shift+←/→` | extend time-range by the **display grid** | Live (759b145f) |
 | `Shift+Ctrl+←/→` | extend time-range by **measure** | Live (759b145f) |
-| `Shift+PageUp/Dn` | extend time-range by **section** | Live (759b145f) |
+| `Shift+PageUp/Dn` | extend time-range by **section stop** (the chart start and end count, as for `PageUp/Dn`) | Live (759b145f; bounds 2026-09-14) |
 | `Shift+Home` / `Shift+End` | extend time-range to chart **start / end** | Live (759b145f) |
 | `Shift+↑/↓` | *(nothing — the range is full-height; no vertical extension)* | `—` unbound (confirmed) |
 

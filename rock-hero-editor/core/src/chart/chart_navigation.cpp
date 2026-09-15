@@ -27,9 +27,13 @@ common::core::GridPosition measureJumpPosition(
     return common::core::GridPosition{.measure = target_measure, .beat = 1, .offset = {}};
 }
 
-std::optional<common::core::GridPosition> adjacentSectionPosition(
+// The sections are sorted and lie strictly inside the chart, so the bounds need no merging into
+// the list: the end is the stop after the last section and the start the stop before the first.
+// A section standing on the chart start is that same stop, so nothing lies before it.
+std::optional<common::core::GridPosition> adjacentSectionStop(
     const std::vector<common::core::SongSection>& sections,
-    const common::core::GridPosition& reference, const bool later)
+    const common::core::GridPosition& chart_end, const common::core::GridPosition& reference,
+    const bool later)
 {
     if (later)
     {
@@ -40,14 +44,22 @@ std::optional<common::core::GridPosition> adjacentSectionPosition(
                 return section.position;
             }
         }
+        if (reference < chart_end)
+        {
+            return chart_end;
+        }
         return std::nullopt;
     }
-    for (const auto& section : std::views::reverse(sections))
+    for (const common::core::SongSection& section : std::views::reverse(sections))
     {
         if (section.position < reference)
         {
             return section.position;
         }
+    }
+    if (chartStartPosition() < reference)
+    {
+        return chartStartPosition();
     }
     return std::nullopt;
 }
