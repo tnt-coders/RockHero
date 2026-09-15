@@ -62,7 +62,7 @@ struct consumers. That is where compiler help ends; everything serialization-sha
 2. **Read it in both readers** — the full read *and* the peek read, if the field is (or ever
    becomes) part of the description surface. Prefer putting shared field walks in
    `song_document_json.cpp` so there is only one spelling of the key.
-3. **Normalize it.** Save is publish: invariants normalize rather than reject
+3. **Normalize it.** Save is export: invariants normalize rather than reject
    (tone rules live in `core/src/tone/tone_track_normalize.cpp` and `tone_track_rules.cpp`; song
    and arrangement invariants in `core/src/song/`). A field without normalization rules is a
    field whose illegal states get persisted. Where a *structural* rule must hold on both ends,

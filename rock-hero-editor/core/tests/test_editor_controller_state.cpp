@@ -18,12 +18,12 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.import_enabled == false);
     CHECK(empty_state.save_enabled == false);
     CHECK(empty_state.save_as_enabled == false);
-    CHECK(empty_state.publish_enabled == false);
+    CHECK(empty_state.export_enabled == false);
     CHECK(empty_state.undo_enabled == false);
     CHECK_FALSE(empty_state.undo_label.has_value());
     CHECK(empty_state.redo_enabled == false);
     CHECK_FALSE(empty_state.redo_label.has_value());
-    CHECK(empty_state.suggested_publish_file.empty());
+    CHECK(empty_state.suggested_export_file.empty());
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
@@ -56,12 +56,12 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .import_enabled = true,
         .save_enabled = true,
         .save_as_enabled = true,
-        .publish_enabled = true,
+        .export_enabled = true,
         .undo_enabled = true,
         .undo_label = std::string{"Move Plugin"},
         .redo_enabled = true,
         .redo_label = std::string{"Restore Plugin"},
-        .suggested_publish_file = std::filesystem::path{"saved.rock"},
+        .suggested_export_file = std::filesystem::path{"saved.rock"},
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,
@@ -153,13 +153,13 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     const std::filesystem::path open_file{"song.rhp"};
     const std::filesystem::path import_file{"song.rock"};
     const std::filesystem::path save_as_file{"saved.rhp"};
-    const std::filesystem::path publish_file{"saved.rock"};
+    const std::filesystem::path export_file{"saved.rock"};
 
     controller.onOpenRequested(open_file);
     controller.onImportRequested(import_file);
     controller.onSaveRequested();
     controller.onSaveAsRequested(save_as_file);
-    controller.onPublishRequested(publish_file);
+    controller.onExportRequested(export_file);
     controller.onSaveAsCancelled();
     controller.onBusyCancelRequested();
     controller.onUndoRequested();
@@ -186,8 +186,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.save_request_count == 1);
     CHECK(controller.save_as_request_count == 1);
     CHECK(controller.last_save_as_file == std::optional{save_as_file});
-    CHECK(controller.publish_request_count == 1);
-    CHECK(controller.last_publish_file == std::optional{publish_file});
+    CHECK(controller.export_request_count == 1);
+    CHECK(controller.last_export_file == std::optional{export_file});
     CHECK(controller.save_as_cancel_count == 1);
     CHECK(controller.busy_cancel_request_count == 1);
     CHECK(controller.undo_request_count == 1);
@@ -313,7 +313,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.import_enabled == true);
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
-        CHECK(state.publish_enabled == false);
+        CHECK(state.export_enabled == false);
         CHECK(state.undo_enabled == false);
         CHECK_FALSE(state.undo_label.has_value());
         CHECK(state.redo_enabled == false);

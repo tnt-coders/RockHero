@@ -96,9 +96,9 @@ namespace
         {
             return "SaveProjectAs";
         }
-        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ExportSong:
         {
-            return "PublishProject";
+            return "ExportSong";
         }
         case EditorAction::Id::CloseProject:
         {
@@ -408,7 +408,7 @@ namespace
             case EditorAction::Id::ImportSong:
             case EditorAction::Id::SaveProject:
             case EditorAction::Id::SaveProjectAs:
-            case EditorAction::Id::PublishProject:
+            case EditorAction::Id::ExportSong:
             case EditorAction::Id::CloseProject:
             case EditorAction::Id::ExitApplication:
             case EditorAction::Id::ResolveUnsavedChangesPrompt:
@@ -432,7 +432,7 @@ namespace
     {
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
         case EditorAction::Id::Undo:
         case EditorAction::Id::Redo:
@@ -827,11 +827,11 @@ void logEditorUndoTransitionResult(
     return project.saveAs(file, song);
 }
 
-// Production publish path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<void, ProjectError> defaultPublish(
+// Production song-export path used when tests do not provide a custom seam.
+[[nodiscard]] std::expected<void, ProjectError> defaultExport(
     Project& project, const std::filesystem::path& file, const common::core::Song& song)
 {
-    return project.publish(file, song);
+    return project.exportSong(file, song);
 }
 
 // Production exit fallback used when a composition host does not provide an exit callback.
@@ -908,9 +908,9 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
     m_impl->onSaveAsRequested(std::move(file));
 }
 
-void EditorController::onPublishRequested(std::filesystem::path file)
+void EditorController::onExportRequested(std::filesystem::path file)
 {
-    m_impl->onPublishRequested(std::move(file));
+    m_impl->onExportRequested(std::move(file));
 }
 
 void EditorController::onSaveAsCancelled()
@@ -1446,9 +1446,9 @@ EditorController::Impl::Impl(
     , m_save_as_function(
           project_operations.save_as_function ? std::move(project_operations.save_as_function)
                                               : EditorController::SaveAsFunction{defaultSaveAs})
-    , m_publish_function(
-          project_operations.publish_function ? std::move(project_operations.publish_function)
-                                              : EditorController::PublishFunction{defaultPublish})
+    , m_export_function(
+          project_operations.export_function ? std::move(project_operations.export_function)
+                                             : EditorController::ExportFunction{defaultExport})
     , m_exit_function(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
@@ -1677,11 +1677,11 @@ void EditorController::Impl::onSaveAsRequested(std::filesystem::path file)
     runAction(EditorAction::SaveProjectAs{std::move(file)});
 }
 
-// Publishes the current project as a native song package without changing save destination or
+// Exports the current song as a native song package without changing save destination or
 // dirty state.
-void EditorController::Impl::onPublishRequested(std::filesystem::path file)
+void EditorController::Impl::onExportRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::PublishProject{std::move(file)});
+    runAction(EditorAction::ExportSong{std::move(file)});
 }
 
 // Cancels only a Save As chooser that was opened to continue a deferred project command.
@@ -2538,7 +2538,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.import_enabled = isActionAvailable(EditorAction::Id::ImportSong, action_conditions);
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
     state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
-    state.publish_enabled = isActionAvailable(EditorAction::Id::PublishProject, action_conditions);
+    state.export_enabled = isActionAvailable(EditorAction::Id::ExportSong, action_conditions);
     state.undo_enabled = isActionAvailable(EditorAction::Id::Undo, action_conditions);
     state.undo_label = m_undo_history.undoLabel();
     state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
@@ -2552,8 +2552,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     if (!m_project_file.empty())
     {
-        state.suggested_publish_file = m_project_file;
-        state.suggested_publish_file.replace_extension(".rock");
+        state.suggested_export_file = m_project_file;
+        state.suggested_export_file.replace_extension(".rock");
     }
     state.close_enabled = isActionAvailable(EditorAction::Id::CloseProject, action_conditions);
     // The marker plane's one published answer, read off the marker verb with the weakest base
@@ -3167,7 +3167,7 @@ void EditorController::Impl::detachView()
 // which a write legitimately empties for its whole duration: a project is moved out to the worker
 // so background IO never shares mutable ownership with message-thread actions. Reading openness
 // from that optional made this return false for the entire write — and close and exit both
-// SUPERSEDE busy, so a close during a publish (which deliberately leaves the project dirty) skipped
+// SUPERSEDE busy, so a close during an export (which deliberately leaves the project dirty) skipped
 // the unsaved-changes prompt entirely and dropped the edits with no warning.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {

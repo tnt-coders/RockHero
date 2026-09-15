@@ -104,11 +104,11 @@ namespace
     return BusyOperation::SavingProjectAs;
 }
 
-// Maps Publish to the busy operation shown while the worker owns Project IO.
+// Maps Export Song to the busy operation shown while the worker owns Project IO.
 [[nodiscard]] BusyOperation busyOperationForProjectWrite(
-    const EditorAction::PublishProject& /*action*/) noexcept
+    const EditorAction::ExportSong& /*action*/) noexcept
 {
-    return BusyOperation::PublishingProject;
+    return BusyOperation::ExportingSong;
 }
 
 // Maps write actions to the busy operation shown while the worker owns Project IO.
@@ -134,11 +134,11 @@ namespace
     return "Could not save as: ";
 }
 
-// Keeps Publish failure text coupled to the write alternative rather than split by call site.
+// Keeps Export Song failure text coupled to the write alternative rather than split by call site.
 [[nodiscard]] std::string_view projectWriteErrorPrefix(
-    const EditorAction::PublishProject& /*action*/) noexcept
+    const EditorAction::ExportSong& /*action*/) noexcept
 {
-    return "Could not publish: ";
+    return "Could not export: ";
 }
 
 // Keeps write failure prefixes coupled to write alternatives rather than split by call site.
@@ -661,9 +661,9 @@ void EditorController::Impl::performActionImpl(EditorAction::SaveProjectAs actio
     runProjectAction(EditorAction::SaveProjectAs{std::move(action.file)});
 }
 
-void EditorController::Impl::performActionImpl(EditorAction::PublishProject action)
+void EditorController::Impl::performActionImpl(EditorAction::ExportSong action)
 {
-    runProjectAction(EditorAction::PublishProject{std::move(action.file)});
+    runProjectAction(EditorAction::ExportSong{std::move(action.file)});
 }
 
 void EditorController::Impl::performActionImpl(EditorAction::CloseProject /*action*/)
@@ -819,7 +819,7 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::SaveProjectAs ac
     runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
 }
 
-void EditorController::Impl::runProjectActionImpl(EditorAction::PublishProject action)
+void EditorController::Impl::runProjectActionImpl(EditorAction::ExportSong action)
 {
     runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
 }
@@ -1238,7 +1238,7 @@ void EditorController::Impl::clearLiveRig()
 }
 
 // Runs project write actions through one task-runner path so busy lifetime, stale completion
-// checks, and project restoration stay consistent across save, save-as, and publish.
+// checks, and project restoration stay consistent across save, save-as, and export.
 void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAction&& action)
 {
     // Every project write verb is a settle event, and it has to run before the song is captured
@@ -1256,10 +1256,10 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
         state,
         [save_function = m_save_function,
          save_as_function = m_save_as_function,
-         publish_function =
-             m_publish_function](const std::shared_ptr<ProjectWriteTaskState>& task_state) {
+         export_function =
+             m_export_function](const std::shared_ptr<ProjectWriteTaskState>& task_state) {
             std::visit(
-                [&task_state, &save_function, &save_as_function, &publish_function](
+                [&task_state, &save_function, &save_as_function, &export_function](
                     auto&& alternative) {
                     using A = std::decay_t<decltype(alternative)>;
                     if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
@@ -1271,9 +1271,9 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
                         task_state->result = save_as_function(
                             task_state->project, alternative.file, task_state->song);
                     }
-                    else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
+                    else if constexpr (std::is_same_v<A, EditorAction::ExportSong>)
                     {
-                        task_state->result = publish_function(
+                        task_state->result = export_function(
                             task_state->project, alternative.file, task_state->song);
                     }
                 },
@@ -1365,9 +1365,9 @@ void EditorController::Impl::applyProjectWriteSuccess(
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
-    const EditorAction::PublishProject& /*action*/, const std::size_t /*undo_depth_at_kickoff*/)
+    const EditorAction::ExportSong& /*action*/, const std::size_t /*undo_depth_at_kickoff*/)
 {
-    // Publish does not change save destination or dirty state.
+    // Exporting a song does not change save destination or dirty state.
 }
 
 // Resumes a deferred project action after Save or Save As has protected user changes.

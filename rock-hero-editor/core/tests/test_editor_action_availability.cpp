@@ -60,14 +60,14 @@ TEST_CASE("Project actions require an open project", "[core][editor-action]")
 
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProjectAs, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::PublishProject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ExportSong, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::CloseProject, conditions));
 
     conditions.has_project = true;
 
     CHECK(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK(isActionAvailable(ActionId::SaveProjectAs, conditions));
-    CHECK(isActionAvailable(ActionId::PublishProject, conditions));
+    CHECK(isActionAvailable(ActionId::ExportSong, conditions));
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
 }
 
@@ -237,7 +237,7 @@ TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
 
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProjectAs, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::PublishProject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ExportSong, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));

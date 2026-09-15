@@ -103,14 +103,14 @@ struct EditorAction
         std::filesystem::path file;
     };
 
-    /*! \brief Publish the current song as a native song package. */
-    struct PublishProject
+    /*! \brief Export the current song as a native song package. */
+    struct ExportSong
     {
         /*!
-        \brief Creates a publish action.
+        \brief Creates a song-export action.
         \param file_value Native song package destination path.
         */
-        explicit PublishProject(std::filesystem::path file_value)
+        explicit ExportSong(std::filesystem::path file_value)
             : file(std::move(file_value))
         {}
 
@@ -855,7 +855,7 @@ struct EditorAction
     };
 
     /*! \brief Variant carrying project package write actions. */
-    using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
+    using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, ExportSong>;
 
     /*!
     \brief Variant carrying lifecycle actions that may be deferred by unsaved-changes prompts.
@@ -865,12 +865,12 @@ struct EditorAction
     unsaved-changes gate as project-replacing actions.
     */
     using ProjectAction = std::variant<
-        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
+        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, ExportSong,
         CloseProject, ExitApplication, NewToneDocument, OpenToneFile>;
 
     /*! \brief Variant carrying any controller action and its payload. */
     using Action = std::variant<
-        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
+        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, ExportSong,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
         ToggleGridSnap, SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion,

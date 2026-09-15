@@ -108,8 +108,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .import_enabled = true,
             .save_enabled = false,
             .save_as_enabled = false,
-            .publish_enabled = false,
-            .suggested_publish_file = std::filesystem::path{},
+            .export_enabled = false,
+            .suggested_export_file = std::filesystem::path{},
             .close_enabled = false,
             .project_loaded = true,
             .save_requires_destination = false,
@@ -163,7 +163,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     const int save_command = toJuceCommandId(EditorCommandId::SaveProject);
     const int close_command = toJuceCommandId(EditorCommandId::CloseProject);
     const int exit_command = toJuceCommandId(EditorCommandId::ExitEditor);
-    const int publish_command = toJuceCommandId(EditorCommandId::PublishSong);
+    const int export_command = toJuceCommandId(EditorCommandId::ExportSong);
     const int undo_command = toJuceCommandId(EditorCommandId::Undo);
     const int redo_command = toJuceCommandId(EditorCommandId::Redo);
     const juce::KeyPress undo_key{'z', juce::ModifierKeys::commandModifier, 0};
@@ -210,12 +210,12 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
             .import_enabled = true,
             .save_enabled = true,
             .save_as_enabled = true,
-            .publish_enabled = true,
+            .export_enabled = true,
             .undo_enabled = true,
             .undo_label = std::string{"Move Plugin"},
             .redo_enabled = true,
             .redo_label = std::string{"Restore Plugin"},
-            .suggested_publish_file = std::filesystem::path{"song.rock"},
+            .suggested_export_file = std::filesystem::path{"song.rock"},
             .close_enabled = true,
             .project_loaded = true,
             .save_requires_destination = false,
@@ -252,9 +252,9 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
         });
 
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
-    const auto publish_item = requiredMenuItem(view.getMenuForIndex(0, "File"), publish_command);
-    CHECK(publish_item.isEnabled);
-    CHECK(publish_item.text == "Publish...");
+    const auto export_item = requiredMenuItem(view.getMenuForIndex(0, "File"), export_command);
+    CHECK(export_item.isEnabled);
+    CHECK(export_item.text == "Export Song...");
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), close_command).isEnabled);
     const auto undo_item = requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command);
     CHECK(undo_item.isEnabled);
@@ -319,18 +319,20 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
 
     const std::vector<ExpectedCommand> expected{
         {.id = EditorCommandId::OpenProject, .value = 0x1001, .chords = {chord('o', command)}},
-        {.id = EditorCommandId::ImportSong,
-         .value = 0x1002,
-         .chords = {chord('o', command | shift)}},
+        {.id = EditorCommandId::ImportSong, .value = 0x1002, .chords = {chord('i', command)}},
         {.id = EditorCommandId::SaveProject, .value = 0x1003, .chords = {chord('s', command)}},
         {.id = EditorCommandId::SaveProjectAs,
          .value = 0x1004,
          .chords = {chord('s', command | shift)}},
-        {.id = EditorCommandId::PublishSong,
-         .value = 0x1005,
-         .chords = {chord('p', command | shift)}},
+        {.id = EditorCommandId::ExportSong, .value = 0x1005, .chords = {chord('e', command)}},
         {.id = EditorCommandId::CloseProject, .value = 0x1006, .chords = {chord('w', command)}},
         {.id = EditorCommandId::ExitEditor, .value = 0x1007, .chords = {chord('q', command)}},
+        {.id = EditorCommandId::ImportTone,
+         .value = 0x1008,
+         .chords = {chord('i', command | shift)}},
+        {.id = EditorCommandId::ExportTone,
+         .value = 0x1009,
+         .chords = {chord('e', command | shift)}},
         {.id = EditorCommandId::Undo, .value = 0x1101, .chords = {chord('z', command)}},
         {.id = EditorCommandId::Redo,
          .value = 0x1102,
@@ -619,6 +621,64 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
         0
     };
     CHECK(mappings->findCommandForKeyPress(ctrl_shift_z) == toJuceCommandId(EditorCommandId::Redo));
+}
+
+// The two tone commands are the keyboard twins of the signal-chain header's tone buttons: each
+// chord is the Shift tier of the song's own Ctrl+I / Ctrl+E, and each command's enablement IS the
+// flag its button follows, so command and button can never disagree about when the operation is
+// legal. Performing one while enabled raises a native file chooser, which no headless test can
+// dismiss, so the press is driven only in the disabled state; the chord's owner is read out of the
+// mapping set instead.
+TEST_CASE(
+    "Editor tone commands follow the signal-chain tone buttons", "[ui][editor-view][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    constexpr int command_shift =
+        juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier;
+    const juce::KeyPress import_tone_key{'i', juce::ModifierKeys{command_shift}, 0};
+    const juce::KeyPress export_tone_key{'e', juce::ModifierKeys{command_shift}, 0};
+
+    const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
+    REQUIRE(mappings != nullptr);
+    CHECK(
+        mappings->findCommandForKeyPress(import_tone_key) ==
+        toJuceCommandId(EditorCommandId::ImportTone));
+    CHECK(
+        mappings->findCommandForKeyPress(export_tone_key) ==
+        toJuceCommandId(EditorCommandId::ExportTone));
+
+    const auto command_enabled = [&view](const EditorCommandId id) {
+        juce::ApplicationCommandInfo info{toJuceCommandId(id)};
+        view.getCommandInfo(toJuceCommandId(id), info);
+        return (info.flags & juce::ApplicationCommandInfo::isDisabled) == 0;
+    };
+
+    // Both buttons hidden: neither command is available, and the mapping set refuses the chord at
+    // the key level rather than raising a chooser.
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.signal_chain.tone_import_enabled = false;
+    state.signal_chain.tone_export_enabled = false;
+    view.setState(state);
+    CHECK_FALSE(command_enabled(EditorCommandId::ImportTone));
+    CHECK_FALSE(command_enabled(EditorCommandId::ExportTone));
+    CHECK_FALSE(pressCommandKey(view, import_tone_key));
+    CHECK_FALSE(pressCommandKey(view, export_tone_key));
+
+    // One flag at a time, so each command is pinned to its OWN button rather than to the pair.
+    state.signal_chain.tone_import_enabled = true;
+    view.setState(state);
+    CHECK(command_enabled(EditorCommandId::ImportTone));
+    CHECK_FALSE(command_enabled(EditorCommandId::ExportTone));
+
+    state.signal_chain.tone_export_enabled = true;
+    view.setState(state);
+    CHECK(command_enabled(EditorCommandId::ImportTone));
+    CHECK(command_enabled(EditorCommandId::ExportTone));
 }
 
 // Verifies plugin tile remove controls reflect state and emit the selected instance ID.

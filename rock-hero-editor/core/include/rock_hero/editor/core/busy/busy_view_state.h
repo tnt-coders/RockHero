@@ -33,8 +33,8 @@ enum class BusyOperation : std::uint8_t
     /*! \brief Saving the current project to a user-chosen destination. */
     SavingProjectAs,
 
-    /*! \brief Publishing the current project as a native song package. */
-    PublishingProject,
+    /*! \brief Exporting the current song as a native song package. */
+    ExportingSong,
 
     /*! \brief Opening or reopening the audio-device route. */
     OpeningAudioDevice,

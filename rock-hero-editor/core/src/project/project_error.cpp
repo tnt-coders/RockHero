@@ -62,13 +62,13 @@ namespace
         {
             return "Could not write project package.";
         }
-        case ProjectErrorCode::PublishPathRequired:
+        case ProjectErrorCode::ExportPathRequired:
         {
-            return "Cannot publish without a native song package path.";
+            return "Cannot export without a native song package path.";
         }
-        case ProjectErrorCode::CouldNotPublishSong:
+        case ProjectErrorCode::CouldNotExportSong:
         {
-            return "Could not publish native song package.";
+            return "Could not export native song package.";
         }
         case ProjectErrorCode::CouldNotCloseWorkspace:
         {

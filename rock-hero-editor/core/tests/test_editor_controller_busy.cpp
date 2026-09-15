@@ -287,8 +287,9 @@ TEST_CASE("EditorController save as begins busy with default message", "[core][e
     CHECK(project_services.save_as_call_count == 1);
 }
 
-// Publish sets busy=PublishingProject before the deferred package completion restores state.
-TEST_CASE("EditorController publish begins busy with default message", "[core][editor-controller]")
+// Export Song sets busy=ExportingSong before the deferred package completion restores state.
+TEST_CASE(
+    "EditorController song export begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -300,7 +301,7 @@ TEST_CASE("EditorController publish begins busy with default message", "[core][e
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .publish_function = project_services.publishFunction(),
+            .export_function = project_services.exportFunction(),
         }
     };
     FakeEditorView view;
@@ -310,15 +311,15 @@ TEST_CASE("EditorController publish begins busy with default message", "[core][e
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     runner.runPendingCompletions();
 
-    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+    controller.onExportRequested(std::filesystem::path{"song.rock"});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     const BusyViewState* busy = busyOrNull(*state);
     REQUIRE(busy != nullptr);
-    CHECK(busy->operation == BusyOperation::PublishingProject);
-    CHECK(busy->message == "Publishing project...");
-    CHECK(project_services.publish_call_count == 1);
+    CHECK(busy->operation == BusyOperation::ExportingSong);
+    CHECK(busy->message == "Exporting song...");
+    CHECK(project_services.export_call_count == 1);
 }
 
 // While busy, action routing disables ordinary commands and keeps Close available to supersede.
@@ -348,7 +349,7 @@ TEST_CASE("EditorController busy routing disables ordinary commands", "[core][ed
     CHECK(state->import_enabled == false);
     CHECK(state->save_enabled == false);
     CHECK(state->save_as_enabled == false);
-    CHECK(state->publish_enabled == false);
+    CHECK(state->export_enabled == false);
     CHECK(state->transport.play_pause_enabled == false);
     CHECK(state->transport.stop_enabled == false);
     CHECK(state->signal_chain.insert_plugin_enabled == false);
@@ -416,7 +417,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-            .publish_function = project_services.publishFunction(),
+            .export_function = project_services.exportFunction(),
         }
     };
     FakeEditorView view;
@@ -453,7 +454,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onImportRequested(std::filesystem::path{"blocked.rock"});
     controller.onSaveRequested();
     controller.onSaveAsRequested(std::filesystem::path{"blocked.rhp"});
-    controller.onPublishRequested(std::filesystem::path{"blocked.rock"});
+    controller.onExportRequested(std::filesystem::path{"blocked.rock"});
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
@@ -468,7 +469,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     CHECK(project_services.import_call_count == 0);
     CHECK(project_services.save_call_count == 0);
     CHECK(project_services.save_as_call_count == 0);
-    CHECK(project_services.publish_call_count == 0);
+    CHECK(project_services.export_call_count == 0);
     CHECK(transport.play_call_count == 0);
     CHECK(transport.stop_call_count == 0);
     CHECK(transport.seek_call_count == 1);

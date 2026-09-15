@@ -51,7 +51,7 @@ authored half.
   STORED fields, never its resolution — no cascade. Computed once per chart revision into a
   projection table (grid-perf precedent). An unjustified `Legato` sounds, scores, and reads as
   Pick on both surfaces — the physical truth — plus a hollow editor-chrome cue; the game never
-  renders it; a publish lint reports them.
+  renders it; a song-export lint reports them.
 - **Verbs:** `H` toggles over {Pick, Legato, LeftTap} — a TOTAL verb: no derivation, no
   refusal, no assist, no dependency on the unbuilt refusal channel. The shipped toggle window
   + `dropTop` are RETAINED so a second press reverses the first exactly (honors ruling 4).

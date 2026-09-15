@@ -146,7 +146,7 @@ drifted three times since this plan was written and a named citation cannot go s
   - docs/plans/roadmap/26-game-startup-menus-library.md — library scan stores/reports findings keyed by
     the Phase 4 stable rule tokens; load failures already carry `SongPackageError` reasons.
   - docs/plans/roadmap/43-song-information-and-art.md — the pre-export gate (Phase 6) composes with 43's
-    metadata validation; 43 owns the publish-vs-save split decision this plan defers to.
+    metadata validation; 43 owns the export-vs-save split decision this plan defers to.
   - docs/plans/roadmap/11-derived-difficulty-calculator.md — reuses Phase 1 endpoint/linearization
     arithmetic for density windows.
   - docs/plans/roadmap/22-note-detection.md — reuses the Phase 2 note-name → pitch utility for the tuner
@@ -204,9 +204,9 @@ drifted three times since this plan was written and a named citation cannot go s
   never sees the corpus; add (b) later only if ad-hoc workflows (batch-linting third-party
   packages) demand a CLI. Recorded because (b) would create the repo's first `tools/` bucket.
 - **Q3 — May lint findings ever block?** Editor behavior when the report contains findings:
-  (a) advisory-only, always saveable; (b) Warning-and-above blocks a future explicit "publish"
-  action (not save). **Recommendation: (a) now** — the current model is save==publish with
-  normalize-don't-reject, and blocking semantics belong to 43's publish-split decision; this
+  (a) advisory-only, always saveable; (b) Warning-and-above blocks a future explicit "export"
+  action (not save). **Recommendation: (a) now** — the current model is save==export with
+  normalize-don't-reject, and blocking semantics belong to 43's export-split decision; this
   plan ships the report advisory-only and revisits under
   docs/plans/roadmap/43-song-information-and-art.md.
 

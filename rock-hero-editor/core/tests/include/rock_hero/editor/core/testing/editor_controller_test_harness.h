@@ -1542,19 +1542,19 @@ public:
         return std::expected<void, ProjectError>{};
     }
 
-    // Simulates publishing a native package without changing project save state.
-    std::expected<void, ProjectError> publish(
+    // Simulates exporting a native song package without changing project save state.
+    std::expected<void, ProjectError> exportSong(
         Project&, const std::filesystem::path& file, const common::core::Song& song)
     {
-        last_publish_file = file;
-        last_publish_audio_path = firstAudioPath(song);
-        last_publish_tone_document_ref = firstToneDocumentRef(song);
-        ++publish_call_count;
-        if (next_publish_error.has_value())
+        last_export_file = file;
+        last_export_audio_path = firstAudioPath(song);
+        last_export_tone_document_ref = firstToneDocumentRef(song);
+        ++export_call_count;
+        if (next_export_error.has_value())
         {
             return std::unexpected{ProjectError{
-                ProjectErrorCode::CouldNotPublishSong,
-                *next_publish_error,
+                ProjectErrorCode::CouldNotExportSong,
+                *next_export_error,
             }};
         }
         return std::expected<void, ProjectError>{};
@@ -1598,13 +1598,13 @@ public:
                    const common::core::Song& song) { return saveAs(project, file, song); };
     }
 
-    // Returns the bound publish callback shape expected by EditorController services.
-    [[nodiscard]] EditorController::PublishFunction publishFunction() noexcept
+    // Returns the bound song-export callback shape expected by EditorController services.
+    [[nodiscard]] EditorController::ExportFunction exportFunction() noexcept
     {
         return [this](
                    Project& project,
                    const std::filesystem::path& file,
-                   const common::core::Song& song) { return publish(project, file, song); };
+                   const common::core::Song& song) { return exportSong(project, file, song); };
     }
 
     // Song returned by the next open call, or empty to force an open error.
@@ -1625,8 +1625,8 @@ public:
     // Error returned by saveAs(), when present.
     std::optional<std::string> next_save_as_error{};
 
-    // Error returned by publish(), when present.
-    std::optional<std::string> next_publish_error{};
+    // Error returned by exportSong(), when present.
+    std::optional<std::string> next_export_error{};
 
     // Last file passed to open().
     std::optional<std::filesystem::path> last_open_file{};
@@ -1637,8 +1637,8 @@ public:
     // Last destination passed to saveAs().
     std::optional<std::filesystem::path> last_save_as_file{};
 
-    // Last destination passed to publish().
-    std::optional<std::filesystem::path> last_publish_file{};
+    // Last destination passed to exportSong().
+    std::optional<std::filesystem::path> last_export_file{};
 
     // First arrangement audio path seen by save().
     std::optional<std::filesystem::path> last_save_audio_path{};
@@ -1646,8 +1646,8 @@ public:
     // First arrangement audio path seen by saveAs().
     std::optional<std::filesystem::path> last_save_as_audio_path{};
 
-    // First arrangement audio path seen by publish().
-    std::optional<std::filesystem::path> last_publish_audio_path{};
+    // First arrangement audio path seen by exportSong().
+    std::optional<std::filesystem::path> last_export_audio_path{};
 
     // First arrangement tone document reference seen by save().
     std::optional<std::string> last_save_tone_document_ref{};
@@ -1655,8 +1655,8 @@ public:
     // First arrangement tone document reference seen by saveAs().
     std::optional<std::string> last_save_as_tone_document_ref{};
 
-    // First arrangement tone document reference seen by publish().
-    std::optional<std::string> last_publish_tone_document_ref{};
+    // First arrangement tone document reference seen by exportSong().
+    std::optional<std::string> last_export_tone_document_ref{};
 
     // Number of open calls received.
     int open_call_count{0};
@@ -1670,8 +1670,8 @@ public:
     // Number of Save As calls received.
     int save_as_call_count{0};
 
-    // Number of publish calls received.
-    int publish_call_count{0};
+    // Number of song-export calls received.
+    int export_call_count{0};
 
 private:
     // Returns the first arrangement audio path to verify the saved session content.

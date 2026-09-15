@@ -408,14 +408,14 @@ Translate cross-domain failures explicitly at the boundary:
 
 \code{.cpp}
 return std::unexpected{ProjectError{
-    ProjectErrorCode::CouldNotPublishSong,
+    ProjectErrorCode::CouldNotExportSong,
     package_result.error().message,
 }};
 \endcode
 
 Cross-domain translation should usually expose the receiving API's coarser operation-level code
-and preserve lower-level detail in the message. For example, a project publish failure should
-return `ProjectErrorCode::CouldNotPublishSong` rather than leaking every native package or archive
+and preserve lower-level detail in the message. For example, a song-export failure should
+return `ProjectErrorCode::CouldNotExportSong` rather than leaking every native package or archive
 failure mode through the project API. Add nested causes or mirrored code sets only after callers
 demonstrably need to branch on the lower-level reason across that boundary.
 

@@ -41,7 +41,7 @@ enum class ProjectErrorCode : std::uint8_t
     /*! \brief A save operation required a project package path that was not available. */
     SavePathRequired,
 
-    /*! \brief A save or publish operation required a workspace that was not available. */
+    /*! \brief A save or export operation required a workspace that was not available. */
     MissingWorkspace,
 
     /*! \brief Editor project files could not be written into the workspace. */
@@ -50,11 +50,11 @@ enum class ProjectErrorCode : std::uint8_t
     /*! \brief The editor project package archive could not be written. */
     CouldNotWritePackage,
 
-    /*! \brief A publish operation required a native song package path that was not available. */
-    PublishPathRequired,
+    /*! \brief An export operation required a native song package path that was not available. */
+    ExportPathRequired,
 
-    /*! \brief Native song package content could not be published. */
-    CouldNotPublishSong,
+    /*! \brief Native song package content could not be exported. */
+    CouldNotExportSong,
 
     /*! \brief The editor project workspace could not be removed. */
     CouldNotCloseWorkspace,

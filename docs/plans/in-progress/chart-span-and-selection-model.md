@@ -104,7 +104,7 @@ practice):
   single-strike chord's members to span end).
 - **Normalization:** a group whose members are all uniform at their implied hold,
   technique-free, and override-free collapses back to implied (explicit sustains cleared) on
-  apply — save==publish normalization precedent. Span extent is stored; when a string's
+  apply — save==export normalization precedent. Span extent is stored; when a string's
   final sounding is explicit, normalization clamps the extent to the earliest final
   hold end (min rule). Mid-span staccato never terminates a span: only shortening a string's
   last sounding does, so a re-struck shape survives a short strike.

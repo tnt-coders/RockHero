@@ -126,7 +126,7 @@ consumed by the tab lane, the highway, and the gameplay build. **Nothing stored 
 because nothing derived is stored** — the repair engine, the recalc window, and the staleness
 hazard class are not deleted so much as made unrepresentable. An `Unjustified` `Legato`
 sounds, scores, and draws as a plain Pick on both surfaces — the physical truth — plus a
-hollow editor-chrome cue (both editor surfaces; the game never renders it); a publish lint
+hollow editor-chrome cue (both editor surfaces; the game never renders it); a song-export lint
 counts them.
 
 **Verbs:** `H` toggles over {Pick, Legato, LeftTap} — riders (Tap/Pinch/scrape) skipped, no

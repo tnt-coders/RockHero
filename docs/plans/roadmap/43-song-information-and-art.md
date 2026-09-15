@@ -4,11 +4,11 @@
 
 ## 1. Goal
 
-Charters can author complete song presentation data and every published `.rock` package carries it:
+Charters can author complete song presentation data and every exported `.rock` package carries it:
 
 - A Song Information dialog edits title, artist, album, year (already persisted in `song.json`
   metadata), and album art — a new package file referenced from the JSON.
-- Publishing a `.rock` requires the full metadata set, with actionable messages instead of silent
+- Exporting a `.rock` requires the full metadata set, with actionable messages instead of silent
   "Unknown Artist, year 0" exports (every GP import today has year 0 — no importer sets it).
 - Optional, toggleable sort fields (sortTitle/sortArtist/sortAlbum) override how the game library
   sorts ("The Beatles" under B), auto-filled with a suggestion when enabled.
@@ -17,13 +17,13 @@ Charters can author complete song presentation data and every published `.rock` 
 - All metadata edits are ordinary undoable edits in the editor's memento history.
 
 This plan also explicitly resolves the tension between required-on-export validation and the
-established save==publish / normalize-don't-reject invariant (Open question Q1).
+established save==export / normalize-don't-reject invariant (Open question Q1).
 
 ## 2. Non-goals
 
 - No chart content validation (impossible spans, coverage gaps) — that is
   `docs/plans/roadmap/42-chart-validation.md`; this plan validates metadata *presence* only, leaving a
-  seam so plan 42's content gate joins the same publish check later.
+  seam so plan 42's content gate joins the same export check later.
 - No formatVersion machinery — `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` owns the
   bump rules and migration ladder; this plan ships the first *consumer* of that ladder.
 - No game-side rendering of art, sort columns, or preview playback —
@@ -82,18 +82,18 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
   `Arrangement` at `song/arrangement.h:48`), never computed or serialized —
   `docs/design/architecture.md` "Song Data Model" confirms "not persisted yet".
 
-**Save == publish in code**
-- The `.rhp` project save writes the song directory through the exact same writer publish uses:
+**Save == export in code**
+- The `.rhp` project save writes the song directory through the exact same writer the export uses:
   `writeProjectFiles` → `writeRockSongPackageDirectory`
-  (`rock-hero-editor/core/src/project/project_io.cpp:177-199`), and `Project::publish` →
+  (`rock-hero-editor/core/src/project/project_io.cpp:177-199`), and `Project::exportSong` →
   `writeRockSongPackage` over the same workspace `song/` directory
   (`rock-hero-editor/core/src/project/project.cpp:603-644`). Validation added inside the shared
   writer therefore blocks *saves*, not just exports — the mechanical root of the Q1 tension.
-- Publish already exists end-to-end as a distinct user action: `onPublishRequested` intent
+- Export Song already exists end-to-end as a distinct user action: `onExportRequested` intent
   (`rock-hero-editor/core/include/rock_hero/editor/core/controller/i_editor_controller.h:63`),
-  `EditorActionId::PublishProject` availability gating, busy state `PublishingProject`, File menu
-  item "Publish..." (`rock-hero-editor/ui/src/main_window/editor_view.cpp:669-671`), and a test
-  proving a blocked publish never calls the publish function
+  `EditorActionId::ExportSong` availability gating, busy state `ExportingSong`, File menu
+  item "Export Song..." (`rock-hero-editor/ui/src/main_window/editor_view.cpp:669-671`), and a test
+  proving a blocked export never calls the export function
   (`rock-hero-editor/core/tests/test_editor_controller_busy.cpp:452-467`) — the pattern the
   Phase 5 gate reuses.
 - Existing normalize-don't-reject precedents: legacy per-region tone names rebuilt into the tone
@@ -178,8 +178,8 @@ Downstream (consumers; recorded in their Dependencies sections too):
 - `docs/plans/roadmap/11-derived-difficulty-calculator.md` — editor display of the derived rating rides
   with this dialog later (that plan's non-goals).
 - `docs/plans/roadmap/42-chart-validation.md` — its editor pre-export content gate plugs into the Phase 5
-  publish-blocker seam defined here.
-- `docs/plans/roadmap/40-chart-editing.md` — cites this plan (its decision 9) for the save==publish
+  export-blocker seam defined here.
+- `docs/plans/roadmap/40-chart-editing.md` — cites this plan (its decision 9) for the save==export
   export-gate resolution.
 
 External decisions: Q1–Q6 below, aggregated in `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
@@ -188,11 +188,11 @@ External decisions: Q1–Q6 below, aggregated in `docs/plans/roadmap/00-roadmap.
 
 Restated with sources; a fresh session must not re-litigate these.
 
-- **Save == publish; validation normalizes, never rejects, on the save path** — established
+- **Save == export; validation normalizes, never rejects, on the save path** — established
   invariant restated in `docs/plans/roadmap/40-chart-editing.md` (decision 9), mechanically visible in
-  code: save and publish share one writer (`project_io.cpp:183`, `project.cpp:634`); repairs
+  code: save and export share one writer (`project_io.cpp:183`, `project.cpp:634`); repairs
   happen as load normalization surfaced as unsaved changes (`project_handlers.cpp:268`). This
-  plan may add a *publish-only* gate (Q1) but must not make the shared writer reject.
+  plan may add an *export-only* gate (Q1) but must not make the shared writer reject.
 - **Descriptors are derived, never authored** — `docs/design/architecture.md` "Song Data Model"
   ("a value *derived* from playable chart data, not authored data") and
   `docs/plans/roadmap/11-derived-difficulty-calculator.md`. This plan authors only relational and
@@ -215,24 +215,24 @@ Restated with sources; a fresh session must not re-litigate these.
 
 Mirrored into `docs/plans/roadmap/00-roadmap.md` Decisions-needed. Phase 0 presents these and STOPS.
 
-- **Q1 — required metadata vs save==publish.** How does "required for export" coexist with
+- **Q1 — required metadata vs save==export.** How does "required for export" coexist with
   normalize-don't-reject saves?
-  (A) *Split publish validation from save* (recommended). The shared writer stays
-  validation-free; a pure editor-core readiness check runs only in the publish action path
-  (before `Project::publish`), returning typed blockers the UI renders with an "open Song
-  Information" affordance. Save/Save As remain unconditional. Publish and save are already
+  (A) *Split export validation from save* (recommended). The shared writer stays
+  validation-free; a pure editor-core readiness check runs only in the export action path
+  (before `Project::exportSong`), returning typed blockers the UI renders with an "open Song
+  Information" affordance. Save/Save As remain unconditional. Export and save are already
   distinct actions with distinct paths (inventory), so the split is a gate placement, not an
   architecture change; plan 42's content validation later appends to the same list.
-  (B) Placeholder-with-warning: publish always succeeds, auto-filling "Unknown Artist"/year 0
+  (B) Placeholder-with-warning: the export always succeeds, auto-filling "Unknown Artist"/year 0
   with a warning. Rejects the product goal — the game library fills with junk rows and nothing
   ever forces completion.
   (C) Enforce in the writer (save also rejects). Violates the established invariant and bricks
   saving work-in-progress imports (every GP import lacks year today).
-- **Q2 — which fields hard-block publish.**
+- **Q2 — which fields hard-block the export.**
   (A) *All five: title, artist, album, year, album art* (recommended — matches the product goal;
   the game keeps a fallback tile for pre-existing v1 packages anyway, per
   `docs/plans/roadmap/26-game-startup-menus-library.md` Phase 3).
-  (B) Title/artist/year hard; album and art soft (warning, publish proceeds). Choose this only
+  (B) Title/artist/year hard; album and art soft (warning, the export proceeds). Choose this only
   if requiring art is judged too hostile for quick personal exports.
 - **Q3 — canonical art policy.**
   (A) *Transcode at import to one JPEG master, quality 0.85, max dimension 1024, aspect
@@ -296,7 +296,7 @@ Phase 2 have landed.
      validation mirrors `validateToneDocumentOnDisk` (`rock_song_package_write.cpp:428`): a
      non-empty `art` ref must be canonical-safe and exist in the workspace or the save fails
      before side effects — the same *structural* contract as tone/audio refs, no completeness
-     rule, so save==publish is preserved.
+     rule, so save==export is preserved.
   3. Reader: parse the new optional fields in `readMetadata`
      (`rock_song_package_read.cpp:169-183`); validate a present `art` ref with the existing
      safe-path checks. Normalization (never rejection): a dangling `art` ref (safe path, file
@@ -345,7 +345,7 @@ Phase 2 have landed.
   4. Controller intents on `IEditorController`: `onSongInformationRequested()` (opens the dialog
      via view state), `onSongInformationSubmitted(SongInformationDraft draft)`,
      `onSongInformationDismissed()`. View state gains an `std::optional<SongInformationViewState>`
-     (current values + album-art image file path + publish-blocker summary once Phase 5 lands),
+     (current values + album-art image file path + export-blocker summary once Phase 5 lands),
      following the prompt-struct pattern (`editor_view_state.h:59-108`). Handlers live in a new
      `song_information_handlers.cpp` per the multi-TU controller convention.
   5. Art file staging (byte-level only; no image decoding in core):
@@ -435,27 +435,27 @@ Phase 2 have landed.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 5 — publish readiness gate *(assumes Q1-A, Q2 outcome)*
+### Phase 5 — export readiness gate *(assumes Q1-A, Q2 outcome)*
 
 - **Scope**: pure editor-core function in the `project/` feature:
-  `publishBlockers(const common::core::Song&) -> std::vector<PublishBlocker>` where
-  `PublishBlocker { PublishBlockerCode code; std::string message; }` — codes per Q2's required
-  set (MissingTitle, MissingArtist, MissingAlbum, MissingYear, MissingArt). The publish action
-  path (`project_handlers.cpp`, the `PublishProject` flow) runs it before starting the busy
-  publish; a non-empty list cancels the operation and surfaces a view-state prompt listing every
+  `exportBlockers(const common::core::Song&) -> std::vector<ExportBlocker>` where
+  `ExportBlocker { ExportBlockerCode code; std::string message; }` — codes per Q2's required
+  set (MissingTitle, MissingArtist, MissingAlbum, MissingYear, MissingArt). The export action
+  path (`project_handlers.cpp`, the `ExportSong` flow) runs it before starting the busy
+  export; a non-empty list cancels the operation and surfaces a view-state prompt listing every
   blocker with an "Open Song Information" affordance. Save and Save As remain untouched — the
   Q1-A split. The blocker list is deliberately generic so `docs/plans/roadmap/42-chart-validation.md`
   can append content blockers to the same vector without changing the gate seam.
-- **Files**: `rock-hero-editor/core/{include,src}/.../project/publish_readiness.{h,cpp}` (header
+- **Files**: `rock-hero-editor/core/{include,src}/.../project/export_readiness.{h,cpp}` (header
   public — the view renders blockers), `project_handlers.cpp`, `editor_view_state.h`,
   `rock-hero-editor/ui` prompt presentation in `editor_view.cpp`.
-- **Public-header impact**: `publish_readiness.h` + view-state addition.
-- **Testing**: pure table tests for `publishBlockers` (each missing field, all present, year 0
-  vs valid); controller test proving a blocked publish never calls the injected publish function
-  (`publish_call_count == 0`, exact pattern of `test_editor_controller_busy.cpp:452-467`) and a
-  complete song publishes exactly as today; blocker prompt appears in derived view state.
-- **Exit criteria**: publishing an incomplete GP import is blocked with the field list; filling
-  the dialog then publishing succeeds; saves never gated.
+- **Public-header impact**: `export_readiness.h` + view-state addition.
+- **Testing**: pure table tests for `exportBlockers` (each missing field, all present, year 0
+  vs valid); controller test proving a blocked export never calls the injected export function
+  (`export_call_count == 0`, exact pattern of `test_editor_controller_busy.cpp:452-467`) and a
+  complete song exports exactly as today; blocker prompt appears in derived view state.
+- **Exit criteria**: exporting an incomplete GP import is blocked with the field list; filling
+  the dialog then exporting succeeds; saves never gated.
 - **Verification**:
   ```powershell
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
@@ -475,7 +475,7 @@ pre-commit run --all-files
 ```
 
 Acceptance additionally requires: the Phase 1 local corpus table (39/39) recorded; one end-to-end
-pass (import GP → fill Song Information incl. art → publish → reopen the published `.rock`,
+pass (import GP → fill Song Information incl. art → export → reopen the exported `.rock`,
 metadata and art intact); and the Q1/Q2 outcomes recorded in `docs/plans/roadmap/00-roadmap.md`.
 
 ## 10. Rollback/abort notes
@@ -494,7 +494,7 @@ metadata and art intact); and the Q1/Q2 outcomes recorded in `docs/plans/roadmap
   the placeholder exactly (re-adding `.gitkeep` per the library README). If the codec proves
   wrong-shaped for plan 26's album-art adapter, fix it here — plan 26 must not fork a second
   image path.
-- **Phase 5** is independently revertible: removing the gate returns publish to today's ungated
+- **Phase 5** is independently revertible: removing the gate returns the export to today's ungated
   behavior without touching the format or the dialog. Do not weaken it by auto-filling
   placeholders as a "temporary" fallback — that is rejected option Q1-B by the back door.
 - Art undo mementos hold file bytes in memory; if repeated art swaps ever make history memory a

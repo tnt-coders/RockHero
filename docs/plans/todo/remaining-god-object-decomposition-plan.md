@@ -179,7 +179,7 @@ exist in the code, and have `IEditorController` inherit from them so existing co
 aggregate stay source-compatible:
 
 ```cpp
-class IProjectIntents { /* open/import/save/saveAs/publish/saveAsCancelled/close/exit/
+class IProjectIntents { /* open/import/save/saveAs/exportSong/saveAsCancelled/close/exit/
                            unsavedChangesDecision/restoreInterruptedDecision */ };
 class ITransportIntents { /* playPause/stop/waveformClicked */ };
 class ISignalChainIntents { /* insertSlotSelected/remove/move/placementChanged/

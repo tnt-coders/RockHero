@@ -34,7 +34,7 @@ Gaps, ranked by size × centrality (from the full census):
 | # | Area | Size | Today | Planned treatment |
 |---|---|---|---|---|
 | 1 | `common/audio/src/tracktion/` adapter internals | 24 files | **DONE 2026-07-15** | `docs/developer/inside-the-tracktion-adapter.md` — rack assembly, plugin hygiene, timing/automation bridges, device glue, the pure-policy split pattern. Automation parts carry the flux note. |
-| 2 | `editor/core/project/` lifecycle | 15 files | **DONE 2026-07-15** | `docs/developer/the-project-lifecycle.md` — workspace model, .rhp vs .rock, open-flow diagram, deferred-action gate, save-is-publish, importers, startup restore, dirty/fault interactions. View-state flux noted. |
+| 2 | `editor/core/project/` lifecycle | 15 files | **DONE 2026-07-15** | `docs/developer/the-project-lifecycle.md` — workspace model, .rhp vs .rock, open-flow diagram, deferred-action gate, save-is-export, importers, startup restore, dirty/fault interactions. View-state flux noted. |
 | 3 | `editor/{core,ui}/audio_device/` + `common/audio/device`+`settings` | 14 files | **DONE 2026-07-15** | `docs/developer/audio-device-settings.md` — staged-settings transaction, the ephemeral sub-MVC + dispatcher, read-only game store, native setup machine. Also covers item 8 (config-store delegation). |
 | 4 | `common/core/chart/` model | 3 files | **DONE 2026-07-15** | Brief section in `musical-time.md`; full tour deferred until chart editing is built (roadmap 40). |
 | 5 | `common/core/shared/` + logging | 4 files | **DONE 2026-07-15** | Logging-facade entry added to `cross-cutting-invariants.md`. |

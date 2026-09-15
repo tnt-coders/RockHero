@@ -132,8 +132,8 @@ public:
         /*! \brief Saves the current editor project to a chosen path. */
         core::EditorController::SaveAsFunction save_as_function{};
 
-        /*! \brief Publishes the current song as a native song package. */
-        core::EditorController::PublishFunction publish_function{};
+        /*! \brief Exports the current song as a native song package. */
+        core::EditorController::ExportFunction export_function{};
     };
 
     /*!

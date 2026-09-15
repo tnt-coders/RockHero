@@ -298,8 +298,8 @@ private:
     // Opens the asynchronous save chooser and forwards accepted selections.
     void showSaveAsChooser(SaveAsChooserPurpose purpose);
 
-    // Opens the asynchronous publish chooser and forwards accepted selections.
-    void showPublishChooser();
+    // Opens the asynchronous song-export chooser and forwards accepted selections.
+    void showExportChooser();
 
     // Opens the asynchronous tone-file open chooser and forwards accepted selections.
     void showOpenToneChooser();

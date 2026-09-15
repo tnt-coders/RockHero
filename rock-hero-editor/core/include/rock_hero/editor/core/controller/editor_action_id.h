@@ -33,8 +33,8 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Save the current project to a chosen destination. */
     SaveProjectAs,
 
-    /*! \brief Publish the current song as a native song package. */
-    PublishProject,
+    /*! \brief Export the current song as a native song package. */
+    ExportSong,
 
     /*! \brief Close the current project. */
     CloseProject,

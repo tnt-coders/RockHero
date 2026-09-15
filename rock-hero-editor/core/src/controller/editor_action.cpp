@@ -35,9 +35,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SaveProjectAs;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
+    else if constexpr (std::is_same_v<A, EditorAction::ExportSong>)
     {
-        return EditorAction::Id::PublishProject;
+        return EditorAction::Id::ExportSong;
     }
     else if constexpr (std::is_same_v<A, EditorAction::CloseProject>)
     {

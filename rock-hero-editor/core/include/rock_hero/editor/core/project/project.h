@@ -125,12 +125,12 @@ public:
         const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
-    \brief Publishes the supplied song to a native song package without changing this project path.
+    \brief Exports the supplied song to a native song package without changing this project path.
     \param path Destination native song package path.
-    \param song Song data to publish.
+    \param song Song data to export.
     \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, ProjectError> publish(
+    [[nodiscard]] std::expected<void, ProjectError> exportSong(
         const std::filesystem::path& path, const common::core::Song& song);
 
     /*!

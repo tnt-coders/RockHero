@@ -63,10 +63,10 @@ public:
     virtual void onSaveAsRequested(std::filesystem::path file) = 0;
 
     /*!
-    \brief Handles a request to publish a native song package.
+    \brief Handles a request to export a native song package.
     \param file Filesystem path selected by the user.
     */
-    virtual void onPublishRequested(std::filesystem::path file) = 0;
+    virtual void onExportRequested(std::filesystem::path file) = 0;
 
     /*! \brief Handles cancellation of a controller-requested Save As destination chooser. */
     virtual void onSaveAsCancelled() = 0;

@@ -134,7 +134,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onImportRequested(std::filesystem::path file);
     void onSaveRequested();
     void onSaveAsRequested(std::filesystem::path file);
-    void onPublishRequested(std::filesystem::path file);
+    void onExportRequested(std::filesystem::path file);
     void onSaveAsCancelled();
     void onBusyCancelRequested();
     void onUndoRequested();
@@ -603,7 +603,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::ImportSong action);
     void performActionImpl(EditorAction::SaveProject action);
     void performActionImpl(EditorAction::SaveProjectAs action);
-    void performActionImpl(EditorAction::PublishProject action);
+    void performActionImpl(EditorAction::ExportSong action);
     void performActionImpl(EditorAction::CloseProject action);
     void performActionImpl(EditorAction::ExitApplication action);
     void performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action);
@@ -681,7 +681,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void runProjectActionImpl(const EditorAction::ImportSong& action);
     void runProjectActionImpl(EditorAction::SaveProject action);
     void runProjectActionImpl(EditorAction::SaveProjectAs action);
-    void runProjectActionImpl(EditorAction::PublishProject action);
+    void runProjectActionImpl(EditorAction::ExportSong action);
     void runProjectActionImpl(EditorAction::CloseProject action);
     void runProjectActionImpl(EditorAction::ExitApplication action);
     void runProjectActionImpl(EditorAction::NewToneDocument action);
@@ -770,7 +770,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void applyProjectWriteSuccess(
         const EditorAction::SaveProjectAs& action, std::size_t undo_depth_at_kickoff);
     void applyProjectWriteSuccess(
-        const EditorAction::PublishProject& action, std::size_t undo_depth_at_kickoff);
+        const EditorAction::ExportSong& action, std::size_t undo_depth_at_kickoff);
 
     // Marks the undo history clean only when it still sits where a write's content was captured.
     void markUndoHistoryCleanIfUnmoved(std::size_t undo_depth_at_capture, std::string_view context);
@@ -923,7 +923,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     EditorController::ImportFunction m_import_function;
     EditorController::SaveFunction m_save_function;
     EditorController::SaveAsFunction m_save_as_function;
-    EditorController::PublishFunction m_publish_function;
+    EditorController::ExportFunction m_export_function;
 
     // Host-exit callback supplied by app composition or controller tests.
     EditorController::ExitFunction m_exit_function;
@@ -1829,7 +1829,7 @@ struct EditorController::Impl::PluginCatalogTaskState
 };
 
 // Per-operation worker state for project package writes. The Project is moved out of the
-// controller before worker execution so background save/publish code never shares mutable project
+// controller before worker execution so background save/export code never shares mutable project
 // ownership with message-thread controller actions.
 struct EditorController::Impl::ProjectWriteTaskState
 {

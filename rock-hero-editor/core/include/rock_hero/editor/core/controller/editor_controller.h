@@ -88,8 +88,8 @@ public:
     using SaveAsFunction = std::function<std::expected<void, ProjectError>(
         Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
-    /*! \brief Publishes the current song to a chosen native song package path. */
-    using PublishFunction = std::function<std::expected<void, ProjectError>(
+    /*! \brief Exports the current song to a chosen native song package path. */
+    using ExportFunction = std::function<std::expected<void, ProjectError>(
         Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
     /*! \brief Requests host exit after controller-level shutdown policy has completed. */
@@ -115,8 +115,8 @@ public:
         /*! \brief Saves the current editor project to a chosen path. */
         SaveAsFunction save_as_function{};
 
-        /*! \brief Publishes the current song as a native song package. */
-        PublishFunction publish_function{};
+        /*! \brief Exports the current song as a native song package. */
+        ExportFunction export_function{};
     };
 
     /*!
@@ -132,7 +132,7 @@ public:
         /*!
         \brief Task runner used for off-thread project IO.
 
-        Production composition supplies the JUCE-backed runner so open/import/save/publish work can
+        Production composition supplies the JUCE-backed runner so open/import/save/export work can
         complete off-thread. Tests supply a deterministic runner for synchronous or deferred
         completion.
         */
@@ -306,10 +306,10 @@ public:
     void onSaveAsRequested(std::filesystem::path file) override;
 
     /*!
-    \brief Handles a request to publish a native song package.
+    \brief Handles a request to export a native song package.
     \param file Filesystem path selected by the user.
     */
-    void onPublishRequested(std::filesystem::path file) override;
+    void onExportRequested(std::filesystem::path file) override;
 
     /*! \brief Handles cancellation of a controller-requested Save As chooser. */
     void onSaveAsCancelled() override;

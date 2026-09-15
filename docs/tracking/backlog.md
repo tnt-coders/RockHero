@@ -245,7 +245,7 @@ rest, each verified against the code, each a fix rather than a question unless m
   fallback" clause): 21-Q1 settled missing-plugin handling as refuse-to-start; standard tones
   would back the PINNED opt-in "play with default tones" option on that refusal (watch item in
   watch-items.md), never an automatic substitution.
-- Editor: warn on export/publish to `.rock` when any tone's summed reported plugin latency is
+- Editor: warn on export to `.rock` when any tone's summed reported plugin latency is
   high (~10 ms+), so a charter cannot ship an unintentionally high-latency tone (21-Q2
   refinement: the game stays silent; the guard lives at authoring time). Data source: plan 21
   Phase 5's per-tone latency surfacing on the rig-load result. DEFERRED follow-on, recorded so

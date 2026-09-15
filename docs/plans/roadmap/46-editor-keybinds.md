@@ -696,10 +696,10 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Category  | Command               | Proposed default     | Notes                                    |
 |-----------|-----------------------|----------------------|------------------------------------------|
 | File      | Open...               | Ctrl+O               | menu-only today                          |
-| File      | Import...             | Ctrl+Shift+O         | avoids Ctrl+I italic muscle memory       |
+| File      | Import Song...        | Ctrl+I               | moved off Ctrl+Shift+O 2026-09-14        |
 | File      | Save                  | Ctrl+S               | menu-only today                          |
 | File      | Save As...            | Ctrl+Shift+S         |                                          |
-| File      | Publish...            | Ctrl+Shift+P         |                                          |
+| File      | Export Song...        | Ctrl+E               | renamed + rechorded 2026-09-14           |
 | File      | Close Project         | Ctrl+W               |                                          |
 | File      | Exit                  | Ctrl+Q               | added 2026-07-20; OS separately owns Alt+F4 |
 | Edit      | Undo                  | Ctrl+Z               | current behavior                         |

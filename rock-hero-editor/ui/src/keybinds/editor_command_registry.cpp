@@ -36,10 +36,9 @@ namespace
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::ImportSong,
-            .name = "Import...",
+            .name = "Import Song...",
             .category = "File",
-            // Ctrl+Shift+O avoids the Ctrl+I italics muscle-memory collision (plan 46 tier A).
-            .default_keypresses = {chord('o', command | shift)},
+            .default_keypresses = {chord('i', command)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -57,10 +56,10 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
-            .id = EditorCommandId::PublishSong,
-            .name = "Publish...",
+            .id = EditorCommandId::ExportSong,
+            .name = "Export Song...",
             .category = "File",
-            .default_keypresses = {chord('p', command | shift)},
+            .default_keypresses = {chord('e', command)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -77,6 +76,23 @@ namespace
             // Ctrl+Q is the app-owned quit chord; the OS separately owns Alt+F4, which needs no
             // registration.
             .default_keypresses = {chord('q', command)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::ImportTone,
+            // The Shift tier of the song's Ctrl+I: the tone is the smaller thing inside the song.
+            // The signal-chain header button is the mouse surface, so this row adds no menu item.
+            .name = "Import Tone...",
+            .category = "Tone",
+            .default_keypresses = {chord('i', command | shift)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::ExportTone,
+            // The Shift tier of the song's Ctrl+E, paired with Import Tone above.
+            .name = "Export Tone...",
+            .category = "Tone",
+            .default_keypresses = {chord('e', command | shift)},
         });
     registry.push_back(
         EditorCommandSpec{

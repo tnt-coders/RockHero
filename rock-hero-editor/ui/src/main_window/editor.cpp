@@ -22,7 +22,7 @@ namespace
         .import_function = std::move(project_operations.import_function),
         .save_function = std::move(project_operations.save_function),
         .save_as_function = std::move(project_operations.save_as_function),
-        .publish_function = std::move(project_operations.publish_function),
+        .export_function = std::move(project_operations.export_function),
     };
 }
 

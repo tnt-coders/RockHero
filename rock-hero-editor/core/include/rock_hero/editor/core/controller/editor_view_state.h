@@ -923,8 +923,8 @@ struct EditorViewState
     /*! \brief Enables or disables the File > Save As command. */
     bool save_as_enabled{false};
 
-    /*! \brief Enables or disables the File > Publish command. */
-    bool publish_enabled{false};
+    /*! \brief Enables or disables the File > Export Song command. */
+    bool export_enabled{false};
 
     /*! \brief Enables or disables the Edit > Undo command. */
     bool undo_enabled{false};
@@ -941,8 +941,8 @@ struct EditorViewState
     /*! \brief Full undo/redo stack contents for the history inspector panel (toggled with F8). */
     UndoHistoryState undo_history{};
 
-    /*! \brief Suggested .rock destination used to pre-fill the publish chooser. */
-    std::filesystem::path suggested_publish_file{};
+    /*! \brief Suggested .rock destination used to pre-fill the export chooser. */
+    std::filesystem::path suggested_export_file{};
 
     /*! \brief Enables or disables the File > Close command. */
     bool close_enabled{false};

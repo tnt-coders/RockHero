@@ -344,7 +344,7 @@ format-side decisions) and the design docs — a fresh session needs no other co
    before/after-snapshot `IEdit` objects both satisfy it; no Tracktion involvement.
 8. **Charter is a capabilities reference only.** Its notation inventory calibrated the format;
    its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (BSD 3-Clause)").
-9. **Save == publish validation; normalize, don't reject** (established invariant, see
+9. **Save == export validation; normalize, don't reject** (established invariant, see
    `docs/plans/roadmap/43-song-information-and-art.md` for the export-gate tension — not this plan's to
    resolve). Edit primitives therefore keep the chart valid at every commit point rather than
    letting invalid states reach save.
@@ -435,7 +435,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 2 — Mutable-chart pipeline: write-on-save and cache invalidation
 
-- **Scope**: end the charts-are-immutable era before any edit exists. (1) Save/publish serializes
+- **Scope**: end the charts-are-immutable era before any edit exists. (1) Save/export serializes
   the in-memory `Chart` through `writeChartDocument` instead of only validating the file on disk;
   the stale comments at `arrangement.h:94` and `rock_song_package_write.cpp:455` are updated.
   (2) A chart revision counter (session- or controller-owned) joins the tab-projection cache key
@@ -682,7 +682,7 @@ Pro agrees — it ships no duplicate command, and binds `Ctrl+D` to Brush Down i
   one compound undo entry; templates re-fit. (2) Live validation: after each committed edit,
   debounced `validateChartRules` (plus plan 42's extended rules when they land) runs off the hot
   path; results surface as a non-blocking problems indicator with jump-to-position. Save stays
-  normalize-don't-reject (decision 9); whether publish gains a content gate is plan 42/43's
+  normalize-don't-reject (decision 9); whether the export gains a content gate is plan 42/43's
   question, not decided here.
 - **Files**: editor-core `src/chart/` (tuning edits, validation scheduling), a tuning dialog
   component, `editor_view_state.h` problems summary.
@@ -710,7 +710,7 @@ explicitly **not** what to build — shipping it to close the line is the failur
 
 - Where it lives — File > New versus a chart-level action.
 - What it demands up front — audio asset, tuning, tempo seed, arrangement part.
-- How it meets plan 43's song-information and publish gate.
+- How it meets plan 43's song-information and export gate.
 - Whether it writes a package immediately, or holds an unsaved session.
 - What tempo seed a new chart starts from, now that plan 41 makes the map editable: a default map to
   be replaced, or tap-in as part of the flow (41's own acceptance script already exercises "start

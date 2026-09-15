@@ -131,7 +131,7 @@ would otherwise pass and reverse a stale plan).
 
 **Settle events, precisely (red-team D4):** every *user-initiated* selection replacement
 wherever it enters (follow-the-edit selection rewrites inside `applyChartEditPlan` are NOT
-settles — they would collapse the burst); every project write verb (Save, Save-As, Publish),
+settles — they would collapse the burst); every project write verb (Save, Save As, Export Song),
 settling every arrangement it writes; arrangement/project switch, sweeping the chart being
 departed; Esc runs the sweep as the last step of every press, whichever rung consumed it;
 transport seek; playback start. At any shared event the sweep runs after that event's own

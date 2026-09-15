@@ -254,7 +254,7 @@ never in the manifest (see \ref guide_project_lifecycle).
 - **One version gate per format**, each in exactly one function (`song_document_json.cpp` for
   song.json; the chart parser; the tone-document parser; `project_io.cpp`) — no other call site
   may test a version. The migration ladder that replaces the hard gates is roadmap plan 10.
-- **Normalize, don't reject**: save is publish, so readers repair what they can (blank metadata,
+- **Normalize, don't reject**: save is export, so readers repair what they can (blank metadata,
   dropped-incomplete normalization, missing catalogs, defaulted fields) and reject only
   structural violations (bad ids, missing referenced files, malformed tokens, unknown enums,
   tempo-map rule breaks, non-FLAC audio).

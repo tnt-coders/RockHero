@@ -346,7 +346,7 @@ fidelity-first, no soft-degrade paths):
    without rework.**
 2. **Per-tone reported-latency policy. ANSWERED (refined by the user, 2026-07-11): silent in the
    GAME — tones baked into songs are assumed good — but the guard moves to AUTHORING time: the
-   editor warns on export/publish to `.rock` when any tone's summed reported latency is high, so
+   editor warns on export to `.rock` when any tone's summed reported latency is high, so
    no song can ship with an unintentionally high-latency tone.** Consequences: Phase 5 KEEPS the
    per-tone summed-latency surfacing through the rig-load result (its consumer is the editor's
    export warning, not a game UI); the export-time warning itself is editor work recorded in

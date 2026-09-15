@@ -117,7 +117,7 @@ fields (zoom, scroll position, expanded panels) can join without re-architecting
 
 - `.rock` and native song packages must never carry any of this state. The current
   architecture already enforces this — editor-only state lives in `project.json` at the
-  workspace root, not under `song/` which is what `publish()` consumes.
+  workspace root, not under `song/` which is what `exportSong()` consumes.
 - Tracktion's own ValueTree `windowX` / `windowY` properties on plugins. We deliberately
   stopped writing those (by removing the `pluginChanged()` call in `storeWindowBounds`).
   Do not re-enable that channel; it would leak window data into song packages.

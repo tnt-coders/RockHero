@@ -212,7 +212,7 @@ luck.
 
 Every *user-initiated* selection replacement wherever it enters — `setSelection`, caret arming,
 Ctrl+click, double-click, marquee (follow-the-edit selection rewrites inside `applyChartEditPlan`
-are NOT settles: they would collapse the burst); every project write verb (Save, Save-As, Publish);
+are NOT settles: they would collapse the burst); every project write verb (Save, Save As, Export Song);
 arrangement/project switch, sweeping the chart being departed; `Esc` as the last step of every
 press, whichever rung consumed it; transport seek; playback start. At any shared event the sweep
 runs after that event's own state changes complete. **Undo/redo are deliberately NOT settle events** —

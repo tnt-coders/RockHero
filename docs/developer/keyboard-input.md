@@ -209,7 +209,7 @@ chord, checks enablement via `getCommandInfo`, and `EditorView::perform` emits t
 from a menu click or button press: availability gate, dispatch to `performActionImpl`, undo
 capture, view-state push — the whole pipeline of \ref guide_action_anatomy. A keybind on this
 path is nothing but *one more trigger* for an action; the policy all lives downstream. The
-File-menu chords (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Shift+P`, `Ctrl+W`)
+File-menu chords (`Ctrl+O`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+E`, `Ctrl+W`)
 ride the same route, and command-backed menu items display their live shortcut automatically —
 the popup queries the mapping set per item.
 

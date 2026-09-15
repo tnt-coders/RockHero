@@ -200,8 +200,8 @@ Mirrored into `docs/plans/roadmap/00-roadmap.md` Decisions-needed. Phase 0 prese
   than a single-editor ecosystem needs today, and still loses minor fields on old-editor save.
 - **Q2 — hash persistence.**
   (A) *Compute-on-demand, never persisted inside the package* (recommended). The hash is a pure
-  function of content; storing it in `song.json` creates staleness risk and drags publish
-  validation into every save (the save==publish tension plan 43 already has to resolve).
+  function of content; storing it in `song.json` creates staleness risk and drags export
+  validation into every save (the save==export tension plan 43 already has to resolve).
   Consumers (score records, library cache, leaderboard submissions) store `(algorithm id, hex)`
   beside their own records.
   (B) Stored in `song.json` at export and validated on read. Saves recompute cost (milliseconds
@@ -416,7 +416,7 @@ stops being theoretical.
 - **Deliberately deferred** (recorded here so the todo file can be deleted by the roadmap's
   disposition pass, not re-planned): the full plan/commit save split, structured field-level
   validation diagnostics (waiting on real save-repair UI), treating audio copies as planned side
-  effects, and whole-directory staging for publish (waiting on plan 43's publish semantics).
+  effects, and whole-directory staging for the export (waiting on plan 43's export semantics).
   Candidate tests from the todo doc worth carrying when that work happens: multi-issue validation
   reporting, validation failure leaves destination untouched, commit-time failure reports partial
   write risk.

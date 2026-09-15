@@ -66,7 +66,7 @@ namespace
         case EditorAction::Id::ImportSong:
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
         case EditorAction::Id::ExitApplication:
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
@@ -115,7 +115,7 @@ namespace
             }
             case EditorAction::Id::SaveProject:
             case EditorAction::Id::SaveProjectAs:
-            case EditorAction::Id::PublishProject:
+            case EditorAction::Id::ExportSong:
             case EditorAction::Id::CancelBusyOperation:
             case EditorAction::Id::Undo:
             case EditorAction::Id::Redo:
@@ -196,7 +196,7 @@ namespace
         }
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
         {
             return conditions.has_project;
@@ -381,7 +381,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ImportSong:
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ExportSong:
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         case EditorAction::Id::CancelSaveAsPrompt:
         case EditorAction::Id::CancelBusyOperation:

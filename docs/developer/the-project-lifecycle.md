@@ -2,7 +2,7 @@
 
 *Applies to: Editor-only (package IO delegates to common/core).*
 
-"Project" is the editor's unit of work: opening, importing, saving, publishing, and closing songs.
+"Project" is the editor's unit of work: opening, importing, saving, exporting, and closing songs.
 Nearly every editor action is gated by this lifecycle, so its shapes — the workspace model, the
 dirty gate, the worker-thread IO pattern — are worth knowing before touching anything
 project-adjacent. The code lives in `rock-hero-editor/core/src/project/`.
@@ -26,11 +26,11 @@ raw level, and `unnormalizedAudioNoticeText` tells the charter once at open thro
 box, not an info box — both of its notices report something the load settled without asking, which
 the charter has to weigh before saving over the original.
 
-Save and publish share one serializer: both write the song through the identical
+Save and export share one serializer: both write the song through the identical
 `writeRockSongPackageDirectory`, and the only difference is the archive root — save zips the
-whole workspace (manifest + `song/`) into `.rhp`; publish zips only the song directory into
-`.rock`. That is "save is publish" made literal: a `.rhp` is a published package wrapped with a
-manifest. One caveat worth knowing: the archive write is in-place (truncate + rewrite), not
+whole workspace (manifest + `song/`) into `.rhp`; export zips only the song directory into
+`.rock`. That is "save is export" made literal: a `.rhp` is an exported song package wrapped with
+a manifest. One caveat worth knowing: the archive write is in-place (truncate + rewrite), not
 atomic temp-then-rename.
 
 # The open flow

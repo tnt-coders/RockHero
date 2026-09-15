@@ -113,7 +113,7 @@ Lanes come from the arrangement's musical automation entries whose plugin bindin
 selected tone; the derived seconds for each point come from the tempo map. Parameter names and
 discrete metadata come from the audio port; an entry whose parameter no longer resolves renders as
 an unresolved (disabled) lane. Entries whose plugin id has no runtime binding at all are not shown
-(they stay persisted; publish-time cleanup is a separate concern).
+(they stay persisted; export-time cleanup is a separate concern).
 
 Open lanes without authored points follow the model lanes, rendering as just their derived anchor;
 an open lane whose parameter already has a model entry is subsumed by it.

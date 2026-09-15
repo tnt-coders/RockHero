@@ -600,15 +600,15 @@ std::expected<void, ProjectError> Project::saveAs(
     return std::expected<void, ProjectError>{};
 }
 
-// Publishes native song content without project metadata or retargeting future saves.
-std::expected<void, ProjectError> Project::publish(
+// Exports native song content without project metadata or retargeting future saves.
+std::expected<void, ProjectError> Project::exportSong(
     const std::filesystem::path& path, const Song& song)
 {
     if (path.empty())
     {
         return std::unexpected{ProjectError{
-            ProjectErrorCode::PublishPathRequired,
-            "Cannot publish a project without a native song package path",
+            ProjectErrorCode::ExportPathRequired,
+            "Cannot export a song without a native song package path",
         }};
     }
 
@@ -616,7 +616,7 @@ std::expected<void, ProjectError> Project::publish(
     {
         return std::unexpected{ProjectError{
             ProjectErrorCode::MissingWorkspace,
-            "Cannot publish before a project workspace exists",
+            "Cannot export before a project workspace exists",
         }};
     }
 
@@ -630,12 +630,12 @@ std::expected<void, ProjectError> Project::publish(
         }};
     }
 
-    if (const auto publish_result = common::core::writeRockSongPackage(path, song_directory, song);
-        !publish_result.has_value())
+    if (const auto export_result = common::core::writeRockSongPackage(path, song_directory, song);
+        !export_result.has_value())
     {
         return std::unexpected{ProjectError{
-            ProjectErrorCode::CouldNotPublishSong,
-            publish_result.error().message,
+            ProjectErrorCode::CouldNotExportSong,
+            export_result.error().message,
         }};
     }
 

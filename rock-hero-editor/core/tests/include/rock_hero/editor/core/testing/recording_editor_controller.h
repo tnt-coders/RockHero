@@ -69,13 +69,13 @@ public:
     }
 
     /*!
-    \brief Captures the destination selected by the Publish command.
+    \brief Captures the destination selected by the Export Song command.
     \param file Native song package destination selected by the view.
     */
-    void onPublishRequested(std::filesystem::path file) override
+    void onExportRequested(std::filesystem::path file) override
     {
-        last_publish_file = std::move(file);
-        publish_request_count += 1;
+        last_export_file = std::move(file);
+        export_request_count += 1;
     }
 
     /*! \brief Counts Save As cancellation notifications. */
@@ -837,8 +837,8 @@ public:
     /*! \brief Last destination passed to onSaveAsRequested(). */
     std::optional<std::filesystem::path> last_save_as_file{};
 
-    /*! \brief Last destination passed to onPublishRequested(). */
-    std::optional<std::filesystem::path> last_publish_file{};
+    /*! \brief Last destination passed to onExportRequested(). */
+    std::optional<std::filesystem::path> last_export_file{};
 
     /*! \brief Last timeline seek position emitted by the view. */
     std::optional<common::core::TimePosition> last_seek_position{};
@@ -1116,8 +1116,8 @@ public:
     /*! \brief Number of Save As intents received. */
     int save_as_request_count{0};
 
-    /*! \brief Number of publish intents received. */
-    int publish_request_count{0};
+    /*! \brief Number of song-export intents received. */
+    int export_request_count{0};
 
     /*! \brief Number of Save As cancellation intents received. */
     int save_as_cancel_count{0};

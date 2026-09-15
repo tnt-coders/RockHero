@@ -17,8 +17,8 @@ std::string busyMessage(BusyOperation operation)
         case BusyOperation::SavingProject:
         case BusyOperation::SavingProjectAs:
             return "Saving project...";
-        case BusyOperation::PublishingProject:
-            return "Publishing project...";
+        case BusyOperation::ExportingSong:
+            return "Exporting song...";
         case BusyOperation::OpeningAudioDevice:
             return "Opening audio device...";
         case BusyOperation::LoadingPlugin:
@@ -50,7 +50,7 @@ BusyIndicator busyIndicator(BusyOperation operation) noexcept
         case BusyOperation::ImportingProject:
         case BusyOperation::SavingProject:
         case BusyOperation::SavingProjectAs:
-        case BusyOperation::PublishingProject:
+        case BusyOperation::ExportingSong:
         case BusyOperation::ScanningPlugins:
         case BusyOperation::AnalyzingBackingAudio:
             return BusyIndicator::IndeterminateProgress;

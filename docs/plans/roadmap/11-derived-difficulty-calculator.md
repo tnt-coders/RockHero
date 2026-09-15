@@ -272,7 +272,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   exists; reader accepts absence (Unknown). Staleness rule, mirroring `AudioNormalization`:
   on package load, recompute when `calculatorVersion != g_difficulty_calculator_version` or the
   stored `chartHash` does not match the chart's current plan-10 identity hash; recomputation is
-  silent in-place load normalization, consistent with the established save==publish
+  silent in-place load normalization, consistent with the established save==export
   normalize-don't-reject behavior (the same mechanism that rebuilds legacy tone names and
   missing normalization metadata today). When chart editing lands
   (`docs/plans/roadmap/40-chart-editing.md`), its save path recomputes for dirty charts; the hash check

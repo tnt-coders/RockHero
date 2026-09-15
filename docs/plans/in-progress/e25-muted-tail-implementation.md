@@ -332,10 +332,10 @@ Opening a `.rhp` whose chart carries normalizable issues:
 The game's package load is the same reader and the same normalizer; it logs and plays the
 normal chart. One path.
 
-### 6.8. Validation at save and publish (user question, 2026-08-20)
+### 6.8. Validation at save and export (user question, 2026-08-20)
 
 Yes, and it duplicates nothing: it is one more CALL of the one validator, at the package
-WRITER, so save and publish both get it and the writer refuses to emit a document the reader
+WRITER, so save and export both get it and the writer refuses to emit a document the reader
 would refuse — a symmetric gate with zero restated rules. Memory is valid by induction (load
 normalizes, verbs refuse), so this assertion should never fire; when it does, it has caught a
 verb bug, and it must fail LOUDLY: the save refuses with the typed error naming the rule and the

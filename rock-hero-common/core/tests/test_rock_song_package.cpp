@@ -482,7 +482,7 @@ TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-p
     CHECK(read_song->arrangements.front().tones.front().tone_document_ref == toneDocumentRef());
 }
 
-// Verifies published native archives include tone files and preserve the song reference.
+// Verifies written native archives include tone files and preserve the song reference.
 TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;

@@ -42,7 +42,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief File > Open... (`Ctrl+O`). */
     OpenProject = 0x1001,
 
-    /*! \brief File > Import... (`Ctrl+Shift+O`). */
+    /*! \brief File > Import Song... (`Ctrl+I`). */
     ImportSong = 0x1002,
 
     /*! \brief File > Save (`Ctrl+S`). */
@@ -51,14 +51,32 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief File > Save As... (`Ctrl+Shift+S`). */
     SaveProjectAs = 0x1004,
 
-    /*! \brief File > Publish... (`Ctrl+Shift+P`). */
-    PublishSong = 0x1005,
+    /*! \brief File > Export Song... (`Ctrl+E`). */
+    ExportSong = 0x1005,
 
     /*! \brief File > Close (`Ctrl+W`). */
     CloseProject = 0x1006,
 
     /*! \brief File > Exit (`Ctrl+Q`; the OS separately owns `Alt+F4`). */
     ExitEditor = 0x1007,
+
+    /*!
+    \brief Import a tone file into the active tone (`Ctrl+Shift+I`).
+
+    The signal-chain header's Import Tone button is this command's visible surface, so it carries no
+    menu item; the Actions dialog lists it like every other command. `I` has two claimants: the bare
+    `Ctrl+I` imports the SONG (\ref ImportSong) and the Shift tier imports the tone.
+    */
+    ImportTone = 0x1008,
+
+    /*!
+    \brief Export the active tone to a tone file (`Ctrl+Shift+E`).
+
+    The signal-chain header's Export Tone button is this command's visible surface, so it carries no
+    menu item. `E` has two claimants exactly as `I` does: the bare `Ctrl+E` exports the SONG
+    (\ref ExportSong) and the Shift tier exports the tone.
+    */
+    ExportTone = 0x1009,
 
     /*! \brief Edit > Undo (`Ctrl+Z`). */
     Undo = 0x1101,

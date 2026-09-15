@@ -291,7 +291,7 @@ on a COPY of the model it captured and never touches the live one, so a refusal 
 construction. Unique tone names left the funnel with it — see the catalog section above.*
 
 The `NewTone` arm mints its document before the commit, so a name collision leaves an orphan
-file — kept and collected at publish, as every removed tone's is.
+file — kept and collected at the song export, as every removed tone's is.
 
 ### The section chord
 

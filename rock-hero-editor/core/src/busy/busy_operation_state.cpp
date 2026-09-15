@@ -24,7 +24,7 @@ namespace
         case BusyOperation::AnalyzingBackingAudio:
         case BusyOperation::SavingProject:
         case BusyOperation::SavingProjectAs:
-        case BusyOperation::PublishingProject:
+        case BusyOperation::ExportingSong:
         case BusyOperation::OpeningAudioDevice:
         case BusyOperation::LoadingPlugin:
         {

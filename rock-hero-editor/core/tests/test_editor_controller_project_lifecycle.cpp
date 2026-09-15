@@ -138,8 +138,8 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
-        CHECK(state.publish_enabled == true);
-        CHECK(state.suggested_publish_file == std::filesystem::path{"second.rock"});
+        CHECK(state.export_enabled == true);
+        CHECK(state.suggested_export_file == std::filesystem::path{"second.rock"});
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.project_load_id == 1);
@@ -229,8 +229,8 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
         const EditorViewState& state = view.last_state.value();
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
-        CHECK(state.publish_enabled == false);
-        CHECK(state.suggested_publish_file.empty());
+        CHECK(state.export_enabled == false);
+        CHECK(state.suggested_export_file.empty());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.transport.play_pause_enabled == false);
@@ -426,8 +426,8 @@ TEST_CASE("EditorController save as failure clears busy first", "[core][editor-c
     CHECK(view.shown_errors.back() == "Could not save as: disk full");
 }
 
-// Publish writes a native song package copy without changing save-destination state.
-TEST_CASE("EditorController publish writes package copy", "[core][editor-controller]")
+// Export Song writes a native song package copy without changing save-destination state.
+TEST_CASE("EditorController song export writes package copy", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -440,7 +440,7 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-            .publish_function = project_services.publishFunction(),
+            .export_function = project_services.exportFunction(),
         }
     };
     FakeEditorView view;
@@ -452,12 +452,12 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     project_services.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
-    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+    controller.onExportRequested(std::filesystem::path{"song.rock"});
 
-    CHECK(project_services.publish_call_count == 1);
+    CHECK(project_services.export_call_count == 1);
     CHECK(project_services.save_as_call_count == 0);
-    CHECK(project_services.last_publish_file == std::optional{std::filesystem::path{"song.rock"}});
-    CHECK(project_services.last_publish_audio_path == std::optional{audio_asset.path});
+    CHECK(project_services.last_export_file == std::optional{std::filesystem::path{"song.rock"}});
+    CHECK(project_services.last_export_audio_path == std::optional{audio_asset.path});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -467,8 +467,8 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     CHECK(view.shown_errors.empty());
 }
 
-// Publish failures surface an error without closing or retargeting the current project.
-TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-controller]")
+// Song-export failures surface an error without closing or retargeting the current project.
+TEST_CASE("EditorController song export failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -479,7 +479,7 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .publish_function = project_services.publishFunction(),
+            .export_function = project_services.exportFunction(),
         }
     };
     FakeEditorView view;
@@ -487,16 +487,16 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    project_services.next_publish_error = std::string{"disk full"};
+    project_services.next_export_error = std::string{"disk full"};
 
-    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+    controller.onExportRequested(std::filesystem::path{"song.rock"});
 
-    CHECK(project_services.publish_call_count == 1);
+    CHECK(project_services.export_call_count == 1);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.publish_enabled == true);
+        CHECK(state.export_enabled == true);
         CHECK(state.close_enabled == true);
     }
     REQUIRE(view.states_seen_at_errors.size() == 1);
@@ -505,7 +505,7 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
     REQUIRE(error_state != nullptr);
     CHECK_FALSE(error_state->busy.has_value());
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not publish: disk full");
+    CHECK(view.shown_errors.back() == "Could not export: disk full");
 }
 
 // A failed import leaves the current session unchanged and surfaces an error.
@@ -616,7 +616,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
-        CHECK(state.publish_enabled == true);
+        CHECK(state.export_enabled == true);
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.project_load_id == 1);
@@ -661,8 +661,8 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     {
         const EditorViewState& imported_state = view.last_state.value();
         CHECK(imported_state.save_requires_destination == true);
-        CHECK(imported_state.publish_enabled == true);
-        CHECK(imported_state.suggested_publish_file.empty());
+        CHECK(imported_state.export_enabled == true);
+        CHECK(imported_state.suggested_export_file.empty());
         CHECK(imported_state.close_enabled == true);
         CHECK(imported_state.project_loaded == true);
     }
@@ -682,7 +682,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     {
         const EditorViewState& saved_state = view.last_state.value();
         CHECK(saved_state.save_requires_destination == false);
-        CHECK(saved_state.suggested_publish_file == std::filesystem::path{"saved.rock"});
+        CHECK(saved_state.suggested_export_file == std::filesystem::path{"saved.rock"});
         CHECK_FALSE(saved_state.unsaved_changes_prompt.has_value());
     }
 
@@ -732,7 +732,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     {
         const EditorViewState& cancel_state = view.last_state.value();
         CHECK_FALSE(cancel_state.unsaved_changes_prompt.has_value());
-        CHECK(cancel_state.publish_enabled == true);
+        CHECK(cancel_state.export_enabled == true);
         CHECK(cancel_state.close_enabled == true);
         CHECK(cancel_state.project_loaded == true);
         CHECK(cancel_state.save_requires_destination == true);
@@ -871,7 +871,7 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
     if (view.last_state.has_value())
     {
         const EditorViewState& close_state = view.last_state.value();
-        CHECK(close_state.publish_enabled == false);
+        CHECK(close_state.export_enabled == false);
         CHECK(close_state.close_enabled == false);
         CHECK(close_state.project_loaded == false);
         CHECK_FALSE(close_state.arrangement.hasAudio());

@@ -805,7 +805,7 @@ TEST_CASE("EditorController faults when insert rollback breaks", "[core][editor-
     CHECK(faulted_state->close_enabled);
     CHECK_FALSE(faulted_state->save_enabled);
     CHECK_FALSE(faulted_state->save_as_enabled);
-    CHECK_FALSE(faulted_state->publish_enabled);
+    CHECK_FALSE(faulted_state->export_enabled);
     CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
     CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
     CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);
@@ -2520,7 +2520,7 @@ TEST_CASE("EditorController faults after rollback violation", "[core][editor-con
     CHECK(faulted_state->close_enabled);
     CHECK_FALSE(faulted_state->save_enabled);
     CHECK_FALSE(faulted_state->save_as_enabled);
-    CHECK_FALSE(faulted_state->publish_enabled);
+    CHECK_FALSE(faulted_state->export_enabled);
     CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
     CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
     CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);

@@ -132,7 +132,7 @@ constexpr int g_track_viewport_min_height{80};
     return path;
 }
 
-// Ensures published song packages use the native Rock Hero song extension when needed.
+// Ensures exported song packages use the native Rock Hero song extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRockExtension(const juce::File& file)
 {
     std::filesystem::path path = common::core::pathFromJuceFile(file);
@@ -143,8 +143,8 @@ constexpr int g_track_viewport_min_height{80};
     return path;
 }
 
-// Converts a project-suggested publish path into JUCE's save-dialog starting file.
-[[nodiscard]] juce::File publishChooserInitialFile(const std::filesystem::path& suggested_file)
+// Converts a project-suggested export path into JUCE's save-dialog starting file.
+[[nodiscard]] juce::File exportChooserInitialFile(const std::filesystem::path& suggested_file)
 {
     if (suggested_file.empty())
     {
@@ -219,7 +219,7 @@ constexpr int g_track_viewport_min_height{80};
             }
             case core::EditorActionId::SaveProject:
             case core::EditorActionId::SaveProjectAs:
-            case core::EditorActionId::PublishProject:
+            case core::EditorActionId::ExportSong:
             case core::EditorActionId::CloseProject:
             case core::EditorActionId::ResolveUnsavedChangesPrompt:
             case core::EditorActionId::CancelSaveAsPrompt:
@@ -304,7 +304,7 @@ constexpr int g_track_viewport_min_height{80};
         }
         case core::EditorActionId::SaveProject:
         case core::EditorActionId::SaveProjectAs:
-        case core::EditorActionId::PublishProject:
+        case core::EditorActionId::ExportSong:
         case core::EditorActionId::ResolveUnsavedChangesPrompt:
         case core::EditorActionId::CancelSaveAsPrompt:
         case core::EditorActionId::CancelBusyOperation:
@@ -1367,7 +1367,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::SaveProject);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::SaveProjectAs);
-        addEditorCommandItem(menu, m_command_manager, EditorCommandId::PublishSong);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ExportSong);
         menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::CloseProject);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ExitEditor);
@@ -1486,9 +1486,9 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setActive(m_state.save_as_enabled);
             break;
         }
-        case EditorCommandId::PublishSong:
+        case EditorCommandId::ExportSong:
         {
-            info.setActive(m_state.publish_enabled);
+            info.setActive(m_state.export_enabled);
             break;
         }
         case EditorCommandId::CloseProject:
@@ -1498,6 +1498,18 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         }
         case EditorCommandId::ExitEditor:
         {
+            break;
+        }
+        case EditorCommandId::ImportTone:
+        {
+            // Exactly the flag the signal-chain header's Import Tone button follows, so the command
+            // and the button can never disagree about when importing a tone is legal.
+            info.setActive(m_state.signal_chain.tone_import_enabled);
+            break;
+        }
+        case EditorCommandId::ExportTone:
+        {
+            info.setActive(m_state.signal_chain.tone_export_enabled);
             break;
         }
         case EditorCommandId::Undo:
@@ -1685,11 +1697,11 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::PublishSong:
+        case EditorCommandId::ExportSong:
         {
-            if (m_state.publish_enabled)
+            if (m_state.export_enabled)
             {
-                showPublishChooser();
+                showExportChooser();
             }
             return true;
         }
@@ -1704,6 +1716,22 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::ExitEditor:
         {
             m_controller.onExitRequested();
+            return true;
+        }
+        case EditorCommandId::ImportTone:
+        {
+            if (m_state.signal_chain.tone_import_enabled)
+            {
+                showImportToneChooser();
+            }
+            return true;
+        }
+        case EditorCommandId::ExportTone:
+        {
+            if (m_state.signal_chain.tone_export_enabled)
+            {
+                showExportToneChooser();
+            }
             return true;
         }
         case EditorCommandId::Undo:
@@ -2390,11 +2418,11 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
 
 // Opens an asynchronous file chooser and sends accepted native song package paths to the
 // controller.
-void EditorView::showPublishChooser()
+void EditorView::showExportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Publish Rock Hero Song (.rock)",
-        publishChooserInitialFile(m_state.suggested_publish_file),
+        "Export Rock Hero Song (.rock)",
+        exportChooserInitialFile(m_state.suggested_export_file),
         "*.rock");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
@@ -2413,7 +2441,7 @@ void EditorView::showPublishChooser()
                 return;
             }
 
-            safe_this->m_controller.onPublishRequested(pathWithRockExtension(file));
+            safe_this->m_controller.onExportRequested(pathWithRockExtension(file));
         });
 }
 

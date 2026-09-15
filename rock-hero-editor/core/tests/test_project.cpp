@@ -1031,27 +1031,28 @@ TEST_CASE("Project saveAs retargets opened project", "[core][project]")
     CHECK(std::filesystem::is_regular_file(saved_as_path));
 }
 
-// Verifies publish writes native song content at the package root without retargeting save.
-TEST_CASE("Project publish keeps project path", "[core][project]")
+// Verifies the song export writes native song content at the package root without
+// retargeting save.
+TEST_CASE("Project song export keeps project path", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path project_path = directory.path() / "song.rhp";
-    const std::filesystem::path publish_path = directory.path() / "song.rock";
+    const std::filesystem::path export_path = directory.path() / "song.rock";
     writeMinimalProjectPackage(project_path);
 
     Project project;
     FakeAnalyzeAudio fake_analyze;
     auto song = project.load(project_path, {}, fake_analyze.function());
     REQUIRE(song.has_value());
-    song->metadata.title = "Published Title";
+    song->metadata.title = "Exported Title";
 
-    const auto published = project.publish(publish_path, *song);
+    const auto exported = project.exportSong(export_path, *song);
 
-    REQUIRE(published.has_value());
+    REQUIRE(exported.has_value());
     CHECK(project.path() == project_path);
-    CHECK(std::filesystem::is_regular_file(publish_path));
+    CHECK(std::filesystem::is_regular_file(export_path));
 
-    const std::vector<std::string> entry_names = archiveEntryNames(publish_path);
+    const std::vector<std::string> entry_names = archiveEntryNames(export_path);
     CHECK(std::ranges::find(entry_names, "project.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song/song.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song.json") != entry_names.end());
@@ -1060,8 +1061,7 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
         return name.starts_with("song/");
     }));
     CHECK(
-        archiveEntryContents(publish_path, "song.json").find("Published Title") !=
-        std::string::npos);
+        archiveEntryContents(export_path, "song.json").find("Exported Title") != std::string::npos);
 }
 
 // Verifies save has a clear failure when no project package has been opened yet.

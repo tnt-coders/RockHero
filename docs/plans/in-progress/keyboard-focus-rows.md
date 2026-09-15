@@ -839,11 +839,68 @@ Their category and menu placement are settled at the build.
   (`editor_command_registry.cpp:41`).
 - Must land before 4b.
 
+**Built 2026-09-15, as specified.** What the build settled:
+- **D4's open half.** The labels are **"Export Song..." / "Import Song..."** in the registry (so the
+  File menu and the Actions dialog both read them from the one row), the method is
+  `Project::exportSong`, and `0x1005` means **Export Song** — one operation, one name, with a song
+  Export As left menu-only if it is ever wanted.
+- **The rename, everywhere.** `PublishSong` → `ExportSong` (command, id `0x1005` kept),
+  `EditorAction::PublishProject` / `EditorActionId::PublishProject` → `ExportSong` (NOT
+  `ExportProject`: it writes the song package), `BusyOperation::PublishingProject` →
+  `ExportingSong`, `ProjectErrorCode::PublishPathRequired` → `ExportPathRequired`,
+  `CouldNotPublishSong` → `CouldNotExportSong`, `EditorController::PublishFunction` →
+  `ExportFunction`, `defaultPublish` → `defaultExport`, `publish_function` → `export_function`,
+  `onPublishRequested` → `onExportRequested`, `publish_enabled` → `export_enabled`,
+  `suggested_publish_file` → `suggested_export_file`, `Project::publish` → `Project::exportSong`,
+  `EditorView::showPublishChooser` → `showExportChooser`, plus the test-side `publishFunction()`,
+  `publish_call_count`, `last_publish_*` and `next_publish_error`. Strings: "Export Rock Hero Song
+  (.rock)", "Exporting song...", "Could not export: ", "Cannot export without a native song package
+  path.", "Could not export native song package.". The unrelated view-state vocabulary
+  ("publishes the view state", `publishState`, `publishPosition`) is untouched.
+- **The two tone commands.** `ImportTone` = `0x1008` on `Ctrl+Shift+I`, `ExportTone` = `0x1009` on
+  `Ctrl+Shift+E` — the next free ids in the `0x10` File block, both in registry id order after
+  `ExitEditor`. Category **"Tone"**, following the registry's standing rule that the row owns the
+  display category regardless of which id block the value sits in (the `CancelDismiss` precedent).
+  **No menu items**: the signal-chain header's two tone buttons are their visible surface, and the
+  Actions dialog lists them like every other command. Enablement reads
+  `signal_chain.tone_import_enabled` / `tone_export_enabled` — the very flags those buttons follow,
+  so command and button cannot disagree.
+- **Tests.** The locked registry table took the two new rows in place and the two rechorded rows;
+  the File menu text assertion is "Export Song..."; "Exporting song..." and "Could not export: disk
+  full" are pinned in the controller suites. One new test,
+  "Editor tone commands follow the signal-chain tone buttons", reads the chord owners out of the
+  mapping set and walks the two enable flags one at a time. It deliberately presses the chords only
+  while DISABLED: performing either while enabled raises a native file chooser no headless test can
+  dismiss, so the chooser call itself stays unasserted.
+- **Grep survivors** (case-insensitive "publish" that stays): the whole view-state/clock vocabulary
+  (`publishState`, `publishPosition`, `publishCaretMask`, `publishClockBoundary`,
+  `publishAudibleTimeNow`, `publishPlaying`, `publishRate`, `publishSnapGuide`, `m_published_caret_mask`,
+  `publishedOutputGainDb`, `publishedPlugins`, `publishedSections`, `publishedState`, every
+  `republish*` including `m_clock_republish_timer` and `g_republish_hz`, and the "publishes /
+  published" prose across the design docs and the developer guide); `publish_time` / `publish_index`
+  in `test_playback_clock_extrapolator.cpp` (clock snapshots); "published" meaning published
+  RESEARCH or published NOTATION in plans 22, 24, 55, `highway-note-art-state.md`,
+  `bend-display-study.md` ("Semiosis Music Publishing") and `docs/user/input-calibration.md`;
+  "publish the header" in plan 14 (making a header public); "Publish the OPENING SLOT" in
+  `span-marker-redesign.md` (view state); `docs/Doxyfile.in`'s `PROJECT_PUBLISHER`-adjacent keys;
+  everything under `docs/plans/completed/` (history, untouched); and THIS plan's own D4 record plus
+  the ruling line above it, which quote the four old spellings to say what was renamed.
+
 **4.0c — One owner per chord on keymap restore (D5).** Extract the strip-then-add rule into one
 keybinds helper, used by the keymap editor's assign and reset and by `EditorKeymapPersistence`'s restore
 (which replaces JUCE's conflict-blind `restoreFromXml` loop). Tests in
 `test_editor_keymap_persistence.cpp`: a restored override keeps a chord a default now claims; a stale
 removal entry restores cleanly. Must land before 4a.
+
+**Build record (2026-09-15).** Built as specified: `keymap_ownership.{h,cpp}` holds
+`assignKeyPressToCommand` (strip the chord from whatever command holds it, then add) and
+`removeKeyPressFromCommand`; the keymap editor's assign drops the replaced bindings and then
+assigns through it, its reset clears the command's bindings and reassigns each default through it,
+and `EditorKeymapPersistence` restores with its own loop over the stored `MAPPING`/`UNMAPPING`
+entries in place of JUCE's `restoreFromXml`. The two tests named above pin a restored override
+winning a chord a default now claims, and removals of a live and of a vanished default. The
+backlog's preview-forwarder item is closed by it: with one owner, first-owner lookup and
+first-enabled-owner dispatch agree.
 
 **4.0d — macOS defaults for the `/` chords (optional; D1, D2).** Only if the user wants the Mac
 working before per-language keymaps exist. The registry would gain one seam for platform-specific
@@ -892,16 +949,6 @@ that twin. Rebinding stays the answer on non-US layouts until per-language keyma
    file-scope helper outside it fails macOS CI's `-Wmissing-prototypes`). `InsertSongSection` and
    `InsertToneChange` switch to the author helper, and the five jump rows go at the end of the Navigation
    block. A table-driven loop was rejected: it would reorder the registry and need optional author ids.
-**Build record (2026-09-15).** Built as specified: `keymap_ownership.{h,cpp}` holds
-`assignKeyPressToCommand` (strip the chord from whatever command holds it, then add) and
-`removeKeyPressFromCommand`; the keymap editor's assign drops the replaced bindings and then
-assigns through it, its reset clears the command's bindings and reassigns each default through it,
-and `EditorKeymapPersistence` restores with its own loop over the stored `MAPPING`/`UNMAPPING`
-entries in place of JUCE's `restoreFromXml`. The two tests named above pin a restored override
-winning a chord a default now claims, and removals of a live and of a vanished default. The
-backlog's preview-forwarder item is closed by it: with one owner, first-owner lookup and
-first-enabled-owner dispatch agree.
-
 7. **EditorView.** The five ids join the always-active group (a silent jump must never beep), with one
    perform case each. The Navigate discovery menu gains a jump group.
 
@@ -927,8 +974,8 @@ Landing the two together rewrites rule 2's prose once (`editor_command_id.h:89-1
   silent.
 - `test_editor_action_availability.cpp`: the chart, no-chart and playing rows.
 - `test_editor_view_state.cpp`: five rows in the position-sensitive locked registry table. The
-  default-chord resolution test then fails on any collision, including `Ctrl+Shift+P` against Publish
-  if 4b ran before 4.0b.
+  default-chord resolution test then fails on any collision. `Ctrl+Shift+P` is free as of 4.0b
+  (built 2026-09-15), so the FHP jump can claim it.
 - `test_editor_view_timeline.cpp`: `Ctrl+Shift+M/B/T/A` and `Ctrl+Shift+/` route to the intent; no chart is consumed
   silently.
 
