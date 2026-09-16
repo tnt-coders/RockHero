@@ -168,10 +168,16 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(6.0));
     CHECK(caret->string == 1);
-    // The caret publishes its measure bounds for the keep-in-view glide: measure 4 spans
-    // 6.0s..8.0s at the default 120 BPM 4/4.
-    CHECK(caret->measure_start_seconds == Catch::Approx(6.0));
-    CHECK(caret->measure_end_seconds == Catch::Approx(8.0));
+    // The focus anchor mirrors the armed caret and carries its measure bounds for the keep-in-view
+    // glide: measure 4 spans 6.0s..8.0s at the default 120 BPM 4/4.
+    const std::optional<FocusAnchorViewState>& anchor = state->focus_anchor;
+    REQUIRE(anchor.has_value());
+    if (anchor.has_value())
+    {
+        CHECK(anchor->seconds == Catch::Approx(6.0));
+        CHECK(anchor->measure_start_seconds == Catch::Approx(6.0));
+        CHECK(anchor->measure_end_seconds == Catch::Approx(8.0));
+    }
 
     // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);

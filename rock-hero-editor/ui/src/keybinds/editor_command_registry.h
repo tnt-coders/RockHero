@@ -51,4 +51,20 @@ struct EditorCommandSpec final
 */
 [[nodiscard]] const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id);
 
+/*!
+\brief Whether a command acts where the keyboard focus stands, so the view keeps that focus in
+sight once the command has run.
+
+Read off the shortcuts-dialog category, which already groups the commands by what they act on:
+the navigation, selection, authoring and marker verbs act at the focus; file, edit-history, view,
+transport, grid and menu commands do not, and a saved file or a toggled panel must never scroll
+the window back to a caret the user scrolled away from. Two rows answer against their category
+and are named here: the tone-change chord authors at the cursor although it sits with the tone
+file verbs, and Cancel dismisses although it sits with the selection verbs.
+
+\param spec Registry entry to classify.
+\return True when the view should reveal the focus after performing the command.
+*/
+[[nodiscard]] bool editorCommandRevealsFocus(const EditorCommandSpec& spec);
+
 } // namespace rock_hero::editor::ui

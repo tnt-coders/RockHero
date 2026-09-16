@@ -408,19 +408,6 @@ struct ChartCaretViewState
     common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
 
     /*!
-    \brief Start of the caret's measure in seconds, for the keep-in-view window glide.
-
-    Caret navigation keeps its whole measure comfortably visible: the view glides until the
-    measure fits (or, when the measure is wider than the view, until the caret itself is in
-    view). Published with the caret so the view never re-derives measure bounds from the
-    tempo map.
-    */
-    double measure_start_seconds{};
-
-    /*! \brief End of the caret's measure (the next measure's start) in seconds. */
-    double measure_end_seconds{};
-
-    /*!
     \brief Compares two caret states by their stored values.
     \param lhs Left-hand state.
     \param rhs Right-hand state.
@@ -429,28 +416,35 @@ struct ChartCaretViewState
     friend bool operator==(const ChartCaretViewState& lhs, const ChartCaretViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string &&
-               lhs.channel == rhs.channel &&
-               std::is_eq(lhs.measure_start_seconds <=> rhs.measure_start_seconds) &&
-               std::is_eq(lhs.measure_end_seconds <=> rhs.measure_end_seconds);
+               lhs.channel == rhs.channel;
     }
 };
 
 /*!
-\brief The paused cursor's place while keyboard focus stands on a row reached by selection.
+\brief Where the keyboard stands, for the view to keep in sight after every command.
 
-The marker rows and the "+" row are reached by selecting, so no caret shows where the keyboard
-stands there: the paused cursor does, and it carries its measure's span for the same keep-in-view
-glide the caret uses.
+The keyboard acts at its focus, so the focus must be visible once a command that acts there has
+run: the view glides this anchor's measure into view after such a command
+(\ref EditorView::perform), and never on a state push alone, so a click — which creates a focus
+rather than acting under one —
+never scrolls away from what was clicked. The anchor is the armed caret's slot; else the earliest
+selected chart object or the selected automation point (a selection made without a caret is where
+the selection verbs act, wherever the cursor was left); else, on a row reached by selection, the
+column the keyboard stands at within the selected marker (the paused cursor while it lies inside
+the marker's span, otherwise the marker's start, so acting on a chip clicked far from the cursor
+reveals the chip); else the paused cursor. The view also zooms around it. Absent while the
+transport plays, when playback follow owns the view. Carries its measure's span so the view never
+re-derives measure bounds from the tempo map.
 */
-struct SelectedRowCursorViewState
+struct FocusAnchorViewState
 {
-    /*! \brief Cursor position in seconds on the arrangement timeline. */
+    /*! \brief Anchor position in seconds on the arrangement timeline. */
     double seconds{};
 
-    /*! \brief Start of the cursor's measure in seconds. */
+    /*! \brief Start of the anchor's measure in seconds. */
     double measure_start_seconds{};
 
-    /*! \brief End of the cursor's measure (the next measure's start) in seconds. */
+    /*! \brief End of the anchor's measure (the next measure's start) in seconds. */
     double measure_end_seconds{};
 };
 
@@ -1057,15 +1051,10 @@ struct EditorViewState
     std::optional<int> selected_time_signature_measure{};
 
     /*!
-    \brief The paused cursor while keyboard focus stands on a row reached by selection — a ruler
-    row, the tone row or the "+" row — or nothing.
-
-    A chip or region click never moves the cursor, but a keyboard verb standing on such a row can:
-    stepping off a marker the pointer selected away from the cursor brings the cursor to it first.
-    The view keeps the cursor in sight whenever it moves under a standing focus, and never merely
-    because the focus appeared, so a click never scrolls away from what was clicked.
+    \brief Where the keyboard stands (\ref FocusAnchorViewState), or nothing while the transport
+    plays or no arrangement is loaded.
     */
-    std::optional<SelectedRowCursorViewState> selected_row_cursor{};
+    std::optional<FocusAnchorViewState> focus_anchor{};
 
     /*!
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.

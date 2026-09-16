@@ -1,9 +1,11 @@
+#include "chart/chart_selection.h"
 #include "controller/editor_controller_impl.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
@@ -193,6 +195,53 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     {
         moveCursorTo(starts[*index]);
     }
+}
+
+std::optional<common::core::GridPosition> EditorController::Impl::selectedMarkerColumn() const
+{
+    const std::optional<SelectedMarker> selected = selectedMarker();
+    if (!selected.has_value())
+    {
+        return std::nullopt;
+    }
+    const std::optional<std::size_t> index = selected->index;
+    if (!index.has_value())
+    {
+        return std::nullopt;
+    }
+    const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
+    const common::core::GridPosition cursor = pausedCursorPosition(g_tick_quantum_note_value);
+    // Held means inside the marker's own span. The walk's holder rule also gives a row's first
+    // marker its lead-in, so the keyboard can reach a late first section from a cursor ahead of
+    // it; but a cursor in the lead-in is not standing IN that section, and showing it there would
+    // show neither the chip nor its name.
+    const bool held = markerHolderIndex(starts, cursor) == *index && !(cursor < starts[*index]);
+    return held ? cursor : starts[*index];
+}
+
+common::core::GridPosition EditorController::Impl::focusAnchorPosition() const
+{
+    if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
+    {
+        return caret->position;
+    }
+    // A chart selection made without a caret (a marquee, a plain click on a note) is where the
+    // selection verbs act, and it may stand far from the cursor the dissolved caret left behind;
+    // its earliest object is the anchor. An automation point selection likewise.
+    const std::vector<ChartSelectionKey> keys = chartSelection().keys();
+    if (!keys.empty())
+    {
+        const common::core::TempoMap& tempo_map = session().song().tempo_map;
+        return std::ranges::min(
+            keys | std::views::transform([&tempo_map](const ChartSelectionKey& key) {
+                return chartCaretSlotFor(tempo_map, key).position;
+            }));
+    }
+    if (const auto* const point = std::get_if<AutomationPointSelection>(&m_selection))
+    {
+        return point->position;
+    }
+    return selectedMarkerColumn().value_or(pausedCursorPosition(g_tick_quantum_note_value));
 }
 
 // Only the edit's visibility asks for this. Keeping a selected marker holding the cursor for the

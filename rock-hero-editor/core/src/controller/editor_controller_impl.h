@@ -1407,6 +1407,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // names, or none while the marker is passive over any other selection.
     [[nodiscard]] std::optional<FocusRow> currentFocusRow() const;
 
+    // The column the keyboard stands at on the selected marker, for the view to reveal: the paused
+    // cursor while it lies inside the marker's own span, else the marker's start — so a chip
+    // clicked far from the cursor is shown, not the cursor. Nothing when no marker is selected or
+    // it names none. Not the walk's holder rule: that one also gives a row's first marker its
+    // lead-in.
+    [[nodiscard]] std::optional<common::core::GridPosition> selectedMarkerColumn() const;
+
+    // Where the keyboard stands, published for the view to keep in sight after a command that acts
+    // there: the armed caret's slot; else the earliest selected chart object or the selected
+    // automation point; else the selected marker's column; else the paused cursor.
+    [[nodiscard]] common::core::GridPosition focusAnchorPosition() const;
+
     // Every row the walk can reach, top to bottom: the ruler's marker rows that have markers, the
     // chart's strings, the tone row while the track has regions, the visible lanes, and the "+" row
     // while a tone is active (the lanes view draws it exactly then).

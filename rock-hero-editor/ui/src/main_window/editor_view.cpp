@@ -754,33 +754,13 @@ void EditorView::setState(const core::EditorViewState& state)
         : m_state.tone_automation.lane_caret.has_value()
             ? std::optional<double>{m_state.tone_automation.lane_caret->seconds}
             : std::nullopt);
-    // Caret navigation keeps its measure comfortably in view: whenever the caret lands at a
-    // new time (arming or stepping — string-only moves keep the same seconds and glide
-    // nothing), the window glides until the caret's measure is fully visible, with the same
-    // eased shift playback follow uses. One reveal rule serves both caret rows (the two can
-    // never both fire — the caret publishes through exactly one of the two states).
-    const auto glide_if_caret_moved =
-        [this](const auto& previous_caret, const auto& current_caret) {
-            if (current_caret.has_value() &&
-                (!previous_caret.has_value() ||
-                 std::is_neq(previous_caret->seconds <=> current_caret->seconds)))
-            {
-                m_track_viewport->ensureMeasureVisible(
-                    current_caret->measure_start_seconds,
-                    current_caret->measure_end_seconds,
-                    current_caret->seconds);
-            }
-        };
-    glide_if_caret_moved(previous_state.chart_edit.caret, m_state.chart_edit.caret);
-    glide_if_caret_moved(
-        previous_state.tone_automation.lane_caret, m_state.tone_automation.lane_caret);
-    // A row reached by selection shows no caret; the paused cursor is where the keyboard stands.
-    // It glides into view only when it MOVES under a standing focus — a click, which moves
-    // nothing, must never scroll away from what was clicked.
-    if (previous_state.selected_row_cursor.has_value())
-    {
-        glide_if_caret_moved(previous_state.selected_row_cursor, m_state.selected_row_cursor);
-    }
+    // Zoom centers on the same focus the reveal shows, so one press never pulls the window two
+    // ways.
+    m_track_viewport->setFocusAnchorSeconds(
+        m_state.focus_anchor.has_value() ? std::optional<double>{m_state.focus_anchor->seconds}
+                                         : std::nullopt);
+    // No keep-in-view glide here: a push alone never scrolls (a click creates a focus and must
+    // not scroll away from what was clicked); revealFocus() runs after every command instead.
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
@@ -1664,9 +1644,38 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
     }
 }
 
+bool EditorView::perform(const InvocationInfo& info)
+{
+    const bool handled = performCommand(info);
+    // Only a command that acts at the focus earns the reveal: saving, a view toggle or a menu
+    // opening must not pull the window back to a caret the user scrolled away from to read.
+    if (const EditorCommandSpec* const spec = findEditorCommandSpec(info.commandID);
+        spec != nullptr && editorCommandRevealsFocus(*spec))
+    {
+        revealFocus();
+    }
+    return handled;
+}
+
+// The keyboard acts where the focus stands, so once a command that acts there has run the focus
+// must be in view — whatever the command did: renamed or deleted the selected marker, stepped the
+// caret, typed a digit onto a caret scrolled out of sight, authored a marker at the cursor. The
+// anchor is the controller's one answer to "where does the keyboard stand" (caret, selection,
+// selected marker's column, or paused cursor), so no verb has to ask for its own reveal. A fully
+// visible measure moves nothing, which keeps this quiet when the focus is already in view.
+void EditorView::revealFocus()
+{
+    const std::optional<core::FocusAnchorViewState>& anchor = m_state.focus_anchor;
+    if (anchor.has_value())
+    {
+        m_track_viewport->ensureMeasureVisible(
+            anchor->measure_start_seconds, anchor->measure_end_seconds, anchor->seconds);
+    }
+}
+
 // The guards mirror getCommandInfo's enablement on purpose: the mapping set and menus already
 // gate on it, but direct invocation paths (tests, the preview-window filter) must stay safe too.
-bool EditorView::perform(const InvocationInfo& info)
+bool EditorView::performCommand(const InvocationInfo& info)
 {
     switch (static_cast<EditorCommandId>(info.commandID))
     {

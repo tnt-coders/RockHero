@@ -2608,11 +2608,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
     {
         state.selected_time_signature_measure = signature->measure;
     }
-    if (armedChartCaret() == nullptr && currentFocusRow().has_value())
+    // Where the keyboard stands, for the view to keep in sight after every command. Absent while
+    // playing: playback follow owns the view then, and the marker plane is closed anyway.
+    if (action_conditions.has_loaded_arrangement && !transport_state.playing)
     {
-        const CaretTimeBounds bounds =
-            caretTimeBounds(state.tempo_map, pausedCursorPosition(g_tick_quantum_note_value));
-        state.selected_row_cursor = SelectedRowCursorViewState{
+        const CaretTimeBounds bounds = caretTimeBounds(state.tempo_map, focusAnchorPosition());
+        state.focus_anchor = FocusAnchorViewState{
             .seconds = bounds.seconds,
             .measure_start_seconds = bounds.measure_start_seconds,
             .measure_end_seconds = bounds.measure_end_seconds,
@@ -2695,14 +2696,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 if (lane.instance_id == caret->lane->instance_id &&
                     lane.param_id == caret->lane->param_id)
                 {
-                    const CaretTimeBounds bounds =
-                        caretTimeBounds(state.tempo_map, caret->position);
                     state.tone_automation.lane_caret = ToneAutomationLaneCaretRef{
                         .lane_index = lane_index,
-                        .seconds = bounds.seconds,
+                        .seconds = secondsAtGridPosition(state.tempo_map, caret->position),
                         .position = caret->position,
-                        .measure_start_seconds = bounds.measure_start_seconds,
-                        .measure_end_seconds = bounds.measure_end_seconds,
                     };
                     break;
                 }
@@ -2880,14 +2877,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
             if (const ChartCaret* const caret = armedChartCaret();
                 caret != nullptr && !caret->lane.has_value())
             {
-                const CaretTimeBounds bounds =
-                    caretTimeBounds(session().song().tempo_map, caret->position);
                 state.chart_edit.caret = ChartCaretViewState{
-                    .seconds = bounds.seconds,
+                    .seconds = secondsAtGridPosition(session().song().tempo_map, caret->position),
                     .string = caret->string,
                     .channel = chartCaretChannel(),
-                    .measure_start_seconds = bounds.measure_start_seconds,
-                    .measure_end_seconds = bounds.measure_end_seconds,
                 };
             }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&

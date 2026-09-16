@@ -49,6 +49,20 @@ flowchart TB
 bubble up the parent chain to `MainWindow`, where the command mapping set matches registered
 chords. Everything else is plumbing that keeps focus in the right place:
 
+- **A command that acts at the keyboard focus ends with the focus in view.** `EditorView::perform`
+  is the one funnel for chords, menu items and presses forwarded from the 3D preview; it runs the
+  dispatch and then, for a command `editorCommandRevealsFocus` classifies as acting at the focus
+  (read off the registry category: the navigation, selection, authoring, value-entry and marker
+  verbs; not file, history, view, transport, grid or menu commands), glides the controller's
+  published `focus_anchor` (`EditorViewState::focus_anchor` — the armed caret's slot, else the
+  earliest selected chart object or the selected automation point, else the column the keyboard
+  stands at within the selected marker, else the paused cursor; absent while playing) into view
+  through `TrackViewport::ensureMeasureVisible`. Keyboard zoom centers on the same anchor, so one
+  press never pulls the window two ways. Nothing glides on a state push alone, which is what keeps
+  a click from scrolling away from what was clicked: a click creates a focus, a command acts under
+  one. So renaming or deleting a marker whose chip has scrolled off-screen, or typing a digit onto
+  a caret that has, brings it back first — and a new registry category must be classified there.
+
 - **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a
   command, and it is gated on typing: it hands the press to the command manager's
   `KeyPressMappingSet` only while **no text field in the window is being edited**

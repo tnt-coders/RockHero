@@ -1,7 +1,9 @@
 #include "keybinds/editor_command_registry.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 namespace rock_hero::editor::ui
 {
@@ -615,6 +617,30 @@ const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)
         }
     }
     return nullptr;
+}
+
+bool editorCommandRevealsFocus(const EditorCommandSpec& spec)
+{
+    // Ctrl+T authors or retones at the cursor; its category siblings import and export tone files.
+    if (spec.id == EditorCommandId::InsertToneChange)
+    {
+        return true;
+    }
+    // Esc dismisses; a dismissal must never scroll.
+    if (spec.id == EditorCommandId::CancelDismiss)
+    {
+        return false;
+    }
+    static constexpr std::array<std::string_view, 6> g_focus_categories{
+        "Navigation",
+        "Selection",
+        "Authoring",
+        "Value Entry",
+        "Section",
+        "Marker",
+    };
+    return std::ranges::find(g_focus_categories, std::string_view{spec.category}) !=
+           g_focus_categories.end();
 }
 
 } // namespace rock_hero::editor::ui

@@ -843,4 +843,33 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
     CHECK_FALSE(selection_count_chip.isVisible());
 }
 
+// The keep-in-view reveal follows the shortcuts-dialog categories — the verbs that act at the
+// focus reveal it, the file, history, view, grid and menu commands do not — with the two rows that
+// answer against their category named.
+TEST_CASE("Command registry classifies which commands reveal the focus", "[ui][editor-view]")
+{
+    const auto reveals = [](const EditorCommandId id) {
+        const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(id));
+        REQUIRE(spec != nullptr);
+        return editorCommandRevealsFocus(*spec);
+    };
+    CHECK(reveals(EditorCommandId::CaretStepLeft));
+    CHECK(reveals(EditorCommandId::CaretJumpSectionRow));
+    CHECK(reveals(EditorCommandId::SelectionDelete));
+    CHECK(reveals(EditorCommandId::TypeDigit1));
+    CHECK(reveals(EditorCommandId::ChartLegatoToggle));
+    CHECK(reveals(EditorCommandId::InsertSongSection));
+    CHECK(reveals(EditorCommandId::RenameSelection));
+    CHECK(reveals(EditorCommandId::InsertToneChange));
+
+    CHECK_FALSE(reveals(EditorCommandId::SaveProject));
+    CHECK_FALSE(reveals(EditorCommandId::Undo));
+    CHECK_FALSE(reveals(EditorCommandId::TogglePreview3D));
+    CHECK_FALSE(reveals(EditorCommandId::ToggleGridSnap));
+    CHECK_FALSE(reveals(EditorCommandId::PlayPause));
+    CHECK_FALSE(reveals(EditorCommandId::ImportTone));
+    CHECK_FALSE(reveals(EditorCommandId::OpenFileMenu));
+    CHECK_FALSE(reveals(EditorCommandId::CancelDismiss));
+}
+
 } // namespace rock_hero::editor::ui

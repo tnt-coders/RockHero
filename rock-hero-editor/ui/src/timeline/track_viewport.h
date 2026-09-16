@@ -257,6 +257,18 @@ public:
     void setArmedChartCaret(std::optional<double> seconds);
 
     /*!
+    \brief Stores where the keyboard stands (the controller's published focus anchor), the time
+    zoom keeps centered.
+
+    The caret when armed, else the selected marker's column, else the paused cursor — so a
+    keyboard zoom and the keep-in-view reveal that follows it agree on the position and never pull
+    the window two ways. Empty while playing, when zoom centers on the playhead.
+
+    \param seconds Anchor time in seconds, or empty when none is published.
+    */
+    void setFocusAnchorSeconds(std::optional<double> seconds);
+
+    /*!
     \brief Stores the tablature caret's paused-column cut-out span, pushed by the tab lane.
 
     The behind-content paused play-from-here column hides its span behind the armed caret square so
@@ -277,20 +289,20 @@ public:
     /*!
     \brief Glides the window until the caret's measure sits fully in view (the marker model).
 
-    Caret navigation keeps its measure comfortably visible: the minimal shift that fits the
-    whole measure — aligning a measure starting before the view at the left edge, one ending
-    past it at the right, each overshooting by a small reveal so a note seated exactly on the
-    neighboring measure's boundary shows whole — using the same eased window shift playback
-    follow uses. A measure wider than the view falls back to the minimal shift that brings
-    the caret itself into view with a small pad. A measure already fully visible moves
-    nothing.
+    The keyboard focus keeps its measure comfortably visible after every command: the minimal
+    shift that fits the whole measure — aligning a measure starting before the view at the left
+    edge, one ending past it at the right, each overshooting by a small reveal so a note seated
+    exactly on the neighboring measure's boundary shows whole — using the same eased window
+    shift playback follow uses. A measure wider than the view falls back to the minimal shift
+    that brings the anchor itself into view with a small pad. A measure already fully visible
+    moves nothing.
 
-    \param measure_start_seconds Start of the caret's measure on the arrangement timeline.
-    \param measure_end_seconds End of the caret's measure (the next measure's start).
-    \param caret_seconds Caret position inside the measure, the wide-measure fallback target.
+    \param measure_start_seconds Start of the anchor's measure on the arrangement timeline.
+    \param measure_end_seconds End of the anchor's measure (the next measure's start).
+    \param anchor_seconds Anchor position inside the measure, the wide-measure fallback target.
     */
     void ensureMeasureVisible(
-        double measure_start_seconds, double measure_end_seconds, double caret_seconds);
+        double measure_start_seconds, double measure_end_seconds, double anchor_seconds);
 
     /*!
     \brief Forwards the song's section names to the pinned ruler's section chip row.
@@ -570,6 +582,9 @@ private:
     // ruler's aligned mark (the caret is the position display) and re-centers wheel zoom on
     // the caret.
     std::optional<double> m_armed_caret_seconds{};
+
+    // The published focus anchor, the zoom center; empty while playing or with no arrangement.
+    std::optional<double> m_focus_anchor_seconds{};
 
     // Caret paused-column cut-out spans (content coordinates) pushed by the caret-bearing views,
     // so the paused column's gap is never derived by polling sibling geometry. At most one is set

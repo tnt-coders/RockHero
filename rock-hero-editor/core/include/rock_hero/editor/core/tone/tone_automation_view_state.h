@@ -181,18 +181,6 @@ struct ToneAutomationLaneCaretRef
     common::core::GridPosition position{};
 
     /*!
-    \brief Start of the caret's measure in seconds, for the keep-in-view window glide.
-
-    Lane caret navigation glides the window exactly as chart caret navigation does (the same
-    measure-reveal rule); published with the caret so the view never re-derives measure bounds
-    from the tempo map.
-    */
-    double measure_start_seconds{0.0};
-
-    /*! \brief End of the caret's measure (the next measure's start) in seconds. */
-    double measure_end_seconds{0.0};
-
-    /*!
     \brief Compares two lane caret references by their stored values.
     \param lhs Left-hand reference.
     \param rhs Right-hand reference.
@@ -202,12 +190,10 @@ struct ToneAutomationLaneCaretRef
         const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs)
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // seconds, measure_start_seconds, and measure_end_seconds members. Exact equality is
-        // intended (a dirty-checked republish of the same caret slot).
+        // seconds member. Exact equality is intended (a dirty-checked republish of the same
+        // caret slot).
         return lhs.lane_index == rhs.lane_index && std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               lhs.position == rhs.position &&
-               std::is_eq(lhs.measure_start_seconds <=> rhs.measure_start_seconds) &&
-               std::is_eq(lhs.measure_end_seconds <=> rhs.measure_end_seconds);
+               lhs.position == rhs.position;
     }
 };
 

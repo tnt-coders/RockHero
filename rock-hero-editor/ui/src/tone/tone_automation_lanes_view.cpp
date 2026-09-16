@@ -1510,14 +1510,56 @@ bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
             }
         });
 
-    // Anchor the callout to the caret square's on-screen location.
-    const std::optional<juce::Rectangle<float>> square = laneCaretSquare();
-    const juce::Rectangle<int> local_anchor =
-        square.has_value() ? square->getSmallestIntegerContainer()
-                           : juce::Rectangle<int>{getWidth() / 2, getHeight() / 2, 8, 8};
-    juce::CallOutBox::launchAsynchronously(
-        std::move(content), localAreaToGlobal(local_anchor), nullptr);
+    // Anchored to the caret square, and following it: the reveal that runs after the digit may
+    // glide the lane under the box.
+    m_callout_follower.launch(std::move(content), [this] {
+        const std::optional<juce::Rectangle<float>> square = laneCaretSquare();
+        return square.has_value() ? square->getSmallestIntegerContainer()
+                                  : juce::Rectangle<int>{getWidth() / 2, getHeight() / 2, 8, 8};
+    });
     return true;
+}
+
+ToneAutomationLanesView::CallOutFollower::CallOutFollower(ToneAutomationLanesView& owner)
+    : juce::ComponentMovementWatcher(&owner)
+    , m_owner(owner)
+{}
+
+void ToneAutomationLanesView::CallOutFollower::launch(
+    std::unique_ptr<juce::Component> content, std::function<juce::Rectangle<int>()> local_anchor)
+{
+    m_local_anchor = std::move(local_anchor);
+    m_box = &juce::CallOutBox::launchAsynchronously(
+        std::move(content), m_owner.localAreaToGlobal(m_local_anchor()), nullptr);
+}
+
+void ToneAutomationLanesView::CallOutFollower::componentMovedOrResized(
+    const bool /*was_moved*/, const bool /*was_resized*/)
+{
+    reposition();
+}
+
+void ToneAutomationLanesView::CallOutFollower::componentPeerChanged()
+{}
+
+void ToneAutomationLanesView::CallOutFollower::componentVisibilityChanged()
+{}
+
+// Re-aims the open box at its anchor's current screen position, constrained to the same display
+// area a desktop-launched CallOutBox constrains itself to. Nothing once the box has closed.
+void ToneAutomationLanesView::CallOutFollower::reposition()
+{
+    if (m_box == nullptr)
+    {
+        return;
+    }
+    const juce::Rectangle<int> anchor = m_owner.localAreaToGlobal(m_local_anchor());
+    m_box->updatePosition(
+        anchor,
+        juce::Desktop::getInstance()
+            .getDisplays()
+            .getDisplayForRect(anchor)
+            ->userBounds.getLargestIntegerWithin());
 }
 
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
@@ -1863,14 +1905,22 @@ void ToneAutomationLanesView::showPointValueEditor(const PointHit& hit)
                 instance_id, param_id, position, position, snappedValueForLane(*parsed, *lane_now));
         });
 
-    // Anchor the callout to the point's on-screen location.
-    const std::vector<LaneExtent> extents = laneExtents();
-    const float point_y = valueBandY(valueBandFor(extents[hit.lane_index]), point.norm_value);
-    const int point_x =
-        static_cast<int>(xForSeconds(point.seconds).value_or(static_cast<float>(getWidth()) / 2));
-    const juce::Rectangle<int> anchor =
-        localAreaToGlobal(juce::Rectangle<int>{point_x - 4, static_cast<int>(point_y) - 4, 8, 8});
-    juce::CallOutBox::launchAsynchronously(std::move(content), anchor, nullptr);
+    // Anchored to the point, and following it while the lane moves under the box.
+    m_callout_follower.launch(
+        std::move(content),
+        [this,
+         point_lane = hit.lane_index,
+         point_seconds = point.seconds,
+         point_norm = point.norm_value] {
+            const std::vector<LaneExtent> extents = laneExtents();
+            const int point_x = static_cast<int>(
+                xForSeconds(point_seconds).value_or(static_cast<float>(getWidth()) / 2));
+            const int point_y =
+                point_lane < extents.size()
+                    ? static_cast<int>(valueBandY(valueBandFor(extents[point_lane]), point_norm))
+                    : getHeight() / 2;
+            return juce::Rectangle<int>{point_x - 4, point_y - 4, 8, 8};
+        });
 }
 
 // Emits the points-edit intent that removes the point at the given position from its lane —

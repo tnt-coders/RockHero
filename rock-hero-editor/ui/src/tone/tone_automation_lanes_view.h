@@ -26,6 +26,7 @@ component out, so the cursor overlay and content height stay authoritative.
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <map>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -355,6 +356,31 @@ private:
         int height{0};
     };
 
+    // Keeps an open callout pointing at what it names while the lane moves under it — a window
+    // glide, a wheel scroll, a relayout. The box is launched on the desktop, so without this it
+    // would stay put while the caret or point it edits slid away beneath it.
+    class CallOutFollower final : public juce::ComponentMovementWatcher
+    {
+    public:
+        explicit CallOutFollower(ToneAutomationLanesView& owner);
+
+        // Launches the callout pointing at the anchor and follows that anchor until the box closes.
+        void launch(
+            std::unique_ptr<juce::Component> content,
+            std::function<juce::Rectangle<int>()> local_anchor);
+
+        void componentMovedOrResized(bool was_moved, bool was_resized) override;
+        void componentPeerChanged() override;
+        void componentVisibilityChanged() override;
+
+    private:
+        void reposition();
+
+        ToneAutomationLanesView& m_owner;
+        juce::Component::SafePointer<juce::CallOutBox> m_box;
+        std::function<juce::Rectangle<int>()> m_local_anchor;
+    };
+
     // The value band inside a lane extent (the strip where norm values map to y). The one
     // geometry authority: every paint, hit-test, mask, and pointer-event derivation of the
     // band goes through valueBandFor/valueBandY so they can never diverge.
@@ -630,6 +656,9 @@ private:
 
     // Paints the value-readout chip when one is active.
     void paintValueReadout(juce::Graphics& graphics) const;
+
+    // The typed-value callouts' follower; one at a time is ever open.
+    CallOutFollower m_callout_follower{*this};
 
     // Intent sink for lane add and point edits.
     Listener& m_listener;

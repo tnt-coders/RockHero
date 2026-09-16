@@ -381,9 +381,8 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
 
 // Stores the armed caret's position and refreshes the ruler's aligned mark (the marker
 // model): the mark hides while armed — the caret is the position display — and returns while
-// passive. The stored seconds also become the wheel-zoom center while armed. The overlay's
-// content-spanning line is untouched here: with a chart it renders only during playback, so
-// the lane stays clear of position furniture while editing.
+// passive. The overlay's content-spanning line is untouched here: with a chart it renders only
+// during playback, so the lane stays clear of position furniture while editing.
 void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
 {
     if (m_armed_caret_seconds == seconds)
@@ -397,6 +396,12 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     // would otherwise read as an unchanged key while the overlay-hidden flag must flip).
     m_last_ruler_cursor_key.reset();
     updateRulerCursor();
+}
+
+// Only zoom reads it, so storing is the whole job: the next zoom centers here.
+void TrackViewport::setFocusAnchorSeconds(std::optional<double> seconds)
+{
+    m_focus_anchor_seconds = seconds;
 }
 
 // The caret-bearing views push their paused-column cut-out spans here whenever they change, so the
@@ -724,14 +729,14 @@ void TrackViewport::zoomByStep(int direction)
                       : m_pixels_per_second / g_mouse_wheel_zoom_factor);
 }
 
-// Scales to a new target density around the current position — the armed caret when one exists
-// (the marker model: the caret is the position, so zoom keeps it centered), else the transport
-// cursor (the playing playhead or the passive paused cursor) — then clamps, relays out, and
-// reports the change. Shared by wheel zoom and the keyboard step so both center and persist
-// identically.
+// Scales to a new target density around the focus anchor — where the keyboard stands: the armed
+// caret, else the selected marker's column, else the paused cursor — falling back to the transport
+// (the playing playhead) while none is published; then clamps, relays out, and reports the change.
+// Shared by wheel zoom and the keyboard step so both center and persist identically, and the same
+// position the keep-in-view reveal shows, so a keyboard zoom never fights the reveal after it.
 void TrackViewport::applyZoomAroundCursor(double target_pixels_per_second)
 {
-    const common::core::TimePosition cursor_position{m_armed_caret_seconds.value_or(
+    const common::core::TimePosition cursor_position{m_focus_anchor_seconds.value_or(
         m_transport.position().seconds)};
     const double previous_pixels_per_second = m_pixels_per_second;
     m_pixels_per_second =
@@ -878,15 +883,15 @@ void TrackViewport::advanceWindowGlide()
             (m_window_shift->target_left - m_window_shift->start_left) * eased)));
 }
 
-// Glides the window until the caret's measure sits fully in view (the marker model's
-// keep-in-view rule): the minimal shift that fits the whole measure — aligning a measure
-// starting before the view at the left, one ending past it at the right, each overshooting
-// by the reveal fraction so boundary notes of the neighboring measure show whole — through
-// the same eased glide playback follow uses. A measure wider than the view falls back to the
-// minimal shift that brings the caret itself into view with a tenth-of-view pad; a fully
-// visible measure moves nothing.
+// Glides the window until the focus anchor's measure sits fully in view (the keep-in-view rule
+// EditorView::perform applies after every command): the minimal shift that fits the whole
+// measure — aligning a measure starting before the view at the left, one ending past it at the
+// right, each overshooting by the reveal fraction so boundary notes of the neighboring measure
+// show whole — through the same eased glide playback follow uses. A measure wider than the view
+// falls back to the minimal shift that brings the anchor itself into view with a tenth-of-view
+// pad; a fully visible measure moves nothing.
 void TrackViewport::ensureMeasureVisible(
-    double measure_start_seconds, double measure_end_seconds, double caret_seconds)
+    double measure_start_seconds, double measure_end_seconds, double anchor_seconds)
 {
     if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || m_viewport.getViewWidth() <= 0 ||
         m_content.getWidth() <= 0)
@@ -900,8 +905,8 @@ void TrackViewport::ensureMeasureVisible(
     };
     const auto start_x = x_of(measure_start_seconds);
     const auto end_x = x_of(measure_end_seconds);
-    const auto caret_x = x_of(caret_seconds);
-    if (!start_x.has_value() || !end_x.has_value() || !caret_x.has_value())
+    const auto anchor_x = x_of(anchor_seconds);
+    if (!start_x.has_value() || !end_x.has_value() || !anchor_x.has_value())
     {
         return;
     }
@@ -934,13 +939,13 @@ void TrackViewport::ensureMeasureVisible(
     else
     {
         const double pad = view_width * 0.1;
-        if (static_cast<double>(*caret_x) < view_left)
+        if (static_cast<double>(*anchor_x) < view_left)
         {
-            target_left = static_cast<double>(*caret_x) - pad;
+            target_left = static_cast<double>(*anchor_x) - pad;
         }
-        else if (static_cast<double>(*caret_x) > view_right)
+        else if (static_cast<double>(*anchor_x) > view_right)
         {
-            target_left = static_cast<double>(*caret_x) - view_width + pad;
+            target_left = static_cast<double>(*anchor_x) - view_width + pad;
         }
         else
         {

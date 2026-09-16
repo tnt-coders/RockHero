@@ -558,6 +558,13 @@ TEST_CASE(
     CHECK(selected->lane_index == 0);
     CHECK(selected->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
+    // A selected point is where Alt+Up/Down act, so it is the focus anchor the view reveals.
+    const std::optional<FocusAnchorViewState>& anchor = editor.view.last_state->focus_anchor;
+    REQUIRE(anchor.has_value());
+    if (anchor.has_value())
+    {
+        CHECK(anchor->seconds == Catch::Approx(2.0));
+    }
 
     // The caret arms at the clicked point's slot, so keyboard verbs continue from the object just
     // touched.
@@ -2011,14 +2018,15 @@ TEST_CASE(
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
     CHECK(editor.automation().lanes.empty());
-    // The cursor moved under a focus reached by selection, so the view is told where it went.
+    // The cursor moved under a focus reached by selection, and the "+" row names no marker, so
+    // the focus anchor is the cursor where it now stands.
     const EditorViewState* const moved = stateOrNull(editor.view.last_state);
     REQUIRE(moved != nullptr);
-    const std::optional<SelectedRowCursorViewState>& cursor = moved->selected_row_cursor;
-    REQUIRE(cursor.has_value());
-    if (cursor.has_value())
+    const std::optional<FocusAnchorViewState>& anchor = moved->focus_anchor;
+    REQUIRE(anchor.has_value());
+    if (anchor.has_value())
     {
-        CHECK(cursor->seconds == Catch::Approx(2.0));
+        CHECK(anchor->seconds == Catch::Approx(2.0));
     }
     CHECK(editor.automation().add_lane_row_selected);
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
