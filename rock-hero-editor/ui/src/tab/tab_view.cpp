@@ -970,6 +970,32 @@ void TabView::resized()
     publishCaretMask();
 }
 
+// The earliest selected note's head, the glyph a verb on the selection keeps on screen.
+std::optional<juce::Rectangle<float>> TabView::selectedNoteHeadBounds() const
+{
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value() || m_edit.selected_notes.empty())
+    {
+        return std::nullopt;
+    }
+    // The selection publishes in chart order, so its first index is the earliest member.
+    const std::size_t index = m_edit.selected_notes.front();
+    if (index >= lane->tab.notes.size())
+    {
+        return std::nullopt;
+    }
+    const common::core::NoteViewState& note = lane->tab.notes[index];
+    if (common::core::silentHold(note.attack))
+    {
+        return std::nullopt;
+    }
+    const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(lane->metrics, note);
+    const float half = layout.head_size / 2.0f;
+    return juce::Rectangle<float>{
+        layout.onset_x - half, layout.center_y - half, layout.head_size, layout.head_size
+    };
+}
+
 // The caret square: centered on the caret's slot, one pixel larger than a note head so it
 // reads around a head it rides. It is a SLOT, not a note, so the per-note form pick has nothing
 // to say about it; the string bound it needs is the presented form's, which is the same count

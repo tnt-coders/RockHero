@@ -275,17 +275,43 @@ public:
     void setAutomationCaretMask(std::optional<juce::Range<float>> mask);
 
     /*!
-    \brief Keeps the keyboard focus in view after a command that acts at it.
+    \brief Glides the window until a moved keyboard position's measure sits fully in view.
 
-    Nothing moves while the focus column lies at least the window's edge fraction inside both
-    edges of the view; once a keyboard verb has put it outside that zone, the window glides — the
-    same eased shift playback follow uses — until the focus rests on one fixed column left of
-    center, the same column whichever side it left from and however far, so the landing is
-    deterministic.
+    The minimal shift that fits the whole measure — aligning a measure starting before the view at
+    the left edge, one ending past it at the right, each overshooting by a small reveal so a note
+    seated exactly on the neighboring measure's boundary shows whole — using the same eased window
+    shift playback follow uses. A measure wider than the view falls back to the minimal shift that
+    brings the position itself into view with a small pad. A measure already fully visible moves
+    nothing.
 
-    \param focus_seconds The focus time on the arrangement timeline.
+    \param measure_start_seconds Start of the position's measure on the arrangement timeline.
+    \param measure_end_seconds End of the position's measure (the next measure's start).
+    \param position_seconds The position inside the measure, the wide-measure fallback target.
     */
-    void revealFocus(double focus_seconds);
+    void ensureMeasureVisible(
+        double measure_start_seconds, double measure_end_seconds, double position_seconds);
+
+    /*!
+    \brief Centres a time in the window unless the glyph drawn for it is already fully on screen.
+
+    The rule for a verb on a selection: nothing moves while the selected glyph lies inside the
+    window horizontally, edge to edge with no clipping; otherwise the window glides until the time
+    is centred. With no glyph — the surface drew none because the selection is scrolled off — the
+    time's own column stands in for it.
+
+    \param seconds The selection's time on the arrangement timeline.
+    \param glyph_bounds The selected glyph's bounds in this component's coordinates, or empty.
+    */
+    void centerOnTimeUnlessVisible(
+        double seconds, std::optional<juce::Rectangle<int>> glyph_bounds);
+
+    /*!
+    \brief The selected ruler chip's bounds in this component's coordinates, when the ruler
+    placed one.
+    \return The chip's bounds, or empty while no chip is selected or the selected one is
+    off-screen.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<int>> selectedRulerChipBounds() const;
 
     /*!
     \brief Forwards the song's section names to the pinned ruler's section chip row.
@@ -438,10 +464,13 @@ private:
     void handleMouseWheelZoom(const juce::MouseWheelDetails& wheel);
 
     // Scales the horizontal density to a new target around the current position (armed caret when
-    // present, else the transport cursor), holding that time at the same screen column so zoom
-    // never scrolls, clamps to the timeline, relays out, and reports the change; shared by wheel
-    // zoom and the keyboard zoom step.
+    // present, else the transport cursor): on screen it holds its column, off screen the view
+    // centres on it first; clamps to the timeline, relays out, and reports the change; shared by
+    // wheel zoom and the keyboard zoom step.
     void applyZoomAroundCursor(double target_pixels_per_second);
+
+    // Whether a content column lies inside the visible window.
+    [[nodiscard]] bool columnVisible(float content_x) const noexcept;
 
     // Repositions the viewport so the supplied timeline time remains near the center.
     void centerViewportOnTime(double time_seconds);
@@ -469,9 +498,6 @@ private:
     // and grid updates happen through the viewport's visible-area callback when the position
     // actually changes.
     void setViewportLeft(int requested_x);
-
-    // The viewport left edge a request would come to rest at: clamped to the scrollable range.
-    [[nodiscard]] int clampedViewportLeft(int requested_x) const;
 
     // Pushes the current scroll and content geometry into the pinned ruler. Callers must follow
     // with a grid refresh so the ruler receives lines matching the new view.

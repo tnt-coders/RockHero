@@ -298,6 +298,16 @@ public:
     /*! \brief Refreshes cached grid-line geometry after a resize changes the visible width. */
     void resized() override;
 
+    /*!
+    \brief The selected chip's bounds in this ruler's coordinates, when a row placed one.
+
+    A selected marker whose chip scrolled off the ruler has no bounds here: the rows place only
+    the chips the window shows.
+
+    \return The chip's bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<int>> selectedChipBounds() const;
+
 private:
     // A ruler text label already resolved to a non-overlapping draw position.
     struct RulerLabel

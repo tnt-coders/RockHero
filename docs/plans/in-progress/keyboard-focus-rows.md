@@ -238,7 +238,7 @@ remembered point row.
 
 **View state** (`editor_view_state.h`): publish the selected tempo anchor and time-signature measure
 (the ruler reads the raw `TempoMap` and has no per-anchor identity), and the paused cursor with its
-measure span while focus stands on a row reached by selection — since 4d, `focus_anchor_seconds`, published
+measure span while focus stands on a row reached by selection — since 4d, `keyboard_position`, published
 for every focus state (see 4d).
 
 **Ruler UI** (`ui/src/timeline/timeline_ruler.{h,cpp}`, built in 1b): the three chip rows share one
@@ -336,7 +336,7 @@ during the build:
 - **The ruler's selected style is unchanged** (the section chip's 1px accent outline, now on all
   three rows). A stronger style is the sighting's call.
 - **The reveal covers the "+" row too.** The published focus (then `selected_row_cursor`, since 4d
-  `focus_anchor_seconds`) covers every row reached by selection, so stepping from a region selected far
+  `keyboard_position`) covers every row reached by selection, so stepping from a region selected far
   from the cursor onto its "+" row also glides.
 
 ### Phase 2 — Tab / Shift+Tab, next object on every row
@@ -1064,70 +1064,70 @@ chip, not only the cursor; click → no glide.
 retone, `Alt+←/→`, `Delete`) and on tempo/time-signature chips (walk and `Tab` only, since they
 have no verbs yet); a click on a chip at the view's far edge must not scroll.
 
-**Build record (2026-09-15, re-ruled the same day after sighting).** The first build (`17eb4d99`)
-kept the measure-fit reveal — the minimal shift that fits the focus's whole measure — and the user
-sighted exactly what that shape cannot give: the landing depended on which side the view had left
-from ("it FEELS inconsistent how far it scrolls"), and a section that held the cursor anchored at
-the cursor, not the chip ("not ALL THE WAY to the start"). Online research (REAPER, Logic, Cubase,
-Pro Tools, Ableton, Studio One, Bitwig, MuseScore, Dorico, Guitar Pro; vim, VS Code, the DOM) and a
-UI-design review followed; the user then asked for the SIMPLE set the analysis converged on, which
-is what stands:
+**Build record (2026-09-15; the third shape, the user's own).** Two earlier builds the same day
+were sighted and replaced: a measure-fit reveal after every focus verb (`17eb4d99`, landing
+depended on which side the view left from) and a one-focus quiet-zone/30%-landing rule
+(`fb785bf6`, the walk glided on selection, an off-screen zoom pivot read as chaos, Delete revealed
+nothing). Online research across the DAWs and notation editors and a UI-design review fed the
+discussion; the user then laid down four rules, built as one design from scratch:
 
-1. **One focus** (`EditorViewState::focus_anchor_seconds`): the armed caret's slot; else the
-   earliest selected note or the selected automation point (a marquee or note click dissolves the
-   caret in place, so the cursor may be far from what the verbs act on); else the selected
-   marker's START — the chip, whichever way the cursor stands to it (`Impl::selectedMarkerStart`);
-   else, on the "+" row or under a time selection, the paused cursor; else nothing, so a verb that
-   left nothing standing (Delete, Esc) reveals nothing. Absent while playing.
-2. **One quiet zone**: nothing moves while the focus lies at least the window's edge fraction
-   (`g_window_pin_fraction`, 5% — already where playback parks the cursor and where the timeline
-   origin sits) inside both edges. The 4% measure-peek constant is deleted.
-3. **One landing** (`g_focus_landing_fraction`, 0.30): a keyboard verb that acts at the focus and
-   leaves it outside the zone glides the window so the focus rests at 30% of the view, the same
-   column whichever side it left from and however far (`TrackViewport::revealFocus`, replacing
-   `ensureMeasureVisible`). Left of center because music reads left to right; not the 5% pin
-   because the keyboard moves both ways and a landing on the margin would glide again on the next
-   leftward step. 30% over 50% is the user's ruling.
-4. **Reveal, never seek.** Rename, Delete and the technique toggles move no cursor; the marker
-   move, Tab and the walk keep the moves they had. Reasons: `Ctrl+M`/`Ctrl+T` author at the
-   cursor, a cursor move triggers the cursor-coupled clear, and a chip click is ruled not to seek.
-5. **Zoom pivots on the cursor, in place** (`applyZoomAroundCursor`): the caret while armed, else
-   the transport, held at the same screen column so zoom scales and never scrolls — it used to
-   recentre the view on every press, most of what "felt odd". Keys and wheel share the one pivot,
-   as REAPER's "edit cursor or play cursor" default; no off-screen fallback and no pointer pivot,
-   deliberately. If an off-screen cursor makes content run away under zoom in sighting, the centre
-   fallback is one comparison, recorded then as the yield. The first build's zoom-on-anchor setter
-   is deleted.
-6. **No pointer reveal.** Clicks never scroll; the measure-fit nudge on `Ctrl`+click stays gone
-   (the user weighed it and chose simple).
+1. **A moved position keeps its measure in view (Guitar Pro's rule).** The core publishes where
+   the keyboard stands, `EditorViewState::keyboard_position` (`Impl::keyboardPosition`: the armed
+   caret's slot, else a time selection's moving edge, else the paused cursor, with its measure's
+   span; absent while playing). `EditorView::setState` fits that measure whenever the time changes
+   — a step, a click that arms (ruled: it counts as movement), Tab onto the next marker, an extend
+   — through `TrackViewport::ensureMeasureVisible`, the pre-4d glide restored from history: the
+   minimal shift in either direction with the 4% boundary-note peek. Only a MOVE counts: the
+   position appearing on pause or project load is not one (a review finding — it glided right
+   after playback follow or the load focus had placed the window).
+2. **A verb on a selection leaves it alone while fully on screen and centres it otherwise.** The
+   core publishes the selection's first member, `EditorViewState::selection_start_seconds`
+   (`Impl::selectionStart`: the earliest selected note or keyframe, the selected automation point,
+   the selected marker's START — the chip, whichever way the cursor stands to it — else the armed
+   caret, where typing acts; absent when passive). `EditorView::perform` reads it before and after
+   the command; a verb that destroyed its selection (Delete) centres where it stood. "Fully on
+   screen" is the glyph's own drawn extent, edge to edge with no margin (ruled): the surfaces
+   answer through `TimelineRuler::selectedChipBounds` (a pinned chip counts: the marker's name is
+   what the charter sees), `ToneTrackView::selectedRegionLabelBounds` (the pinned label, the same
+   reading), `TabView::selectedNoteHeadBounds` and `ToneAutomationLanesView::selectedPointBounds`,
+   mapped into the viewport's coordinates for `TrackViewport::centerOnTimeUnlessVisible`; with no
+   glyph drawn (a chip scrolled off the ruler) the time's column stands in. The test's window is
+   the viewport's VIEW width, so a glyph under a vertical scrollbar is off screen. The gate `editorCommandActsOnSelection` reads the registry
+   category: Selection, Authoring, Value Entry and Marker act on the selection; Navigation does not
+   (the walk and jumps select), nor do the section and tone-change author chords (they act at the
+   cursor and complete in a prompt), nor Esc. When rules 1 and 2 both fire on one press (`Alt+→` on
+   a chip moves the cursor and acts on the chip), rule 2 wins (ruled) in BOTH directions: its
+   stay-put path cancels the measure fit rule 1 started in the same command, and its glide
+   supersedes it.
+3. **Selecting never scrolls.** A chip click, a click on an existing note and a walk onto the
+   marker that already holds the cursor publish no moved position and act on nothing. A walk
+   whose column rule seeks the cursor into a marker selected far from it IS a move, and rule 1
+   follows the caret it arms there.
+4. **Zoom pivots on the cursor in place; an off-screen cursor is centred first** (Logic's rule).
+   `applyZoomAroundCursor` cancels any in-flight glide (its target is in the old pixel scale),
+   centres when the pivot column is out of view, then holds the pivot's screen column through the
+   relayout. Keys and wheel alike.
 
-**The author chords reveal when their prompt commits.** `Ctrl+M` and `Ctrl+T` act at the CURSOR,
-never the selection, and complete in a prompt or picker after the command has returned; with a
-chip selected the anchor (the chip) and the chord's locus (the cursor) differ, so a reveal at
-command time would show the wrong place, and from passive there is no anchor at all. They are
-left out of the command-time gate and the view calls `revealFocus()` from the prompt and picker
-commit callbacks instead, where the authored marker exists and is the focus. A review finding.
+Deleted with this shape: the focus anchor and its 30% landing, the 5% quiet zone as a reveal
+concept, the marker column rule's "cursor while inside" branch, the prompt-commit reveals, and the
+clamp helper. Kept: the lane callouts' follower (`ToneAutomationLanesView::CallOutFollower`), since
+a centring glide under a digit's value box still needs the box to ride along. Filed to the backlog,
+not built: "zoom to fit selection" as one toggling verb with restore (spare chord
+`Ctrl+Shift`+wheel; `Ctrl+Shift+=` is what `Ctrl`+plus sends on a US layout, so it stays Zoom In's
+alias).
 
-**Sighting note.** With the anchor always the chip, `↑` from a string onto a long section and `↓`
-back is two glides in opposite directions (chip, then cursor) when the cursor stands far inside
-the section. Deterministic, and the ruling; watch whether it reads badly on a long chorus.
-
-Also kept from the first build: the reveal gate (`editorCommandRevealsFocus`, read off the
-shortcuts-dialog category with Esc out) and the lane callouts' follower
-(`ToneAutomationLanesView::CallOutFollower`), since a digit's reveal still glides the lane under
-the value box. Filed to the backlog, not built: "zoom to fit selection" as one toggling verb with
-restore (spare chord `Ctrl+Shift`+wheel; `Ctrl+Shift+=` is what `Ctrl`+plus sends on a US layout,
-so it stays Zoom In's alias).
-
-**Tests:** `test_editor_controller_marker_rows.cpp` — the anchor is a clicked chip's start whether
-the cursor stands outside or inside it, the next row's chip after a step, a first chip clicked
-from the lead-in while the walk still keeps the cursor there, the caret's slot on a string, absent
-when passive and while playing; `test_chart_caret.cpp` — the anchor mirrors the armed caret;
-`test_chart_editing.cpp` — a note selected by click anchors at the note, not the cursor the caret
-left; `test_editor_controller_tone_automation.cpp` — the "+" row's anchor is the cursor and a
-selected point's is the point; `test_editor_view_state.cpp` — the registry's reveal
-classification. No UI glide test: the glide is timer-driven and has no seam; the sighting brief
-covers the landing and the zoom pivot.
+**Tests:** `test_editor_controller_marker_rows.cpp` — the keyboard position is the cursor on a
+marker row and the caret's slot on a string, and the selection start is the chip whether the
+cursor stands outside or inside it, the next row's chip after a step, a first chip clicked from
+the lead-in; both absent while playing, the selection start absent when passive;
+`test_chart_caret.cpp` — the position mirrors the armed caret with its measure, the caret is the
+selection start with nothing selected, and a time selection's position is its moving edge;
+`test_chart_editing.cpp` — a note selected by click is the selection start, not the cursor the
+caret left; `test_editor_controller_tone_automation.cpp` — a selected point is the selection start
+and the "+" row names nothing; `test_editor_view_state.cpp` — the registry classification;
+`test_editor_view_timeline.cpp` — wheel zoom holds an on-screen cursor's column and centres an
+off-screen one. No glide test: the glide is timer-driven and has no seam; the sighting brief covers
+it.
 
 #### Order, commits and sightings
 0. **The baseline refactor — DONE and SIGHTED 2026-09-14** (`fd895fcf`, `cdbc17c1`,

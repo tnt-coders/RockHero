@@ -52,20 +52,20 @@ struct EditorCommandSpec final
 [[nodiscard]] const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id);
 
 /*!
-\brief Whether a command acts where the keyboard focus stands, so the view keeps that focus in
-sight once the command has run.
+\brief Whether a command acts on the selection (or at the caret), so the view centres what it
+acted on if that is off screen once the command has run.
 
 Read off the shortcuts-dialog category, which already groups the commands by what they act on:
-the navigation, selection, authoring, value-entry and marker verbs act at the focus; file,
-edit-history, view, transport, grid and menu commands do not, and a saved file or a toggled panel
-must never scroll the window back to a caret the user scrolled away from. The section and
-tone-change author chords are left out too: they act at the cursor and complete in a prompt after
-the command has returned, so the view reveals when that prompt commits. One row answers against
-its category and is named here: Cancel dismisses although it sits with the selection verbs.
+the selection, authoring, value-entry and marker verbs act on the selection or at the caret.
+Navigation does not — the walk and the jumps select, and selecting never moves the view, while a
+step or Tab moves a position the view follows on its own. File, edit-history, view, transport, grid
+and menu commands do not either, and a saved file or a toggled panel must never scroll the window.
+One row answers against its category and is named here: Cancel dismisses although it sits with the
+selection verbs.
 
 \param spec Registry entry to classify.
-\return True when the view should reveal the focus after performing the command.
+\return True when the view should keep the acted-on selection in view after the command.
 */
-[[nodiscard]] bool editorCommandRevealsFocus(const EditorCommandSpec& spec);
+[[nodiscard]] bool editorCommandActsOnSelection(const EditorCommandSpec& spec);
 
 } // namespace rock_hero::editor::ui

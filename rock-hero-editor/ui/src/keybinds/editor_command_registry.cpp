@@ -619,27 +619,25 @@ const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)
     return nullptr;
 }
 
-bool editorCommandRevealsFocus(const EditorCommandSpec& spec)
+bool editorCommandActsOnSelection(const EditorCommandSpec& spec)
 {
     // Esc dismisses; a dismissal must never scroll.
     if (spec.id == EditorCommandId::CancelDismiss)
     {
         return false;
     }
-    // The section and tone-change author chords (categories Section and Tone) are deliberately
-    // absent: they act at the CURSOR, never the selection, and complete in a prompt or picker
-    // after perform() has returned — so the view reveals when that prompt commits, where the
-    // authored marker exists and is the focus, rather than here against a chip the chord never
-    // touched.
-    static constexpr std::array<std::string_view, 5> g_focus_categories{
-        "Navigation",
+    // Navigation is absent on purpose: the walk and the jumps SELECT, and selecting never moves
+    // the view; the keys that move a position (steps, Tab) are followed through the moved position
+    // itself. The section and tone-change author chords are absent too: they act at the cursor,
+    // select nothing, and complete in a prompt.
+    static constexpr std::array<std::string_view, 4> g_selection_categories{
         "Selection",
         "Authoring",
         "Value Entry",
         "Marker",
     };
-    return std::ranges::find(g_focus_categories, std::string_view{spec.category}) !=
-           g_focus_categories.end();
+    return std::ranges::find(g_selection_categories, std::string_view{spec.category}) !=
+           g_selection_categories.end();
 }
 
 } // namespace rock_hero::editor::ui

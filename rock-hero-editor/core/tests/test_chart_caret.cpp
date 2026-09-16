@@ -168,13 +168,18 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(6.0));
     CHECK(caret->string == 1);
-    // The focus anchor mirrors the armed caret for the keep-in-view reveal.
-    const std::optional<double>& anchor = state->focus_anchor_seconds;
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
+    // The keyboard position mirrors the armed caret and carries its measure for the measure-fit
+    // glide: measure 4 spans 6.0s..8.0s at the default 120 BPM 4/4. With nothing selected the
+    // caret is also what a verb acts on.
+    const std::optional<KeyboardPositionViewState>& position = state->keyboard_position;
+    REQUIRE(position.has_value());
+    if (position.has_value())
     {
-        CHECK(*anchor == Catch::Approx(6.0));
+        CHECK(position->seconds == Catch::Approx(6.0));
+        CHECK(position->measure_start_seconds == Catch::Approx(6.0));
+        CHECK(position->measure_end_seconds == Catch::Approx(8.0));
     }
+    CHECK(state->selection_start_seconds == std::optional{6.0});
 
     // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
@@ -388,6 +393,13 @@ TEST_CASE("EditorController builds and extends the time selection", "[core][char
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::Measure, ChartStepDirection::Right);
     CHECK(time_selection->end.seconds == Catch::Approx(2.0));
+    // The keyboard stands at the edge the extend moves, not the anchor the cursor rests on.
+    const std::optional<KeyboardPositionViewState>& position = state->keyboard_position;
+    REQUIRE(position.has_value());
+    if (position.has_value())
+    {
+        CHECK(position->seconds == Catch::Approx(2.0));
+    }
 
     // Extending Left shrinks the focus back one grid step toward the anchor (measure 1 beat 4 =
     // 1.5s).

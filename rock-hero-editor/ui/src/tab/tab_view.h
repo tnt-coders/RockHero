@@ -251,6 +251,16 @@ public:
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
     /*!
+    \brief The head of the earliest selected note, in this component's coordinates.
+
+    The glyph a verb on the selection keeps on screen. Empty with no selected note, or when the
+    earliest selected stop is silently held (its face is the posture bracket, not a head).
+
+    \return The head's bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> selectedNoteHeadBounds() const;
+
+    /*!
     \brief Returns the string legend's panel column at the current pin, or an empty rectangle.
 
     Published for the CANVAS BENEATH this lane. The panel is an exclusion plus a tint rather than a

@@ -843,35 +843,34 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
     CHECK_FALSE(selection_count_chip.isVisible());
 }
 
-// The keep-in-view reveal follows the shortcuts-dialog categories — the verbs that act at the
-// focus reveal it, the file, history, view, grid and menu commands do not — with the two rows that
-// answer against their category named.
-TEST_CASE("Command registry classifies which commands reveal the focus", "[ui][editor-view]")
+// The selection-centring rule follows the shortcuts-dialog categories — the verbs that act on the
+// selection or at the caret, not navigation (selecting never scrolls; a moved position is followed
+// on its own), and not the file, history, view, grid, menu or author-chord commands.
+TEST_CASE("Command registry classifies which commands act on the selection", "[ui][editor-view]")
 {
-    const auto reveals = [](const EditorCommandId id) {
+    const auto acts = [](const EditorCommandId id) {
         const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(id));
         REQUIRE(spec != nullptr);
-        return editorCommandRevealsFocus(*spec);
+        return editorCommandActsOnSelection(*spec);
     };
-    CHECK(reveals(EditorCommandId::CaretStepLeft));
-    CHECK(reveals(EditorCommandId::CaretJumpSectionRow));
-    CHECK(reveals(EditorCommandId::SelectionDelete));
-    CHECK(reveals(EditorCommandId::TypeDigit1));
-    CHECK(reveals(EditorCommandId::ChartLegatoToggle));
-    CHECK(reveals(EditorCommandId::RenameSelection));
+    CHECK(acts(EditorCommandId::SelectionDelete));
+    CHECK(acts(EditorCommandId::SelectionMoveLeft));
+    CHECK(acts(EditorCommandId::TypeDigit1));
+    CHECK(acts(EditorCommandId::ChartLegatoToggle));
+    CHECK(acts(EditorCommandId::RenameSelection));
 
-    // The author chords act at the cursor and complete in a prompt; their reveal comes with the
-    // prompt's commit, not the command.
-    CHECK_FALSE(reveals(EditorCommandId::InsertSongSection));
-    CHECK_FALSE(reveals(EditorCommandId::InsertToneChange));
-    CHECK_FALSE(reveals(EditorCommandId::SaveProject));
-    CHECK_FALSE(reveals(EditorCommandId::Undo));
-    CHECK_FALSE(reveals(EditorCommandId::TogglePreview3D));
-    CHECK_FALSE(reveals(EditorCommandId::ToggleGridSnap));
-    CHECK_FALSE(reveals(EditorCommandId::PlayPause));
-    CHECK_FALSE(reveals(EditorCommandId::ImportTone));
-    CHECK_FALSE(reveals(EditorCommandId::OpenFileMenu));
-    CHECK_FALSE(reveals(EditorCommandId::CancelDismiss));
+    CHECK_FALSE(acts(EditorCommandId::CaretStepLeft));
+    CHECK_FALSE(acts(EditorCommandId::CaretJumpSectionRow));
+    CHECK_FALSE(acts(EditorCommandId::InsertSongSection));
+    CHECK_FALSE(acts(EditorCommandId::InsertToneChange));
+    CHECK_FALSE(acts(EditorCommandId::SaveProject));
+    CHECK_FALSE(acts(EditorCommandId::Undo));
+    CHECK_FALSE(acts(EditorCommandId::TogglePreview3D));
+    CHECK_FALSE(acts(EditorCommandId::ToggleGridSnap));
+    CHECK_FALSE(acts(EditorCommandId::PlayPause));
+    CHECK_FALSE(acts(EditorCommandId::ImportTone));
+    CHECK_FALSE(acts(EditorCommandId::OpenFileMenu));
+    CHECK_FALSE(acts(EditorCommandId::CancelDismiss));
 }
 
 } // namespace rock_hero::editor::ui

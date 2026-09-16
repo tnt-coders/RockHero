@@ -191,14 +191,9 @@ TEST_CASE("EditorController arms the caret on a click and creates nothing", "[co
     click(controller, 40.0f, 220.0f, ChartPointerModifiers{.alt = true});
     CHECK(chartOrNull(controller)->notes.size() == notes_before);
     CHECK(state->chart_edit.selected_notes.size() == 1);
-    // The selection is where the keyboard acts now, so the focus anchor names it (2.0s) rather
-    // than the cursor the dissolved caret left at 10.0s.
-    const std::optional<double>& anchor = state->focus_anchor_seconds;
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
-    {
-        CHECK(*anchor == Catch::Approx(2.0));
-    }
+    // The selected note (2.0s) is what a verb acts on, not the cursor the dissolved caret left at
+    // 10.0s.
+    CHECK(state->selection_start_seconds == std::optional{2.0});
 }
 
 // With no create gesture left on the pointer, Alt has nothing to suppress: a drag from an empty

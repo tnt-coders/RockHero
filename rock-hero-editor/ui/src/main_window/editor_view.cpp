@@ -754,8 +754,22 @@ void EditorView::setState(const core::EditorViewState& state)
         : m_state.tone_automation.lane_caret.has_value()
             ? std::optional<double>{m_state.tone_automation.lane_caret->seconds}
             : std::nullopt);
-    // No keep-in-view glide here: a push alone never scrolls (a click creates a focus and must
-    // not scroll away from what was clicked); revealFocus() runs after every command instead.
+    // The keyboard position keeps its measure in view: whenever it MOVES to a new time — a step,
+    // a click that arms, Tab onto the next marker, an extend, the walk's column rule seeking the
+    // cursor into a marker selected far from it — the window fits the whole measure it landed in,
+    // both directions, as Guitar Pro does. Only a move counts: the position appearing (pause,
+    // project load) is not one, and would otherwise glide the window right after playback follow
+    // or the load focus placed it. Selecting alone changes no position, so a chip click, a click
+    // on an existing note and a walk whose marker already holds the cursor never move the window.
+    if (previous_state.keyboard_position.has_value() && m_state.keyboard_position.has_value() &&
+        std::is_neq(
+            previous_state.keyboard_position->seconds <=> m_state.keyboard_position->seconds))
+    {
+        m_track_viewport->ensureMeasureVisible(
+            m_state.keyboard_position->measure_start_seconds,
+            m_state.keyboard_position->measure_end_seconds,
+            m_state.keyboard_position->seconds);
+    }
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
@@ -1641,31 +1655,64 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
 
 bool EditorView::perform(const InvocationInfo& info)
 {
+    // What the verb is about to act on, read before it runs: a verb that destroys its selection
+    // (Delete) leaves nothing published afterwards, and the view still centres where it stood.
+    const std::optional<double> selection_before = m_state.selection_start_seconds;
     const bool handled = performCommand(info);
-    // Only a command that acts at the focus earns the reveal: saving, a view toggle or a menu
-    // opening must not pull the window back to a caret the user scrolled away from to read.
     if (const EditorCommandSpec* const spec = findEditorCommandSpec(info.commandID);
-        spec != nullptr && editorCommandRevealsFocus(*spec))
+        spec != nullptr && editorCommandActsOnSelection(*spec))
     {
-        revealFocus();
+        const std::optional<double>& selection_after = m_state.selection_start_seconds;
+        if (const std::optional<double> subject =
+                selection_after.has_value() ? selection_after : selection_before;
+            subject.has_value())
+        {
+            centerSelectionUnlessVisible(*subject);
+        }
     }
     return handled;
 }
 
-// The keyboard acts where the focus stands, so once a command that acts there has run the focus
-// must be in view — whatever the command did: renamed the selected marker, stepped the caret,
-// typed a digit onto a caret scrolled out of sight, authored a marker at the cursor. The focus is
-// the controller's one answer to "where does the keyboard stand" (caret, selection, or selected
-// marker's start), so no verb has to ask for its own reveal; a verb that left nothing standing
-// (Delete, Esc) publishes no focus and so moves nothing. The viewport keeps a quiet zone, which
-// keeps this silent when the focus is already in view.
-void EditorView::revealFocus()
+// The one place the surfaces are asked what they drew for the selection: the ruler its selected
+// chip, the tone row its selected region's label, the tab lane the earliest selected head, the
+// lanes the selected point's handle — at most one answers, since there is one selection
+// editor-wide — mapped into the viewport's coordinates so the viewport can judge "fully on
+// screen" against its window. A pinned chip or label counts: the marker's name is what the
+// charter sees. Nothing drawn (a chip scrolled off the ruler, a keyframe-only selection, the
+// caret standing in for a selection) leaves the time's own column to answer.
+void EditorView::centerSelectionUnlessVisible(const double seconds)
 {
-    const std::optional<double>& focus_seconds = m_state.focus_anchor_seconds;
-    if (focus_seconds.has_value())
+    std::optional<juce::Rectangle<int>> glyph = m_track_viewport->selectedRulerChipBounds();
+    if (!glyph.has_value())
     {
-        m_track_viewport->revealFocus(*focus_seconds);
+        if (const std::optional<juce::Rectangle<float>> label =
+                m_tone_track_view.selectedRegionLabelBounds();
+            label.has_value())
+        {
+            glyph = m_track_viewport->getLocalArea(
+                &m_tone_track_view, label->getSmallestIntegerContainer());
+        }
     }
+    if (!glyph.has_value())
+    {
+        if (const std::optional<juce::Rectangle<float>> head = m_tab_view.selectedNoteHeadBounds();
+            head.has_value())
+        {
+            glyph =
+                m_track_viewport->getLocalArea(&m_tab_view, head->getSmallestIntegerContainer());
+        }
+    }
+    if (!glyph.has_value())
+    {
+        if (const std::optional<juce::Rectangle<float>> handle =
+                m_tone_automation_lanes_view.selectedPointBounds();
+            handle.has_value())
+        {
+            glyph = m_track_viewport->getLocalArea(
+                &m_tone_automation_lanes_view, handle->getSmallestIntegerContainer());
+        }
+    }
+    m_track_viewport->centerOnTimeUnlessVisible(seconds, glyph);
 }
 
 // The guards mirror getCommandInfo's enablement on purpose: the mapping set and menus already
@@ -3425,9 +3472,6 @@ void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition p
         "Add",
         [this, position](const juce::String& name) {
             m_controller.onSongSectionInsertRequested(position, name.trim().toStdString());
-            // The chord completes here, not in perform(): the section now standing selected at
-            // the cursor's downbeat is the focus to show, and only now does it exist.
-            revealFocus();
         });
 }
 
@@ -3477,8 +3521,6 @@ void EditorView::splitToneRegion(const core::SplitToneRegionTarget& target)
         [this, position](std::string ref) {
             m_controller.onToneRegionCreateRequested(
                 position, common::core::generatePackageId(), std::move(ref));
-            // The tone chord completes here, not in perform(); the focus is shown once it has.
-            revealFocus();
         },
         [this, position] { promptForNewTone(position); });
 }
@@ -3568,7 +3610,6 @@ void EditorView::restateToneRegion(const core::RetoneRegionTarget& target)
     auto ask_for_new_tone = [this, id = target.region_id] {
         promptForNewToneName([this, id](std::string name) {
             m_controller.onToneRegionNewToneRequested(id, std::move(name));
-            revealFocus();
         });
     };
     if (tones.empty())
@@ -3582,7 +3623,6 @@ void EditorView::restateToneRegion(const core::RetoneRegionTarget& target)
         std::move(tones),
         [this, id = target.region_id](std::string ref) {
             m_controller.onToneRegionToneRequested(id, std::move(ref));
-            revealFocus();
         },
         std::move(ask_for_new_tone));
 }
@@ -3593,7 +3633,6 @@ void EditorView::promptForNewTone(common::core::GridPosition position)
 {
     promptForNewToneName([this, position](std::string name) {
         m_controller.onToneCreateNewRequested(position, std::move(name));
-        revealFocus();
     });
 }
 

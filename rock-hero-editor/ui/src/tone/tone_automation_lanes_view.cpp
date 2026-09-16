@@ -631,6 +631,24 @@ std::optional<juce::Rectangle<float>> ToneAutomationLanesView::laneCaretSquare()
     };
 }
 
+std::optional<juce::Rectangle<float>> ToneAutomationLanesView::selectedPointBounds() const
+{
+    // The readout already resolves the selected point to its drawn centre; the handle is the same
+    // square the lane caret wears around a point.
+    const std::optional<ValueReadout> readout = selectedPointReadout();
+    if (!readout.has_value())
+    {
+        return std::nullopt;
+    }
+    const float half_side = g_point_draw_radius + 2.0f;
+    return juce::Rectangle<float>{
+        static_cast<float>(readout->anchor.x) - half_side,
+        static_cast<float>(readout->anchor.y) - half_side,
+        2.0f * half_side,
+        2.0f * half_side
+    };
+}
+
 std::optional<juce::Range<float>> ToneAutomationLanesView::caretMaskYRange() const
 {
     const std::optional<juce::Rectangle<float>> square = laneCaretSquare();

@@ -558,13 +558,8 @@ TEST_CASE(
     CHECK(selected->lane_index == 0);
     CHECK(selected->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
-    // A selected point is where Alt+Up/Down act, so it is the focus anchor the view reveals.
-    const std::optional<double>& anchor = editor.view.last_state->focus_anchor_seconds;
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
-    {
-        CHECK(*anchor == Catch::Approx(2.0));
-    }
+    // A selected point is what Alt+Up/Down act on.
+    CHECK(editor.view.last_state->selection_start_seconds == std::optional{2.0});
 
     // The caret arms at the clicked point's slot, so keyboard verbs continue from the object just
     // touched.
@@ -2018,16 +2013,17 @@ TEST_CASE(
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
     CHECK(editor.automation().lanes.empty());
-    // The cursor moved under a focus reached by selection, and the "+" row names no marker, so
-    // the focus anchor is the cursor where it now stands.
+    // The cursor moved onto the "+" row, so the keyboard position moved with it; the row names no
+    // object a verb could act on.
     const EditorViewState* const moved = stateOrNull(editor.view.last_state);
     REQUIRE(moved != nullptr);
-    const std::optional<double>& anchor = moved->focus_anchor_seconds;
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
+    const std::optional<KeyboardPositionViewState>& position = moved->keyboard_position;
+    REQUIRE(position.has_value());
+    if (position.has_value())
     {
-        CHECK(*anchor == Catch::Approx(2.0));
+        CHECK(position->seconds == Catch::Approx(2.0));
     }
+    CHECK_FALSE(moved->selection_start_seconds.has_value());
     CHECK(editor.automation().add_lane_row_selected);
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
 

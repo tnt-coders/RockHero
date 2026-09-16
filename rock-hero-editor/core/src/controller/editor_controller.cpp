@@ -2608,14 +2608,25 @@ EditorViewState EditorController::Impl::deriveViewState() const
     {
         state.selected_time_signature_measure = signature->measure;
     }
-    // Where the keyboard stands, for the view to keep in sight after a command that acts there.
-    // Absent while playing: playback follow owns the view then, and the marker plane is closed.
+    // The two positions the view keeps in sight: where the keyboard stands (its measure follows a
+    // move) and what a selection verb acts on (centred when acted on off-screen). Absent while
+    // playing — playback follow owns the view then, and the marker plane is closed anyway.
     if (action_conditions.has_loaded_arrangement && !transport_state.playing)
     {
-        if (const std::optional<common::core::GridPosition> anchor = focusAnchorPosition();
-            anchor.has_value())
+        if (const std::optional<common::core::GridPosition> position = keyboardPosition();
+            position.has_value())
         {
-            state.focus_anchor_seconds = secondsAtGridPosition(state.tempo_map, *anchor);
+            const CaretTimeBounds bounds = caretTimeBounds(state.tempo_map, *position);
+            state.keyboard_position = KeyboardPositionViewState{
+                .seconds = bounds.seconds,
+                .measure_start_seconds = bounds.measure_start_seconds,
+                .measure_end_seconds = bounds.measure_end_seconds,
+            };
+        }
+        if (const std::optional<common::core::GridPosition> start = selectionStart();
+            start.has_value())
+        {
+            state.selection_start_seconds = secondsAtGridPosition(state.tempo_map, *start);
         }
     }
     // Where a marker verb would land, from the one authority that decides it, so no surface needs

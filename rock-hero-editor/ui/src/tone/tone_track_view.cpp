@@ -608,6 +608,37 @@ void ToneTrackView::finishGesture(const juce::MouseEvent& event)
     m_pending_select.reset();
 }
 
+std::optional<juce::Rectangle<float>> ToneTrackView::selectedRegionLabelBounds() const
+{
+    const auto selected = std::ranges::find_if(
+        m_state.regions, [](const core::ToneRegionViewState& region) { return region.selected; });
+    if (selected == m_state.regions.end())
+    {
+        return std::nullopt;
+    }
+    // The same geometry paint draws the label with: the region's grid-aligned span, and the
+    // sticky-label rule that pins the name at the visible left edge while the region covers it.
+    const std::optional<float> start_x = gridAlignedX(selected->time_range.start);
+    const std::optional<float> end_x = gridAlignedX(selected->time_range.end);
+    if (!start_x.has_value() || !end_x.has_value() || *end_x <= *start_x)
+    {
+        return std::nullopt;
+    }
+    const std::optional<float> pinned_left =
+        stickyLabelLeft(*start_x, *end_x, static_cast<float>(m_visible_content_left));
+    if (!pinned_left.has_value())
+    {
+        return std::nullopt;
+    }
+    const juce::Rectangle<float> label_area{
+        *pinned_left,
+        static_cast<float>(g_region_vertical_inset),
+        *end_x - *pinned_left,
+        static_cast<float>(std::max(1, getHeight() - (g_region_vertical_inset * 2))),
+    };
+    return label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f);
+}
+
 void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
 {
     const std::optional<RegionHit> hit = hitAt(event.getPosition());

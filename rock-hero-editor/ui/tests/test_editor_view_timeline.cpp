@@ -1134,9 +1134,9 @@ TEST_CASE("EditorView wheel zoom holds the visible cursor's column", "[ui][edito
     CHECK(zoomed_screen_x == Catch::Approx(initial_screen_x).margin(1.0));
 }
 
-// Verifies the same pivot rule with the cursor OFF-SCREEN: it keeps its screen offset — still
-// off-screen — and the visible content slides accordingly. One rule, no recentring case.
-TEST_CASE("EditorView wheel zoom holds an offscreen cursor's offset", "[ui][editor-view]")
+// Verifies wheel zoom with the cursor OFF-SCREEN centres the view on it first, so zoom never
+// scales around a point the charter cannot see.
+TEST_CASE("EditorView wheel zoom centers an offscreen cursor", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1158,8 +1158,6 @@ TEST_CASE("EditorView wheel zoom holds an offscreen cursor's offset", "[ui][edit
     REQUIRE(
         cursor_position >=
         static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
-    const double initial_screen_x =
-        static_cast<double>(cursor_position) - static_cast<double>(viewport.getViewPositionX());
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -1175,8 +1173,9 @@ TEST_CASE("EditorView wheel zoom holds an offscreen cursor's offset", "[ui][edit
         static_cast<double>(
             canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
         static_cast<double>(viewport.getViewPositionX());
-    CHECK(zoomed_screen_x == Catch::Approx(initial_screen_x).margin(1.0));
-    CHECK(zoomed_screen_x >= static_cast<double>(viewport.getViewWidth()));
+    CHECK(
+        zoomed_screen_x ==
+        Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
 // Verifies Ctrl composes NOTHING on a timeline seek: the grid-snap mode is the only thing that

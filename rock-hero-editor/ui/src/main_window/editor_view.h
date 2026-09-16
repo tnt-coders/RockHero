@@ -244,13 +244,14 @@ public:
     void getCommandInfo(juce::CommandID command_id, juce::ApplicationCommandInfo& info) override;
 
     /*!
-    \brief Performs one editor command by emitting the matching controller intent, then keeps the
-    keyboard focus in view.
+    \brief Performs one editor command by emitting the matching controller intent, then keeps what
+    it acted on in view.
 
     Every command — a chord, a menu item, a press forwarded from the 3D preview — runs through
-    here, so this is the one place the keep-in-view rule lives: the keyboard acts where the focus
-    stands, and after it has acted the focus (\ref core::EditorViewState::focus_anchor_seconds)
-    must be visible.
+    here, so this is the one place the rule for a verb on a selection lives: after such a verb the
+    selection's first member (\ref core::EditorViewState::selection_start_seconds) is left alone
+    while fully on screen and centred otherwise. A moved position is followed by \ref setState
+    instead, and selecting alone never moves the view.
 
     \param info Invocation details carrying the command id.
     \return True when the command id is a registered editor command.
@@ -258,11 +259,12 @@ public:
     bool perform(const InvocationInfo& info) override;
 
 private:
-    // The command dispatch itself; perform() wraps it with the focus reveal.
+    // The command dispatch itself; perform() wraps it with the selection-centring rule.
     bool performCommand(const InvocationInfo& info);
 
-    // Glides the published focus anchor's measure into view; nothing while no anchor stands.
-    void revealFocus();
+    // Asks the surfaces what they drew for the selection and hands the viewport the answer, so it
+    // can leave a fully visible glyph alone and centre the time otherwise.
+    void centerSelectionUnlessVisible(double seconds);
 
     enum class SaveAsChooserPurpose : std::uint8_t
     {

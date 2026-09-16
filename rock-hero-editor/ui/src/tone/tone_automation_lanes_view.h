@@ -348,6 +348,16 @@ public:
     */
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
+    /*!
+    \brief The selected point's handle, in this component's coordinates.
+
+    The glyph a verb on the selection keeps on screen. Empty with no selected point, and during a
+    drag, when the selection is being moved rather than acted on.
+
+    \return The handle's bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> selectedPointBounds() const;
+
 private:
     // One lane's vertical extent in component coordinates.
     struct LaneExtent

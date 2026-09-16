@@ -197,25 +197,26 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     }
 }
 
-std::optional<common::core::GridPosition> EditorController::Impl::selectedMarkerStart() const
-{
-    const std::optional<SelectedMarker> selected = selectedMarker();
-    if (!selected.has_value() || !selected->index.has_value())
-    {
-        return std::nullopt;
-    }
-    return markerStarts(selected->row).at(*selected->index);
-}
-
-std::optional<common::core::GridPosition> EditorController::Impl::focusAnchorPosition() const
+std::optional<common::core::GridPosition> EditorController::Impl::keyboardPosition() const
 {
     if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
     {
         return caret->position;
     }
-    // A chart selection made without a caret (a marquee, a plain click on a note) is where the
-    // selection verbs act, and it may stand far from the cursor the dissolved caret left behind;
-    // its earliest object is the anchor. An automation point selection likewise.
+    // A time selection's focus is the end the extend moves — the one walking off the view — not
+    // the anchor the paused cursor rests on.
+    if (const auto* const range = std::get_if<TimeSelection>(&m_selection))
+    {
+        return range->focus;
+    }
+    return pausedCursorPosition(g_tick_quantum_note_value);
+}
+
+std::optional<common::core::GridPosition> EditorController::Impl::selectionStart() const
+{
+    // A chart selection made without a caret (a marquee, a plain click on a note) may stand far
+    // from the cursor the dissolved caret left behind; its earliest object is what the verbs act
+    // on. An automation point likewise.
     const std::vector<ChartSelectionKey> keys = chartSelection().keys();
     if (!keys.empty())
     {
@@ -229,22 +230,14 @@ std::optional<common::core::GridPosition> EditorController::Impl::focusAnchorPos
     {
         return point->position;
     }
-    if (const std::optional<common::core::GridPosition> start = selectedMarkerStart();
-        start.has_value())
+    if (const std::optional<SelectedMarker> selected = selectedMarker();
+        selected.has_value() && selected->index.has_value())
     {
-        return start;
+        return markerStarts(selected->row).at(*selected->index);
     }
-    // A time selection's focus is the end the extend moves — the one walking off the view — not
-    // the anchor the paused cursor rests on. The "+" row names no object of its own: the keyboard
-    // stands at the paused cursor there. Passive with nothing selected, it stands nowhere the view
-    // need show.
-    if (const auto* const range = std::get_if<TimeSelection>(&m_selection))
+    if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
     {
-        return range->focus;
-    }
-    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
-    {
-        return pausedCursorPosition(g_tick_quantum_note_value);
+        return caret->position;
     }
     return std::nullopt;
 }

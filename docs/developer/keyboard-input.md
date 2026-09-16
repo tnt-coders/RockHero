@@ -49,25 +49,32 @@ flowchart TB
 bubble up the parent chain to `MainWindow`, where the command mapping set matches registered
 chords. Everything else is plumbing that keeps focus in the right place:
 
-- **A command that acts at the keyboard focus ends with the focus in view.** `EditorView::perform`
-  is the one funnel for chords, menu items and presses forwarded from the 3D preview; it runs the
-  dispatch and then, for a command `editorCommandRevealsFocus` classifies as acting at the focus
-  (read off the registry category: the navigation, selection, authoring, value-entry and marker
-  verbs; not file, history, view, transport, grid or menu commands, and not the section and
-  tone-change author chords, which act at the cursor and complete in a prompt or picker — those
-  reveal when the prompt commits, where the authored marker exists), hands the controller's
-  published focus (`EditorViewState::focus_anchor_seconds` — the armed caret's slot, else the
-  earliest selected chart object or the selected automation point, else the selected marker's
-  start, else the paused cursor on the "+" row or under a time selection; nothing while passive
-  with no selection, or while playing) to `TrackViewport::revealFocus`. That keeps ONE quiet zone
-  and ONE landing: nothing moves while the focus lies at least 5% of the view inside both edges
-  (the same fraction playback parks the cursor at and the timeline origin sits at), and once a verb
-  has put it outside that zone the window glides so it rests at 30% of the view, the same column
-  whichever side it left from and however far. Nothing glides on a state push alone, which is what
-  keeps a click from scrolling: a click creates a focus, a command acts under one. Zoom is separate
-  from the reveal and pivots on the cursor — the caret while armed, else the transport — holding it
-  at the same screen column, for keys and wheel alike, as REAPER's "edit cursor or play cursor"
-  zoom center. A new registry category must be classified in `editorCommandRevealsFocus`.
+- **The window follows the keyboard by three rules.** (1) *A moved position keeps its measure in
+  view.* The controller publishes where the keyboard stands (`EditorViewState::keyboard_position`:
+  the armed caret's slot, else a time selection's moving edge, else the paused cursor, with its
+  measure's span; nothing while playing) and `EditorView::setState` fits that measure into view
+  whenever the position's time changes — a step, a click that arms, Tab onto the next marker, an
+  extend — through `TrackViewport::ensureMeasureVisible`, the minimal shift in either direction, as
+  Guitar Pro does. (2) *A verb on a selection centres it if it is not fully on screen.*
+  `EditorView::perform` is the one funnel for chords, menu items and presses forwarded from the 3D
+  preview; for a command `editorCommandActsOnSelection` classifies (read off the registry
+  category: the selection, authoring, value-entry and marker verbs; not navigation, file, history,
+  view, transport, grid or menu commands, nor the section and tone-change author chords) it takes
+  the selection's first member (`EditorViewState::selection_start_seconds` — the earliest selected
+  note or point, the selected marker's start, else the armed caret; the pre-command value when the
+  verb destroyed the selection, so Delete centres where it stood), asks the surface that drew it
+  for the glyph's bounds (`TimelineRuler::selectedChipBounds`, a pinned chip included,
+  `ToneTrackView::selectedRegionLabelBounds`, `TabView::selectedNoteHeadBounds`,
+  `ToneAutomationLanesView::selectedPointBounds`), and calls
+  `TrackViewport::centerOnTimeUnlessVisible`: nothing while the glyph is on screen edge to edge —
+  and this rule decides alone, cancelling a measure fit the same command started — else a glide
+  that centres the time. (3) *Selecting never scrolls*: a chip click, a click on an existing note
+  and a walk onto the marker that already holds the cursor publish no moved position and act on
+  nothing; a walk whose column rule seeks the cursor into a far-off marker is a move, and rule 1
+  follows it. Zoom (`applyZoomAroundCursor`)
+  pivots on the cursor in place while it is on screen and centres on it first when it is not, for
+  keys and wheel alike. A new registry category must be classified in
+  `editorCommandActsOnSelection`.
 
 - **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a
   command, and it is gated on typing: it hands the press to the command manager's

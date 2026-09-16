@@ -253,6 +253,18 @@ public:
     */
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
+    /*!
+    \brief The selected region's label area, in this component's coordinates.
+
+    The glyph a verb on the selection keeps on screen: the label rides its region and pins at the
+    visible left edge while the region covers it, so a long region the charter is working inside
+    counts as on screen through its pinned name, exactly as a pinned ruler chip does. Empty with no
+    selected region, or when the region lies wholly outside the view.
+
+    \return The label area, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> selectedRegionLabelBounds() const;
+
 private:
     // Which endpoint an active drag is moving.
     enum class EdgeKind : std::uint8_t

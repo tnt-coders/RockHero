@@ -5,6 +5,7 @@
 #include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -296,6 +297,30 @@ void TimelineRuler::paint(juce::Graphics& g)
 void TimelineRuler::resized()
 {
     refreshRulerGeometry();
+}
+
+std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
+{
+    // One selection editor-wide, so at most one row holds a selected chip.
+    const auto in_row = [](const ChipRow& row,
+                           const int row_y) -> std::optional<juce::Rectangle<int>> {
+        const auto selected =
+            std::ranges::find_if(row.chips, [](const RulerChip& chip) { return chip.selected; });
+        if (selected == row.chips.end())
+        {
+            return std::nullopt;
+        }
+        return juce::Rectangle<int>{selected->label.x, row_y, selected->label.width, g_chip_height};
+    };
+    if (const auto chip = in_row(m_section_row, g_section_row_y); chip.has_value())
+    {
+        return chip;
+    }
+    if (const auto chip = in_row(m_tempo_row, g_tempo_row_y); chip.has_value())
+    {
+        return chip;
+    }
+    return in_row(m_signature_row, g_signature_row_y);
 }
 
 // Adopts the core's published marker-plane availability.

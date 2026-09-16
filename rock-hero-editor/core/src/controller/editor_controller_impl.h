@@ -1407,16 +1407,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // names, or none while the marker is passive over any other selection.
     [[nodiscard]] std::optional<FocusRow> currentFocusRow() const;
 
-    // The selected marker's start, for the view to reveal — the chip itself, whichever way the
-    // cursor stands to it. Nothing when no marker is selected or it names none.
-    [[nodiscard]] std::optional<common::core::GridPosition> selectedMarkerStart() const;
+    // Where the keyboard stands, published for the view to keep its measure in sight when it
+    // moves: the armed caret's slot; else the moving edge of a time selection; else the paused
+    // cursor. Nothing with no arrangement.
+    [[nodiscard]] std::optional<common::core::GridPosition> keyboardPosition() const;
 
-    // Where the keyboard stands, published for the view to keep in sight after a command that acts
-    // there: the armed caret's slot; else the earliest selected chart object or the selected
-    // automation point; else the selected marker's start; else, on the "+" row or with a time
-    // selection, the paused cursor. Nothing while passive with no selection, so a verb that left
-    // nothing standing reveals nothing.
-    [[nodiscard]] std::optional<common::core::GridPosition> focusAnchorPosition() const;
+    // The first member of what a selection verb acts on, published for the view to centre when
+    // acted on off-screen: the earliest selected chart object; else the selected automation point;
+    // else the selected marker's start — the chip, whichever way the cursor stands to it; else the
+    // armed caret's slot, where typing acts. Nothing while passive with no caret.
+    [[nodiscard]] std::optional<common::core::GridPosition> selectionStart() const;
 
     // Every row the walk can reach, top to bottom: the ruler's marker rows that have markers, the
     // chart's strings, the tone row while the track has regions, the visible lanes, and the "+" row
