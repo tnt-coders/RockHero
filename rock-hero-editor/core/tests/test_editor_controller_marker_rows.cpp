@@ -171,14 +171,13 @@ TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[co
     CHECK(editor.transport.position().seconds == Catch::Approx(10.0));
     // A tempo or signature chip carries no Delete yet, so it is not a deletable selection.
     CHECK_FALSE(editor.state().selection_present);
-    // The focus anchor stands on the selected chip, carrying its measure for the reveal.
-    const std::optional<FocusAnchorViewState>& anchor = editor.state().focus_anchor;
+    // The focus anchor stands on the selected chip for the reveal: the signature change at
+    // measure 5 (8.0s) holds the cursor's measure 6, and its chip is what a verb reveals.
+    const std::optional<double>& anchor = editor.state().focus_anchor_seconds;
     REQUIRE(anchor.has_value());
     if (anchor.has_value())
     {
-        CHECK(anchor->seconds == Catch::Approx(10.0));
-        CHECK(anchor->measure_start_seconds == Catch::Approx(10.0));
-        CHECK(anchor->measure_end_seconds == Catch::Approx(12.0));
+        CHECK(*anchor == Catch::Approx(8.0));
     }
 
     editor.step(ChartStepDirection::Up);
@@ -200,11 +199,11 @@ TEST_CASE("EditorController walks up from the strings onto the ruler rows", "[co
     editor.step(ChartStepDirection::Down);
     CHECK(editor.caretString() == std::optional{6});
     // Back on a string the anchor is the caret's slot.
-    const std::optional<FocusAnchorViewState>& landed = editor.state().focus_anchor;
+    const std::optional<double>& landed = editor.state().focus_anchor_seconds;
     REQUIRE(landed.has_value());
     if (landed.has_value())
     {
-        CHECK(landed->seconds == Catch::Approx(10.0));
+        CHECK(*landed == Catch::Approx(10.0));
     }
     const ChartCaretViewState* const caret = caretOrNull(editor.state().chart_edit);
     REQUIRE(caret != nullptr);
@@ -268,9 +267,9 @@ TEST_CASE("EditorController gives the lead-in to a row's first marker", "[core][
 }
 
 // A chip clicked with the pointer seeks nothing, so the cursor may stand outside its marker's span.
-// The focus anchor then names the marker's START — what a keyboard verb on the selection has to
-// reveal — and stepping off the marker brings the cursor there first, so the next row's holder is
-// the one found at that marker and the anchor follows the cursor from then on.
+// The focus anchor names the marker's START regardless — the chip is what a keyboard verb on the
+// selection reveals — and stepping off the marker brings the cursor there first, so the next row's
+// holder is the one found at that marker; its start is the anchor then.
 TEST_CASE("EditorController steps off a clicked chip from its start", "[core][marker-rows]")
 {
     MarkerRowEditor editor;
@@ -279,18 +278,19 @@ TEST_CASE("EditorController steps off a clicked chip from its start", "[core][ma
     CHECK(editor.transport.seek_call_count == seeks_before);
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
     REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{1});
-    const std::optional<FocusAnchorViewState> clicked = editor.state().focus_anchor;
+    const std::optional<double> clicked = editor.state().focus_anchor_seconds;
     REQUIRE(clicked.has_value());
 
     editor.step(ChartStepDirection::Down);
     CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
     CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
-    const std::optional<FocusAnchorViewState> moved = editor.state().focus_anchor;
+    const std::optional<double> moved = editor.state().focus_anchor_seconds;
     REQUIRE(moved.has_value());
     if (clicked.has_value() && moved.has_value())
     {
-        CHECK(clicked->seconds == Catch::Approx(12.0));
-        CHECK(moved->seconds == Catch::Approx(12.0));
+        CHECK(*clicked == Catch::Approx(12.0));
+        // The tempo anchor holding 12.0s starts at measure 5, and the chip is what is revealed.
+        CHECK(*moved == Catch::Approx(8.0));
     }
 
     // A tempo chip clicked away from the cursor behaves the same way.
@@ -326,13 +326,8 @@ TEST_CASE("EditorController keeps tempo and signature selections inert", "[core]
     REQUIRE(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.0});
     CHECK_FALSE(editor.state().selected_tempo_anchor.has_value());
-    // Passive, the anchor falls back to the paused cursor.
-    const std::optional<FocusAnchorViewState>& anchor = editor.state().focus_anchor;
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
-    {
-        CHECK(anchor->seconds == Catch::Approx(3.0));
-    }
+    // Passive with nothing selected, the keyboard stands nowhere the view need reveal.
+    CHECK_FALSE(editor.state().focus_anchor_seconds.has_value());
 }
 
 // The anchor names the CHIP for a row's first marker too. The walk lets that marker own the
@@ -346,11 +341,11 @@ TEST_CASE(
     editor.controller.onSongSectionSelected(downbeat(3));
     REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
-    const std::optional<FocusAnchorViewState>& anchor = editor.state().focus_anchor;
+    const std::optional<double>& anchor = editor.state().focus_anchor_seconds;
     REQUIRE(anchor.has_value());
     if (anchor.has_value())
     {
-        CHECK(anchor->seconds == Catch::Approx(4.0));
+        CHECK(*anchor == Catch::Approx(4.0));
     }
 
     // Stepping off it still keeps the cursor in the lead-in: the walk's holder rule is unchanged.
@@ -364,12 +359,12 @@ TEST_CASE("EditorController publishes no focus anchor while playing", "[core][ma
 {
     MarkerRowEditor editor;
     editor.controller.onSongSectionSelected(downbeat(3));
-    REQUIRE(editor.state().focus_anchor.has_value());
+    REQUIRE(editor.state().focus_anchor_seconds.has_value());
 
     // The fake transport never flips its own state; the press is only what publishes a new view.
     editor.transport.current_state.playing = true;
     editor.controller.onPlayPausePressed();
-    CHECK_FALSE(editor.state().focus_anchor.has_value());
+    CHECK_FALSE(editor.state().focus_anchor_seconds.has_value());
 }
 
 // Undo can take away the marker a selection names; nothing is left to select then, exactly as
@@ -384,8 +379,8 @@ TEST_CASE("EditorController releases a marker selection an undo takes away", "[c
     CHECK(editor.controller.session().song().sections.size() == 2);
     CHECK_FALSE(editor.selectedSectionIndex().has_value());
     CHECK_FALSE(editor.state().selection_present);
-    // Nothing selected, no caret: the anchor is the paused cursor, still published.
-    CHECK(editor.state().focus_anchor.has_value());
+    // Nothing selected, no caret: nothing stands for the view to reveal.
+    CHECK_FALSE(editor.state().focus_anchor_seconds.has_value());
 }
 
 // Tab on a marker row steps from the CURSOR, as it does on every row: the column rule brings the

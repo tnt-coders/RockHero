@@ -559,11 +559,11 @@ TEST_CASE(
     CHECK(selected->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
     // A selected point is where Alt+Up/Down act, so it is the focus anchor the view reveals.
-    const std::optional<FocusAnchorViewState>& anchor = editor.view.last_state->focus_anchor;
+    const std::optional<double>& anchor = editor.view.last_state->focus_anchor_seconds;
     REQUIRE(anchor.has_value());
     if (anchor.has_value())
     {
-        CHECK(anchor->seconds == Catch::Approx(2.0));
+        CHECK(*anchor == Catch::Approx(2.0));
     }
 
     // The caret arms at the clicked point's slot, so keyboard verbs continue from the object just
@@ -2022,11 +2022,11 @@ TEST_CASE(
     // the focus anchor is the cursor where it now stands.
     const EditorViewState* const moved = stateOrNull(editor.view.last_state);
     REQUIRE(moved != nullptr);
-    const std::optional<FocusAnchorViewState>& anchor = moved->focus_anchor;
+    const std::optional<double>& anchor = moved->focus_anchor_seconds;
     REQUIRE(anchor.has_value());
     if (anchor.has_value())
     {
-        CHECK(anchor->seconds == Catch::Approx(2.0));
+        CHECK(*anchor == Catch::Approx(2.0));
     }
     CHECK(editor.automation().add_lane_row_selected);
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});

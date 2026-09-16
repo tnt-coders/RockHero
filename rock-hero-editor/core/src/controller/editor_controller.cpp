@@ -2608,16 +2608,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
     {
         state.selected_time_signature_measure = signature->measure;
     }
-    // Where the keyboard stands, for the view to keep in sight after every command. Absent while
-    // playing: playback follow owns the view then, and the marker plane is closed anyway.
+    // Where the keyboard stands, for the view to keep in sight after a command that acts there.
+    // Absent while playing: playback follow owns the view then, and the marker plane is closed.
     if (action_conditions.has_loaded_arrangement && !transport_state.playing)
     {
-        const CaretTimeBounds bounds = caretTimeBounds(state.tempo_map, focusAnchorPosition());
-        state.focus_anchor = FocusAnchorViewState{
-            .seconds = bounds.seconds,
-            .measure_start_seconds = bounds.measure_start_seconds,
-            .measure_end_seconds = bounds.measure_end_seconds,
-        };
+        if (const std::optional<common::core::GridPosition> anchor = focusAnchorPosition();
+            anchor.has_value())
+        {
+            state.focus_anchor_seconds = secondsAtGridPosition(state.tempo_map, *anchor);
+        }
     }
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
     // a marker rule of its own: the raw position the tone chord compares against region starts,

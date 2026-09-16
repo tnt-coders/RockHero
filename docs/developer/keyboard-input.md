@@ -53,15 +53,21 @@ chords. Everything else is plumbing that keeps focus in the right place:
   is the one funnel for chords, menu items and presses forwarded from the 3D preview; it runs the
   dispatch and then, for a command `editorCommandRevealsFocus` classifies as acting at the focus
   (read off the registry category: the navigation, selection, authoring, value-entry and marker
-  verbs; not file, history, view, transport, grid or menu commands), glides the controller's
-  published `focus_anchor` (`EditorViewState::focus_anchor` — the armed caret's slot, else the
-  earliest selected chart object or the selected automation point, else the column the keyboard
-  stands at within the selected marker, else the paused cursor; absent while playing) into view
-  through `TrackViewport::ensureMeasureVisible`. Keyboard zoom centers on the same anchor, so one
-  press never pulls the window two ways. Nothing glides on a state push alone, which is what keeps
-  a click from scrolling away from what was clicked: a click creates a focus, a command acts under
-  one. So renaming or deleting a marker whose chip has scrolled off-screen, or typing a digit onto
-  a caret that has, brings it back first — and a new registry category must be classified there.
+  verbs; not file, history, view, transport, grid or menu commands, and not the section and
+  tone-change author chords, which act at the cursor and complete in a prompt or picker — those
+  reveal when the prompt commits, where the authored marker exists), hands the controller's
+  published focus (`EditorViewState::focus_anchor_seconds` — the armed caret's slot, else the
+  earliest selected chart object or the selected automation point, else the selected marker's
+  start, else the paused cursor on the "+" row or under a time selection; nothing while passive
+  with no selection, or while playing) to `TrackViewport::revealFocus`. That keeps ONE quiet zone
+  and ONE landing: nothing moves while the focus lies at least 5% of the view inside both edges
+  (the same fraction playback parks the cursor at and the timeline origin sits at), and once a verb
+  has put it outside that zone the window glides so it rests at 30% of the view, the same column
+  whichever side it left from and however far. Nothing glides on a state push alone, which is what
+  keeps a click from scrolling: a click creates a focus, a command acts under one. Zoom is separate
+  from the reveal and pivots on the cursor — the caret while armed, else the transport — holding it
+  at the same screen column, for keys and wheel alike, as REAPER's "edit cursor or play cursor"
+  zoom center. A new registry category must be classified in `editorCommandRevealsFocus`.
 
 - **`MainWindow::keyPressed`** (`ui/src/main_window/main_window.cpp`) is where a press becomes a
   command, and it is gated on typing: it hands the press to the command manager's
@@ -246,7 +252,7 @@ ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
 combo pick, so the controller still owns the applied value), and `ZoomIn`/`ZoomOut` zoom
 through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing its
-clamp/recenter/report path. Their default chords are the `+`/`-` family (main-row and numpad
+clamp/relayout/pivot/report path. Their default chords are the `+`/`-` family (main-row and numpad
 shapes, plus the unshifted `=` convenience alias) — see the key-shape note under Decoding.
 
 `Ctrl+G` (`ToggleGridSnap`) is a path (a) command beside them, but it is not UI-only: it flips

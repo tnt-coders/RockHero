@@ -944,3 +944,13 @@ written down.
   row jump among them). One `[[nodiscard]] std::optional<int> displayedStringCount() const` on
   `Impl` would state it once and let each handler bind the count it needs. Cosmetic, no behaviour
   hangs on it.
+
+## Found while settling the focus reveal (2026-09-15)
+
+- **"Zoom to fit selection", one toggling verb with restore.** Every DAW ships it as a separate
+  verb beside plain zoom (Ableton `Z`/`X`, Pro Tools Zoom Toggle, REAPER "View: Zoom time
+  selection" + "Restore previous zoom level", Bitwig "Zoom to Fit Selection or Previous"). Plain
+  zoom here pivots on the cursor in place and is deliberately dumb; this is its pressure valve,
+  wanted only once plain zoom proves insufficient on a real chart. One chord, not an in/out pair:
+  `Ctrl+Shift`+wheel is spare; `Ctrl+Shift+=` is not, because `Ctrl`+plus arrives as
+  `Ctrl+Shift+=` on a US layout and is Zoom In's alias for that reason.

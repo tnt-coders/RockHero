@@ -1089,8 +1089,9 @@ TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
     CHECK(track_content.getWidth() == viewport.getViewWidth());
 }
 
-// Verifies wheel zoom uses the visible playhead cursor as the zoom center.
-TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
+// Verifies wheel zoom pivots on the visible cursor IN PLACE: its screen column is the same after
+// the zoom as before, so zoom scales and never scrolls.
+TEST_CASE("EditorView wheel zoom holds the visible cursor's column", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1113,6 +1114,8 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
     REQUIRE(
         initial_cursor_position <
         static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
+    const double initial_screen_x = static_cast<double>(initial_cursor_position) -
+                                    static_cast<double>(viewport.getViewPositionX());
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -1128,13 +1131,12 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
         static_cast<double>(
             canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
         static_cast<double>(viewport.getViewPositionX());
-    CHECK(
-        zoomed_screen_x ==
-        Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    CHECK(zoomed_screen_x == Catch::Approx(initial_screen_x).margin(1.0));
 }
 
-// Verifies wheel zoom scrolls to center the playhead cursor even when it starts offscreen.
-TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
+// Verifies the same pivot rule with the cursor OFF-SCREEN: it keeps its screen offset — still
+// off-screen — and the visible content slides accordingly. One rule, no recentring case.
+TEST_CASE("EditorView wheel zoom holds an offscreen cursor's offset", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1156,6 +1158,8 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
     REQUIRE(
         cursor_position >=
         static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
+    const double initial_screen_x =
+        static_cast<double>(cursor_position) - static_cast<double>(viewport.getViewPositionX());
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -1171,9 +1175,8 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
         static_cast<double>(
             canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
         static_cast<double>(viewport.getViewPositionX());
-    CHECK(
-        zoomed_screen_x ==
-        Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    CHECK(zoomed_screen_x == Catch::Approx(initial_screen_x).margin(1.0));
+    CHECK(zoomed_screen_x >= static_cast<double>(viewport.getViewWidth()));
 }
 
 // Verifies Ctrl composes NOTHING on a timeline seek: the grid-snap mode is the only thing that

@@ -193,11 +193,11 @@ TEST_CASE("EditorController arms the caret on a click and creates nothing", "[co
     CHECK(state->chart_edit.selected_notes.size() == 1);
     // The selection is where the keyboard acts now, so the focus anchor names it (2.0s) rather
     // than the cursor the dissolved caret left at 10.0s.
-    const std::optional<FocusAnchorViewState>& anchor = state->focus_anchor;
+    const std::optional<double>& anchor = state->focus_anchor_seconds;
     REQUIRE(anchor.has_value());
     if (anchor.has_value())
     {
-        CHECK(anchor->seconds == Catch::Approx(2.0));
+        CHECK(*anchor == Catch::Approx(2.0));
     }
 }
 

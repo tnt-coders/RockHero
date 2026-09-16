@@ -249,7 +249,8 @@ public:
 
     Every command — a chord, a menu item, a press forwarded from the 3D preview — runs through
     here, so this is the one place the keep-in-view rule lives: the keyboard acts where the focus
-    stands, and after it has acted the focus (\ref core::FocusAnchorViewState) must be visible.
+    stands, and after it has acted the focus (\ref core::EditorViewState::focus_anchor_seconds)
+    must be visible.
 
     \param info Invocation details carrying the command id.
     \return True when the command id is a registered editor command.

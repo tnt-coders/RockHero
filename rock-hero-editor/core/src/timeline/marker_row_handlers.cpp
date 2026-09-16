@@ -197,29 +197,17 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     }
 }
 
-std::optional<common::core::GridPosition> EditorController::Impl::selectedMarkerColumn() const
+std::optional<common::core::GridPosition> EditorController::Impl::selectedMarkerStart() const
 {
     const std::optional<SelectedMarker> selected = selectedMarker();
-    if (!selected.has_value())
+    if (!selected.has_value() || !selected->index.has_value())
     {
         return std::nullopt;
     }
-    const std::optional<std::size_t> index = selected->index;
-    if (!index.has_value())
-    {
-        return std::nullopt;
-    }
-    const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
-    const common::core::GridPosition cursor = pausedCursorPosition(g_tick_quantum_note_value);
-    // Held means inside the marker's own span. The walk's holder rule also gives a row's first
-    // marker its lead-in, so the keyboard can reach a late first section from a cursor ahead of
-    // it; but a cursor in the lead-in is not standing IN that section, and showing it there would
-    // show neither the chip nor its name.
-    const bool held = markerHolderIndex(starts, cursor) == *index && !(cursor < starts[*index]);
-    return held ? cursor : starts[*index];
+    return markerStarts(selected->row).at(*selected->index);
 }
 
-common::core::GridPosition EditorController::Impl::focusAnchorPosition() const
+std::optional<common::core::GridPosition> EditorController::Impl::focusAnchorPosition() const
 {
     if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
     {
@@ -241,7 +229,24 @@ common::core::GridPosition EditorController::Impl::focusAnchorPosition() const
     {
         return point->position;
     }
-    return selectedMarkerColumn().value_or(pausedCursorPosition(g_tick_quantum_note_value));
+    if (const std::optional<common::core::GridPosition> start = selectedMarkerStart();
+        start.has_value())
+    {
+        return start;
+    }
+    // A time selection's focus is the end the extend moves — the one walking off the view — not
+    // the anchor the paused cursor rests on. The "+" row names no object of its own: the keyboard
+    // stands at the paused cursor there. Passive with nothing selected, it stands nowhere the view
+    // need show.
+    if (const auto* const range = std::get_if<TimeSelection>(&m_selection))
+    {
+        return range->focus;
+    }
+    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    {
+        return pausedCursorPosition(g_tick_quantum_note_value);
+    }
+    return std::nullopt;
 }
 
 // Only the edit's visibility asks for this. Keeping a selected marker holding the cursor for the

@@ -35,21 +35,23 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr double g_follow_shift_trigger_fraction{0.8};
 constexpr double g_follow_shift_duration_seconds{0.3};
 
-// Where the working position sits in the window: the fraction of the view width playback follow
-// parks the cursor at after a window shift, and — because the canvas keeps a gutter of exactly
-// this width left of time zero (TrackViewport::originGutterWidth) — the column the timeline's own
-// start occupies at the leftmost scroll position. One fraction, so the place you work at is the
-// same screen x whether the window came to rest under the transport or under your hand, and the
-// first beat's note head has the same air around it as every later one.
+// The window's one edge fraction, three roles: where playback follow parks the cursor after a
+// window shift; the column the timeline's own start occupies at the leftmost scroll position,
+// because the canvas keeps a gutter of exactly this width left of time zero
+// (TrackViewport::originGutterWidth); and the margin inside both edges within which the
+// keyboard focus counts as comfortably in view (revealFocus). One fraction, so the place you
+// work at is the same screen x whether the window came to rest under the transport or under
+// your hand, the first beat's note head has the same air around it as every later one, and a
+// focus this close to an edge — it still clears a ~25px note head at any view past ~500px —
+// is the one the keyboard brings back.
 constexpr double g_window_pin_fraction{0.05};
 
-// The caret glide reveals this fraction of the view past the aligned measure edge, so a note
-// seated exactly ON the revealed boundary — legal here, unlike Guitar Pro — shows its whole
-// head (heads are fixed-pixel, ~25px; 4% clears a full head width at any view past ~650px)
-// plus a sliver of the neighboring measure's interior. A view fraction rather than pixels or
-// musical time keeps the perceived peek constant across window sizes and zoom, in the same
-// unit vocabulary as the trigger/pin fractions above.
-constexpr double g_measure_glide_reveal_fraction{0.04};
+// Where a keyboard verb lands the focus once it has left the quiet zone: one column, whichever
+// side it left from and however far, so the landing is deterministic. Left of center because
+// music reads left to right, so most of the view stays ahead of the focus (MuseScore's notation
+// view lands at the same 0.30). Deliberately not the pin fraction: the keyboard moves both ways,
+// and a landing on the margin itself would glide again on the very next leftward step.
+constexpr double g_focus_landing_fraction{0.30};
 
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
@@ -398,12 +400,6 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     updateRulerCursor();
 }
 
-// Only zoom reads it, so storing is the whole job: the next zoom centers here.
-void TrackViewport::setFocusAnchorSeconds(std::optional<double> seconds)
-{
-    m_focus_anchor_seconds = seconds;
-}
-
 // The caret-bearing views push their paused-column cut-out spans here whenever they change, so the
 // paused cursor's gap is kept in step with the drawn caret square without the viewport ever polling
 // sibling geometry. The push carries the fresh mask in the same synchronous pass as the square, so
@@ -600,7 +596,7 @@ int TrackViewport::scaledContentWidth() const noexcept
 
 // Maps a timeline time onto the canvas the viewport scrolls: the canvas range paired with the
 // canvas width, which every content-coordinate consumer here — the follow window, the zoom
-// recenter, the caret's keep-measure-visible rule, the paused column — needs to agree on.
+// pivot, the focus reveal, the paused column — needs to agree on.
 std::optional<float> TrackViewport::contentXForTime(double seconds) const noexcept
 {
     return cursorXForTimelinePosition(
@@ -729,20 +725,34 @@ void TrackViewport::zoomByStep(int direction)
                       : m_pixels_per_second / g_mouse_wheel_zoom_factor);
 }
 
-// Scales to a new target density around the focus anchor — where the keyboard stands: the armed
-// caret, else the selected marker's column, else the paused cursor — falling back to the transport
-// (the playing playhead) while none is published; then clamps, relays out, and reports the change.
-// Shared by wheel zoom and the keyboard step so both center and persist identically, and the same
-// position the keep-in-view reveal shows, so a keyboard zoom never fights the reveal after it.
+// Scales to a new target density around the cursor — the armed caret while one exists (the
+// marker model: the caret IS the position), else the transport (the paused cursor or the
+// playing playhead) — holding that time at the same screen column, so zoom scales and never
+// scrolls; then clamps, relays out, and reports the change. One pivot for the wheel and the
+// keyboard step, as REAPER's "edit cursor or play cursor" zoom center. An off-screen cursor
+// stays off-screen and the visible content slides accordingly — the same rule, deliberately
+// not a second one.
 void TrackViewport::applyZoomAroundCursor(double target_pixels_per_second)
 {
-    const common::core::TimePosition cursor_position{m_focus_anchor_seconds.value_or(
-        m_transport.position().seconds)};
+    // An in-flight glide's target is in the OLD pixel scale, and would drag the view off the
+    // pivot on the next frame; the zoom supersedes it.
+    m_window_shift.reset();
+    const double pivot_seconds = m_armed_caret_seconds.value_or(m_transport.position().seconds);
+    const std::optional<float> pivot_x_before = contentXForTime(pivot_seconds);
+    const double view_left_before = static_cast<double>(m_viewport.getViewPositionX());
     const double previous_pixels_per_second = m_pixels_per_second;
     m_pixels_per_second =
         std::clamp(target_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
     layoutScaledCanvas();
-    centerViewportOnTime(cursor_position.seconds);
+    const std::optional<float> pivot_x_after = contentXForTime(pivot_seconds);
+    if (pivot_x_before.has_value() && pivot_x_after.has_value())
+    {
+        // The pivot keeps its screen offset: new left = new pivot x - (old pivot x - old left).
+        setViewportLeft(
+            static_cast<int>(std::round(
+                static_cast<double>(*pivot_x_after) -
+                (static_cast<double>(*pivot_x_before) - view_left_before))));
+    }
     // Exact inequality via is_neq keeps -Wfloat-equal builds clean; clamp-unchanged detection
     // is deliberately exact.
     if (m_on_zoom_changed && std::is_neq(m_pixels_per_second <=> previous_pixels_per_second))
@@ -786,8 +796,8 @@ void TrackViewport::focusCursorIfPending()
 }
 
 // Keeps playback visible using controller-pushed state plus current position reads. While
-// paused this deliberately leaves any in-flight glide alone — the caret's keep-measure-visible
-// rule drives paused glides through the same shared machinery.
+// paused this deliberately leaves any in-flight glide alone — the focus reveal drives paused
+// glides through the same shared machinery.
 void TrackViewport::updatePlaybackFollow()
 {
     if (!m_project_loaded || !m_playback_active || timelineDurationSeconds() <= 0.0)
@@ -858,7 +868,7 @@ void TrackViewport::beginWindowGlide(double target_left)
 }
 
 // Advances the in-flight window glide with the shared cubic ease-out; shared by playback
-// follow and the caret's keep-measure-visible rule, so both motions feel identical.
+// follow and the focus reveal, so both motions feel identical.
 void TrackViewport::advanceWindowGlide()
 {
     if (!m_window_shift.has_value())
@@ -883,87 +893,54 @@ void TrackViewport::advanceWindowGlide()
             (m_window_shift->target_left - m_window_shift->start_left) * eased)));
 }
 
-// Glides the window until the focus anchor's measure sits fully in view (the keep-in-view rule
-// EditorView::perform applies after every command): the minimal shift that fits the whole
-// measure — aligning a measure starting before the view at the left, one ending past it at the
-// right, each overshooting by the reveal fraction so boundary notes of the neighboring measure
-// show whole — through the same eased glide playback follow uses. A measure wider than the view
-// falls back to the minimal shift that brings the anchor itself into view with a tenth-of-view
-// pad; a fully visible measure moves nothing.
-void TrackViewport::ensureMeasureVisible(
-    double measure_start_seconds, double measure_end_seconds, double anchor_seconds)
+// The keep-in-view rule EditorView::perform applies after a keyboard command that acts at the
+// focus: nothing while the focus column lies at least the edge fraction inside both edges; else
+// glide — the same eased shift playback follow uses — until it rests on the landing column.
+void TrackViewport::revealFocus(const double focus_seconds)
 {
     if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || m_viewport.getViewWidth() <= 0 ||
         m_content.getWidth() <= 0)
     {
         return;
     }
-
-    const auto x_of = [this](double seconds) {
-        return contentXForTime(
-            std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds));
-    };
-    const auto start_x = x_of(measure_start_seconds);
-    const auto end_x = x_of(measure_end_seconds);
-    const auto anchor_x = x_of(anchor_seconds);
-    if (!start_x.has_value() || !end_x.has_value() || !anchor_x.has_value())
+    const std::optional<float> focus_x = contentXForTime(
+        std::clamp(focus_seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds));
+    if (!focus_x.has_value())
     {
         return;
     }
 
     const auto view_left = static_cast<double>(m_viewport.getViewPositionX());
     const auto view_width = static_cast<double>(m_viewport.getViewWidth());
-    const double view_right = view_left + view_width;
-    double target_left = view_left;
-    if (static_cast<double>(*end_x - *start_x) <= view_width)
+    const double margin = view_width * g_window_pin_fraction;
+    const auto x = static_cast<double>(*focus_x);
+    if (x >= view_left + margin && x <= view_left + view_width - margin)
     {
-        // The aligned edge overshoots by the reveal fraction so the neighboring measure's
-        // boundary notes show whole; when measure plus reveal cannot both fit, the full
-        // measure wins and the reveal compresses.
-        const double reveal = view_width * g_measure_glide_reveal_fraction;
-        if (static_cast<double>(*start_x) < view_left)
-        {
-            target_left = std::max(
-                static_cast<double>(*start_x) - reveal, static_cast<double>(*end_x) - view_width);
-        }
-        else if (static_cast<double>(*end_x) > view_right)
-        {
-            target_left = std::min(
-                static_cast<double>(*end_x) + reveal - view_width, static_cast<double>(*start_x));
-        }
-        else
-        {
-            return;
-        }
+        return;
     }
-    else
+    // Clamped like every viewport move, so a focus near either end of the song neither glides
+    // toward an unreachable column nor re-glides on every press once it is already there.
+    const int target_left = clampedViewportLeft(
+        static_cast<int>(std::round(x - view_width * g_focus_landing_fraction)));
+    if (target_left == m_viewport.getViewPositionX())
     {
-        const double pad = view_width * 0.1;
-        if (static_cast<double>(*anchor_x) < view_left)
-        {
-            target_left = static_cast<double>(*anchor_x) - pad;
-        }
-        else if (static_cast<double>(*anchor_x) > view_right)
-        {
-            target_left = static_cast<double>(*anchor_x) - view_width + pad;
-        }
-        else
-        {
-            return;
-        }
+        return;
     }
-
     beginWindowGlide(target_left);
 }
 
 // Moves the horizontal viewport position while preserving the current vertical scroll. Ruler
 // and grid updates happen through the viewport's visible-area callback when the position
 // actually changes.
-void TrackViewport::setViewportLeft(int requested_x)
+int TrackViewport::clampedViewportLeft(const int requested_x) const
 {
     const int max_x = std::max(0, m_content.getWidth() - m_viewport.getViewWidth());
-    const int next_x = std::clamp(requested_x, 0, max_x);
-    m_viewport.setViewPosition(next_x, m_viewport.getViewPositionY());
+    return std::clamp(requested_x, 0, max_x);
+}
+
+void TrackViewport::setViewportLeft(int requested_x)
+{
+    m_viewport.setViewPosition(clampedViewportLeft(requested_x), m_viewport.getViewPositionY());
 }
 
 // Pushes the current scroll and content geometry into the pinned ruler. Callers must follow

@@ -238,7 +238,7 @@ remembered point row.
 
 **View state** (`editor_view_state.h`): publish the selected tempo anchor and time-signature measure
 (the ruler reads the raw `TempoMap` and has no per-anchor identity), and the paused cursor with its
-measure span while focus stands on a row reached by selection — since 4d, `focus_anchor`, published
+measure span while focus stands on a row reached by selection — since 4d, `focus_anchor_seconds`, published
 for every focus state (see 4d).
 
 **Ruler UI** (`ui/src/timeline/timeline_ruler.{h,cpp}`, built in 1b): the three chip rows share one
@@ -336,7 +336,7 @@ during the build:
 - **The ruler's selected style is unchanged** (the section chip's 1px accent outline, now on all
   three rows). A stronger style is the sighting's call.
 - **The reveal covers the "+" row too.** The published focus (then `selected_row_cursor`, since 4d
-  `focus_anchor`) covers every row reached by selection, so stepping from a region selected far
+  `focus_anchor_seconds`) covers every row reached by selection, so stepping from a region selected far
   from the cursor onto its "+" row also glides.
 
 ### Phase 2 — Tab / Shift+Tab, next object on every row
@@ -1064,59 +1064,70 @@ chip, not only the cursor; click → no glide.
 retone, `Alt+←/→`, `Delete`) and on tempo/time-signature chips (walk and `Tab` only, since they
 have no verbs yet); a click on a chip at the view's far edge must not scroll.
 
-**Build record (2026-09-15).** Built as the one-rule shape, simpler than the diff shape weighed
-above, on the user's observation that the caret and the paused cursor are never two visible
-positions — the caret IS the position while armed, and the cursor takes its place when it dissolves
-— so there is exactly ONE focus to keep in view:
-- **The core publishes one `focus_anchor`** (`FocusAnchorViewState`, replacing
-  `selected_row_cursor`): the armed caret's slot; else the earliest selected chart object or the
-  selected automation point (a marquee or note click dissolves the caret in place, so the cursor
-  may be far from the selection the verbs act on); else, on a selected marker, the column the
-  keyboard stands at within it — the paused cursor while it lies INSIDE the marker's span,
-  otherwise the marker's start (`Impl::selectedMarkerColumn`); else the paused cursor. The walk's
-  column rule (`moveCursorIntoSelectedMarker`) keeps its own holder test, which also gives a row's
-  first marker its lead-in: a cursor in the lead-in is not standing in the section, and showing it
-  there would show neither the chip nor its name. Absent while playing (playback follow owns the
-  view) and with no arrangement. The caret view states lost their measure-bounds fields: the
-  anchor carries the bounds, once.
-- **The view reveals after a command that acts at the focus, never on a push.**
-  `EditorView::perform` — the one funnel for chords, menu items and presses forwarded from the 3D
-  preview — runs the dispatch (`performCommand`) and then, when `editorCommandRevealsFocus`
-  says the command acts at the focus, `revealFocus()`, which glides the anchor's measure into view
-  through the existing `TrackViewport::ensureMeasureVisible`. The predicate reads the registry's
-  shortcuts-dialog category (navigation, selection, authoring, value entry, section, marker reveal;
-  file, edit history, view, transport, grid and menu commands do not) with two rows named against
-  their category (`Ctrl+T` reveals, Esc does not), so saving or toggling a panel never pulls the
-  window back to a caret the user scrolled away from. The three state-diff glides in `setState` are
-  deleted. A push alone therefore never scrolls: a click creates a focus and does not act under one;
-  a wheel scroll pushes nothing. `ensureMeasureVisible` moves nothing for a visible measure, which
-  keeps the rule quiet for the many commands whose focus is already in view.
-- **Two authorities made one.** Keyboard and wheel zoom now center on the published anchor
-  (`TrackViewport::setFocusAnchorSeconds`) instead of caret-else-transport, so a zoom and the reveal
-  after it agree; with a chip selected away from the cursor, zoom centers on the chip.
-- **The lane's typed-value callouts follow their anchor.** A `CallOutBox` is launched on the
-  desktop and stays put while the lane glides under it, which the reveal after a digit now makes
-  routine (and a wheel scroll during entry always could). `ToneAutomationLanesView::CallOutFollower`
-  (a `ComponentMovementWatcher` on the lane) re-aims the open box at the caret square or the point
-  it edits whenever the lane moves.
-- **Behaviour changes to sight:** rename, `Delete`, the restate chord and a step from a marker that
-  already holds the cursor now reveal (the observed defect); a first chip clicked from the lead-in
-  reveals the chip; `Delete` or a technique toggle on a marquee made far from the cursor reveals
-  the selection; typing a digit onto a caret scrolled out of view reveals the caret and the value
-  callout rides along; authoring a marker at an off-screen cursor reveals it; and a pointer-armed
-  caret (`Ctrl`+click) no longer fits its measure after the click, since a click is not a command —
-  the one deliberate loss, in the click rule's favour.
-- **Tests:** `test_editor_controller_marker_rows.cpp` — the anchor names a clicked chip's start
-  while the cursor stands outside it and follows the cursor once inside, names the chip for a first
-  section clicked from the lead-in while the walk still keeps the cursor there, is the caret's slot
-  on a string, falls back to the paused cursor when passive, and is absent while playing;
-  `test_chart_caret.cpp` — the anchor mirrors the armed caret with its measure bounds;
-  `test_chart_editing.cpp` — a note selected by click anchors at the note, not the cursor the
-  caret left; `test_editor_controller_tone_automation.cpp` — the "+" row's anchor is the cursor and
-  a selected point's is the point; `test_editor_view_state.cpp` — the registry's reveal
-  classification. No UI glide test: the glide is timer-driven and has no seam; the sighting brief
-  covers it. Adversarially reviewed before commit; the review found the selection, lead-in, callout,
-  zoom and gate defects above.
+**Build record (2026-09-15, re-ruled the same day after sighting).** The first build (`17eb4d99`)
+kept the measure-fit reveal — the minimal shift that fits the focus's whole measure — and the user
+sighted exactly what that shape cannot give: the landing depended on which side the view had left
+from ("it FEELS inconsistent how far it scrolls"), and a section that held the cursor anchored at
+the cursor, not the chip ("not ALL THE WAY to the start"). Online research (REAPER, Logic, Cubase,
+Pro Tools, Ableton, Studio One, Bitwig, MuseScore, Dorico, Guitar Pro; vim, VS Code, the DOM) and a
+UI-design review followed; the user then asked for the SIMPLE set the analysis converged on, which
+is what stands:
+
+1. **One focus** (`EditorViewState::focus_anchor_seconds`): the armed caret's slot; else the
+   earliest selected note or the selected automation point (a marquee or note click dissolves the
+   caret in place, so the cursor may be far from what the verbs act on); else the selected
+   marker's START — the chip, whichever way the cursor stands to it (`Impl::selectedMarkerStart`);
+   else, on the "+" row or under a time selection, the paused cursor; else nothing, so a verb that
+   left nothing standing (Delete, Esc) reveals nothing. Absent while playing.
+2. **One quiet zone**: nothing moves while the focus lies at least the window's edge fraction
+   (`g_window_pin_fraction`, 5% — already where playback parks the cursor and where the timeline
+   origin sits) inside both edges. The 4% measure-peek constant is deleted.
+3. **One landing** (`g_focus_landing_fraction`, 0.30): a keyboard verb that acts at the focus and
+   leaves it outside the zone glides the window so the focus rests at 30% of the view, the same
+   column whichever side it left from and however far (`TrackViewport::revealFocus`, replacing
+   `ensureMeasureVisible`). Left of center because music reads left to right; not the 5% pin
+   because the keyboard moves both ways and a landing on the margin would glide again on the next
+   leftward step. 30% over 50% is the user's ruling.
+4. **Reveal, never seek.** Rename, Delete and the technique toggles move no cursor; the marker
+   move, Tab and the walk keep the moves they had. Reasons: `Ctrl+M`/`Ctrl+T` author at the
+   cursor, a cursor move triggers the cursor-coupled clear, and a chip click is ruled not to seek.
+5. **Zoom pivots on the cursor, in place** (`applyZoomAroundCursor`): the caret while armed, else
+   the transport, held at the same screen column so zoom scales and never scrolls — it used to
+   recentre the view on every press, most of what "felt odd". Keys and wheel share the one pivot,
+   as REAPER's "edit cursor or play cursor" default; no off-screen fallback and no pointer pivot,
+   deliberately. If an off-screen cursor makes content run away under zoom in sighting, the centre
+   fallback is one comparison, recorded then as the yield. The first build's zoom-on-anchor setter
+   is deleted.
+6. **No pointer reveal.** Clicks never scroll; the measure-fit nudge on `Ctrl`+click stays gone
+   (the user weighed it and chose simple).
+
+**The author chords reveal when their prompt commits.** `Ctrl+M` and `Ctrl+T` act at the CURSOR,
+never the selection, and complete in a prompt or picker after the command has returned; with a
+chip selected the anchor (the chip) and the chord's locus (the cursor) differ, so a reveal at
+command time would show the wrong place, and from passive there is no anchor at all. They are
+left out of the command-time gate and the view calls `revealFocus()` from the prompt and picker
+commit callbacks instead, where the authored marker exists and is the focus. A review finding.
+
+**Sighting note.** With the anchor always the chip, `↑` from a string onto a long section and `↓`
+back is two glides in opposite directions (chip, then cursor) when the cursor stands far inside
+the section. Deterministic, and the ruling; watch whether it reads badly on a long chorus.
+
+Also kept from the first build: the reveal gate (`editorCommandRevealsFocus`, read off the
+shortcuts-dialog category with Esc out) and the lane callouts' follower
+(`ToneAutomationLanesView::CallOutFollower`), since a digit's reveal still glides the lane under
+the value box. Filed to the backlog, not built: "zoom to fit selection" as one toggling verb with
+restore (spare chord `Ctrl+Shift`+wheel; `Ctrl+Shift+=` is what `Ctrl`+plus sends on a US layout,
+so it stays Zoom In's alias).
+
+**Tests:** `test_editor_controller_marker_rows.cpp` — the anchor is a clicked chip's start whether
+the cursor stands outside or inside it, the next row's chip after a step, a first chip clicked
+from the lead-in while the walk still keeps the cursor there, the caret's slot on a string, absent
+when passive and while playing; `test_chart_caret.cpp` — the anchor mirrors the armed caret;
+`test_chart_editing.cpp` — a note selected by click anchors at the note, not the cursor the caret
+left; `test_editor_controller_tone_automation.cpp` — the "+" row's anchor is the cursor and a
+selected point's is the point; `test_editor_view_state.cpp` — the registry's reveal
+classification. No UI glide test: the glide is timer-driven and has no seam; the sighting brief
+covers the landing and the zoom pivot.
 
 #### Order, commits and sightings
 0. **The baseline refactor — DONE and SIGHTED 2026-09-14** (`fd895fcf`, `cdbc17c1`,

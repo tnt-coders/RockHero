@@ -421,34 +421,6 @@ struct ChartCaretViewState
 };
 
 /*!
-\brief Where the keyboard stands, for the view to keep in sight after every command.
-
-The keyboard acts at its focus, so the focus must be visible once a command that acts there has
-run: the view glides this anchor's measure into view after such a command
-(\ref EditorView::perform), and never on a state push alone, so a click — which creates a focus
-rather than acting under one —
-never scrolls away from what was clicked. The anchor is the armed caret's slot; else the earliest
-selected chart object or the selected automation point (a selection made without a caret is where
-the selection verbs act, wherever the cursor was left); else, on a row reached by selection, the
-column the keyboard stands at within the selected marker (the paused cursor while it lies inside
-the marker's span, otherwise the marker's start, so acting on a chip clicked far from the cursor
-reveals the chip); else the paused cursor. The view also zooms around it. Absent while the
-transport plays, when playback follow owns the view. Carries its measure's span so the view never
-re-derives measure bounds from the tempo map.
-*/
-struct FocusAnchorViewState
-{
-    /*! \brief Anchor position in seconds on the arrangement timeline. */
-    double seconds{};
-
-    /*! \brief Start of the anchor's measure in seconds. */
-    double measure_start_seconds{};
-
-    /*! \brief End of the anchor's measure (the next measure's start) in seconds. */
-    double measure_end_seconds{};
-};
-
-/*!
 \brief The verb that renames a section: the one starting at a position, under its current name.
 
 Published as a marker chord's or a selection verb's answer
@@ -1051,10 +1023,20 @@ struct EditorViewState
     std::optional<int> selected_time_signature_measure{};
 
     /*!
-    \brief Where the keyboard stands (\ref FocusAnchorViewState), or nothing while the transport
-    plays or no arrangement is loaded.
+    \brief Where the keyboard stands, in seconds on the arrangement timeline, for the view to keep
+    in sight after a command that acts there.
+
+    The keyboard acts at its focus, so the focus must be visible once such a command has run: the
+    view reveals this time after the command (\ref EditorView::perform), and never on a state push
+    alone, so a click — which creates a focus rather than acting under one — never scrolls. The
+    focus is the armed caret's slot; else the earliest selected chart object or the selected
+    automation point (a selection made without a caret is where the selection verbs act, wherever
+    the cursor was left); else the selected marker's start (the chip, whichever way the cursor
+    stands to it); else, on the "+" row or with a time selection, the paused cursor. Nothing while
+    the marker is passive with no selection — a verb that left nothing standing, such as Delete,
+    then reveals nothing — while the transport plays, or with no arrangement.
     */
-    std::optional<FocusAnchorViewState> focus_anchor{};
+    std::optional<double> focus_anchor_seconds{};
 
     /*!
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.

@@ -56,11 +56,12 @@ struct EditorCommandSpec final
 sight once the command has run.
 
 Read off the shortcuts-dialog category, which already groups the commands by what they act on:
-the navigation, selection, authoring and marker verbs act at the focus; file, edit-history, view,
-transport, grid and menu commands do not, and a saved file or a toggled panel must never scroll
-the window back to a caret the user scrolled away from. Two rows answer against their category
-and are named here: the tone-change chord authors at the cursor although it sits with the tone
-file verbs, and Cancel dismisses although it sits with the selection verbs.
+the navigation, selection, authoring, value-entry and marker verbs act at the focus; file,
+edit-history, view, transport, grid and menu commands do not, and a saved file or a toggled panel
+must never scroll the window back to a caret the user scrolled away from. The section and
+tone-change author chords are left out too: they act at the cursor and complete in a prompt after
+the command has returned, so the view reveals when that prompt commits. One row answers against
+its category and is named here: Cancel dismisses although it sits with the selection verbs.
 
 \param spec Registry entry to classify.
 \return True when the view should reveal the focus after performing the command.

@@ -858,10 +858,12 @@ TEST_CASE("Command registry classifies which commands reveal the focus", "[ui][e
     CHECK(reveals(EditorCommandId::SelectionDelete));
     CHECK(reveals(EditorCommandId::TypeDigit1));
     CHECK(reveals(EditorCommandId::ChartLegatoToggle));
-    CHECK(reveals(EditorCommandId::InsertSongSection));
     CHECK(reveals(EditorCommandId::RenameSelection));
-    CHECK(reveals(EditorCommandId::InsertToneChange));
 
+    // The author chords act at the cursor and complete in a prompt; their reveal comes with the
+    // prompt's commit, not the command.
+    CHECK_FALSE(reveals(EditorCommandId::InsertSongSection));
+    CHECK_FALSE(reveals(EditorCommandId::InsertToneChange));
     CHECK_FALSE(reveals(EditorCommandId::SaveProject));
     CHECK_FALSE(reveals(EditorCommandId::Undo));
     CHECK_FALSE(reveals(EditorCommandId::TogglePreview3D));

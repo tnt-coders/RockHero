@@ -621,22 +621,21 @@ const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)
 
 bool editorCommandRevealsFocus(const EditorCommandSpec& spec)
 {
-    // Ctrl+T authors or retones at the cursor; its category siblings import and export tone files.
-    if (spec.id == EditorCommandId::InsertToneChange)
-    {
-        return true;
-    }
     // Esc dismisses; a dismissal must never scroll.
     if (spec.id == EditorCommandId::CancelDismiss)
     {
         return false;
     }
-    static constexpr std::array<std::string_view, 6> g_focus_categories{
+    // The section and tone-change author chords (categories Section and Tone) are deliberately
+    // absent: they act at the CURSOR, never the selection, and complete in a prompt or picker
+    // after perform() has returned — so the view reveals when that prompt commits, where the
+    // authored marker exists and is the focus, rather than here against a chip the chord never
+    // touched.
+    static constexpr std::array<std::string_view, 5> g_focus_categories{
         "Navigation",
         "Selection",
         "Authoring",
         "Value Entry",
-        "Section",
         "Marker",
     };
     return std::ranges::find(g_focus_categories, std::string_view{spec.category}) !=
