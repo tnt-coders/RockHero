@@ -11,8 +11,8 @@ BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT an
 2026-09-15**. Steps 4b (the fret-hand position row) and 4c (the span row) were HANDED OFF
 2026-09-15 to `docs/plans/roadmap/60-hand-markers.md` §8: the position marker and the span marker
 are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. Step 4d
-(reveal the acted-on selection, user-observed and ruled 2026-09-15) is owed on the shipped rows;
-this plan is complete once 4d and the Phase 4 doc sweep land. Supersedes the armed-caret row model of `d320e7ac`
+(reveal the acted-on selection, user-observed and ruled 2026-09-15) is BUILT and SIGHTED
+2026-09-15 (`0b0ef106`, `4fed59cc`); this plan is complete once the Phase 4 doc sweep lands. Supersedes the armed-caret row model of `d320e7ac`
 (kept on `master` for reference only).*
 
 ## Context
@@ -1031,7 +1031,7 @@ either design was dropped; what changed is that one row, one selection kind and 
 replace two of each, and the former span row's "gap" applies only to the shape half of a hand
 event, so the row always has a holder.
 
-#### 4d — Reveal the acted-on selection (RULED and BUILT 2026-09-15; build record below the brief)
+#### 4d — Reveal the acted-on selection (RULED, BUILT and SIGHTED 2026-09-15; build record below the brief)
 **Observed (user, 2026-09-15):** click a section chip, scroll on through the next section until
 the selected chip is off-screen, then act on the selection by keyboard — the verb runs without
 bringing the section into view. It is every marker row's behaviour, not the section row's: the
@@ -1064,7 +1064,8 @@ chip, not only the cursor; click → no glide.
 retone, `Alt+←/→`, `Delete`) and on tempo/time-signature chips (walk and `Tab` only, since they
 have no verbs yet); a click on a chip at the view's far edge must not scroll.
 
-**Build record (2026-09-15; the third shape, the user's own).** Two earlier builds the same day
+**Build record (2026-09-15; the third shape, the user's own; SIGHTED 2026-09-15 with the three
+refinements of `4fed59cc` — "this sights well").** Two earlier builds the same day
 were sighted and replaced: a measure-fit reveal after every focus verb (`17eb4d99`, landing
 depended on which side the view left from) and a one-focus quiet-zone/30%-landing rule
 (`fb785bf6`, the walk glided on selection, an off-screen zoom pivot read as chaos, Delete revealed
@@ -1155,8 +1156,8 @@ it.
 3. **4b and 4c** — HANDED OFF 2026-09-15 to plan 60 §8 as one hand row (the merge this list
    anticipated: plan 60 ruled the FHP and span markers one object).
 4. **4d — reveal the acted-on selection** (user-observed 2026-09-15; ruled as plan 60's 60-H6,
-   owed here first because the shipped rows have the defect). **Sighting.** This plan closes
-   with 4d and the Phase 4 doc sweep below.
+   owed here first because the shipped rows have the defect) — BUILT and SIGHTED 2026-09-15.
+   This plan closes with the Phase 4 doc sweep below.
 
 #### Out of scope
 - **Phase 3's build** — the author-at-cursor precedence (built 2026-09-14, ahead of 4a as
