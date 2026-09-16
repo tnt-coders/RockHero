@@ -78,7 +78,7 @@ friction rationale (threshold, preview, Esc, single-undo commit). Alt remains th
 gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
 
 **The marker's row axis — the focus rows** (2026-07-18; re-ruled 2026-09-13, the design record is
-`docs/plans/in-progress/keyboard-focus-rows.md`): the keyboard's vertical coordinate is a **row**
+`docs/plans/completed/keyboard-focus-rows.md`): the keyboard's vertical coordinate is a **row**
 in one stack — the ruler's section, tempo and time-signature rows, the chart strings, then the
 **tone-region row** (see *Tone-region row*), then the visible automation lanes (a lane row is
 identified by its instance + parameter, never its display index), then the **"+" row** that ends
@@ -365,7 +365,7 @@ here means zoom, not precision:
 The tone strip is a **selectable region-row** in the vertical stack (settled 2026-07-20; between the
 chart strings and the automation lanes) — a *span* surface, not a point surface, so keyboard access
 is region *selection*, never point-placement. **Re-ruled 2026-09-13** (the focus rows,
-`docs/plans/in-progress/keyboard-focus-rows.md`): the armed caret never rides this row, because
+`docs/plans/completed/keyboard-focus-rows.md`): the armed caret never rides this row, because
 nothing is typed there. Down from string 1, Up from the first lane, `Ctrl+Down` from any string or
 `Ctrl+Up` from any lane SELECTS **the region holding the cursor** (`ToneRegionSelection`), with the
 caret demoted in place so the cursor line stays put. A region selected with the pointer seeks nothing, so it may

@@ -401,7 +401,7 @@ The full grammar record (verb table rows, per-surface behavior, amendment record
 `editing-interaction-model.md` — this section holds only what extends the marker model itself.
 
 - **Rows, not strings.** The keyboard's vertical coordinate generalizes from a string index to a
-  **row** (re-ruled 2026-09-13, `docs/plans/in-progress/keyboard-focus-rows.md`): the ruler's
+  **row** (re-ruled 2026-09-13, `docs/plans/completed/keyboard-focus-rows.md`): the ruler's
   section, tempo and time-signature rows, the chart strings, then the **tone-region row** (see
   *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a lane
   row is identified by instance + parameter, never display index), then the "+" row. The armed

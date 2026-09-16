@@ -16,7 +16,7 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows (docs/plans/in-progress/keyboard-focus-rows.md): the ruler's section, tempo and
+// The marker rows (docs/plans/completed/keyboard-focus-rows.md): the ruler's section, tempo and
 // time-signature rows and the tone row, which the keyboard reaches by selecting a marker. Every row
 // answers the same questions — where its markers start, which one holds a position, which one the
 // selection names — so the walk, a chip click and Tab share one model of all four.

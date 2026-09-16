@@ -822,7 +822,7 @@ Each re-verified against the code before being written down.
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 
 Seven pre-existing gaps, all outside that plan's phases
-(`docs/plans/in-progress/keyboard-focus-rows.md`). Each re-verified against the code before being
+(`docs/plans/completed/keyboard-focus-rows.md`). Each re-verified against the code before being
 written down.
 
 - **A lane caret's keyboard steps can leave the active tone region's window.** The horizontal step
@@ -921,7 +921,7 @@ written down.
   first span deliberately extends back to time 0. Unreachable today: the tone schedule is gapless
   from the chart start and the first region's start cannot move (`moveToneBoundary` refuses index 0,
   `tone_track_edits.cpp` `CannotMoveSongStart`), so no addressable position lies below it. It stops
-  being unreachable at Phase 4c of `docs/plans/in-progress/keyboard-focus-rows.md`, whose
+  being unreachable at Phase 4c of `docs/plans/completed/keyboard-focus-rows.md`, whose
   `markerHolderAt` replaces `markerHolderIndex` for every row including a span row with real gaps —
   at which point "what holds this position" needs ONE answer rather than two that happen never to be
   asked the same question.
@@ -964,7 +964,7 @@ written down.
   second — runs in the main window and does nothing in the preview, and a chord whose first owner is
   outside the preview whitelist is refused even when an enabled whitelisted owner is also bound to
   it. Pre-existing, reachable only through the keymap editor today.
-  **Closed 2026-09-15** by step 4.0c of `docs/plans/in-progress/keyboard-focus-rows.md`: every
+  **Closed 2026-09-15** by step 4.0c of `docs/plans/completed/keyboard-focus-rows.md`: every
   write of a binding — assign, reset and restore — goes through `assignKeyPressToCommand`
   (`rock-hero-editor/ui/src/keybinds/keymap_ownership.h`), so a chord has one owner and the two
   paths agree by construction.

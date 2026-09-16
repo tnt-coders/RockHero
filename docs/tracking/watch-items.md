@@ -908,7 +908,7 @@ manager rather than replacing it.
 
 ### No command runs while a main-window text field is edited — trigger: the main window gains a text field that STAYS OPEN
 
-Ruled 2026-09-14 (D3 of `docs/plans/in-progress/keyboard-focus-rows.md`) and built the same day:
+Ruled 2026-09-14 (D3 of `docs/plans/completed/keyboard-focus-rows.md`) and built the same day:
 `MainWindow::keyPressed` hands a press to the `KeyPressMappingSet` only while the window's peer has
 no text input target (`ComponentPeer::findCurrentTextInputTarget`), so while a field is being edited
 nothing at all fires from the keyboard. That is acceptable *because* the only fields reaching this

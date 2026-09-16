@@ -132,7 +132,7 @@ void MainWindow::closeButtonPressed()
 // The command mapping set is the single chord-to-command matcher — since plan 53 Phase 1b every
 // keybind, grammar verbs included, dispatches through it — and the window shell is where a press
 // ends up, so this is the one place the typing gate has to live
-// (docs/plans/in-progress/keyboard-focus-rows.md, 4.0a). A focused text editor declines every key
+// (docs/plans/completed/keyboard-focus-rows.md, 4.0a). A focused text editor declines every key
 // it does not type — Tab, Insert, the F-keys, Ctrl chords, Ctrl+Z once its own history is spent —
 // and without the gate each of those would run a chart command behind the field. While the peer
 // has a text input target nothing is dispatched; the press then reaches only JUCE's unclaimed-Tab

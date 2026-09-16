@@ -1290,7 +1290,7 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     return stack;
 }
 
-// The vertical walk (docs/plans/in-progress/keyboard-focus-rows.md): rows where nothing is typed —
+// The vertical walk (docs/plans/completed/keyboard-focus-rows.md): rows where nothing is typed —
 // the ruler's marker rows, the tone row and the "+" row — are reached by SELECTION, and rows where
 // a keystroke authors a point by the caret, so the caret only ever arms on a string or a lane.
 // Vertical keys keep the column; the landing decides what the destination row holds there.
@@ -1533,7 +1533,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     updateView();
 }
 
-// Tab (docs/plans/in-progress/keyboard-focus-rows.md, Phase 2, re-ruled in Phase 3): the next or
+// Tab (docs/plans/completed/keyboard-focus-rows.md, Phase 2, re-ruled in Phase 3): the next or
 // previous OBJECT on the row focus stands on, the grid ignored, read from the CURSOR on every row.
 // A string's objects are its notes and their keyframes (its notes alone under notes_only), a
 // lane's its points, and a marker row's its marker starts: the column rule first brings the cursor

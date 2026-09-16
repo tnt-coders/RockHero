@@ -320,7 +320,7 @@ above. Building one means:
    joins `MarkerRow` — BOTH switches over the enum, `markerStarts` and `markerSelectionAt` in
    `rock-hero-editor/core/src/timeline/marker_row_handlers.cpp`, plus a `selectedMarker()` arm —
    and the focus-row stack, `focusRowStack` in `chart_handlers.cpp`
-   (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
+   (`docs/plans/completed/keyboard-focus-rows.md`); the tempo anchor and the meter already
    have selectable chips there, awaiting their verbs.
 4. **Declare the kind's LETTER once** in `editor_command_registry.cpp` (a `g_<kind>_key` constant)
    and compose both chords from it — `markerAuthorChord(letter)` for `Ctrl`+letter and

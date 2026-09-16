@@ -1371,7 +1371,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     template <typename Snapshot>
     bool commitMarkerModel(Snapshot before, Snapshot after, std::string label);
 
-    // One row of the keyboard's vertical walk (docs/plans/in-progress/keyboard-focus-rows.md),
+    // One row of the keyboard's vertical walk (docs/plans/completed/keyboard-focus-rows.md),
     // computed per press and never stored. The caret names a string or lane row; the selection
     // names a marker row or the "+" row beneath the lanes. The alternatives are in no particular
     // order — only their DISTINCTNESS is used — because the order the rows are walked in is

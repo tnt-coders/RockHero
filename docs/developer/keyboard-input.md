@@ -492,7 +492,7 @@ keeps the marker's row arms on. The four marker rows share one model in
 `selectedMarker` and its inverse `markerSelectionAt`, and `selectMarker`, the one select every
 pointer and keyboard path to a marker goes through;
 `Ctrl+Up/Down` pass the same step's `reach` flag, which along time is the measure jump
-(`docs/plans/in-progress/keyboard-focus-rows.md`).
+(`docs/plans/completed/keyboard-focus-rows.md`).
 
 The `Ctrl+Shift`+letter row JUMPS (`onFocusRowJumpRequested(FocusRowJump)`, `JumpToFocusRow`, built
 2026-09-15) are the walk's direct route rather than a second grammar: `focusRowFor` maps the target

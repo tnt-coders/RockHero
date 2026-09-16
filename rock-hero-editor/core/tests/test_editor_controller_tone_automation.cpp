@@ -1563,7 +1563,7 @@ TEST_CASE(
     }
 }
 
-// The focus rows below the strings (docs/plans/in-progress/keyboard-focus-rows.md): Down from
+// The focus rows below the strings (docs/plans/completed/keyboard-focus-rows.md): Down from
 // string 1 selects the tone region holding the cursor, then arms the first lane, then selects the
 // "+" row, and Up retraces them. The caret is armed only on the string and the lane; the tone and
 // "+" rows are selections. Ctrl's reach jumps a whole group at a time, landing on its nearest row.

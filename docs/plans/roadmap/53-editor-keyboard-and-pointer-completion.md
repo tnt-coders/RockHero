@@ -333,7 +333,7 @@ Depends on Phase 1.
 
 ### Phase 4 — Cross-surface vertical nav + tone-region row  *(the B marker model)*
 
-> **Superseded 2026-09-13** by `docs/plans/in-progress/keyboard-focus-rows.md`, whose Phase 1a is
+> **Superseded 2026-09-13** by `docs/plans/completed/keyboard-focus-rows.md`, whose Phase 1a is
 > built (unsighted): the tone-region row is reached by SELECTION, never by an armed caret, so there
 > is no ride and no `clearCursorCoupledSelection` split; `stepCaretRow` and its `measure` flag are
 > gone (`stepFocusRow`, `reach`). The text below is the original plan, kept for the record.
@@ -351,7 +351,7 @@ Depends on Phase 1; interlocks Phase 5 (the `Enter` target).
 > **Re-stamped 2026-09-14.** The signal chain has no keyboard interface today: every plugin verb is
 > pointer-only. This phase is what lets `Enter` on a selected tone region DRILL into the chain
 > instead of retoning it; until it is built `Enter` keeps retoning (ruled 2026-09-14,
-> `docs/plans/in-progress/keyboard-focus-rows.md` Phase 3 item 3), with the rename on `Ctrl+R` and
+> `docs/plans/completed/keyboard-focus-rows.md` Phase 3 item 3), with the rename on `Ctrl+R` and
 > the retone on `Ctrl+T` at the region's start. Its dependency on Phase 4 below is void — that phase
 > was superseded by the focus-row model — so it depends on plan 53 Phase 1 (built) and on
 > keyboard-focus-rows Phase 3 (the grammar that frees `Enter`). When it is planned in earnest,
@@ -370,7 +370,7 @@ ring + active chain panel + de-emphasized timeline. Depends on Phases 1 + 4.
 ### Phase 6 — Automation "+ add" row + point multi-select
 
 > **The "+" row half is built** (2026-09-13, unsighted) under
-> `docs/plans/in-progress/keyboard-focus-rows.md` Phase 1a, with `Enter` only — `Insert` is not
+> `docs/plans/completed/keyboard-focus-rows.md` Phase 1a, with `Enter` only — `Insert` is not
 > paired with the row yet. Point multi-select remains this phase's open half.
 
 Always-present focusable **"+ add automation" row** (`Enter`/`Insert` → plugin→parameter picker via

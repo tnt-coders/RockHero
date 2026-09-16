@@ -29,7 +29,7 @@ The design records this plan executes, in the order a new reader should take the
   extent invariant, the signed span boundary gestures, and the span execution phases. Source of
   truth for Phases 3, 4 and the template half of Phase 5. Todo-tier: re-verify before building.
 - `docs/plans/todo/chord-dictionary.md` — the grip library the markers reference.
-- `docs/plans/in-progress/keyboard-focus-rows.md` — the marker-row keyboard model the hand row
+- `docs/plans/completed/keyboard-focus-rows.md` — the marker-row keyboard model the hand row
   reuses (Phases 1–4a built and sighted; its 4b/4c bodies moved here as §8).
 
 ## 2. The one object — RULED 2026-09-15
