@@ -248,9 +248,9 @@ public:
     it acted on in view.
 
     Every command — a chord, a menu item, a press forwarded from the 3D preview — runs through
-    here, so this is the one place the rule for a verb on a selection lives: after such a verb the
-    selection's first member (\ref core::EditorViewState::selection_start_seconds) is left alone
-    while fully on screen and centred otherwise. A moved position is followed by \ref setState
+    here, so this is the one place the rule for a verb on a selection lives: the selection's first
+    member (\ref core::EditorViewState::selection_start_seconds) is left alone when it was fully on
+    screen as the verb ran and centred otherwise. A moved position is followed by \ref setState
     instead, and selecting alone never moves the view.
 
     \param info Invocation details carrying the command id.
@@ -262,9 +262,9 @@ private:
     // The command dispatch itself; perform() wraps it with the selection-centring rule.
     bool performCommand(const InvocationInfo& info);
 
-    // Asks the surfaces what they drew for the selection and hands the viewport the answer, so it
-    // can leave a fully visible glyph alone and centre the time otherwise.
-    void centerSelectionUnlessVisible(double seconds);
+    // Asks the surfaces what they drew for the selection and the viewport whether that is fully on
+    // screen.
+    [[nodiscard]] bool selectionGlyphVisible(double seconds) const;
 
     enum class SaveAsChooserPurpose : std::uint8_t
     {

@@ -624,9 +624,11 @@ std::optional<juce::Rectangle<float>> ToneTrackView::selectedRegionLabelBounds()
     {
         return std::nullopt;
     }
+    // A label pinned at the visible edge for a region starting off screen is no witness that the
+    // region's start is on screen; only a label standing where the region starts is.
     const std::optional<float> pinned_left =
         stickyLabelLeft(*start_x, *end_x, static_cast<float>(m_visible_content_left));
-    if (!pinned_left.has_value())
+    if (!pinned_left.has_value() || *pinned_left > *start_x)
     {
         return std::nullopt;
     }

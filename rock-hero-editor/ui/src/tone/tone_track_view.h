@@ -256,10 +256,10 @@ public:
     /*!
     \brief The selected region's label area, in this component's coordinates.
 
-    The glyph a verb on the selection keeps on screen: the label rides its region and pins at the
-    visible left edge while the region covers it, so a long region the charter is working inside
-    counts as on screen through its pinned name, exactly as a pinned ruler chip does. Empty with no
-    selected region, or when the region lies wholly outside the view.
+    The glyph a verb on the selection keeps on screen: the label standing where its region starts.
+    Empty with no selected region, when the region lies wholly outside the view, and when the label
+    is PINNED at the visible edge for a region starting off screen — the pinned name proves nothing
+    about where the region is, exactly as for a pinned ruler chip.
 
     \return The label area, or empty.
     */

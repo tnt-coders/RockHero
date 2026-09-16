@@ -299,10 +299,12 @@ public:
     void resized() override;
 
     /*!
-    \brief The selected chip's bounds in this ruler's coordinates, when a row placed one.
+    \brief The selected chip's bounds in this ruler's coordinates, when a row placed it where its
+    marker is.
 
-    A selected marker whose chip scrolled off the ruler has no bounds here: the rows place only
-    the chips the window shows.
+    A selected marker whose chip scrolled off the ruler has no bounds here — the rows place only
+    the chips the window shows — and neither has one whose chip is PINNED at the edge for a marker
+    standing elsewhere: the pinned name proves nothing about where the marker is.
 
     \return The chip's bounds, or empty.
     */
@@ -327,6 +329,9 @@ private:
         RulerLabel label{};
         std::size_t source_index{0};
         bool selected{false};
+        // Standing at the left edge for a marker that is not there: the name is in view, the
+        // marker is not, so this chip is no witness that the marker is on screen.
+        bool pinned{false};
     };
 
     // One chip row's cached geometry: the placed chips, and the visible marker columns its dotted

@@ -306,7 +306,7 @@ std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
                            const int row_y) -> std::optional<juce::Rectangle<int>> {
         const auto selected =
             std::ranges::find_if(row.chips, [](const RulerChip& chip) { return chip.selected; });
-        if (selected == row.chips.end())
+        if (selected == row.chips.end() || selected->pinned)
         {
             return std::nullopt;
         }
@@ -723,21 +723,26 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
         }
     }
 
-    const auto place = [&](const int anchor_x, const std::size_t index) {
+    // Places one marker's chip at an anchor column when the row has room for it, and returns the
+    // placed chip (or nullptr) so the pin below can mark its own.
+    const auto place = [&](const int anchor_x, const std::size_t index) -> RulerChip* {
         if (!placement.accepts(anchor_x))
         {
-            return;
+            return nullptr;
         }
         juce::String text = text_at(index);
         if (text.isEmpty())
         {
-            return;
+            return nullptr;
         }
         const int width = width_of(text);
-        if (const std::optional<int> label_x = placement.reserve(anchor_x, width))
+        const std::optional<int> label_x = placement.reserve(anchor_x, width);
+        if (!label_x.has_value())
         {
-            row.chips.push_back(chip_of(*label_x, std::move(text), width, index));
+            return nullptr;
         }
+        row.chips.push_back(chip_of(*label_x, std::move(text), width, index));
+        return &row.chips.back();
     };
 
     if (pinned_left_seconds.has_value())
@@ -760,7 +765,11 @@ TimelineRuler::ChipRow TimelineRuler::placeChipRow(
             if (selected == active ||
                 !pinYieldsToIncomingLabel(width_of(text_at(*active)), first_anchor_x))
             {
-                place(0, *active);
+                if (RulerChip* const chip = place(0, *active); chip != nullptr)
+                {
+                    // Pinned unless the marker itself stands exactly at the edge.
+                    chip->pinned = anchor_x_at(*active) != std::optional<int>{0};
+                }
             }
         }
     }

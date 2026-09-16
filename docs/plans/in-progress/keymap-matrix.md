@@ -177,7 +177,7 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 
 | Keybind | Behavior | Status |
 |---|---|---|
-| `Shift+←/→` | extend time-range by the **display grid** | Live (759b145f) |
+| `Shift+←/→` | extend time-range by the **display grid**. A plain `←/→` afterwards leaves the span the way a caret leaves the slot it stands on: `←` arms one grid step past the span's START, `→` one past its END, and the span is released (2026-09-15) | Live (759b145f) |
 | `Shift+Ctrl+←/→` | extend time-range by **measure** | Live (759b145f) |
 | `Shift+PageUp/Dn` | extend time-range by **section stop** (the chart start and end count, as for `PageUp/Dn`) | Live (759b145f; bounds 2026-09-14) |
 | `Shift+Home` / `Shift+End` | extend time-range to chart **start / end** | Live (759b145f) |

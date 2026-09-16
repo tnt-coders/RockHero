@@ -59,16 +59,19 @@ chords. Everything else is plumbing that keeps focus in the right place:
   `EditorView::perform` is the one funnel for chords, menu items and presses forwarded from the 3D
   preview; for a command `editorCommandActsOnSelection` classifies (read off the registry
   category: the selection, authoring, value-entry and marker verbs; not navigation, file, history,
-  view, transport, grid or menu commands, nor the section and tone-change author chords) it takes
-  the selection's first member (`EditorViewState::selection_start_seconds` — the earliest selected
-  note or point, the selected marker's start, else the armed caret; the pre-command value when the
-  verb destroyed the selection, so Delete centres where it stood), asks the surface that drew it
-  for the glyph's bounds (`TimelineRuler::selectedChipBounds`, a pinned chip included,
+  view, transport, grid or menu commands, nor the section and tone-change author chords) it reads,
+  BEFORE the command runs, the selection's first member
+  (`EditorViewState::selection_start_seconds` — the earliest selected note or point, the selected
+  marker's start, else the armed caret) and whether that was fully on screen: it asks the surface
+  that drew it for the glyph's bounds (`TimelineRuler::selectedChipBounds`,
   `ToneTrackView::selectedRegionLabelBounds`, `TabView::selectedNoteHeadBounds`,
-  `ToneAutomationLanesView::selectedPointBounds`), and calls
-  `TrackViewport::centerOnTimeUnlessVisible`: nothing while the glyph is on screen edge to edge —
-  and this rule decides alone, cancelling a measure fit the same command started — else a glide
-  that centres the time. (3) *Selecting never scrolls*: a chip click, a click on an existing note
+  `ToneAutomationLanesView::selectedPointBounds` — a chip or label PINNED at the edge for a marker
+  standing elsewhere reports nothing, so the marker's own column answers) and puts them to
+  `TrackViewport::isSelectionVisible`. A selection that was on screen is left alone, even when the
+  verb moved it: `Alt+←` pushing a chip off the edge is followed by rule 1's measure fit of the
+  cursor that went with it. One that was not is centred (`TrackViewport::centerOnTime`) where the
+  verb left it, or where it stood when the verb destroyed it, so Delete centres the deleted place.
+  (3) *Selecting never scrolls*: a chip click, a click on an existing note
   and a walk onto the marker that already holds the cursor publish no moved position and act on
   nothing; a walk whose column rule seeks the cursor into a far-off marker is a move, and rule 1
   follows it. Zoom (`applyZoomAroundCursor`)

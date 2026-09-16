@@ -1418,10 +1418,11 @@ void EditorController::Impl::armMarkerInPlace(const int string_count)
 
 // Arrow keys on the marker (the marker model): Up/Down walk the focus rows (stepFocusRow).
 // Left/Right from the passive marker — a marker row included — arm in place on the remembered row
-// without stepping; while armed they step the union stop set on the caret's row, or jump measures
-// under the reach modifier (the Guitar Pro jump). Every move re-derives the selection from what
-// sits under the caret. Inert while playing: arming requires a paused transport (armed ⟹ paused
-// is structural).
+// without stepping, except under a time selection, which they leave past its edge in their
+// direction; while armed they step the union stop set on the caret's row, or jump measures under
+// the reach modifier (the Guitar Pro jump). Every move re-derives the selection from what sits
+// under the caret. Inert while playing: arming requires a paused transport (armed ⟹ paused is
+// structural).
 void EditorController::Impl::performActionImpl(const EditorAction::StepChartCaret& action)
 {
     const ChartStepDirection direction = action.direction;
@@ -1438,11 +1439,28 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         return;
     }
 
-    const ChartCaret* const armed = armedChartCaret();
+    const ChartCaret* armed = armedChartCaret();
     if (armed == nullptr)
     {
-        armMarkerInPlace(tab->stringCount());
-        return;
+        // A standing time selection is left the way a caret leaves the span it stands on: Left
+        // continues one step past the selection's start, Right one step past its end. The caret
+        // arms at that edge on the remembered row, and the ordinary step below takes the one step.
+        // The edge is copied first: landing releases the selection it was read from.
+        const TimeSelection* const range = selectedTimeSelection();
+        if (range == nullptr)
+        {
+            armMarkerInPlace(tab->stringCount());
+            return;
+        }
+        const common::core::GridPosition edge =
+            direction == ChartStepDirection::Left ? range->start() : range->end();
+        landOnRow(prepareLandingRow(tab->stringCount()), edge);
+        armed = armedChartCaret();
+        if (armed == nullptr)
+        {
+            updateView();
+            return;
+        }
     }
 
     // Along the time axis, reach is a measure.

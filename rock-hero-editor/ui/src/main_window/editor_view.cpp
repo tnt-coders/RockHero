@@ -1655,20 +1655,19 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
 
 bool EditorView::perform(const InvocationInfo& info)
 {
-    // What the verb is about to act on, read before it runs: a verb that destroys its selection
-    // (Delete) leaves nothing published afterwards, and the view still centres where it stood.
+    // The rule for a verb on a selection is judged WHEN THE VERB RUNS: what it is about to act on,
+    // and whether that was fully on screen, are both read before the command. A selection that was
+    // in view is left alone — even when the verb moves it and the cursor with it, so a marker
+    // pushed off the edge is followed by the measure fit, not centred — and one that was not is
+    // centred where the verb left it, or where it stood when the verb destroyed it (Delete).
     const std::optional<double> selection_before = m_state.selection_start_seconds;
+    const bool visible_before =
+        !selection_before.has_value() || selectionGlyphVisible(*selection_before);
     const bool handled = performCommand(info);
     if (const EditorCommandSpec* const spec = findEditorCommandSpec(info.commandID);
-        spec != nullptr && editorCommandActsOnSelection(*spec))
+        spec != nullptr && editorCommandActsOnSelection(*spec) && !visible_before)
     {
-        const std::optional<double>& selection_after = m_state.selection_start_seconds;
-        if (const std::optional<double> subject =
-                selection_after.has_value() ? selection_after : selection_before;
-            subject.has_value())
-        {
-            centerSelectionUnlessVisible(*subject);
-        }
+        m_track_viewport->centerOnTime(m_state.selection_start_seconds.value_or(*selection_before));
     }
     return handled;
 }
@@ -1677,10 +1676,11 @@ bool EditorView::perform(const InvocationInfo& info)
 // chip, the tone row its selected region's label, the tab lane the earliest selected head, the
 // lanes the selected point's handle — at most one answers, since there is one selection
 // editor-wide — mapped into the viewport's coordinates so the viewport can judge "fully on
-// screen" against its window. A pinned chip or label counts: the marker's name is what the
-// charter sees. Nothing drawn (a chip scrolled off the ruler, a keyframe-only selection, the
-// caret standing in for a selection) leaves the time's own column to answer.
-void EditorView::centerSelectionUnlessVisible(const double seconds)
+// screen" against its window. A chip or label PINNED at the edge for a marker that is not there
+// does not count: the surfaces report nothing for it, so the marker's own column answers, and a
+// verb on it brings the marker in. Nothing drawn (a chip scrolled off the ruler, a keyframe-only
+// selection, the caret standing in for a selection) likewise leaves the column to answer.
+bool EditorView::selectionGlyphVisible(const double seconds) const
 {
     std::optional<juce::Rectangle<int>> glyph = m_track_viewport->selectedRulerChipBounds();
     if (!glyph.has_value())
@@ -1712,7 +1712,7 @@ void EditorView::centerSelectionUnlessVisible(const double seconds)
                 &m_tone_automation_lanes_view, handle->getSmallestIntegerContainer());
         }
     }
-    m_track_viewport->centerOnTimeUnlessVisible(seconds, glyph);
+    return m_track_viewport->isSelectionVisible(seconds, glyph);
 }
 
 // The guards mirror getCommandInfo's enablement on purpose: the mapping set and menus already

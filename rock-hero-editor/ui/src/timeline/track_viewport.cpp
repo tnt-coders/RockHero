@@ -980,40 +980,41 @@ void TrackViewport::ensureMeasureVisible(
     beginWindowGlide(target_left);
 }
 
-// The rule for a verb on a selection: the window stays put while the selected glyph — passed in
-// this component's coordinates, or absent when the surface drew none, as for a chip scrolled off
-// the ruler — lies fully inside the window horizontally; otherwise it glides until the selection's
-// time is centred. Vertical extent is not the question: the ruler's chips sit above the scrolling
-// window and are in view whenever their columns are. This rule decides the window alone: a
-// measure fit the same command started by moving the cursor (a marker move) is superseded either
-// way, so a verb on a visible selection never scrolls.
-void TrackViewport::centerOnTimeUnlessVisible(
-    const double seconds, const std::optional<juce::Rectangle<int>> glyph_bounds)
+// Whether the selection a verb is about to act on is fully on screen: its glyph — passed in this
+// component's coordinates, or absent when the surface drew none, as for a chip scrolled off the
+// ruler — lies inside the window horizontally, edge to edge; with no glyph, the time's column
+// stands in. Vertical extent is not the question: the ruler's chips sit above the scrolling
+// window and are in view whenever their columns are. The window is the viewport's VIEW width,
+// not its bounds: a vertical scrollbar covers the rightmost strip, and a glyph under it is not on
+// screen.
+bool TrackViewport::isSelectionVisible(
+    const double seconds, const std::optional<juce::Rectangle<int>> glyph_bounds) const
+{
+    if (glyph_bounds.has_value())
+    {
+        const int window_left = m_viewport.getX();
+        return glyph_bounds->getX() >= window_left &&
+               glyph_bounds->getRight() <= window_left + m_viewport.getViewWidth();
+    }
+    const std::optional<float> x = contentXForTime(
+        std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds));
+    return x.has_value() && columnVisible(*x);
+}
+
+// Glides the window until the time sits at its centre — the rule for a verb on a selection that
+// was not on screen when the verb ran. It supersedes a measure fit the same command may have
+// started by moving the cursor.
+void TrackViewport::centerOnTime(const double seconds)
 {
     if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || m_viewport.getViewWidth() <= 0 ||
         m_content.getWidth() <= 0)
     {
         return;
     }
-    // The window is the viewport's VIEW width, not its bounds: a vertical scrollbar covers the
-    // rightmost strip, and a glyph under it is not on screen.
-    const int window_left = m_viewport.getX();
-    const int window_right = window_left + m_viewport.getViewWidth();
-    if (glyph_bounds.has_value() && glyph_bounds->getX() >= window_left &&
-        glyph_bounds->getRight() <= window_right)
-    {
-        m_window_shift.reset();
-        return;
-    }
     const std::optional<float> x = contentXForTime(
         std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds));
     if (!x.has_value())
     {
-        return;
-    }
-    if (!glyph_bounds.has_value() && columnVisible(*x))
-    {
-        m_window_shift.reset();
         return;
     }
     beginWindowGlide(

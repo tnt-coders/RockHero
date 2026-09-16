@@ -292,18 +292,29 @@ public:
         double measure_start_seconds, double measure_end_seconds, double position_seconds);
 
     /*!
-    \brief Centres a time in the window unless the glyph drawn for it is already fully on screen.
+    \brief Whether the selection a verb is about to act on is fully on screen.
 
-    The rule for a verb on a selection: nothing moves while the selected glyph lies inside the
-    window horizontally, edge to edge with no clipping; otherwise the window glides until the time
-    is centred. With no glyph — the surface drew none because the selection is scrolled off — the
-    time's own column stands in for it.
+    True while the selected glyph lies inside the window horizontally, edge to edge with no
+    clipping. With no glyph — the surface drew none because the selection is scrolled off, or a
+    pinned chip stands in for a marker that is not where the chip is — the time's own column
+    stands in.
 
     \param seconds The selection's time on the arrangement timeline.
     \param glyph_bounds The selected glyph's bounds in this component's coordinates, or empty.
+    \return True when nothing need move for the selection to be seen.
     */
-    void centerOnTimeUnlessVisible(
-        double seconds, std::optional<juce::Rectangle<int>> glyph_bounds);
+    [[nodiscard]] bool isSelectionVisible(
+        double seconds, std::optional<juce::Rectangle<int>> glyph_bounds) const;
+
+    /*!
+    \brief Glides the window until a time sits at its centre.
+
+    The rule for a verb on a selection that was not on screen when the verb ran, using the same
+    eased shift playback follow uses.
+
+    \param seconds The time to centre, on the arrangement timeline.
+    */
+    void centerOnTime(double seconds);
 
     /*!
     \brief The selected ruler chip's bounds in this component's coordinates, when the ruler

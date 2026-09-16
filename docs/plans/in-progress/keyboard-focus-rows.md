@@ -1084,25 +1084,32 @@ discussion; the user then laid down four rules, built as one design from scratch
    core publishes the selection's first member, `EditorViewState::selection_start_seconds`
    (`Impl::selectionStart`: the earliest selected note or keyframe, the selected automation point,
    the selected marker's START — the chip, whichever way the cursor stands to it — else the armed
-   caret, where typing acts; absent when passive). `EditorView::perform` reads it before and after
-   the command; a verb that destroyed its selection (Delete) centres where it stood. "Fully on
-   screen" is the glyph's own drawn extent, edge to edge with no margin (ruled): the surfaces
-   answer through `TimelineRuler::selectedChipBounds` (a pinned chip counts: the marker's name is
-   what the charter sees), `ToneTrackView::selectedRegionLabelBounds` (the pinned label, the same
-   reading), `TabView::selectedNoteHeadBounds` and `ToneAutomationLanesView::selectedPointBounds`,
-   mapped into the viewport's coordinates for `TrackViewport::centerOnTimeUnlessVisible`; with no
-   glyph drawn (a chip scrolled off the ruler) the time's column stands in. The test's window is
-   the viewport's VIEW width, so a glyph under a vertical scrollbar is off screen. The gate `editorCommandActsOnSelection` reads the registry
+   caret, where typing acts; absent when passive). `EditorView::perform` judges the rule WHEN THE
+   VERB RUNS: it reads the member and whether it was fully on screen before the command, and
+   centres afterwards (`TrackViewport::centerOnTime`) only if it was not — where the verb left it,
+   or where it stood when the verb destroyed it (Delete). "Fully on screen" is the glyph's own
+   drawn extent, edge to edge with no margin (ruled): the surfaces answer through
+   `TimelineRuler::selectedChipBounds`, `ToneTrackView::selectedRegionLabelBounds`,
+   `TabView::selectedNoteHeadBounds` and `ToneAutomationLanesView::selectedPointBounds`, mapped
+   into the viewport's coordinates for `TrackViewport::isSelectionVisible`; a chip or label PINNED
+   at the edge for a marker standing elsewhere reports nothing (sighted 2026-09-15: the pinned
+   name proves nothing about where the marker is), so the marker's own column answers and the
+   verb centres it. The test's window is the viewport's VIEW width, so a glyph under a vertical
+   scrollbar is off screen. The gate `editorCommandActsOnSelection` reads the registry
    category: Selection, Authoring, Value Entry and Marker act on the selection; Navigation does not
    (the walk and jumps select), nor do the section and tone-change author chords (they act at the
    cursor and complete in a prompt), nor Esc. When rules 1 and 2 both fire on one press (`Alt+→` on
-   a chip moves the cursor and acts on the chip), rule 2 wins (ruled) in BOTH directions: its
-   stay-put path cancels the measure fit rule 1 started in the same command, and its glide
-   supersedes it.
+   a chip moves the cursor and acts on the chip), the pre-command judgment settles it: a chip that
+   was on screen is left to rule 1, so `Alt+←` pushing it off the left edge reveals the measure it
+   went to rather than pinning it (sighted 2026-09-15); a chip that was off screen is centred,
+   and that glide supersedes the fit.
 3. **Selecting never scrolls.** A chip click, a click on an existing note and a walk onto the
    marker that already holds the cursor publish no moved position and act on nothing. A walk
    whose column rule seeks the cursor into a marker selected far from it IS a move, and rule 1
-   follows the caret it arms there.
+   follows the caret it arms there. **Leaving a time selection** (sighted 2026-09-15): a plain
+   `←/→` under a Shift selection arms one grid step past the span's start or end in its direction
+   — the caret leaves the span the way it leaves a slot — so the extend and the step read as one
+   motion (`StepChartCaret`'s passive branch, `test_chart_caret.cpp`).
 4. **Zoom pivots on the cursor in place; an off-screen cursor is centred first** (Logic's rule).
    `applyZoomAroundCursor` cancels any in-flight glide (its target is in the old pixel scale),
    centres when the pivot column is out of view, then holds the pivot's screen column through the

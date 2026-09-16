@@ -453,14 +453,14 @@ TEST_CASE(
     CHECK(time_selection->end.seconds == Catch::Approx(6.5));
     CHECK(caretOrNull(state->chart_edit) == nullptr);
 
-    // A plain arrow clears the range and arms a caret again (object selection evicts the range).
-    // The caret reappears at the range's anchor (6.0s), not a stale transport position: building
-    // the range seeked the transport to the caret, so the marker's passive time is the caret's.
+    // A plain arrow clears the range and arms a caret again (object selection evicts the range),
+    // leaving the span the way a caret leaves a slot: Right lands one grid step past the range's
+    // END (6.5s -> 7.0s), so the extend and the step read as one rightward motion.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     CHECK_FALSE(state->time_selection.has_value());
     const ChartCaretViewState* rearmed = caretOrNull(state->chart_edit);
     REQUIRE(rearmed != nullptr);
-    CHECK(rearmed->seconds == Catch::Approx(6.0));
+    CHECK(rearmed->seconds == Catch::Approx(7.0));
 }
 
 // Stepping the focus exactly back onto the anchor collapses the range to nothing rather than
@@ -811,6 +811,60 @@ TEST_CASE("EditorController re-arms at the exact slot a dissolved caret left", "
     CHECK(caret->string == 2);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+}
+
+// A plain arrow under a time selection leaves it the way a caret leaves the span it stands on:
+// Left continues one grid step past the selection's start, Right one grid step past its end, and
+// the selection is released for a caret.
+TEST_CASE("EditorController steps out of a time selection past its edge", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Two grid extends from a cursor at 4.0s: the selection spans 4.0s..5.0s at 120 BPM 4/4.
+    const auto select_two_beats = [&] {
+        controller.onTimelineSeekRequested(common::core::TimePosition{4.0});
+        controller.onTimeSelectionExtendRequested(
+            TimeSelectionExtent::Grid, ChartStepDirection::Right);
+        controller.onTimeSelectionExtendRequested(
+            TimeSelectionExtent::Grid, ChartStepDirection::Right);
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        const common::core::TimeRange* const range = timeSelectionOrNull(*state);
+        REQUIRE(range != nullptr);
+        CHECK(range->start.seconds == Catch::Approx(4.0));
+        CHECK(range->end.seconds == Catch::Approx(5.0));
+    };
+
+    select_two_beats();
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->time_selection.has_value());
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(5.5));
+
+    select_two_beats();
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->time_selection.has_value());
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(3.5));
 }
 
 } // namespace rock_hero::editor::core
