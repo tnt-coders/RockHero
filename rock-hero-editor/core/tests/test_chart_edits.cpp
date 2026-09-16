@@ -4347,23 +4347,41 @@ TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("an unambiguous label names one node")
+    SECTION("a label's rows are ordered by partial, lowest first")
     {
+        // The editor resolves against the whole partial bound, so "5" names three nodes — and the
+        // ORDER is the contract: the first row is what a choiceless press writes and what the
+        // picker opens on, which is the 4th partial. Here the NEAREST node is the 4th's 4.98 too;
+        // the label in the section below is where the two rules part company.
         const common::core::Chart chart = makeSingleNoteChart(5);
         const std::vector<common::core::HarmonicNodeCandidate> candidates =
             chartHarmonicNodeCandidates(chart.notes[0], chart.tuning, tempo_map);
-        REQUIRE(candidates.size() == 1);
-        CHECK_THAT(candidates.front().position, Catch::Matchers::WithinAbs(4.9800, 0.001));
+        REQUIRE(candidates.size() == 3);
+        CHECK(candidates[0].partial == 4);
+        CHECK_THAT(candidates[0].position, Catch::Matchers::WithinAbs(4.9800, 0.001));
+        CHECK(candidates[1].partial == 13);
+        CHECK_THAT(candidates[1].position, Catch::Matchers::WithinAbs(4.5421, 0.001));
+        CHECK(candidates[2].partial == 15);
+        CHECK_THAT(candidates[2].position, Catch::Matchers::WithinAbs(5.3695, 0.001));
     }
 
-    SECTION("the one ambiguous label names two")
+    SECTION("the conventional ambiguity leads its own rows")
     {
+        // "3" is the label whose two conventional readings sit a third of a fret apart, and the
+        // lowest partial still leads: the 6th's 3.156 before the 7th's 2.669, with the two
+        // high-order rows the bound admits behind them.
         const common::core::Chart chart = makeSingleNoteChart(3);
         const std::vector<common::core::HarmonicNodeCandidate> candidates =
             chartHarmonicNodeCandidates(chart.notes[0], chart.tuning, tempo_map);
-        REQUIRE(candidates.size() == 2);
-        CHECK(candidates[0].partial == 7);
-        CHECK(candidates[1].partial == 6);
+        REQUIRE(candidates.size() == 4);
+        CHECK(candidates[0].partial == 6);
+        CHECK_THAT(candidates[0].position, Catch::Matchers::WithinAbs(3.1564, 0.001));
+        CHECK(candidates[1].partial == 7);
+        CHECK_THAT(candidates[1].position, Catch::Matchers::WithinAbs(2.6687, 0.001));
+        CHECK(candidates[2].partial == 11);
+        CHECK_THAT(candidates[2].position, Catch::Matchers::WithinAbs(3.4741, 0.001));
+        CHECK(candidates[3].partial == 13);
+        CHECK_THAT(candidates[3].position, Catch::Matchers::WithinAbs(2.8921, 0.001));
     }
 
     SECTION("an attack whose saved form records no node names nothing")
@@ -4384,13 +4402,25 @@ TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart
         CHECK(chartHarmonicNodeCandidates(scraping.notes[0], scraping.tuning, tempo_map).empty());
     }
 
-    SECTION("a dead key and an open string name nothing")
+    SECTION("an open string names nothing")
     {
-        for (const int fret : {0, 1, 11, 13})
+        // The ONE fret with nothing to offer: its label is zero, which is not a touch at all.
+        const common::core::Chart chart = makeSingleNoteChart(0);
+        CHECK(chartHarmonicNodeCandidates(chart.notes[0], chart.tuning, tempo_map).empty());
+    }
+
+    SECTION("the labels import calls dead do name nodes here")
+    {
+        // 1, 11 and 13 reach no harmonic under import's snapping cap, so they were dead keys for
+        // the verb too. Under the editor's wider bound each names at least one high-order node, and
+        // the verb now states it rather than skipping the note.
+        for (const int fret : {1, 11, 13})
         {
             INFO("fret " << fret);
             const common::core::Chart chart = makeSingleNoteChart(fret);
-            CHECK(chartHarmonicNodeCandidates(chart.notes[0], chart.tuning, tempo_map).empty());
+            const std::vector<common::core::HarmonicNodeCandidate> candidates =
+                chartHarmonicNodeCandidates(chart.notes[0], chart.tuning, tempo_map);
+            CHECK_FALSE(candidates.empty());
         }
     }
 
@@ -4496,11 +4526,12 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         }
     }
 
-    SECTION("the chosen partial binds the ambiguous member and nothing else")
+    SECTION("the chosen partial binds every label that offers it and nothing else")
     {
-        // A chord across the ambiguous label and an unambiguous one: the choice picks the 7th
-        // partial's node for the member that has two, while the member with one takes it whatever
-        // was chosen. One plan, both members, as the uniform-scope law requires.
+        // A chord across two labels, choosing a partial only one of them names: "3" takes the 7th
+        // partial's node, while "5" — whose rows are the 4th, 13th and 15th — takes its own first
+        // row, the lowest partial a choiceless press would have written. One plan, both members, as
+        // the uniform-scope law requires.
         common::core::Chart chart = makeSingleNoteChart(3);
         chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 5));
         const std::vector<ChartSlotKey> chord{
@@ -4528,38 +4559,36 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
     }
 }
 
-// The skip is the whole of the ruling on frets that name nothing: the verb states a node or leaves
-// the note alone, and never moves the hand to the nearest node to invent one. Frets 1, 11 and 13
-// carry no harmonic a label reaches, and an open string states no position at all — its offset is
-// zero, which is not a touch. A press that only skipped is NoChange, silent like the mute rows.
+// The skip is the whole of the ruling on a fret that names nothing: the verb states a node or
+// leaves the note alone, and never moves the hand to the nearest node to invent one. An open string
+// states no position at all — its offset is zero, which is not a touch — and under the editor's
+// partial bound it is the only fret in that position. A press that only skipped is NoChange, silent
+// like the mute rows.
 TEST_CASE("planSetHarmonic skips a fret that names no node", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    for (const int fret : {0, 1, 11, 13})
+    const common::core::Chart chart = makeSingleNoteChart(0);
+    const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+    REQUIRE_FALSE(plan.has_value());
+    if (!plan.has_value())
     {
-        INFO("fret " << fret);
-        const common::core::Chart chart = makeSingleNoteChart(fret);
-        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
-        REQUIRE_FALSE(plan.has_value());
-        if (!plan.has_value())
-        {
-            CHECK(plan.error() == ChartPlanRefusal::NoChange);
-        }
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
     }
 }
 
 // The clear inverts the set exactly, which is what makes the pair a true toggle with no memory of
 // an overridden technique: the finger presses where it was touching, and the arithmetic returns
-// every integer label the set can produce. These five are the nut-side nodes of partials 2 to 6
-// plus the 3rd partial's bridge-side node at 19.
+// every integer label the set can produce. Under the editor's partial bound that is every integer
+// fret but the open string — the nut-side nodes of partials 3 to 6 and of the high-order partials
+// the wider bound admits at 1, 11 and 13, plus the 3rd partial's bridge-side node at 19.
 TEST_CASE("planClearHarmonic presses the fret the touch was standing on", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    for (const int fret : {3, 4, 5, 7, 19})
+    for (const int fret : {1, 3, 4, 5, 7, 11, 13, 19})
     {
         INFO("fret " << fret);
         common::core::Chart chart = makeSingleNoteChart(fret);

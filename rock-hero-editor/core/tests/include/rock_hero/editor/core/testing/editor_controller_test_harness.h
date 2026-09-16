@@ -110,6 +110,12 @@ public:
         shown_notices.push_back(ShownNotice{.title = title, .message = message});
     }
 
+    // Records each harmonic node picker request, in request order.
+    void showChartHarmonicNodePicker(ChartHarmonicNodePicker picker) override
+    {
+        shown_harmonic_pickers.push_back(std::move(picker));
+    }
+
     // Runs or stores a busy-overlay paint fence callback for controller tests.
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
@@ -179,6 +185,7 @@ public:
 
     // Every one-shot notice shown, in order.
     std::vector<ShownNotice> shown_notices{};
+    std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
 
     // Durable state that was current when each one-shot error was shown.
     std::vector<std::optional<EditorViewState>> states_seen_at_errors{};

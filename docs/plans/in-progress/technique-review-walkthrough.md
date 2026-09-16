@@ -257,24 +257,55 @@ Keep this list and the session task list in step.
   becomes the pick it was picked as, and an on-neck touch presses where it was touching — because
   each row's noun is a harmonic, so its clear must remove one; clearing the pinch through the raw
   attack row instead would leave `Pick + fret 5 + node 17`, an artificial harmonic nobody authored.
-  - **The range rule is the LABEL WINDOW, not the ceil law** (PROVISIONAL, on the keymap-matrix
-    rows for signing). `snapHarmonicNode` generalized into `harmonicNodeCandidates`, an enumerator
-    of `(position, partial)` rows for a label with the importer's function-local tolerance hoisted
-    beside it as `g_max_node_label_error` — one authority for import and the verb, a copy deleted
-    rather than a rule added. Partial is the LOWEST one with a node at that position, which is what
-    sounds and the only stable name for a choice.
-  - **The picker rides the shipped pending entry**, not a popup: `ChartFretEntry` gained a
-    harmonic-node value kind, so the settle prologue, the 750 ms window and the single undo entry
-    come for free, and the picker and toggle windows are exclusive by construction. Offset 3 is the
-    only ambiguous label in the whole ladder (2.7 and 3.2); every other settles in one keystroke
-    through the entry's own disposition rule. One picker per press over a chord, one plan, one undo.
+  - **The range rule is the LABEL WINDOW, not the ceil law** (RULED 2026-09-15, on the
+    keymap-matrix `H` rows). `snapHarmonicNode` generalized into `harmonicNodeCandidates`, an
+    enumerator of `(position, partial)` rows for a label, with the importer's function-local
+    tolerance hoisted beside it as `g_max_node_label_error` — one authority for import and the verb,
+    a copy deleted rather than a rule added. Partial is the LOWEST one with a node at that position,
+    which is what sounds and the only stable name for a choice.
+  - **The candidates are the WHOLE bound, lowest partial first** (RULED 2026-09-15).
+    `chartHarmonicNodeCandidates` resolves the typed fret against `g_max_harmonic_partial` (16) —
+    every partial validation accepts, not import's snapping cap of 8, which stays where it is
+    because raising it would need the corpus re-measured — so most labels name several nodes: a
+    typed 5 names the 4th partial's 4.98, the 13th's 4.54 and the 15th's 5.37, and 1, 11 and 13 are
+    no longer dead keys. The order is a CONTRACT, not a display preference: the lowest partial is
+    the harmonic a charter means by the label and the loudest the string gives, so it is what a
+    press stating no choice writes and what the picker opens on, and the keyboard's default and the
+    picker's first row cannot disagree. Import's `nearestHarmonicNode` is deliberately not used here
+    — under this bound the node nearest a typed 3 is the 13th partial's 2.892, 0.108 from the label,
+    while the harmonic a charter means by 3 is the 6th's 3.156, 0.156 away.
+  - **The picker is a POPUP at the head the CONTROLLER asks for**, not the pending entry it was
+    first built over and not a fork in the view (RULED 2026-09-15). `H` reaches
+    `onChartTechniqueToggleRequested(Harmonic)` like every other technique letter, and the handler
+    asks for the rows BELOW its settle prologue, BELOW the verb window's chance to reverse, and only
+    where the press would SET — then hands them to the view port
+    (`IEditorView::showChartHarmonicNodePicker`) and returns with nothing written. The view-side
+    fork the first build had sat upstream of both, which is what made it wrong: a second `H` after a
+    clear opened a picker where it owed a reversal, and a live fret entry could be superseded under
+    an open popup. The view opens a `juce::PopupMenu` anchored at the selected note head in the tab
+    lane, rows reading `<node> · <ordinal> partial` and NUMBERED from 1 so the FIRST opens
+    preselected — JUCE matches `withInitiallySelectedItem` against item IDs, so an unnumbered row
+    could never be — giving `Return` the common case in two keystrokes while `Esc` dismisses with
+    the note untouched: nothing was committed to reverse. A chosen row returns through
+    `onChartHarmonicNodeRequested(partial)` and applies at once through the same `planSetHarmonic` a
+    choiceless press runs: one plan, one undo entry, and the same verb window armed, so the next `H`
+    reverses it exactly. A label naming exactly one node (7, 12, 19, 24) and a press that CLEARS
+    skip the menu and settle in the keystroke. Nothing pends any more, so the settle prologue's one
+    exemption is a digit continuing a live fret entry. One picker per press over a chord — the rows
+    come from the first member whose own label is ambiguous, a chosen partial binds every member
+    whose label offers it, and the rest take their default. The right-click Note submenu's "Toggle
+    Harmonic" row runs the same toggle verb the key does, so it reaches the picker down the same
+    path and lists no harmonic rows of its own.
+  - **Scope: natural and pinch only.** The artificial and tap families were carved out the same day
+    into `docs/plans/todo/artificial-harmonic-authoring.md`: a node measured from a PRESSED stop
+    needs a verb that does not rewrite the fret, which is a different act from this one.
   - **Two retype defects fixed with it.** `planRetypeFrets` now REFUSES the sounding stop of a
     fret-hand harmonic (the derived-held refusal's shape, so the pending box paints red), and a
     retype under any other node moves the node with its stop — a node is `stop + offset` on a
     logarithmic board, so leaving it behind authored an offset the harmonic never had.
   - **Still deferred:** the counted skip. A press that only skipped is silent, exactly as the
-    legato verb's is, until W5's non-modal notice channel exists. Frets 1, 11 and 13 name nothing,
-    and a charter learns that only by the mark not appearing.
+    legato verb's is, until W5's non-modal notice channel exists. An open string states no position
+    at all, and a charter learns that only by the mark not appearing.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE.**
   1. **A dead predecessor is an ordinary one** and justifies a connection like any other note. The
      premise that a deadened string has no energy to carry does not hold: the hammering finger

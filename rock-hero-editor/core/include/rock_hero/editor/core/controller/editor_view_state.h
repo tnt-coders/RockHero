@@ -736,78 +736,12 @@ struct ChartPendingFretViewState
 };
 
 /*!
-\brief One note under the live harmonic picker: the nodes its fret names, and which one is armed.
-
-The whole of what the picker draws at one head. The armed node rides the accent-bordered pending
-box in the form it will COMMIT — the diamond silhouette and the node label the committed head
-prints — and the rest read outboard on the same baseline in the muted ink, because an unchosen row
-is fully choosable and must never take dimming's "unavailable" signal.
-
-Positions rather than text, so the surface prints them through the one label authority every other
-stop on the lane goes through (\ref common::core::chartStopText) and the pending head can never
-round differently from the committed one.
-*/
-struct ChartPendingHarmonicNode
-{
-    /*! \brief Index into the tab projection's note order. */
-    std::size_t note{};
-
-    /*!
-    \brief The nodes this note's own fret names, ascending, in absolute fret units.
-
-    This NOTE's, not the ladder's: the choice is shared across the scope, but where each node lands
-    is the note's own stop plus the chosen offset, so a chord across two stops prints two numbers
-    for one partial. Never empty — a note whose fret names nothing is not under the picker at all.
-    */
-    std::vector<double> nodes{};
-
-    /*! \brief Index into \ref nodes of the armed one, which the settle would commit. */
-    std::size_t chosen{};
-
-    /*!
-    \brief Compares two pending harmonic heads by their stored values.
-
-    Defaulted on purpose: the floating values are reached through `std::vector<double>`, where the
-    compare happens inside the standard library and the float-equal diagnostic does not reach — the
-    case docs/design/coding-conventions.md names safe.
-
-    \param lhs Left-hand head.
-    \param rhs Right-hand head.
-    \return True when both heads store equal values.
-    */
-    friend bool operator==(
-        const ChartPendingHarmonicNode& lhs, const ChartPendingHarmonicNode& rhs) = default;
-};
-
-/*!
-\brief The in-flight harmonic picker's rendered state: every head it is offering a node for.
-
-Present exactly while the picker is armed, which is exactly while some note in the scope has a
-typed fret naming two nodes. A press over an unambiguous scope commits in the same keystroke and
-publishes nothing, so this state existing at all IS the ambiguity.
-*/
-struct ChartPendingHarmonicViewState
-{
-    /*! \brief The affected heads, ascending by projection index; never empty. */
-    std::vector<ChartPendingHarmonicNode> notes{};
-
-    /*!
-    \brief Compares two picker states by their stored values.
-    \param lhs Left-hand state.
-    \param rhs Right-hand state.
-    \return True when both states store equal values.
-    */
-    friend bool operator==(
-        const ChartPendingHarmonicViewState& lhs,
-        const ChartPendingHarmonicViewState& rhs) = default;
-};
-
-/*!
-\brief One row of the harmonic picker's mouse form: a node to choose, and the partial naming it.
+\brief One row of the harmonic node picker the controller asks the view to show
+(\ref IEditorView::showChartHarmonicNodePicker): a node to choose, and the partial naming it.
 
 The ORDINAL is what the rows differ by, and the only stable name for a choice: our frets are
-absolute where published tab is capo-relative, so under a capo of 2 the same two rows read "5.2"
-and "4.7" while the partials stay the 6th and the 7th. Sounding pitch is deliberately not offered —
+absolute where published tab is capo-relative, so under a capo of 2 the same rows read "5.2" and
+"4.7" for the 6th and the 7th. Sounding pitch is deliberately not offered —
 a partial is just-intoned (the 7th sits 31 cents below any equal-tempered name), so a pitch letter
 beside 2.7 would be false.
 */
@@ -835,6 +769,24 @@ struct ChartHarmonicNodeChoice
     {
         return std::is_eq(lhs.node <=> rhs.node) && lhs.partial == rhs.partial;
     }
+};
+
+/*!
+\brief The harmonic node picker the controller asks the view to show: which note the rows were
+read from, and the rows.
+
+The note is named so the view can anchor the popup on the head the numbers describe. The rows come
+from the first selected member whose typed fret names more than one node, and that member need not
+be the earliest selected note — a chord of a 7 and a 5 offers the 5's rows — so "the selected head"
+would put the menu over a note the rows have nothing to do with.
+*/
+struct ChartHarmonicNodePicker
+{
+    /*! \brief Index of the note the rows describe, in the tab projection's note order. */
+    std::size_t note{};
+
+    /*! \brief The rows to offer, in the order to show them; never fewer than two. */
+    std::vector<ChartHarmonicNodeChoice> choices{};
 };
 
 /*!
@@ -875,26 +827,6 @@ struct ChartEditViewState
 
     /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
     std::optional<ChartPendingFretViewState> pending_fret{};
-
-    /*!
-    \brief The pending harmonic-node entry, present exactly while the picker is armed.
-
-    Beside \ref pending_fret rather than inside it because the two carry different quantities: a
-    typed value is one string over every affected object, while a node is a POSITION resolved
-    against each note's own stop, so the same choice prints "3.2" on an open string and "8.2" on a
-    note held at 5. Never both at once — one pending entry is live at a time — and both draw
-    through the same box the paint core exports.
-    */
-    std::optional<ChartPendingHarmonicViewState> pending_harmonic{};
-
-    /*!
-    \brief The harmonic-node choices a menu can offer over the current selection.
-
-    The picker's MOUSE form (\ref IEditorController::onChartHarmonicNodeRequested). Empty unless
-    the selection holds a note whose typed fret names more than one node, which is the same
-    ambiguity test the keyboard picker arms on. Ascending by position, exactly as the ladder is.
-    */
-    std::vector<ChartHarmonicNodeChoice> harmonic_node_choices{};
 
     /*!
     \brief Compares two chart-editing states by their stored values.

@@ -1741,6 +1741,31 @@ TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-vi
     CHECK(controller.chart_technique_toggles.size() == 3);
 }
 
+// The harmonic letter is an ORDINARY technique letter here: whether a press asks the charter for a
+// node or writes one is the controller's decision, made against the chart the press lands on, so
+// the view's whole job is to send the toggle. The picker it may be handed back afterwards is a
+// one-shot request, and the core's own suites pin when it is asked for and what it carries.
+TEST_CASE("EditorView routes the harmonic letter to the technique toggle", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    CHECK(mappings->keyPressed(juce::KeyPress{'h', juce::ModifierKeys{}, 0}, &view));
+    CHECK(
+        controller.chart_technique_toggles ==
+        std::vector<core::ChartTechnique>{core::ChartTechnique::Harmonic});
+}
+
 // Selection verbs follow the selection, not the pointer: with a chart selection active,
 // Alt+wheel (sustain) and Alt+Shift+wheel (fret shift) act on it over the timeline content
 // (where zoom would otherwise consume the wheel) and anywhere else in the editor window.

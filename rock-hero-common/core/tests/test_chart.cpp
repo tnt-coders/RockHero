@@ -388,9 +388,9 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     // never has to choose.
     CHECK(nearest_node(7.0) == Catch::Approx(7.0196).margin(0.001));
 
-    // THE ONE AMBIGUOUS LABEL in the whole ladder. "3" sits 0.331 from the 7th partial's 2.669 and
-    // 0.156 from the 6th's 3.156, and both are inside the label window — which is exactly the
-    // press the editor's picker exists for, and the nearest is what arms first.
+    // THE ONE AMBIGUOUS LABEL under this cap. "3" sits 0.331 from the 7th partial's 2.669 and
+    // 0.156 from the 6th's 3.156, and both are inside the label window, so import has to pick the
+    // nearest. Ordered by position, which is why the nearest here is the second row.
     const std::vector<HarmonicNodeCandidate> three =
         harmonicNodeCandidates(3.0, g_max_snapped_partial);
     REQUIRE(three.size() == 2);
@@ -478,6 +478,23 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
             CHECK(node <= static_cast<double>(fret));
         }
     }
+}
+
+// THE CAP IS THE CALLER'S, THE ORDER IS NOT. The editor's verb resolves the same label against
+// g_max_harmonic_partial — every partial validation accepts — so "5" names three nodes where
+// import's narrower cap names one. This function orders them by POSITION whatever the cap; the
+// partial-ascending order the picker lists is the editor operand's own sort, stated there.
+TEST_CASE("Chart harmonic nodes widen under the editor's partial bound", "[core][chart]")
+{
+    const std::vector<HarmonicNodeCandidate> label_five =
+        harmonicNodeCandidates(5.0, g_max_harmonic_partial);
+    REQUIRE(label_five.size() == 3);
+    CHECK_THAT(label_five[0].position, Catch::Matchers::WithinAbs(4.5421, 0.001));
+    CHECK(label_five[0].partial == 13);
+    CHECK_THAT(label_five[1].position, Catch::Matchers::WithinAbs(4.9804, 0.001));
+    CHECK(label_five[1].partial == 4);
+    CHECK_THAT(label_five[2].position, Catch::Matchers::WithinAbs(5.3695, 0.001));
+    CHECK(label_five[2].partial == 15);
 }
 
 // THE GRIP STOP: a grip is a PLACE on the fret axis — a fret pressed, the open string, or a

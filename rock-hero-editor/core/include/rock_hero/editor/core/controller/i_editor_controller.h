@@ -442,6 +442,13 @@ public:
     applying would change nothing does the press mean clear, flattening the stored claims alone (a
     left-hand tap riding the selection keeps its attack). No direction is authored or stored.
 
+    `ChartTechnique::Harmonic` is the one row whose SET states a value, so a press can ASK instead
+    of write: where the typed fret names more than one node the press commits nothing and arms
+    nothing, and the controller asks the view for the rows through
+    \ref IEditorView::showChartHarmonicNodePicker; the row the charter chooses returns through
+    \ref onChartHarmonicNodeRequested, which is what writes. A fret naming one node, a clear, and a
+    reversal inside the verb window all behave exactly as they do for every other technique.
+
     \param technique The technique to set or clear.
     */
     virtual void onChartTechniqueToggleRequested(ChartTechnique technique) = 0;
@@ -449,14 +456,16 @@ public:
     /*!
     \brief Handles a request to state the fret-hand harmonic at one chosen partial.
 
-    The harmonic picker's MOUSE form, and the only entry point that names a node: `H` states the
-    node the typed fret is nearest to, and where a fret names two — the offset of 3, alone in the
-    whole ladder — a second `H` cycles the armed candidate inside the pending entry. A menu row is
-    already a deliberate choice, so it applies at once, in one compound undo entry over the whole
-    selection like the verb it shares a planner with.
+    The harmonic node picker's answer, and the only entry point that names a node. `H` over a
+    typed fret naming more than one node asks the view for the picker
+    (\ref IEditorView::showChartHarmonicNodePicker) instead of writing; the row the charter chooses
+    returns here. A row is already a deliberate choice, so it applies at once, in one compound undo
+    entry over the whole selection like the verb it shares a planner with, and arms the same
+    reversal window a choiceless press does.
 
-    The choice binds only the members it names: a selected note whose own fret reaches one node
-    takes that node whatever partial was chosen, and a note whose fret reaches none is skipped.
+    The choice binds only the members it names: a selected note whose own label offers the chosen
+    partial takes that partial's node, one whose label does not takes its lowest partial — what a
+    choiceless press writes — and a note whose fret reaches none is skipped.
 
     \param partial The partial whose node the selection's ambiguous members take.
     */

@@ -278,8 +278,8 @@ std::vector<HarmonicNodeCandidate> harmonicNodeCandidates(
             // produces them is not bit-identical across the two derivations (12*log2(4/2) and
             // 12*log2(8/4) both mean the octave), so the test is a tolerance rather than equality.
             // A thousandth of a fret is far below the gap between distinct nodes — the closest
-            // pair inside the partial cap is 0.043 apart — and far above the last-place error of
-            // a logarithm.
+            // pair under the widest cap any caller passes, g_max_harmonic_partial, is 0.077
+            // apart — and far above the last-place error of a logarithm.
             constexpr double same_node = 0.001;
             const bool already_listed =
                 std::ranges::any_of(candidates, [position](const HarmonicNodeCandidate& listed) {
@@ -295,8 +295,9 @@ std::vector<HarmonicNodeCandidate> harmonicNodeCandidates(
             }
         }
     }
-    // Ascending by POSITION, which is the ladder a charter reads and the order the picker cycles;
-    // the partial-first walk above was only the way to reach the lowest ordinal per position.
+    // Ascending by POSITION, the ladder as it lies along the string; the partial-first walk above
+    // was only the way to reach the lowest ordinal per position. The editor re-sorts by partial for
+    // its picker, so this order serves import's nearest-node read and the tests that pin it.
     std::ranges::sort(candidates, {}, &HarmonicNodeCandidate::position);
     return candidates;
 }

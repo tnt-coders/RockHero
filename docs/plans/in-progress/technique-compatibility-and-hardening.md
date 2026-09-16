@@ -542,11 +542,16 @@ Precision is not the binding constraint: one decimal separates every distinct no
 1.0). So the 16-partial bound costs nothing and leaves roughly double the headroom anything playable
 needs.
 
-**The bound is deliberately permissive, and that is not the same question as the picker.** A bound
-can only ever *reject a legitimate chart* — including a GP import we do not author — so it is set to
-refuse junk and nothing more. Keeping the option list short is a **UI** concern: when harmonic
-authoring is built, the picker should offer partials 2-8 (the nut-side nodes plus the named
-bridge-side ones: 7/19, 5/24, 4/9/16), not the 79 nodes this bound admits.
+**The bound is deliberately permissive, and that was taken to be a different question from the
+picker.** A bound can only ever *reject a legitimate chart* — including a GP import we do not
+author — so it is set to refuse junk and nothing more. **RULED 2026-09-15: the picker offers the
+WHOLE bound**, partials 2-16 through `g_max_harmonic_partial`, sorted by partial lowest first — not
+the short 2-8 list this paragraph once proposed. The shortening the UI wanted falls out of the LABEL
+window instead of a second cap: a typed fret names only the nodes within half a fret of it, so any
+one press offers a handful of rows (a typed 5 offers three) rather than the 79 nodes this bound
+admits, and ordering by partial puts the loudest — the one a charter means by the label — first. The
+SNAP cap stays 8 for the corpus reason above: it is import's rule, and raising it would need the
+corpus re-measured.
 
 A related fact: **GP's `HFret` values are conventional labels, not exact physics.** The true 8th
 partial node is 2.313 but GP writes `2.4`; the 5th is 3.863 but GP writes `4.0`. The format

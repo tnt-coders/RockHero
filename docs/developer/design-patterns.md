@@ -393,14 +393,14 @@ settle prologue (`settleChartFretEntry`, called at the `runAction` gate for ever
 not CONTINUE the live entry, at `settleChart`'s head, and at the pointer gestures'
 `armChartCaret` funnel). One commit, one entry, no mid-entry mutation to reverse.
 
-**The same machinery carries the harmonic node picker**, which is the pattern's payoff rather than
-an extension of it: `H` on a fret that names two nodes (only the offset of three does) arms a
-harmonic-node value kind on that same `ChartFretEntry`, a second `H` cycles the armed candidate, and
-every other action settles and commits. A popup would have restated the window, the prologue, the
-single undo entry and the picker/toggle-window exclusion by hand. The disposition rule
-(`armOrSettleChartFretEntry`) is what makes the picker arm on AMBIGUITY rather than on the verb: it
-asks the entry whether a further press could still change it — another digit for a leading 1 or 2,
-another `H` for a two-row ladder — so every unambiguous label settles in one keystroke. The engine's plugin dirty tracking settles
+The disposition rule (`armOrSettleChartFretEntry`) decides per planned value whether the entry
+pends at all: an invalid value pends sticky because the red box must be seen, a valid value a
+further digit could still widen waits out the window, and everything else settles now. **The
+harmonic node picker deliberately does NOT ride this machinery** (ruled 2026-09-15, after a build
+that did): a node choice is a pick from a list, not a value being typed, so `H` over a label naming
+more than one node opens a popup that commits on the row chosen, and the fret entry stays the one
+thing that pends — which is what leaves the settle prologue with a single exemption to name.
+The engine's plugin dirty tracking settles
 state transactions behind a quiet debounce in the same spirit (`plugin_dirty_tracking.cpp`). Reach
 for the pending shape when a burst of inputs is one user gesture — the undo rule is one entry per
 gesture, not per event, and a value that has not settled is chrome, never chart.

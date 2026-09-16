@@ -48,7 +48,8 @@ inline constexpr int g_max_fret{24};
 vibrating string, and the nodes a *pinch* uses sit past the neck entirely, over the pickups —
 bridge-side nodes climb with the harmonic (the 3rd partial's is at 19.02, the 4th's at 24.0, both
 in real Guitar Pro scores), so capping at `g_max_fret` would reject every bridge-side node from
-the 6th partial up. 48 is `12 * log2(16)` exactly, the 16th partial's bridge-side node.
+the 6th partial up. 48 is `12 * log2(g_max_harmonic_partial)` exactly, the 16th partial's
+bridge-side node — a literal because `std::log2` is not a constant expression.
 
 Deliberately permissive: the bound's only job is refusing junk, and a tight one could only reject
 a legitimate chart — including an import we do not author. There is no low bound beyond
@@ -57,6 +58,17 @@ evidence behind the number (ergonomics, audibility, corpus reach — all ceiling
 partial) lives in `docs/plans/in-progress/technique-compatibility-and-hardening.md`.
 */
 inline constexpr double g_max_harmonic_node{48.0};
+
+/*!
+\brief Highest partial a harmonic node may name — the bound the editor's node picker offers.
+
+The partial form of \ref g_max_harmonic_node: that bound is this partial's bridge-side node, so
+every node the picker offers is one validation accepts. Distinct from \ref g_max_snapped_partial,
+the IMPORT cap, which is smaller because a written label must be snapped with no charter to ask;
+a charter choosing from a list needs no such margin, so the whole bound is offered and each row
+carries the partial that names it.
+*/
+inline constexpr int g_max_harmonic_partial{16};
 
 /*!
 \brief Highest capo position a chart tuning may declare.

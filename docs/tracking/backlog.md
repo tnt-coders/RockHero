@@ -992,3 +992,17 @@ written down.
   wanted only once plain zoom proves insufficient on a real chart. One chord, not an in/out pair:
   `Ctrl+Shift`+wheel is spare; `Ctrl+Shift+=` is not, because `Ctrl`+plus arrives as
   `Ctrl+Shift+=` on a US layout and is Zoom In's alias for that reason.
+
+## Found while documenting the harmonic node picker (2026-09-16)
+
+- **One list's order has two authorities.** `harmonicNodeCandidates`
+  (`rock-hero-common/core/src/chart/chart.cpp`) walks the partials ASCENDING — which is how it keeps
+  the lowest ordinal at each position — and then sorts the result by POSITION, and the editor's
+  `chartHarmonicNodeCandidates` (`rock-hero-editor/core/src/chart/chart_edits.cpp`) re-sorts that
+  same list by PARTIAL for the picker, which is the order the picker's contract names. The simpler
+  shape keeps the walk's own partial order and deletes BOTH sorts. Three things have to move with
+  it: `harmonicNodeCandidates`'s own `\return` doc in `chart.h`, which promises the list "ascending
+  by position"; `nearestHarmonicNode`'s documented exact-tie rule ("the lower position", stated on
+  its declaration in the same header), which today falls out of the position sort rather than being
+  written anywhere; and the common tests that pin the position order. Small, and no behaviour change
+  expected.

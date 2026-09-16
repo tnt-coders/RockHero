@@ -716,61 +716,6 @@ void TabView::paint(juce::Graphics& g)
         }
     }
 
-    // The harmonic picker. The armed node draws on the head in the form it will COMMIT — the note
-    // is substituted for its would-be self, so the paint core's own silhouette rule gives the
-    // diamond and its own label rule gives the node text, and the pending head IS the committed
-    // head rather than a second drawing of it. The unchosen node reads outboard on the plate's own
-    // baseline in the muted ink: an unchosen row is fully choosable, so it takes the OFF row's
-    // signal and never dimming's, which would say "unavailable".
-    //
-    // A picker value is never invalid — every candidate was filtered by the rule authority before
-    // it was offered — so the box keeps its valid dark plate throughout.
-    if (const std::optional<core::ChartPendingHarmonicViewState>& picker = m_edit.pending_harmonic;
-        picker.has_value())
-    {
-        for (const core::ChartPendingHarmonicNode& pending : picker->notes)
-        {
-            if (pending.note >= tab.notes.size() || pending.chosen >= pending.nodes.size())
-            {
-                continue;
-            }
-            // The note as the settle would leave it: nothing pressed, the armed node touched.
-            common::core::NoteViewState would_be = drawn_note(pending.note);
-            would_be.fret = 0;
-            would_be.harmonic_node = pending.nodes[pending.chosen];
-            const common::ui::TabNoteLayout layout =
-                common::ui::tabNoteLayout(metrics, drawn_note(pending.note));
-            const juce::Rectangle<float> plate = common::ui::paintTabPendingEntryBox(
-                g,
-                metrics,
-                &would_be,
-                layout.onset_x,
-                layout.center_y,
-                common::ui::tabNoteHeadText(would_be, would_be.fret),
-                /*light_plate=*/false,
-                editorTheme().primary_text,
-                accent);
-            if (!metrics.draw_text)
-            {
-                continue;
-            }
-            g.setColour(editorTheme().muted_text);
-            juce::Rectangle<float> beside = plate;
-            for (std::size_t row = 0; row < pending.nodes.size(); ++row)
-            {
-                if (row == pending.chosen)
-                {
-                    continue;
-                }
-                // One plate width along, with the border's own pixel between them, so two values
-                // never read as one number.
-                beside = beside.translated(beside.getWidth() + 2.0f, 0.0f);
-                metrics.fret_font.draw(
-                    g, juce::String{common::core::harmonicNodeText(pending.nodes[row])}, beside);
-            }
-        }
-    }
-
     // The lane's content is finished, so the panel's column is settled: everything below draws
     // OVER it.
     lane_content_clip.reset();
@@ -973,14 +918,19 @@ void TabView::resized()
 // The earliest selected note's head, the glyph a verb on the selection keeps on screen.
 std::optional<juce::Rectangle<float>> TabView::selectedNoteHeadBounds() const
 {
-    const std::optional<DrawableLane> lane = laneMetrics();
-    if (!lane.has_value() || m_edit.selected_notes.empty())
+    if (m_edit.selected_notes.empty())
     {
         return std::nullopt;
     }
     // The selection publishes in chart order, so its first index is the earliest member.
-    const std::size_t index = m_edit.selected_notes.front();
-    if (index >= lane->tab.notes.size())
+    return noteHeadBounds(m_edit.selected_notes.front());
+}
+
+// One note's head by projection index; the one place the head-rectangle arithmetic lives.
+std::optional<juce::Rectangle<float>> TabView::noteHeadBounds(const std::size_t index) const
+{
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value() || index >= lane->tab.notes.size())
     {
         return std::nullopt;
     }

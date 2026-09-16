@@ -307,8 +307,9 @@ a different trigger: the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
 `runAction`'s prologue settles the pending fret entry for all of them. The prologue's ONE exemption
 is the keystroke that CONTINUES the live entry rather than acting against it, asked as
-`chartFretEntryContinuedBy(action)`: a digit widens the typed value, and a second `H` over a live
-harmonic picker cycles its armed candidate. EVERY digit continues a live entry, bare or under
+`chartFretEntryContinuedBy(action)`: a DIGIT widens the typed value, and nothing else does — the
+harmonic node picker is a popup that commits on the row chosen, so no verb leaves a value
+provisional. EVERY digit continues a live entry, bare or under
 `Alt` — the FIRST digit's modifier is what decided the entry's target, and the ones after it only
 widen the value, so no keystroke re-derives what the entry creates. What stays per-verb is reading
 its own operand. Esc remains a direct ladder because its first rung is the invalid pending
@@ -416,8 +417,12 @@ rows (`H`, `Shift+H`) are the third family, and the one whose rows SET through d
 and CLEAR through the same one**: `H` turns the fret already typed into the node the fretting finger
 touches (`planSetHarmonic`), `Shift+H` re-hands the note to the picking thumb through the attack
 verb, and both clear with `planClearHarmonic`, because each row's noun is a harmonic so its clear
-must remove one. `H` is also the one row whose SET states a VALUE, so the verb routes it through the
-pending-entry machinery instead of applying directly — the node picker, below. Every
+must remove one. `H` is also the one row whose SET states a VALUE, so where the typed fret names
+more than one node the CONTROLLER asks instead of writing — below the settle prologue and below the
+window's chance to reverse, and only where the press would SET, it reads the first ambiguous
+member's rows and hands them to the view port (`IEditorView::showChartHarmonicNodePicker`),
+returning with nothing written and no undo entry, so the fork and the reversal are one verb's, in
+one place; a fret naming a single node falls through and writes it like any other technique. Every
 compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
 behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
 tap with nothing to strike is skipped (E4), an attack on a silent hold is refused for the ring it
@@ -464,9 +469,10 @@ stating no fret (a head must sit on a stated fret) and wherever a predecessor ca
 string over, and silent with nothing selected. No verb window is armed and none is needed: the
 SELECTION carries the toggle, since each press leaves exactly what it made selected — a split's new
 heads, a join's new point — so pressing again reverses it),
-`onChartHarmonicNodeRequested(partial)` (the harmonic node picker's MOUSE form — the keyboard states
-its choice inside the pending entry, where a second `H` cycles it, and a right-click menu row is
-already deliberate so it names the partial and applies at once, through the same `planSetHarmonic`),
+`onChartHarmonicNodeRequested(partial)` (the harmonic node picker's ONE landing — the row chosen in
+the popup the controller asked the view to open arrives here, and a chosen row is already a
+deliberate choice, so it applies at once through the same `planSetHarmonic` a choiceless
+press runs, with the same uniform scope, the same single undo entry and the same verb window armed),
 `onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`

@@ -343,12 +343,11 @@ Both producers that turn a label into a node read it through the one enumerator 
 resolving Guitar Pro's `HarmonicFret`, and the editor's harmonic verb resolving the fret a charter
 typed. They agree about which labels name a node at all because there is one rule, not two.
 
-**The verb's use of it is PROVISIONAL, awaiting the user's signing** (recorded on the `H` row of
-`docs/plans/in-progress/keymap-matrix.md`). Import has always resolved labels this way; what is
-unsigned is that a fret a CHARTER types is read as a label too, rather than through the ceil law
-that places a node in fret `ceil(p)`. The two answer different questions — where a finger stands,
-versus what a label names — and taking the ceil law instead would make 7 and 19 name nothing, which
-are the commonest harmonics on the instrument, while making 1, 11 and 13 live keys.
+The verb's use of it was RULED with the node picker (2026-09-15, the `H` row of
+`docs/plans/in-progress/keymap-matrix.md`): a fret a CHARTER types is read as a label exactly as
+import reads a written one, rather than through the ceil law that places a node in fret `ceil(p)`.
+The two answer different questions — where a finger stands, versus what a label names — and the
+ceil law would make 7 and 19 name nothing, which are the commonest harmonics on the instrument.
 */
 inline constexpr double g_max_node_label_error{0.5};
 
@@ -386,10 +385,11 @@ the result against the real stop.
 
 A LIST rather than a single answer, because a label can name more than one node: "3" sits 0.156
 from the 6th partial's 3.156 and 0.331 from the 7th's 2.669, and both are inside the label window,
-so which one the charter meant is a question the physics does not answer. Every other integer label
-names one node or none — 1, 11 and 13 are dead keys — which is why the editor's picker arms on the
-list's size rather than on a special case. Import wants the nearest of the list
-(\ref nearestHarmonicNode) and the picker wants the whole of it.
+so which one the charter meant is a question the physics does not answer. How many labels are
+ambiguous is the cap's doing: under import's \ref g_max_snapped_partial every other integer label
+names one node or none (1, 11 and 13 are dead), while under the editor's
+\ref g_max_harmonic_partial most labels name several. Import wants the nearest of the list
+(\ref nearestHarmonicNode); the editor's verb wants the whole of it, in ITS order.
 
 \param notated Node label as written, in fret units above the stop.
 \param max_partial Highest partial to consider, so a label cannot reach an absurd high-order node
@@ -404,9 +404,10 @@ list's size rather than on a special case. Import wants the nearest of the list
 /*!
 \brief Which candidate a label is nearest to — the resolution import makes for itself.
 
-Import has a written label and no charter to ask, so it takes the node the label is closest to;
-the editor's picker uses the same answer as the candidate it arms first. Stated once so the two
-cannot drift.
+Import has a written label and no charter to ask, so it takes the node the label is closest to.
+The editor's verb deliberately does NOT: under its wider partial bound a high partial often sits
+nearer a label than the harmonic a charter means by it, so its default is the lowest partial of
+the list, which is what its picker preselects.
 
 \param candidates Candidates as \ref harmonicNodeCandidates returned them; must not be empty.
 \param notated The same label those candidates were built from.

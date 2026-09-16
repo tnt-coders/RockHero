@@ -75,28 +75,31 @@ constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 
-// "2nd", "3rd", "7th" — the harmonic picker's rows name their partial by ordinal, which is the one
-// stable name a choice has: our frets are absolute where published tab is capo-relative, so the
-// printed node moves with the capo and with each member's stop while the ordinal does not. English
-// only, like every other string in this view; the whole partial range is 2 through 8, so the
-// eleven-to-thirteen exception the general rule needs cannot arise and is deliberately not written.
+// "2nd", "3rd", "7th", "12th" — the harmonic picker's rows name their partial by ordinal, which is
+// the one stable name a choice has: our frets are absolute where published tab is capo-relative, so
+// the printed node moves with the capo and with each member's stop while the ordinal does not.
+// English only, like every other string in this view. The partials run through 16, so the teens
+// matter: 11, 12 and 13 take "th" whatever their last digit.
 [[nodiscard]] juce::String ordinalText(const int value)
 {
-    const int last = value % 10;
-    juce::String suffix{"th"};
-    if (last == 1)
-    {
-        suffix = "st";
-    }
-    else if (last == 2)
-    {
-        suffix = "nd";
-    }
-    else if (last == 3)
-    {
-        suffix = "rd";
-    }
-    return juce::String{value} + suffix;
+    const auto suffix = [value]() -> const char* {
+        if (value % 100 >= 11 && value % 100 <= 13)
+        {
+            return "th";
+        }
+        switch (value % 10)
+        {
+            case 1:
+                return "st";
+            case 2:
+                return "nd";
+            case 3:
+                return "rd";
+            default:
+                return "th";
+        }
+    };
+    return juce::String{value} + suffix();
 }
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
@@ -1232,24 +1235,6 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartAccentToggle);
     add(note_menu, EditorCommandId::ChartGhostToggle);
     add(note_menu, EditorCommandId::ChartHarmonicToggle);
-    // THE HARMONIC PICKER'S MOUSE FORM, and the one place this menu ACTS rather than teaches. It
-    // appears only where the selection's typed fret names two nodes — the offset of three, alone
-    // in the whole ladder — because that is the only press whose meaning the key alone cannot
-    // settle. The rows carry the partial's ORDINAL because that is what they differ by: our frets
-    // are absolute where published tab is capo-relative, so under a capo the values shift and the
-    // ordinal is the only stable name. They are ordinary menu items at platform size, which the
-    // lane's own ~26 x 16 px labels could never be — those stay a display, never a target.
-    for (const core::ChartHarmonicNodeChoice& choice : m_state.chart_edit.harmonic_node_choices)
-    {
-        // The value through the ONE label authority, so a menu row and the head it will produce
-        // print the same number; the separator is a UTF-8 middle dot, spelled in escapes so the
-        // byte sequence cannot depend on the compiler's source encoding.
-        const juce::String label = juce::String{common::core::harmonicNodeText(choice.node)} +
-                                   " \xc2\xb7 " + ordinalText(choice.partial) + " partial";
-        note_menu.addItem(label, [this, partial = choice.partial] {
-            m_controller.onChartHarmonicNodeRequested(partial);
-        });
-    }
     add(note_menu, EditorCommandId::ChartPinchHarmonicToggle);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
@@ -1329,6 +1314,60 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
                     m_tab_view.localPointToGlobal(position), juce::Point<int>{}
                 }.expanded(1))
             .withDeletionCheck(*this));
+}
+
+// The controller's request where the typed fret names more than one node: the choice is the
+// charter's, so the rows open instead of a write. Each row carries the partial's ORDINAL because
+// that is what the rows differ by — our frets are absolute where published tab is capo-relative, so
+// under a capo the values shift and the ordinal is the only stable name — and they are ordinary
+// menu items at platform size, which the lane's own ~26 x 16 px labels could never be.
+//
+// Rows are numbered from 1 in the order given, and item 1 opens SELECTED: JUCE matches
+// withInitiallySelectedItem against item IDs, so the lambda addItem overload (id -1) could never be
+// preselected — the tone picker numbers its rows for the same reason. The controller sends the
+// lowest partial first, so Return takes the harmonic a charter means by the label and the common
+// case stays two keystrokes; dismissing (Esc, a click elsewhere) reports 0 and touches nothing.
+//
+// Anchored at the head the rows describe — the object the choice is about — rather than at the
+// mouse, which the keyboard verb has no reason to be near. The head's rectangle is where it lies
+// NOW: a head off the viewport hands JUCE an off-screen target it clamps to a display edge while
+// the window-follow glide brings the head in underneath — accepted, and recorded in the 2D-views
+// guide. No head at all (no lane metrics yet) anchors on the lane itself.
+void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picker)
+{
+    juce::PopupMenu menu;
+    for (std::size_t index = 0; index < picker.choices.size(); ++index)
+    {
+        // The value through the ONE label authority, so a row and the head it will produce print
+        // the same number; the separator is a UTF-8 middle dot, spelled in escapes so the byte
+        // sequence cannot depend on the compiler's source encoding.
+        menu.addItem(
+            static_cast<int>(index) + 1,
+            juce::String{common::core::harmonicNodeText(picker.choices[index].node)} +
+                " \xc2\xb7 " + ordinalText(picker.choices[index].partial) + " partial");
+    }
+    juce::PopupMenu::Options options =
+        juce::PopupMenu::Options{}.withDeletionCheck(*this).withInitiallySelectedItem(1);
+    if (const std::optional<juce::Rectangle<float>> head = m_tab_view.noteHeadBounds(picker.note);
+        head.has_value())
+    {
+        options = options.withTargetComponent(&m_tab_view)
+                      .withTargetScreenArea(
+                          m_tab_view.localAreaToGlobal(head->getSmallestIntegerContainer()));
+    }
+    else
+    {
+        options = options.withTargetComponent(&m_tab_view);
+    }
+    menu.showMenuAsync(
+        options, [this, owned_choices = std::move(picker.choices)](const int result) {
+            if (result <= 0 || static_cast<std::size_t>(result) > owned_choices.size())
+            {
+                return;
+            }
+            m_controller.onChartHarmonicNodeRequested(
+                owned_choices[static_cast<std::size_t>(result) - 1].partial);
+        });
 }
 
 // Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes so

@@ -968,14 +968,24 @@ other stop is at most `g_max_fret`, so its node is at most `g_max_fret + 12` aga
 this" is what makes the filter track those bounds if they ever move. A `Pinch` returns nothing at
 all: its node is the picking thumb's and \ref ChartTechnique::PinchHarmonic owns it.
 
+THE WHOLE BOUND, LOWEST PARTIAL FIRST. The label is resolved against \ref
+common::core::g_max_harmonic_partial — every partial validation accepts, not import's snapping cap
+— so most labels name several nodes: a typed 5 names the 4th partial's 4.98, the 13th's 4.54 and
+the 15th's 5.37. The list is ordered by partial, because the lowest partial is the harmonic a
+charter means by a label and the loudest one the string gives, and that order is a CONTRACT: the
+first row is what a press that states no choice writes and what the picker opens on, so the
+keyboard's default and the menu's first row cannot disagree. Import's nearest-node rule
+(\ref common::core::nearestHarmonicNode) is deliberately not used here — under this bound the
+nearest node to a typed 3 is the 13th partial's 2.892, while the harmonic a charter means by that
+label is the 6th's 3.156.
+
 Empty therefore means "this press leaves the note alone", and a list of more than one means the
-typed fret names two nodes — the offset of 3, and nothing else in the whole ladder — which is
-exactly when the verb arms its picker.
+charter has a choice, which is exactly when the verb offers its picker instead of writing.
 
 \param note Note whose fret is read as a label.
 \param tuning Tuning supplying the capo and the string count the rules judge against.
 \param tempo_map Tempo map the rule authority validates positions against.
-\return The reachable candidates, ascending by position; empty when the fret names none.
+\return The reachable candidates, ascending by partial; empty when the fret names none.
 */
 [[nodiscard]] std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     const common::core::ChartNote& note, const common::core::ChartTuning& tuning,
@@ -992,16 +1002,17 @@ stripped by the ONE authority rather than by a list copied into this verb. A not
 nothing it can reach is SKIPPED, never repaired: moving the hand to the nearest node would author a
 position the charter never typed.
 
-THE CHOICE BINDS ONLY WHAT IT NAMES. `chosen_partial` picks among the candidates of a note that has
-more than one — the ambiguous label, where the picker asked the charter — and a note with a single
-candidate takes it whatever was chosen. Absent, every note takes the node nearest its own label,
-which is what a press that stated no choice means and the same answer for every unambiguous note.
+THE CHOICE BINDS ONLY WHAT IT NAMES. `chosen_partial` takes that partial's node on every note whose
+label offers it — the picker's rows are read off one member, and a chord's other members share the
+choice where their own labels reach it. A note whose label does not offer it, and every note under a
+press that stated no choice, takes the first candidate: the lowest partial, the row the picker
+preselects, so the two ways of pressing `H` agree.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param keys Notes the touch is stated on, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
-\param chosen_partial Partial the charter chose, or absent for the nearest node.
+\param chosen_partial Partial the charter chose, or absent for the lowest partial.
 \param label User-visible undo label.
 \return The plan; NoChange when every note skipped, Invalid when the gate refuses the result.
 */

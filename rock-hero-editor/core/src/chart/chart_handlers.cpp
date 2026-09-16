@@ -2150,14 +2150,6 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
     {
         return false;
     }
-    // A HARMONIC entry states a node, and no digit widens one. The digit is a fresh statement
-    // about the same notes, so the node settles first — a value you stated is a value you meant —
-    // and the digit falls through to the retype flow, exactly as an expired entry's does.
-    if (std::holds_alternative<ChartFretEntry::HarmonicNodes>(m_chart_fret_entry->target))
-    {
-        settleChartFretEntry();
-        return false;
-    }
     // An INVALID entry is an open error state: its red box is visibly live however long it has
     // sat, so a digit always extends it. The window expiry binds valid entries only — and there
     // it is a belt, because the wake should already have settled an expired one.
@@ -2220,21 +2212,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             create->offset,
             entry.value);
     }
-    // The harmonic entry plans the SAME function its technique row does, handed the candidate the
-    // charter has cycled to: one planner, two callers differing only in whether a choice was
-    // stated. An empty ladder states none, which is what an unambiguous press means.
-    if (const auto* const harmonic = std::get_if<ChartFretEntry::HarmonicNodes>(&entry.target))
-    {
-        const std::optional<int> chosen_partial =
-            harmonic->ladder.empty() ? std::nullopt
-                                     : std::optional{harmonic->ladder[harmonic->chosen].partial};
-        return planSetHarmonic(
-            *arrangement->chart,
-            session().song().tempo_map,
-            harmonic->keys,
-            chosen_partial,
-            std::string{chartTechniqueLaw(ChartTechnique::Harmonic).noun});
-    }
     // No guard for an empty operand here: the planner answers NoChange for one, and calling that
     // Invalid is what armed a red pending box — the display of a REFUSAL — over a press that had
     // simply found nothing to retype. The two emptinesses stay distinct, as everywhere else.
@@ -2284,46 +2261,20 @@ void EditorController::Impl::settleChartFretEntry()
                 ChartKeyframeKey{.note = create->note, .offset = create->offset}
             };
         }
-        // Read before the move for the same reason the bind above is: the two must never share
-        // one argument list.
-        const bool stated_harmonic =
-            std::holds_alternative<ChartFretEntry::HarmonicNodes>(entry.target);
-        if (applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)))
-        {
-            if (stated_harmonic)
-            {
-                // The harmonic entry commits the TECHNIQUE verb's edit, so it arms that verb's
-                // window here exactly as an immediate press would: the next `H` must be able to
-                // reverse this entry and give back what the touch could not carry — a bend, a
-                // shake, a slide — which the clear's own arithmetic, giving back only the fret,
-                // cannot. Every other technique arms it at its apply; this one's apply is here.
-                m_chart_verb_window = ChartVerbWindow{
-                    .keys = chartSelection().keys(),
-                    .verb = ChartTechniqueToggle{.technique = ChartTechnique::Harmonic},
-                };
-            }
-        }
+        static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
     }
     updateView();
 }
 
-// The one disposition rule for a freshly planned entry — a fresh digit, a combination, or a
-// harmonic verb stating a node: an INVALID value goes pending whatever it holds, because the red
-// box must be SEEN, and it persists until a further digit, Esc, or any other intent settles it,
-// never a timer; a value a further press could still CHANGE waits out its window; every other
+// The one disposition rule for a freshly planned entry — a fresh digit or a combination: an
+// INVALID value goes pending whatever it holds, because the red box must be SEEN, and it persists
+// until a further digit, Esc, or any other intent settles it, never a timer; a value a further
+// digit could still WIDEN (a leading 1 or 2 at the 24-fret cap) waits out its window; every other
 // valid value settles in the same keystroke.
-//
-// What "could still change" means is the entry's own answer: another digit could widen a leading 1
-// or 2 at the 24-fret cap, and another `H` could cycle a harmonic entry whose typed fret named more
-// than one node. So the picker arms on ambiguity and the other fifteen labels settle in one press,
-// through this rule rather than beside it.
 void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
 {
     const bool invalid = !entry.plan.has_value() && entry.plan.error() == ChartPlanRefusal::Invalid;
-    const auto* const harmonic = std::get_if<ChartFretEntry::HarmonicNodes>(&entry.target);
-    const bool extendable =
-        harmonic != nullptr ? harmonic->ladder.size() > 1 : chartFretValueExtendable(entry.value);
-    if (invalid || extendable)
+    if (invalid || chartFretValueExtendable(entry.value))
     {
         armChartFretEntry(std::move(entry));
         return;
@@ -2925,92 +2876,34 @@ bool EditorController::Impl::reverseChartVerbWindow(
 // Rationale lives on the declaration in editor_controller_impl.h.
 bool EditorController::Impl::chartFretEntryContinuedBy(const EditorAction::Action& action) const
 {
-    if (std::holds_alternative<EditorAction::TypeChartFretDigit>(action))
-    {
-        return true;
-    }
-    const auto* const toggle = std::get_if<EditorAction::ToggleChartTechnique>(&action);
-    return toggle != nullptr && toggle->technique == ChartTechnique::Harmonic &&
-           m_chart_fret_entry.has_value() &&
-           std::holds_alternative<ChartFretEntry::HarmonicNodes>(m_chart_fret_entry->target);
+    return std::holds_alternative<EditorAction::TypeChartFretDigit>(action);
 }
 
-// The ladder the picker offers over one scope. Ambiguity occurs at ONE offset in the whole node
-// ladder — a typed fret three above its stop, which names both the 7th partial's 2.669 and the
-// 6th's 3.156 — so every ambiguous member of a selection offers this same pair whatever string or
-// stop it sits on, and the first one found speaks for all of them. That is a consequence of the
-// physics rather than a policy: it is what makes one picker per press, one plan and one undo entry
-// the honest shape for a chord, where per-member pickers would break the toggle law with N windows.
+// The picker over the CURRENT selection: what a SET press would choose among, read off the first
+// member whose typed fret names more than one node, and named so the view can anchor on that head.
+// One member speaks for the scope because the rows carry PARTIALS and the planner binds a chosen
+// partial on every member whose own label offers it: a chord of 5s and 7s offers the 5's rows, and
+// choosing the 4th partial touches each 5 at 4.98 while each 7 takes its single node. The printed
+// value is that member's stop plus each candidate's offset, so a row and the head it will produce
+// print the same number.
 //
-// Empty means nothing in the scope is ambiguous, which the disposition rule reads as "settles in
-// the same keystroke".
-EditorController::Impl::ChartHarmonicLadder EditorController::Impl::chartHarmonicNodeLadder(
-    const std::vector<ChartSlotKey>& keys) const
+// By INDEX rather than through `notesForKeys`, which copies each note whole: a large selection
+// would otherwise pay a note copy per member to answer a question about a few numbers.
+std::optional<ChartHarmonicNodePicker> EditorController::Impl::chartHarmonicNodePicker() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return {};
-    }
-    const common::core::Chart& chart = *arrangement->chart;
-    // By INDEX rather than through `notesForKeys`, which copies each note whole: this walk runs on
-    // every view-state push for the mouse rows, and a large selection would pay a note copy —
-    // keyframe vectors and all — per member to answer a question about two numbers.
-    for (const std::size_t index : slotIndicesForKeys(chart.notes, keys))
-    {
-        const common::core::ChartNote& note = chart.notes[index];
-        std::vector<common::core::HarmonicNodeCandidate> candidates =
-            chartHarmonicNodeCandidates(note, chart.tuning, session().song().tempo_map);
-        if (candidates.size() <= 1)
-        {
-            continue;
-        }
-        // The label this note's fret states, asked of the same stop the candidates were resolved
-        // against, so "nearest" means nearest to the number the charter actually typed.
-        common::core::ChartNote unpressed = note;
-        unpressed.fret = 0;
-        const auto stop =
-            static_cast<double>(common::core::physicalStopFret(unpressed, chart.tuning.capo));
-        const std::size_t nearest =
-            common::core::nearestHarmonicNode(candidates, static_cast<double>(note.fret) - stop);
-        return ChartHarmonicLadder{
-            .candidates = std::move(candidates),
-            .nearest = nearest,
-            .stop = stop,
-        };
-    }
-    return {};
-}
-
-// What the live picker DRAWS: for every note the entry would actually write, the nodes its own
-// fret names and which of them is armed. The nodes are absolute — the note's own stop plus each
-// candidate's offset — because that is the number the head will print once it commits.
-//
-// Absent unless the entry is a picker with a ladder to show. A harmonic entry with no ladder
-// settles in its own keystroke, so it never draws; publishing an empty overlay for it would put a
-// box over heads with nothing to choose.
-std::optional<ChartPendingHarmonicViewState> EditorController::Impl::chartPendingHarmonicViewState(
-    const ChartFretEntry& entry) const
-{
-    const auto* const harmonic = std::get_if<ChartFretEntry::HarmonicNodes>(&entry.target);
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (harmonic == nullptr || harmonic->ladder.size() <= 1 || arrangement == nullptr ||
-        !arrangement->chart.has_value())
-    {
         return std::nullopt;
     }
     const common::core::Chart& chart = *arrangement->chart;
-    const int chosen_partial = harmonic->ladder[harmonic->chosen].partial;
-    ChartPendingHarmonicViewState published;
-    for (const std::size_t index : slotIndicesForKeys(chart.notes, harmonic->keys))
+    for (const std::size_t index : slotIndicesForKeys(chart.notes, chartSelection().notes()))
     {
         const common::core::ChartNote& note = chart.notes[index];
         const std::vector<common::core::HarmonicNodeCandidate> candidates =
             chartHarmonicNodeCandidates(note, chart.tuning, session().song().tempo_map);
-        if (candidates.empty())
+        if (candidates.size() <= 1)
         {
-            // A note the settle would skip draws nothing: the picker must never show a value over
-            // a head that is not going to take one.
             continue;
         }
         // The stop each candidate is measured from, asked exactly as the planner asks it.
@@ -3018,106 +2911,24 @@ std::optional<ChartPendingHarmonicViewState> EditorController::Impl::chartPendin
         unpressed.fret = 0;
         const auto stop =
             static_cast<double>(common::core::physicalStopFret(unpressed, chart.tuning.capo));
-        std::vector<double> nodes;
-        nodes.reserve(candidates.size());
-        std::size_t chosen = 0;
+        ChartHarmonicNodePicker picker{.note = index, .choices = {}};
+        picker.choices.reserve(candidates.size());
         for (const common::core::HarmonicNodeCandidate& candidate : candidates)
         {
-            if (candidate.partial == chosen_partial)
-            {
-                chosen = nodes.size();
-            }
-            nodes.push_back(stop + candidate.position);
+            picker.choices.push_back(
+                ChartHarmonicNodeChoice{
+                    .node = stop + candidate.position,
+                    .partial = candidate.partial,
+                });
         }
-        published.notes.push_back(
-            ChartPendingHarmonicNode{
-                .note = index,
-                .nodes = std::move(nodes),
-                .chosen = chosen,
-            });
+        return picker;
     }
-    if (published.notes.empty())
-    {
-        return std::nullopt;
-    }
-    return published;
+    return std::nullopt;
 }
 
-// The picker's mouse rows over the CURRENT selection, offered whenever that selection holds an
-// ambiguous member — the same test the keyboard picker arms on, so the two forms can never
-// disagree about when a choice exists. Read off the ladder's own note, whose stop is what makes
-// the printed value absolute.
-std::vector<ChartHarmonicNodeChoice> EditorController::Impl::chartHarmonicNodeChoices() const
-{
-    const ChartHarmonicLadder ladder = chartHarmonicNodeLadder(chartSelection().notes());
-    if (ladder.candidates.empty())
-    {
-        return {};
-    }
-    std::vector<ChartHarmonicNodeChoice> choices;
-    choices.reserve(ladder.candidates.size());
-    for (const common::core::HarmonicNodeCandidate& candidate : ladder.candidates)
-    {
-        choices.push_back(
-            ChartHarmonicNodeChoice{
-                .node = ladder.stop + candidate.position,
-                .partial = candidate.partial,
-            });
-    }
-    return choices;
-}
-
-// Arms the harmonic verb's pending entry over the current selection.
-void EditorController::Impl::armChartHarmonicNodeEntry()
-{
-    ChartHarmonicLadder ladder = chartHarmonicNodeLadder(chartSelection().notes());
-    // Read before the move, so the two never share one initializer with a moved-from operand.
-    const std::size_t chosen = ladder.nearest;
-    ChartFretEntry entry{
-        .target =
-            ChartFretEntry::HarmonicNodes{
-                .keys = chartSelection().notes(),
-                .ladder = std::move(ladder.candidates),
-                .chosen = chosen,
-            },
-        .armed_ms = m_now_milliseconds(),
-    };
-    entry.plan = replanChartFretEntry(entry);
-    armOrSettleChartFretEntry(std::move(entry));
-}
-
-// A second `H` while the picker is live: the next candidate becomes the armed one and the window
-// starts over, so a charter can keep cycling. Nothing commits — the entry is replanned in full,
-// exactly as a widened digit is — which is what keeps the picker and the toggle window exclusive.
-bool EditorController::Impl::cycleChartHarmonicNodeEntry()
-{
-    if (!m_chart_fret_entry.has_value() ||
-        !std::holds_alternative<ChartFretEntry::HarmonicNodes>(m_chart_fret_entry->target))
-    {
-        return false;
-    }
-    ChartFretEntry entry = std::move(*m_chart_fret_entry);
-    m_chart_fret_entry.reset();
-    auto& harmonic = std::get<ChartFretEntry::HarmonicNodes>(entry.target);
-    if (harmonic.ladder.empty())
-    {
-        // An entry with no ladder states no choice, so there is nothing to cycle — and it would
-        // have settled in its own keystroke, so this is unreachable in practice. Settled rather
-        // than dropped, because the entry still holds a plan the charter asked for.
-        m_chart_fret_entry = std::move(entry);
-        settleChartFretEntry();
-        return true;
-    }
-    harmonic.chosen = (harmonic.chosen + 1) % harmonic.ladder.size();
-    entry.armed_ms = m_now_milliseconds();
-    entry.plan = replanChartFretEntry(entry);
-    armChartFretEntry(std::move(entry));
-    return true;
-}
-
-// The picker's MOUSE form: a menu row is already a deliberate choice, so it applies at once rather
-// than arming a window that a click has no second press to cycle. Same planner, same uniform scope,
-// same single undo entry — only the way the choice arrived differs.
+// The row chosen in the picker the toggle asked the view to open: a row is already a deliberate
+// choice, so it applies at once through the same planner a choiceless press runs. Same uniform
+// scope, same single undo entry — only whether a partial was stated differs.
 void EditorController::Impl::performActionImpl(const EditorAction::SetChartHarmonicNode& action)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3133,7 +2944,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartHarmo
             action.partial,
             noun)))
     {
-        // The same window the keyboard path arms, and for the same reason: the next `H` reverses
+        // The same window a choiceless press arms, and for the same reason: the next `H` reverses
         // this entry exactly, giving back what the touch could not carry.
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
@@ -3159,14 +2970,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     {
         return;
     }
-    // A second `H` over a live picker CYCLES it: the entry has committed nothing, so there is no
-    // edit to reverse yet and the toggle window below cannot be armed for it. Checked first for
-    // that reason — the two windows are exclusive by construction, and the press means the cycle
-    // before the settle and the reversal after it.
-    if (technique == ChartTechnique::Harmonic && cycleChartHarmonicNodeEntry())
-    {
-        return;
-    }
     const std::string revert_label =
         "Revert " + (technique == ChartTechnique::Legato
                          ? std::string{"Legato"}
@@ -3188,13 +2991,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     const bool all_carry = law.carried(*arrangement->chart, chartSelection());
     if (technique == ChartTechnique::Harmonic && !all_carry)
     {
-        // THE ONE ROW WHOSE SET STATES A VALUE. Which node the finger touches is a quantity, not a
-        // flag, so it goes through the pending-entry machinery every stated value in this editor
-        // goes through — arming the picker where the typed fret names two nodes, settling in the
-        // same keystroke where it names one, and committing the very same planner this row's own
-        // plan would have called. The CLEAR states nothing and stays an ordinary row below.
-        armChartHarmonicNodeEntry();
-        return;
+        // THE ONE ROW WHOSE SET STATES A VALUE. Which node the finger touches is a quantity, and
+        // where the typed fret names more than one node the choice is the charter's: the view is
+        // asked to offer the rows, nothing commits, and the chosen row returns through
+        // SetChartHarmonicNode. Asked HERE, below the prologue and the window, so a live fret
+        // entry has settled before the label is read and a second `H` inside the window reverses
+        // instead of asking again — the fork and the reversal are one verb's, in one place. A
+        // fret naming one node falls through and writes it like any other technique.
+        if (std::optional<ChartHarmonicNodePicker> picker = chartHarmonicNodePicker();
+            picker.has_value())
+        {
+            requestChartHarmonicNodePicker(std::move(*picker));
+            return;
+        }
     }
     const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
     if (applyChartEditPlan(law.plan(

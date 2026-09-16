@@ -305,18 +305,29 @@ Three consequences worth knowing before touching this:
   what was drawn, and the box's disappearance is the settle. Nothing else needs previewing, because
   nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it is held
   is the ring REVEAL — every visible note's ACTUAL stored ring — not a preview of a placement.
-- **The harmonic picker publishes POSITIONS, not text, and draws the head it will COMMIT.**
-  `ChartPendingHarmonicViewState` sits beside `pending_fret` rather than inside it because the two
-  carry different quantities: a typed value is one string over every affected object, while a node
-  is resolved against each note's own stop, so one shared choice prints "3.2" on an open string and
-  "8.2" on a note held at 5. The lane substitutes a would-be `NoteViewState` — fret zeroed, the
-  armed node set — into the SAME primitive a committed head draws through, so `headShapeFor` gives
-  the diamond and `tabNoteHeadText` the node label and the pending head cannot drift from the
-  committed one. The unchosen node reads outboard on the plate's own baseline (the rect
-  `paintTabPendingEntryBox` returns) in `EditorTheme::muted_text` — the OFF row's signal, never
-  `quieted()`, because an unchosen row is fully choosable and dimming would say "unavailable".
-  Nothing of this reaches the 3D board: the divergence lives entirely in the pending layer, which
-  already diverges, and the committed product is identical on both surfaces.
+- **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
+  controller like every other technique letter, and where the selection's typed fret names more than
+  one node the CONTROLLER asks the view for the choice — after its settle prologue and after the
+  verb window has had its chance to reverse — through the port method
+  `IEditorView::showChartHarmonicNodePicker`. The view's answer is a `juce::PopupMenu` anchored at
+  `TabView::noteHeadBounds(picker.note)` — the head of the member the rows were READ from, the
+  object the choice is about, which need NOT be the earliest selected note, rather than the mouse a
+  keyboard verb has no reason to be near. Rows read
+  `<node> · <ordinal> partial`: the value through the ONE label authority `harmonicNodeText`, so a
+  row and the head it will produce print the same number, and the ordinal beside it because our
+  frets are absolute where published tab is capo-relative. The rows are NUMBERED from 1 in the order
+  given, which is what lets the first — the lowest partial, the harmonic a charter means by the
+  label — open SELECTED so `Return` takes the common case: JUCE matches `withInitiallySelectedItem`
+  against item IDs, so an unnumbered row could never be preselected. `Esc` dismisses with the note
+  untouched. Nothing is PREVIEWED because nothing is provisional: the chosen row commits at once, so
+  the lane carries no pending-harmonic layer and the committed head is the only head there ever is.
+  Ordinary menu items at platform size are also the only targetable form this choice has — the
+  lane's own ~26 x 16 px node labels stay a display, never a target.
+  - **The anchor is the head's PRE-GLIDE position, and that is visible.** A selected head off the
+    viewport starts the window-follow glide that will centre it, while the popup is placed from
+    where the head sits when the press lands, so it can open at a screen edge and stay there while
+    the lane scrolls under it. A silent-hold selection draws no head at all
+    (`noteHeadBounds` returns nothing) and the popup anchors on the lane instead.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than

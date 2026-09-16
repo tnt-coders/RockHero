@@ -261,6 +261,18 @@ public:
     [[nodiscard]] std::optional<juce::Rectangle<float>> selectedNoteHeadBounds() const;
 
     /*!
+    \brief The head of one note by projection index, in this component's coordinates.
+
+    The anchor for a popup about that note — the harmonic node picker opens on the head whose
+    rows it lists, which need not be the earliest selected one. Empty when the lane has no
+    metrics, the index is past the projection, or the stop is silently held.
+
+    \param index Index into the tab projection's note order.
+    \return The head's bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> noteHeadBounds(std::size_t index) const;
+
+    /*!
     \brief Returns the string legend's panel column at the current pin, or an empty rectangle.
 
     Published for the CANVAS BENEATH this lane. The panel is an exclusion plus a tint rather than a

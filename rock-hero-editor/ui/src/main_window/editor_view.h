@@ -151,6 +151,9 @@ public:
     */
     void showNotice(const std::string& title, const std::string& message) override;
 
+    /*! \copydoc core::IEditorView::showChartHarmonicNodePicker */
+    void showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picker) override;
+
     /*!
     \brief Runs a callback after the busy overlay paints.
     \param callback Callback to run after the overlay paint fence is crossed.

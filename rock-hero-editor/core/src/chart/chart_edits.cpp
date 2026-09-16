@@ -2093,7 +2093,7 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     }
     std::vector<common::core::HarmonicNodeCandidate> candidates =
         common::core::harmonicNodeCandidates(
-            harmonicLabelOf(note, tuning.capo), common::core::g_max_snapped_partial);
+            harmonicLabelOf(note, tuning.capo), common::core::g_max_harmonic_partial);
     // REACHABILITY IS THE RULE AUTHORITY'S ANSWER, never a bound restated here: a node past the
     // neck, at or behind the stop, or on a note whose saved form records no node at all (a scrape,
     // a silently-held stop) is dropped because the write it would produce is one the chart rules
@@ -2109,6 +2109,13 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
             return !written.harmonic_node.has_value() ||
                    !common::core::validateChartNoteAlone(written, tuning, tempo_map).has_value();
         });
+    // LOWEST PARTIAL FIRST: the order the picker lists and the row a choiceless press takes. Not
+    // the nearest node, which import takes — under a bound of 16 the 13th partial's 2.892 sits
+    // nearer a typed 3 than the 6th's 3.156 does, and a charter typing 3 means the 6th.
+    std::ranges::sort(
+        candidates,
+        [](const common::core::HarmonicNodeCandidate& lhs,
+           const common::core::HarmonicNodeCandidate& rhs) { return lhs.partial < rhs.partial; });
     return candidates;
 }
 
@@ -2132,26 +2139,23 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
                 chartHarmonicNodeCandidates(note, chart.tuning, tempo_map);
             if (candidates.empty())
             {
-                // The typed fret names no node this note can reach — frets 1, 11 and 13, an open
-                // string (whose zero offset names no touch at all), and a pinch, whose node is the
-                // other hand's. Skipped, never repaired: moving the finger to the nearest node
-                // would author a position the charter never typed.
+                // The typed fret names no node this note can reach — an open string, whose zero
+                // offset names no touch at all, and a pinch, whose node is the other hand's.
+                // Skipped, never repaired: moving the finger to the nearest node would author a
+                // position the charter never typed.
                 return false;
             }
-            // THE CHOICE BINDS ONLY WHAT IT NAMES. A note whose label reaches one node has that
-            // node whatever partial was chosen, and a press that stated no choice means the
-            // nearest — which is the same answer for a single candidate, so the two rules agree
-            // everywhere except at the one ambiguous label the picker exists for.
+            // THE CHOICE BINDS ONLY WHAT IT NAMES. A chosen partial takes the node of that partial
+            // on every note whose label offers it; a note whose label does not, and a press that
+            // stated no choice, take the operand's FIRST row — the lowest partial, the one the
+            // picker preselects — so the keyboard's default and the menu's first row agree.
             const auto named = std::ranges::find_if(
                 candidates, [chosen_partial](const common::core::HarmonicNodeCandidate& candidate) {
                     return chosen_partial.has_value() && candidate.partial == *chosen_partial;
                 });
-            const std::size_t chosen =
-                named != candidates.end()
-                    ? static_cast<std::size_t>(std::ranges::distance(candidates.begin(), named))
-                    : common::core::nearestHarmonicNode(
-                          candidates, harmonicLabelOf(note, chart.tuning.capo));
-            touched = harmonicTouchNote(note, candidates[chosen].position, chart.tuning);
+            const common::core::HarmonicNodeCandidate& chosen =
+                named != candidates.end() ? *named : candidates.front();
+            touched = harmonicTouchNote(note, chosen.position, chart.tuning);
             return true;
         });
 }
@@ -2516,10 +2520,10 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                                        common::core::nodeIsOnNeck(note.attack);
                             });
                     },
-                // The SET states no choice, which means the node nearest the typed fret. Where the
-                // fret names two nodes the verb arms the picker instead and settles this same
-                // planner with the candidate the charter chose, so the two are one function and
-                // this row is what a choiceless press does.
+                // The SET states no choice, which means each note's lowest partial. Where the
+                // typed fret names more than one node the view offers the picker instead, and a
+                // chosen row runs this same planner with its partial, so the two are one function
+                // and this row is what a choiceless press does.
                 .plan =
                     [](const common::core::Chart& chart,
                        const common::core::TempoMap& tempo_map,
