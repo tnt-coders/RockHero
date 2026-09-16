@@ -292,7 +292,8 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
-Alt+Shift+arrows, digits, `Alt`+digits, Delete, Insert (the lanes' and the tone row's neutral
+Alt+Shift+arrows, `Tab`/`Shift+Tab` and their `Ctrl` twins, the five `Ctrl+Shift`+letter row jumps,
+digits, `Alt`+digits, `Enter`, `Ctrl+R`, Delete, Insert (the lanes' and the tone row's neutral
 create — the chart's `Insert` verbs were retired 2026-09-11 when every note became typed), and Esc
 are registered commands like everything else. Their `perform` cases route to dedicated controller
 intents, and since 2026-08-21 every
@@ -300,7 +301,8 @@ one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCare
 `StepToRowObject`, `JumpToFocusRow`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with
+`SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`, `ToggleChartJunction`) — so
+path (b) is path (a) with
 a different trigger: the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
 `runAction`'s prologue settles the pending fret entry for all of them. The prologue's ONE exemption
@@ -311,7 +313,11 @@ harmonic picker cycles its armed candidate. EVERY digit continues a live entry, 
 widen the value, so no keystroke re-derives what the entry creates. What stays per-verb is reading
 its own operand. Esc remains a direct ladder because its first rung is the invalid pending
 value itself. The intents —
-`onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
+`onChartCaretStepRequested` (which also carries the one EXIT from a time selection: a plain arrow
+under a Shift selection arms one grid step past the span's start or end in the press's direction —
+the caret leaves the span the way it leaves a slot, so the extend and the step read as one motion;
+`StepChartCaret`'s passive branch),
+`onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
 and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
@@ -498,6 +504,25 @@ order, so neither can list before reconciling. **Stack membership is the silence
 stack does not list — a song with no sections, a track with no regions — is not landed on at all, so
 the press does nothing and leaves an armed caret armed, where indexing that row's markers would have
 thrown. The jump never calls `prepareLandingRow`, which is the rule for landings that KEEP the row.
+
+**Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as
+the marker chords above: the core publishes the verb, the view opens the prompt it names.
+`RestateSelection` (`0x1404`, `Enter`) reads `EditorViewState::restate_target` — nothing, rename the
+selected section, retone the selected region, or open the "+" row's parameter picker.
+`RenameSelection` (`0x1405`, `Ctrl+R`) reads `rename_target` — nothing, rename the selected section,
+or rename the selected region's TONE document — and is silently inert on every kind with no name
+(tempo, time signature, the "+" row), the way `Delete` is. Both are always-active and self-gate on
+an empty target, so a press with nothing to restate neither beeps nor lies.
+
+**The whole marker plane is paused-only** (ruled 2026-09-14): while the transport plays, no marker
+of any kind — section, tempo anchor, time signature, tone region, the "+" row, an automation point —
+can be selected and no marker edit can land. The decision is the core's, in
+`editor_action_availability.cpp`, and it reaches the views as ONE published flag,
+`EditorViewState::marker_edits_enabled`, so no surface derives it and none reads the transport to
+second-guess it. `cursorPosition(quantum)` — and the chord, restate and rename targets built on it —
+publishes nothing while playing, which is the same rule stated once more where the chords read it.
+The tone designer is the deliberate exception: the plugin chain, plugin parameters and the output
+gain stay live mid-play, because that is the point of the live rig.
 
 The split within path (b) is deliberate:
 
@@ -712,8 +737,29 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    over a digit still registers both shapes, and it is the TOP-ROW one that matches on Windows —
    see the Alt-code note under Decoding). One command per
    (chord, verb) pair: a `Ctrl` precision/reach tier is its own command, per the interaction
-   model's operation-not-key rule.
-3. **Extend both `EditorView` switches**: the `getCommandInfo` case (enablement from view-state
+   model's operation-not-key rule. **A marker kind's letter is declared ONCE** — the file-local
+   `g_section_key`, `g_tempo_key`, `g_time_signature_key`, `g_tone_key`, `g_add_lane_key` — and both
+   of its chords are composed from it by `markerAuthorChord` (`Ctrl`+letter, authors at the cursor)
+   and `markerJumpChord` (`Ctrl+Shift`+letter, jumps focus onto the row), so the pair cannot drift.
+   A new marker kind adds one constant and two rows, never two hand-written chords. All three live
+   in the file's anonymous namespace; a file-scope helper outside it fails macOS CI's
+   `-Wmissing-prototypes`.
+3. **Classify a NEW category** in `editorCommandActsOnSelection` (same file). It is what decides
+   whether a command triggers rule 2 of the window follow — read the selection's first member before
+   the command and centre it afterwards if it was off screen. Today Selection, Authoring, Value Entry
+   and Marker act on the selection; Navigation does not (the walk and the jumps SELECT, and selecting
+   never scrolls), nor do the section and tone-change author chords (they act at the cursor), nor Esc.
+   A category nobody classified silently falls to "does not act on the selection".
+4. **One owner per chord is a WRITE-side law, not a lookup-side one.** Every path that binds a chord
+   goes through `assignKeyPressToCommand` (`keymap_ownership.h`), which strips the chord from
+   whatever command holds it and only then adds it — the keymap editor's assign, its per-command
+   reset, and `EditorKeymapPersistence`'s `restoreKeymap`, which is the editor's own loop over the
+   stored `MAPPING`/`UNMAPPING` entries precisely because JUCE's `restoreFromXml` adds a second owner
+   whenever a chord the user moved has since become another command's default. `removeKeyPressFromCommand`
+   is its pair. Shipping a new DEFAULT chord that a user may already have overridden is exactly the
+   case this protects: without it the preview window's first-owner lookup and the mapping set's
+   first-enabled-owner dispatch would pick different commands.
+5. **Extend both `EditorView` switches**: the `getCommandInfo` case (enablement from view-state
    flags, tick state, any live name augmentation) and the `perform` case (emit the controller
    intent, mirroring the enablement guard). A new *operation* means building the action first
    (\ref guide_add_action); a new *caret verb* means a new `on...Requested` intent on
@@ -726,22 +772,25 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    reach for the plan gate's ring clamp from an entry gesture — the clamp and the clearance repair
    are the load, import and MOVE authorities, and using one here would truncate the ring and clip
    payload the two-keystroke split conserves.
-4. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
-   locks ids and default chords") — it fails on any unrecorded id or default change by design.
-5. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw
+6. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
+   locks ids and default chords") — it fails on any unrecorded id or default change by design, and
+   its sibling default-chord-resolution test fails on any collision a new default introduces.
+7. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw
    `addCommandItem` — one line in `getMenuForIndex`, and the live shortcut text renders through
    the shared `keyChordText` formatter so menus never drift from the dialog chips. A command
    whose category already has a top-level menu belongs in that menu: the Actions dialog groups by
    the same category, so one that is missing reads as an omission and is reachable only by chord.
-6. **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping
+8. **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping
    change); a *new* command that should also fire from plugin windows means extending the
-   `PluginWindowShortcutBindings` seam, not adding predicates. The 3D preview whitelist is
-   command-id based and needs a change only if the preview should honor a new command.
-7. **Record it** in `docs/plans/in-progress/keymap-matrix.md` (the binding inventory) and, if
+   `PluginWindowShortcutBindings` seam, not adding predicates. The **3D preview whitelist**
+   (`g_preview_commands` in `editor_view.cpp`, seventeen ids today) is command-id based and needs a
+   change only if the preview should honor a new command — it should not if the command acts on
+   something the highway does not draw, which is why the row jumps and the vertical walk are absent.
+9. **Record it** in `docs/plans/in-progress/keymap-matrix.md` (the binding inventory) and, if
    it changes grammar semantics, `editing-interaction-model.md`.
-8. **Tests**: drive the intent through the editor-core harness; for view-layer wiring, assert
-   the `RecordingEditorController` call through the mapping set
-   (`commandManager().getKeyMappings()->keyPressed(...)`).
+10. **Tests**: drive the intent through the editor-core harness; for view-layer wiring, assert
+    the `RecordingEditorController` call through the mapping set
+    (`commandManager().getKeyMappings()->keyPressed(...)`).
 
 # The game side, briefly
 

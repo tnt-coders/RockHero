@@ -73,7 +73,8 @@ const juce::Colour g_plate_rim{0xff7d7d7d};
 struct StringStyle;
 [[nodiscard]] PlatePalette platePalette(const StringStyle& style, Hand hand);
 
-// Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
+// Bold text height for the lane's boxed chips — the fret-hand chips and the capo chip (Charter
+// chartTextHeight). No shape name is drawn on any surface, so nothing reads it as a bar height.
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
@@ -1843,8 +1844,8 @@ void drawNoteHead(
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
 // span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
 // shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
-// read as an ugly wall of color). The template name, when present, rides the host's name-chip
-// band (the editor's timeline ruler), not the lane itself.
+// read as an ugly wall of color). The rails are the WHOLE indication: a span carries no name to
+// draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
 //
 // WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
 // and the caller has already picked between them (TabRevealedShape). One rail length reaches both
@@ -1870,10 +1871,6 @@ void drawShapeSpan(
             start_x, static_cast<float>(metrics.bounds.getY()), width, g_shape_rail_height
         });
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
-
-    // The template name is not drawn here: the same tab projection feeds the editor timeline
-    // ruler's shape-label band, which shows the name directly above this span in the ruler's
-    // vertical space; the lane itself has no clean room for names.
 }
 
 // THE ONE STATEMENT of what a fret-hand-position chip says: the standard four-fret hand shows just

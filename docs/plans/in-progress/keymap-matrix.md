@@ -68,8 +68,9 @@
 > verb of its own beyond its chord. *(Retired by
 > the re-ruling: the 2026-09-12 half where the chord restated a SELECTED marker wherever the cursor
 > was, and the 2026-09-13 caret-only position.)* The
-> six kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
-> other four are RESERVED for the plans that build their objects. `Alt`+letter is the platform's
+> five kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
+> other three are RESERVED for the plans that build their objects (six until 2026-09-15, when the
+> fret-hand position and the span became ONE hand marker on `Ctrl+H`). `Alt`+letter is the platform's
 > menu-access plane and nothing else: `Alt+F` / `Alt+E` / `Alt+V` open the menus. `Alt` alone
 > stays the ring reveal and `Alt`+digit stays the slide-out. Five rival families — `Shift`+letter,
 > the `Ctrl` plane without menu access, a leader key, a ruler caret, and a structure mode — were
@@ -90,7 +91,7 @@
   (off-grid / 1/960 fine).
 - **Clicking an existing object** → `Ctrl` = **TOGGLE** selection membership.
 - **`Ctrl`+letter** → the DOCUMENT: file, history, view, grid, and the marker family (a
-  section, tone change, tempo anchor, meter, position or span marker inserted at the cursor, or
+  section, tone change, tempo anchor, meter or hand marker inserted at the cursor, or
   restated when one already stands there). Letters alone touch the note under the caret; `Ctrl`
   never does.
 
@@ -294,7 +295,8 @@ path onto a marker.
 
 The **Jump** column is each letter's second claimant, the select half of the pair: it lands focus on
 that kind's row exactly as the vertical walk does, and is silent where the row holds nothing. The
-five rows that exist went Live 2026-09-15 with step 4a; the two hand rows arrive with their rows.
+five rows that exist went Live 2026-09-15 with step 4a; the one hand row arrives with its row
+(plan 60 Phase 3).
 
 | Chord | Jump | Marker | Scope | Quantum | Payload | Status |
 |---|---|---|---|---|---|---|
@@ -382,10 +384,10 @@ chip scrolling in.
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
 | `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
-| `Ctrl+O` · `Ctrl+I` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+E` · `Ctrl+W` · `Ctrl+Q` | Open / Import Song / Save / Save As / Export Song / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20; Publish renamed Export Song on `Ctrl+E` and Import moved to `Ctrl+I` 2026-09-15, `keyboard-focus-rows.md` step 4.0b — which freed `Ctrl+Shift+P` for the fret-hand position row jump) |
+| `Ctrl+O` · `Ctrl+I` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+E` · `Ctrl+W` · `Ctrl+Q` | Open / Import Song / Save / Save As / Export Song / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20; Publish renamed Export Song on `Ctrl+E` and Import moved to `Ctrl+I` 2026-09-15, `keyboard-focus-rows.md` step 4.0b — which freed `Ctrl+Shift+P`, at that point the fret-hand position row's planned jump; the one-hand-object ruling later the same day returned both `Ctrl+P` and `Ctrl+Shift+P` to the free pool) |
 | `Ctrl+Shift+I` · `Ctrl+Shift+E` | Import Tone… / Export Tone… — the second claimants of `Ctrl+I`/`Ctrl+E`: the same verbs on the active tone, over plan 50's actions (import replaces the active tone's chain; export writes its rig to a file). No song Export As is planned; one would be menu-only | Live (step 4.0b, 2026-09-15; `ImportTone` 0x1008 / `ExportTone` 0x1009, category Tone, no menu items — the signal-chain header buttons are their surface) |
 | `Ctrl+R` | rename the SELECTION where its kind has a name: a section (the same prompt as `Enter`), a tone region's TONE (the tone document's name, shared by every region that uses it); silently inert on everything else. A selection verb like `Enter`, not a marker chord — R is no marker's letter. Main window only, not in the 3D preview's whitelist | Live (`RenameSelection`, `0x1405`; ruled and built 2026-09-14 with the marker grammar, `keyboard-focus-rows.md` Phase 3; unsighted) |
-| `Ctrl+Shift+M` · `Ctrl+Shift+B` · `Ctrl+Shift+/` · `Ctrl+Shift+H` · `Ctrl+Shift+T` · `Ctrl+Shift+A` | jump to the section / tempo / time-signature / hand (position + span, one row — plan 60) / tone / "+" row. Each marker kind's `Ctrl` pair is author / select: `Shift` is the letter's second claimant, as on every letter plane. A jump lands as the walk does (select the marker holding the cursor, caret demoted), does nothing with no holder, and the "+" jump only lands (`Enter` opens the picker). The time-signature pair keeps `/` (ruled 2026-09-14; per-language key bindings are the long-term fix): the `Ctrl+Shift+/` jump has no working default on macOS, and both `/` chords need rebinding where `/` needs Shift (`keyboard-focus-rows.md` Phase 4, D1) | Live for the five rows that exist (step 4a, 2026-09-15: `CaretJumpSectionRow` 0x1511, `CaretJumpTempoRow` 0x1512, `CaretJumpTimeSignatureRow` 0x1513, `CaretJumpToneRow` 0x1514, `CaretJumpAddLaneRow` 0x1515, category Navigation, main window only, unsighted). `Ctrl+Shift+P` waits for step 4b's fret-hand position row and `Ctrl+Shift+H` for step 4c's span row |
+| `Ctrl+Shift+M` · `Ctrl+Shift+B` · `Ctrl+Shift+/` · `Ctrl+Shift+H` · `Ctrl+Shift+T` · `Ctrl+Shift+A` | jump to the section / tempo / time-signature / hand (position + span, one row — plan 60) / tone / "+" row. Each marker kind's `Ctrl` pair is author / select: `Shift` is the letter's second claimant, as on every letter plane. A jump lands as the walk does (select the marker holding the cursor, caret demoted), does nothing with no holder, and the "+" jump only lands (`Enter` opens the picker). The time-signature pair keeps `/` (ruled 2026-09-14; per-language key bindings are the long-term fix): the `Ctrl+Shift+/` jump has no working default on macOS, and both `/` chords need rebinding where `/` needs Shift (`keyboard-focus-rows.md` Phase 4, D1) | Live for the five rows that exist (step 4a, 2026-09-15: `CaretJumpSectionRow` 0x1511, `CaretJumpTempoRow` 0x1512, `CaretJumpTimeSignatureRow` 0x1513, `CaretJumpToneRow` 0x1514, `CaretJumpAddLaneRow` 0x1515, category Navigation, main window only, unsighted). `Ctrl+Shift+H` (`0x1516`) waits for the ONE hand row — steps 4b and 4c were handed off to plan 60 Phase 3 on 2026-09-15, when the position and the span became one object, and `Ctrl+P` / `Ctrl+Shift+P` went back to the free pool with `0x1517` unassigned |
 | `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain, at the **cursor**: standing EXACTLY on a region's start, the picker reopens to repoint that region — at any other catalog tone (only its own is left out, since that would change nothing; a NEIGHBOUR's tone merges the two regions, because a boundary with no change across it is no boundary) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; anywhere inside a region, it splits it into a new one (choosing the next region's tone there pulls that tone back to the cursor). A selected region elsewhere changes nothing; `Enter` repoints the selection and `Ctrl+R` renames its tone | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13; merge instead of refuse 2026-09-13; author at the cursor 2026-09-14, replacing the form where a SELECTED region won, the caret alone decided, and a caret on a start merely SELECTED it) |
 | `Ctrl+M` | add a **song section** at the MEASURE the cursor is in, snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name, carrying the downbeat captured at the press. Where a section already stands there, RESTATE it: the rename prompt. The selection is not read, and the cursor is the armed caret, else the paused cursor, read from the TICK so a cursor paused just before a barline still names the measure it is IN | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that; press-time capture 2026-09-13; author at the cursor 2026-09-14, replacing the form where a selected section won, the armed caret alone decided, and an occupied downbeat merely SELECTED |
 | `Ctrl+B` · `Ctrl+/` · `Ctrl+H` | tempo anchor · meter · hand marker (position and span, one object since 2026-09-15), each inserted at the cursor, or restated where one already stands there — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; plan 60 gate G60-RULINGS) |
@@ -687,7 +689,7 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   anchors/notes); it coexists with the tone-row `Insert` at the **caret** — different target
   positions. Fix the `Ctrl+Alt+T` bug by **guarding `Ctrl+T` against `Alt`** (require `Ctrl` and
   not `Alt`), NOT by removal. *(Reverses the earlier "Ctrl+T retired" note.)* **Realised
-  2026-09-12:** the insert-at-cursor family is the six-chord `Ctrl` marker family (*Markers*
+  2026-09-12:** the insert-at-cursor family is the `Ctrl` marker family (*Markers*
   above), and every member gains the RESTATE half. **Re-ruled 2026-09-14:** that half reads the
   cursor, not the selection — the chord reopens the payload of the marker of its kind standing
   exactly at the cursor instead of inserting, and `Enter` restates a selected one.

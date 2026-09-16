@@ -964,6 +964,11 @@ authored lane's points before closing it, so half of it is a marker edit), and t
 callout, which the point double-click no longer opens. The plain lane-area click still SEEKS, as it
 always did. Nothing here reads the transport: one published flag is the gate, so this row cannot
 hold a second opinion about what the core would refuse.
+**The typed-value callout follows its anchor.** The box is launched on the desktop, so it does not
+ride the lane the way a child would; `CallOutFollower` (a `juce::ComponentMovementWatcher` over the
+lanes view) re-aims it at the caret square's current screen position whenever the view moves or
+resizes. It has to, because the window-follow rules can glide the canvas out from under an open box:
+a digit that centres its selection would otherwise leave the value box pointing at empty lane.
 **The chip column pins to the SELECTED TONE.** Every chip in this row — the lane names and the
 trailing "+" alike — sits at the left of the tone the lanes belong to (`pinnedChipLeft`, off the
 editable window, which IS the active region's span), scrolls with it, and sticks at the window's
@@ -1055,6 +1060,14 @@ All of these compile clean when forgotten:
    can host an armed caret, publish its caret mask through the upward channel (see above) —
    the viewport must never poll it.
 4. **`EditorView::setState` fan-out** — the row exists but renders defaults forever without it.
-5. **Snapping through `musicalGridPositionForX`** for any gesture, and one-intent-on-release
+5. **A `selected...Bounds()` accessor**, if the row can draw the selected object. The window-follow
+   rule "a verb on a selection centres it if it was not fully on screen" asks the surface that drew
+   the glyph for its bounds and puts them to `TrackViewport::isSelectionVisible`
+   (`TimelineRuler::selectedChipBounds`, `ToneTrackView::selectedRegionLabelBounds`,
+   `TabView::selectedNoteHeadBounds`, `ToneAutomationLanesView::selectedPointBounds`). Report
+   `std::nullopt` for a glyph PINNED at the edge for an object standing elsewhere — a pinned name
+   proves nothing about where its object is, so the object's own column must answer instead. Without
+   the accessor the rule silently reads the selection as off screen and centres on every verb.
+6. **Snapping through `musicalGridPositionForX`** for any gesture, and one-intent-on-release
    commit semantics.
-6. **Tests**: projection tests in editor-core (headless), wiring tests via the UI harness.
+7. **Tests**: projection tests in editor-core (headless), wiring tests via the UI harness.

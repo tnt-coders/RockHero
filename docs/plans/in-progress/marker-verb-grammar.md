@@ -4,7 +4,7 @@
 (see [The review pass](#the-review-pass-of-2026-09-13)). **The precedence was RE-RULED and BUILT
 2026-09-14: every chord authors at the cursor and never reads the selection, and the core publishes
 the VERB each chord would perform** — Phase 3 of `keyboard-focus-rows.md`, whose build record
-names the fields. Binding on every marker kind added from here, including the four still
+names the fields. Binding on every marker kind added from here, including the three still
 RESERVED. Decisions that were judgment calls rather than forced moves are collected under
 [Open questions for review](#open-questions-for-review) at the end; they are the ones to push on.*
 
@@ -317,8 +317,10 @@ above. Building one means:
    position, predicate or gate of its own.
 3. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
    one select that demotes the caret and re-syncs the rig. A kind with its own ruler or track row
-   joins `MarkerRow` (`markerStarts`, `selectedMarker`, `markerSelectionAt`) and the focus-row
-   stack (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
+   joins `MarkerRow` — BOTH switches over the enum, `markerStarts` and `markerSelectionAt` in
+   `rock-hero-editor/core/src/timeline/marker_row_handlers.cpp`, plus a `selectedMarker()` arm —
+   and the focus-row stack, `focusRowStack` in `chart_handlers.cpp`
+   (`docs/plans/in-progress/keyboard-focus-rows.md`); the tempo anchor and the meter already
    have selectable chips there, awaiting their verbs.
 4. **Declare the kind's LETTER once** in `editor_command_registry.cpp` (a `g_<kind>_key` constant)
    and compose both chords from it — `markerAuthorChord(letter)` for `Ctrl`+letter and
@@ -327,7 +329,10 @@ above. Building one means:
    (`chart_pointer.h`) and to `focusRowFor` (`chart_handlers.cpp`), which is the only place the
    enum meets the row. The jump needs nothing else: it lands through the walk's own
    `rowsFromFocus` + `landOnRow`, so stack membership already makes it silent where the row holds
-   nothing.
+   nothing. If the kind's verbs introduce a NEW command category, classify it in
+   `editorCommandActsOnSelection` (same file), which decides whether the view keeps the acted-on
+   selection in view; Navigation is absent from that list on purpose, the jumps and the walk
+   selecting without moving the view.
 5. Add the kind to `RestateSelection`'s dispatch, to `RenameSelection`'s where it has a name, to
    `Delete`'s and to `MoveSelection`'s, all of which switch on the selection's kind; a landed move
    ends with `followMovedMarker(start)`.

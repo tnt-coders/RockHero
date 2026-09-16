@@ -821,7 +821,7 @@ Each re-verified against the code before being written down.
 
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 
-Five pre-existing gaps, all outside that plan's phases
+Seven pre-existing gaps, all outside that plan's phases
 (`docs/plans/in-progress/keyboard-focus-rows.md`). Each re-verified against the code before being
 written down.
 
@@ -874,6 +874,38 @@ written down.
   (`coalesceToneRegions`, `rock-hero-common/core/src/tone/tone_track_edits.cpp:42-49`, applied by
   every edit and by the reader). The cost is a meaningless chip on the meter row and a `Tab` stop
   that changes nothing. Consider it under plan 41, which is where that row first gains verbs.
+
+- **On macOS the `Shift` grid and zoom aliases and the numpad `+`/`-` never match.** The four
+  shifted chords register the UNSHIFTED key code with a shift flag — `chord('=', shift)`,
+  `chord('-', shift)`, `chord('=', command | shift)` and `chord('-', command | shift)`
+  (`rock-hero-editor/ui/src/keybinds/editor_command_registry.cpp:568-582`) — while the macOS peer
+  takes its key code from `[ev charactersIgnoringModifiers]`, which its own comment says "does not
+  ignore the shift key" (`juce_NSViewComponentPeer_mac.mm:1364-1383`), so `Shift+=` arrives as
+  `'+'` and `Shift+-` as `'_'`. `KeyPress::operator==` (`juce_KeyPress.cpp:52-63`) compares raw
+  modifier flags exactly and key codes case-insensitively only for letters, and the mapping set
+  matches through it (`juce_KeyPressMappingSet.cpp:186-191`, `:326`) — so the shifted entry misses
+  on the key code, and the bare `'+'`/`'-'` entry, which carries no shift flag, misses on the
+  modifiers. The numpad pair misses for the mirror reason: with `NSEventModifierFlagNumericPad` set
+  the peer converts `'+'`/`'-'` to `KeyPress::numberPadAdd` and `numberPadSubtract`
+  (`juce_NSViewComponentPeer_mac.mm:1398-1416`), and the registry deliberately registers neither,
+  because on Windows those presses arrive as bare characters and the bare chords ARE the numpad
+  bindings (`editor_command_registry.cpp:555-562`). The unshifted aliases (`=`, `-`, `Cmd+=`,
+  `Cmd+-`) still match, so the cost is dead chips rather than a lost command. Established from the
+  JUCE source, not yet reproduced on a Mac; settle it when the map first ships there.
+
+- **A rebind to a press that TYPES `/` restores as a bare `/` after a restart.** The capture dialog
+  stores the chord JUCE delivered verbatim, text character included (`KeyCaptureDialog::keyPressed`
+  assigning `m_captured`, `rock-hero-editor/ui/src/keybinds/keymap_editor_view.cpp:53-55`, `:94`),
+  and `KeyPress::getTextDescription` (`juce_KeyPress.cpp:238-247`) returns the bare string `"/"`,
+  modifiers dropped, for ANY press whose text character is `/` and whose key code is not the numpad
+  divide. So a German `Shift+7` is written to the keymap as `/`
+  (`juce_KeyPressMappingSet.cpp:293`, `:312`) and read back by `createFromDescription` as key code
+  `/` with no modifiers and a zeroed text character (`juce_KeyPress.cpp:183-235`), through this
+  project's own restore (`editor_keymap_persistence.cpp:59-61`). The binding therefore works for the
+  session and comes back bare — where it also collides with `/`, the letter reserved for the
+  time-signature author chord (`editor_command_registry.cpp:29`). The shipped `Shift+/` default is
+  unaffected, because `chord()` builds its presses with a zero text character (`:18-21`, `:145`).
+  PROPOSED FIX, from the plan and not done: zero the text character at capture.
 
 ## Found while tidying the focus-row walk (2026-09-14)
 
@@ -946,6 +978,12 @@ written down.
   hangs on it.
 
 ## Found while settling the focus reveal (2026-09-15)
+
+- **`g_shape_label_height` in `rock-hero-common/ui/src/tab/tab_paint_core.cpp` names a label
+  bar that no longer exists.** The 2026-09-15 doc sweep corrected its comment: the constant is the
+  bold text height of the lane's boxed chips (the fret-hand chips and the capo chip) and feeds only
+  `metrics.label_font`; no shape name is drawn on any surface. Rename it to say so (a code change,
+  so not done in the sweep).
 
 - **"Zoom to fit selection", one toggling verb with restore.** Every DAW ships it as a separate
   verb beside plain zoom (Ableton `Z`/`X`, Pro Tools Zoom Toggle, REAPER "View: Zoom time

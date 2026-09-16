@@ -12,7 +12,8 @@ BUILT and SIGHTED, and step 4a (the jumps for the five rows that exist) BUILT an
 2026-09-15 to `docs/plans/roadmap/60-hand-markers.md` §8: the position marker and the span marker
 are one object (its ruling 60-H1), so they are planned and built as ONE hand row there. Step 4d
 (reveal the acted-on selection, user-observed and ruled 2026-09-15) is BUILT and SIGHTED
-2026-09-15 (`0b0ef106`, `4fed59cc`); this plan is complete once the Phase 4 doc sweep lands. Supersedes the armed-caret row model of `d320e7ac`
+2026-09-15 (`0b0ef106`, `4fed59cc`); the Phase 4 doc sweep landed the same day. **This plan is
+COMPLETE**; its hand rows continue as plan 60 §8. Supersedes the armed-caret row model of `d320e7ac`
 (kept on `master` for reference only).*
 
 ## Context
@@ -1157,7 +1158,7 @@ it.
    anticipated: plan 60 ruled the FHP and span markers one object).
 4. **4d — reveal the acted-on selection** (user-observed 2026-09-15; ruled as plan 60's 60-H6,
    owed here first because the shipped rows have the defect) — BUILT and SIGHTED 2026-09-15.
-   This plan closes with the Phase 4 doc sweep below.
+   The Phase 4 doc sweep below is done (2026-09-15); the plan is complete.
 
 #### Out of scope
 - **Phase 3's build** — the author-at-cursor precedence (built 2026-09-14, ahead of 4a as
@@ -1169,7 +1170,14 @@ it.
 - **Opening the walk and jumps to chartless arrangements.**
 - **The macOS `Shift`-punctuation aliases** (backlog, D13).
 
-#### Docs to change with Phase 4
+#### Docs to change with Phase 4 — SWEPT 2026-09-15
+Done by three Opus workers, each item verified against the code before editing: the keymap
+matrix and the grammar (the jump row, File row, chords and typing gate were already current;
+six stale one-hand-object spots corrected; the new-kind checklist completed with verified
+symbols), the developer guide (path (b) list, the selection verbs and paused-only plane, the
+ten-step keybind recipe, the callout follower and the glyph accessor as silent steps), the
+backlog (D13 filed with source-verified evidence) and the paint core's stale shape-label
+comments. The Export vocabulary was already clean. The list as planned:
 - **This record:** the 4b/4c hand-off above; the row stack and vertical table gain the hand row
   when plan 60 Phase 3 builds it.
 - **`keymap-matrix.md`:** the jump row goes Live; the Markers table gains a jump column; the File row;
