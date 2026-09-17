@@ -257,7 +257,7 @@ trusting this table**, and read the owning header before citing a meaning.
 | **attack** (—) | How an onset is produced; one field, mutually exclusive values. | `NoteAttack` |
 | **span** (1575) | A derived statement *about the notes under it*, not a stored grouping. | chart derivations |
 | **posture / shape** (386) | Historically loaded: `shapes`/`chords` were deleted from the format when they became derived. Check before reuse. | (retired keys) |
-| **hold** (1275) | Presentation-side holds; also the arpeggio hold marker. | `chart_presentation.h` |
+| **hold** (444, re-counted 2026-09-17) | Presentation-side holds. Do not confuse with `held`, the fretting hand's stop under a right-hand onset. | `chart_presentation.h` |
 | **window** (2000) | Already a homonym: a fret-hand window (`FretHandPosition` fret+width) *and* an OS window (`*Window` suffix). Do not add a third sense. | both |
 | **anchor** (965) | Tempo-map anchor; also the tone-lane baseline anchor. Loaded — qualify or avoid. | tempo map, tone lanes |
 | **ink / quieted** (229 / 19) | The 2D lane's ink set; `quieted()` is the ONE authority for fading a mark. | `editor_theme.h` |

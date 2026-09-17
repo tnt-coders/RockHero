@@ -1055,3 +1055,16 @@ written down.
   (LAW II, since the justification half left). Whether a zero-length bracket over two short taps is
   the right PICTURE is a sighting question, not a derivation bug — the derivation is saying exactly
   what happened. Accepted until sighted.
+
+- **The design-pattern guide's planner list is stale.** `docs/developer/design-patterns.md` counts
+  "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the
+  enumeration omits four functions that DO carry the planner shape — `planInsertKeyframe`,
+  `planSetHarmonic`, `planClearHarmonic` and `planClearPinchHarmonic` — while naming three that
+  return other plan types: `planSetLegato` (`ChartLegatoPlan`), `planSettleChart`
+  (`std::optional<ChartEditPlan>`) and `planToggleJunctions`
+  (`std::expected<ChartJunctionPlan, ChartPlanRefusal>`). Verified against
+  `rock-hero-editor/core/src/chart/chart_edits.h`: fourteen functions there return
+  `std::expected<ChartEditPlan, ChartPlanRefusal>`, so neither the count nor the membership is right
+  under either reading. Pre-existing. Fix shape: decide what the guide means by "planner" (returns
+  `std::expected<ChartEditPlan, ChartPlanRefusal>`, or any plan-producing function), then list by
+  that rule — or drop the count and point at `chart_edits.h`, which cannot go stale.
