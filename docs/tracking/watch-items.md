@@ -232,7 +232,7 @@ draws that ribbon, so nothing is left to reconcile.
 
 The right-hand exclusion sweep (2026-08-30) asks every question in `makeHighwayChordGroups` of the
 FRETTING HAND's members alone — the strum count, the repeat identity's frets, the mute and emphasis
-unanimities, and the display-capability gate's scans — so a silent hold and a right-hand onset are
+unanimities, and the display-capability gate's scans — so a right-hand onset is
 no part of the strike a box speaks for. One retreat survives that, and it is the exact opposite of
 a special case: a tap that REPLACES a chord member shrinks the fretting set, so the identity's
 string list genuinely differs from the chug before it, the onset is a different onset, and the run
@@ -582,13 +582,11 @@ REMOVED rather than saved. `sweepInertClaimedStops` runs as the normalizer's las
 the editor's plan gate, so the population this item was watching is empty by construction — what a
 chart holds, some bracket prints.
 
-The two rejected options are unaffected by the retirement, and the objection that killed option (a)
-is not: refusing to author where no span forms is now what `N` DOES, whole-plan. That works for the
-route the ruling is really for — converting a chord that already sounds, where the whole selection
-is one plan and the stops are legal together — but a press names at most one EMPTY slot (the
-caret's), so a zero-sound span can no longer be authored from scratch at all. That is a limitation
-of the VERB rather than of the model, it is open for the user in
-`docs/plans/todo/arpeggio-authoring.md`, and it is tracked THERE rather than reopened here: this
+Both rejected options went moot on 2026-09-17, when the `N` verb and `NoteAttack::None` were
+removed from the model entirely: there is no verb left to refuse a press and no record left to hide.
+Stating a fretting-hand stop on a string where nothing sounds is now unauthorable, ACCEPTED, and
+waits on the span templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5; it is tracked there
+and in `docs/plans/todo/span-marker-redesign.md` rather than reopened here. This
 item watched invisible records, and there are none. Reopen only if the sweep is ever weakened.
 
 ### Staggered keyframe landings open no successor span — trigger: a real chart carries a chord slide whose members land at different moments and the missing landing bracket reads wrong
@@ -665,23 +663,16 @@ lives: a three-member founding derives NO bracket for a dyad roll, and the escap
 two-note span, owed by `docs/plans/todo/span-marker-redesign.md`'s settlement rider. The census's
 span rows re-sign once at that plan's Phase 2, never before.
 
-### A deferred bracket may cover a tap's head — trigger: the figure is sighted, or a report
+### ~~A deferred bracket may cover a tap's head~~ — RETIRED 2026-09-17: the premise is gone
 
-Not a sighting yet, a possible latent defect recorded before it bites. The 2D hit test resolves
-silently-held stops FIRST, which is the one place its order departs from "topmost drawn wins"
-(`chart_hit_testing.cpp`), and the warrant is that no FRETTING-HAND head of the hold's string is
-drawn under that bracket anywhere: a claim only gets a face on a string the span's own sound never
-states, and a fretting-hand strike naming a DIFFERENT stop on a string the grip states contradicts
-it and ends the grip there (the graded witness, 2026-09-04). A
-RIGHT-HAND onset is outside that argument. A tap joins no posture, so it can sound the hold's own
-string inside the span without breaking it, and since a landing-opened span's bracket defers to an
-interior sounding the mark can land on the very slot the tap occupies — where the bracket bar would
-take a click over the tap's own head. Left un-arbitrated deliberately: choosing a priority blind
-means guessing which mark a charter is reaching for in a figure nobody has looked at.
-**Trigger**: sighting the figure in real material, or a user report of a tap head that cannot be
-clicked because a bracket stands on it. **Remedy**: judge the overlap with eyes on it and then
-scope the exception narrowly — the hold-first pass yielding to a right-hand head at the same slot
-is the obvious form, and it must stay an exception rather than becoming a second ordering rule.
+The item was: the 2D hit test resolved silently-held stops FIRST, the one place its order departed
+from "topmost drawn wins" (`chart_hit_testing.cpp`), and a landing-opened span's deferred bracket
+could therefore land on the very slot a tap occupies and take a click over that tap's own head.
+
+With `NoteAttack::None` removed the bracket is no longer any record's face: the whole-stream hold
+probe, the head-loop skips and the marquee pass all left with it, so the hit test has one ordering
+and a bracket takes no clicks at all. Reopen only if a mark is ever given a hit pass ahead of the
+heads again.
 
 ## Highway note art
 

@@ -8,9 +8,8 @@ verb, the converter default of ruling 7, and whether to merge.
 ## The model in one paragraph
 
 `ChartNote::sustain` is the **actual duration the string rings** — Guitar Pro's notated duration at
-import, what the editor's verbs author. It is strictly positive for every note that sounds (a dead
-note's damped stroke has a duration too); the one exception is the note that never sounds, a
-silently-held stop (`NoteAttack::None`), whose ring is required to be zero. What a surface
+import, what the editor's verbs author. It is strictly positive on EVERY note, with no exception —
+every note sounds, and a dead note's damped stroke has a duration too. What a surface
 **draws** and what the game will **score** is the **presented** form, derived once per chart
 revision by `presentedChartNotes` in common/core from the tail rules, which are a pure read-side
 derivation rather than import-time destruction. The legato resolver reads the actual duration under
@@ -81,7 +80,7 @@ and the tail law's verdict beside it.
    nothing, because the curtain has no vocabulary for a statement in progress. THE CURTAIN IS
    UNIVERSAL: span furniture is no part of the question, so every fretting-hand tail in scope rests
    over open board exactly as under a bracket. THE ATOM IS THE MEMBER: each member is judged on its
-   own. Scope binds both sides of the judgment — right-hand onsets and silent holds are neither
+   own. Scope binds both sides of the judgment — right-hand onsets are neither
    members nor witnesses. The 3D board suppresses the resting remainder at distance and reveals it
    near the hit line; the 2D lane draws the execution form always. The full statement, with its
    cases, lives at `presentedChartNotes` in `chart_presentation.h` and is not restated here.
@@ -91,10 +90,8 @@ per note.
 
 ## Invariants on the stored form
 
-- `sustain > 0` for every note that sounds, and `sustain == 0` for the one that does not — a
-  silently-held stop (`NoteAttack::None`) has no ring of its own, and a stored one would be a
-  length nothing reads and the same-string clamp could only contradict. Both are structural
-  refusals (no repair can invent a duration). A MISSING `sustain` key is a malformed document, and
+- `sustain > 0` for EVERY note, with no exception — every note sounds. It is a structural
+  refusal (no repair can invent a duration). A MISSING `sustain` key is a malformed document, and
   that is the format tripwire that actually fires: the pre-model writer elided the key on every
   tail-less note rather than writing a zero, so that is the path a real old package takes, and its
   message is the one that names the re-import.
@@ -373,14 +370,14 @@ and has no instances on that material.
 3. The 2D hold ribbons change lands as its own commit after A.
 4. Scored = presented, a contract recorded here and exposed through the projection; the scorer
    reads it when it exists.
-5. Every sounding note's sustain is positive; a dead note carries its notated duration and E25 is a
+5. Every note's sustain is positive; a dead note carries its notated duration and E25 is a
    presentation rule (the "except dead" wording was serving the same end, and pinning dead at zero
    would re-break every legato claim after a muted cluck). A quarter-note cap on a dead note's
    stored sustain was considered and declined: nothing visible or audible changes with the length
    (rule 4 presents no tail, playback clucks), the length is exactly the timing information and the
    legato adjacency the stored form exists to carry, and the cap would be one more bound stated in
    three places for a value no surface shows. The same-string clamp is the only bound on any note's
-   sustain. The one note that stores a zero is the one that never sounds, a silently-held stop.
+   sustain, and no note stores a zero.
 6. Insert default = one grid step, clamped at the next onset on the string. Rule 12 unchanged.
 7. **Proposed, awaiting the user's confirmation — the lossy-source default.** A converted package
    from the commercial source format stores no duration for a note the charter did not mark as

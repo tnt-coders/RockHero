@@ -357,9 +357,6 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the ordinary vibrato on the selected notes (`V`). */
     ChartVibratoToggle = 0x1711,
 
-    /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
-    ChartSilentHoldToggle = 0x1712,
-
     /*!
     \brief Toggle every selected junction — keyframe to head, head to point (`Shift+L`).
 

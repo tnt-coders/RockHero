@@ -582,9 +582,10 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   change; the count also prices `docs/plans/todo/strum-direction-support.md` if that distant
   item is ever picked up.
 
-- **Hoist the technique-toggle test fixture** (2026-08-28, from the T/S/P build): the new
+- **Hoist the technique-toggle test fixture** (2026-08-28, from the T/S/P build): the
   `AttackToggleFixture` in `test_chart_technique_toggles.cpp` duplicates the shape of
-  `SilentHoldFixture` in `test_chart_silent_hold.cpp`, and the file's ten pre-existing tests
+  `HeldStopFixture` in `rock-hero-editor/core/tests/test_chart_held_stop.cpp`, and the file's
+  pre-existing tests
   still spell out ~14 lines of controller setup each. Hoist one fixture into
   `chart_editing_fixture.h` and convert both suites (~150 lines, mechanical).
 
@@ -595,14 +596,6 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   verification run so the arpeggio movement stayed attributable to the ruling alone; flip it and
   run the census on its own so the [D4] carried-fret-distance histograms can be re-read against
   the stream the rule actually uses.
-
-- **Close the landing-to-next-slot inert-hold window** (2026-08-29, from the landing-split
-  rebuild): a silent hold authored between a span's landing and the walk's next slot is judged
-  against the PREDECESSOR (already closed at the landing) rather than the standing successor, so
-  it publishes nothing and sweeps. Far smaller than the old glide-wide dead zone (the amendment
-  closed that one — a mid-travel hold now rides the covering span's growth law), but a real
-  authoring pocket. Fix shape: `settle_landing` runs before claims attach, so the claim's slot
-  should see the successor standing; verify ordering at the slot loop and pin with a test.
 
 - **Rebuild the two 2026-08-30 floor lights when their questions are answerable.** Both were
   built, sighted, and **TABLED the same day (user)** — removed from the tree rather than left
@@ -635,7 +628,7 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   documented reason the two normalization sweeps were order-dependent ("flattening a claim
   changes an articulation, and spans are keyed by articulation") dissolved when continuation
   went position-only — sweepUnjustifiedLegato writes only note.attack, and both Legato and Pick
-  are fretting-hand non-silent, so the spans judged by sweepInertClaimedStops are identical
+  are fretting-hand attacks, so the spans judged by sweepInertClaimedStops are identical
   either way. The three comments are already corrected (order = reading order, not a condition).
   Open cleanup: keep the order as harmless, or merge the two sweeps into one pass.
 
@@ -1043,3 +1036,22 @@ written down.
   keyed note's saved form change?" — so counting skips `finalizePlan` entirely, which would also force
   the Invalid-versus-`NoChange` distinction to be answered explicitly instead of read off
   `.has_value()`.
+
+## Found while removing the silent hold (2026-09-17)
+
+- **A claim's face can contradict the posture it points at.** `emit`'s claims loop
+  (`rock-hero-common/core/src/chart/chart_shapes.cpp`) fills a posture string only where that string
+  is still EMPTY, but publishes the claim's reach (`ChartShapes::claim_shapes`) unconditionally, so
+  a later strike that GROWS the span with a different fret on a claimed string leaves the claim
+  pointing at a span whose posture prints another stop there. Measured: a claim of 7 on string 2
+  whose span prints 9. Pre-existing rather than new — the removal only made it easy to see — and a
+  surface drawing the claim's satellite digit beside that bracket would show two numbers for one
+  string. Fix shape: either the growth that overwrites a claimed string ENDS that
+  claim's reach, or the claim witness treats a strike at a different stop on a claimed string as a
+  contradiction even inside a `silent_only` span.
+
+- **A span of claims alone publishes with zero sustain.** Two taps each holding a stop, with nothing
+  else sounding, derive a real arpeggio-classed shape of length zero, published at its own instant
+  (LAW II, since the justification half left). Whether a zero-length bracket over two short taps is
+  the right PICTURE is a sighting question, not a derivation bug — the derivation is saying exactly
+  what happened. Accepted until sighted.

@@ -113,18 +113,11 @@ using ChartNoteRevealed = std::function<bool(std::size_t index)>;
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
-Topmost drawn wins, which is the rule and the reason for the order below — with ONE stated
-exception. Silently-held stops resolve FIRST even though the paint core draws their brackets UNDER
-the heads: a hold's bracket is its only affordance and no fretting-hand head of its own string is
-drawn under it (a claim earns a face only on a string the span's sound never states, and the growth
-law puts every fretting-hand sounding inside a span on a string it does state), so all the priority
-takes is the near columns of a head a little later on that string, which the head can spare and a
-two-pixel bracket bar cannot. The exception is recorded with the verb's design record rather than
-left to be inferred from this order. Then held-stop satellites, which are drawn outboard of a
-bracket's closing bar and overlap no head of their own note, so their position here is only about
-reaching them before a neighbouring head's box does. Then note heads, nearest onset center first
-among overlapping heads. Then the linked keyframe heads riding a tail, which are drawn ON the
-ribbon and are the last mark a pointer can reach.
+Topmost drawn wins, which is the rule and the reason for the order below. Held-stop satellites
+resolve first: they are drawn outboard of a bracket's closing bar and overlap no head of their own
+note, so their position here is only about reaching them before a neighbouring head's box does.
+Then note heads, nearest onset center first among overlapping heads. Then the linked keyframe heads
+riding a tail, which are drawn ON the ribbon and are the last mark a pointer can reach.
 
 A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
 selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot
@@ -133,12 +126,10 @@ one meaning per click. The affordance this retires is selecting a long sustain w
 scrolled off-screen by clicking its tail; the marquee and the keyboard still reach it, and it is
 recorded as a sighting item (`docs/tracking/watch-items.md`).
 
-Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A keyframe
-carries a head only when it is LINKED (\ref common::core::linkedKeyframe), and one stating no fret
-draws nothing at all today — how those should draw, and therefore how a pointer should reach them,
-is the bend display study's question and not this function's. A silent hold whose stop joined no
-posture draws no bracket, which \ref common::ui::tabSilentHoldLayout answers with no layout at all,
-so the skip needs no rule of its own here.
+What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe carries
+a head only when it is LINKED (\ref common::core::linkedKeyframe), and one stating no fret draws
+nothing at all today — how those should draw, and therefore how a pointer should reach them, is the
+bend display study's question and not this function's.
 
 A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
 exactly while its note is revealed: the layout manifest answers both questions from one rectangle,
@@ -166,7 +157,7 @@ not a target at all.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
-\return Boxed objects: heads first, then silent holds, then keyframes, each in projection order.
+\return Boxed objects: heads first, then keyframes, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,

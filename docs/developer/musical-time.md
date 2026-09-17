@@ -147,8 +147,8 @@ tail off what a surface **draws**.
   are the same physical fact: under grip tenure a covered member's un-renewed death would have
   BROKEN the grip, so coverage past a member's ring IS the record that the finger never lifted (a
   re-strike replaces the sound, never the hand). There is no strum-size gate — a lone covered chug
-  is a grip member exactly as a strummed one is. A member whose tail STANDS states its own hold; a
-  silently-held finger and the other hand's onsets never inherit the reach; and a DEAD member is
+  is a grip member exactly as a strummed one is. A member whose tail STANDS states its own hold; the
+  other hand's onsets never inherit the reach; and a DEAD member is
   never held — a dead chug is percussion rather than a grip, which is also what chokes a wholly dead
   group without any unanimity rule stated anywhere. A COVERED resting member's stored ring is the
   floor its extension starts from, and that floor is keyed on COVERAGE rather than on the verdict:
@@ -175,7 +175,7 @@ tail off what a surface **draws**.
   COVERAGE IS NO PART OF THE QUESTION: the law asks nothing about spans, so a chart carrying no
   furniture at all rests exactly the same tails — a span was never what made a plain ribbon
   uninformative.
-  **SCOPE, on both sides**: right-hand onsets and silently-held stops stand outside the judgment
+  **SCOPE, on both sides**: right-hand onsets stand outside the judgment
   entirely — a grip states where the fretting hand is, so a tap says nothing about whether that hand
   is still down, and the ring under a tap keeps its whole ribbon.
   **THE ATOM IS THE MEMBER**: each member is judged alone — a plain member rests, one still stating
@@ -264,8 +264,7 @@ postures, so it computes AFTER `deriveChartShapes` and feeds nothing that runs b
 folded into `claimed_stops` would be an input to the very spans it is read out of, and would make
 every bare tap a member of the shape above it. `NoteViewState::held` is this table copied across,
 which is why that field is present for every right-hand onset and for every fretting-hand onset a
-pull-off plants under, and absent everywhere else — a silent hold's claim is its own `fret`, which
-this field has never carried.
+pull-off plants under, and absent everywhere else.
 
 # The TempoMap
 

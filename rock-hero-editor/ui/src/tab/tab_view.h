@@ -253,8 +253,7 @@ public:
     /*!
     \brief The head of the earliest selected note, in this component's coordinates.
 
-    The glyph a verb on the selection keeps on screen. Empty with no selected note, or when the
-    earliest selected stop is silently held (its face is the posture bracket, not a head).
+    The glyph a verb on the selection keeps on screen. Empty with no selected note.
 
     \return The head's bounds, or empty.
     */
@@ -265,7 +264,7 @@ public:
 
     The anchor for a popup about that note — the harmonic node picker opens on the head whose
     rows it lists, which need not be the earliest selected one. Empty when the lane has no
-    metrics, the index is past the projection, or the stop is silently held.
+    metrics or the index is past the projection.
 
     \param index Index into the tab projection's note order.
     \return The head's bounds, or empty.

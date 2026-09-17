@@ -308,10 +308,6 @@ namespace
         {
             return "SetChartLeftTap";
         }
-        case EditorAction::Id::ToggleChartSilentHold:
-        {
-            return "ToggleChartSilentHold";
-        }
         case EditorAction::Id::ToggleChartJunction:
         {
             return "ToggleChartJunction";
@@ -406,7 +402,6 @@ namespace
             case EditorAction::Id::ChooseChartHarmonic:
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
-            case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
@@ -552,10 +547,6 @@ namespace
         case EditorAction::Id::ToggleChartJunction:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
-        }
-        case EditorAction::Id::ToggleChartSilentHold:
-        {
-            return conditions.has_chart ? "no-chart-verb-scope" : "no-chart";
         }
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
@@ -1139,11 +1130,6 @@ void EditorController::onChartHarmonicNodeRequested(const std::optional<int> par
 void EditorController::onChartLeftTapRequested()
 {
     m_impl->runAction(EditorAction::SetChartLeftTap{});
-}
-
-void EditorController::onChartSilentHoldToggleRequested()
-{
-    m_impl->runAction(EditorAction::ToggleChartSilentHold{});
 }
 
 void EditorController::onChartJunctionToggleRequested()
@@ -2424,7 +2410,6 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .transport_playing = transport_state.playing,
         .has_chart_selection = !chartSelection().empty(),
         .has_armed_caret = armedChartCaret() != nullptr,
-        .has_chart_verb_scope = !chartVerbSlots().slots.empty(),
     };
 }
 

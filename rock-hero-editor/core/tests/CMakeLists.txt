@@ -34,8 +34,8 @@ add_executable(
     test_chart_technique_toggles.cpp
     test_chart_keyframe_editing.cpp
     test_chart_edits.cpp
+    test_chart_held_stop.cpp
     test_chart_hit_testing.cpp
-    test_chart_silent_hold.cpp
     test_chart_navigation.cpp
     test_corpus_census.cpp
     test_deferred_project_action_state.cpp

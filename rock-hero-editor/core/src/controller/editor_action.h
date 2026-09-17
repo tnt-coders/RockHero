@@ -798,16 +798,6 @@ struct EditorAction
     };
 
     /*!
-    \brief Author, convert or remove a silently-held shape member at the chart caret.
-
-    Carries no payload because the verb is CARET-anchored: the slot the caret sits on is the whole
-    operand, and passing one would let a caller state a position the charter is not looking at.
-    */
-    struct ToggleChartSilentHold
-    {
-    };
-
-    /*!
     \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point.
 
     Carries no payload because the verb is SELECTION-anchored like every other technique verb: the
@@ -899,8 +889,8 @@ struct EditorAction
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
         ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode, SetChartLeftTap,
-        ToggleChartSilentHold, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
+        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
+        SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

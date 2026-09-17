@@ -349,51 +349,29 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
     {
         note.attack = NoteAttack::PickSlide;
     }
-    else if (attack == "none")
-    {
-        note.attack = NoteAttack::None;
-    }
     else if (!attack.empty())
     {
         return std::unexpected{malformed("chart note attack is unknown: " + attack)};
     }
 
-    // The ring, read AFTER the attack because the attack decides whether there is one to read.
-    // Required with no default on every attack that sounds: a note rings for some length, so a
-    // missing key is a missing fact rather than "no tail", and reading it as zero would silently
-    // invent the one datum the model cannot derive. This is also the path a chart written before
-    // the duration model actually takes, and the only one: that writer OMITTED the key on every
-    // tail-less note, which is most of them, so the message carries the re-import remedy exactly
-    // like the removed-key tripwires above.
-    //
-    // A silent hold has no ring at all, so the key must be ABSENT rather than zero — the same
-    // posture every defaulted property takes, applied to the one property whose default depends on
-    // the attack. A written zero is refused instead of accepted as the value the reader cannot
-    // tell from an absent key, so the document has exactly one spelling for "no ring".
-    if (silentHold(note.attack))
+    // The ring. Required with no default: a note rings for some length, so a missing key is a
+    // missing fact rather than "no tail", and reading it as zero would silently invent the one
+    // datum the model cannot derive. This is also the path a chart written before the duration
+    // model actually takes, and the only one: that writer OMITTED the key on every tail-less note,
+    // which is most of them, so the message carries the re-import remedy exactly like the
+    // removed-key tripwires above.
+    if (Json::value(note_json, "sustain").isVoid())
     {
-        if (!Json::value(note_json, "sustain").isVoid())
-        {
-            return std::unexpected{malformed(
-                "chart note states \"sustain\" on a silently held stop, which has no ring of its "
-                "own")};
-        }
+        return std::unexpected{malformed(
+            "chart note is missing \"sustain\"; re-import the package to get the note's actual "
+            "ring duration")};
     }
-    else
+    auto sustain = readFraction(note_json, "sustain");
+    if (!sustain.has_value())
     {
-        if (Json::value(note_json, "sustain").isVoid())
-        {
-            return std::unexpected{malformed(
-                "chart note is missing \"sustain\"; re-import the package to get the note's actual "
-                "ring duration")};
-        }
-        auto sustain = readFraction(note_json, "sustain");
-        if (!sustain.has_value())
-        {
-            return std::unexpected{std::move(sustain.error())};
-        }
-        note.sustain = *sustain;
+        return std::unexpected{std::move(sustain.error())};
     }
+    note.sustain = *sustain;
 
     // The fretting hand's stop under a right-hand onset. Absence is a MEANING here — the hand
     // states no stop of its own — so presence is the whole read and there is no default to fall
@@ -496,14 +474,9 @@ void appendJsonString(std::string& out, const std::string& text)
     std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
-    // Emitted for every attack that sounds: the ring is such a note's own fact, and the reader
-    // refuses a document that omits it, so there is no shorter form to elide into. A silent hold
-    // has no ring, and the reader refuses the key there in the other direction — one spelling
-    // each way.
-    if (!silentHold(note.attack))
-    {
-        line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
-    }
+    // Always emitted: the ring is the note's own fact, and the reader refuses a document that omits
+    // it, so there is no shorter form to elide into.
+    line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
     switch (note.attack)
     {
         case NoteAttack::Pick:
@@ -543,11 +516,6 @@ void appendJsonString(std::string& out, const std::string& text)
         case NoteAttack::PickSlide:
         {
             line += R"(, "attack": "pickSlide")";
-            break;
-        }
-        case NoteAttack::None:
-        {
-            line += R"(, "attack": "none")";
             break;
         }
     }
@@ -711,16 +679,6 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             "chart uses the removed \"chords\"/\"shapes\" fields; re-import the package to derive "
             "the hand-posture spans from the notes")};
     }
-    // The silently-held member moved into the note stream as an attack, so its own array is gone.
-    // Refused rather than ignored, for the reason every removed spelling is: a document carrying
-    // it would load with every hold silently missing and validate clean.
-    if (!Json::value(root, "holdMarkers").isVoid())
-    {
-        return std::unexpected{malformed(
-            "chart uses the removed \"holdMarkers\" field; re-import the package to get silently "
-            "held stops as notes with \"attack\": \"none\"")};
-    }
-
     const juce::var& notes_json = Json::value(root, "notes");
     if (notes_json.isArray())
     {

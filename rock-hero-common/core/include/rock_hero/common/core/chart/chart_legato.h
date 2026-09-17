@@ -144,8 +144,8 @@ struct ChartConnections
     string over, so reading \ref legato here would silently change behaviour the day the tie lands.
 
     Written from the SUCCESSOR onto its predecessor, because that is where the chart states it, and
-    a note has at most one claiming successor on its string — a sounding one displaces every later
-    note's predecessor, and a silent hold claims nothing.
+    a note has at most one claiming successor on its string — each note displaces every later note's
+    predecessor.
     */
     std::vector<bool> hands_over;
 };
@@ -190,10 +190,10 @@ WHO READS THE WIDE TABLE: the seam machinery — the span machine's verdicts and
 deriveChartShapes) and the let-ring cut law's figure seams (`letRingFigureEnds` in the importer) —
 and, under THE PLANT'S FACE, the complete held table's fretting-hand tier (\ref chartHeldStops) and
 the editor's retype refusal, both through \ref ChartResolutions::planted_stops. Every FIELD-scoped
-consumer — the claim column, the writer's residue sweep and the silent-hold verb's ownership refusal
-— takes the narrowing \ref chartDerivedStops instead, which is what keeps a plant under a
-fretting-hand onset from ever becoming a claim the spans read or a field the writer clears: it is a
-face and a refusal, nothing more.
+consumer — the claim column and the writer's residue sweep — takes the narrowing
+\ref chartDerivedStops instead, which is what keeps a plant under a fretting-hand onset from ever
+becoming a claim the spans read or a field the writer clears: it is a face and a refusal, nothing
+more.
 
 \param connections The resolved connections, whose `saved_notes`, `legato` and `predecessors` are
                    the whole of what the derivation reads.
@@ -219,11 +219,8 @@ THE HELD-CHANNEL REFUSAL IS NOT ANSWERED HERE, because of THE PLANT'S FACE: it a
 chartPlantedStops, because a plant under a FRETTING-hand onset is REFUSABLE WITHOUT BEING WRITABLE —
 the note wears it as its own satellite, so typing at it must be turned away, while no `held` field
 exists there for the writer to clear or the claim column to fold. Refusal scope and FIELD scope are
-not the same set, so they are not the same table. The silent-hold verb's ownership refusal still
-takes this narrowing (`planToggleSilentHold`): converting a sounding note to a silent hold is not a
-write to the held field, so a plant blocks nothing of it — and the Held-channel Delete never reaches
-that verb at all, having a clearing planner of its own that asks the wide table
-(`planClearHeldStops`).
+not the same set, so they are not the same table. The Held-channel Delete asks the wide table too,
+through the clearing planner of its own that reads it (`planClearHeldStops`).
 
 This output is \ref chartPlantedStops with every fretting-hand entry cleared — the field's own
 scope, by construction rather than by promise.
@@ -252,8 +249,8 @@ successor states the stop the string falls to — every fret alike, the open str
 a right-hand onset can carry a held stop, so no other note takes a derived one; and a stop inside
 the onset's own traveled range is refused exactly as an authored one is (\ref chartDerivedStops).
 
-Every other entry is the note's own stored claim (\ref claimedStop), unchanged: a
-\ref NoteAttack::None hold IS its stop, and a plain onset claims nothing beyond the fret it sounds.
+Every other entry is the note's own stored claim (\ref claimedStop), unchanged: a plain onset claims
+nothing beyond the fret it sounds.
 
 THE SINGLE READER AUTHORITY. Every consumer — the span derivation (\ref deriveChartShapes), the
 projection's satellite digit, the editor's verbs — reads this and never \ref ChartNote::held, which
@@ -283,8 +280,7 @@ pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law): that en
 here, so the note wears the plant as its own satellite on the reveal's terms — the notation states
 it in the pull-off itself, exactly as a derived tap stop is stated — and the bracket prints nothing
 beside a head that states the hand's presence itself. A fretting-hand onset nothing plants under
-holds no second stop, and a silently-held stop IS its own fret (\ref claimedStop) whose face is the
-bracket, so both stay absent.
+holds no second stop, so its entry stays absent.
 
 THREE TIERS under a right-hand onset, in precedence order, and the third is what this table adds
 over \ref chartClaimedStops:
@@ -418,12 +414,12 @@ struct ChartResolutions
     std::vector<ChartPosture> postures;
 
     /*!
-    \brief Per note, the \ref shapes entry a silently-held stop joined; absent for every other note.
+    \brief Per note, the \ref shapes entry a HELD stop joined; absent for every other note.
 
-    Index-parallel to `notes` like everything else here (\ref ChartShapes::claim_shapes). A
-    silent hold has no head of its own, so its face IS that span's posture bracket, wherever the
-    mark draws: this is what places it, and what makes an unresolved hold draw — and therefore
-    hit-test — nowhere.
+    Index-parallel to `notes` like everything else here (\ref ChartShapes::claim_shapes). A held
+    stop has no head of its own, so its face is the satellite digit beside that span's posture
+    bracket, wherever the mark draws: this is what places it, and what makes an unresolved claim
+    draw — and therefore hit-test — nowhere.
     */
     std::vector<std::optional<std::size_t>> claim_shapes;
 
@@ -471,9 +467,8 @@ The connections come from \ref chartConnections, so the walk that answers them i
 both the callers that want the whole picture and the callers that want a claim.
 
 The spans come from the same stream rather than from a caller, which is what makes them impossible
-to disagree with it: a caller holding a stale span list has nowhere to pass it. The silently-held
-members ride in that one stream too (\ref NoteAttack::None), so there is no second posture input a
-caller could forget to hand over.
+to disagree with it: a caller holding a stale span list has nowhere to pass it. The held stops ride
+in that one stream too, so there is no second posture input a caller could forget to hand over.
 
 \param notes Note stream sorted by (position, string).
 \param tempo_map Song tempo map supplying the beat axis.
@@ -513,28 +508,25 @@ no flatten can create or destroy another note's justification.
 \brief Clears every claimed stop the chart's shapes leave stating nothing.
 
 The legato sweep's sibling, and here beside it for the same reason: it is relational and stateless,
-judging only the stream it is handed. One law over both shapes a claim can take (\ref claimedStop):
-a claim that reaches no span (\ref ChartShapes::claim_shapes absent) changes no posture, draws
-nowhere and hit-tests nowhere, so keeping it saves a statement the charter can neither see nor find.
+judging only the stream it is handed. One law over every claim (\ref claimedStop): a claim that
+reaches no span (\ref ChartShapes::claim_shapes absent) changes no posture, draws nowhere and
+hit-tests nowhere, so keeping it saves a statement the charter can neither see nor find.
 
 Three ways to state nothing, one test for all of them, because the derivation answers all three the
-same way: joining no span at all (a lone member, or a shape the hand alone stated that nothing ever
-justified), landing past the end of the span it joined, and restating a stop that span already
-states — the last being the redundant restatement, which adds no fret and flips no bracket.
+same way: joining no span at all (a lone member), landing past the end of the span it joined, and
+restating a stop that span already states — the last being the redundant restatement, which adds no
+fret and flips no bracket.
 
 The one test stays one because the derivation publishes what a claim DID as reach, not only what it
-added: a claim whose answering justified a span has reached that span (\ref
-ChartShapes::claim_shapes), even where it printed no fret and landed past the instant the span
-states its stops at, because taking it away would dissolve the span. So this sweep never asks about
-justification — "states nothing" and "does nothing" are the same question here, and the one place
-that can answer it is the pass that derived the shapes.
+added: the reach (\ref ChartShapes::claim_shapes) names the span a claim joined, whether or not its
+own fret is what that span's posture goes on to print. So this sweep reads that reach and nothing
+else — "states nothing" and "does nothing" are the same question here, and the one place that can
+answer it is the pass that derived the shapes.
 
-What is taken is the STATEMENT, never more than the statement, and the two shapes of claim differ
-only in how much of the record that is. A \ref NoteAttack::None note IS its claim — it has no head,
-no ring and no sound — so the record goes with it. A held stop rides a note that still states its
-own onset, so only the FIELD is cleared and the tap, scrape or slide underneath stays exactly as
-authored: sweeping the note would delete a sound the charter wrote, which no invariant here asks
-for.
+What is taken is the STATEMENT, never more than the statement. A held stop rides a note that still
+states its own onset, so only the FIELD is cleared and the tap, scrape or slide underneath stays
+exactly as authored: sweeping the note would delete a sound the charter wrote, which no invariant
+here asks for.
 
 ONE PASS is enough, exactly as it is for the legato sweep, and for the same kind of reason. What
 is taken is a claim that reached NO span — so it was a member of nothing, and no span's membership
@@ -551,10 +543,8 @@ same undo entry rather than saving one nothing draws.
 \param notes Note stream sorted by (position, string); swept in place.
 \param tempo_map Song tempo map supplying the beat axis.
 
-\return One conversion per claim taken, each naming its position and string —
-        \ref ChartRepair::InertSilentHold where the whole note went,
-        \ref ChartRepair::InertHeldStop where only the field was cleared; empty when every claim in
-        the stream already stated something.
+\return One \ref ChartRepair::InertHeldStop conversion per claim cleared, each naming its position
+        and string; empty when every claim in the stream already stated something.
 */
 [[nodiscard]] std::vector<ChartConversion> sweepInertClaimedStops(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);

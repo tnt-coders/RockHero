@@ -9,7 +9,7 @@ to *"establish this full matrix then re-analyze the save file format to see it c
 more to make invalid combinations impossible as much as it can."*
 
 > **Legato stores no direction.** `attack` reads `Pick`, `Pinch`, `Legato`, `LeftTap`, `Tap`, `Pop`,
-> `Slap`, `PickSlide`, `None`, where `Legato` is the authored claim "this onset connects to its
+> `Slap`, `PickSlide`, where `Legato` is the authored claim "this onset connects to its
 > same-string predecessor" and `LeftTap` is the local statement. **Validation is intra-note only**,
 > so the relational rows (E5, E6, E12's release half, E19, E27) are not validation rules that can
 > refuse a document: they are clauses of the one resolver, `resolveLegato`, and a claim they refuse
@@ -32,7 +32,7 @@ needs to know what it must clear or refuse. A verb that authors an impossible st
 
 | Field | Values |
 |---|---|
-| `attack` | `Pick`, **`Pinch`**, `Legato`, `LeftTap`, `Tap`, `Pop`, `Slap`, `PickSlide`, `None` |
+| `attack` | `Pick`, **`Pinch`**, `Legato`, `LeftTap`, `Tap`, `Pop`, `Slap`, `PickSlide` |
 | `held` | `optional<int>` — the fretting hand's stop under a picking-hand onset |
 | `palm_mute` / `dead` | two independent bools, queried together through `isMuted(palm_mute, dead)` |
 | `harmonic_node` | `optional<double>` — the node position, in fret units, **and the assertion that the note is a harmonic** |
@@ -45,11 +45,9 @@ needs to know what it must clear or refuse. A verb that authors an impossible st
 
 Three shapes of the model the rows below lean on. `fret == 0` means an open string. `sustain` is the
 note's ACTUAL ring, not the drawn tail — what is drawn is the presented form
-(`presentedChartNotes`), which trims and rests it — and a zero-sustain note still sounds. A
+(`presentedChartNotes`), which trims and rests it — and it is strictly positive on every note. A
 `slide_out` carries no offset of its own because it needs none: pressure releases off the note's
 END, so its moment is the ring's end by definition and a stored copy could only ever drift from it.
-The `None` attack is the silent hold, which names no onset and so sits outside this matrix; its
-`sustain` is exactly zero.
 
 ## The criterion
 

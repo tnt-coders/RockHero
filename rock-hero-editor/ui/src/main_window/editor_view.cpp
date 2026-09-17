@@ -272,7 +272,6 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ChooseChartHarmonic:
             case core::EditorActionId::SetChartHarmonicNode:
             case core::EditorActionId::SetChartLeftTap:
-            case core::EditorActionId::ToggleChartSilentHold:
             case core::EditorActionId::ToggleChartJunction:
             case core::EditorActionId::SelectSongSection:
             case core::EditorActionId::InsertSongSection:
@@ -360,7 +359,6 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SetChartHarmonicNode:
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
-        case core::EditorActionId::ToggleChartSilentHold:
         case core::EditorActionId::ToggleChartJunction:
         case core::EditorActionId::SelectSongSection:
         case core::EditorActionId::InsertSongSection:
@@ -1241,7 +1239,6 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
-    add(note_menu, EditorCommandId::ChartSilentHoldToggle);
     add(note_menu, EditorCommandId::ChartJunctionToggle);
 
     juce::PopupMenu move_menu;
@@ -1678,7 +1675,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartTapToggle:
         case EditorCommandId::ChartSlapToggle:
         case EditorCommandId::ChartPopToggle:
-        case EditorCommandId::ChartSilentHoldToggle:
         case EditorCommandId::ChartJunctionToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
@@ -2139,14 +2135,6 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Pop);
-            }
-            return true;
-        }
-        case EditorCommandId::ChartSilentHoldToggle:
-        {
-            if (hasChart())
-            {
-                m_controller.onChartSilentHoldToggleRequested();
             }
             return true;
         }

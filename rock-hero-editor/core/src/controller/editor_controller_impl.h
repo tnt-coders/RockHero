@@ -167,22 +167,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             const ChartTechniqueToggle& lhs, const ChartTechniqueToggle& rhs) noexcept = default;
     };
 
-    // The arpeggio hold verb's own window. Carries nothing: the verb acts on the caret's slot, and
-    // the window's whole job is to say "the last press was this verb", so a second press reverses
-    // the entry exactly — which is the ONLY way a conversion can put back the ring and techniques
-    // it stripped, since a silent hold stores none of them to rebuild one from.
-    struct ChartSilentHoldToggle
-    {
-        friend constexpr bool operator==(
-            const ChartSilentHoldToggle& lhs, const ChartSilentHoldToggle& rhs) noexcept = default;
-    };
-
-    // The fret-hand harmonic verb's run. Carries nothing, like the arpeggio hold's: the LATEST
-    // choice is the whole gesture — a node or no harmonic — so each step re-plans from the press
-    // itself rather than from a list, and the window's job is only to say "the last edit was this
-    // verb's". A run of choices on one selection is then one entry, and a run that chooses its way
-    // back to the pre-gesture state retires it, which is what a toggle's reversal gave the other
-    // rows.
+    // The fret-hand harmonic verb's run. Carries nothing: the LATEST choice is the whole gesture —
+    // a node or no harmonic — so each step re-plans from the press itself rather than from a list,
+    // and the window's job is only to say "the last edit was this verb's". A run of choices on one
+    // selection is then one entry, and a run that chooses its way back to the pre-gesture state
+    // retires it, which is what a toggle's reversal gave the other rows.
     struct ChartHarmonicGesture
     {
         friend constexpr bool operator==(
@@ -223,8 +212,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
     using ChartVerbWindowVerb = std::variant<
-        ChartTechniqueToggle, ChartSilentHoldToggle, ChartHarmonicGesture, ChartSustainGesture,
-        ChartMoveGesture>;
+        ChartTechniqueToggle, ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture>;
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
@@ -318,10 +306,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ChooseChartHarmonic& action);
     void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
-    void performActionImpl(const EditorAction::ToggleChartSilentHold& action);
-    // Moves the caret onto the held stop a hold-verb press just stated, when it stated exactly
-    // one — the fourth case's follow-through, so the digits that follow state that stop.
-    void armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots);
     // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
     // no keyframe selected.
@@ -1045,8 +1029,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         };
         // An entry begun over the selection: settling retypes the stops the selection addresses
         // from their pre-entry values, so a widened value never compounds on its own earlier
-        // digit. Silently-held stops are among them with no case of their own — a bracket's stop
-        // is typed exactly like a head's.
+        // digit.
         //
         // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does
         // (W13's ruling): the entry carries the two key lists and the snapshot of every note it
@@ -1167,9 +1150,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // verb can produce and every disarm site would have to remember.
     struct ChartVerbWindow
     {
-        // The whole selection, kind-tagged: the arpeggio hold verb's own entry leaves a MARKER
-        // selected where a note was, so a note-only proof would call the window dead exactly when
-        // the reversal has to work.
+        // The whole selection the arming press acted on, kind-tagged and compared as one vector
+        // against the live keys: notes and keyframes are both selectable, so the proof has to be
+        // whole-selection or a window would survive a press that changed only the other kind.
         std::vector<ChartSelectionKey> keys;
         // No member initializer, for both of the reasons spelled out at ChartFretEntry::target:
         // an armed window always has a verb, and an initializer here would instantiate the

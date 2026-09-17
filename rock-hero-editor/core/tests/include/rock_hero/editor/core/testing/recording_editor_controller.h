@@ -338,12 +338,6 @@ public:
         chart_left_tap_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartSilentHoldToggleRequested */
-    void onChartSilentHoldToggleRequested() override
-    {
-        chart_silent_hold_toggle_count += 1;
-    }
-
     /*! \copydoc IEditorController::onChartJunctionToggleRequested */
     void onChartJunctionToggleRequested() override
     {
@@ -921,9 +915,6 @@ public:
 
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};
-
-    /*! \brief Number of onChartSilentHoldToggleRequested() intents received. */
-    int chart_silent_hold_toggle_count{0};
 
     /*! \brief Number of onChartJunctionToggleRequested() intents received. */
     int chart_junction_toggle_count{0};

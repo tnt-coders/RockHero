@@ -1,6 +1,18 @@
 # Arpeggio Authoring — The Held Shape a Note Stream Cannot State
 
-Status: **STORAGE RE-DECIDED 2026-08-27 — option X, the silent member INSIDE the note stream.**
+Status: **HISTORICAL as of 2026-09-17.** The `N` verb ("Arpeggio Hold") and the attack value this
+record settled on, `NoteAttack::None`, were removed from the model entirely on that date; `N` is
+unbound and free for reuse. A claim now has ONE shape — the `held` stop under a right-hand
+onset — and stating a fretting-hand stop on a string where nothing sounds waits on the span
+templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5. LAW II's justification half — a shape
+the hand alone states must be justified by a later sound at a claimed stop or it dissolves — was
+deleted the same day along with the attack value, every claim now being sounded by its own carrier.
+Everything below is kept in its
+original tense as the record of why each decision went the way it did; nothing below describes the
+code as it stands.
+
+Status before that: **STORAGE RE-DECIDED 2026-08-27 — option X, the silent member INSIDE the note
+stream.**
 Option F (the fret-optional hold marker) shipped 2026-08-26, was corrected at its first sighting
 the next morning, and was then replaced the same day by the user's own model: a silently-held
 member is a NOTE with `attack: none`. Everything below option F's line stays in its original tense

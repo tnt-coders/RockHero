@@ -27,9 +27,8 @@ namespace rock_hero::editor::core
 \brief Stable identity of one authored chart object's place: its musical position plus its string.
 
 The chart's SLOT (\ref rock_hero::common::core::chartSlotOrderLess), which the note stream is keyed
-by and holds at most once — silently-held stops included, since they are notes. Stable across
-unrelated edits, unlike projection indices, which shift whenever an earlier record is inserted or
-removed.
+by and holds at most once. Stable across unrelated edits, unlike projection indices, which shift
+whenever an earlier record is inserted or removed.
 
 The slot says WHERE, never WHAT: \ref ChartSelectionKey wraps it in an alternative naming the kind,
 so a selected object states what it is instead of the chart being re-consulted — which also keeps
@@ -435,11 +434,6 @@ Selection granularity follows the containment hierarchy
 individual object, a DOUBLE click selects the whole onset group this collects — the double-click
 path is the sole consumer (the caret's re-derivation deliberately selects the single object
 under it, never the group).
-
-Silently-held stops at the onset join the group with no rule of their own, because the group is the
-HAND's unit at that instant and they are notes on the same slots: a barre the charter stated
-silently is a member of the shape the strum takes, so every verb carries it with the chord instead
-of leaving it behind on a slot no span reaches any more.
 
 A keyframe's group is the keyframes at ITS instant, on whatever notes carry them: a chord slide's
 junctions across strings are the hand arriving at one shape, exactly as a chord's heads are the hand

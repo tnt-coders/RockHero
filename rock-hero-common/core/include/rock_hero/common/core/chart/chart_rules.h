@@ -205,14 +205,11 @@ enum class ChartRepair : std::uint8_t
     StilledScrape,
     /*! \brief A legato claim nothing justifies was recorded as the plain pick it plays as. */
     UnjustifiedLegato,
-    /*! \brief A silently-held stop reaching no shape was removed: it stated nothing anywhere. */
-    InertSilentHold,
     /*!
     \brief A held stop reaching no shape was cleared, leaving the onset that carried it alone.
 
-    The same law as \ref InertSilentHold and deliberately its own value: what was taken differs, so
-    what a load notice can honestly say differs too. A silent hold IS its claim and goes whole; a
-    held stop rides a note that still states its own onset, so only the field goes.
+    Only the FIELD goes: the held stop rides a note that still states its own onset, so the note
+    itself survives the sweep and a load notice can say exactly that.
     */
     InertHeldStop,
 
@@ -351,10 +348,6 @@ runs past it, because a re-strike stops a string without releasing the shape the
 holding — which is exactly what a repeat-box chain is made of.
 `note` need not be a member of `notes` — only its position and string are read, so a candidate
 placement asks the same question.
-
-A STRUCK onset is what bounds a ring, so a silent hold (\ref NoteAttack::None) on the string is
-passed over: no finger placed without a stroke stops a string that is already sounding, and reading
-one as a bound would let authoring a held shape silently shorten every tail behind it.
 
 \param notes Note stream sorted by (position, string).
 \param note Note whose ring is bounded.
@@ -606,14 +599,12 @@ zero was still the encoding for a note with no tail.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
 (position, string) with no duplicate onsets, on valid grid positions; strings in range;
-non-negative frets, and sustains positive on every attack that sounds and exactly zero on the one
-that does not (\ref NoteAttack::None);
-keyframe offsets ascending strictly inside the sustain, each stating at least one channel and no
-negative fret or bend; sorted fret-hand
-positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
-pinch-requires-a-node; and, on the two attacks that cannot carry every technique, that the note
-already equals its own \ref savedChartNote form — a pick slide because its pitched fields are
-in-memory latents the writer omits, a silent hold because it states its stop and nothing else.
+non-negative frets, and a strictly positive sustain on every note; keyframe offsets ascending
+strictly inside the sustain, each stating at least one channel and no negative fret or bend; sorted
+fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling
+bounds; pinch-requires-a-node; and, on the attack that cannot carry every technique, that the note
+already equals its own \ref savedChartNote form — a pick slide's pitched fields being in-memory
+latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).

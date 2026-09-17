@@ -474,12 +474,6 @@ void TabView::paint(juce::Graphics& g)
             continue;
         }
         const common::core::NoteViewState& note = drawn_note(index);
-        // A silently-held stop has no head to ring; its face is the posture bracket, ringed by
-        // the pass below on the very silhouette the click resolved.
-        if (common::core::silentHold(note.attack))
-        {
-            continue;
-        }
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
@@ -537,39 +531,6 @@ void TabView::paint(juce::Graphics& g)
                 layout.head_size,
                 overlayRingStroke(layout.head_size));
         });
-
-    // Selected silently-held stops. The overlay draws NO mark of its own for one — the BRACKET
-    // MARKER is the data point that is selected and modified: the stop is stated by the arpeggio
-    // bracket the paint core already draws wherever its span's mark falls, so an authoring dot
-    // beside it would be a second mark for one fact, drawn in the wrong place besides. All this
-    // pass draws is the selection ring, traced on that bracket — the same accent every other
-    // selected object wears, on the same silhouette the click resolved.
-    //
-    // The layout answers with nothing for a hold that resolved into no span, which is precisely
-    // the hold the paint core draws no bracket for; ring and mark therefore appear and vanish
-    // together with no rule of their own. It answers with nothing for a sounding note too, which
-    // is why this pass and the head-ring pass above can share one selection list.
-    //
-    // The BRACKET wears the edge, traced on its own silhouette: a box around the pair would draw
-    // accent through the empty centre where no head exists, reading as a ring around nothing. The
-    // silhouette comes from the paint core for the head ring's reason — the mark the accent traces
-    // is the mark that was drawn.
-    for (const std::size_t index : m_edit.selected_notes)
-    {
-        if (index >= tab.notes.size())
-        {
-            continue;
-        }
-        const std::optional<common::ui::TabSilentHoldLayout> layout =
-            common::ui::tabSilentHoldLayout(metrics, drawn_note(index));
-        if (!layout.has_value())
-        {
-            continue;
-        }
-        g.setColour(accent);
-        common::ui::strokeTabBracketOutline(
-            g, metrics, *layout, overlayRingStroke(layout->box.height));
-    }
 
     // The in-flight marquee: translucent accent fill with a crisp border.
     if (m_edit.marquee.has_value())
@@ -643,29 +604,6 @@ void TabView::paint(juce::Graphics& g)
                             nullptr,
                             satellite->center_x,
                             satellite->center_y,
-                            text,
-                            invalid,
-                            ink,
-                            accent);
-                    }
-                    continue;
-                }
-                // A selected bracket wears the same box AT the bracket, which is where the stop it
-                // states prints — no head sits under it, so the box carries none, exactly as the
-                // empty-slot insert case does. A hold whose bracket is not drawn shows nothing, on
-                // the same rule that keeps its ring and its hit box off the lane.
-                if (const std::optional<common::ui::TabSilentHoldLayout> hold =
-                        common::ui::tabSilentHoldLayout(metrics, note);
-                    common::core::silentHold(note.attack))
-                {
-                    if (hold.has_value())
-                    {
-                        common::ui::paintTabPendingEntryBox(
-                            g,
-                            metrics,
-                            nullptr,
-                            hold->center_x,
-                            hold->center_y,
                             text,
                             invalid,
                             ink,
@@ -935,10 +873,6 @@ std::optional<juce::Rectangle<float>> TabView::noteHeadBounds(const std::size_t 
         return std::nullopt;
     }
     const common::core::NoteViewState& note = lane->tab.notes[index];
-    if (common::core::silentHold(note.attack))
-    {
-        return std::nullopt;
-    }
     const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(lane->metrics, note);
     const float half = layout.head_size / 2.0f;
     return juce::Rectangle<float>{

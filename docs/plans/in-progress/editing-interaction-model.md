@@ -290,28 +290,16 @@ Verified against the vendored JUCE source — everything needed ships in
   follows the containment hierarchy (note ⊂ chord ⊂ span, 2026-07-17): click selects the
   note, double-click its chord, span-rail click the whole span; Ctrl+click toggles individual
   notes; marquee stays geometrically precise by design; Shift+click selects a time range
-  (plan 52). Scope is always the selection, never the verb (the uniform-scope law, §9a), and
-  the exception the arpeggio hold verb (`N`) briefly held is GONE (2026-08-27): it reads the
-  selection like every other verb, falling back to the armed caret's own slot when nothing is
-  selected — which is the typing family's own gate ("act on the selection or the armed marker,
-  and no-op when there is none"), not a scope of its own. The fallback is what the verb
-  genuinely needed: a slot that holds nothing is the one thing a selection cannot name, and
-  authoring a hand fact there is the case the verb exists for. The user's rejection of `N`'s
-  first design still binds — 2026-08-25: *"It really feels like something that would be
-  defined at the START of the onset manually, not later"* — and it is honoured by WHERE the
-  record is written (the slot the charter is on, never reached from a later note), which was
-  always the point; the caret anchor was one way to get there, and the wrong one, since it
-  refused the whole-chord conversion that is the verb's commonest use.
-  Design record: `docs/plans/todo/arpeggio-authoring.md`.
+  (plan 52). Scope is always the selection, never the verb (the uniform-scope law, §9a), with
+  no exception anywhere in the map.
   Typed digits SET every selected note to the exact value — what you type is what appears
-  (multi-digit window; Ctrl+digit and Alt+digit unbound). A selected **silently-held stop** takes a
-  typed fret the same way, drawn on its posture bracket, and needs no rule of its own: it is a note
-  and its fret is a fret (user ruling 2026-08-27). A stop that then contradicts the note re-picking
+  (multi-digit window; Ctrl+digit and Alt+digit unbound). A **held stop** takes a
+  typed fret the same way, reached through its own satellite, and needs no rule of its own. A stop
+  that then contradicts the note re-picking
   its string splits the span, through the derivation rather than a rule of the verb's.
   Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and
   runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
-  (settled 2026-07-17). It shifts a selected silent hold's stop too, and passes over a fret-less
-  one — there is no stop of its own to move, and the note it reads from carries it already.
+  (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
   span model); Alt+arrows move the selection (Left/Right by grid step, or one 1/960-beat fine
   step under Ctrl+Alt — the uniform fine tier, off-grid unification 2026-07-18 evening — with

@@ -646,13 +646,7 @@ entry at all.
 */
 struct ChartPendingFretTargets
 {
-    /*!
-    \brief Ascending indices into the tab projection's note order.
-
-    Silently-held stops are among them with no case of their own — a typed digit states a stop, and
-    a hold's stop is a fret like any other — so the surface draws the pending box on whichever face
-    the note has: its head, or its posture bracket.
-    */
+    /*! \brief Ascending indices into the tab projection's note order. */
     std::vector<std::size_t> notes{};
 
     /*!
@@ -692,8 +686,7 @@ struct ChartPendingFretTargets
 While a typed value is provisional the lane draws an entry box over each affected head — the
 plate the mute heads already draw, with the editor accent as a border so pending reads as an
 editor state — carrying the typed text: the ordinary digit ink while the value would apply, red
-when it cannot. A selected silent hold gets the same box on its posture bracket, which is where
-its stop prints once the entry settles. Red marks EVERY affected object, deliberately without
+when it cannot. Red marks EVERY affected object, deliberately without
 per-object attribution: relational refusals are properties of the whole selection, so a per-note
 red would claim a precision the refusal does not have.
 

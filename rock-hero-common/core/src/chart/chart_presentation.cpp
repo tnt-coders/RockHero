@@ -19,17 +19,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// MEMBERSHIP on the fretting-hand axis, spelled once because the two rules in this file that ask
-// it — the tail law's scope and the hold's — must take the same scope, and two spellings of one
-// scope are two scopes free to drift. A silent hold produces no onset at all, and a right-hand
-// onset is the other hand's — it joins no posture and extends no ring (\ref deriveChartShapes) —
-// so neither is a member of what a grip states: not of the tails the curtain rests, and not of
-// the strum the span convention holds.
-[[nodiscard]] bool frettingHandMember(const ChartNote& note)
-{
-    return !silentHold(note.attack) && !rightHandOnset(note.attack);
-}
-
 // Rules 3 and 4 END a tail rather than shortening it, and a presented note must still keep the
 // model's shape — payload offsets lie within the sustain — because the painters read it as an
 // ordinary note. Nothing actually survives the clip under either rule: any payload at all earns
@@ -208,16 +197,12 @@ ChartPresentation presentedChartNotes(
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             ChartNote& note = presented[index];
-            // Rule 1: the onset that binds the trim is the first SOUNDING onset the ring does not
-            // PASS, where passing means running strictly past it. A ring ending exactly ON an
-            // onset binds there and trims — the common let-ring collision, because a notated ring
-            // ends on a musical boundary and the next note starts from one, so a ring left whole
-            // there would die on a later head with no gap at all. A ring no onset binds presents
-            // whole, which is what a last note has always done.
-            //
-            // Silent holds draw no head, so a slot that only holds fingers binds nothing and the
-            // scan steps over it: letting one bind would make authoring a held shape silently
-            // shorten every tail in front of it.
+            // Rule 1: the onset that binds the trim is the first onset the ring does not PASS,
+            // where passing means running strictly past it. A ring ending exactly ON an onset binds
+            // there and trims — the common let-ring collision, because a notated ring ends on a
+            // musical boundary and the next note starts from one, so a ring left whole there would
+            // die on a later head with no gap at all. A ring no onset binds presents whole, which
+            // is what a last note has always done.
             //
             // The scan is the note's own and starts where the group ends, never a cursor shared
             // across the walk — one member's ring must not move where the next member starts
@@ -228,10 +213,6 @@ ChartPresentation presentedChartNotes(
             {
                 for (std::size_t ahead = group_end; ahead < presented.size(); ++ahead)
                 {
-                    if (silentHold(presented[ahead].attack))
-                    {
-                        continue;
-                    }
                     const Fraction gap =
                         beatDistance(tempo_map, note.position, presented[ahead].position);
                     if (!ringPassesHead(note.sustain, gap))
@@ -303,10 +284,11 @@ ChartPresentation presentedChartNotes(
     for (std::size_t index = 0; index < presented.size(); ++index)
     {
         const ChartNote& note = presented[index];
-        // SCOPE, and it is scope rather than an exception list: the law is judged of
-        // fretting-hand members alone (\ref frettingHandMember), and a hold has no ring to
-        // rest in any case.
-        if (!frettingHandMember(note) || note.sustain.numerator <= 0)
+        // SCOPE, and it is scope rather than an exception list: the law is judged of fretting-hand
+        // members alone. A right-hand onset is the other hand's — it joins no posture and extends
+        // no ring (\ref deriveChartShapes) — so it is no member of what a grip states, and the hold
+        // rule below takes exactly the same scope for exactly this reason.
+        if (rightHandOnset(note.attack) || note.sustain.numerator <= 0)
         {
             continue;
         }
@@ -418,7 +400,7 @@ std::vector<Fraction> chartHolds(
                 // so the exclusion reads the handover itself rather than a verdict that would pass
                 // it through.
                 const bool rests = presentation.rested_from[member].has_value();
-                if (!frettingHandMember(note) || note.dead || connections.hands_over[member] ||
+                if (rightHandOnset(note.attack) || note.dead || connections.hands_over[member] ||
                     (note.sustain.numerator > 0 && !rests))
                 {
                     continue;

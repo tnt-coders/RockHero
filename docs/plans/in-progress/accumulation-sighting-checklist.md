@@ -179,9 +179,9 @@ re-signed there.
 
 ## H. Carried consciously into Phase 1 (not sighted now)
 
-- The span-marker Phase 1 items (Shift+S, the `"span"` record, `None` ripped out, the opening slot
-  published on ChartShape).
-- The scoring rider (arpeggio hold bonus, minimum-distance clipping) — the note-detection plan
-  revisits DEFINITIVELY.
+- The span-marker Phase 1 items (Shift+S, the `"span"` record, the opening slot
+  published on ChartShape). `NoteAttack::None` left ahead of them, out of phase, DONE 2026-09-17.
+- The scoring rider (a bonus for holding the handshape, minimum-distance clipping) — the
+  note-detection plan revisits DEFINITIVELY.
 - The tap-harmonics open area, the template system, and everything else in
   docs/plans/todo/span-marker-redesign.md.

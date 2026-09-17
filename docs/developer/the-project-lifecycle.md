@@ -232,8 +232,8 @@ file and from a fresh import shows the same tails, and the model behind the spli
    binding onset, which is the first later note at a different grid position on *any* string. The
    margin bounds sustain *tails* only, never note onsets: a run of 32nds imports every onset as
    notated, with tails trimmed toward zero and then dropped by the rule below, so dense passages
-   render as plain heads. Notes sharing a position — chord members — never bind each other, and a
-   silently-held stop is no onset, so the scan steps over one. The binding onset is the first later
+   render as plain heads. Notes sharing a position — chord members — never bind each other. The
+   binding onset is the first later
    onset the ring does not *pass*: a ring running *strictly past* an onset — merged from a tie or
    notated across voices — keeps looking and binds on the first onset it reaches without passing,
    trimming there like any other tail, and a ring ending exactly *on* an onset passes nothing and
@@ -374,8 +374,9 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
 under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
 posture from the note stream wherever they are read, once per chart revision inside
-`chartResolutions`. The one authored input rides in the stream itself: a note whose `attack` is
-`none` (rule 12b) — the single posture fact no function of a stream of STROKES can distinguish.
+`chartResolutions`. The one authored input rides in the stream itself: the `held` stop under a
+right-hand onset (rule 12b) — the single posture fact no function of a stream of STROKES can
+distinguish.
 Rules 10 to 12b below are that derivation's maintained plain-English spec — this page is where they
 are stated, and `chart_shapes.h` points here rather than restating them.
 
@@ -412,15 +413,15 @@ neighbours.
     stores — so no member's claim can be false, and the opening test needs no fretted-only branch.
 
     A member is a sounding fretting-hand onset, a ring still sounding at a stated stop, or a stop
-    the hand CLAIMS — a silently-held stop (rule 12b), or the RESOLVED held stop under a right-hand
-    onset (the tap-harmonic arm under rule 12b). **ONE COUNT over the three kinds**, because they
+    the hand CLAIMS — the RESOLVED held stop under a right-hand onset (rule 12b). **ONE COUNT over
+    the three kinds**, because they
     are three ways of stating the one thing a shape is made of: where a finger is. Each threshold
     is named ONCE in the walk and appears nowhere else, so neither can fork. **CLAIMS stay outside
     the overlap test and inside the count:** a claim has no ring, so it can never be one of the
     rings — but two held fingers at one slot state a shape, one held finger beside one sounding
-    note does too (a sounding-only threshold makes the shape evaporate when one member of a
-    two-note chord is converted into a held finger, taking the converted fret off every surface
-    with it), and so does one held finger beside one string still RINGING THROUGH — gating the
+    note does too (a sounding-only threshold takes the held stop under a tap off every surface
+    wherever the rest of the grip is a single sounding note, the fret the charter stated with
+    it), and so does one held finger beside one string still RINGING THROUGH — gating the
     carried fold-in on a strike happening at the slot would make the same ring a member at a
     struck slot and invisible at a claim-bearing one. A LONE member of any kind opens
     nothing. **A ring no hand holds belongs only to the span it was struck in**: an open string or
@@ -448,11 +449,12 @@ neighbours.
     by a posture rather than fields on one. Tap-attack notes are excepted: taps belong to the
     tapping hand, not the fretting posture, so they never join a posture — even a multi-string
     tapped onset derives no chord, and a mixed onset is judged by its non-tap members alone (rule
-    11). A span whose members are ALL silently-held stops has nothing ringing to give it length, so
+    11). A span whose members are ALL claimed stops has nothing ringing to give it length, so
     it states its posture at an instant — an EVENT stated it, so that instant is exactly what the
-    derivation publishes as the anchor the bracket printing it draws at (rule 11b) — until the
-    content it fronts arrives and lends it one; rule 12b carries that law and the dissolve that
-    answers a statement nothing ever justified.
+    derivation publishes as the anchor the bracket printing it draws at (rule 11b) — and it
+    PUBLISHES there, with zero sustain, rather than waiting on anything: a claim rides a right-hand
+    onset that sounds the very stop it holds, so the statement is already answered where it is
+    made. Rule 12b carries that law.
 
     **A span DATES from its FRONT: the earliest member STATEMENT not covered by a preceding span**
     (THE DATING RULE). A broken chord's bracket starts at its FIRST note, not at whichever arrival
@@ -509,7 +511,7 @@ neighbours.
     plus a restatement, its digits print in the opening bracket, and the arriving member's own head
     restates its fret as it lands. No disjoint-grip guard is needed and none exists — absorption
     can only ever union grips whose sounds genuinely OVERLAP, because a dead ring fires the quit arm
-    first. **A CLAIM is no exception either**: an authored hold on a new string grows
+    first. **A CLAIM is no exception either**: a claimed stop on a new string grows
     the span exactly as a struck stop does. What a claim can still do is CONTRADICT — a different
     fret on a string the grip already states is the finger moved, and that breaks the grip whichever
     hand states it.
@@ -528,7 +530,7 @@ neighbours.
     note is an ordinary single onset, two or more are a chord. An isolated strum gets a span of
     its own ring. **A lone RE-PICK needs no exception of its own**: a single-string onset at a
     stop the grip already holds, stated by sound or
-    by a silently-held stop at the same fret (rule 12b) and articulated however it likes, is a
+    by a claimed stop at the same fret (rule 12b) and articulated however it likes, is a
     restatement of the SAME grip, so it continues the span exactly as a full restrike does. The
     hand has demonstrably not left the shape. The rule is ADJACENCY-SCOPED and needs no witness
     clause to be: a re-pick whose own string rang up to it lands inside a tenure that is still
@@ -550,8 +552,8 @@ neighbours.
     tap on a member string ends that member's tail underneath it with
     no hand lifting anywhere, so the sound was REPLACED and not silenced, and detachment is a
     statement about sound STOPPING — which is what makes the two-hand run over a held shape one
-    statement through its own re-picks. A silent hold sounds nothing and stops nothing, so it
-    continues nothing. **RENEWING a string and BOUNDING the span are different acts, and only the
+    statement through its own re-picks. **RENEWING a string and BOUNDING the span are different
+    acts, and only the
     fretting hand does the second**: a sounding onset of either hand renews that string's evidence
     and keeps the tenure running across it, while how far the span REACHES is written only by a
     MEMBER's own strike. A right-hand onset
@@ -571,7 +573,7 @@ neighbours.
     whether the tenure actually ENDED there is this law's
     own question, asked once. Which stop a slot SOUNDS carries the two-hand law with it: a
     right-hand onset holding a resolved stop sounds that stop exactly as a fretting finger does
-    (the tap-harmonic arm under rule 12b, the same law justification uses), while a tap holding
+    (the carrier law under rule 12b), while a tap holding
     nothing neither extends nor closes anything.
 
     **THE OTHER ARM IS CONTRADICTION, and it is GRADED** (the Law A semantics — EVIDENCE OUTRANKS
@@ -582,9 +584,8 @@ neighbours.
     move away. A differing CLAIM against a carried claim always witnesses too: assertion against
     assertion is the charter re-authoring the hand. But a differing STRIKE against a carried claim
     witnesses only where the grip is ESTABLISHED (the span has sounded members) and the string is
-    silent; against a still-ASSEMBLING silent statement a strike is evidence arriving rather than a
-    contradiction, so a lone one joins the assembly and a full statement of its own replaces it
-    (LAW II — a statement nothing ever justified dissolves unheard).
+    silent; against a statement only claims have made so far, a strike is evidence arriving rather
+    than a contradiction, so it joins that statement in place (LAW II).
 
     **RING-OUT OPENS NOTHING.**
     Where a member quits, the survivors simply ring out as tails, from their own heads — there is no
@@ -620,8 +621,8 @@ neighbours.
     presented end. A restrike interior rests too — same-grip renewal carries a span past a replaced
     ring's death, so chug chains and re-picked steps die inside their own span.
 
-    **SCOPE, on both sides of the judgment**: right-hand onsets and silently-held stops stand
-    outside it entirely — neither is a member whose ribbon the law may take, and neither is a
+    **SCOPE, on both sides of the judgment**: right-hand onsets stand
+    outside it entirely — none is a member whose ribbon the law may take, and none is a
     statement that changes another string's verdict. A grip states where the fretting hand is, so a
     tap says nothing about whether that hand is still down — the one place this law moves ink UP,
     against any rule that would cut the fretting hand's ring back to the tap above it.
@@ -714,10 +715,10 @@ neighbours.
     other is one span through the last one's ring. A run with a genuine gap between two strums is
     TWO statements, because a span never outlives its own sound waiting for an identical strum
     to rejoin it — a gap is a boundary, not a pause. **Claims are exempt**: a claim has no ring, so
-    it states where a finger is and never how long anything sounds, and a zero-sound span's extent
-    stays justification-driven (rule 12b) — justification decides whether that span EXISTS, never
-    how far it runs, so it states its posture at its own instant until a MEMBER sounds inside it.
-    A held-carrying tap answering the claim is where that split shows: its ring IS real evidence
+    it states where a finger is and never how long anything sounds, so a span of claims alone
+    states its posture at its own instant and runs no distance at all (rule 12b), until a MEMBER
+    sounds inside it and lends its ring.
+    A held-carrying tap is where that split shows: its ring IS real evidence
     about the stop (a tapped harmonic dies the moment the held fret lifts), and it still adds no
     length, because the evidence arrives as a claim. **EVERY SOUNDED MEMBER BOUNDS, carried or
     struck**: there is ONE
@@ -751,9 +752,9 @@ neighbours.
 
     **THE INVARIANT: every span with a SOUNDING member is strictly positive.** Every member reaches
     strictly past its span's own start, so the only way this law can answer the start itself is a
-    span nothing sounds in — a shape the hand alone stated, waiting at an instant for the content
-    it fronts. That is a property of the arithmetic rather than a case: the close is the earlier
-    of two instants that are both at or after the span's start.
+    span nothing sounds in — a shape the hand alone stated, which states its posture at an instant
+    and publishes there. That is a property of the arithmetic rather than a case: the close is the
+    earlier of two instants that are both at or after the span's start.
 11b. **A member's fret TRAVEL breaks the span AT THE LANDING, and the grip it lands in re-opens
     there — the ONE onset-less open the law admits** ([D2], rule 6 of the grip-tenure law). A
     note's fret channel states where
@@ -784,8 +785,8 @@ neighbours.
     departs at the ONSET, and that shortens nothing — the whole glide is the departing grip's span.
     Flooring the span at the strike instead leaves a zero-length span. Because the span covers the
     transit, **every slot inside a
-    glide is inside a span**: a tap taken mid-glide flips the class through rule 12(d), and a hold
-    authored mid-glide falls inside a standing statement, where the rule 12b growth law reaches it.
+    glide is inside a span**: a tap taken mid-glide flips the class through rule 12(d), and a claim
+    made mid-glide falls inside a standing statement, where the rule 12b growth law reaches it.
 
     **What a travelling member may not do is be RESTATED, and that is judged PER MEMBER, never per
     slot.** A slot restates the shape while everything it sounds agrees
@@ -884,8 +885,8 @@ neighbours.
     empty the moment an interior re-pick states the successor.
 
     **The anchor ITSELF is published too, and it is one field with one write rule**
-    (`ChartShape::bracket_position`). Every span an EVENT states — a strum, an
-    authored hold — carries its own **FRONT** there, because that is
+    (`ChartShape::bracket_position`). Every span an EVENT states — a strum, a
+    claim — carries its own **FRONT** there, because that is
     the statement's own extent and the rails run from it; an ACCUMULATION is no exception and needs
     no clause, its front being the earliest uncovered member's onset (rule 10's dating rule), so
     the bracket starts where the figure began and the later members' heads arrive under it. A
@@ -967,9 +968,9 @@ neighbours.
     at the opening and every accumulation is an arpeggio by construction rather than by a rule of
     its own.
 
-    (b) **A silently-held member** (rule 12b). The bracket is the only mark with anywhere to print a
-    fret nothing struck, so a span carrying one must arrive as an arpeggio or the authored fact is
-    stored and never shown.
+    (b) **A CLAIMED member** (rule 12b) — the held stop under a right-hand onset. The bracket is the
+    only mark with anywhere to print a fret nothing struck, so a span carrying one must arrive as an
+    arpeggio or the stated fact is stored and never shown.
 
     (c) **Any SOUNDING of the span that is only PART of the shape** — a partial restrike, a lone
     re-pick of one member (rule 11), or the span's own start
@@ -1083,35 +1084,32 @@ neighbours.
     already covers — so whether the landed grip gets a moment of its own reads like a question
     about whether a reader could SEE one. It is asked musically instead, against the
     notated-distinguishability quantum at rule 11b, and this rule is display and nothing else.
-12b. **A silently-held stop states the one posture member a stroke cannot.** A finger resting on a
+12b. **A CLAIMED STOP states the one posture member a stroke cannot.** A finger resting on a
     fret makes no sound, extends no ring, and produces no onset, so a hand holding a six-string
     shape and picking four of it streams *identically* to a hand holding four and moving to the
     fifth later. Both are real playing, which is why the CHARTER states the second reading rather
     than the derivation guessing it: the derivation notates the
-    literal notes and a note with `attack: none` is how a charter states the other reading —
-    authored by the arpeggio hold verb (`N`, \ref guide_keyboard), which acts on the selection like
-    every chart verb, falling back to the armed caret's own slot when nothing is selected (which is
-    the only way to reach a slot that holds nothing). Such a note is a POINT record: its slot and
-    its fret are the whole of it, it
-    has no ring of its own, and every technique is refused on it. It rides the note stream rather
+    literal notes, and the `held` field on a right-hand onset — a tap or a scrape — is how a charter
+    states what the OTHER hand holds while the picking hand sounds that string. It rides the note
+    stream rather
     than a slot-keyed array of its own, because a second array would make disjointness a rule where
     one stream owes slot uniqueness anyway.
 
-    A hold lying inside a derived span joins that span's posture on its string, and the span then
+    A claim lying inside a derived span joins that span's posture on its string, and the span then
     arrives as an **arpeggio** — the bracket is the only mark with a place to print a fret nothing
     struck. One that resolves to nothing — no span covers it, its position falls past the span's
     own end, or the shape already states that same stop on that string — states nothing anywhere,
-    and the settle below removes it rather than saving a record no surface draws.
-    **A hold is not a strike** — it closes no span, ends no posture and bounds no neighbour's ring —
-    but it IS a member, which is what rule 10 counts. What it can join is whatever statement is
+    and the settle below clears it rather than saving a statement no surface draws.
+    **A claim is not a strike** — it closes no span, ends no posture and bounds no neighbour's
+    ring — but it IS a member, which is what rule 10 counts. What it can join is whatever statement is
     still in force at its slot (rule 11a), which is the same question every other branch asks and
-    not "the derivation has not closed the span yet": holds past the shape's own sound state the
-    NEXT shape instead of joining a shape that stopped sounding. A hold sounds nothing, so it can
+    not "the derivation has not closed the span yet": a claim past the shape's own sound states the
+    NEXT shape instead of joining a shape that stopped sounding. A claim lends no ring, so it can
     never bridge a gap either — landing exactly where a member's ring stopped joins nothing.
 
     **A stop CLAIMED inside a shape that the shape does not already STATE GROWS it.** Growth IS
     accumulation and a
-    claim is no exception to it: an authored hold on a new string joins the standing grip IN PLACE,
+    claim is no exception to it: a claim on a new string joins the standing grip IN PLACE,
     and the figure stays one span. What a claim can still do is CONTRADICT — a string the shape
     states ANOTHER stop on is the finger MOVED, and that breaks the grip however the old stop was
     written down. A held fret matching the span's continues it; a differing one splits it, so a tap
@@ -1125,25 +1123,23 @@ neighbours.
 
     Where a contradiction does break the grip, whatever opens after it is opened by the SLOT's own
     statements like any other — an old span's claims do not ride across a break, and only a LANDING
-    carries them (rule 11b: the fingers slid, they never lifted). What an authored hold states is
+    carries them (rule 11b: the fingers slid, they never lifted). What a claim states is
     that the finger IS down on that string inside this grip; WHERE in the span the charter typed it
     decides nothing about the mark, because the opening bracket is the span's chord frame and states
-    the whole membership at the moment the reader meets it (the digit window below), so a hold that
-    joins late still prints its digit there. One exception, and it is LAW II's: a shape the HAND
-    alone stated that is still WAITING for its content is a statement being ASSEMBLED, so a lone
-    later finger JOINS the assembly rather than contradicting it, while a slot stating a whole grip
-    of its own REPLACES it — the unjustified claim-only statement dissolves unheard. A claim's FACE
+    the whole membership at the moment the reader meets it (the digit window below), so a claim that
+    joins late still prints its digit there. A claim's FACE
     belongs to the span it joined, and the mark carrying it draws at that span's published anchor
     rather than at the slot the charter
     happened to type it in (rule 11b's `bracket_position`, which is why the two are not the same
-    question).
+    question). A statement only claims have made yet is still being ASSEMBLED, so a later finger
+    landing on it JOINS the assembly rather than contradicting it (LAW II) — the grading above.
 
-    **A claimed stop states itself in either of two shapes, and the rules above bind both.** Where
-    nothing sounds at all the whole note is the statement (`attack:
-    none`, whose `fret` is the stop); where the PICKING hand sounds the string, the fretting hand's
-    stop rides that note as `held`. They are one statement about one hand at one slot, asked through
-    one query (`claimedStop`), so membership, justification, the fret match and the growth law
-    read them identically. What a `held` stop may NOT do is lie inside its own note's TRAVEL: the
+    **A claimed stop has exactly ONE shape, and the rules above bind it.** Where the PICKING hand
+    sounds the string, the fretting hand's
+    stop rides that note as `held` — the whole of what a claim is, asked through
+    one query (`claimedStop`) and resolved for every consumer by `chartClaimedStops`, where a
+    pull-off's derived stop outranks the stored field. What a `held` stop may NOT do is lie inside
+    its own note's TRAVEL: the
     planted finger is on the string, so the onset cannot start on it, end on
     it, or pass through it. One rule over both attacks that can carry a stop, because it reads the
     PATH rather than the attack: the range is the closed hull of the note's own fret and every
@@ -1157,79 +1153,54 @@ neighbours.
     runs as the normalizer's last stage on every load and inside the editor's plan gate on every
     edit, and it is ONE PASS, no fixpoint. What it takes is a claim that reached NO span, so the
     claim was a member of nothing and no span's membership moves when it goes — there is no cascade
-    for a loop to chase. What it takes is the STATEMENT and never more: a
-    `none` note IS its claim, so the record goes; a `held` stop rides an onset the charter wrote, so
-    only the field is cleared. And a held stop the note's own PITCH is measured from is not taken at
+    for a loop to chase. What it takes is the STATEMENT and never more: a `held` stop rides an onset
+    the charter wrote, so the field is cleared and the note stands.
+    And a held stop the note's own PITCH is measured from is not taken at
     all: a tapped harmonic speaks from the stopped length (`physicalStopFret`), so clearing it would
     retune the record and could leave its node at or behind its own stop, which the rules refuse —
     the settle takes statements that reach nothing, never the sound the charter wrote.
 
-    **A claim that JUSTIFIES a span is never inert**, and the sweep needs
-    no rule to say so. Answering is reaching: the derivation publishes a claim whose answering
-    justified a span as having reached that span, even where it printed no fret and landed past the
-    instant a waiting span states its stops at, because taking that record away would dissolve the
-    span. So "states nothing" and "does nothing" stay ONE question with one answer, and the plain
-    held-carrying tap that plays a shape's own stop stands instead of dissolving the figure it
-    justifies. A claim that answers nothing is untouched by this: one restating a stop a shape that
-    needed no justifying already states changes nothing anywhere and still goes.
+    **A claim that REACHES a span is never inert**, and the sweep needs
+    no rule to say so. Reaching IS publishing: the derivation records the span each claim reached
+    (`ChartShapes::claim_shapes`), and the sweep reads that same record, so "states nothing" and
+    "does nothing" stay ONE question with one answer. What goes is the claim that reached nothing —
+    chiefly the RESTATEMENT, a claim naming a stop its shape already states, which takes no new
+    stop anywhere and so changes nothing when it is cleared.
 
-    Two consequences worth naming. An edit that strands a claim takes it
-    in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
-    unless every slot it named still STATES a stop once the settle has run — whole-plan, never per
-    slot, so a chord's members are legal together and illegal one at a time, and a press whose
-    statement the settle took does nothing at all instead. Asked of the statement rather than of the
-    record, because for a `held` stop the settle takes only the field and leaves the note identical,
-    which no diff of what was removed against what was written can see.
+    One consequence worth naming. An edit that strands a claim clears it
+    in the SAME undo entry, so one Ctrl+Z restores the pair.
 
-    **A shape the HAND alone states must be justified by one of its own HELD FRETS BEING PLAYED.**
-    A tap cannot justify a span on its own; the span requires one of its HELD frets to sound at
-    some point inside it. Two held stops at one slot open a span — rule 10 counts members, not
-    strikes —
-    and such a span is authored in front of the passage it describes, so it has no ring to measure
-    and waits, unended, until one of its claimed stops SOUNDS on its own string: the same fret-match
-    test rule 11's re-pick exception uses, and the only justification there is.
+    **A CLAIM IS A MEMBER THAT DOES NOT SOUND ON ITS OWN, AND ITS CARRIER SOUNDS IT** (LAW II).
+    A claim has exactly one shape: `held` on a right-hand onset — a tap or a pick slide — on the
+    claim's OWN string, and that onset sounds the very stop the claim states. So every claim is
+    answered in the slot that founds it, and there is no test for a shape the hand alone states to
+    pass: two held stops at one slot open a span — rule 10 counts members, not strikes — and that
+    span publishes at its own instant, with no ring to measure and nothing to wait for.
 
-    A stop sounds two ways, and the law has one arm for each. The fretting hand PRESSES it — a
-    sounding onset on a claimed string at that claim's stop. Or a right-hand onset SOUNDS IT FROM
-    ABOVE: **the tap-harmonic arm**. A tap harmonic's pitch derives from
+    WHY THE CARRIER SOUNDS THE STOP. A tap harmonic's pitch derives from
     the stopped length — the held fret never sounds directly, it sounds as the fundamental this
-    overtone divides — so the held fret is sonically participating, and an onset whose `held` stop
-    is a claimed one plays that stop as surely as a finger fretting it does. That makes the
-    single-string figure self-contained: hold a fret, tap the harmonic above it, and ONE record has
-    stated the stop and played it, so it justifies the shape it claims into. What still justifies
-    nothing is a right-hand onset holding NOTHING, however many of them ring over the shape — such
-    a tap sounds where the TAPPING finger lands, which is evidence about the other hand and says
-    nothing about whether the stated stops are still down — or one holding a stop the shape never
-    claimed.
-    Whether the answering onset is ALONE or one voice of a chord is not part of the test — it is
-    the stop that answers, so a strum carrying the claimed fret justifies the statement it fronts
-    exactly as a lone re-pick does. A span that closes with nothing having arrived **dissolves**:
-    it is evidence of nothing, and its notes state nothing anywhere, exactly as a lone member does.
+    overtone divides — so the held fret is sonically participating, and a scrape dragged across a
+    planted finger is the same picture. The single-string figure is self-contained for that reason:
+    hold a fret, tap the harmonic above it, and ONE record has stated the stop and played it.
 
-    Such a span's EXTENT is the ordinary member-ring rule with the ARRIVAL counted as a member ring,
-    and the stretch before it runs from the span's own start to that arrival: an arrival that JOINS
-    the span (rule 11's same-grip restatement) carries it start-to-ring-end with no gap. Until one
-    comes the span has no ring at all and states its posture at an instant, which is the waiting the
-    record exists for.
+    A SOUNDING ARRIVAL GROWS such a span rather than replacing it: a lone re-pick at a claimed stop
+    attaches to the span, so its extent becomes the span's, and a CHORD carrying that stop grows the
+    grip in place, so the held shape and the chord are ONE span (rule 11's same-grip restatement).
+    The extent is then the ordinary member-ring rule with the arrival counted as a member ring,
+    running from the span's own start to that arrival's ring end with no gap. A span that CLOSES
+    with only claims in it runs no distance at all and publishes at its instant, which is the honest
+    zero: nothing in it ever rang.
 
-    Being justified and being JOINED are the same act: a
-    lone re-pick attaches to the span, so its extent becomes the span's, and a CHORD that answers
-    the claim both justifies the waiting statement and GROWS it in place, so the held shape and the
-    chord that answers it are ONE span. What still replaces such a statement outright is a slot
-    stating a whole grip of its own that answers NOTHING it claims (LAW II).
-
-    **The bracket IS the hold's face**: it draws no head and no tail on any
-    surface, so the arpeggio bracket on its string is what shows the resolved stop, what a click
-    selects, and what a typed fret writes to — wherever that bracket draws, which for every span an
+    **The bracket PRINTS a claimed stop**, wherever that bracket draws — which for every span an
     event states is its own FRONT and for a rule 11b landing-opened successor is the deferred anchor
     above. A span
-    that draws no bracket publishes no face either, because nothing undrawn is clickable. A typed
+    that draws no bracket prints nothing on that string. A typed
     digit STATES a stop, and a
-    transpose SHIFTS one, both reaching a selected hold exactly as they reach a selected head —
-    which is also how a transposed chord carries its silent members along. A retyped stop that
+    transpose SHIFTS one, both reaching a claim through the note that carries it exactly as they
+    reach that note's own head. A retyped stop that
     contradicts the note re-picking its string splits the span through rule 11's re-pick exception,
-    with no rule of its own. Because the settle above removes every hold that states nothing, there
-    is no invisible-and-unreachable record to find: what a chart holds, some bracket prints.
+    with no rule of its own. Because the settle above clears every claim that states nothing, there
+    is no invisible-and-unreachable statement to find: what a chart claims, some bracket prints.
 
     **A held stop's face is the SATELLITE beside that bracket.** The note
     carrying it has a head of its own, and that head is already printing what the picking hand
@@ -1240,15 +1211,14 @@ neighbours.
     as a second stop inside one slot, in display order (head, then satellite, reversed leftward),
     where digits do the same and Delete clears the statement rather than the note.
 
-    **WHERE A SATELLITE STANDS**, which is not every held stop. A FRONT tap — one whose onset IS
-    the bracket's instant — keeps
-    a standing satellite, because its own head occupies the string's centre there and the bracket's
-    digit is displaced out of it. A MID-SPAN tap gets no standing furniture at all: its stop prints
-    in the opening bracket as ordinary membership (the chord frame states the whole shape where the
-    reader meets it), and the satellite appears only while that tap is SELECTED, as the inspection
-    and retype target. A lone span-less claim gets a standing satellite only where the held stop is
-    AUTHORED; a DERIVED one has none, since the pull-off notation already prints that fret, and
-    selection still reveals it read-only.
+    **WHERE A SATELLITE STANDS is a question about AUTHORSHIP**, not about where in a span the note
+    sits (`StopMarkFace`, written once in `chart_projection.cpp`). An AUTHORED held stop stands
+    wherever it lies — front, mid-span and span-less alike — because an authored statement is the
+    charter's and nothing else in the picture prints it. A DERIVED one does not: the pull-off
+    notation already prints that fret, so it is REVEALED on the note's own truth channel, visible
+    exactly while that note's real ring is. And a tap FRONTING a bracket stands whatever its
+    authorship, because its own head occupies the string's centre there and the bracket's digit is
+    displaced out of it, which makes the satellite that tap's face.
 
     **PRINT AND CLICK ARE ONE DECISION.** The note's face is published from the very
     record that decided the digit prints, so a drawn digit is clickable by construction and an
@@ -1258,20 +1228,18 @@ neighbours.
 
     **The same-slot case the `held` field RESOLVES**: a held fret on the very string being tapped at
     the very same instant would otherwise need two records sharing one `(position, string)`, which
-    slot uniqueness refuses, forcing the charter to state the hold a quantum early. The `held` field
+    slot uniqueness refuses, forcing the charter to state the stop a quantum early. The `held` field
     makes it one record at one slot, which is what lets
-    the stop under a tap be a MEMBER of the shape at the tap's own instant — and, under the
-    tap-harmonic arm above, the sound that justifies it, since the record states the stop and plays
+    the stop under a tap be a MEMBER of the shape at the tap's own instant — and, under LAW II's
+    carrier rule above, the SOUND of it too, since the record states the stop and plays
     it at once.
 
     **A DISPLACED posture digit is its owner's target**, so a drawn digit never clicks nowhere.
     Which column a posture string's fret prints in is a property of
     the (span, string) pair, and the projection publishes it (`ShapeStringViewState::digit`), with
     each claim's own FACE published beside it (`NoteViewState::stop_mark`), so the painter and the
-    hit test read one answer. When a HOLD's own digit is the displaced one, its clickable extent
-    runs out to cover the column it was drawn in, so the digit selects exactly what the bracket bars
-    select. Drawn extent equals clickable extent in both directions: nothing past the drawn column
-    is reachable.
+    hit test read one answer. Drawn extent equals clickable extent in both directions: nothing past
+    the drawn column is reachable.
 
     **THE DIGIT WINDOW is the bracket's own instant and nothing besides.**
     One head can stand on the string there, and the three answers are one question about it:
@@ -1500,13 +1468,13 @@ clamped and then drawn like any other):
     **THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST, and it DERIVES**:
     the members' rings overlap, so rule 10's opening law opens the span and rule 10's dating rule
     dates it from the roll's FIRST member — same class, same bracket, and no import machinery at
-    all. The beat authors no silent-hold claim for its not-yet-sounded members: the note spread and
+    all. The beat authors no claim for its not-yet-sounded members: the note spread and
     the anticipation offsets below are the whole of what the importer does. The bracket therefore
     runs the RING rather than the stagger, which is the honest length — a claim-fronted span would
     state nothing past the gesture. **IMPORTS AUTHOR ZERO CLAIMS**, so the statement model is sound
     states and authored states, and "fronted span" is not a derivation concept. The claims
-    machinery itself — rule 12b's justification, the inert sweep, the `N` verb — stands fully
-    intact for the residue it is for: the never-sounded stop and the deliberately short-rung one.
+    machinery itself — rule 12b's claim law and the inert sweep — stands fully
+    intact for the residue it is for: the stop a charter states under a tap or a scrape.
 
     A spread the
     beat cannot hold, or a lone-note beat, stays simultaneous with a conversion note; a

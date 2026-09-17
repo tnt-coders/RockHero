@@ -500,22 +500,6 @@ public:
     virtual void onChartLeftTapRequested() = 0;
 
     /*!
-    \brief Handles a request to author, convert or remove a silently-held shape member.
-
-    The arpeggio hold verb, and the only chart verb anchored at the CARET rather than at the
-    selection: a fact about the fretting hand is authored at the position it holds, by a charter
-    looking at that position. It acts on whatever the armed slot holds — an empty slot gains a hold
-    at the open string, which the charter then types a stop onto; a sounding note is CONVERTED,
-    keeping its slot and its fret and losing the ring and techniques its new attack cannot state;
-    and a hold is sounded again as a plain pick at the session's grid step. One undo entry either
-    way; a second press inside the verb's own window reverses the first exactly, which is the only
-    thing that can restore what a conversion stripped.
-
-    Silent when no caret is armed: pressing it in the passive state is not an error.
-    */
-    virtual void onChartSilentHoldToggleRequested() = 0;
-
-    /*!
     \brief Handles a request to toggle every selected junction between its two states.
 
     One verb, two directions, one compound undo entry. A selected KEYFRAME becomes a head: the

@@ -323,13 +323,10 @@ void EditorController::Impl::moveCursorTo(const common::core::GridPosition posit
 }
 
 // What the chart holds on a slot, or absent when nothing does. The note stream holds each slot at
-// most once, silently-held stops included, so the note half is one binary search. Where no note
-// stands, the only object that can is a keyframe of the one ring covering the slot — which is
-// chartPathTailAt's question, answered there once for the typed digit and this — so this asks
-// it and then only checks whether a keyframe sits at exactly that offset. Exact rationals, so
-// equality is the test. The one coincidence the chart's laws allow, a silently-held stop at a
-// keyframe's instant on its own string (a hold bounds no ring), resolves to the note: the stream's
-// own record, and the one the binary search finds first.
+// most once, so the note half is one binary search. Where no note stands, the only object that can
+// is a keyframe of the one ring covering the slot — which is chartPathTailAt's question, answered
+// there once for the typed digit and this — so this asks it and then only checks whether a keyframe
+// sits at exactly that offset. Exact rationals, so equality is the test.
 //
 // Shared by caret arming (selection re-derivation) and every verb that asks what stands at a slot.
 std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
@@ -618,9 +615,9 @@ void EditorController::Impl::armChartCaret(
     if (const std::optional<ChartSelectionKey> object = chartObjectAt(position, string);
         object.has_value())
     {
-        // Whatever the slot holds becomes the selection — a sounding note, a silently-held stop or
-        // a keyframe alike, so the armed-caret invariant reads the same for every kind and a verb
-        // finds its own object selected after it authors one.
+        // Whatever the slot holds becomes the selection — a note or a keyframe alike, so the
+        // armed-caret invariant reads the same for every kind and a verb finds its own object
+        // selected after it authors one.
         chartSelectionMutable().replaceWith(*object);
     }
     else
@@ -1884,8 +1881,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // object sitting between lines keeps its offset rather than being pulled onto one — a move is not a
 // snap. A refused move (edge of the neck, occupied slot, a keyframe stepped onto its neighbour or
 // out of its ring) is a silent no-op — the selection stays put, matching refuse-not-clamp
-// everywhere else. A silently-held stop moves with the chord it belongs to and needs no rule of its
-// own: it is a note on a slot like any other.
+// everywhere else.
 //
 // BOTH selection kinds are operands of the time step (W13's ruling): a note's place is its slot and
 // a keyframe's is an offset along the ring it rides, so one press steps each where it lives, in one
@@ -2047,12 +2043,11 @@ void EditorController::Impl::deleteChartSelection()
 
     // Delete takes what the caret is ON, and on a held stop that is the STATEMENT rather than the
     // note: the charter never asked for the onset under it to go. A clearing planner of its own
-    // (planClearHeldStops) rather than the hold verb's releasing direction: that verb infers its
-    // direction from the CLAIM column, which a bare tap's DEFAULT and a fretting-hand source's
-    // PLANT never enter, so routed there a Delete would author a held 0 on the one and convert the
-    // other into a silent hold (THE PLANT'S FACE). Clearing withdraws the charter's statement and
-    // nothing else; what the notation states it refuses, off the one ownership table the retype
-    // reads.
+    // (planClearHeldStops) rather than a retype to fret 0: a bare tap's satellite and a pull-off
+    // source's PLANT both show a DEFAULT the charter never typed, so writing a real 0 over one
+    // would author the very statement the press is withdrawing. Clearing withdraws that statement
+    // and nothing else; what the notation states it refuses, off the one ownership table the
+    // retype reads.
     const ChartVerbScope scope = chartVerbSlots();
     if (scope.channel == common::core::ChartStopChannel::Held && !scope.slots.empty())
     {
@@ -2488,10 +2483,9 @@ EditorController::Impl::ChartVerbScope EditorController::Impl::chartVerbSlots() 
 
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction: the verb names its delta and nothing else, and the planner moves every stop the
-// selection addresses by it — silently-held stops included, so a transposed chord carries its
-// held members, and selected KEYFRAMES too, since a point on a slide states a fret exactly as a
-// head does (W13's ruling). A shift pushing any stop below zero or past the cap is refused by the
-// planner, never clamped.
+// selection addresses by it — selected KEYFRAMES included, since a point on a slide states a fret
+// exactly as a head does (W13's ruling). A shift pushing any stop below zero or past the cap is
+// refused by the planner, never clamped.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -2512,9 +2506,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         ChartFretShift{.delta = direction > 0 ? 1 : -1},
         // The shape-preserving shift keeps the SOUNDING channel on the notes it names, per the
         // ruling that every verb but the two typing ones keeps note scope: it moves the stops the
-        // notes sound, and whether a transpose should carry a shape's silently-held members along
-        // is the open question recorded with the verb's design, not something to settle by reading
-        // the caret here. A selected keyframe needs no channel at all.
+        // notes sound, and whether a transpose should carry a note's HELD stop along is the open
+        // question recorded with the verb's design, not something to settle by reading the caret
+        // here. A selected keyframe needs no channel at all.
         common::core::ChartStopChannel::Sounding)));
 }
 
@@ -2807,8 +2801,7 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
 // The chart verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
 // copied into each: while the selection and the burst record still prove the previous press was
 // this verb's own entry, this press REVERSES that entry exactly, so the pair leaves no trace —
-// including tails an assist grew and the note an arpeggio-hold conversion took, neither of which a
-// verb's own clear law could ever restore.
+// including tails an assist grew, which a verb's own clear law could never restore.
 //
 // ALWAYS disarms, reversal or not: a press whose proofs fail commits the previous entry, which is
 // what makes the window end at the next selection change or caret move. A window ANOTHER verb
@@ -3243,73 +3236,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
     // knows which inserted record is a new head and which is a grown path carrying a new point.
     std::vector<ChartSelectionKey> selection = std::move(toggled->selection);
     static_cast<void>(applyChartEditPlan(std::move(toggled->plan), std::move(selection)));
-}
-
-// The arpeggio hold verb (`N`), selection-scoped like every other chart verb with the typing
-// family's caret fallback behind it (\ref chartVerbSlots): a chord converts in one press and one
-// undo entry, and a caret on an empty slot is what authors a hand fact where no note is — the case
-// a selection cannot reach, since there is nothing there to select
-// (`docs/plans/todo/arpeggio-authoring.md`). The uniform-scope law therefore has no exception here
-// any more; what it had was a verb whose only reachable operand was the caret's.
-//
-// Under the toggle window this is a true two-press toggle in every case, conversions included: the
-// second press REVERSES the first entry, which is the only thing that can put back the techniques a
-// conversion stripped — a silent hold carries a stop and nothing else, so no forward law could
-// rebuild the mutes, node and payload the note had. Once the window is dead (any other edit, a
-// caret move, undo/redo), pressing `N` on a hold sounds it again as a plain pick at the session's
-// grid step, which is the honest forward inverse and the one this verb can state.
-//
-// A press whose product would state nothing is refused by the planner and is SILENT here, exactly
-// as a technique toggle that applies to nothing is: no window is armed, so the next press is an
-// ordinary first press. The counted feedback both want is W5's channel.
-void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartSilentHold&)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::vector<ChartSlotKey> slots = chartVerbSlots().slots;
-    if (arrangement == nullptr || !arrangement->chart.has_value() || slots.empty())
-    {
-        return;
-    }
-    if (reverseChartVerbWindow(ChartSilentHoldToggle{}, "Revert Hold Stop"))
-    {
-        return;
-    }
-    // The ring a sounded note is given is the session's grid step, read at the scope's first slot
-    // like any placement's: the step is a session fact scaled by the local meter, and the charter
-    // is working at the position they are looking at.
-    if (applyChartEditPlan(planToggleSilentHold(
-            *arrangement->chart,
-            session().song().tempo_map,
-            slots,
-            chartGridStepBeats(slots.front().position))))
-    {
-        // The fourth case's own follow-through: where the press stated a HELD stop, the caret moves
-        // onto that stop so the digits that follow state it — the keyboard twin of clicking the
-        // satellite, and the same "the caller arms it here" the empty-slot case has always used.
-        // Asked of the settled chart through the one satellite query, so a press whose statement
-        // the settle then took leaves the caret on the head it started from.
-        armHeldStopCaretAfterToggle(slots);
-        m_chart_verb_window = ChartVerbWindow{
-            .keys = chartSelection().keys(),
-            .verb = ChartSilentHoldToggle{},
-        };
-    }
-}
-
-// Moves the caret onto the held stop the toggle just stated, when it stated exactly one. A press
-// over a whole chord leaves the caret where it was: a pending entry has ONE channel, and a scope
-// whose notes do not all state a held stop has no single stop for the digits to mean.
-void EditorController::Impl::armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots)
-{
-    if (slots.size() != 1 || !chartSlotShowsHeldStop(slots.front()))
-    {
-        return;
-    }
-    armChartCaret(
-        slots.front().position, slots.front().string, common::core::ChartStopChannel::Held);
-    // The apply published before this ran, so the moved caret needs its own push: arming is not a
-    // publishing operation anywhere, and every other caller pushes for the same reason.
-    updateView();
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and

@@ -190,9 +190,6 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Set the chart selection to the left-hand tap attack. */
     SetChartLeftTap,
 
-    /*! \brief Author, convert or remove a silently-held shape member at the chart caret. */
-    ToggleChartSilentHold,
-
     /*! \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point. */
     ToggleChartJunction,
 

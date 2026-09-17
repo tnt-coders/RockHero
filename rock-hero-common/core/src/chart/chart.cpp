@@ -195,34 +195,10 @@ ChartNote savedChartNote(const ChartNote& note)
     // picking hand made it. Everywhere else the fretting hand's stop already IS `fret`, and a
     // second copy beside it could only ever drift; stripping it here rather than listing the legal
     // attacks in the validator is what makes one rule answer for the reader, the writer and the
-    // refusal at once. A silent hold is refused by this too — it is the FRETTING hand's own
-    // record — and the aggregate below states that positively rather than relying on this line.
+    // refusal at once.
     if (!rightHandOnset(saved.attack))
     {
         saved.held.reset();
-    }
-    if (silentHold(saved.attack))
-    {
-        // Built from a DEFAULT note rather than by clearing fields on a copy, so the record is
-        // stated positively — a silent hold is its slot, its stop and its attack — and a technique
-        // field added to ChartNote later is stripped here (and therefore refused by the validator's
-        // fixpoint) without anyone remembering to add a line.
-        return ChartNote{
-            .position = note.position,
-            .string = note.string,
-            .fret = note.fret,
-            .sustain = {},
-            .attack = note.attack,
-            .held = {},
-            .palm_mute = false,
-            .dead = false,
-            .harmonic_node = {},
-            .vibrato = VibratoState::Off,
-            .tremolo = false,
-            .emphasis = NoteEmphasis::Normal,
-            .bend = 0.0,
-            .keyframes = {},
-        };
     }
     if (isScrape(saved.attack))
     {

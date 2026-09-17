@@ -1607,10 +1607,10 @@ TEST_CASE("Highway chord groups box a partial strike with the standard box", "[c
     CHECK(grouping.groups[3].box_treatment == HighwayChordBoxTreatment::Full);
 }
 
-// EVERY QUESTION HERE IS THE FRETTING HAND'S (review N3/N4). A right-hand onset is the other hand
-// and a silently-held stop sounds nothing, so neither counts toward the strum, folds into its
-// unanimities, states a fret its identity compares, or is scanned by the capability gate. A mixed
-// reading gets both directions wrong at once, and this pins both.
+// EVERY QUESTION HERE IS THE FRETTING HAND'S (review N3/N4). A right-hand onset is the other hand,
+// so it never counts toward the strum, folds into its unanimities, states a fret its identity
+// compares, or is scanned by the capability gate. A mixed reading gets it wrong in both
+// directions, and this pins both.
 TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -1677,26 +1677,6 @@ TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]"
         REQUIRE(grouping.groups.size() == 2);
         CHECK(grouping.groups[0].box_treatment == HighwayChordBoxTreatment::None);
         CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::None);
-    }
-
-    SECTION("a silently-held stop beside a chug run neither counts nor blocks the repeat")
-    {
-        // A hold draws no head and no tail, so it can neither be a member of the strum nor a mark
-        // the box has to carry — the gate must not scan it and read its bare attack as one.
-        std::vector<NoteViewState> notes{
-            deadened(chordNote(1.0, 1, 3)),
-            deadened(chordNote(1.0, 2, 5)),
-            deadened(chordNote(2.0, 1, 3)),
-            deadened(chordNote(2.0, 2, 5)),
-            chordNote(2.0, 3, 7),
-        };
-        notes[4].attack = NoteAttack::None;
-
-        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
-
-        REQUIRE(grouping.groups.size() == 2);
-        CHECK(grouping.groups[1].fretting_hand_count == 2);
-        CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
     }
 }
 

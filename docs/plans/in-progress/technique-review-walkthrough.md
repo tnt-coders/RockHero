@@ -437,9 +437,9 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   deduplicated non-duplicates: a span-start TAP suppressed the posture's fret while its head stated
   a different one, so the hand-placement information appeared nowhere. `sounded` is gone, the
   cross-reference scan against the notes at the span start is gone with it (a shape projection now
-  asks the note list nothing), and the digit's SLOT is the projection's choice —
-  `ShapeStringViewState::digit` carries a `StopMarkSlot`, and the painter draws whichever slot it
-  names. **The display question is OPEN**, worked in
+  asks the note list nothing), and the digit's COLUMN is the projection's choice —
+  `ShapeStringViewState::digit` is published per posture string, and the painter draws where the
+  projection put it. **The display question is OPEN**, worked in
   `docs/plans/in-progress/arpeggio-posture-display-options.md`. A satellite digit outboard of the
   closing bracket bar was tried and rejected in live use on two objections no harness measurement
   could catch, because neither is a contrast problem: the digits are unreadable at the real lane

@@ -253,12 +253,6 @@ ChartViewState makeChartViewState(
             {
                 continue;
             }
-            // A silent hold heads nothing: it draws no number anywhere, so the bracket's own
-            // column is the whole of what that stop has.
-            if (silentHold(head->attack))
-            {
-                break;
-            }
             const ChartStop printed =
                 soundingStopAt(head->harmonic_node, head->attack, head->fret, head->fret);
             if (printed == stop)
@@ -432,12 +426,10 @@ ChartViewState makeChartViewState(
         // or — where the chart states neither — THE DEFAULT FACT of the tap, the grip the covering
         // span holds on its string; under a fretting-hand onset the stop a pull-off PLANTS beneath
         // it (THE PLANT'S FACE). Which notes carry one is a rule the resolution owns rather than
-        // one this pass re-applies: a silent hold's claim IS its own fret, and this field never
-        // carried it.
+        // one this pass re-applies.
         view.held = resolutions.held_stops[note_index];
         // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it shows
-        // (THE SATELLITE REVEAL). The two shapes of claim wear two different faces, so they are
-        // published apart rather than through one gate that could only ever fit one of them.
+        // (THE SATELLITE REVEAL).
         //
         // A HELD STOP'S FACE IS ITS OWN SATELLITE, at the note's own slot, for EVERY note carrying
         // a resolved stop — mid-span taps and span-less claims included, and a fretting-hand
@@ -503,47 +495,8 @@ ChartViewState makeChartViewState(
             }
             view.stop_mark = StopMarkViewState{
                 .seconds = mark_seconds,
-                // A held stop's face IS the satellite column, beside the bracket or beside its own
-                // head; the slot is only ever a question for the hold below.
-                .slot = StopMarkSlot::Satellite,
                 .face = face,
             };
-        }
-        // A SILENT hold IS the bracket: the bars are its face, drawn for every posture string
-        // wherever its span's mark draws, so it needs no digit to be selectable and the column only
-        // says how far its extent runs. A span drawing NO bracket ([D2] amendment 2) leaves it
-        // faceless, which is the whole of why nothing undrawn is clickable for it — a property this
-        // pass owes rather than a rule a surface enforces. The span index comes from the derivation
-        // rather than being searched for here, and a note claiming no stop at all leaves this
-        // absent, because a sounding note's face is its own head at its own instant.
-        //
-        // Bound to a local so the optional check and the access are provably the same object.
-        else if (
-            const std::optional<std::size_t>& shape_index = resolutions.claim_shapes[note_index];
-            shape_index.has_value() && *shape_index < state.shapes.size()
-        )
-        {
-            const ShapeViewState& span = state.shapes[*shape_index];
-            // Bound once so the presence test and the read are provably the same object.
-            const std::optional<double>& bracket_seconds = span.bracket_seconds;
-            // THE COLUMN THIS HOLD'S DIGIT IS DRAWN IN, read off the very entry that decided it
-            // prints, so print and click are ONE decision and the hold's clickable extent covers
-            // exactly what was drawn. Asking instead whether the SPAN started at this note is a
-            // proxy that misses a deferred bracket entirely.
-            const auto entry =
-                std::ranges::find(span.strings, note.string, &ShapeStringViewState::string);
-            const std::optional<StopMarkSlot> column =
-                entry == span.strings.end() ? std::optional<StopMarkSlot>{} : entry->digit;
-            if (bracket_seconds.has_value())
-            {
-                view.stop_mark = StopMarkViewState{
-                    // The bracket's own instant, which a deferred one moves off the span's start.
-                    // The face IS that bracket, so it goes where the bracket went.
-                    .seconds = *bracket_seconds,
-                    .slot = column.value_or(StopMarkSlot::Bracket),
-                    .face = StopMarkFace::Posture,
-                };
-            }
         }
         view.legato = resolutions.connections.legato[note_index];
         view.palm_mute = note.palm_mute;

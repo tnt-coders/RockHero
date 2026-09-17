@@ -6,7 +6,6 @@
 #include <array>
 #include <cstddef>
 #include <optional>
-#include <ranges>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -106,11 +105,8 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
             connections.hands_over[predecessor_index] = predecessorHoldReaches(
                 predecessor->position, predecessor->sustain, note.position, tempo_map);
         }
-        // A PREDECESSOR is the last note that SOUNDED on the string: a connection continues a
-        // ringing string, and a silently-held finger neither rings nor can be released from. Left
-        // in the walk it would shadow the real predecessor, so a claim the chart justifies would
-        // go quiet the moment a held shape was authored between the two notes.
-        if (string_in_range && !silentHold(note.attack))
+        // A PREDECESSOR is the last note on the string: a connection continues a ringing string.
+        if (string_in_range)
         {
             last_per_string.at(static_cast<std::size_t>(note.string)) = index;
         }
@@ -213,11 +209,8 @@ std::vector<std::optional<int>> chartHeldStops(
         const ChartNote& note = notes[index];
         // THE PLANT'S FACE: a fretting-hand onset IS the hand, so the one second stop it can hold
         // is the one a pull-off PLANTS beneath it — the wide table the hold-under law derives
-        // whichever hand made the onset, which is this note's whole held tier. A silently-held stop
-        // needs no test of its own: nothing rings to be pulled off it, so the walk never names one
-        // a predecessor (\ref chartConnections) and its entry in that table is absent by
-        // construction. Every tier below is the RIGHT-HAND onset's, whose own fret is the other
-        // hand's.
+        // whichever hand made the onset, which is this note's whole held tier. Every tier below is
+        // the RIGHT-HAND onset's, whose own fret is the other hand's.
         if (!rightHandOnset(note.attack))
         {
             held[index] = planted_stops[index];
@@ -378,10 +371,7 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     const ChartConnections connections = chartConnections(notes, tempo_map);
     const ChartShapes derived = deriveChartShapes(
         notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
-    // Only the whole-note removals are collected: clearing a field leaves every index in place, so
-    // it is done as the scan finds it and the erase list stays the one thing that must be applied
-    // back to front.
-    std::vector<std::size_t> removed;
+    // Clearing a field leaves every index in place, so each repair is applied as the scan finds it.
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
@@ -391,13 +381,6 @@ std::vector<ChartConversion> sweepInertClaimedStops(
         }
         const std::string where =
             formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
-        if (silentHold(note.attack))
-        {
-            removed.push_back(index);
-            conversions.push_back(
-                ChartConversion{.repair = ChartRepair::InertSilentHold, .where = where});
-            continue;
-        }
         // A stop the note's own PITCH is measured from is never inert, whatever the shapes made of
         // it. A harmonic speaks from the STOPPED length (\ref physicalStopFret), so on a tapped
         // harmonic the held fret is not a claim about the hand that happens to ride a note — it is
@@ -417,11 +400,6 @@ std::vector<ChartConversion> sweepInertClaimedStops(
         note.held.reset();
         conversions.push_back(
             ChartConversion{.repair = ChartRepair::InertHeldStop, .where = where});
-    }
-    // Erased from the back, so every index still names the note it was derived against.
-    for (const std::size_t index : std::views::reverse(removed))
-    {
-        notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index));
     }
     return conversions;
 }

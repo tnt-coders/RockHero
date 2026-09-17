@@ -75,15 +75,6 @@ namespace
     };
 }
 
-// A silently-held stop: a fretting-hand stop the pick never reached, so it draws no head and
-// sounds nothing. Rule 1 has to read past one, which is why two test cases below build them.
-[[nodiscard]] ChartNote heldStop(const GridPosition position, const int string, const int fret)
-{
-    ChartNote held = note(position, string, Fraction{}, fret);
-    held.attack = NoteAttack::None;
-    return held;
-}
-
 // A note that CLAIMS a connection to its same-string predecessor. The claim is the whole of what
 // the junction skip reads: intent is what the chart stores, and the direction a claim plays as is
 // derived per read from the predecessor's released fret.
@@ -323,25 +314,6 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
         CHECK(presented[0] == Fraction{1, 4});
         // Binding on the onset a whole beat away instead would have left 3/4.
         CHECK(presented[0] != Fraction{3, 4});
-    }
-
-    SECTION("a silent hold past the ring's end binds nothing")
-    {
-        const std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{2}),
-            note(at(1, 2), 2, Fraction{1}),
-            heldStop(at(1, 3), 4, 7),
-            note(at(1, 4), 3, Fraction{1}),
-        };
-
-        const std::vector<Fraction> presented = presentedSustains(saved, map);
-        REQUIRE(presented.size() == saved.size());
-        // The ring passes the onset a beat in and then ends exactly on a slot that only holds
-        // fingers. That slot draws no head, so the scan steps over it and the real onset three
-        // beats in binds — three beats of clearance, so nothing trims.
-        CHECK(presented[0] == Fraction{2});
-        // Sharply discriminating: a held stop that bound would have trimmed the ring to 7/4.
-        CHECK(presented[0] != Fraction{7, 4});
     }
 }
 
@@ -1171,45 +1143,6 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
     }
 }
 
-// A silently-held stop is not there as far as SOUND is concerned, and three rules that walk the
-// note stream have to read it that way. Each case fails loudly if its skip is removed.
-TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][chart]")
-{
-    const TempoMap map = fourFourMap();
-
-    SECTION("a held stop is not a binding onset, so the tail in front of it keeps its length")
-    {
-        // Rule 1 trims a ring to clear the HEAD that follows it, and a held stop draws none. The
-        // note rings two beats; a hold lands ONE beat in and a real onset TWO beats in, so the
-        // trim that fires is the real onset's margin and the hold changes nothing.
-        const std::vector<ChartNote> with_hold{
-            note(at(1, 1), 1, Fraction{2}),
-            heldStop(at(1, 2), 3, 7),
-            note(at(1, 3), 2, Fraction{1}),
-        };
-        std::vector<ChartNote> without_hold = with_hold;
-        without_hold.erase(without_hold.begin() + 1);
-        CHECK(presentedSustains(with_hold, map)[0] == presentedSustains(without_hold, map)[0]);
-        // And the case discriminates sharply: two beats less the 4/4 margin, where a hold that
-        // bound would have left one beat less that margin instead.
-        CHECK(presentedSustains(with_hold, map)[0] == Fraction{2} - minimumSustainDistanceBeats(4));
-        CHECK(presentedSustains(with_hold, map)[0] != Fraction{1} - minimumSustainDistanceBeats(4));
-    }
-
-    SECTION("a held stop on the string bounds no ring")
-    {
-        // 40-Q2-B bounds a ring at the next STRIKE on its own string, and nothing struck silently
-        // stops a string that is already sounding.
-        std::vector<ChartNote> notes{
-            note(at(1, 1), 1, Fraction{4}),
-            heldStop(at(1, 2), 1, 7),
-        };
-        CHECK_FALSE(sustainBoundOf(notes, notes[0], map).has_value());
-        normalizeSustainOverlaps(notes, map);
-        CHECK(notes[0].sustain == Fraction{4});
-    }
-}
-
 // THE TAIL LAW (rule 5 of presentedChartNotes, the one authority; THE CURTAIN IS UNIVERSAL): a
 // tail that shows no technique information RESTS, and the law PUBLISHES the verdict while EMPTYING
 // NOTHING. Each case below pins its resting tails at the bare rules-1-to-4 form, and reads verdicts
@@ -1415,13 +1348,12 @@ TEST_CASE("A head inside the ring is no part of the verdict", "[core][chart]")
     }
 }
 
-// SCOPE, and it is the whole of what the law still asks besides the landmark. The picking hand and
-// a silently-held finger were never MEMBERS of what a grip states — a grip states where the
-// FRETTING hand is, so a tap says nothing about whether that hand is still down. Under the
-// universal curtain this is the ONLY population with an un-rested standing tail besides a ring
-// still stating at its end: with coverage no part of the law, the attack is the one other thing
-// that can withhold a verdict.
-TEST_CASE("A tap and a silent hold are no members the curtain may take", "[core][chart]")
+// SCOPE, and it is the whole of what the law still asks besides the landmark. The picking hand was
+// never a MEMBER of what a grip states — a grip states where the FRETTING hand is, so a tap says
+// nothing about whether that hand is still down. Under the universal curtain this is the ONLY
+// population with an un-rested standing tail besides a ring still stating at its end: with coverage
+// no part of the law, the attack is the one other thing that can withhold a verdict.
+TEST_CASE("A tap is no member the curtain may take", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two rings both ending at beat five, and the second one's ATTACK is the only variable in the
@@ -1467,31 +1399,6 @@ TEST_CASE("A tap and a silent hold are no members the curtain may take", "[core]
         // nothing else binds, so its ribbon is four whole beats.
         CHECK(shown[0] == Fraction{4});
         CHECK(hidden[0]);
-    }
-
-    SECTION("a silently-held stop has no ring to hide and takes nothing from its neighbour")
-    {
-        const std::vector<ChartNote> saved{
-            note(at(1, 1), 1, Fraction{4}),
-            heldStop(at(1, 2), 2, 7),
-        };
-
-        const std::vector<Fraction> shown = presentedSustains(saved, map);
-        const std::vector<bool> hidden = hiddenOf(saved, map);
-
-        REQUIRE(shown.size() == 2);
-        REQUIRE(hidden.size() == 2);
-        // The neighbour states nothing of its own and the board rests it; the hold beside it
-        // neither adds to that verdict nor gets one of its own.
-        CHECK(hidden[0]);
-        CHECK_FALSE(hidden[1]);
-        // The verdict empties no tail: hidden means the board rests it, and the value is the
-        // rules-1-to-4 form — four whole beats, because a silent hold draws no head and so binds
-        // nothing in front of it.
-        CHECK(shown[0] == Fraction{4});
-        // The one zero in this figure is the hold's own: it has no ring to present at all, which
-        // is an emptiness the law leaves untouched.
-        CHECK(shown[1] == Fraction{});
     }
 }
 

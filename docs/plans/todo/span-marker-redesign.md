@@ -15,12 +15,12 @@ rather than re-argues. The shipped model is unchanged and stays described by
 Three clauses, and each one takes something away from the model as it stands:
 
 - **Sound founds.** A statement comes into existence only by something SOUNDING. Today a pair of
-  silently-held fingers opens a span by itself — two claims at a slot meet the member threshold —
+  claimed stops opens a span by itself — two claims at a slot meet the member threshold —
   so a span can exist that nothing ever played.
-- **Claims attach.** A claim can JOIN a standing statement, JUSTIFY it, and COUNT toward it, but it
-  can never CONSTITUTE one. It is a fact about where a finger is, hung on a statement made by
+- **Claims attach.** A claim can JOIN a standing statement and COUNT toward it, but it should never
+  CONSTITUTE one. It is a fact about where a finger is, hung on a statement made by
   sound; it is not itself the statement.
-- **Markers define.** Deliberate span authoring stops being a shape conjured out of silent holds
+- **Markers define.** Deliberate span authoring stops being a shape conjured out of claims
   and becomes an explicit MARKER record — a span the charter drew, saying so in the file, rather
   than a span the derivation inferred from records that state something else.
 
@@ -35,34 +35,51 @@ can state a span into being and then be left stating nothing; and the display la
 Named at the walk, and listed here as the deletion inventory a build would work through. Each is a
 consequence of the principle, not an independent wish:
 
-1. **`NoteAttack::None`** leaves the attack enum. A note that does not sound is not a note; the
-   grip it was standing in for is stated by a marker's template instead. With it goes the
-   attack-conditional `sustain` rule (`sustain` strictly positive on every attack that sounds,
-   exactly zero on the one that does not) and the "is this note a sound?" predicate every consumer
-   currently asks.
-2. **The silent-hold claims machinery** — the claim arm of the opening law, claim-founded spans,
-   the claim's own dating rule, and the growth split that reads claims alone.
-3. **`sweepInertClaimedStops`.** Markers are never inert: a marker states a span because the
+1. **`NoteAttack::None`** leaves the attack enum — **DONE 2026-09-17**, out of phase and ahead of
+   the markers. A note that does not sound is not a note; the
+   grip it was standing in for waits on a marker's template. With it went the
+   attack-conditional `sustain` rule — `sustain` is now strictly positive on EVERY note — and the
+   "is this note a sound?" predicate every consumer asked. `N` is unbound and free for
+   reuse; no load notice was built, the user having ruled out legacy and back-compat code, so
+   an old `"attack": "none"` fails to read like any unknown attack token.
+2. **The silent-hold SHAPE of a claim, and LAW II's justification half with it.** What LEFT
+   (2026-09-17): the second shape itself, and then — as dead code, once every claim rode a carrier
+   that sounds its stop — the justification test and the dissolution it fed. Named exactly: the
+   per-slot sounded-stop column and `answersClaim`, `OpenSpan::justified` / `justified_by`, the
+   dissolve of an unjustified hand-alone span, the later-slot justification loop,
+   `replaces_unjustified` and the same-slot justify block. What STAYED: the carry fold's
+   "stated otherwise" skip, which is live — a carried ring ends where the same string states a
+   different stop; the claim arm of the opening law, claim-founded spans (`silent_only`), the
+   claim's own dating rule, the growth split, posture membership (`silent_member`) and the
+   published reach (`ChartShapes::claim_shapes`) — `claimed_stops[]` still carries `held` under taps
+   and scrapes, so a claim still founds, still dates and still grows a span. A claim-only span now
+   publishes AT ONCE with zero sustain instead of waiting to be justified.
+3. **`sweepInertClaimedStops`.** Its NOTE half is gone with `None` (DONE 2026-09-17), along with
+   `ChartRepair::InertSilentHold`. The held-field half — `ChartRepair::InertHeldStop`, the function
+   name and its one-pass justification — was kept UNCHANGED. Markers are never inert: a marker
+   states a span because the
    charter drew it, so there is no such thing as one that reached nothing and has to be removed on
-   load. The sweep's REMAINING scope — the stored `held` fields on right-hand onsets — is a
-   separate question, taken up under "Sequencing" below.
+   load. Whether the sweep's REMAINING scope — the stored `held` fields on right-hand onsets —
+   survives the marker redesign is **still OPEN**, taken up under "Sequencing" below.
 4. **The E25 muted-tail residue.** A dead note stores a ring nobody hears and still classifies and
    carries as a member at a statement boundary (`chart_shapes.cpp`, the fold-in that reads the
    STORED stream). Under "sound founds" that participation is residue. Exactly what falls out —
    the stored ring itself, or only its membership in a founding — is the first thing a build here
    has to settle, and it is NOT settled by this record.
-5. **The `N` verb's fake-note coaxing.** Today stating "a finger is on fret 5 of the A string"
-   means authoring a note there and converting it, because note insertion is the editor's only way
-   to say a fret — the empty-slot case even plants a fret-0 hold purely so the charter has
-   something to type a digit into. A marker with a template states the grip directly, so the
-   coaxing has nothing left to do.
-6. **The POSTURE GAP** (2026-08-31, ruled frozen under the N-verb stop-loss): a claim that
-   JUSTIFIED a span reaches it in the ledger but its fret never joins the span's posture, so no
-   bracket digit prints for it. The affected population is exclusively silent-hold-founded
-   spans, which this deletion removes — the gap dies with them, unfixed by design.
+5. **The `N` verb's fake-note coaxing** — **DONE 2026-09-17** with the verb. Stating "a finger is on
+   fret 5 of the A string" no longer means authoring a note there and converting it. Where a
+   right-hand onset sounds the string, the charter clicks or arrow-steps onto that note's drawn
+   satellite and types the fret; where NOTHING sounds it, the figure waits on a marker's template.
+6. **The POSTURE GAP** (2026-08-31, ruled frozen under the N-verb stop-loss): a claim reaches a span
+   in the ledger while its fret never joins that span's posture, so no bracket digit prints for it.
+   Its justification-driven form left with the justification half on 2026-09-17 — a claim now
+   reaches only a span it is a member of. What remains is the narrower case of a claimed string the
+   posture already fills with a DIFFERENT stop, where the claim's face and the bracket disagree
+   (logged in `docs/tracking/backlog.md`); what removes it is markers founding instead.
 7. **The residual Blocker-3 defect class.** Blocker 3 was a claim that justified a span while the
-   ledger recorded it as reaching nothing; the fix round publishes the answered claim's reach so
-   the bookkeeping closes. The whole CLASS — a span existing by claims alone, and therefore a claim
+   ledger recorded it as reaching nothing; the fix round published the answered claim's reach, and
+   the justification half it belonged to is itself gone as of 2026-09-17. The whole CLASS — a span
+   existing by claims alone, and therefore a claim
    whose reach has to be tracked at all — is unrepresentable once no span exists by claims alone.
 
 ## The template
@@ -70,9 +87,9 @@ consequence of the principle, not an independent wish:
 The marker DEFINES the span. The span's TEMPLATE states the grip — **including stops nothing
 sounds.** That last clause is why the template exists at all rather than the marker being a bare
 bracket: hold an A minor shape and play three of its strings, and two of the stops are real
-statements about the hand that no sounding record carries. Today a silent hold carries them; once
-`NoteAttack::None` is gone, the template is the only place they can live, and a model without one
-would simply be unable to write that figure down.
+statements about the hand that no sounding record carries. Since `NoteAttack::None` left
+(2026-09-17) the template is the only place they can live, and a model without one is unable to
+write that figure down.
 
 Save-file shape (user, 2026-08-31 — format minimalism ruled): **a marker stores its location
 and nothing else.**
@@ -89,11 +106,10 @@ is deliberately NOT stored, under the rule this ruling sets for the whole redesi
 enters the save file before its writer exists.** The template stops' only writer is the template
 editor, which is queued work — the field lands with it, in place, when it does.
 
-THE NAMED SEQUENCING COST: until the template editor lands, the unsounded-stop statement has no
-home — deleting `NoteAttack::None` removes today's only way to author the hold-the-silent-string
-figure, and a location-only marker cannot state it. Either the `None` deletion ships together
-with the template editor, or the figure lapses in the gap. Decide this deliberately in the
-dedicated session; do not let it be discovered by a charter.
+THE NAMED SEQUENCING COST — DECIDED 2026-09-17: the figure LAPSES in the gap, and the user
+ACCEPTED that. `NoteAttack::None` shipped out ahead of the template editor, so until that editor
+lands there is no way to state a fretting-hand stop on a string nothing sounds, and a location-only
+marker cannot state it either. Brackets are wholly derived in the meantime.
 
 A premise worth stating because it was asked (user, 2026-08-31): **no template storage exists
 today, anywhere.** A derived span references nothing — its grip is computed from the notes on
@@ -220,9 +236,9 @@ Consequences to design in the dedicated session:
 - **Editor 2D only.** The tell is a charting affordance, like LeftTap's light-T mark; the highway
   draws the derived result (brackets, boxes), never authoring metadata, so the surfaces do not
   diverge on musical content.
-- **The selection face is already free**: deleting `NoteAttack::None` frees the "selecting this
-  highlights the brackets" language, and the marker inherits it — click the tell, the furniture it
-  defines or splits lights up, Delete removes the record, derivation reflows, undo restores it.
+- **The selection face is already free**: `NoteAttack::None` left on 2026-09-17, so the "selecting
+  this highlights the brackets" language is unclaimed and the marker inherits it — click the tell,
+  the furniture it defines or splits lights up, Delete removes the record, derivation reflows, undo restores it.
 - **Absence is the derived tell**: mark present = authored and deletable; no mark = derived, and
   not directly deletable by construction.
 
@@ -276,13 +292,17 @@ Related record: `docs/plans/todo/tap-harmonic-display.md`.
 3. A marker placed where a derived span already opens PINS that span (the forced-boundary
    semantic already covers it).
 4. Deleting a marker reflows the derivation automatically (spans are read-time derived).
-5. **`NoteAttack::None` RIPS OUT ENTIRELY IN PHASE 1** (user ruled — no half-state, no surviving
-   reader machinery): the N verb, the attack value, the silent-hold claims arm, and the sweep's
-   note half all leave together, ACCEPTING the named gap — a span with a bracket that never
-   sounds is unauthorable until Phase 3's templates land. Build decision for Phase 1: what a
-   loaded file's existing `None` records do — the population is authored-only (imports write
-   none), so the curve_shape precedent applies: drop on load WITH A LOAD NOTICE naming the marker
-   system as the replacement, never silently.
+5. **`NoteAttack::None` RIPPED OUT ENTIRELY — DONE 2026-09-17**, out of phase and ahead of the
+   markers, so this item is closed and Phase 1 inherits none of it. The `N` verb, the attack value,
+   the silent-hold SHAPE of a claim and the sweep's note half left together, and LAW II's
+   justification machinery went with them as dead code (inventory item 2); `N` is unbound and free
+   for reuse. The claim arm of the opening law and claim-founded spans STAYED — a claim
+   still founds, through `held` under a tap or a scrape, and a claim-only span publishes at its
+   instant with zero sustain. Phase 3's templates inherit no justification rule: a template that
+   states a stop NOTHING sounds must bring its own. The named gap is ACCEPTED: a span with a
+   bracket nothing sounds is unauthorable until Phase 3's templates land. No load notice was built:
+   the user ruled out legacy and back-compat code, so an old `"attack": "none"` fails to read like
+   any unknown attack token, and the affected population was at most one local project.
 
 Also RIDING PHASE 1's seam (user, 2026-09-01):
 
@@ -357,19 +377,21 @@ the template system):
    white reserved, EditorTheme roles); a span marker inside a zone is refused at authoring.
 5. The background sighting triplet (none / all spans / zones only) is judged in this phase.
 SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the signed minimum binds
-   ACCUMULATION openings, but a silent hold's claim plus a lone strike at one slot is
+   ACCUMULATION openings, but a CLAIM plus a lone strike at one slot is
    STATEMENT-founded (the dyad carve-out) while PRESENTING as a bracket — only one member ever
    sounds, so nothing arrives together — yielding a 2-note arpeggio-looking span the ruling's
    intent ("an arpeggio span only exists when 3+ notes are in the grip") plainly meant to forbid.
    Founding class and arrival class are separate derivations, and the minimum is scoped by the
-   former while the intent is scoped by what the bracket claims. Imports produce zero silent
-   holds (census: imported claims 0), so today the shape is hand-authored-only. DECIDE AT THE
+   former while the intent is scoped by what the bracket claims. Imports author zero
+   claims (census: imported claims 0), so the shape stays hand-authored-only. DECIDE AT THE
    SETTLEMENT: bind the minimum by bracket-class presentation, or stop counting a claim toward
    the 2-member Statement protection when only one member sounds — one rule, not both. THE
-   SIGHTING FIXTURE IS ALREADY BUILT (user ruling 2026-09-02): the generated sighting reel's
-   measure 3 (C:/__MAIN__/Coding/__scratch__/rockhero-sighting-reel/sighting-reel.rock) is kept
-   with this exact figure ON PURPOSE — open it before and after the closure lands; the 2-note
-   bracket must be there today and gone (or re-justified) after.
+   SIGHTING FIXTURE NEEDS REBUILDING (2026-09-17): the generated sighting reel
+   (C:/__MAIN__/Coding/__scratch__/rockhero-sighting-reel/sighting-reel.rock) states its
+   measure-3 figure with an `"attack": "none"` record, which no longer reads, so the package must
+   be regenerated with the claim under a tap before it can be opened again. Keep the figure ON
+   PURPOSE — open the rebuilt reel before and after the closure lands; the 2-note bracket must be
+   there today and gone (or re-justified) after.
 
 6. **THE >=3 MINIMUM IS ALREADY SIGNED — what lands here is the CENSUS RE-SIGN.** The user
    sighted and SIGNED the three-member minimum on 2026-09-04, ahead of this phase rather than at
@@ -398,7 +420,8 @@ SETTLEMENT EDGE (user-sighted 2026-09-02, on generated material): the signed min
 6. OPEN: purge-unused-templates-on-save collides with templates folding into the chord
    dictionary (a library's value includes unused entries). Candidates: purge project-local only;
    never auto-purge, report unused at export; purge at export. Decide in the session.
-7. `NoteAttack::None` leaves the format; the remaining deletion inventory completes.
+7. `NoteAttack::None` left the format on 2026-09-17, ahead of this phase; the remaining deletion
+   inventory completes here.
 
 **THE SATELLITE REVEAL LAW, FINAL** (user, same day — supersedes the position-based law above,
 and is MANDATORY in the accumulation seam, not deferred): a satellite is ALWAYS STANDING where
@@ -409,13 +432,15 @@ truth about it at once. Visibility keys on AUTHORSHIP plus one existing reveal c
 
 ## Sequencing and notes
 
-- **The sweep's remaining scope.** After `sweepInertClaimedStops` goes, what remains is the stored
-  `held` field on right-hand onsets. Re-examine it here: with claims no longer founding, a held
+- **The sweep's remaining scope — STILL OPEN.** The 2026-09-17 removal took only the sweep's NOTE
+  half; `sweepInertClaimedStops` keeps its name and its held-field half unchanged. Re-examine that
+  half here: with markers founding instead of claims, a held
   stop that reaches nothing may simply be a stop the hand was on, which is not obviously an error
   to sweep at all.
-- **The `None` population is authored-only.** The GP importer authors ZERO claims — it never emits
-  `NoteAttack::None` and never writes a `held` field — so every record the deletion touches was
-  typed by a charter in this editor. That bounds the migration question to the local corpus.
+- **The `None` population was authored-only.** The GP importer authors ZERO claims — it never
+  emitted `NoteAttack::None` and never writes a `held` field — so every record the 2026-09-17
+  deletion touched was typed by a charter in this editor, at most one local project. That is why no
+  load notice was built.
 - **Format changes in place.** No migration path, no version bump — the format changes and packages
   are re-imported, as every format change here has worked.
 - **Relation to W10's split-tail law.** A SPLIT marker and `Shift+L`'s disconnect are cousins: both
@@ -505,7 +530,7 @@ automatic walk.
 A chord or arpeggio span's extent is STRICTLY derived from its content, always — a direct resize
 would be a second authority for extent, free to disagree with the sound and make the bracket lie.
 Every want routes through an existing verb: longer sound = the notes' tails (sustain keys);
-shape held in silence = authored silent holds (a slot of held fingers already adds to a shape);
+shape held in silence = authored claims (a slot of held fingers already adds to a shape);
 a different boundary = place or move a marker (a position, not a size); ended early = a zone from
 that instant (the zone is a close cause, so it doubles as the end-a-span-early verb); gone =
 Delete (the zone); below the minimum = Shift+S. The ZONE is the one resizable record precisely

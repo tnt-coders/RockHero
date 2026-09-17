@@ -17,8 +17,8 @@ maintained plain-English spec; this document is the law behind them.
 ## LAW I — TRUTH. The chart stores performance facts and nothing else.
 
 What sounds: notes — onset facts plus the ACTUAL ring plus per-channel keyframe statements. What the
-hand holds unsounded: claims — silent notes (`attack: none`) and `held` stops under right-hand
-onsets. Sound truth is never bent for display; nothing derivable is stored.
+hand holds unsounded: claims — `held` stops under right-hand onsets. Sound truth is never bent for
+display; nothing derivable is stored.
 
 - **The ring is the actual sustain**, strictly positive, bounded only by the next SOUNDING onset on
   its own string. This is a deliberate divergence from all published notation, which stores the
@@ -30,14 +30,11 @@ onsets. Sound truth is never bent for display; nothing derivable is stored.
   semantics is separately convention-backed: MusicXML models a bend release as a SEQUENCE of bend
   elements, vibrato is an interval state, and a slide is relational and re-expressed locally per the
   no-note-references law.
-- **A silent note is a point record**: no ring of its own, every technique refused through the
-  saved-form fixpoint. No published mark records "finger down, string never speaks" in a running
-  line — this is honest invention, and its nearest ancestors (the chord frame's barre bar over an
-  X'd string; classical preparation fingerings) state the same physical fact. **Fret 0 on a silent
-  note is a VOICING member** — the frame's "o", not a finger — and is described that way.
-- **`held` is the fretting-hand stop under a right-hand onset.** The tapped harmonic is ONE record
+- **`held` is the fretting-hand stop under a right-hand onset**, and the one shape a claim has. The
+  tapped harmonic is ONE record
   `{touch fret, tap, node, held}` — the machine shape of MusicXML's harmonic triple
-  (base/touching/sounding). `claimedStop` is the one reading of both claim carriers.
+  (base/touching/sounding). **Fret 0 in a `held` stop is a VOICING member** — the chord frame's "o",
+  not a finger — and is described that way. `claimedStop` is the one reading of a claim.
 - **Vibrato has two tiers and an off state** (`VibratoState{Off, Narrow, Wide}`, saved as `narrow`,
   `wide` or `off`). Ordinary guitar vibrato IS physically narrow — a fraction of a semitone of
   excursion — while wide is the deliberate exaggeration, so `narrow` is an accurate intrinsic
@@ -47,7 +44,7 @@ onsets. Sound truth is never bent for display; nothing derivable is stored.
   through `isShaking()` so nothing open-codes `== Narrow` and drops wide notes.
 - **Internal consistency**: one record may not state contradictory facts about its string. The held
   stop is refused anywhere inside the note's traveled hull (`travelsThroughFret` — the closed hull
-  of its own fret, every keyframe fret and its slide-out terminal); sustain is refused on `none`;
+  of its own fret, every keyframe fret and its slide-out terminal);
   the node is judged against the claimed stop (`physicalStopFret`). A claim on a string the sound
   already states publishes no reach and is swept at settle — the physically impossible
   claim-under-ring cannot persist.
@@ -141,21 +138,32 @@ implementation before writing any custom duration rule.
   undo entry, gone when its note leaves focus, shed by the writer and by the load repair
   (`keyframeSaysNothingNew`).
 - **The inert sweep asks ONE question** — is the claim's derived face absent (joins no span, past
-  its span, restates a stated stop)? It runs in the same undo entry, clearing the FIELD on a
-  sounding note and deleting the RECORD of a silent one, never a sound the charter wrote. **It is
+  its span, restates a stated stop)? It runs in the same undo entry, clearing the FIELD and never
+  the note, which is a sound the charter wrote. **It is
   ONE PASS** (`sweepInertClaimedStops`): what it takes is a claim that reached NO span, so it was a
   member of nothing and no span's membership moves when it goes — the cascade a fixpoint would
   iterate for cannot arise.
-- **A claim that justifies a span is never inert**, and the sweep needs no rule to say so: answering
-  is reaching, so the derivation publishes such a claim as having reached that span.
+- **A claim that reaches a span is never inert**, and the sweep needs no rule to say so: reaching is
+  publishing, so the derivation records the span each claim reached (`ChartShapes::claim_shapes`)
+  and the sweep reads that same record.
 - **The one exemption**: a stop the note's own PITCH is measured from — the harmonic — is never
   inert, because there the stop is onset data, not posture commentary. Clearing it would retune the
   record and could leave the node at or behind its own stop, which the validator refuses. Stated
   exactly: the harmonic-measured held draws its bracket without a span. A PLAIN tap's lone held
-  always sweeps, and correctly so — it restates what its answering arrival records itself.
-- **A shape the hand alone stated dissolves unless justified**, and a slot stating a whole grip of
-  its own that answers none of its claims REPLACES it unheard. Justification is one of the span's
-  own held frets being PLAYED on its own string, by either hand's way of sounding a stop.
+  always sweeps, and correctly so — a lone member opens no span, so the claim reached nothing.
+- **A claim is a member that does not SOUND on its own, and its CARRIER sounds it.** A claim has one
+  shape — `held` on a right-hand onset (a tap or a pick slide) on the claim's OWN string — and that
+  onset sounds the very stop it holds, so every claim is answered in the slot that founds it. A
+  shape the hand alone states therefore needs nothing later to earn it: it publishes at its own
+  instant with zero sustain, and a sounding arrival at a claimed stop GROWS it in place rather than
+  replacing it. There is no justification test.
+  **2026-09-17**: the law's justification half — a shape the hand alone states must be JUSTIFIED by
+  a later sound at a claimed stop or it DISSOLVES — left with `NoteAttack::None`, the silent hold.
+  Without that attack value the test has no population: every claim is carried by an onset that
+  sounds it, confirmed by an exhaustive probe (46,655 valid charts, 82,212 claims, zero exceptions),
+  so the machinery was deleted from `chart_shapes.cpp` as dead code with the corpus census
+  bit-identical. A later span-template design that reintroduces a stop nothing sounds must bring its
+  own justification rule; this one is gone.
 - **The mid-chain "still held" claim is unstatable, and DELETE is the record.** The repeated-chord
   member figure has three intents with three records: *string simply not played* — Delete, because
   the smaller strum IS the record, which is published notation's own economy (no published
@@ -164,8 +172,7 @@ implementation before writing any custom duration rule.
   a fresh mid-figure record); *previous note keeps ringing* — the tie; *finger stays down, string
   unpicked* — unstatable mid-chain, because the claim is the default stated aloud (physically true
   in damped context and of every chug member between strokes, hence informationless). Span-START
-  claims are untouched: the bracket remains the licensed posture statement at its own statement. The
-  `N` verb's refusal there names Delete.
+  claims are untouched: the bracket remains the licensed posture statement at its own statement.
 - Deletion cascades ride the entry. Engraving's own discipline — no redundant marks — agrees; the
   courtesy-accidental class of reader-aid redundancy belongs to projection, never storage.
 
@@ -216,7 +223,7 @@ once, beside each other, in `chart_shapes.cpp` (`g_span_member_threshold`,
   breaks the grip, which is what keeps a posture from outliving a finger.
 
 **Membership — ONE COUNT over three kinds**: sounding fretting-hand onsets, carried rings still
-sounding at stated stops, and claims (silent holds, and the resolved held stop under a right-hand
+sounding at stated stops, and claims (the resolved held stop under a right-hand
 onset). They are three ways of stating the one thing a shape is made of: where a finger is. A LONE
 member of any kind opens nothing — convention agrees, a chord is two-plus noteheads. Claims stay
 OUTSIDE the overlap test and INSIDE the count, because a claim has no ring. The carried fold-in is
@@ -268,12 +275,12 @@ the hand.
   harmonic's stale ring is a plain tail: no digit, no class, founding nothing — and still breaking a
   span if struck over.
 
-**JUSTIFICATION.** A zero-sound span must be justified by a sounding arrival answering one of its
-claims — same string, same fret, where "sounds the claimed stop" includes a right-hand onset whose
-held equals the claim. That is the tap-harmonic arm: the overtone divides the STOPPED length, so the
-held fret sonically participates. The arrival JUSTIFIES the fronted span and GROWS it in place, one
-statement with no furniture overlap. A claim is always a PRESSED stop, so a harmonic touching a node
-answers no open-string claim of 0.
+**THE CARRIER SOUNDS THE CLAIM.** A claim rides a right-hand onset on its own string, and that onset
+sounds the stop it holds: the overtone divides the STOPPED length, so the held fret sonically
+participates, and a scrape dragged over a planted finger is the same picture. A zero-sound span is
+therefore complete where it is stated — it publishes at its instant with zero sustain — and a
+sounding arrival at a claimed stop GROWS it in place, one statement with no furniture overlap. No
+justification test stands between the two (LAW II).
 
 **THE FRONT — a span dates from WHEN EACH MEMBER'S STATEMENT BEGAN**, never from the onset of the
 note the member happens to ride, and never across ground a preceding span covered. One floor: the
@@ -327,8 +334,7 @@ MEMBER QUITS, or a STATEMENT CONTRADICTS the grip.
   too: assertion against assertion is the charter re-authoring the hand. But a differing STRIKE
   against a carried claim witnesses only where the grip is ESTABLISHED (the span has sounded
   members) and the string is silent; against a still-ASSEMBLING silent statement a strike is
-  evidence arriving rather than a contradiction, so a lone one joins the assembly and a full
-  statement of its own replaces it.
+  evidence arriving rather than a contradiction, so it joins the assembly in place.
 - **The close** is the breaking event's onset or the instant the statement ran out, whichever is
   earlier. The closing HEAD belongs to the close only where the event actually cut a live statement
   — a statement that had already run out was reach-closed and owes no distance to a head that
@@ -486,7 +492,7 @@ when the release returns to it.
 sounding of it is the shape whole.** The law classifies the SPAN and nothing else; which box an
 individual onset wears is the display law. Four triggers, all of them that one question:
 
-(a) a posture string still ringing at the span start with no onset there; (b) a silently-held member
+(a) a posture string still ringing at the span start with no onset there; (b) a CLAIMED member
 — the bracket is the only mark with anywhere to print a fret nothing struck; (c) any SOUNDING of the
 span that is only PART of the shape, which is (a) asked at any interior slot; and (d) a tapped note
 sounding anywhere within the span. (a) and (c) are ONE comparison recorded BY the walk, because
@@ -601,7 +607,7 @@ face, by construction: that face is owed by the span a note's CLAIM joined, and 
 nothing joins none.
 
 **SATELLITES ARE NOTE-SCOPED, ALWAYS.** A press on one addresses that note's held stop whatever the
-selection was, and the silent hold's bracket face stays the record's own note-scoped handle. What a
+selection was. What a
 SELECTION adds is a handle alone: a selected note's satellite is hit-tested as PART of that
 selection, so pressing it moves the caret onto that note's held stop and leaves a wider selection
 standing — naming a stop inside a selection must not be what takes the selection away. Bracket
@@ -684,7 +690,7 @@ length.
   the resolved direction — an equal-fret tie resolves `Unjustified` and still hands the string over.
   Duration cannot tell a transfer from a close, which is why the relation is stated rather than
   probed.
-- **SCOPE, on both sides of the judgment**: right-hand onsets and silent holds are neither members
+- **SCOPE, on both sides of the judgment**: right-hand onsets are neither members
   nor witnesses. That fixes a live defect — a tap must not cut the fretting hand's ring underneath
   it — and it is the one place this law moves ink UP.
 - **THE EXECUTION FORM.** The presented stream keeps every member's rules-1-to-4 tail; the 2D lane
@@ -737,10 +743,6 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
 - Outside spans, crossing tails are simply TRUE — truth-first let-ring, denser than the published
   dashed span and more truthful; same-lane overlap is structurally impossible because of the ring
   bound.
-- Silent members present no head and no tail anywhere; selection traces the bracket. **This is its
-  own rule, not the E25 family**: E25 hides a damped SOUND's tail, while the silent hold presents
-  nothing because nothing sounds at all. One label over two rules is the one-word-two-meanings
-  defect class.
 - The tap-harmonic tail extends from the TOUCH position; the satellite carries the stop.
 - A node grip wears the same bracket the fretted members wear on both surfaces: on the 2D lane the
   bracket prints its label (`chartStopText`, the one label authority), and in 3D the bracket carries
@@ -768,11 +770,9 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
 ## LAW V — VERBS ACT ON THE SCOPE'S STATEMENT.
 
 One scope authority: the selection, else the armed caret's slot, else inert (`chartVerbSlots`). One
-meaning per verb per occupant. `N` governs the silent-hold channel — author / convert (fret
-preserved: the finger never moved) / restore / arm held entry — and refuses a press unless every
-slot it named still STATES a stop once the settle has run, whole-plan and never per slot. Bare
+meaning per verb per occupant. Bare
 digits retype the record's own fret; prefixed digits state the named channel; one pending-entry
-state with three roads in (keyboard stop, satellite click, `N`). Keyboard stops mirror displayed
+state with two roads in (keyboard stop, satellite click). Keyboard stops mirror displayed
 digits in display order. Plans are atomic over their product, and the sweep rides the entry (LAW II
 at edit time).
 
@@ -784,15 +784,13 @@ at edit time).
 - **The retype verb refuses a derived stop and a plant**, read off the one ownership table
   (`ChartResolutions::planted_stops`): a fretting-hand note can never be handed a held FIELD its
   attack forbids.
-- **The Held-channel DELETE has a clearing planner of its own** (`planClearHeldStops`) rather than
-  riding the hold verb's releasing direction, which infers its direction from the claim column that
-  a bare tap's default and a plant never enter. Clearing withdraws the charter's statement and
-  nothing else: an authored stop goes, a default clears nothing, and a derived tap stop or a plant
-  refuses off the same ownership table the retype reads. The hold verb itself keeps its meaning,
-  converting a sounding note to a silent hold, plant or no plant. Refusals are as silent as every
+- **The Held-channel DELETE has a clearing planner of its own** (`planClearHeldStops`), because a
+  default satellite must never be authored as a real `0`. Clearing withdraws the charter's statement
+  and nothing else: an authored stop goes, a default clears nothing, and a derived tap stop or a
+  plant refuses off the same ownership table the retype reads. Refusals are as silent as every
   refused plan today.
-- A typed digit STATES a stop and a transpose SHIFTS one, both reaching a selected hold exactly as
-  they reach a selected head, which is also how a transposed chord carries its silent members along.
+- A typed digit STATES a stop and a transpose SHIFTS one, both reaching a claim through the note
+  that carries it exactly as they reach that note's own head.
 
 ---
 
@@ -822,7 +820,7 @@ state.
 
 - **F1** a separate hold-marker array.
 - **F2** stored hold durations on silent notes.
-- **F3** unjustified zero-sound spans.
+- **F3** unjustified zero-sound spans — RETIRED 2026-09-17, see the note below.
 - **F4** the plant-offset convention.
 - **F5** the ring-through region — independently confirmed dead from the physical layer.
 - **F6** classification from raw PAIRWISE overlap, the pure ring-discriminator, and the pure
@@ -833,6 +831,12 @@ state.
 - **F9** the template-as-source substrate — independently confirmed dead from the physical layer.
 - **F10** the old "singles and chugs don't break the chain" display rule; the game-side walk
   realignment is the obligation that replaces it.
+
+F1, F2 and F8 name the silent-hold design that has itself left the model (RULED 2026-09-17: the `N`
+verb and `NoteAttack::None` are gone; `N` is unbound and free for reuse). A claim has one
+shape, `held` under a right-hand onset. **F3 left with them**: a zero-sound span is now sounded by
+its own carriers, so it stands at its instant with nothing to justify, and the entry named a refusal
+that has no population left (LAW II).
 
 Also dead, and for stated reasons: the death successor (ring-out opens nothing); founding modes;
 extent-inertness (there is one kind of member); the tail law's CROSSING conjunct (the closer's tail

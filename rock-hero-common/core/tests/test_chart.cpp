@@ -188,39 +188,6 @@ constexpr Fraction g_fixture_ring{1, 8};
             .keyframes = {},
         },
     };
-    // Two silently-held stops, in the note stream like every other stop the hand takes: no ring,
-    // no technique, just where the finger is. Appended at a slot past every sounding note — the
-    // stream is already in order there — so the fixture states them as what they are and every
-    // case below that names a note by INDEX keeps naming the same one.
-    chart.notes.push_back(
-        ChartNote{
-            .position = GridPosition{.measure = 4, .beat = 4},
-            .string = 1,
-            .fret = 7,
-            .attack = NoteAttack::None,
-            .keyframes = {},
-        });
-    chart.notes.push_back(
-        ChartNote{
-            .position = GridPosition{.measure = 4, .beat = 4},
-            .string = 2,
-            .fret = 5,
-            .attack = NoteAttack::None,
-            .keyframes = {},
-        });
-    // And the content those two stops were stated in FRONT of, without which the span law dissolves
-    // them on load: a note arriving on a claimed string at exactly that claim's stop. It is what
-    // makes this fixture a chart that survives its own normalizer, which every case that normalizes
-    // it depends on.
-    chart.notes.push_back(
-        ChartNote{
-            .position = GridPosition{.measure = 5, .beat = 1},
-            .string = 1,
-            .fret = 7,
-            .sustain = g_fixture_ring,
-            .bend = 0.0,
-            .keyframes = {},
-        });
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7, .width = 5},
@@ -331,20 +298,9 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
     {
         ++written_rings;
     }
-    // Exactly one per SOUNDING note: nothing else in the document carries a sustain, since the
-    // hand-shape spans are derived rather than written, and a silently-held stop has no ring to
-    // write — the one attack whose sustain key must be absent rather than present.
-    const auto sounding = static_cast<std::size_t>(std::ranges::count_if(
-        chart.notes, [](const ChartNote& note) { return !silentHold(note.attack); }));
-    CHECK(written_rings == sounding);
-
-    // A silently-held stop writes its slot, its stop and its attack — and nothing else at all.
-    CHECK(
-        text.find(R"({ "position": "4:4", "string": 1, "fret": 7, "attack": "none" })") !=
-        std::string::npos);
-    CHECK(
-        text.find(R"({ "position": "4:4", "string": 2, "fret": 5, "attack": "none" })") !=
-        std::string::npos);
+    // Exactly one per note: every note rings, and nothing else in the document carries a sustain,
+    // since the hand-shape spans are derived rather than written.
+    CHECK(written_rings == chart.notes.size());
 
     // The full fixture also satisfies the structural rules.
     CHECK(validateChartRules(chart, makeTempoMap()).has_value());
@@ -1313,16 +1269,6 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
             CHECK(std::is_eq(*moved_bend <=> 0.0));
         }
     }
-    SECTION("a silent hold on the string bounds nothing")
-    {
-        std::vector<ChartNote> notes{
-            released(Fraction{2}),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{}, 7),
-        };
-        notes[1].attack = NoteAttack::None;
-        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
-        CHECK(notes[0].sustain == Fraction{2});
-    }
     SECTION("a plain ring still reaches the strike exactly")
     {
         std::vector<ChartNote> notes{
@@ -1661,6 +1607,17 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // the pre-model writer elided the key rather than writing a zero, so the positive-sustain
     // rule's own re-import sentence is unreachable from a real file.
     CHECK(missing.error().message.find("re-import") != std::string::npos);
+    // The requirement is the note's, not the plain pick's: every attack token the vocabulary has
+    // must state a ring, so no spelling gets a document form that elides it.
+    for (const std::string_view token :
+         {"legato", "pinch", "leftTap", "tap", "pop", "slap", "pickSlide"})
+    {
+        const auto without_ring = parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "attack": ")" + std::string{token} +
+            R"(")");
+        REQUIRE_FALSE(without_ring.has_value());
+        CHECK(without_ring.error().message.find("sustain") != std::string::npos);
+    }
 
     // Order is a document rule as well, refused rather than repaired (the persisted sections'
     // posture): everything between the reader and the validator — the same-string bound's binary
@@ -1674,39 +1631,16 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     CHECK(unsorted.error().code == ChartErrorCode::MalformedDocument);
     CHECK(unsorted.error().message.find("sorted") != std::string::npos);
 
-    // The silently-held stop's own document rules, and both run the opposite way from a sounding
-    // note's. Its ring key must be ABSENT — it has no ring, so a written value (zero included) is
-    // a second spelling of nothing and is refused rather than accepted — while a sounding note's
-    // is required. The `holdMarkers` array these records once lived in is refused outright, so a
-    // document carrying it fails loudly instead of loading with every hold silently missing.
-    const auto parse_notes = [](const std::string& notes_body) {
-        return parseChartDocument(
-            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ )" + notes_body +
-            R"( ] })");
-    };
-    const auto held = parse_notes(
-        R"({ "position": "1:1", "string": 1, "fret": 5, )"
-        R"("attack": "none" })");
-    REQUIRE(held.has_value());
-    REQUIRE(held->notes.size() == 1);
-    CHECK(held->notes.front().attack == NoteAttack::None);
-    CHECK(held->notes.front().fret == 5);
-    CHECK(held->notes.front().sustain == Fraction{});
-    const auto ringing_hold = parse_notes(
-        R"({ "position": "1:1", "string": 1, "fret": 5, )"
-        R"("attack": "none", "sustain": "1" })");
-    REQUIRE_FALSE(ringing_hold.has_value());
-    CHECK(ringing_hold.error().message.find("no ring") != std::string::npos);
-    const auto zero_hold = parse_notes(
-        R"({ "position": "1:1", "string": 1, "fret": 5, )"
-        R"("attack": "none", "sustain": "0" })");
-    CHECK_FALSE(zero_hold.has_value());
-    // And that array.
-    const auto old_array = parseChartDocument(
-        R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [],)"
-        R"( "holdMarkers": [ { "position": "1:1", "string": 1, "fret": 5 } ] })");
-    REQUIRE_FALSE(old_array.has_value());
-    CHECK(old_array.error().message.find("holdMarkers") != std::string::npos);
+    // "none" is a token the vocabulary does not contain, and it is refused through the ONE unknown
+    // attack path every other misspelling takes — no branch of its own, so a document written
+    // before the token left fails exactly as `"attack": "wobble"` does.
+    const auto none_attack = parse_note(
+        R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1", "attack": "none")");
+    REQUIRE_FALSE(none_attack.has_value());
+    CHECK(none_attack.error().code == ChartErrorCode::MalformedDocument);
+    CHECK(
+        none_attack.error().message.find("chart note attack is unknown: none") !=
+        std::string::npos);
 }
 
 // Emphasis is one axis with a never-written default, so three things have to hold together: both
@@ -1998,38 +1932,6 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 12});
     CHECK(slideOutFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
 
-    // ONSET is the word in that rule: what it moves is a statement sitting on the head the glide
-    // would be re-picked at. A silently-held stop is no head — it states nothing to desync from
-    // and bounds no ring — so a path travelling under a held shape stands where it was written.
-    // The two charts below differ in exactly that one note, which is what makes the pair
-    // discriminating.
-    Chart glide_under_a_stop = makeFullChart();
-    glide_under_a_stop.notes[3].keyframes.insert(
-        glide_under_a_stop.notes[3].keyframes.begin() + 2,
-        Keyframe{.offset = Fraction{3}, .fret = 9});
-    const auto landing = ChartNote{
-        .position = GridPosition{.measure = 2, .beat = 4},
-        .string = 4,
-        .fret = 9,
-        .sustain = Fraction{1, 4},
-        .bend = 0.0,
-        .keyframes = {},
-    };
-    Chart glide_onto_a_sound = glide_under_a_stop;
-    glide_onto_a_sound.notes.push_back(landing);
-    std::ranges::sort(glide_onto_a_sound.notes, chartNoteOrderLess);
-    CHECK_FALSE(normalizeChart(glide_onto_a_sound, tempo_map).empty());
-    ChartNote held_landing = landing;
-    held_landing.sustain = Fraction{};
-    held_landing.attack = NoteAttack::None;
-    glide_under_a_stop.notes.push_back(held_landing);
-    std::ranges::sort(glide_under_a_stop.notes, chartNoteOrderLess);
-    CHECK(validateChartRules(glide_under_a_stop, tempo_map).has_value());
-    // The held stop bounds nothing, so the keyframe stands where it was written.
-    std::vector<ChartNote> under_a_stop = glide_under_a_stop.notes;
-    CHECK(normalizeSustainOverlaps(under_a_stop, tempo_map).empty());
-    CHECK(normalizeKeyframeClearances(under_a_stop, tempo_map).empty());
-
     // Spans and postures are derived from the notes, so there is no out-of-range index or
     // mis-sized array left for a structural refusal to catch.
 
@@ -2059,117 +1961,6 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto beyond_octave_result = validateChartRules(beyond_octave, tempo_map);
     REQUIRE_FALSE(beyond_octave_result.has_value());
     CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
-}
-
-// The silently-held stop's whole rule set, and it is the note rules read one way: the ring must be
-// exactly zero (the mirror of the positive-sustain rule), the stop obeys the same board and capo
-// bounds a pressed fret does, and everything else a note can state is refused through the one
-// fixpoint the saved form already defines. Nothing here is span-relative — a hold that ends up
-// saying nothing is inert, not invalid, so the validator never has to derive a shape to judge a
-// document.
-TEST_CASE("Chart rules validate silently held stops", "[core][chart]")
-{
-    const TempoMap tempo_map = makeTempoMap();
-    // A capo of 2 in the fixture, so the stop rules meet a real floor rather than fret 1.
-    const Chart chart = makeFullChart();
-    REQUIRE(validateChartRules(chart, tempo_map).has_value());
-
-    // A hold on a free slot of the fixture, which every case below then breaks one way.
-    const auto hold_note = [](const int string, const int fret) {
-        return ChartNote{
-            .position = GridPosition{.measure = 1, .beat = 1},
-            .string = string,
-            .fret = fret,
-            .attack = NoteAttack::None,
-            .keyframes = {},
-        };
-    };
-    const auto with_hold = [&chart](const ChartNote& hold) {
-        Chart amended = chart;
-        amended.notes.push_back(hold);
-        std::ranges::sort(amended.notes, chartNoteOrderLess);
-        return amended;
-    };
-    const auto refuse = [&tempo_map, &with_hold](const ChartNote& hold) {
-        const auto result = validateChartRules(with_hold(hold), tempo_map);
-        REQUIRE_FALSE(result.has_value());
-        CHECK(result.error().code == ChartErrorCode::InvalidNote);
-        return result.error().message;
-    };
-
-    // The ring, refused in the direction the other attacks are refused in the opposite one.
-    {
-        ChartNote ringing = hold_note(2, 5);
-        ringing.sustain = Fraction{1};
-        CHECK(refuse(ringing).find("no ring of its own") != std::string::npos);
-    }
-
-    // Everything else a note can state, refused through the saved-form fixpoint: a technique
-    // describes something about a sound that never happens here.
-    {
-        ChartNote muted = hold_note(2, 5);
-        muted.palm_mute = true;
-        CHECK(refuse(muted).find("nothing else") != std::string::npos);
-        ChartNote dead = hold_note(2, 5);
-        dead.dead = true;
-        refuse(dead);
-        ChartNote shaken = hold_note(2, 5);
-        shaken.vibrato = VibratoState::Narrow;
-        refuse(shaken);
-        ChartNote tremolo = hold_note(2, 5);
-        tremolo.tremolo = true;
-        refuse(tremolo);
-        ChartNote accented = hold_note(2, 5);
-        accented.emphasis = NoteEmphasis::Accent;
-        refuse(accented);
-        ChartNote bent = hold_note(2, 5);
-        bent.bend = 1.0;
-        refuse(bent);
-        ChartNote harmonic = hold_note(2, 5);
-        harmonic.harmonic_node = 12.0;
-        refuse(harmonic);
-        // A trail-off needs no case of its own any more: the release IS a keyframe at the ring's
-        // end, and a zero ring has no end to state one at, so the keyframe case below is the whole
-        // refusal. It is refused by the payload rules before the fixpoint sees it — an offset
-        // outside a zero ring is incoherent either way — so this one only has to refuse.
-        ChartNote travelling = hold_note(2, 5);
-        travelling.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
-        REQUIRE_FALSE(validateChartRules(with_hold(travelling), tempo_map).has_value());
-    }
-
-    // The capo floor, the pressed note's rule verbatim: fret 1 does not exist to take under a capo
-    // at 2, and no lift could know the stop the author meant, so it refuses rather than repairing.
-    CHECK(refuse(hold_note(2, 1)).find("capo") != std::string::npos);
-    // Fret 0 is the open string capo'd or not, and a legitimate authored value: a chord diagram
-    // marks an open string as part of the voicing, and a member that is never struck is precisely
-    // a claim nothing sounds.
-    CHECK(validateChartRules(with_hold(hold_note(2, 0)), tempo_map).has_value());
-
-    // Slot uniqueness binds a hold like any other note: the fixture's 3:2 onset is on string 6, so
-    // a hold there is the collision and the same position on another string is not.
-    {
-        ChartNote collides = hold_note(6, 5);
-        collides.position = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 3}};
-        const auto result = validateChartRules(with_hold(collides), tempo_map);
-        REQUIRE_FALSE(result.has_value());
-        CHECK(result.error().code == ChartErrorCode::UnsortedOrDuplicateNotes);
-        ChartNote beside = collides;
-        beside.string = 3;
-        CHECK(validateChartRules(with_hold(beside), tempo_map).has_value());
-    }
-
-    // The one repair, asked as the fixpoint: a stop past the last fret clamps onto the board
-    // exactly as a pressed fret does, so a document carrying the unclamped value is refused and a
-    // load repairs and REPORTS it rather than bricking the project.
-    {
-        const ChartNote past_board = hold_note(2, g_max_fret + 5);
-        refuse(past_board);
-        Chart repaired = with_hold(past_board);
-        const std::vector<ChartConversion> conversions = normalizeChart(repaired, tempo_map);
-        REQUIRE(conversions.size() == 1);
-        CHECK(conversions.front().repair == ChartRepair::FretPastBoard);
-        CHECK(validateChartRules(repaired, tempo_map).has_value());
-    }
 }
 
 // The technique matrix, enforced: every forbidden combination refuses, and the allowed
@@ -2429,6 +2220,27 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         ChartNote negative = make_note(1, 1, 5);
         negative.sustain = Fraction{-1, 4};
         CHECK_FALSE(validate({negative}).has_value());
+
+        // EVERY attack, with no exemption for any of them: the rule reads the duration alone, and
+        // it is asked before any attack-specific shape rule, so the answer is the same refusal
+        // whatever the note claims to be.
+        for (const NoteAttack attack :
+             {NoteAttack::Pick,
+              NoteAttack::Pinch,
+              NoteAttack::Legato,
+              NoteAttack::LeftTap,
+              NoteAttack::Tap,
+              NoteAttack::Pop,
+              NoteAttack::Slap,
+              NoteAttack::PickSlide})
+        {
+            ChartNote ringless = make_note(1, 1, 5);
+            ringless.sustain = Fraction{};
+            ringless.attack = attack;
+            const auto by_attack = validate({ringless});
+            REQUIRE_FALSE(by_attack.has_value());
+            CHECK(by_attack.error().message.find("must be positive") != std::string::npos);
+        }
     }
 
     SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")
@@ -2882,26 +2694,6 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         ChartNote dead_claim = claim_at(2, 1, 5);
         dead_claim.dead = true;
         CHECK(resolve_claim({source, dead_claim}) == LegatoMotion::Hammer);
-    }
-
-    SECTION("a silently-held stop is not a predecessor and does not shadow the real one")
-    {
-        // A PREDECESSOR is the last note that SOUNDED on the string: a connection continues a
-        // ringing string, and a held finger neither rings nor can be released from. Left in the
-        // walk it would shadow the note that does — so authoring a held shape between two notes
-        // would silently flatten a claim the chart still justifies.
-        // The source rings from beat 1 to beat 3 exactly, where the claim sits; the hold lands
-        // between them on the same string. Read as a predecessor the hold would answer for beat 2
-        // with no ring at all, and the claim would flatten.
-        ChartNote source = make_note(1, 1, 9);
-        source.sustain = Fraction{2};
-        ChartNote held = make_note(2, 1, 7);
-        held.attack = NoteAttack::None;
-        held.sustain = Fraction{};
-        CHECK(resolve_claim({source, held, claim_at(3, 1, 5)}) == LegatoMotion::Pull);
-        // The discrimination: the same stream without the hold resolves the same way, so the hold
-        // is neither supplying the connection nor breaking it.
-        CHECK(resolve_claim({source, claim_at(3, 1, 5)}) == LegatoMotion::Pull);
     }
 
     SECTION("a claim needs its predecessor still ringing at the onset")
@@ -3537,25 +3329,6 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
             REQUIRE_FALSE(refused.has_value());
             CHECK(refused.error().message.find("right-hand onset") != std::string::npos);
         }
-        // The silent hold refuses it too, and for the opposite reason from every attack above: it
-        // is the FRETTING hand's own record, so its fret is already the stop.
-        const auto silent_hold = [](const std::optional<int> held) {
-            ChartNote note;
-            note.position = GridPosition{.measure = 1, .beat = 1};
-            note.string = 3;
-            note.fret = 7;
-            note.sustain = Fraction{};
-            note.attack = NoteAttack::None;
-            note.held = held;
-            return note;
-        };
-        const auto refused_hold = validateChartRules(make_chart(silent_hold(5)), tempo_map);
-        REQUIRE_FALSE(refused_hold.has_value());
-        CHECK(refused_hold.error().message.find("nothing else") != std::string::npos);
-        // The control the refusal needs to mean anything: the same record without the stop is a
-        // legal silent hold, so what was refused is the held stop and not the shape of the note.
-        const auto plain_hold = validateChartRules(make_chart(silent_hold({})), tempo_map);
-        CHECK(plain_hold.has_value());
     }
 
     SECTION("a stop inside the onset's own travel is physically impossible and is refused")
@@ -3678,12 +3451,12 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
     };
     // A second member at the same slot, so rule 10 opens a span at all: the hand is holding a shape
     // and the tap is played over one of its stops.
-    const auto silent_member = [] {
+    const auto struck_member = [] {
         ChartNote note;
         note.position = GridPosition{.measure = 1, .beat = 1};
         note.string = 1;
         note.fret = 7;
-        note.attack = NoteAttack::None;
+        note.sustain = Fraction{1, 2};
         return note;
     };
     const auto make_chart = [&](std::vector<ChartNote> notes) {
@@ -3693,7 +3466,7 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         std::ranges::sort(chart.notes, chartNoteOrderLess);
         return chart;
     };
-    const Chart chart = make_chart({silent_member(), tapped_harmonic()});
+    const Chart chart = make_chart({struck_member(), tapped_harmonic()});
 
     SECTION("the three facts coexist, and the node is judged against the STOP")
     {
@@ -3724,24 +3497,23 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         CHECK(at_its_own_stop.error().message.find("beyond the stop") != std::string::npos);
     }
 
-    SECTION("the claim is answered, the shape justified, and the stop shown in the satellite")
+    SECTION("the claim joins the shape's posture, and its stop shows in the satellite")
     {
         Arrangement arrangement;
         arrangement.chart = chart;
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
-        // The span stands because the tap ANSWERED the claim it makes: nothing else here sounds,
-        // and a shape the hand alone states dissolves unless one of its stops is played.
+        // Two members open the span — the struck stop and the tap's claim — and the claim's own
+        // carrier sounds the stop it holds, so the held fret joins the posture it founds.
         REQUIRE(state.shapes.size() == 1);
         const ShapeViewState& shape = state.shapes.front();
         REQUIRE(shape.strings.size() == 2);
-        // The silently-held member keeps the bracket's own column; the tap's stop is displaced
-        // outboard, because the head at that slot is sounding a different fret — the node's.
+        // The struck member's own head already prints that very fret, so the bracket states
+        // nothing beside it; the tap's stop is displaced outboard, because the head at that slot
+        // is sounding a different fret — the node's.
         CHECK(
             shape.strings[0] ==
-            ShapeStringViewState{
-                .string = 1, .stop = frettedStop(7), .digit = StopMarkSlot::Bracket
-            });
+            ShapeStringViewState{.string = 1, .stop = frettedStop(7), .digit = std::nullopt});
         CHECK(
             shape.strings[1] ==
             ShapeStringViewState{
@@ -3758,7 +3530,6 @@ TEST_CASE("A tapped harmonic states its touch, its stop and its node at once", "
         REQUIRE(mark.has_value());
         if (mark.has_value())
         {
-            CHECK(mark->slot == StopMarkSlot::Satellite);
             CHECK(mark->face == StopMarkFace::Posture);
             CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(shape.start_seconds, 1e-9));
         }

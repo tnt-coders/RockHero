@@ -33,17 +33,17 @@ selection), and `editing-interaction-model.md`, and this document dissolves into
   span and its posture are derived from the notes, so nothing authors either and nothing can
   disagree with them; the classification is `chartShapeArrivals` (`chart/chart_shapes.h`), which
   asks that one question at the four places a sounding can be incomplete: a posture string carried
-  into the span's start still ringing with no onset at it, a silently-held member the hand states
-  but never sounds, a slot inside the span that sounds only part of the shape, and a picking-hand
+  into the span's start still ringing with no onset at it, a CLAIMED member — the held stop under a
+  right-hand onset — that no stroke sounds as a voice of its own, a slot inside the span that
+  sounds only part of the shape, and a picking-hand
   onset (a tap or a pick slide) sounding anywhere within the span.
-- Because the classification reads the sounds, the arpeggio conversion of section 8 flips the span
-  by construction: adding a member the hand holds but never sounds is the second trigger. Display
-  stays fully derived.
+- Because the classification reads the sounds, a claim flips the span
+  by construction: a member the hand holds that no stroke of its own sounds is the second trigger.
+  Display stays fully derived.
 - **Importer obligation:** nothing in the format carries a hand shape, so there is no posture for a
-  converter to trim to the struck strings; the arrival rule reads what the notes sound. What an
-  importer still owes is the notes themselves — a source's own arpeggio marking has to survive as a
-  silently-held member where it states a string the passage never strikes. This lands in the
-  external converter tool as a companion task.
+  converter to trim to the struck strings; the arrival rule reads what the notes sound. Imports
+  author zero claims, so a source's own arpeggio marking survives as the notes themselves and
+  nothing else.
 - Degenerate spans (single note total, or repeated identical single notes) are neither chord
   nor arpeggio: dropped from display and flagged by validation. Data is not auto-deleted for
   now; automatic removal may graduate later if the ruleset fully hardens.
@@ -179,14 +179,15 @@ mechanism the "all tails display" phrasing above only sketches, and the outcomes
 
 ## 8. Arpeggio conversion — SETTLED
 
-- A hotkey (`N`) converts an in-line placed note into an unplayed shape member: the string and
-  fret stay in the hand's posture without a played note. The span classifies as an arpeggio
-  automatically, and the existing posture rendering (unsounded members) displays it. This resolves
-  the "display a fuller shape than the notes play" case without a dedicated template editor.
+- The fretting hand's stop under a right-hand onset (`held`) states a shape member the picking hand
+  never sounds: the string and fret join the hand's posture without a played note there. The span
+  classifies as an arpeggio automatically, and the existing posture rendering (unsounded members)
+  displays it. This resolves the "display a fuller shape than the notes play" case without a
+  dedicated template editor, for every string a right-hand onset reaches. Stating a stop on a string
+  where NOTHING sounds waits on plan 60's span templates (RULED 2026-09-17).
 
-> **How the member is stored, and what the span is.** A silently held member is a NOTE with no
-> onset — `NoteAttack::None`, a point record carrying its position, string and fret and forbidden
-> every other field, its ring required to be zero — resolved against the DERIVED span at read time.
+> **How the member is stored, and what the span is.** A claimed member is the `held` field on a
+> right-hand onset — a tap or a pick slide — resolved against the DERIVED span at read time.
 > There is no authored template in the format, no extent that belongs to one, and no
 > template-relative comparison: the span and its posture are derived from the notes
 > (`deriveChartShapes`), and the arpeggio flip is carried on the span the derivation resolved the

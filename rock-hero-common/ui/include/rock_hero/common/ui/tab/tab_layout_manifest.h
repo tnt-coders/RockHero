@@ -87,51 +87,6 @@ is addressed by: heads are targets, tails are testimony.
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
-/*! \brief Pixel layout of one silently-held stop's posture bracket. */
-struct TabSilentHoldLayout
-{
-    /*! \brief Horizontal position of the bracket's centre column: the instant its mark draws. */
-    float center_x{};
-
-    /*! \brief Vertical lane center of the hold's string: the bracket's centre row. */
-    float center_y{};
-
-    /*! \brief Bounding rectangle of the bracket pair — its drawn extent, and its clickable one. */
-    TabLayoutRect box{};
-};
-
-/*!
-\brief Computes the pixel layout of one silent hold's posture bracket, when it draws one.
-
-A \ref common::core::NoteAttack::None note has no head of its own: the arpeggio bracket printing
-its stop IS its face, which is why this reads the note's RESOLVED stop mark — the mark's own
-(\ref common::core::NoteViewState::stop_mark) rather than the slot it was authored at. A hold
-that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
-unclickable by construction — the same rule that keeps an undrawn keyframe head off the hit list,
-stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
-own head and whose layout is \ref tabNoteLayout's — including one carrying a held stop, which
-resolves a stop mark of its own for the satellite beside it (\ref tabHeldStopLayout) while the head
-stays what its SOUNDING fret is addressed by.
-
-The box spans the bracket's two bars, and runs on to cover the satellite column when the mark says
-this hold's own digit was DISPLACED into it — an onset at the mark's instant sounding at ANOTHER
-place, whichever hand made it, pushes the posture out there, and the digit that lands in that
-column is this note's. A fretting-hand head wearing a PLANT displaces nothing: it states the stop
-as its own satellite and the bracket prints no digit for that string at all (THE PLANT'S FACE), so
-the box does not run on. Drawn extent equals clickable extent either way, which is what the mark's
-published slot buys: without it the box would stop at the closing bar and leave the displaced digit
-reachable by nothing. A CENTRED digit is inside the bars and needs no extent of its own, and
-WHEREVER A BRACKET DRAWS its bars are drawn for every posture string, so a string whose digit
-prints nowhere at all still presents exactly the rectangle that was drawn — while a span that draws
-no bracket at all publishes no mark, and the hold then lays out to nothing here.
-
-\param geometry Lane geometry the notation was painted with.
-\param note Seconds-resolved note to lay out.
-\return The bracket's layout, or nothing when the note is not a silent hold or joined no span.
-*/
-[[nodiscard]] std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
-
 /*! \brief Pixel layout of one held stop's satellite digit, outboard of its posture bracket. */
 struct TabHeldStopLayout
 {
@@ -165,8 +120,8 @@ can never part.
 
 The vertical extent is the bracket's own, so the two halves of a bracketed mark present the same
 target height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn
-becomes clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box: the two never answer
-for the same note, since a silent hold sounds nothing to hold a stop under.
+becomes clickable. The column sits outboard of the closing bar, so it never overlaps the bars or a
+digit centred between them.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.

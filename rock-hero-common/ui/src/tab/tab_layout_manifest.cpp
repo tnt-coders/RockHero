@@ -38,41 +38,6 @@ TabNoteLayout tabNoteLayout(
     return layout;
 }
 
-// Mirrors the bracket pass's own rectangles: the pair's bars stand a bar-width apart from the
-// head's ring on each side and rise to the head's visible edge less that same bar — and, where the
-// projection printed this hold's own digit in the satellite column, out to cover that column too.
-// The mark's DRAWN extent is its clickable one: a box stopping at the bars would leave a displaced
-// digit drawn where nothing can click it. Answers for a silent hold and nothing else, which is what
-// its stop mark already says.
-std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
-{
-    // Two facts, because a resolved stop mark does not imply a hold: a note carrying a held stop
-    // resolves one too, for the satellite beside the bars rather than for a face of its own. The
-    // attack is what says whose face these bars are. Bound to a local so the optional check and
-    // the accesses are provably the same object.
-    const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
-    if (!common::core::silentHold(note.attack) || !mark.has_value())
-    {
-        return std::nullopt;
-    }
-    const TabBracketGeometry bracket = geometry.bracketGeometry();
-    const float half_width = bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-    const float outboard = mark->slot == common::core::StopMarkSlot::Satellite
-                               ? static_cast<float>(geometry.satelliteSlot().extent())
-                               : 0.0f;
-    TabSilentHoldLayout layout;
-    layout.center_x = geometry.x(mark->seconds);
-    layout.center_y = geometry.laneY(note.string);
-    layout.box = TabLayoutRect{
-        .x = layout.center_x - half_width,
-        .y = layout.center_y - bracket.half_height,
-        .width = half_width * 2.0f + outboard,
-        .height = bracket.half_height * 2.0f,
-    };
-    return layout;
-}
-
 // Mirrors the satellite column wherever one is drawn: it opens a gap past the closing bar's column
 // and runs one slot wide, at the bracket's own height so the two halves of a bracketed mark present
 // the same target. One rectangle for both anchors, because the mark carries the instant its own ink

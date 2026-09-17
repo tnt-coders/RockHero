@@ -1132,13 +1132,13 @@ enum class RollSpread : std::uint8_t
 // by the ordinary opening law — the members' rings overlap, the span dates from the first of them,
 // and the arrivals are absorbed — with no rule of its own.
 //
-// NO FRONTED CLAIMS (D11's machinery: a silent-hold claim authored at the figure's front for every
-// member still to come). That is scaffolding for a derivation that cannot see the rings, and the
+// NO FRONTED CLAIMS (D11's machinery: a claim authored at the figure's front for every member
+// still to come). That is scaffolding for a derivation that cannot see the rings, and the
 // accumulation law sees them — so such a claim would state a fact the sound already states, which
-// is the one thing LAW II refuses. IMPORTS AUTHOR ZERO CLAIMS: the statement model is sound states
-// and AUTHORED states, and "fronted span" is not a derivation concept. The claim machinery itself
-// — justification, supersession, the inert sweep, the N verb — keeps the residue it is for: the
-// never-sounded stop, and the deliberately short-rung one.
+// is exactly the empty statement LAW II sweeps. IMPORTS AUTHOR ZERO CLAIMS: the statement model is
+// sound states and AUTHORED states, and "fronted span" is not a derivation concept. The claim
+// machinery itself — supersession and the inert sweep — keeps the residue it is for: the stop a
+// right-hand onset holds under it.
 //
 // The bracket's DRAWN LENGTH follows from that (W-D): a claims-produced span would run only as far
 // as the roll gesture, because that is all the claims state. Under [D3] the hold is the RING, and
@@ -3255,8 +3255,8 @@ void resolveSlideOutExits(
 
         // NO CLAIM IS EVER AUTHORED HERE, and that is the whole of what the import states about
         // the fretting hand's silent stops (Q7). The accumulation law derives a rolled chord's
-        // figure from its members' own rings, so nothing here needs to claim one:
-        // `NoteAttack::None` is a record the CHARTER writes and the import never does.
+        // figure from its members' own rings, so nothing here needs to claim one: a held stop is a
+        // record the CHARTER writes and the import never does.
 
         // Duplicate onsets (two voices striking one string together) keep the first note.
         if (!built.empty())
@@ -3412,9 +3412,7 @@ void resolveSlideOutExits(
             for (std::size_t follower = search_from + 1; follower < built.size(); ++follower)
             {
                 // The next record on this string that still exists: a merged-away successor was
-                // folded into its predecessor, so it is no landing. No silent-hold arm is needed:
-                // the import authors no claims at all (Q7), so a guard against one here would be a
-                // rule about a record this walk can never meet.
+                // folded into its predecessor, so it is no landing.
                 if (built[follower].gp_string == entry.gp_string && !merged_away[follower])
                 {
                     next = &built[follower];

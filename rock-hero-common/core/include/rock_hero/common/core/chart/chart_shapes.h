@@ -26,8 +26,8 @@ number, not a statement about the tuning — so a chart with fewer strings simpl
 slots empty, and two postures compare by their grip and their texture together.
 
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
-pressed, the open string, or a harmonic node touched), plus the stops a \ref NoteAttack::None
-note says the hand takes silently (\ref deriveChartShapes). A ring no hand holds never joins the
+pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
+fretting hand is holding under it (\ref deriveChartShapes). A ring no hand holds never joins the
 grip: an open string still sounding out of an earlier span is at most the TEXTURE beside it. A
 stop carries no provenance here on purpose: the posture is what the hand holds, and where a given
 stop came from is the SPAN's question (\ref ChartShape::silent_member), so two spans holding an
@@ -151,11 +151,11 @@ struct ChartShape
     start, so it can only answer the start itself where the reach does.
 
     Zero is therefore reserved for the one case that means it: a span whose members are ALL held
-    fingers states its posture at an instant until a MEMBER's sound attaches to it, and then runs
-    through the ring of the note that matched one of its claims. A silently-held stop rings for
-    nothing, and taps articulating such a shape justify it without lengthening it — a right-hand
-    onset says nothing about the fretting hand, so it never bounds a span. The bracket draws at the
-    span start whatever the length, and the rails a positive span draws have nothing to cover.
+    fingers states its posture at an instant and is published there. Its length is whatever the
+    FRETTING hand's own stops reach, so a span holding none reaches its own start — a right-hand
+    onset says nothing about the fretting hand, so the carrier sounding a held stop never bounds
+    the span, and such a span lengthens only once a strike grows its grip. The bracket draws at
+    the span start whatever the length, and the rails a positive span draws have nothing to cover.
 
     TRAVEL does not shorten a span to its own start; the split happens at the LANDING: a chord slide
     keeps the fingers planted, so the rings run continuously and the continuity law itself covers
@@ -203,10 +203,10 @@ struct ChartShape
     std::size_t posture{0};
 
     /*!
-    \brief True when a posture member of this span came from a silent hold rather than from sound.
+    \brief True when a posture member of this span came from a HELD stop rather than from sound.
 
     The one fact the arrival rule (\ref chartShapeArrivals) cannot re-derive from what SOUNDS, and
-    the reason it is carried here instead of asked again: this walk is what resolved the holds, so
+    the reason it is carried here instead of asked again: this walk is what resolved the claims, so
     stating the answer on the span it resolved them into is one authority publishing its result,
     where a second scan beside the arrival would be the same rule written twice and free to
     disagree.
@@ -217,8 +217,9 @@ struct ChartShape
     for each span would make one classification quadratic.
 
     It is what flips the span to an arpeggio. The bracket is the only mark that states a posture
-    fret at all — a chord box draws the notes' own heads — so a span carrying a silently-held member
-    must arrive as an arpeggio or the authored fact is stored and never shown.
+    fret at all — a chord box draws the notes' own heads — so a span carrying a member the hand
+    holds without sounding it must arrive as an arpeggio or the stated fact is stored and never
+    shown.
     */
     bool silent_member{false};
 
@@ -263,8 +264,9 @@ struct ChartShape
     Only the strings the shape SOUNDS are the denominator, because a shape that also CLAIMS a member
     already arrives an arpeggio through \ref silent_member: a claim never sounds, so a shape holding
     one has members sounding separately by inspection. That is also what leaves the silent openings
-    covered: a span opening on held fingers alone strikes nothing, so this count says nothing there
-    — and every such span states a stop no sound of its own states.
+    covered: a span opening on held fingers alone is one the FRETTING hand strikes nothing in — the
+    taps above those fingers are the other hand's — so this count says nothing there, and every
+    such span states a stop no sound of its own states.
 
     TEXTURE CLASSIFIES: a shape with open strings ringing under it at its open (\ref
     ChartPosture::texture) is published in parts too — those rings sound separately from the stroke
@@ -351,17 +353,15 @@ struct ChartShapes
     none.
 
     Same order and size as the note streams, so a caller indexes it by the note it already holds.
-    Both shapes of claim resolve through it (\ref chartClaimedStops): a silently-held member, whose
-    whole existence is the fret it puts into a posture, and a held stop riding a right-hand onset,
+    Every claim resolves through it (\ref chartClaimedStops): a held stop riding a right-hand onset,
     whose note has a head of its own but whose held fret does not.
 
-    This is where a claim BECOMES visible. A silent hold draws no head, so the posture bracket
-    printing its stop wherever that span's mark draws is its whole face, and the editor reads this
-    to place that face and to hit test it; a held stop prints in the satellite slot beside that same
-    bracket, which is its own independent target. An absent entry means the claim resolved to
-    nothing and therefore draws nowhere — exactly the property "nothing undrawn is clickable"
-    needs, published by the pass that knows rather than re-derived by the surface, and the same
-    entry the inert sweep reads to decide what states nothing.
+    This is where a claim BECOMES visible. A held stop prints in the satellite slot beside that
+    span's posture bracket, which is its own independent target, and the editor reads this to place
+    that face and to hit test it. An absent entry means the claim resolved to nothing and therefore
+    draws nowhere — exactly the property "nothing undrawn is clickable" needs, published by the pass
+    that knows rather than re-derived by the surface, and the same entry the inert sweep reads to
+    decide what states nothing.
     */
     std::vector<std::optional<std::size_t>> claim_shapes;
 };
@@ -401,13 +401,12 @@ STRICTLY EXCEEDS the notated-distinguishability quantum at the closing head's me
 importer synthesizes every glide-into-restrike arrival exactly one quantum before the replacing
 onset, so the strictness IS the ratified suppressed population, and the chord name never flickers
 for a sliver. A held-but-never-restruck landed span is emitted: it is what states the chord-name
-change at the landing. LAW II is unchanged beside it: an unjustified span the hand alone stated
-dissolves, and publication rides the push, which is what keeps both drops safe.
+change at the landing. Publication rides the push, which is what keeps that drop safe.
 
 \param saved_notes The stored stream, sorted by position; rings are facts and are never written.
-\param claimed_stops The resolved claim table: what the fretting hand HOLDS at each record, for a
-       silent hold and a right-hand onset alike (a tap's pitch derives from the stopped length, so
-       its held fret participates fully on the statement path).
+\param claimed_stops The resolved claim table: what the fretting hand HOLDS under each right-hand
+       onset (a tap's pitch derives from the stopped length, so its held fret participates fully on
+       the statement path).
 \param planted_stops The hold-under table (\ref chartPlantedStops): per
        note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
        Feeds the seam verdicts and — since THE FOLD — the statement dating, never the grip
@@ -440,7 +439,7 @@ struck at one, and the rings carry on. A successor is classified by whatever the
 below find inside it, and a chord sliding into chords is therefore a BOX at both ends, joined by
 sliding tails.
 
-(b) A silently-held member (\ref ChartShape::silent_member): the hand states a stop it never sounds,
+(b) A HELD member (\ref ChartShape::silent_member): the hand states a stop it never sounds,
 so the members demonstrably do not all arrive together.
 
 (c) A slot INSIDE the span that sounds only PART of the shape — a partial restrike, or a lone

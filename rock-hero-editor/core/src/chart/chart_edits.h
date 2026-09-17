@@ -8,11 +8,9 @@ payloads clipped to the shortened sustain, all inside the same undo entry), and 
 current arrays into a removed/inserted plan. Applying, undoing, and redoing are then the same
 primitive run in opposite directions, so undo round-trips are exact by construction.
 
-A plan is one change to the ONE authored per-string array, the note stream. A silently-held stop is
-a note like any other (\ref common::core::NoteAttack::None), so the arpeggio hold verb — which used
-to move a record between two arrays and therefore needed a plan spanning both — is now an ordinary
-in-place rewrite of one note, and the exact undo round trip falls out of the same primitive every
-other verb uses.
+A plan is one change to the ONE authored per-string array, the note stream, so every verb is a
+removal-and-insertion over that one array and the exact undo round trip falls out of the same
+primitive for all of them.
 */
 
 #pragma once
@@ -212,75 +210,13 @@ refuses through the fixpoint, because a scrape that rests on a fret is no scrape
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
 
 /*!
-\brief Plans the arpeggio hold verb over a scope of slots: the two-direction toggle.
-
-The `N` verb (`docs/plans/todo/arpeggio-authoring.md`). Its scope is the ordinary one — the
-selection, or the armed caret's own slot when nothing is selected — so a whole chord converts in one
-press and one undo entry, and the empty-slot case the caret reaches is what authors a hold where no
-note is.
-
-The DIRECTION is the technique toggle's own law, asked of the scope as a whole: a scope whose every
-occupied slot already STATES the fretting hand's stop (\ref common::core::claimedStop) releases them
-all; anything else states the hold on all of them. An empty slot states nothing, so it never argues
-for the releasing direction.
-
-Per slot, then:
-
-- **A sounding fretting-hand note** is CONVERTED: its attack becomes
-  \ref common::core::NoteAttack::None, its ring goes (a silent hold has none), and every technique
-  its new attack cannot state is stripped. Position, string and FRET are preserved, which is what
-  makes place-then-convert the fret-stating flow: note insertion is the editor's only way to say
-  "fret 5 on the A string", so the charter types the fret where the finger goes and promotes it.
-- **A right-hand onset** — a tap or a scrape — gains a HELD stop at the open string instead (the
-  verb's fourth case). Its onset belongs to the picking hand, so converting it would delete a sound
-  the charter wrote; what the fretting hand is doing under it is exactly what \ref
-  common::core::ChartNote::held records. Fret 0 and an armed caret for the same reason the
-  empty-slot case uses them: typing a digit is how a stop gets stated.
-- **A silent hold** is converted BACK to a plain picked note at the caller's default ring, and a
-  **held stop** is simply cleared, leaving its onset untouched. The symmetric toggle, two-state like
-  every other mark. The techniques a conversion stripped do not come back — the plan carries the
-  whole note either way, so the verb window's reversal (and undo) restores them exactly, and
-  reinventing them here would author what the charter never typed.
-- **An empty slot** gains a silent hold at fret 0, with the caret armed on it: the charter then
-  types the stop, which retypes it like any other selected note.
-
-The undo entry's LABEL names what the press actually did, so the releasing direction carries three
-of them: "Sound Note" where every released slot was a silent hold (the notes get their sound back),
-"Release Held Stop" where every one was a held stop riding an onset (nothing gains or loses a
-sound), and "Release Held Stops" for a MIXED scope — a plural rather than a fourth verb, because
-both kinds ARE held-stop releases and the plural is the one word true of every slot in the press.
-
-In the stating direction the press is REFUSED as a whole unless every slot it named still STATES a
-stop once the shared finalize has settled: a claimed stop that reaches no shape states nothing and
-is swept (\ref common::core::sweepInertClaimedStops). Asked of the statement rather than of the
-record, because what the settle takes differs by shape — the whole note where the note IS the claim,
-the field alone where a sounding onset carries it, which leaves that note identical to what it was
-and therefore invisible to a diff. Whole-PLAN, never per slot — converting a whole chord states a
-shape only the chord's own members make, so they are legal together and illegal one at a time, and
-what decides the press is whether the shape they state is justified.
-
-\param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the shared finalize.
-\param slots The verb's scope, sorted-unique in chart slot order; an empty scope is a no-op.
-\param default_sustain Ring a note converted BACK from a hold is given, clamped by the finalize;
-the session's current grid step, exactly as for a placement.
-\return The plan; NoChange on an empty scope, Invalid when the gate refuses the result (an off-grid
-        slot, a string the tuning lacks, or a stop the capo covers) or when the press would state
-        nothing.
-*/
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& slots, common::core::Fraction default_sustain);
-
-/*!
 \brief Withdraws the charter's held-stop statement at each slot: Delete on the held channel.
 
 WHAT DELETE TAKES on a satellite is the STATEMENT, never the onset under it: the note keeps its
 sound, and the caret stays on the stop it was on, now wearing whatever the resolution answers there
-(a bare tap's DEFAULT). A planner of its own rather than the hold verb's releasing direction,
-because that verb infers its direction from the CLAIM column, which a default and a fretting-hand
-source's PLANT never enter: routed there, a Delete would author a held 0 on the one and convert the
-other into a silent hold (THE PLANT'S FACE).
+(a bare tap's DEFAULT). A planner of its own rather than a retype to fret 0, because a bare tap's
+satellite and a pull-off source's PLANT both show a DEFAULT the charter never typed: writing a real
+0 over one would author the very statement the press is withdrawing.
 
 Refused whole where any named slot's stop is the NOTATION's — a tap's derived held stop, or the
 plant beneath a fretting-hand source — off the one ownership table \ref planRetypeFrets reads
@@ -305,10 +241,6 @@ Funnels through the shared finalize like every plan, so the whole-matrix gate re
 that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps its claim
 and simply plays as a pick until the next settle flattens it (\ref planSettleChart) — relational
 truths are not the burst's business.
-
-Deleting a silently-held stop needs no such care in the other direction: it is a member of no
-relation, so removing one can leave nothing stale behind — only a span that stops claiming a stop
-it was never sounding.
 
 Deleting a selected KEYFRAME is the same verb one level in: it takes every statement the keyframe
 makes, so the keyframe itself always goes — an emptied keyframe is no record at all
@@ -434,12 +366,6 @@ later same-string onset or below the capo floor is refused just as a retyped one
 therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
 offset IS the identity, so exchanging two would leave the selection pointing at the other record.
 
-Silently-held stops need no rule of their own here: they are notes on the same slots, so a selected
-one moves like any other and the occupancy test that refuses a collision already covers them. A
-hold the selection did NOT name stays where it was, and if the move takes the shape it belonged to
-with it, the shared finalize's settle removes it in this same entry — the ordinary cascade, not a
-case this verb has to state.
-
 The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so the
 caller replays its step list into a single delta (\ref chartMoveGestureDelta) and hands this planner
 the chart state the run STARTED from. Nothing here has to know that — the plan is expressed against
@@ -500,11 +426,7 @@ one delta. A keyframe stating no fret states nothing about position, so it contr
 takes none: authoring one there would state a channel the charter never pointed at, and nothing
 draws such a keyframe to point at in the first place.
 
-A selected SILENTLY-HELD stop retypes with no case of its own, which is how a bracket's own stop
-is authored after the toggle stated it, and how a transposed chord carries its silent members
-along: a hold is a note, its fret is a fret, and both modes reach it.
-
-Nothing else follows a retyped hold. The span it sits in is DERIVED, so a stop that now contradicts
+Nothing else follows a retyped stop. The span it sits in is DERIVED, so a stop that now contradicts
 the note re-picking its string is not arbitrated here at all: side ruling (ii) stops recognising
 that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
 falling out of the derivation rather than a second rule written into this planner.
@@ -963,8 +885,8 @@ REACHABILITY IS THE RULE AUTHORITY'S ANSWER. Each candidate is dropped by asking
 it would produce survives \ref common::core::validateChartNoteAlone on its saved form, so the neck
 ceiling, the node-beyond-the-stop rule and the attacks whose saved form records no node at all all
 bite here without one of them being restated. Today only the last of those removes anything — a
-scrape's node and a silently-held stop's are stripped by the writer, so those notes offer no rows —
-because the two positional bounds cannot be crossed from a label at all: a fret-hand harmonic's
+scrape's node is stripped by the writer, so a scrape offers no rows — because the two positional
+bounds cannot be crossed from a label at all: a fret-hand harmonic's
 stop is the capo, so its node is at most `g_max_capo + 12` against a neck of `g_max_fret`, and any
 other stop is at most `g_max_fret`, so its node is at most `g_max_fret + 12` against a string of
 \ref common::core::g_max_harmonic_node. Asking the authority rather than encoding "nothing refuses
@@ -1036,7 +958,7 @@ label the set can produce — 4.98 back to 5, 3.86 to 4, 3.16 to 3, 7.02 to 7, 1
 the same label read \ref chartHarmonicNodeCandidates makes of a carrier, so the rows a touching
 note is offered and the fret its clear restores name one place. No memory of an overridden
 technique is needed: the fret comes back by arithmetic, and what the set's normalization stripped
-is restored by undo, the argument the arpeggio hold already makes for its own strip.
+is restored by undo.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
@@ -1197,9 +1119,7 @@ head survives, and that is the join's meaning: attack, mutes, node, tremolo, emp
 are facts about a STRIKE, and the join is the statement that no strike happens there.
 
 Which note is the predecessor is \ref common::core::chartConnections' rule, walked over the output
-stream rather than restated: the last note on the string that SOUNDED, so a silently-held stop
-authored between the two neither shadows the real predecessor here nor there. A silent hold is
-therefore never a candidate predecessor and needs no refusal of its own.
+stream rather than restated: the last note on the string that SOUNDED.
 
 **The arrival RETURNS.** A split retreats the origin's arrival off the new head by
 \ref common::core::latestStatementBeforeStrike, because no keyframe may sit on a head of its own
@@ -1215,7 +1135,7 @@ Join refusals, each because the handover it would author is not one the format c
 - A predecessor with a slide-out: a trail-off's tail is authored geometry, not slack to spend —
   the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato).
 - A fret-hand harmonic predecessor: a touch holds nothing to hand over.
-- A silently-held or scraping head: neither is a struck note whose ring a path could continue.
+- A scraping head: a scrape is no struck note whose ring a path could continue.
 - A head carrying a harmonic node: a point states frets and channels, never a node.
 
 \param chart Chart being edited.

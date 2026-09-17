@@ -711,14 +711,19 @@ TEST_CASE(
                 .keyframes = {},
             };
         };
-    const auto hold = [](const GridPosition& position, const int string, const int fret) {
-        ChartNote held;
-        held.position = position;
-        held.string = string;
-        held.fret = fret;
-        held.attack = NoteAttack::None;
-        return held;
-    };
+    // A bare tap claiming a stop the fretting hand takes without striking it: the picking hand
+    // makes the onset, so the claim is the only thing the fretting hand states at that slot.
+    const auto claim =
+        [](const GridPosition& position, const int string, const int fret, const int held) {
+            ChartNote note;
+            note.position = position;
+            note.string = string;
+            note.fret = fret;
+            note.sustain = Fraction{1, 4};
+            note.attack = NoteAttack::Tap;
+            note.held = held;
+            return note;
+        };
     const auto project = [](std::vector<ChartNote> notes) {
         Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -820,31 +825,32 @@ TEST_CASE(
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
     }
 
-    SECTION("a close that sounds nothing leaves the two spans abutting")
+    SECTION("a close the fretting hand states nothing at leaves the two spans abutting")
     {
-        // A held finger CONTRADICTING a stated string breaks the grip at a slot that sounds
-        // nothing (rule 8 reads a claim exactly as it reads a strike), and the rings still going
-        // on the other two strings accumulate the successor at that same instant. Nothing sounds
-        // there, so there is no head to keep clear of and the replaced shape ends exactly where
-        // the successor starts — which is what keeps a tiled figure seamless.
+        // A CLAIM contradicting a stated string breaks the grip at a slot the fretting hand
+        // strikes nothing at (rule 8 reads a claim exactly as it reads a strike), and the rings
+        // still going on the other two strings accumulate the successor at that same instant. The
+        // close states no grip, so there is no head to keep clear of and the replaced shape ends
+        // exactly where the successor starts — which is what keeps a tiled figure seamless.
         //
-        // Three sounding strings rather than two, because under grip tenure a held finger on a
-        // string the grip does NOT state grows the span in place and splits nothing: the break
-        // has to be a contradiction, and the successor has to muster the accumulation minimum on
-        // rings alone.
+        // Three sounding strings rather than two, because under grip tenure a claim on a string
+        // the grip does NOT state grows the span in place and splits nothing: the break has to be
+        // a contradiction, and the successor has to muster the accumulation minimum on rings
+        // alone.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{2}),
             note(one, 2, 7, Fraction{2}),
             note(one, 3, 9, Fraction{2}),
-            hold(two, 1, 12),
+            claim(two, 1, 17, 12),
         });
         REQUIRE(state.shapes.size() == 2);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
         CHECK_THAT(
             state.shapes[1].start_seconds,
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
-        // A HELD-FINGER close publishes no head to keep clear of, so here too the two ends are one
-        // instant: the seam the successor tiles onto is the same seam a reveal would draw to.
+        // A close where the picking hand alone sounds publishes no head to keep clear of, so here
+        // too the two ends are one instant: the seam the successor tiles onto is the same seam a
+        // reveal would draw to.
         CHECK_THAT(
             state.shapes[0].close_seconds,
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
@@ -1059,99 +1065,15 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
-// A silently-held stop reaches the projection with ONE fact a sounding note does not carry: where
-// the bracket that states its stop draws. That is the START of the span the derivation resolved it
-// into, not the slot it was authored at, because the bracket IS its face — and one that resolved
-// into no span carries no instant at all, which is what makes it undrawable and unclickable by
-// construction. Its fret is not repeated there: the posture already carries it, and a second copy
-// would be one stop drawn from two places.
-TEST_CASE("Chart projection places silent holds at their posture brackets", "[core][chart]")
-{
-    Arrangement arrangement = makeArrangementWithChart();
-    Chart* const chart = chartOrNull(arrangement);
-    REQUIRE(chart != nullptr);
-    // The fixture's span opens at measure 2 beat 1 (2.0s) and its statement stops an eighth of a
-    // beat later (2.0625s), where its shorter member's stored ring gaps — THE CONTINUITY LAW's box
-    // case, which is why the hold "inside" below sits a sixteenth in rather than a quarter.
-    const auto hold = [](const GridPosition& position, const int string, const int fret) {
-        ChartNote note;
-        note.position = position;
-        note.string = string;
-        note.fret = fret;
-        note.attack = NoteAttack::None;
-        return note;
-    };
-    chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 1}, 3, 9));
-    chart->notes.push_back(
-        hold(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}}, 5, 5));
-    chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 3}, 6, 7));
-    std::ranges::sort(chart->notes, chartNoteOrderLess);
-
-    const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
-    // The face of the hold on one string, found by that string alone: each of the three sits on
-    // its own, so nothing here needs to re-state the slot the chart was built with.
-    const auto face_of = [&state](const int string) {
-        std::optional<double> face;
-        bool found = false;
-        for (const NoteViewState& note : state.notes)
-        {
-            if (!found && note.string == string && silentHold(note.attack))
-            {
-                const std::optional<StopMarkViewState>& mark = note.stop_mark;
-                face = mark.has_value() ? std::optional<double>{mark->seconds}
-                                        : std::optional<double>{};
-                found = true;
-            }
-        }
-        REQUIRE(found);
-        return face;
-    };
-    // Each instant is bound to a named value before it is read, so the guard and the access are
-    // provably one object (a REQUIRE alone is not visible to that analysis).
-    const std::optional<double> at_start = face_of(3);
-    const std::optional<double> inside = face_of(5);
-    const std::optional<double> past_end = face_of(6);
-    // Authored AT the span start, so both readings agree here.
-    REQUIRE(at_start.has_value());
-    if (at_start.has_value())
-    {
-        CHECK_THAT(*at_start, Catch::Matchers::WithinAbs(2.0, 1e-9));
-    }
-    // Authored a sixteenth of a beat INSIDE the span (2.03125s), on a string the shape does not
-    // state. That is GROWTH, and under grip tenure growth happens IN PLACE (rule 8) — the hold
-    // joins the STANDING span and breaks nothing — so its face is that span's own front at 2.0,
-    // not the slot it was authored at. This is the discriminating line of the case: splitting a
-    // grown shape off at the hold's own instant would publish 2.03125 here. What separates a
-    // placed hold from an unplaceable one is `past_end` below.
-    REQUIRE(inside.has_value());
-    if (inside.has_value())
-    {
-        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.0, 1e-9));
-    }
-    // Authored at 3.0s, past the span's own end: it joins no posture and so states no place.
-    CHECK_FALSE(past_end.has_value());
-
-    // Every sounding note that claims no stop leaves the field absent: its face is its own head at
-    // its own instant, and this figure holds nothing under anything.
-    for (const NoteViewState& note : state.notes)
-    {
-        if (!silentHold(note.attack))
-        {
-            CHECK_FALSE(note.held.has_value());
-            CHECK_FALSE(note.stop_mark.has_value());
-        }
-    }
-}
-
 // THE DIGIT WINDOW and the mark that rides it. A bracket is the span's CHORD FRAME: it states
 // every member's fret AT THE INSTANT IT DRAWS, and only a head standing right there takes a number
 // out of it. A held stop is one of those members, so it prints in the frame like any other —
 // displaced into the satellite column only where its own tap head occupies the string's centre
-// right there. The note's own mark rides that same entry, and only the SATELLITE column gives it
-// one: a digit standing in the bracket's own column is the span's furniture, while the note's OWN
-// face is its satellite, published for every held stop and shown on the terms its authorship earns
-// (THE SATELLITE REVEAL). Two facts in two inks for a mid-span tap, and a drawn digit is clickable
-// and an undrawn one unreachable by construction.
+// right there. The note's own mark rides that same entry: a digit standing in the bracket's own
+// column is the span's furniture, while the note's OWN face is its satellite, published for every
+// held stop and shown on the terms its authorship earns (THE SATELLITE REVEAL). Two facts in two
+// inks for a mid-span tap, and a drawn digit is clickable and an undrawn one unreachable by
+// construction.
 TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1178,17 +1100,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         note.sustain = sustain;
         note.attack = NoteAttack::Tap;
         note.held = held;
-        return note;
-    };
-    // A silently-held stop: the fretting hand's grip on a string, with no onset and no ring of its
-    // own. What the DEFAULT cases below need is a grip that a tap on the same string cannot clamp,
-    // and a hold rings for nothing.
-    const auto hold = [](const int beat, const int string, const int fret) {
-        ChartNote note;
-        note.position = GridPosition{.measure = 1, .beat = beat};
-        note.string = string;
-        note.fret = fret;
-        note.attack = NoteAttack::None;
         return note;
     };
     const auto project = [&tempo_map](std::vector<ChartNote> notes) {
@@ -1268,7 +1179,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             if (mark.has_value())
             {
                 CHECK(mark->face == StopMarkFace::Standing);
-                CHECK(mark->slot == StopMarkSlot::Satellite);
                 CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
             }
         }
@@ -1369,7 +1279,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             REQUIRE(mark.has_value());
             if (mark.has_value())
             {
-                CHECK(mark->slot == StopMarkSlot::Satellite);
                 CHECK(mark->face == StopMarkFace::Posture);
                 CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
             }
@@ -1470,12 +1379,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // THE DEFAULT FACT: a tap that states no held stop of its own still carries a `held` and a
         // mark — whatever the fretting hand has under it answers the question.
         //
-        // The grip is a silent hold on string 3 at fret 7; the sounding note beside it gives the
-        // span its extent; and the tap at beat 3 states nothing of its own, so what is under it is
-        // that grip.
+        // The grip states fret 7 on string 3 and rings up to the tap; the longer note beside it
+        // gives the span its extent; and the tap at beat 3 states nothing of its own, so what is
+        // under it is that grip, held on under tenure after its own ring has ended.
         const ChartViewState state = project(
             {strike(1, 1, 5, Fraction{4}),
-             hold(1, 3, 7),
+             strike(1, 3, 7, Fraction{2}),
              tap(3, 3, 12, std::nullopt, Fraction{1})});
 
         const NoteViewState* const tapped = tap_view(state);
@@ -1491,7 +1400,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
                 // stop does — and it wears the note's OWN satellite at the note's own instant
                 // (1.0s), never the bracket's face, even though the posture prints the same 7.
                 CHECK(mark->face == StopMarkFace::Revealed);
-                CHECK(mark->slot == StopMarkSlot::Satellite);
                 CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
                 CHECK_FALSE(stopMarkShown(*mark, false));
                 CHECK(stopMarkShown(*mark, true));
@@ -1610,7 +1518,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             // The note's OWN face at its own instant, on the reveal's terms — never the bracket's
             // Posture face, which is a right-hand head's alone.
             CHECK(mark->face == StopMarkFace::Revealed);
-            CHECK(mark->slot == StopMarkSlot::Satellite);
             CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
             CHECK_FALSE(stopMarkShown(*mark, false));
             CHECK(stopMarkShown(*mark, true));
@@ -1647,7 +1554,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         if (mark.has_value())
         {
             CHECK(mark->face == StopMarkFace::Revealed);
-            CHECK(mark->slot == StopMarkSlot::Satellite);
             CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
         }
     }

@@ -158,8 +158,7 @@ struct KeyedSplit
 // `landings` are the moved notes at their new slots, still in slot order — one uniform delta moves
 // every one of them, so their order cannot change — which lets each unmoved note read the end the
 // gate would settle on as the distance to the NEAREST landing that strikes its string
-// (sustainBoundOf, which passes over a silent hold because one stops no ring, exactly as the
-// truncation does).
+// (sustainBoundOf, exactly as the truncation does).
 //
 // Two statements survive the clip and are therefore no reason to refuse: the RELEASE, which IS the
 // ring's end and rides back to the new one, and a statement standing exactly ON the landing, which
@@ -217,9 +216,6 @@ enum class StrandedStrikeRepair : std::uint8_t
 // the gesture started from while the ring RULES still judge the live chart. The move gesture,
 // equally a gesture, needs no such split — it judges nothing against the live chart, so its caller
 // simply hands it the pre-gesture chart and `base` is that chart's own notes.
-//
-// Silently-held stops need no arm of their own here: they are notes, so the slot-uniqueness rule
-// the gate already runs covers them, with no disjointness test between two arrays to write.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
@@ -554,10 +550,9 @@ struct AddressedStop
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // A silent hold never sounds and a scrape is not a fretted stop, so neither is a ring a path
-    // could continue; and a point states frets and channels, never a harmonic node.
-    if (common::core::silentHold(head.attack) || common::core::isScrape(head.attack) ||
-        head.harmonic_node.has_value())
+    // A scrape is not a fretted stop, so its ring is no path a point could continue; and a point
+    // states frets and channels, never a harmonic node.
+    if (common::core::isScrape(head.attack) || head.harmonic_node.has_value())
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
@@ -696,231 +691,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     target->keyframes.insert(at, common::core::Keyframe{.offset = offset, .fret = fret});
 
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
-}
-
-std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& slots, const common::core::Fraction default_sustain)
-{
-    if (slots.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    // Every sorted-by-slot sequence below is searched through this one projection.
-    const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
-    const std::vector<common::core::ChartNote> named = notesForKeys(chart.notes, slots);
-    // WHO STATES EACH STOP (DERIVED HELD), resolved against the LIVE chart because the relation
-    // lives BETWEEN notes — a snapshot of the addressed notes says nothing about their neighbours.
-    // Both readings come off one walk, exactly as planRetypeFrets takes them: the RESOLVED claim is
-    // what this verb asks instead of the stored field, like every other consumer, and the
-    // DERIVATION beside it answers who states it.
-    const common::core::ChartConnections connections =
-        common::core::chartConnections(chart.notes, tempo_map);
-    const std::vector<std::optional<int>> derived_stops =
-        common::core::chartDerivedStops(connections);
-    const std::vector<std::optional<int>> claimed_stops =
-        common::core::chartClaimedStops(connections);
-    // Where an addressed note sits in the live chart, which is what both vectors are parallel to.
-    const auto live_index =
-        [&chart, &slot_of](const common::core::ChartNote& note) -> std::optional<std::size_t> {
-        const ChartSlotKey slot = slot_of(note);
-        const auto found = std::ranges::lower_bound(chart.notes, slot, {}, slot_of);
-        if (found == chart.notes.end() || slot_of(*found) != slot)
-        {
-            return std::nullopt;
-        }
-        return static_cast<std::size_t>(found - chart.notes.begin());
-    };
-    // THE DERIVATION OWNS IT, so the verb REFUSES rather than acting — the same refusal
-    // planRetypeFrets makes on the held channel, and it binds in BOTH directions: where a pull-off
-    // states the stop there is no field to write and none to clear, and the only way to withdraw
-    // the statement is to unwrite the pull-off, which is not this verb's act. Whole-scope like
-    // every other refusal here, so one owned stop rejects the press rather than leaving a chord
-    // half toggled — and the press SAYS so, where reading the raw field left the entry diffing
-    // empty and the refusal silent.
-    const auto derivation_owns_it = [&derived_stops,
-                                     &live_index](const common::core::ChartNote& note) {
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<std::size_t> index = live_index(note);
-        return index.has_value() && derived_stops[*index].has_value();
-    };
-    if (std::ranges::any_of(named, derivation_owns_it))
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-    // Whether a note ALREADY states the fretting hand's stop, in whichever shape its onset allows:
-    // a silent hold IS that statement, and a right-hand onset carries it as a held fret because its
-    // own fret belongs to the other hand. One predicate, so the direction test and the per-slot
-    // work cannot disagree about what "already holding" means — and it reads the RESOLVED claim,
-    // never \ref ChartNote::held, which is the law every consumer of a claimed stop is under.
-    const auto states_a_stop = [&claimed_stops, &live_index](const common::core::ChartNote& note) {
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<std::size_t> index = live_index(note);
-        return index.has_value() && claimed_stops[*index].has_value();
-    };
-    // The toggle direction, asked of the scope as a whole exactly as the technique verbs ask it:
-    // only a scope whose every occupied slot ALREADY holds a stop means "stop holding". An empty
-    // slot names no note here, so it never argues for the releasing direction — there is nothing at
-    // it to release.
-    const bool release_them = !named.empty() && std::ranges::all_of(named, states_a_stop);
-    // Which words are true of that direction, which is a question about the CONTENT rather than
-    // about the direction: releasing a silent hold gives a note back its sound, while releasing a
-    // held stop leaves the onset that carried it sounding exactly as before. Asked as two counts of
-    // the same predicate rather than one, because a MIXED scope is a third answer and not the
-    // absence of the second.
-    const auto is_silent = [](const common::core::ChartNote& note) {
-        return common::core::silentHold(note.attack);
-    };
-    const bool all_silent = std::ranges::all_of(named, is_silent);
-    const bool any_silent = std::ranges::any_of(named, is_silent);
-
-    std::vector<common::core::ChartNote> candidate = chart.notes;
-    for (common::core::ChartNote& toggled : candidate)
-    {
-        if (!std::ranges::binary_search(slots, chartSlotKeyOf(toggled)))
-        {
-            continue;
-        }
-        if (release_them)
-        {
-            if (common::core::silentHold(toggled.attack))
-            {
-                // Back to a sounding note. The ring is the caller's session step, like any
-                // placement's, because a hold stored none to restore; what the conversion stripped
-                // comes back through the reversal window and undo, which carry the whole note,
-                // never by being reinvented.
-                toggled.attack = common::core::NoteAttack::Pick;
-                toggled.sustain = default_sustain;
-            }
-            else
-            {
-                // A right-hand onset stops holding: only the statement goes. The note itself is
-                // untouched, because its onset was never the fretting hand's to convert.
-                toggled.held.reset();
-            }
-        }
-        else if (common::core::rightHandOnset(toggled.attack))
-        {
-            // The FOURTH case. The verb's meaning is the same — state the fretting hand's stop at
-            // this slot — and only WHERE that statement can live differs: this onset belongs to the
-            // picking hand, so converting the note would delete a sound the charter wrote, while
-            // the stop under it is exactly what the held fret is for. Open string, like the
-            // empty-slot case below and for the same reason: the editor's one fret-stating flow is
-            // typing a digit, and the caller arms the caret on this stop so the charter states it
-            // next. A slot already stating one is left alone — asked of the RESOLVED claim like the
-            // direction above, so the seed can never write a second spelling of a stop the chart
-            // already states; the whole-scope direction is what decides between stating and
-            // releasing.
-            if (!states_a_stop(toggled))
-            {
-                toggled.held = 0;
-            }
-        }
-        else
-        {
-            // Converting a sounding note: the attack changes, and the fixpoint the saved form
-            // already defines takes everything the new attack cannot state with it — the ring, the
-            // mutes, the node, the payload. Written through savedChartNote rather than by clearing
-            // fields here, so this verb and the rule that judges its result can never disagree
-            // about what a silent hold may carry, and a technique added to ChartNote later needs no
-            // line in this function. A slot already holding a stop is left exactly as it is, which
-            // is what savedChartNote answers for it too.
-            toggled.attack = common::core::NoteAttack::None;
-            toggled = common::core::savedChartNote(toggled);
-        }
-    }
-    // The scope's EMPTY slots, which only the caret's fallback can name: each gains a hold at the
-    // open string — the editor's one fret-stating flow is typing a digit at the armed caret, and
-    // the caller arms it here, so the charter states the stop next. Appended in whatever order the
-    // scope lists them, because the shared finalize is the one authority on the stream's order.
-    for (const ChartSlotKey& slot : slots)
-    {
-        if (release_them || std::ranges::binary_search(named, slot, {}, slot_of))
-        {
-            continue;
-        }
-        candidate.push_back(
-            common::core::ChartNote{
-                .position = slot.position,
-                .string = slot.string,
-                .fret = 0,
-                .sustain = {},
-                .attack = common::core::NoteAttack::None,
-                .palm_mute = false,
-                .dead = false,
-                .harmonic_node = {},
-                .vibrato = common::core::VibratoState::Off,
-                .tremolo = false,
-                .emphasis = common::core::NoteEmphasis::Normal,
-                .bend = 0.0,
-                .keyframes = {},
-            });
-    }
-
-    std::expected<ChartEditPlan, ChartPlanRefusal> plan = finalizePlan(
-        chart,
-        tempo_map,
-        chart.notes,
-        std::move(candidate),
-        // Four labels for two directions, because the undo entry has to say what it did: releasing
-        // a silent hold gives the note its sound back, releasing a held stop leaves the onset that
-        // carried it sounding exactly as before.
-        //
-        // The fourth is the MIXED releasing scope, and it is a plural rather than a fourth verb
-        // because both kinds ARE held-stop releases — a silent hold is a held stop the fretting
-        // hand wrote as a note of its own. "Sound Note" would lie about the onsets it leaves
-        // untouched and "Release Held Stop" would lie about the notes it sounds, so the honest word
-        // is the one true of every slot in the press.
-        !release_them ? "Hold Stop"
-        : all_silent  ? "Sound Note"
-        : any_silent  ? "Release Held Stops"
-                      : "Release Held Stop");
-    if (!plan.has_value())
-    {
-        return plan;
-    }
-    // Whole-plan atomicity, asked as the ONE question the settle can answer for either shape of
-    // claim: does every slot this press stated at still state a stop? The finalize's settle takes
-    // a claimed stop that reaches no shape, and WHAT it takes differs by shape — the whole note
-    // where the note IS the claim, the field alone where a sounding onset carries it, which leaves
-    // that note byte-identical to what it was and therefore invisible to any diff of removed
-    // against inserted. Such a press states nothing at that slot, so it is refused whole rather
-    // than applied in part — which is also what lets a chord convert together and a lone member
-    // refuse, without this function knowing that spans exist. Bound once so the checked value and
-    // the reads are provably one object.
-    const ChartEditPlan& settled = *plan;
-    // Asked of the RECORD a note keeps, not of the resolution above, because what the settle TAKES
-    // is a record: "did this press's statement survive it" is a question about records, and the
-    // notes this reads are the plan's own written ones, which the live chart's resolution knows
-    // nothing about. The two readings cannot part on an addressed slot in any case — the refusal
-    // above already rejected every onset whose stop the derivation owns.
-    const auto keeps_a_record = [](const common::core::ChartNote& note) {
-        return common::core::claimedStop(note).has_value();
-    };
-    // What the settled plan leaves at a slot: the note it writes there, the note already there
-    // where it writes none, and nothing where it took the note outright. Both halves of a diff are
-    // in slot order, like every other stream here.
-    const auto states_a_stop_after =
-        [&settled, &chart, &slot_of, &keeps_a_record](const ChartSlotKey& slot) {
-            const auto written = std::ranges::lower_bound(settled.inserted, slot, {}, slot_of);
-            if (written != settled.inserted.end() && slot_of(*written) == slot)
-            {
-                return keeps_a_record(*written);
-            }
-            if (std::ranges::binary_search(settled.removed, slot, {}, slot_of))
-            {
-                return false;
-            }
-            const auto standing = std::ranges::lower_bound(chart.notes, slot, {}, slot_of);
-            return standing != chart.notes.end() && slot_of(*standing) == slot &&
-                   keeps_a_record(*standing);
-        };
-    // Only in the stating direction: releasing asks for exactly the absence this refuses.
-    if (!release_them && !std::ranges::all_of(slots, states_a_stop_after))
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-    return plan;
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
@@ -1110,8 +880,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     }
 
     // Converging moves that stack two notes on one slot are refused, as is landing on a slot an
-    // unmoved note occupies. One test covers silently-held stops too, because they are notes on
-    // the same slot space — the collision the two-array model had to state as disjointness.
+    // unmoved note occupies.
     std::vector<ChartSlotKey> target_keys;
     target_keys.reserve(notes.keyed.size());
     for (const common::core::ChartNote& note : notes.keyed)
@@ -1223,10 +992,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // entry there IS the derived claim, and a fretting-hand entry is the PLANT the note
             // wears as its own satellite on the reveal's terms (THE PLANT'S FACE) — the notation
             // owns both, so typing at either is refused alike, and a fretting-hand note can never
-            // be handed a held field its attack forbids. A plant never sits on a note the channel
-            // does not reach: the resolver refuses a silent hold as a pull-off source, so every
-            // planted note sounds and carries a held stop. Bound to a local so the presence test
-            // and the read are provably one object.
+            // be handed a held field its attack forbids. Bound to a local so the presence test and
+            // the read are provably one object.
             if (const std::optional<int>& planted = resolutions.planted_stops[*index];
                 planted.has_value())
             {
@@ -1299,9 +1066,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         }
     }
 
-    // One delta over every addressed stop — a silently-held member and a selected keyframe alike,
-    // which is what makes a transposed chord carry its held frets and a chord slide's points move
-    // together. The shift NAMES that delta; nothing here anchors it.
+    // One delta over every addressed stop — a selected head and a selected keyframe alike, which is
+    // what makes a chord slide's points move together with the heads. The shift NAMES that delta;
+    // nothing here anchors it.
     const int delta = set != nullptr ? 0 : std::get<ChartFretShift>(write).delta;
     const std::string label =
         set != nullptr
@@ -1911,9 +1678,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     //
     // The last note seen per string, indexed into the OUTPUT: a joined head is never pushed, so
     // what a later head on that string finds is the grown predecessor and not the record that just
-    // dissolved into it. A silently-held stop is skipped exactly as \ref
-    // common::core::chartConnections skips it (chart_legato.cpp, the per-string walk) — it neither
-    // rings nor can be released from, so it must not shadow the real predecessor.
+    // dissolved into it.
     std::array<std::size_t, static_cast<std::size_t>(common::core::g_max_chart_strings) + 1>
         last_per_string{};
     last_per_string.fill(common::core::g_no_chart_predecessor);
@@ -1948,7 +1713,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
             continue;
         }
         joined.push_back(note);
-        if (string_in_range && !common::core::silentHold(note.attack))
+        if (string_in_range)
         {
             last_per_string.at(static_cast<std::size_t>(note.string)) = joined.size() - 1;
         }
@@ -2111,10 +1876,10 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
         common::core::harmonicNodeCandidates(
             harmonicLabelOf(note, tuning.capo), common::core::g_max_harmonic_partial);
     // REACHABILITY IS THE RULE AUTHORITY'S ANSWER, never a bound restated here: a node past the
-    // neck, at or behind the stop, or on a note whose saved form records no node at all (a scrape,
-    // a silently-held stop) is dropped because the write it would produce is one the chart rules
-    // refuse — the same judgement planNoteWrite makes per note, asked one candidate earlier so the
-    // picker never offers a row the settle would skip. Only the last of those can fire today; the
+    // neck, at or behind the stop, or on a note whose saved form records no node at all (a scrape)
+    // is dropped because the write it would produce is one the chart rules refuse — the same
+    // judgement planNoteWrite makes per note, asked one candidate earlier so the picker never
+    // offers a row the settle would skip. Only the last of those can fire today; the
     // header states why the two positional bounds are unreachable from a label, and asking the
     // authority is what keeps this tracking them if they move.
     std::erase_if(

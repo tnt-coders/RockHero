@@ -52,9 +52,9 @@ every count.
 \brief Size of one arpeggio posture bracket pair — the "[ fret ]" mark at its span's own opening
 instant.
 
-The bracket is the only mark that states a fret nothing struck, which makes it the mark an
-authored silently-held stop wears; the editor therefore both draws it and hit-tests it, and these
-are the numbers both of those read (\ref TabLaneGeometry::bracketGeometry).
+The bracket is the only mark that states a fret nothing struck — the stop a hand holds under a
+right-hand onset, printed at its span's own instant. The satellite column beside it is the half
+that is clicked, and both are sized from these numbers (\ref TabLaneGeometry::bracketGeometry).
 */
 struct TabBracketGeometry
 {
@@ -78,8 +78,8 @@ struct TabBracketGeometry
 Whole pixels, because the bracket draws as pixel-snapped rectangles: the marks stay perfectly square
 instead of antialiasing into fuzz. It is a struct rather than four expressions because three passes
 now have to land on exactly the same edges — the fill that draws the bars, the string-line gap that
-clears them, and the outline the editor traces to show one selected — and an edge that missed its
-bar by half a pixel would look like a rendering bug rather than a spelling one.
+clears them, and the satellite digit that sits outboard of the closing bar — and an edge that missed
+its bar by half a pixel would look like a rendering bug rather than a spelling one.
 */
 struct TabBracketColumns
 {
@@ -191,9 +191,9 @@ struct TabLaneGeometry
 
     The bracket hugs a note head's ring, so every value derives from \ref headSize and the bracket
     tracks the heads at each lane size. It lives on the geometry rather than in the painter because
-    the bracket is now a HIT TARGET as well as a mark — selecting a held stop means clicking the
-    bracket that states its stop — and a second copy of these numbers in the layout manifest would
-    be the drift the manifest exists to prevent.
+    the satellite column beside the bracket is a HIT TARGET — selecting a held stop means clicking
+    the digit outboard of the closing bar, placed and sized from these numbers — and a second copy
+    of them in the layout manifest would be the drift the manifest exists to prevent.
 
     \return The bracket pair's radius, half height, bar width and serif length.
     */

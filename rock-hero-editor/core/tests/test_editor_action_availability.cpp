@@ -264,7 +264,6 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
@@ -290,18 +289,9 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
-    // The arpeggio hold reads the typed family's WIDER scope — the selection or the armed caret's
-    // own slot — which the conditions carry as one answer rather than as two the table must
-    // re-combine. A selection alone is a scope, and so is a caret alone.
-    conditions.has_chart_verb_scope = true;
-    CHECK(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
-    conditions.has_chart_verb_scope = false;
-    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
 
     conditions.has_armed_caret = true;
-    conditions.has_chart_verb_scope = true;
     CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
-    CHECK(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
 
     // The caret moves are paused-only, and so are the editor-wide move and delete, which dispatch
     // over the marker plane. The typed and technique verbs are not gated on the transport because
@@ -323,11 +313,9 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ChooseChartHarmonic));
-    CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartSilentHold));
 }
 
 // One rule for the whole marker plane: while the transport plays, no marker can be selected and no

@@ -78,8 +78,8 @@ is bookkeeping about that tenure.
      claim always witnesses (assertion against assertion is the charter re-authoring the hand);
      and a differing STRIKE against a carried claim witnesses only where the grip is ESTABLISHED
      (the span has sounded members) and the string is silent — against a still-assembling silent
-     statement the strike is evidence arriving, not contradiction: a lone one joins the assembly
-     and a full statement replaces it (LAW II). The seam ownership stands: a ring dying where a
+     statement the strike is evidence arriving, not contradiction: it joins the assembly in place
+     (LAW II). The seam ownership stands: a ring dying where a
      new grip begins belongs to its own span; onsets at a seam belong to the opener.
    - THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in parts —
      and the walk splits where the character turns, so the class is a fact of the span's founding
@@ -187,7 +187,7 @@ is bookkeeping about that tenure.
 
     A tail still stating at its end draws at all distances, a finished statement's stated portion
     rides outside the curtain, and a handover's whole ribbon draws because its transfer finishes at
-    the takeover. Taps and silent holds stand outside the law on both sides. The hold channel reads
+    the takeover. Taps stand outside the law on both sides. The hold channel reads
     the VERDICT rather than tail emptiness, so restoring the resting tails cannot re-release the
     pins. THE HOLD IS THE TENURE: every live fretting-hand member whose tail RESTS or was never
     earned, covered by a span, is held to the span's reach — resting and rule-3-emptied members
@@ -272,15 +272,17 @@ event-algebra, edge-first, deletion-first).
   `max(covered, foreign-sound end over stated strings)`, and members date it from the earliest
   onset at or after the floor — `covered` is this dating floor and never a reach input, and the
   asymmetry is the one thing separating the front from the reach. All SOUNDED members bound (a
-  claim has no evidence: it neither bounds the reach nor feeds the quit arm — LAW II is what
-  governs hand-alone spans); the reach is one minimum over sounded-member `covers`. THE INVARIANT:
+  claim lends no ring: it neither bounds the reach nor feeds the quit arm, so a span of claims alone
+  runs no distance — LAW II is what governs hand-alone spans); the reach is one minimum over
+  sounded-member `covers`. THE INVARIANT:
   every span with a sounding member is strictly positive — an offset-zero keyframe arrival is the
   one hazard, and the no-zero-length-travel fixture guards it.
 - THE LANDING: discovered at the reach where a travel arrives with two or more members ringing
   strictly past; front at the landing, bracket deferred, claims carried (the fingers slid, they
   never lifted). Emitted per rule 6's stated-or-tenure test — the quantum read is musical, and rule
   12a's display trim stays wholly at the projection.
-- LAW II (justification of hand-alone spans) and posture dedup are unchanged. THE PUBLISH LIST is
+- LAW II (a claim is a member its own carrier sounds; hand-alone spans stand at their instant) and
+  posture dedup are unchanged. THE PUBLISH LIST is
   exactly nine fields, complete: `position`, `sustain` (the musical close), `stated_extent`,
   `closing_onset`, `posture`, `silent_member`, `sounds_in_parts`, `bracket_position` and
   `landing_opened`. `landing_opened` is kept because its one honest census key is itself — the

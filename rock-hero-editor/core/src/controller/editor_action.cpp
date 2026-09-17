@@ -235,10 +235,6 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetChartHarmonicNode;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::ToggleChartSilentHold>)
-    {
-        return EditorAction::Id::ToggleChartSilentHold;
-    }
     else if constexpr (std::is_same_v<A, EditorAction::SetChartLeftTap>)
     {
         return EditorAction::Id::SetChartLeftTap;

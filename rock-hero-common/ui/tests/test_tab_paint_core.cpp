@@ -1106,9 +1106,7 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
             tap.fret = 12;
             tap.attack = common::core::NoteAttack::Tap;
             tap.held = held;
-            tap.stop_mark = common::core::StopMarkViewState{
-                .seconds = 10.0, .slot = common::core::StopMarkSlot::Satellite, .face = face
-            };
+            tap.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
             state.notes = {tap};
 
             const TabLaneMetrics metrics = makeTabLaneMetrics(

@@ -799,13 +799,13 @@ anchor a chain on (an F10-style "singles and chugs don't break the chain" rule) 
 state survives at all: the run's head is simply the onset whose predecessor differs.
 
 EVERY QUESTION HERE IS ASKED OF THE FRETTING HAND'S MEMBERS ALONE: the count, the identity's places,
-the mute and emphasis unanimities, and the capability gate's scans. A silently-held stop sounds
-nothing and a right-hand onset is the other hand, so neither is part of the strike a box speaks for.
-Two figures a mixed reading gets wrong: a tap over two identical chugs would make them different
-onsets and re-head the run, and a group of taps alone would compare identical to its neighbour and
-draw a headless repeat box for a strum nobody played. With the identity reading fretting content
-only, a REPLACED note — a chord one of whose members becomes a tap — is a shrunk fretting set, which
-is a different onset and wears its own full box, exactly as the exact string-set comparison says.
+the mute and emphasis unanimities, and the capability gate's scans. A right-hand onset is the other
+hand, so it is no part of the strike a box speaks for. Two figures a mixed reading gets wrong: a tap
+over two identical chugs would make them different onsets and re-head the run, and a group of taps
+alone would compare identical to its neighbour and draw a headless repeat box for a strum nobody
+played. With the identity reading fretting content only, a REPLACED note — a chord one of whose
+members becomes a tap — is a shrunk fretting set, which is a different onset and wears its own full
+box, exactly as the exact string-set comparison says.
 
 THE DISPLAY-CAPABILITY GATE is untouched otherwise, and it is the one thing here that is about
 drawing rather than about the music: a repeat box has no heads, so it can only stand in for a strum
@@ -867,11 +867,10 @@ whatever window a renderer happens to be drawing.
             // Every note needs a group index, whatever else it contributes.
             grouping.note_group[member] = grouping.groups.size();
             // THE STRUM IS THE FRETTING HAND'S, and this is the one place that is decided. A
-            // silently-held stop sounds nothing; a right-hand onset is the OTHER hand. Neither is
-            // part of the strike a box speaks for, so neither counts toward it, folds into its
-            // unanimities, carries its dynamics, or states a fret its identity compares — and
-            // neither is scanned by the capability gate below, which is the same question asked
-            // about the same members.
+            // right-hand onset is the OTHER hand's. It is no part of the strike a box speaks for,
+            // so it does not count toward it, fold into its unanimities, carry its dynamics, or
+            // state a fret its identity compares — and it is not scanned by the capability gate
+            // below, which is the same question asked about the same members.
             //
             // Letting a tap in the group put its own fret into the repeat identity and its own
             // sustain into the gate is the failure the right-hand half prevents: two identical
@@ -879,7 +878,7 @@ whatever window a renderer happens to be drawing.
             // of taps alone would compare identical to the next and draw a headless repeat box for
             // a strum that never happened. The identity reads FRETTING CONTENT, so a shrunk
             // fretting set is simply a different onset and wears its own full box.
-            if (silentHold(note.attack) || rightHandOnset(note.attack))
+            if (rightHandOnset(note.attack))
             {
                 continue;
             }
@@ -996,11 +995,11 @@ whatever window a renderer happens to be drawing.
         {
             const NoteViewState& note = notes[member];
             // The same members the strum is made of (above), for the same reason: the gate asks
-            // whether a box can carry this STRUM's whole statement, and a tap's sustain or a silent
-            // hold's absent mark is no part of that statement. A tap draws its own head and its own
-            // tail whatever the strum below it does, so letting one force a full box put heads back
-            // on a chug run for a sound the other hand made.
-            if (silentHold(note.attack) || rightHandOnset(note.attack))
+            // whether a box can carry this STRUM's whole statement, and a tap's sustain is no part
+            // of that statement. A tap draws its own head and its own tail whatever the strum below
+            // it does, so letting one force a full box put heads back on a chug run for a sound the
+            // other hand made.
+            if (rightHandOnset(note.attack))
             {
                 continue;
             }

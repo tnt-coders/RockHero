@@ -83,12 +83,11 @@ constexpr double g_shape_mark_brightness{1.5};
 constexpr double g_arpeggio_mark_brightness{1.3};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
 // lighter than the note rings it wraps. Its SIZE lives on the lane geometry
-// (TabLaneGeometry::bracketGeometry) rather than here, because the editor hit-tests the bracket as
-// well as drawing it — the mark IS a silent hold's whole face — and the layout manifest must bound
-// exactly the rectangles this pass fills. The brackets draw as pixel-snapped rectangles: a
-// fractional width or position antialiases into fuzzy, unsquare edges. The displaced digit's own
-// column lives on the geometry for the same reason (TabLaneGeometry::satelliteSlot): it is the
-// independent hit target for a held stop.
+// (TabLaneGeometry::bracketGeometry) rather than here, because the layout manifest places the
+// satellite column against the bars this pass fills and must land on exactly the same pixels. The
+// brackets draw as pixel-snapped rectangles: a fractional width or position antialiases into
+// fuzzy, unsquare edges. The displaced digit's own column lives on the geometry for the same
+// reason (TabLaneGeometry::satelliteSlot): it is the independent hit target for a held stop.
 
 // The plate rect the mute number-plate and the editor's pending entry box share: sized against
 // the text's own ink so the box reads as the number's ground, never a fixed chip. One authority
@@ -1607,12 +1606,6 @@ void drawAttackIcon(
 
     switch (note.attack)
     {
-        case common::core::NoteAttack::None:
-        {
-            // A silently held stop is never struck, so it has no attack to mark. It prints no head
-            // of its own either (tab_layout_manifest.h), and this icon accompanies a head.
-            break;
-        }
         case common::core::NoteAttack::Pick:
         case common::core::NoteAttack::Legato:
         {
@@ -2155,59 +2148,6 @@ void strokeTabNoteHeadOutline(
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
 }
 
-// Rationale lives on the declaration in tab_paint_core.h. The bars come from bracketColumnsAt and
-// the outboard reach from the layout's own box, so nothing about the traced shape is decided here.
-void strokeTabBracketOutline(
-    juce::Graphics& g, const TabLaneGeometry& geometry, const TabSilentHoldLayout& layout,
-    const float stroke_thickness)
-{
-    const TabBracketGeometry bracket = geometry.bracketGeometry();
-    const TabBracketColumns columns = geometry.bracketColumnsAt(layout.center_x, layout.center_y);
-    const auto bar = static_cast<float>(bracket.bar);
-    const auto serif = static_cast<float>(bracket.serif);
-    const auto left = static_cast<float>(columns.bar_left);
-    const auto right = static_cast<float>(columns.bar_right);
-    const auto top = static_cast<float>(columns.top);
-    const auto bottom = static_cast<float>(columns.bottom);
-
-    // Each glyph traced as the "[" it is: down the outer face, out along the bottom serif, back up
-    // the bar's inner face, and out along the top serif. The fill draws these same six rectangles'
-    // union, so the outline is that union's border and nothing else.
-    juce::Path outline;
-    outline.startNewSubPath(left + serif, top);
-    outline.lineTo(left, top);
-    outline.lineTo(left, bottom);
-    outline.lineTo(left + serif, bottom);
-    outline.lineTo(left + serif, bottom - bar);
-    outline.lineTo(left + bar, bottom - bar);
-    outline.lineTo(left + bar, top + bar);
-    outline.lineTo(left + serif, top + bar);
-    outline.closeSubPath();
-
-    outline.startNewSubPath(right - serif, top);
-    outline.lineTo(right, top);
-    outline.lineTo(right, bottom);
-    outline.lineTo(right - serif, bottom);
-    outline.lineTo(right - serif, bottom - bar);
-    outline.lineTo(right - bar, bottom - bar);
-    outline.lineTo(right - bar, top + bar);
-    outline.lineTo(right - serif, top + bar);
-    outline.closeSubPath();
-
-    // The digit column, when this hold's own digit was displaced into it: the mark reaches past the
-    // closing bar exactly that far, and the trace goes where the mark goes. Snapped to the pixel
-    // grid the bars are on before it is compared, because the layout's box is exact where the drawn
-    // columns are rounded — an unsnapped comparison would find the fraction of a pixel between the
-    // two and trace a hairline column beside every CENTRED digit.
-    if (const auto mark_right =
-            static_cast<float>(juce::roundToInt(layout.box.x + layout.box.width));
-        mark_right > right)
-    {
-        outline.addRectangle(right, top, mark_right - right, bottom - top);
-    }
-    g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
-}
-
 // Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on
 // purpose: they are KNOWN backgrounds the host cannot mispair with its inks. Dark is
 // 0xff101010, the lane's own established near-black; light is pure white, so the invalid red reads
@@ -2551,10 +2491,10 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = note_at(index);
-        // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
-        // bracket the arpeggio pass above drew wherever its span's mark falls, which is also its
-        // face for selection and hit testing — and where the span draws no mark, it has none.
-        if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
+        // The index range above is a tight superset, never a verdict: its start comes from the
+        // running maximum of ENDS, so a note inside it can still have finished before the window
+        // opened.
+        if (note.end_seconds < span_start)
         {
             continue;
         }
@@ -2694,8 +2634,7 @@ void paintTabLane(
     // number is the projection's answer (`StopMarkFace` and the digit slot), never this pass's, so
     // exactly one of them prints it.
     //
-    // The bracket bars are unchanged by all this. They are a silently-held stop's whole face, and
-    // what the editor hit-tests to select it. Only the lane-line gap grew to cover the digit.
+    // The bracket bars are unchanged by all this — only the lane-line gap grew to cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
@@ -2806,10 +2745,8 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = note_at(index);
-        // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
-        // bracket the arpeggio pass above drew wherever its span's mark falls, which is also its
-        // face for selection and hit testing — and where the span draws no mark, it has none.
-        if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
+        // The tails pass's own left cull: the index range is a superset of what the window shows.
+        if (note.end_seconds < span_start)
         {
             continue;
         }

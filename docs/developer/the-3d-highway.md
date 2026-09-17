@@ -355,8 +355,8 @@ derivation that already knows.
 **Every question the treatment answers is asked of the FRETTING HAND's members alone**: the
 two-or-more count that makes a group a strum, the sounding places the repeat identity compares, the
 mute and emphasis unanimities, and the display-capability gate's scans for tails and for marks. A
-silently-held stop sounds nothing and a right-hand onset is the other hand, so neither is part of
-the strike a box speaks for, and reading them anyway produces two wrong figures. A tap over two
+right-hand onset is the other hand, so it is no part of
+the strike a box speaks for, and reading one anyway produces two wrong figures. A tap over two
 identical chugs puts its own fret into the identity, which makes the two onsets DIFFERENT and
 re-heads a run that has not changed; and a group of nothing but taps compares identical to its
 neighbour and draws a headless repeat box for a strum nobody played. What looks like a retreat from
@@ -402,8 +402,8 @@ two-member arpeggio mark draws no top bar and a three-or-more draws one, counted
 POSTURE strings exactly as a strum's box counts the strings it strikes. One convention across both
 marks rather than each carrying its own — which also leaves any two-member span wearing a lighter
 frame than the wide figures. The accumulation minimum is three, so SOUND alone opens no two-member
-arpeggio: the lighter frame is for the pair an ONSET states — a lone strike beside a silently-held
-claim — for the two survivors a landed travel opens, and, once the span marker ships, for an
+arpeggio: the lighter frame is for the pair an ONSET states — a lone strike beside a claimed stop —
+for the two survivors a landed travel opens, and, once the span marker ships, for an
 authored two-note span.
 
 # The two floor lights, and the one thing they share

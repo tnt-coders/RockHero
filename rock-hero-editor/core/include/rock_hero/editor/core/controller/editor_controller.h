@@ -490,9 +490,6 @@ public:
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override;
 
-    /*! \copydoc IEditorController::onChartSilentHoldToggleRequested */
-    void onChartSilentHoldToggleRequested() override;
-
     /*! \copydoc IEditorController::onChartJunctionToggleRequested */
     void onChartJunctionToggleRequested() override;
 

@@ -179,9 +179,8 @@ pointer drag of a tone boundary leaves the cursor, since the edge is already und
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —
 `std::variant<ChartNoteKey, ChartKeyframeKey>` (`chart_selection.h`). The first is named by a
-`ChartSlotKey`, the `(position, string)` the note stream is keyed by — silently-held stops
-included, since they are notes; the second is not, and that is why the key is a sum rather than a
-kind tag beside a slot. A
+`ChartSlotKey`, the `(position, string)` the note stream is keyed by; the second is not, and that
+is why the key is a sum rather than a kind tag beside a slot. A
 note carries many keyframes, so a keyframe's identity is `(note slot, offset)` — the authored
 beat-fraction offset and never an index, because removing an earlier keyframe shifts every later
 index and moves no offset. Carrying that offset as a field only one kind uses would make "a note
@@ -238,7 +237,7 @@ Three consequences worth knowing before touching this:
 
 - **A keyframe sits on a slot of its own, so the caret stands on it exactly as on a note.** Its
   slot is the instant its offset reaches along the ring, on its note's string, and the chart's laws
-  make that slot exclusive of any sounding onset (a keyframe lies strictly inside its ring; a ring
+  make that slot exclusive of any onset (a keyframe lies strictly inside its ring; a ring
   reaches but never passes the next onset of its string). `chartCaretSlotFor` maps either kind to
   its slot, and `chartObjectAt` is its inverse — the ONE occupancy question, answering the note at
   a slot or else the keyframe there. Caret arming re-derives the selection through it, so the
@@ -247,9 +246,9 @@ Three consequences worth knowing before touching this:
   lone keyframe's nudge carries the caret with it. That inverse is also the whole of what an entry
   gesture has to ask: arming the caret SELECTS whatever `chartObjectAt` answers, so a digit typed
   where a head or a point already stands is a retype of the selection rather than a placement, and
-  no entry verb needs a rule of its own for an occupied slot. The one coincidence the laws allow — a
-  silently-held stop at a keyframe's instant on its own
-  string, since a hold bounds no ring — resolves to the note, the stream's own record.
+  no entry verb needs a rule of its own for an occupied slot. Every note sounds, so those two
+  exclusions leave no slot where a note and a keyframe both stand: the question has one answer
+  everywhere and nothing to arbitrate.
 - **Keyframes publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
   `selected_keyframes` as `ChartKeyframeRef{note_index, keyframe_index}` beside the note index
   list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
@@ -340,8 +339,7 @@ Three consequences worth knowing before touching this:
   - **The anchor is the head's PRE-GLIDE position, and that is visible.** A selected head off the
     viewport starts the window-follow glide that will centre it, while the popup is placed from
     where the head sits when the press lands, so it can open at a screen edge and stay there while
-    the lane scrolls under it. A silent-hold selection draws no head at all
-    (`noteHeadBounds` returns nothing) and the popup anchors on the lane instead.
+    the lane scrolls under it. With no head to anchor on the popup falls back to the lane.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than
@@ -446,31 +444,20 @@ String colors come from the **shared palette** in
 color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products all
 color strings through it. The glyph renderer itself is the **shared notation paint core** in
 `rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
-lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing
-(and the same for a linked keyframe's head, and for a silently-held stop's **posture bracket** —
-such a note draws no head, so what the editor marks and hit-tests is the arpeggio bracket the paint
-core already draws, at the instant the derivation publishes for it
-(`ShapeViewState::bracket_seconds`, resolved from `ChartShape::bracket_position`: the span's own
-FRONT for every span an EVENT states — which for an accumulation is its earliest uncovered member's
-onset, not whichever arrival reached the threshold — and the first interior sounding for a
-landing-opened one), and the bracket's size lives on `TabLaneGeometry` for exactly that reason: the
-painter and the hit test read one authority. A selected hold wears the accent on that bracket's own
-SILHOUETTE (`strokeTabBracketOutline`) — down each bar and around its serifs, and on to the
-satellite column when the digit is displaced there — rather than as a box around the pair, whose top
-and bottom edges would run straight through the empty centre and read as a ring around nothing. A
-hold that joined no posture draws no bracket, and the layout answers with no box at all, so nothing
-undrawn is clickable without a second rule saying so; and the same again for a **held stop's
-satellite** — the digit column outboard of a bracket's closing bar, where a right-hand onset prints
+lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,
+and the same for a linked keyframe's head and for a **held stop's satellite** — the digit column
+outboard of a bracket's closing bar, where a right-hand onset prints
 what the fretting hand is holding while its own head prints what the picking hand sounds, and where
 a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
-column's width lives on `TabLaneGeometry` too, and it is derived from the lane's text scale rather
+column's width lives on `TabLaneGeometry`, derived from the lane's text scale rather
 than measured from the digits, which is exactly what lets the framework-free layout bound the mark
-the painter draws. It is an independent TARGET: clicking it selects the note and pre-arms the
+the painter draws and keeps the painter and the hit test on one authority. It is an independent
+TARGET: clicking it selects the note and pre-arms the
 held-stop entry, so the digits that follow state that stop.
 
 WHICH column a posture digit lands in is the projection's derivation, not the painter's: it is
 published per posture string (`ShapeStringViewState::digit`), with each claim's own FACE beside it
-(`NoteViewState::stop_mark` — a hold's bracket, a fronting tap's displaced digit, or a note's own
+(`NoteViewState::stop_mark` — a fronting tap's displaced digit, or a note's own reveal-only
 satellite), so the painter draws where the hit test looks. **WHETHER one lands at all is asked AT
 THE MARK'S OWN INSTANT and at no other — THE DIGIT WINDOW.** One head can stand on the string there,
 and the three answers are one question about it: the bracket's centre where NOTHING heads the
@@ -496,11 +483,9 @@ FRAME, so it states the whole membership where the reader meets it and an accumu
 print their frets there, their own heads restating them as they arrive. That is why the window is
 the mark's own instant rather than the span: asking over the whole SPAN empties that frame of
 everything still to come, and an inclusive end lets the onset that CLOSED the span decide the digits
-inside it. The instant is also what keeps every drawn digit clickable — a HOLD's own digit can be
-displaced into the satellite column by a right-hand onset at the bracket's own instant, wherever the
-derivation anchored it, which is not the span's front when a LANDING opened that span, and the
-hold's own box runs out to cover the column its digit is drawn in, so the digit selects what the
-bars select and nothing past the drawn column is reachable), and `tab_paint_core.h` — the one
+inside it.
+
+`tab_paint_core.h` — the one
 designated juce_graphics-bearing common/ui header — exposes `paintTabLane` and
 `paintTabLaneFurniture`, which `TabView::paint` calls after deriving metrics. They are **two passes
 because a host puts chrome between them**: `paintTabLane` draws the lane's CONTENT (the marks
@@ -526,9 +511,7 @@ is deliberately single-sourced:
   where the note sounds left a pinch as a bar on an ordinary head. The
   enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
   exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor leaves every pick
-  slide wearing a circular selection ring around a plectrum head. Its bracket twin
-  `strokeTabBracketOutline` exists for the same reason and reads the same columns the bars are
-  filled from (`TabLaneGeometry::bracketColumnsAt`), so a selection edge cannot miss its bar.
+  slide wearing a circular selection ring around a plectrum head.
 - **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
   stop being labeled* rather than reading the note's own fret. The label predicate is
   `common::core::soundingStopAt` — WHERE the note sounds, the separate claim from the shape's —
@@ -683,8 +666,8 @@ from the other side: a mark drawn ON TOP of a target resolves the pointer that l
 mark has no menu to open, so its answer is silence.
 
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY**, and that is the lane's whole hit model. What a press can
-select is a mark drawn at the instant the thing it stands for happens: a note's head, a
-silently-held stop's posture bracket, a held stop's satellite column, a linked keyframe's head. A
+select is a mark drawn at the instant the thing it stands for happens: a note's head, a held stop's
+satellite column, a linked keyframe's head. A
 tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon as much as one a
 covering span's furniture HIDES — so a press over a ribbon resolves to no note and falls through to
 what a press on bare lane area does: seek, and arm the caret at the slot under the pointer. Since
@@ -770,9 +753,8 @@ selectable in their own right yet; that arrives with the span-marker work.
 **SATELLITES ARE NOTE-SCOPED, ALWAYS.** A satellite is its note's held FACE and nothing else: a
 press on one addresses that note's held stop, whatever the selection is. There is deliberately no
 dual scope — no reading in which an unselected satellite acts as the bracket's displaced digit and
-writes through the whole span — and the silently-held stop's bracket face is the record's own
-note-scoped handle. **SELECTION HANDLES** ride on top of that: a selected note's satellite is
-hit-tested as PART of that selection, so pressing it moves the caret onto that note's held stop and
+writes through the whole span. **SELECTION HANDLES** ride on top of that: a selected note's
+satellite is hit-tested as PART of that selection, so pressing it moves the caret onto that note's held stop and
 leaves a wider selection standing — naming a stop inside a selection must not be the thing that
 takes the selection away. A press on an unselected note's satellite is the ordinary press: the note
 becomes the selection, with the caret on the stop that was clicked.

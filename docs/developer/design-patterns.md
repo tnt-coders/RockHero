@@ -173,7 +173,7 @@ separate apply step checks preconditions and swaps the change in. Undo replays t
 reverse, so round trips are exact by construction — and the hover ghost can run the *same* planner
 the click runs, so an affordance can never promise an edit the commit would refuse.
 
-One of the fourteen answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
+One of the thirteen answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
 answer it must be able to give: `planSettleChart`'s flatten can exactly cancel the burst it is
 diffed against, and the caller still has to commit that — walking the chart back to the plan's base
 is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
@@ -188,17 +188,17 @@ Every other planner, `planAdjustSustain` included, keeps the
 plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
-Exemplar: `ChartEditPlan` with the fourteen planners — `planInsertNote` / `planToggleSilentHold` /
-`planClearHeldStops` / `planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
+Exemplar: `ChartEditPlan` with the thirteen planners — `planInsertNote` / `planClearHeldStops` /
+`planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
 `planAdjustSustain` / `planSetLegato` / `planSettleChart` / `planSetAttack` / `planSetNoteFlag` /
 `planSetEmphasis` / `planToggleJunctions` / `planSetVibrato` — applied by `applyChartChange` and
 replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
-authored per-string array, the note stream, and one user gesture is one undo entry. A silently-held
-shape member is a note whose attack is `None`, so the arpeggio hold verb is an ordinary in-place
+authored per-string array, the note stream, and one user gesture is one undo entry. The fretting
+hand's stop is the `held` field on the onset it sits under, so authoring one is an ordinary in-place
 rewrite of one note rather than a plan spanning two arrays, and `ChartEditPlan::reversed()` is the
 single statement of what "backwards" means.
 
-One of the fourteen returns more than a plan: `planSetLegato` answers `ChartLegatoPlan{plan,
+One of the thirteen returns more than a plan: `planSetLegato` answers `ChartLegatoPlan{plan,
 skipped, reason}`, because the notes it turned down and why are things the planner already knew, so
 carrying them costs no second pass and no separate predicate to keep in step. (Nothing displays them
 yet — the editor has no non-modal notice channel — and that is the point of the shape: the payload
@@ -418,8 +418,8 @@ proof would otherwise still pass and act on a plan that no longer exists. The fr
 of those proofs: it settles before anything that could invalidate it runs, which is the pending
 model's whole bargain.
 
-**ONE window carries every verb that uses it**, as a variant of what the next press needs — five
-alternatives since 2026-09-16 (`{keys, variant<ChartTechniqueToggle, ChartSilentHoldToggle,
+**ONE window carries every verb that uses it**, as a variant of what the next press needs — four
+alternatives since 2026-09-17 (`{keys, variant<ChartTechniqueToggle,
 ChartHarmonicGesture, ChartSustainGesture,
 ChartMoveGesture>}`) — because at most one can ever be armed: every arming runs after
 `applyChartEditPlan`, which disarms. Two optionals could both be armed — a state no verb can

@@ -155,8 +155,12 @@ without them in view.
 - Ground truth: the sighted offender worklist and sightings registry (local scratch, outside the
   repo per the corpus firewall); watch entries J and K in `docs/tracking/watch-items.md`.
 - Spans are derived at read (`chart_shapes.cpp`), store nothing, never overlap, leave gaps; the
-  three-member accumulation minimum is a signed constant. `NoteAttack::None` and the silent-hold
-  claims machinery are still in the tree.
+  three-member accumulation minimum is a signed constant. `NoteAttack::None` and the `N` verb are
+  GONE (DONE 2026-09-17, ahead of this plan and out of phase — see Phase 3 item 5). A claim has one
+  shape, the `held` stop under a right-hand onset, and the claims machinery around it stands —
+  except LAW II's justification half, which left with the attack value as dead code: a claim's
+  carrier sounds the stop it holds, so a hand-alone shape publishes at its instant with nothing to
+  justify and nothing to dissolve.
 - No fingering exists anywhere in the model; no marker, template or zone storage exists.
 - The keyboard marker-row model is built through step 4a: `MarkerFocusRow{row}` walks every
   marker row, `markerHolderIndex` answers the holder, `landOnRow` lands, `FocusRowJump` jumps,
@@ -229,10 +233,22 @@ The marker half of the former plan 60 Phase 3 and plan 61 Phase 1, plus the keyb
    the note-tail keys move the END through the content; both hard-stop at a contradiction or the
    founding minimum with the loud refusal style; `Delete` removes an authored marker (the boundary
    falls back to derivation). `Delete` on a DERIVED span waits for Phase 4's zone.
-5. **`NoteAttack::None` rips out entirely** (user ruled — no half-state): the N verb, the attack
-   value, the silent-hold claims arm and the sweep's note half leave together, ACCEPTING the named
-   gap — a span with a bracket that never sounds is unauthorable until Phase 5's templates. Loaded
-   files' existing `None` records drop on load WITH A LOAD NOTICE naming the marker system.
+5. **`NoteAttack::None` rips out entirely** — **DONE 2026-09-17**, out of phase and ahead of the
+   markers, so nothing here remains. The `N` verb, the attack value, the silent-hold shape of a
+   claim and the sweep's note half left together, and **LAW II's justification machinery left with
+   them** — with every claim carried by an onset that sounds its stop, the justification test and
+   its dissolve had no population (46,655 valid charts, 82,212 claims, zero exceptions), so they
+   were deleted from `chart_shapes.cpp` as dead code with the corpus census bit-identical. Phase 5's
+   span templates inherit nothing from that: a template that reintroduces a stop NOTHING sounds must
+   bring its own justification rule, because this one is gone rather than dormant.
+   `N` is unbound and free for reuse. The
+   named gap is ACCEPTED: stating a fretting-hand stop on a string where nothing sounds is
+   unauthorable, and brackets stay wholly derived, until Phase 5's templates. No load notice was
+   built — the user ruled no legacy or back-compat code, so an old `"attack": "none"` fails to read
+   like any unknown attack token, and the affected population was at most one local project. Phase 3
+   therefore opens with items 1-4 and 6; this plan's numbering and
+   `docs/plans/todo/span-marker-redesign.md`'s Phase 1 no longer disagree about when the rip-out
+   happens, because it has happened.
 6. **Riding the seam**: publish the OPENING SLOT on `ChartShape` (Q-D) so the strike-less census
    row is exact.
 
@@ -382,8 +398,8 @@ decided and why.
   law-by-law session: does an UNLABELLED section mark segment under rule 3 (the bar-line trigger
   subsumes GP section marks, which sit at measure starts — confirm that suffices); and does a
   claimedStop join the coverage group (rule 1 counts fretted non-tap notes and rule 6 keys on
-  written rings — neither mentions claims; a tap's held claim dies at the right-hand-onset filter,
-  and a silent hold has no sustain for rule 6 to pin). Two deliberate considerations preceded the
+  written rings — neither mentions claims; a tap's held claim dies at the right-hand-onset
+  filter). Two deliberate considerations preceded the
   signing (user, 2026-09-05); the corrective measurement pass over all 4,555 arrangements is DONE
   (tap-audit report beside the dataset):
   (a) **tap contamination — CONFIRMED, corrected, headline stands.** The source game's charts

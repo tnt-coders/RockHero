@@ -259,9 +259,7 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
         note.fret = 12;
         note.attack = common::core::NoteAttack::Tap;
         note.held = 5;
-        note.stop_mark = common::core::StopMarkViewState{
-            .seconds = 5.0, .slot = common::core::StopMarkSlot::Satellite, .face = face
-        };
+        note.stop_mark = common::core::StopMarkViewState{.seconds = 5.0, .face = face};
         return note;
     };
 

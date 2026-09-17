@@ -3692,9 +3692,9 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     }
 }
 
-// The settle fold's base is the CHART the replaced entry was applied to, not merely its notes: an
-// arpeggio-hold conversion is a legal burst, and the fold has to describe the whole of it or the
-// caller's walk-back would leave the conversion half-undone.
+// The settle fold's base is the CHART the replaced entry was applied to, not merely its notes: a
+// nudge off the string a claim was made from is a legal burst, and the fold has to describe the
+// whole of it or the caller's walk-back would leave the burst half-undone.
 TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -3706,14 +3706,13 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
     };
     pre_burst.notes[1].attack = common::core::NoteAttack::Legato;
 
-    // The burst: the ringing note is converted into a silently-held stop, which leaves the claim
-    // behind it with nothing to connect to. Mid-burst that is legal and transient — the sweep at
-    // the next settle point is what flattens it.
+    // The burst: the ringing note moves up a string, which leaves the claim behind it with nothing
+    // to connect to. Mid-burst that is legal and transient — the sweep at the next settle point is
+    // what flattens it.
     common::core::Chart burst = pre_burst;
-    burst.notes[0].attack = common::core::NoteAttack::None;
-    burst.notes[0].sustain = common::core::Fraction{};
+    burst.notes[0].string = 4;
 
-    const auto settled = planSettleChart(burst, tempo_map, pre_burst, "Hold Stop");
+    const auto settled = planSettleChart(burst, tempo_map, pre_burst, "Move Note");
     REQUIRE(settled.has_value());
     if (settled.has_value())
     {
@@ -3722,7 +3721,7 @@ TEST_CASE("the settle fold describes the whole burst it replaces", "[core][chart
         common::core::Chart applied = pre_burst;
         REQUIRE(applyChartChange(applied, *settled).has_value());
         REQUIRE(applied.notes.size() == 2);
-        CHECK(applied.notes[0].attack == common::core::NoteAttack::None);
+        CHECK(applied.notes[0].string == 4);
         CHECK(applied.notes[0].fret == 5);
         CHECK(applied.notes[1].attack == common::core::NoteAttack::Pick);
 
@@ -3835,252 +3834,57 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
     }
 }
 
-// The verb's cases, at the planner. Converting is the only fret-stating path there is; sounding a
-// hold again is its inverse; an empty slot gains the neutral open-string hold the charter then
-// types a stop onto. Every one of them passes the shared finalize, so a result the document reader
-// would reject refuses here.
-TEST_CASE("planToggleSilentHold authors, converts and sounds again", "[core][chart]")
-{
-    common::core::Chart chart = makeTestChart();
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    const common::core::Fraction step{1, 4};
-
-    SECTION("an empty slot gains a hold at the open string")
-    {
-        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3};
-        const auto plan = planToggleSilentHold(chart, tempo_map, {slot}, step);
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            CHECK(plan->removed.empty());
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted.front().attack == common::core::NoteAttack::None);
-            CHECK(plan->inserted.front().fret == 0);
-            CHECK(plan->inserted.front().sustain == common::core::Fraction{});
-            applyAndValidate(chart, tempo_map, *plan);
-        }
-    }
-
-    SECTION("a note is converted, and the hold carries its fret")
-    {
-        // The techniques the new attack cannot state go with the ring: the note here is a plain
-        // one, so a palm mute is added first to prove the strip rather than assume it.
-        chart.notes[0].palm_mute = true;
-        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
-        const auto plan = planToggleSilentHold(chart, tempo_map, {slot}, step);
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->removed.size() == 1);
-            CHECK(plan->removed.front().fret == 3);
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted.front().attack == common::core::NoteAttack::None);
-            // Position, string and FRET survive; the ring and the technique do not.
-            CHECK(plan->inserted.front().position == plan->removed.front().position);
-            CHECK(plan->inserted.front().string == plan->removed.front().string);
-            CHECK(plan->inserted.front().fret == 3);
-            CHECK(plan->inserted.front().sustain == common::core::Fraction{});
-            CHECK_FALSE(plan->inserted.front().palm_mute);
-            applyAndValidate(chart, tempo_map, *plan);
-        }
-    }
-
-    SECTION("a hold is sounded again at the caller's step")
-    {
-        chart.notes[0].attack = common::core::NoteAttack::None;
-        chart.notes[0].sustain = common::core::Fraction{};
-        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
-        const auto plan = planToggleSilentHold(chart, tempo_map, {slot}, step);
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted.front().attack == common::core::NoteAttack::Pick);
-            CHECK(plan->inserted.front().fret == 3);
-            CHECK(plan->inserted.front().sustain == step);
-            applyAndValidate(chart, tempo_map, *plan);
-        }
-    }
-}
-
-// The releasing direction's LABEL, which has to say what the press did. Two pure scopes have their
-// own words, and a MIXED one gets the plural: both kinds ARE held-stop releases, so the plural is
-// the one word true of every slot in the press, where either singular would lie about half of it.
-TEST_CASE("planToggleSilentHold labels a mixed release as held stops", "[core][chart]")
+// A range verb carries a note's held stop with no case of its own, because the stop is one of the
+// note's own fields and travels wherever the note does.
+TEST_CASE("The range verbs carry a note's held stop", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // One sounding note so both stated stops reach a shape, a silently-held stop, and a tap
-    // carrying its own held stop — the two shapes a release can take, at one slot.
+    // A chord ringing across a tap on a string it never holds: the tap's claim reaches a real span
+    // that way, so the inert sweep has no reason to take the stop it states.
     chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1}),
-        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{}),
-        makeTestNote({.measure = 2, .beat = 1}, 3, 12, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{4}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{4}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 2}),
     };
-    chart.notes[1].attack = common::core::NoteAttack::None;
     chart.notes[2].attack = common::core::NoteAttack::Tap;
-    chart.notes[2].held = 7;
+    chart.notes[2].held = 5;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const common::core::Fraction step{1, 4};
+    const std::vector<ChartSlotKey> tap_key{
+        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 3}
+    };
 
-    const ChartSlotKey silent{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 2};
-    const ChartSlotKey riding{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3};
-
-    const auto mixed = planToggleSilentHold(chart, tempo_map, {silent, riding}, step);
-    REQUIRE(mixed.has_value());
-    if (mixed.has_value())
+    // A beat later, still under the chord: the tap keeps its sounding fret and its stated stop
+    // alike.
+    const auto plan =
+        moveNotes(chart, tempo_map, tap_key, common::core::Fraction{1}, 0, "Move Note");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
     {
-        CHECK(mixed->label == "Release Held Stops");
-    }
-
-    // The two discriminations, so the plural is proven to come from the MIXTURE and not from the
-    // count of slots: each shape alone keeps its own singular word.
-    const auto sounded = planToggleSilentHold(chart, tempo_map, {silent}, step);
-    REQUIRE(sounded.has_value());
-    if (sounded.has_value())
-    {
-        CHECK(sounded->label == "Sound Note");
-    }
-    const auto released = planToggleSilentHold(chart, tempo_map, {riding}, step);
-    REQUIRE(released.has_value());
-    if (released.has_value())
-    {
-        CHECK(released->label == "Release Held Stop");
+        REQUIRE(plan->inserted.size() == 1);
+        CHECK(
+            plan->inserted.front().position ==
+            common::core::GridPosition{.measure = 2, .beat = 3, .offset = {}});
+        CHECK(plan->inserted.front().fret == 12);
+        CHECK(plan->inserted.front().held == std::optional{5});
+        applyAndValidate(chart, tempo_map, *plan);
     }
 }
 
-// Whole-plan atomicity over BOTH shapes of claim. The settle takes a claimed stop that reaches no
-// shape, and what it takes differs by shape — the whole note where the note IS the claim, the field
-// alone where a sounding onset carries it — so a press judged by which notes vanished would apply
-// half of itself the moment its subject was the field.
-TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes", "[core][chart]")
-{
-    common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A dyad on strings 1 and 3, a tap at the string-1 ring's end, and a sounding string-2 note
-    // strictly INSIDE the dyad's span. Under grip tenure the string-1 member quitting closes the
-    // span exactly at the tap's slot (member-quit arm), a tap must tile its own string's ring end,
-    // and membership is strict at the close — so a statement AT a tap's slot can never reach a
-    // standing span, and the settle takes that half of the press for the reach. The string-2 slot
-    // sits inside the span (beat 1.5) so its conversion still states something — the claim grows
-    // the standing grip in place — which is what keeps the fixture's discrimination alive instead
-    // of both halves refusing alike.
-    chart.notes = {
-        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
-        makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2}),
-        makeTestNote(
-            {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
-            2,
-            7,
-            common::core::Fraction{1, 2}),
-        makeTestNote({.measure = 2, .beat = 2}, 1, 12, common::core::Fraction{1, 2}),
-    };
-    chart.notes[3].attack = common::core::NoteAttack::Tap;
-    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
-    const common::core::TempoMap tempo_map = makeTempoMap();
-
-    const std::vector<ChartSlotKey> both{
-        ChartSlotKey{
-            .position = {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
-            .string = 2
-        },
-        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 1}
-    };
-    // The tap would state a held stop at a slot no span reaches, which states nothing; the
-    // string-2 note would convert into a claim the standing span takes as growth. Half a press is
-    // not the press.
-    const auto refused = planToggleSilentHold(chart, tempo_map, both, common::core::Fraction{1, 4});
-    REQUIRE_FALSE(refused.has_value());
-    CHECK(refused.error() == ChartPlanRefusal::Invalid);
-
-    // The discrimination: the string-2 slot ALONE states a stop that survives, so the same press
-    // over the scope that leaves the tap out is an ordinary conversion.
-    const auto accepted =
-        planToggleSilentHold(chart, tempo_map, {both[0]}, common::core::Fraction{1, 4});
-    REQUIRE(accepted.has_value());
-    if (accepted.has_value())
-    {
-        REQUIRE(accepted->inserted.size() == 1);
-        CHECK(accepted->inserted.front().attack == common::core::NoteAttack::None);
-    }
-}
-
-// The range verbs carry silently-held stops with no case of their own, because they are notes.
-TEST_CASE("The range verbs carry silently held stops", "[core][chart]")
-{
-    common::core::Chart chart = makeTestChart();
-    common::core::ChartNote hold = makeTestNote({.measure = 2, .beat = 1}, 3, 5);
-    hold.attack = common::core::NoteAttack::None;
-    hold.sustain = common::core::Fraction{};
-    chart.notes.push_back(hold);
-    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartSlotKey> hold_key{
-        ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3}
-    };
-    const std::vector<ChartSlotKey> note_key{
-        ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1}
-    };
-
-    SECTION("deleting a hold alone is one note deleted")
-    {
-        const auto plan = planDeleteSelection(chart, tempo_map, hold_key, {});
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            CHECK(plan->label == "Delete Note");
-            REQUIRE(plan->removed.size() == 1);
-            CHECK(plan->removed.front().attack == common::core::NoteAttack::None);
-            applyAndValidate(chart, tempo_map, *plan);
-        }
-    }
-
-    SECTION("a moved hold rides along with the notes")
-    {
-        std::vector<ChartSlotKey> both = note_key;
-        both.insert(both.end(), hold_key.begin(), hold_key.end());
-        std::ranges::sort(both);
-        const auto plan =
-            moveNotes(chart, tempo_map, both, common::core::Fraction{1}, 0, "Move Selection");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->inserted.size() == 2);
-            for (const common::core::ChartNote& moved : plan->inserted)
-            {
-                CHECK(
-                    moved.position ==
-                    common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-            }
-            applyAndValidate(chart, tempo_map, *plan);
-        }
-    }
-
-    SECTION("a note moved onto a held slot is refused")
-    {
-        const std::vector<ChartSlotKey> other_note{
-            ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 2}
-        };
-        const auto refused =
-            moveNotes(chart, tempo_map, other_note, common::core::Fraction{}, 1, "Move Note");
-        REQUIRE_FALSE(refused.has_value());
-        if (!refused.has_value())
-        {
-            CHECK(refused.error() == ChartPlanRefusal::Invalid);
-        }
-    }
-}
-
-// The conversion is one plan against one array, so undoing it is the same primitive run backwards
+// A fret entry is one plan against one array, so undoing it is the same primitive run backwards
 // and a failed precondition leaves the chart untouched.
-TEST_CASE("A conversion applies and reverses atomically", "[core][chart]")
+TEST_CASE("A retype applies and reverses atomically", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
-    const auto plan = planToggleSilentHold(chart, tempo_map, {slot}, common::core::Fraction{1, 4});
+    const auto plan = retypeNotes(
+        chart,
+        tempo_map,
+        {chart.notes[0]},
+        ChartFretSet{.fret = 7},
+        common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -4088,7 +3892,7 @@ TEST_CASE("A conversion applies and reverses atomically", "[core][chart]")
     }
     REQUIRE(applyChartChange(chart, *plan).has_value());
     CHECK(chart.notes.size() == original.notes.size());
-    CHECK(chart.notes[0].attack == common::core::NoteAttack::None);
+    CHECK(chart.notes[0].fret == 7);
 
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
     CHECK(chart == original);
@@ -4388,14 +4192,7 @@ TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart
     {
         // The reachability filter is the RULE AUTHORITY's answer rather than a bound restated
         // here, so an attack that cannot record a node at all drops every row: a scrape is
-        // unpitched travel end to end, and a silently-held stop states its stop and nothing else.
-        // The press then leaves those notes exactly alone.
-        common::core::Chart chart = makeSingleNoteChart(5);
-        common::core::ChartNote& note = chart.notes[0];
-        note.attack = common::core::NoteAttack::None;
-        note.sustain = {};
-        CHECK(chartHarmonicNodeCandidates(note, chart.tuning, tempo_map).empty());
-
+        // unpitched travel end to end. The press then leaves such a note exactly alone.
         common::core::Chart scraping;
         scraping.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         scraping.notes = {makeScrape({.measure = 2, .beat = 1}, 1)};
@@ -5194,22 +4991,6 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         REQUIRE_FALSE(joined.has_value());
         CHECK(joined.error() == ChartPlanRefusal::Invalid);
     }
-
-    SECTION("a silently-held head, which never sounded to be joined")
-    {
-        common::core::Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote hold =
-            makeTestNote({.measure = 3, .beat = 1}, 1, 7, common::core::Fraction{});
-        hold.attack = common::core::NoteAttack::None;
-        chart.notes = {
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4}),
-            std::move(hold)
-        };
-        const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
-        REQUIRE_FALSE(joined.has_value());
-        CHECK(joined.error() == ChartPlanRefusal::Invalid);
-    }
 }
 
 // Both halves in ONE press and one entry, which is the whole claim of a single verb: the selection
@@ -5722,9 +5503,8 @@ TEST_CASE("The held channel is refused at a fretting-hand source's plant", "[cor
     }
 }
 
-// THE HELD CHANNEL'S DELETE (THE PLANT'S FACE): a clearing planner of its own, because the hold
-// verb's releasing direction reads the claim column, which a default and a plant never enter —
-// routed there, Delete would author a held 0 on the one and convert the other into a silent hold.
+// THE HELD CHANNEL'S DELETE (THE PLANT'S FACE): a clearing planner of its own, because a default
+// satellite carries no statement at all and a Delete on it must never author a real held 0.
 // Four answers off one table: an AUTHORED stop is withdrawn, a DEFAULT clears nothing, and a
 // DERIVED tap stop and a PLANT are the notation's and refuse.
 TEST_CASE("Clearing held stops withdraws the charter's statement and nothing else", "[core][chart]")
@@ -5993,50 +5773,6 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
     // the fret the picking hand sounds.
     CHECK(tap->fret == 12);
     CHECK(tap->attack == common::core::NoteAttack::Tap);
-}
-
-// THE SAME REFUSAL FROM THE OTHER VERB. N states the fretting hand's stop at a slot, or releases
-// it, and where a PULL-OFF states that stop there is neither a field to write nor one to clear —
-// withdrawing the statement would mean unwriting the pull-off, which is not this verb's act. So
-// the press is REFUSED in either direction rather than quietly doing nothing: reading the raw
-// field instead would diff empty and answer NoChange, silent where the pending box needs a red.
-TEST_CASE("Arpeggio hold is refused where a pull-off states the stop", "[core][chart]")
-{
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    const common::core::Fraction step{1, 4};
-    const std::vector<ChartSlotKey> tap_slot{keyAt({.measure = 2, .beat = 1}, 1)};
-
-    SECTION("the pulled-off tap is refused")
-    {
-        const common::core::Chart chart =
-            makeDerivedHeldChart(common::core::NoteAttack::Legato, std::nullopt);
-        REQUIRE(claimedStops(chart, tempo_map).front() == std::optional{5});
-        const auto plan = planToggleSilentHold(chart, tempo_map, tap_slot, step);
-        REQUIRE_FALSE(plan.has_value());
-        if (!plan.has_value())
-        {
-            CHECK(plan.error() == ChartPlanRefusal::Invalid);
-        }
-    }
-
-    SECTION("the same figure with a PICKED successor states the stop as ever")
-    {
-        // The discrimination is the successor's attack alone: nothing states the tap's stop now, so
-        // the verb seeds the open string exactly as it does under any other right-hand onset, and
-        // the tap's own sound is untouched.
-        const common::core::Chart chart =
-            makeDerivedHeldChart(common::core::NoteAttack::Pick, std::nullopt);
-        REQUIRE_FALSE(claimedStops(chart, tempo_map).front().has_value());
-        const auto plan = planToggleSilentHold(chart, tempo_map, tap_slot, step);
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted.front().held == std::optional{0});
-            CHECK(plan->inserted.front().attack == common::core::NoteAttack::Tap);
-            CHECK(plan->inserted.front().fret == 12);
-        }
-    }
 }
 
 } // namespace rock_hero::editor::core

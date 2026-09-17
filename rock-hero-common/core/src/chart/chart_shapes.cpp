@@ -178,9 +178,8 @@ struct StatedStop
 struct StringHand
 {
     // The last fretting-hand sounding note on this string — the record the channel reader is
-    // asked of. Empty where the hand has never sounded the string. Right-hand onsets and silent
-    // holds never write it: a tap sounds the stop the OTHER hand holds, so it asserts no grip of
-    // its own, and a silent hold has no ring to assert one with.
+    // asked of. Empty where the hand has never sounded the string. A right-hand onset never writes
+    // it: a tap sounds the stop the OTHER hand holds, so it asserts no grip of its own.
     std::optional<std::size_t> finger;
 
     Fraction covers{};
@@ -212,8 +211,8 @@ struct StringHand
 };
 
 // One authored claim inside a span: the record the charter stated, carried apart from the sounded
-// grip because it holds provenance the sound never has — justification, the published face, and
-// the inert sweep are all keyed on it (LAW II machinery).
+// grip because it holds provenance the sound never has — the published face and the inert sweep
+// are both keyed on it.
 struct StopClaim
 {
     std::size_t note_index{0};
@@ -221,28 +220,6 @@ struct StopClaim
     Fraction beat{};
     int fret{0};
 };
-
-// What one slot SOUNDS on the fret-hand axis, for the claim law's fret match: a fretting-hand
-// strike sounds the stop it presses, and a right-hand onset sounds the stop the OTHER hand holds
-// under it, because a tap's pitch derives from the stopped length. One query for both, so the
-// membership count, the justification and the fret-match can never read them differently.
-struct SoundedStop
-{
-    ChartStop stop{};
-    std::optional<std::size_t> claim_note{};
-};
-
-using SoundedStops = std::vector<std::optional<SoundedStop>>;
-
-// Whether a slot's sounded stops answer a claim: the standing fret-match law — one of the span's
-// own held frets played inside the span, by either hand's way of sounding a stop. A claim is always
-// a PRESSED stop, so a harmonic touching a node answers no open-string claim of 0: the node is not
-// the open string it shares a fret number with.
-[[nodiscard]] bool answersClaim(const StopClaim& claim, const SoundedStops& sounded)
-{
-    const std::optional<SoundedStop>& stop = sounded[claim.string_index];
-    return stop.has_value() && stop->stop == frettedStop(claim.fret);
-}
 
 // A HAND-FREE stop: one the fretting hand presses NOTHING for, so its RING proves nothing about
 // where the hand is once the strike is over. The open string and the node a natural (or open-string
@@ -282,13 +259,6 @@ using SoundedStops = std::vector<std::optional<SoundedStop>>;
         return std::nullopt;
     }
     return frettedStop(*planted);
-}
-
-[[nodiscard]] std::optional<std::size_t> soundingClaimNote(
-    const SoundedStops& sounded, const std::size_t string_index)
-{
-    const std::optional<SoundedStop>& stop = sounded[string_index];
-    return stop.has_value() ? stop->claim_note : std::nullopt;
 }
 
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
@@ -336,7 +306,6 @@ struct OpenSpan
     std::optional<Fraction> last_stated_beat{};
 
     bool silent_only{false};
-    bool justified{false};
 
     // The hand's OWN strokes have sounded this grip in parts — what the unison-restatement break
     // and the partial-sounding guards read. Narrower than the published class
@@ -348,11 +317,6 @@ struct OpenSpan
     // the bracket deferral on it. Not derivable from `last_stated_beat`, which stops being empty
     // the moment an interior re-pick states the successor.
     bool landing_opened{false};
-
-    // The records whose justification reached this span, published when it is emitted — the
-    // deferral that makes emit the one writer of \ref ChartShapes::claim_shapes, since a landing
-    // span can still be dropped by the tenure rule and publication must ride the push.
-    std::vector<std::size_t> justified_by;
 };
 
 // Everything one slot states, read before any span is touched. The reading is pure; the walk's
@@ -372,7 +336,6 @@ struct SlotReading
     std::vector<std::optional<Fraction>> sounding;
 
     std::vector<StopClaim> claims;
-    SoundedStops sounded;
 
     std::size_t struck{0};
 };
@@ -406,14 +369,12 @@ ChartShapes deriveChartShapes(
         return static_cast<std::size_t>(note.string - 1);
     };
     // The SOUNDING onsets as a sorted set — the membership the slot walk applies per member (a
-    // string the model knows, and no silent hold), so the opening mark's "is the front a strike"
-    // question answers with the same filter. `onset_beat` itself is an index-parallel table and
-    // never a set: a silent hold's onset sits in it too.
+    // string the model knows), so the opening mark's "is the front a strike" question answers with
+    // the same filter. `onset_beat` itself is an index-parallel table and never a set.
     std::vector<Fraction> sounding_onset_beats;
     for (std::size_t note = 0; note < saved_notes.size(); ++note)
     {
-        if (note_string_index(saved_notes[note]).has_value() &&
-            !silentHold(saved_notes[note].attack))
+        if (note_string_index(saved_notes[note]).has_value())
         {
             sounding_onset_beats.push_back(onset_beat[note]);
         }
@@ -497,7 +458,7 @@ ChartShapes deriveChartShapes(
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
     // (rule 8's quit arm), with its per-string renewal: a member string whose sound ends exactly
     // here and is re-sounded by this slot was REPLACED, not silenced. Claims are outside it
-    // entirely — a claim has no evidence, and LAW II is what governs hand-alone spans.
+    // entirely — a claim has no evidence, so it has no sound of its own to quit.
     const auto in_force = [&hand](
                               const OpenSpan& span,
                               const Fraction now,
@@ -539,20 +500,13 @@ ChartShapes deriveChartShapes(
     };
 
     // The one act that publishes a span (rule 9: the close is the breaking event's onset or where
-    // the statement ran out, whichever is earlier). LAW II's dissolution and rule 6's tenure drop
-    // both live here, before anything is pushed, which is what lets publication ride the push.
+    // the statement ran out, whichever is earlier). Rule 6's tenure drop lives here, before
+    // anything is pushed, which is what lets publication ride the push.
     const auto emit = [&](const std::optional<Fraction> close_beat,
                           const std::optional<GridPosition>
                               closing_onset) {
         if (!open.has_value())
         {
-            return;
-        }
-        // An unjustified span the hand alone stated dissolves: nothing it could have been
-        // fronting exists (LAW II, unchanged).
-        if (open->silent_only && !open->justified)
-        {
-            open.reset();
             return;
         }
         const Fraction reach = span_reach(*open);
@@ -638,14 +592,6 @@ ChartShapes deriveChartShapes(
             open->bracket_position.has_value() &&
             std::ranges::any_of(
                 texture, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
-        for (const std::size_t note_index : open->justified_by)
-        {
-            std::optional<std::size_t>& reach_entry = derived.claim_shapes[note_index];
-            if (!reach_entry.has_value())
-            {
-                reach_entry = derived.shapes.size();
-            }
-        }
         // Built once and handed to the table; the row copies it only on a first sighting.
         ChartPosture posture{.stops = std::move(stops), .texture = std::move(texture)};
         const auto [entry, inserted] =
@@ -785,10 +731,8 @@ ChartShapes deriveChartShapes(
                 .bracket_position = std::nullopt,
                 .last_stated_beat = std::nullopt,
                 .silent_only = false,
-                .justified = false,
                 .struck_in_parts = false,
                 .landing_opened = true,
-                .justified_by = {},
             };
             // The landing restarts each survivor's fretting-hand coverage at the landed grip —
             // re-read from the channel, so a multi-leg glide's NEXT departure still caps it
@@ -816,7 +760,6 @@ ChartShapes deriveChartShapes(
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
             .sounding = std::vector<std::optional<Fraction>>(string_count),
             .claims = {},
-            .sounded = SoundedStops(string_count),
             .struck = 0,
         };
         std::size_t onset_end = index;
@@ -825,7 +768,7 @@ ChartShapes deriveChartShapes(
             const ChartNote& member = saved_notes[onset_end];
             const std::optional<std::size_t> string_index = note_string_index(member);
             const std::optional<int> claim = claimed_stops[onset_end];
-            if (string_index.has_value() && !silentHold(member.attack))
+            if (string_index.has_value())
             {
                 slot.sounding[*string_index] = ring_end_of(onset_end);
             }
@@ -839,8 +782,10 @@ ChartShapes deriveChartShapes(
                         .fret = *claim,
                     });
             }
-            if (string_index.has_value() && !silentHold(member.attack) &&
-                !rightHandOnset(member.attack))
+            // THE FRETTING HAND'S OWN STRIKES alone: a right-hand onset sounds the stop the other
+            // hand holds under it and asserts no grip of its own, so it strikes nothing here — its
+            // held fret reaches the statement path as the claim above.
+            if (string_index.has_value() && !rightHandOnset(member.attack))
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
                 const StatedStop struck = statedStopFrom(member, Fraction{});
@@ -848,20 +793,10 @@ ChartShapes deriveChartShapes(
                 const std::optional<ChartStop>& struck_stop = struck.stop;
                 if (struck_stop.has_value())
                 {
-                    slot.sounded[*string_index] =
-                        SoundedStop{.stop = *struck_stop, .claim_note = std::nullopt};
                     slot.strikes[*string_index] = struck_stop;
                     slot.strike_notes[*string_index] = onset_end;
                     ++slot.struck;
                 }
-            }
-            else if (string_index.has_value() && rightHandOnset(member.attack) && claim.has_value())
-            {
-                // What a right-hand onset sounds on the fret axis is the stop the other hand
-                // holds under it — the tap-harmonic arm, and the whole of the tap's held-fret
-                // participation on the statement path. A held stop is always a PRESSED one.
-                slot.sounded[*string_index] =
-                    SoundedStop{.stop = frettedStop(*claim), .claim_note = onset_end};
             }
             ++onset_end;
         }
@@ -869,36 +804,16 @@ ChartShapes deriveChartShapes(
         // ---- 2. LANDINGS RESOLVE FIRST -------------------------------------------------------
         settle_landings(slot.beat);
 
-        // ---- 3. JUSTIFY a hand-alone span with this slot's sounded stops (LAW II) -----------
-        if (open.has_value() && open->silent_only && !open->justified)
-        {
-            for (const StopClaim& claim : open->claims)
-            {
-                if (!answersClaim(claim, slot.sounded))
-                {
-                    continue;
-                }
-                open->justified = true;
-                open->justified_by.push_back(claim.note_index);
-                const std::optional<std::size_t> answering =
-                    soundingClaimNote(slot.sounded, claim.string_index);
-                if (answering.has_value())
-                {
-                    open->justified_by.push_back(*answering);
-                }
-            }
-        }
-
-        // ---- 4. THE VERDICT, against the PRE-instant hand table ------------------------------
+        // ---- 3. THE VERDICT, against the PRE-instant hand table ------------------------------
         // Standing = the span's statement is still in force here, with per-string renewal (a
         // member whose sound ends exactly here and is re-sounded was replaced, not silenced).
         const bool standing = open.has_value() && in_force(*open, slot.beat, slot.sounding);
 
-        // WHAT THIS SLOT STATES per string, strikes and claims as one table: a silent hold and a
-        // tap's held fret are STATEMENTS about where the fretting hand is, exactly as a strike is
-        // (rule 2 — the held fret participates fully on the statement path), so the contradiction
-        // and displacement witnesses read them identically. A slot never states one string twice:
-        // two records at one (position, string) are a collision, not an overlap.
+        // WHAT THIS SLOT STATES per string, strikes and claims as one table: a tap's held fret is a
+        // STATEMENT about where the fretting hand is, exactly as a strike is (rule 2 — the held
+        // fret participates fully on the statement path), so the contradiction and displacement
+        // witnesses read them identically. A slot never states one string twice: two records at one
+        // (position, string) are a collision, not an overlap.
         std::vector<std::optional<ChartStop>> stated_here(string_count);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
@@ -924,7 +839,7 @@ ChartShapes deriveChartShapes(
         // a current bound.
         //
         // THE STATEMENT-BEGAN COLUMN for this instant rides the same pass, for the same reason:
-        // the dating below reads it before step 7 applies the slot to the hand, so it is a
+        // the dating below reads it before step 6 applies the slot to the hand, so it is a
         // pre-instant verdict like every other. A string this slot does not strike keeps the
         // beginning it already had (its statement did not change here); a strike begins its own
         // statement unless THE TIE DOCTRINE hands it one — the predecessor's ring reaches this
@@ -1116,8 +1031,7 @@ ChartShapes deriveChartShapes(
                 // the finger IS, so playing elsewhere is a different hand (the re-pick split). A
                 // strike over a string still SOUNDING its stop is the tie doctrine (displacement
                 // above heard any disagreement), and a strike against a still-assembling SILENT
-                // statement is new evidence arriving, not a contradiction — a lone one joins the
-                // assembly, a full statement replaces it (LAW II's territory, below).
+                // statement is new evidence arriving, not a contradiction — it joins the assembly.
                 for (const StopClaim& claim : open->claims)
                 {
                     // The hold-under exemption takes arm (a) ONLY: a source striking here that
@@ -1141,17 +1055,6 @@ ChartShapes deriveChartShapes(
                 }
             }
         }
-
-        // AN EVIDENCE-LESS STATEMENT IS REPLACED, NOT GROWN (migration finding, the honest
-        // boundary of item 1's no-guard ruling): the sound-overlap proof — "a dead ring fires the
-        // quit arm first" — needs SOUNDED evidence, and an unjustified hand-alone span has none
-        // to quit. A slot stating a grip of its own that does not answer such a span's claims
-        // (justification ran above, before this verdict) is rule 5's "a new grip replaces it":
-        // the claim-only statement dissolves unheard (LAW II) and the real statement opens its
-        // own span. A lone addition still joins the assembling statement.
-        const bool replaces_unjustified =
-            standing && open->silent_only && !open->justified &&
-            slot.struck + slot.claims.size() >= g_span_member_threshold;
 
         // THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in
         // parts — and the walk splits where the character turns, so the class is a fact of the
@@ -1178,12 +1081,12 @@ ChartShapes deriveChartShapes(
         // What continues is exactly the chug chain: a never-in-parts span restruck at
         // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
         // open). Claim-carrying spans stand OUTSIDE both directions for now: a strike at a
-        // claim-carrying span is evidence arriving against the claims (LAW II), not a
-        // character turn, so those figures keep the riding behavior until sighted. A differing
-        // fret on a stated string does not always break above — THE HOLD-UNDER LAW exempts a
-        // pull-off source planting the grip's stop — so the direction's arithmetic counts a
-        // string as touched only where the strike RESTATES the span's own stop; the source's
-        // ornament above the grip is neither the statement coming apart nor a restatement.
+        // claim-carrying span is evidence arriving against the claims, not a character turn, so
+        // those figures keep the riding behavior until sighted. A differing fret on a stated
+        // string does not always break above — THE HOLD-UNDER LAW exempts a pull-off source
+        // planting the grip's stop — so the direction's arithmetic counts a string as touched
+        // only where the strike RESTATES the span's own stop; the source's ornament above the
+        // grip is neither the statement coming apart nor a restatement.
         // Whether any stated member's finger is MID-TRAVEL at this slot — the rule-8/10 fact
         // ("fingers travelling together carry the statement; the close belongs to the landing")
         // that the character split AND the class flip in the dispose arm both read: transit is
@@ -1298,10 +1201,6 @@ ChartShapes deriveChartShapes(
                  ++ahead)
             {
                 const ChartNote& member = saved_notes[ahead];
-                if (silentHold(member.attack))
-                {
-                    continue;
-                }
                 const std::optional<std::size_t> string_index = note_string_index(member);
                 if (!string_index.has_value())
                 {
@@ -1433,9 +1332,8 @@ ChartShapes deriveChartShapes(
                                 open->last_stated_beat.has_value() && !member_travelling);
         }
 
-        // ---- 5. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
-        if (standing && !contradiction && !replaces_unjustified && !unison_restatement &&
-            !partial_sounding)
+        // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
+        if (standing && !contradiction && !unison_restatement && !partial_sounding)
         {
             // GROWTH IS ACCUMULATION (rule 8): every struck or claimed stop the grip lacks joins in
             // place; the quit arm is what guarantees absorption only ever unions grips whose sounds
@@ -1649,7 +1547,7 @@ ChartShapes deriveChartShapes(
                 // digit twice; this slot is the first sounding after it and takes the mark, exactly
                 // as a landing successor defers its own to its first interior sounding. Onsets
                 // ascend with the notes, so the front is a strike iff some SOUNDING onset lands
-                // on it — a slot holding only silent holds is no strike.
+                // on it — a front measured back to a landing has none.
                 const bool front_sounds =
                     std::ranges::binary_search(sounding_onset_beats, front_beat);
                 open = OpenSpan{
@@ -1661,10 +1559,8 @@ ChartShapes deriveChartShapes(
                     .bracket_position = front_sounds ? front : slot.position,
                     .last_stated_beat = slot.beat,
                     .silent_only = silent,
-                    .justified = false,
                     .struck_in_parts = false,
                     .landing_opened = false,
-                    .justified_by = {},
                 };
                 // Born in parts exactly when a stroke founded it and that stroke was not whole
                 // (above).
@@ -1672,7 +1568,7 @@ ChartShapes deriveChartShapes(
             }
         }
 
-        // ---- 6. ATTACH this slot's claims to whatever stands ---------------------------------
+        // ---- 5. ATTACH this slot's claims to whatever stands ---------------------------------
         if (open.has_value())
         {
             for (const StopClaim& claim : slot.claims)
@@ -1684,27 +1580,14 @@ ChartShapes deriveChartShapes(
                     open->claims.push_back(claim);
                 }
             }
-            // A claim this same slot makes can be answered by the slot's own sounded stops (the
-            // tap-harmonic arm): one record stating two facts at one instant.
-            if (open->silent_only && !open->justified)
-            {
-                for (const StopClaim& claim : open->claims)
-                {
-                    if (answersClaim(claim, slot.sounded))
-                    {
-                        open->justified = true;
-                        open->justified_by.push_back(claim.note_index);
-                    }
-                }
-            }
         }
 
-        // ---- 7. APPLY the slot to the hand table (after every verdict has read it) -----------
+        // ---- 6. APPLY the slot to the hand table (after every verdict has read it) -----------
         for (std::size_t note_at = index; note_at < onset_end; ++note_at)
         {
             const ChartNote& member = saved_notes[note_at];
             const std::optional<std::size_t> string_index = note_string_index(member);
-            if (!string_index.has_value() || silentHold(member.attack))
+            if (!string_index.has_value())
             {
                 continue;
             }

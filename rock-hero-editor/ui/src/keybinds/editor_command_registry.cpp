@@ -502,11 +502,6 @@ constexpr int g_add_lane_key = 'a';
         "Authoring",
         {chord('v', shift)});
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
-    // A BARE letter for a verb that is neither a technique nor a dynamic: `N` for "note type", the
-    // conversion between a sounding note and a silently-held shape member; a common charting verb
-    // earns a bare key. The letter is unclaimed across the matrix and this registry, so it
-    // collides with nothing and reserves nothing.
-    add(EditorCommandId::ChartSilentHoldToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command. Each digit registers BOTH entry verbs, the bare digit

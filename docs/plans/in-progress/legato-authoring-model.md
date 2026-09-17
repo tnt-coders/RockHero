@@ -144,7 +144,7 @@ pixel-identical by design.
 (`ChartNotesTopEntry{plan, history_position}`), and the toggle window stores only the armed keys
 (since 2026-08-21 the ONE window every technique verb shares, because at most one can ever be
 armed — since 2026-08-22 `m_chart_verb_window{keys, variant<ChartTechniqueToggle,
-ChartSilentHoldToggle, ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture>}`, the duration
+ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture>}`, the duration
 and move gestures having joined it on the same argument and the fret-hand harmonic verb on
 2026-09-16, when it stopped being a toggle). The settle
 sweep folds into that record and the

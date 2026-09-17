@@ -187,8 +187,7 @@ std::vector<ChartKeyframeRef> selectedKeyframeIndices(
 }
 
 // The stream is sorted by (position, string), so an onset group is one contiguous run and this is
-// one equal_range — the group is an instant, not an array. Silently-held stops fall inside it with
-// no case of their own, which is the whole point of their living in the note stream.
+// one equal_range — the group is an instant, not an array.
 //
 // A keyframe's group is the keyframes at its instant across every note that carries one. Those are
 // not contiguous — each rides its own note at its own offset — so this walks the notes whose onset

@@ -301,7 +301,7 @@ one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCare
 `StepToRowObject`, `JumpToFocusRow`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`,
+`ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`,
 `ToggleChartJunction`) — so
 path (b) is path (a) with
 a different trigger: the availability policy
@@ -423,8 +423,8 @@ it stopped being a toggle and left `chartTechniqueLaw` — `ChartTechnique::Harm
 for the stating verb described below. Every
 compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
 behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
-tap with nothing to strike is skipped (E4), an attack on a silent hold is refused for the ring it
-would have to keep — so a row states none of it. `Shift+T`'s left-hand tap is deliberately NOT a
+tap with nothing to strike is skipped (E4) — so a row states none of it. `Shift+T`'s left-hand tap
+is deliberately NOT a
 row: it is a statement no toggle may withdraw, so it keeps its own stating verb
 (`onChartLeftTapRequested`) over the same planner.
 The planner applies the generalized dissolve law to what it wrote,
@@ -434,20 +434,6 @@ reporting seam is a modal error box and "nothing to do" is not an error — lega
 and their dominant reason
 in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
 `onChartLeftTapRequested`,
-`onChartSilentHoldToggleRequested` (the arpeggio hold verb, `N` — selection-scoped like every chart
-verb, with the typing family's caret fallback behind it (`chartVerbSlots`, the one place the
-empty-scope rule is written): a whole chord converts in one press and one entry, and an empty armed
-slot — the one thing a selection cannot name, since nothing is there to select — gains a hold at the
-open string, which the charter then types a stop onto. A sounding note is CONVERTED, keeping its
-slot and its fret and losing the ring and techniques its new attack cannot state; a hold is sounded
-again as a plain pick at the session's grid step, and the direction is the scope's as a whole, like
-every technique toggle's. A second press inside the verb's own window reverses the first exactly,
-which is the only thing that can restore what a conversion stripped. Silent with no scope, and
-silent when the press would state nothing — a held stop that reaches no shape is removed by the
-settle, so a press whose own product it would remove refuses whole rather than deleting the note it
-was asked to hold. The verb draws no mark of its own: what shows a hold is the arpeggio bracket its
-stop reaches the posture through — user ruling 2026-08-27, recorded in
-`docs/plans/todo/arpeggio-authoring.md`),
 `onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
 because a junction has exactly two states and the press moves each selected one to the other. A
 selected KEYFRAME becomes a head: the note's path ends there and a new head takes the remainder,
@@ -590,8 +576,7 @@ every one of them a held stop even where the chart states none (user ruling 2026
 consequences for this grammar. Clearing an authored stop no longer takes the mark away: Delete drops
 that satellite back to its default, so the caret stays on the held channel and the next digit
 AUTHORS a fresh statement in the same place. And what still leaves the caret on the head is a note
-that never had a second mark at all — a fretting-hand onset, whose own stop IS its head, or a
-silently-held stop, whose fret is its own.
+that never had a second mark at all — a fretting-hand onset, whose own stop IS its head.
 
 There is no third channel, and that is a ruling rather than a gap (user ruling 2026-08-31,
 satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and the

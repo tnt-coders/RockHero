@@ -768,11 +768,11 @@ struct SourceLanding
     return SourceLanding{.arrival = *lands, .statement_end = std::min(ends, note.sustain)};
 }
 
-// A sounding fretting-hand onset: what opens a span, re-picks one, and travels. A silent hold
-// states a posture without sound; the picking hand's own onsets are evidence, never members.
+// A sounding fretting-hand onset: what opens a span, re-picks one, and travels. The picking hand's
+// own onsets are evidence, never members.
 [[nodiscard]] bool soundsWithFrettingHand(const ChartNote& note)
 {
-    return !common::core::silentHold(note.attack) && !common::core::rightHandOnset(note.attack);
+    return !common::core::rightHandOnset(note.attack);
 }
 
 // The note stream indexed the three ways every gate below asks about it: each note's exact global
@@ -786,11 +786,9 @@ struct StreamIndex
     std::vector<std::size_t> slot_last;
     std::map<GridPosition, std::size_t> slot_of;
 
-    // SOUNDING onsets only, per string. Every question this column answers is a question about
-    // sound — where a ring's next same-string onset lands, and which note last sounded a string —
-    // so it holds exactly the set production reads for those (`sounding_rings` in
-    // chart_shapes.cpp). The slot arrays above still carry the whole stream, silent holds
-    // included, because a slot is a position and not a sound.
+    // Onsets per string. Every question this column answers is a question about sound — where a
+    // ring's next same-string onset lands, and which note last sounded a string — so it holds
+    // exactly the set production reads for those (`sounding_rings` in chart_shapes.cpp).
     std::vector<std::vector<std::size_t>> by_string;
 };
 
@@ -818,13 +816,8 @@ struct StreamIndex
         {
             index.slot_last.back() = note_index + 1;
         }
-        // A silent hold joins no column: it sounds nothing, so the law reads it as neither the
-        // onset that ends a ring nor a witness that a string is still going. Leaving it in would
-        // let a held finger bridge a stored gap the production walk calls a detachment, and let it
-        // shadow the note that really rings there.
         const int string = notes[note_index].string;
-        if (string >= 1 && string <= common::core::g_max_chart_strings &&
-            !common::core::silentHold(notes[note_index].attack))
+        if (string >= 1 && string <= common::core::g_max_chart_strings)
         {
             index.by_string[static_cast<std::size_t>(string)].push_back(note_index);
         }
@@ -1598,11 +1591,6 @@ struct Census
     long long arrangements{0};
     long long chart_notes{0};
 
-    // THE RULING'S OWN INVARIANT (Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS. D11's
-    // fronted-claims machinery is the only thing that would produce a `NoteAttack::None` record on
-    // the import path, so a silent hold anywhere in a built chart means it came back.
-    long long imported_claims{0};
-
     // DERIVED HELD: the population the derivation populates — right-hand onsets a PULL-OFF states a
     // fretting-hand stop under, which is a fact about the note's NEIGHBOUR and therefore a corpus
     // question rather than a per-note one. The residue row beside it is a construction promise with
@@ -2297,10 +2285,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             const common::core::Chart& chart = built->arrangements[track].chart;
             ++census.arrangements;
             census.chart_notes += static_cast<long long>(chart.notes.size());
-            census.imported_claims +=
-                std::ranges::count_if(chart.notes, [](const common::core::ChartNote& note) {
-                    return common::core::silentHold(note.attack);
-                });
             // The built-chart incidence beside the source incidence: the builder merges ties and
             // spells ornaments out, so the two populations are genuinely different numbers and a
             // prior census quoting one of them has to be read against the right one.
@@ -2691,15 +2675,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .label = "roll beats",
                 .rig = static_cast<double>(census.roll_beats),
                 .expected = 3.0,
-            },
-            CrossCheck{
-                // THE RULING'S OWN INVARIANT (Q7): with rolls derived, IMPORTS AUTHOR ZERO CLAIMS.
-                // Exact-match by design — one silent hold in a built chart means D11's
-                // fronted-claims machinery came back, and there is no tolerance band in which that
-                // would be acceptable.
-                .label = "imported claims (the ruling says ZERO)",
-                .rig = static_cast<double>(census.imported_claims),
-                .expected = 0.0,
             },
             CrossCheck{
                 // THE DATING RULE's own promise: a span dates from its earliest member onset NOT

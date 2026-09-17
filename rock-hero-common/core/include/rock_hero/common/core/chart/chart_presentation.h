@@ -135,9 +135,9 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    exists, and each resting remainder drawing only inside the sliding reveal window at the hit line
    (\ref g_tail_reveal_lead_whole_note). The 2D lane draws the execution form always.
 
-   SCOPE, on BOTH sides of the judgment: right-hand onsets and silent holds are neither members
-   nor witnesses. A grip states nothing about the tapping hand, so a tap over a held chord neither
-   loses its own ribbon nor takes its partners'.
+   SCOPE, on BOTH sides of the judgment: a right-hand onset is neither a member nor a witness. A
+   grip states nothing about the tapping hand, so a tap over a held chord neither loses its own
+   ribbon nor takes its partners'.
 
    THE ATOM IS THE MEMBER. Each member rests on its own — a plain member rests, a member still
    stating at its end draws — and a stroke conjunction (one rest-or-draw verdict per stroke, so a

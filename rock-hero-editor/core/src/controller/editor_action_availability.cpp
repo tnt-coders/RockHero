@@ -55,7 +55,6 @@ namespace
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::ToggleChartJunction:
         // The section verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::InsertSongSection:
@@ -168,7 +167,6 @@ namespace
             case EditorAction::Id::ChooseChartHarmonic:
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
-            case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
@@ -345,14 +343,6 @@ namespace
         {
             return conditions.has_chart && conditions.has_chart_selection;
         }
-        // The arpeggio hold verb takes the typing family's wider scope: the selection, or the armed
-        // caret's own slot when nothing is selected. The caret half is not decoration — it is the
-        // only way to reach a slot that holds nothing, which is exactly where a hold is authored
-        // from scratch.
-        case EditorAction::Id::ToggleChartSilentHold:
-        {
-            return conditions.has_chart && conditions.has_chart_verb_scope;
-        }
         // Sections are SONG-level, so they need a project rather than a loaded arrangement: the
         // list is the same under every tab and survives the arrangement switch. The tempo map is
         // song-level too, so its chips follow the same rule. Paused-only like every other marker
@@ -438,7 +428,6 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::ToggleChartJunction:
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:

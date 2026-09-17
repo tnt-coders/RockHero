@@ -1617,21 +1617,6 @@ constexpr int g_low_string_midi{40};
            note.position.offset;
 }
 
-// The one note struck at a beat's own position, which for a rolled chord is its first-sounded
-// member. Silent holds sit at that position too and are not it.
-[[nodiscard]] const common::core::ChartNote* firstStruckNote(
-    const std::vector<common::core::ChartNote>& notes)
-{
-    for (const common::core::ChartNote& note : notes)
-    {
-        if (!common::core::silentHold(note.attack))
-        {
-            return &note;
-        }
-    }
-    return nullptr;
-}
-
 } // namespace
 
 // Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
@@ -3386,9 +3371,9 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
 // each member struck at its turn over the stored spread, every one of them ringing to the end the
 // beat gave it. THE ROLL IS AN ACCUMULATION FIGURE PLAYED FAST (Q7), so nothing further is needed
 // to READ it: the members' rings overlap and the ordinary opening law turns them into one arpeggio
-// span with no rule of its own, which THE GATE below is the proof of. The import authors no claims
-// at all — a silent hold at the front for every member still to come (D11's fronted claims) would
-// restate what the members' own rings already say.
+// span with no rule of its own, which THE GATE below is the proof of. The import states no held
+// stop at all — a stop stated under every member still to come would restate what the members' own
+// rings already say.
 TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -3410,11 +3395,11 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // Three soundings and NOTHING ELSE: the members' own rings state the grip, so a silent
-        // hold beside them (D11's fronted claims) would restate what the sound already says.
+        // Three soundings and NOTHING ELSE: the members' own rings state the grip, so a held stop
+        // stated beside them would restate what the sound already says.
         REQUIRE(chart.notes.size() == 3);
         CHECK(std::ranges::none_of(chart.notes, [](const common::core::ChartNote& note) {
-            return common::core::silentHold(note.attack);
+            return note.held.has_value();
         }));
         CHECK(chart.notes[0].string == 1);
         CHECK(chart.notes[0].fret == 5);
@@ -3455,16 +3440,12 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 3);
-        const common::core::ChartNote* const first = firstStruckNote(chart.notes);
-        REQUIRE(first != nullptr);
-        if (first != nullptr)
-        {
-            // Guitar Pro's "Down" is a DOWNSTROKE: the pick starts at the lowest-pitched string
-            // and sweeps up, which is the reading the file's own word invites getting backwards.
-            CHECK(first->string == (highest_first ? 3 : 1));
-            CHECK(first->fret == (highest_first ? 7 : 5));
-            CHECK(first->position.offset == Fraction{});
-        }
+        // Guitar Pro's "Down" is a DOWNSTROKE: the pick starts at the lowest-pitched string and
+        // sweeps up, which is the reading the file's own word invites getting backwards.
+        const common::core::ChartNote& first = chart.notes.front();
+        CHECK(first.string == (highest_first ? 3 : 1));
+        CHECK(first.fret == (highest_first ? 7 : 5));
+        CHECK(first.position.offset == Fraction{});
         // The far end of the sweep speaks a whole spread later.
         CHECK(chart.notes.back().string == (highest_first ? 1 : 3));
         CHECK(chart.notes.back().position.offset == Fraction{1, 2});
@@ -3654,11 +3635,11 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // Four strokes of three struck notes, and not one silent hold among them.
+        // Four strokes of three struck notes, and not one held stop stated among them.
         REQUIRE(chart.notes.size() == 12);
         for (const common::core::ChartNote& note : chart.notes)
         {
-            CHECK_FALSE(common::core::silentHold(note.attack));
+            CHECK_FALSE(note.held.has_value());
         }
         CHECK(anyNoteContains(built->notes, "dropped their roll mark"));
     }

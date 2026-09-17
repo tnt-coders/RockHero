@@ -361,12 +361,13 @@ format-side decisions) and the design docs — a fresh session needs no other co
   **A still stands, with one clause of its warrant now narrower (2026-08-26).** "The format
   already derives arpeggio rendering from note arrival" is true of everything except one fact:
   a fretting-hand member that never sounds, which no function of a note stream can distinguish
-  from an absent one. That single fact is now authored as a note whose attack is `none`
-  (2026-08-27, replacing the short-lived `chart.holdMarkers[]` array) and flips the span's arrival —
+  from an absent one. That single fact is authored as a CLAIM — the `held` stop under a right-hand
+  onset — and flips the span's arrival,
   but it is not C: no flag, no template, no arpeggio-ness stored anywhere. What is stored is one
-  silent STOP, and the classification stays derived from it. No dedicated editor
-  arrived either; the verb is one selection-scoped key (`N`, with the typing family's caret
-  fallback for the empty slot). Record:
+  STOP, and the classification stays derived from it. The 2026-08-27 silent-hold note
+  (`attack: none`, itself replacing the short-lived `chart.holdMarkers[]` array) and its `N` verb
+  were removed on 2026-09-17; stating a stop on a string where NOTHING sounds now waits on plan 60's
+  span templates. No dedicated editor arrived either. Record:
   `docs/plans/todo/arpeggio-authoring.md`; maintained spec: rule 12b in
   `docs/developer/the-project-lifecycle.md`.
 - **Q2 — Same-string sustain overlap semantics on edit — SETTLED (B), shipped in Phase 4.**

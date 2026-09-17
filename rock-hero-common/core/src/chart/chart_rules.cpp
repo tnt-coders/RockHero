@@ -111,9 +111,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
 
     // No posture or span rules: both are derived from the notes (deriveChartShapes), so there is
     // no authored span here that could be wrong. The posture's capo floor and board ceiling come
-    // with the frets it reads — every one of them belongs to a note this validator judges,
-    // silently-held stops included — and a derived span's length and order are properties of the
-    // walk that built it.
+    // with the frets it reads — every one of them belongs to a note this validator judges — and a
+    // derived span's length and order are properties of the walk that built it.
 
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
@@ -206,10 +205,6 @@ std::string_view chartRepairText(const ChartRepair repair)
         case ChartRepair::UnjustifiedLegato:
         {
             return "a legato mark had nothing to connect to and reads as a plain pick";
-        }
-        case ChartRepair::InertSilentHold:
-        {
-            return "a held stop belonged to no shape, so it stated nothing and was removed";
         }
         case ChartRepair::InertHeldStop:
         {
@@ -327,12 +322,8 @@ std::optional<Fraction> sustainBoundOf(
     const auto later = std::ranges::subrange(
         std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
         notes.end());
-    // The next STRIKE on the string, which is why the search is a predicate rather than a
-    // projection match: a silent hold occupies a slot on the string and stops nothing, so a bound
-    // read off one would make authoring a held shape truncate every ring behind it.
-    const auto next = std::ranges::find_if(later, [&note](const ChartNote& candidate) {
-        return candidate.string == note.string && !silentHold(candidate.attack);
-    });
+    // Every note is a strike, so the next one on the string is the bound.
+    const auto next = std::ranges::find(later, note.string, &ChartNote::string);
     if (next == later.end())
     {
         return std::nullopt;
@@ -662,8 +653,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     }
     // The relational settles run LAST, against the stream as it will actually stand: a trimmed
     // tail may have been the hold a neighbour's claim depended on. Nothing the claim sweep takes
-    // can justify or withdraw a legato claim, since neither a silent hold nor a held stop sounds or
-    // bounds a ring — clearing a held field leaves the onset carrying it entirely untouched.
+    // can justify or withdraw a legato claim, since a held stop neither sounds nor bounds a ring —
+    // clearing the field leaves the onset carrying it entirely untouched.
     //
     // The legato settle's OWN precedence over the claim sweep is not a dependency: rule 11 keys
     // spans by POSITION rather than by articulation, and flattening writes an attack and nothing
@@ -715,31 +706,14 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "note is out of range at " + positionText(note.position),
         }};
     }
-    // The ring, and it is the one rule the attack decides outright rather than shading. Every
-    // STRUCK string rings for SOME length — a dead note's damped stroke included — so the sustain
-    // is the actual duration and is strictly positive. No repair can express that: a duration is
-    // information, and inventing one would be authoring the chart. It doubles as the format
-    // tripwire for any zero that reaches memory, which is why the message names the cause rather
-    // than the field. A package written before the duration model rarely arrives here: that writer
-    // OMITTED the key on every tail-less note, so the document reader refuses it first, with the
-    // same re-import remedy.
-    //
-    // A silent hold is the mirror image: nothing is struck, so there is no ring to state and a
-    // stored one would be a length the shape derivation never reads and \ref sustainBoundOf could
-    // only ever contradict. Zero is not a fallback here but the required value, refused in the
-    // other direction.
-    if (silentHold(note.attack))
-    {
-        if (note.sustain.numerator != 0)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "a silently held stop has no ring of its own at " + positionText(note.position),
-            }};
-        }
-    }
-    else if (note.sustain.numerator <= 0)
+    // The ring. Every struck string rings for SOME length — a dead note's damped stroke included —
+    // so the sustain is the actual duration and is strictly positive on every note. No repair can
+    // express that: a duration is information, and inventing one would be authoring the chart. It
+    // doubles as the format tripwire for any zero that reaches memory, which is why the message
+    // names the cause rather than the field. A package written before the duration model rarely
+    // arrives here: that writer OMITTED the key on every tail-less note, so the document reader
+    // refuses it first, with the same re-import remedy.
+    if (note.sustain.numerator <= 0)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -897,23 +871,18 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }
     }
     // WHAT THIS ATTACK MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
-    // must already equal its own saved form. Three things carry less than the whole record — a
-    // SAVED pick slide carries no pitched technique, because the writer omits the in-memory
-    // overrides (chart.h); a SILENT HOLD carries nothing at all beyond its stop, because nothing
-    // sounds for a technique to describe; and a HELD stop rides only a right-hand onset, because
-    // on every other attack the fretting hand's stop already is the note's own fret — and
-    // enumerating any of those sets here would duplicate exactly what savedChartNote strips,
-    // leaving the writer and this rule to agree by hand while a field added to ChartNote updated
-    // only one of them. Asked unconditionally because the comparison is identity for every attack
-    // that overrides nothing.
+    // must already equal its own saved form. Two things carry less than the whole record — a SAVED
+    // pick slide carries no pitched technique, because the writer omits the in-memory overrides
+    // (chart.h); and a HELD stop rides only a right-hand onset, because on every other attack the
+    // fretting hand's stop already is the note's own fret — and enumerating either set here would
+    // duplicate exactly what savedChartNote strips, leaving the writer and this rule to agree by
+    // hand while a field added to ChartNote updated only one of them. Asked unconditionally because
+    // the comparison is identity for every attack that overrides nothing.
     //
-    // The message names the cause because the three cases are disjoint by attack: a scrape can
-    // only have failed on the pitched latents (it is the one attack that keeps a held stop AND
-    // sheds techniques), a silent hold on anything beyond its stop, and any other attack on
-    // exactly one thing — the held stop it may not carry.
-    //
-    // Emphasis is a scrape's own dynamics and passes there; on a silent hold it is refused with
-    // the rest, since a stop nothing strikes has no dynamics to state.
+    // The message names the cause because the two cases are disjoint by attack: a scrape can only
+    // have failed on the pitched latents (it is the one attack that keeps a held stop AND sheds
+    // techniques), and any other attack on exactly one thing — the held stop it may not carry.
+    // Emphasis is a scrape's own dynamics and is never stripped.
     if (!(savedChartNote(note) == note))
     {
         if (isScrape(note.attack))
@@ -921,14 +890,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidPickSlide,
                 .message = "pick-slide note must not carry pitched techniques at " +
-                           positionText(note.position),
-            }};
-        }
-        if (silentHold(note.attack))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "a silently held stop states its fret and nothing else at " +
                            positionText(note.position),
             }};
         }
