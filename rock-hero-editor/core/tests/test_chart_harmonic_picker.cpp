@@ -16,9 +16,9 @@ namespace
 {
 
 // The NODE rows of a request, in the order it published them. A request is one list of variant rows
-// under a shape contract — nodes ascending by partial, then at most one clear row LAST — so reading
-// the nodes out is also where that shape is checked: a non-node row anywhere but the end is the
-// contract broken rather than a row to hand back.
+// under a shape contract — at most one clear row FIRST, then the nodes ascending by partial — so
+// reading the nodes out is also where that shape is checked: a non-node row anywhere but the head
+// of the list is the contract broken rather than a row to hand back.
 [[nodiscard]] std::vector<ChartHarmonicNodeChoice> nodeRows(const ChartHarmonicNodePicker& picker)
 {
     std::vector<ChartHarmonicNodeChoice> rows;
@@ -28,20 +28,20 @@ namespace
         const auto* const node = std::get_if<ChartHarmonicNodeChoice>(&picker.choices[index]);
         if (node == nullptr)
         {
-            CHECK(index + 1 == picker.choices.size());
-            break;
+            CHECK(index == 0);
+            continue;
         }
         rows.push_back(*node);
     }
     return rows;
 }
 
-// Whether the request ends with the "No harmonic" row, which the controller appends only when a
+// Whether the request LEADS with the "No harmonic" row, which the controller inserts only when a
 // clear over the live selection would change something.
 [[nodiscard]] bool offersClear(const ChartHarmonicNodePicker& picker)
 {
     return !picker.choices.empty() &&
-           std::holds_alternative<ChartHarmonicClearChoice>(picker.choices.back());
+           std::holds_alternative<ChartHarmonicClearChoice>(picker.choices.front());
 }
 
 // The controller wired for the node picker's scenarios: the shared six-string chart opened through
@@ -158,8 +158,8 @@ TEST_CASE("A harmonic press over an ambiguous fret requests the picker", "[core]
             CHECK_FALSE(choices[3].current);
         }
 
-        // No harmonic to remove, so the rows end at the last node and Return takes the first of
-        // them: every row here changes something, so the lowest partial is what a toggle meant.
+        // No harmonic to remove, so there is no clear row to lead them and Return takes the first
+        // node: every row here changes something, so the lowest partial is what a toggle meant.
         CHECK_FALSE(offersClear(*picker));
         CHECK(picker->preselected == 0);
     }
@@ -284,8 +284,8 @@ TEST_CASE("A carrier with one node clears, and the run decides what that costs",
 // THE CHANGES ARE COUNTED BY PLANNING, so a member that names nothing adds no row and no change: a
 // 12 already touching its one node, selected beside an open string, still has exactly ONE change on
 // offer — the clear — and the press takes it in the same keystroke. Counting the label's rows
-// instead would have made this two (a node row plus the clear) and opened a menu whose first row
-// does nothing.
+// instead would have made this two (a node row plus the clear) and opened a menu whose only node
+// row does nothing.
 TEST_CASE("A one-node carrier beside a note naming nothing clears at once", "[core][chart]")
 {
     common::core::Chart chart;
@@ -372,11 +372,11 @@ TEST_CASE("A harmonic press over a carrier offers the label's other nodes", "[co
             CHECK_FALSE(choices[2].current);
         }
 
-        // Four rows, the clear last, and Return takes it: every selected note carries a harmonic,
-        // which is exactly when a toggle would have removed one.
+        // Four rows, the clear leading them, and Return takes it: every selected note carries a
+        // harmonic, which is exactly when a toggle would have removed one.
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 3);
+        CHECK(picker->preselected == 0);
     }
 
     SECTION("the clear row presses the finger back onto the fret it was touching")
@@ -440,7 +440,7 @@ TEST_CASE("Consecutive harmonic choices fold into one history entry", "[core][ch
         }
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 3);
+        CHECK(picker->preselected == 0);
     }
 
     fixture.controller.onChartHarmonicNodeRequested(std::optional{15});
@@ -595,10 +595,11 @@ TEST_CASE("A harmonic press over a mixed chord reads one member for the scope", 
         }
         // The clear is on offer, because one member carries — but Return does NOT take it: the
         // plain 7 carries nothing, so what a toggle would have done here is state the lowest
-        // partial, and that row changes something (the 7 takes its own single node).
+        // partial, and that row changes something (the 7 takes its own single node). It sits at
+        // index 1, the clear leading it.
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 0);
+        CHECK(picker->preselected == 1);
     }
 
     SECTION("a chosen partial binds the member that names it and defaults the one that does not")
@@ -697,11 +698,11 @@ TEST_CASE("The harmonic clear leaves a pinch beside a carrier alone", "[core][ch
             CHECK_THAT(choices[1].node, Catch::Matchers::WithinAbs(4.5421, 0.001));
             CHECK(choices[2].partial == 15);
         }
-        // Four rows, the clear last because the carrier gives it something to do — and Return takes
-        // the 13th at index 1, since the ticked 4th would change nothing.
+        // Four rows, the clear leading them because the carrier gives it something to do — and
+        // Return takes the 13th at index 2, since the ticked 4th would change nothing.
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 1);
+        CHECK(picker->preselected == 2);
     }
 
     fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
@@ -763,9 +764,11 @@ TEST_CASE("A ticked row that changes nothing is shown but not preselected", "[co
             CHECK(choices[0].partial == 4);
             CHECK(choices[0].current);
         }
+        // The clear leads the rows, so the first row that changes something — the 13th — is at
+        // index 2 rather than at the dead 4th's index 1.
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 1);
+        CHECK(picker->preselected == 2);
     }
 
     fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
@@ -1062,7 +1065,7 @@ TEST_CASE("A harmonic press over an imported artificial reads its pressed fret",
         }
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 4);
-        CHECK(picker->preselected == 3);
+        CHECK(picker->preselected == 0);
     }
 
     // The clear gives back the stop and nothing else.
@@ -1155,11 +1158,11 @@ TEST_CASE("A chord of carriers clears in one step and lands each on its own fret
         CHECK(picker->note == 0);
         const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
         CHECK(choices.size() == 4);
-        // Every member carries, so the clear is on offer and Return takes it — exactly what a
+        // Every member carries, so the clear leads the rows and Return takes it — exactly what a
         // toggle would have done.
         CHECK(offersClear(*picker));
         CHECK(picker->choices.size() == 5);
-        CHECK(picker->preselected == picker->choices.size() - 1);
+        CHECK(picker->preselected == 0);
     }
 
     fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
@@ -1201,7 +1204,7 @@ TEST_CASE("A set and its clear leave the note as it was", "[core][chart]")
     {
         // The one member carries, so Return is the clear: the press back is what a toggle meant.
         CHECK(offersClear(*picker));
-        CHECK(picker->preselected == picker->choices.size() - 1);
+        CHECK(picker->preselected == 0);
     }
 
     fixture.controller.onChartHarmonicNodeRequested(std::nullopt);

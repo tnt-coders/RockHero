@@ -782,7 +782,7 @@ The note is named so the view can anchor the popup on the head the numbers descr
 come from the selected member whose label names the most nodes (the first such, in chart order),
 and that member need not be the earliest selected note — a chord of a 7 and a 5 offers the 5's rows
 — so "the selected head" would put the menu over a note the rows have nothing to do with. The clear
-row, when the selection carries anything to clear, is last. Every row is shown, the one the named
+row, when the selection carries anything to clear, is FIRST. Every row is shown, the one the named
 note is touching ticked; a ticked row may change nothing when chosen, which is why the preselected
 row is the controller's to name: what a toggle would have done — the clear when every selected note
 carries a harmonic, else the lowest partial that changes something.
@@ -793,8 +793,8 @@ struct ChartHarmonicNodePicker
     std::size_t note{};
 
     /*!
-    \brief The rows to offer, in the order to show them: nodes ascending by partial, then the clear
-    if offered; never fewer than two.
+    \brief The rows to offer, in the order to show them: the clear if offered, then the nodes
+    ascending by partial; never fewer than two.
     */
     std::vector<ChartHarmonicChoice> choices{};
 

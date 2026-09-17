@@ -476,12 +476,13 @@ ONE applies in the keystroke, and two or more ask. The node rows come from the m
 names the MOST nodes — a carrier's label being the fret its node lies at, `harmonicLabelFret` in
 `chart_edits.cpp`, the same authority the clear presses back down, so a note touching 4.98 is offered
 the 13th and 15th partials of a 5 — and EVERY one of them is shown, a ticked row included, so the
-tick can say where the finger is; the "No harmonic" row comes last, after a separator, only where the
-clear itself changes something. The payload is `ChartHarmonicNodePicker{note, choices, preselected}`,
-`choices` a `std::vector<ChartHarmonicChoice>` — a variant of
-`ChartHarmonicNodeChoice{node, partial, current}` and `ChartHarmonicClearChoice` — node rows first
-ascending by partial, the clear row LAST when offered, and `preselected` an index into that list, so
-"a clear row that was never offered" cannot be preselected or chosen. The TICKED row is the node the
+tick can say where the finger is; the "No harmonic" row LEADS them, ruled off by a separator, only
+where the clear itself changes something. The payload is
+`ChartHarmonicNodePicker{note, choices, preselected}`, `choices` a
+`std::vector<ChartHarmonicChoice>` — a variant of
+`ChartHarmonicNodeChoice{node, partial, current}` and `ChartHarmonicClearChoice` — the clear row
+FIRST when offered, then the node rows ascending by partial, and `preselected` an index into that
+list, so "a clear row that was never offered" cannot be preselected or chosen. The TICKED row is the node the
 ANCHOR member is touching — the note the rows were read from, the head the menu sits on — rather than
 a statement about the selection as a whole, and Return takes the clear where every selected note
 carries a fret-hand harmonic (`carriesNeckHarmonic`: a node whose attack keeps it on the neck, a pinch

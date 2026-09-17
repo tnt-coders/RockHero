@@ -311,13 +311,13 @@ Three consequences worth knowing before touching this:
   `IEditorView::showChartHarmonicNodePicker`. Which rows CHANGE anything is the PLANNER's answer:
   the verb plans every node row and the clear over the live chart, and a `NoChange` plan is not a
   change — zero of them is an inert press, one applies at once, and several ask. Every node row its
-  label names is shown (a ticked row included), and the **"No harmonic"** row comes last, after a
-  separator, only where the clear itself changes something — so `H` on a CARRIER reopens the menu
-  only where its label names OTHER nodes as well; a carrier whose label names a single node (7, 12,
-  19, 24) has just the clear left to do and clears in the keystroke. The payload is
+  label names is shown (a ticked row included), and the **"No harmonic"** row LEADS them, ruled off
+  by a separator, only where the clear itself changes something — so `H` on a CARRIER reopens the
+  menu only where its label names OTHER nodes as well; a carrier whose label names a single node (7,
+  12, 19, 24) has just the clear left to do and clears in the keystroke. The payload is
   `ChartHarmonicNodePicker{note, choices, preselected}`, `choices` a variant list of
   `ChartHarmonicNodeChoice{node, partial, current}` and `ChartHarmonicClearChoice` with the clear
-  last when offered, and `preselected` an index into it. The view's answer is a `juce::PopupMenu`
+  first when offered, and `preselected` an index into it. The view's answer is a `juce::PopupMenu`
   anchored at
   `TabView::noteHeadBounds(picker.note)` — the head of the member the rows were READ from, the
   object the choice is about, which need NOT be the earliest selected note, rather than the mouse a

@@ -57,7 +57,7 @@ public:
 
     /*!
     \brief Asks the view to offer the harmonic node picker: one row per node a selected note's label
-    names, lowest partial first, the node it already touches ticked, and a "No harmonic" row last
+    names, lowest partial first, the node it already touches ticked, led by a "No harmonic" row
     where a clear is among the changes.
 
     A one-shot request rather than view state, because the choice is the CONTROLLER's to ask for:

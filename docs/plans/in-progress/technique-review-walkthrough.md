@@ -311,14 +311,19 @@ Keep this list and the session task list in step.
     whose label names the MOST nodes — a carrier's label being the fret its node lies at
     (`harmonicLabelFret`, the one authority the clear also presses back down), so a note touching
     4.98 is offered the 13th and 15th partials of a 5 — and EVERY one of them is shown, a ticked row
-    that changes nothing included, while the **"No harmonic"** row comes last, after a separator,
-    only where the clear itself changes something. One change applies with no menu (a 12 writes its
-    single node; a 12 already touching it clears); several open the popup, whose payload is
+    that changes nothing included, while the **"No harmonic"** row LEADS them, ruled off by a
+    separator, only where the clear itself changes something. **Amended 2026-09-17: the clear comes
+    FIRST wherever it is offered, on every selection alike.** It sat last, and where it opens
+    PRESELECTED — on a note already carrying a harmonic — `Up` from it landed on the highest partial,
+    the least likely next choice. Leading the list, the row never MOVES between states, and `Down`
+    from it walks the partials from the lowest. The view rules it off from the node rows on whichever
+    side they lie, so the order stays the controller's. One change applies with no menu (a 12 writes
+    its single node; a 12 already touching it clears); several open the popup, whose payload is
     `ChartHarmonicNodePicker{note, choices, preselected}` — `choices` a
     `std::vector<ChartHarmonicChoice>`, the variant of `ChartHarmonicNodeChoice{node, partial,
-    current}` and `ChartHarmonicClearChoice`, node rows first ascending by partial and the clear row
-    LAST when offered, and `preselected` an index into that list so a clear row that was never
-    offered cannot be preselected or chosen — answered by
+    current}` and `ChartHarmonicClearChoice`, the clear row FIRST when offered and the node rows
+    ascending by partial after it, and `preselected` an index into that list so a clear row that was
+    never offered cannot be preselected or chosen — answered by
     `onChartHarmonicNodeRequested(std::optional<int>)` → `SetChartHarmonicNode{partial}`, an absent
     partial being the clear. The TICKED row is the node the ANCHOR member is touching — the note the
     rows were read from, whose head the menu sits on — rather than a statement about the selection as

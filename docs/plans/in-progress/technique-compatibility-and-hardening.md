@@ -565,8 +565,8 @@ changes is an inert press, one applies in the keystroke, two or more ask. The no
 member whose label names the MOST nodes (a carrier's label is the fret its node lies at —
 `harmonicLabelFret`, which is also what the clear presses back down — so a note touching 4.98 is
 offered the 13th and 15th partials of a 5), and EVERY one of them is shown, a ticked row that changes
-nothing included, while the **"No harmonic"** row comes last, after a separator, only where the clear
-itself changes something. Several changes open the picker, answered by
+nothing included, while the **"No harmonic"** row LEADS them, ruled off by a separator, only where
+the clear itself changes something. Several changes open the picker, answered by
 `onChartHarmonicNodeRequested(std::optional<int>)` → `SetChartHarmonicNode{partial}`, an absent
 partial being the clear. The TICKED row is the node the ANCHOR member — the note the rows were read
 from, whose head the menu sits on — is touching, not a statement about the selection as a whole; the

@@ -1324,7 +1324,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 // capo-relative, so under a capo the values shift and the ordinal is the only stable name — and
 // they are ordinary menu items at platform size, which the lane's own ~26 x 16 px labels could
 // never be. The row the note already touches is ticked, and the "No harmonic" row, when the
-// controller offers one, sits last behind a separator.
+// controller offers one, is ruled off from the nodes by a separator; the controller puts it first.
 //
 // Rows are numbered from 1 in the order given: JUCE matches withInitiallySelectedItem against item
 // IDs, so the lambda addItem overload (id -1) could never be preselected — the tone picker numbers
@@ -1358,10 +1358,19 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
                 true,
                 node->current);
         }
-        else
+        else if (std::holds_alternative<core::ChartHarmonicClearChoice>(picker.choices[index]))
         {
-            menu.addSeparator();
+            // Ruled off from the node rows on whichever side they lie, so the order stays the
+            // controller's to decide and this only draws it.
+            if (index > 0)
+            {
+                menu.addSeparator();
+            }
             menu.addItem(item, "No harmonic");
+            if (index + 1 < picker.choices.size())
+            {
+                menu.addSeparator();
+            }
         }
     }
     juce::PopupMenu::Options options =

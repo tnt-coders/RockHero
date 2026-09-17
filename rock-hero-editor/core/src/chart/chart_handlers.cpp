@@ -2981,7 +2981,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
     // The answers that would write, in row order, each spelled as the choice that returns it.
     std::vector<std::optional<int>> changes;
     std::optional<std::size_t> first_changing_row;
-    // Every row is a node row here: the clear, if offered, is appended AFTER this loop.
+    // Every row is a node row here: the clear, if offered, is inserted AFTER this loop.
     for (std::size_t row = 0; row < rows.choices.size(); ++row)
     {
         const int partial = std::get<ChartHarmonicNodeChoice>(rows.choices[row]).partial;
@@ -2994,12 +2994,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
             }
         }
     }
-    std::optional<std::size_t> clear_row;
-    if (planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").has_value())
+    // The clear leads the list wherever it is offered, on every selection alike, so the row never
+    // moves between states: where it opens selected, Down walks the partials from the lowest, the
+    // likeliest next choice, instead of Up landing on the highest.
+    const bool clear_offered =
+        planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").has_value();
+    if (clear_offered)
     {
         changes.emplace_back(std::nullopt);
-        clear_row = rows.choices.size();
-        rows.choices.emplace_back(ChartHarmonicClearChoice{});
+        rows.choices.emplace(rows.choices.begin(), ChartHarmonicClearChoice{});
+        if (first_changing_row.has_value())
+        {
+            ++*first_changing_row;
+        }
     }
     if (changes.empty())
     {
@@ -3014,13 +3021,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
     // toggle would have done — else the first changing node row, the lowest partial that does
     // anything, which skips a ticked row the anchor is already standing on. Asked of the clear row
     // that EXISTS rather than of the notes alone, so a clear the gate refused can never leave
-    // Return pointing one past the rows.
+    // Return on a row that is not there.
     const bool all_carry = std::ranges::all_of(
         slotIndicesForKeys(chart.notes, keys),
         [&chart](const std::size_t index) { return carriesNeckHarmonic(chart.notes[index]); });
-    if (clear_row.has_value() && all_carry)
+    if (clear_offered && all_carry)
     {
-        rows.preselected = *clear_row;
+        rows.preselected = 0;
     }
     else if (first_changing_row.has_value())
     {

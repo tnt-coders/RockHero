@@ -108,8 +108,8 @@ first. The two verbs' list rules should therefore be compared on purpose, not di
 **What the natural verb became on 2026-09-16, and what this plan inherits.** `H` is no longer a
 toggle: its law is **offer every CHANGE the selection allows, and ask only where there is more than
 one**, and WHICH ROWS CHANGE ANYTHING IS THE PLANNER'S ANSWER: every node row its label names is
-shown (a ticked row that changes nothing included), and the **"No harmonic"** row comes last, after a
-separator, only where the clear itself changes something — hence the optional partial. The
+shown (a ticked row that changes nothing included), and the **"No harmonic"** row LEADS them, ruled
+off by a separator, only where the clear itself changes something — hence the optional partial. The
 preselected row is what the old toggle would have done ("No
 harmonic" when every member carries a fret-hand harmonic, else the lowest partial that changes
 something), the row ticked is the node the ANCHOR member is touching,
