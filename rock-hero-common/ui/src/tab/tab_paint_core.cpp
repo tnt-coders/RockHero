@@ -922,18 +922,17 @@ enum class HeadShape : std::uint8_t
     Plectrum
 };
 
-// Picks the silhouette naming this note's kind. The diamond names a head that SOUNDS at a node —
-// the same sounding rule the highway's node head asks (highwayNodeHead) and the head text below
-// labels by, so the shape and the label can never disagree. A pinch's node lies off the neck where
-// the thumb grazes, and both surfaces today draw only a pinch's fretted stop, so it wears the
-// ordinary head; how the right-hand node will be shown is an open question. The diamond takes
-// precedence over the scrape's plectrum only so the mapping is total: no note can ask for both,
-// since a pinch and a scrape are two values of one attack and the chart rules reject a scrape
-// carrying a node.
+// Picks the silhouette naming this note's kind. The diamond names a HARMONIC, whichever hand makes
+// it — the claim the highway's harmonic cell also reads (common::core::isHarmonic), so the two
+// surfaces cannot call different notes harmonics. It is deliberately NOT the sounding rule the head
+// text labels by: a pinch is a harmonic that sounds at its fretted stop as far as the neck goes, so
+// it wears the diamond, prints its fret, and takes the pinch bar in front. Here the shape is the
+// only thing that says "harmonic", which is why reading it off WHERE the note sounds left a pinch
+// as a bar on an ordinary head. isHarmonic refuses a scrape's latent node, so the plectrum below is
+// never outranked by a touch nobody makes.
 [[nodiscard]] HeadShape headShapeFor(const common::core::NoteViewState& note)
 {
-    if (common::core::soundingStopAt(note.harmonic_node, note.attack, note.fret, note.fret)
-            .node.has_value())
+    if (common::core::isHarmonic(note.harmonic_node, note.attack))
     {
         return HeadShape::Diamond;
     }

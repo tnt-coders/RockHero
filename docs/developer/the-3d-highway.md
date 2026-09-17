@@ -81,9 +81,12 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    Nothing inside the draw pass is reachable from a test, so a decision the pass makes more than
    once belongs in a small pure unit beside it instead. `highway_head_marks.h` is the pattern:
    which atlas cell a head's connection mark uses (`highwayLegatoCell`), whether the head takes
-   the darker technique base (`highwayTechHead`), and whether the board calls the note a harmonic
-   at all (`highwayHarmonicMark`, read by the head's cell AND by the floor's fret-span line, so a
-   head mark and a floor mark cannot disagree), all covered by
+   the darker technique base (`highwayTechHead`), and whether the board can POINT at a harmonic's
+   node (`highwayHarmonicMark`, read by the head's cell choice AND by the floor's fret-span line,
+   so a head mark and a floor mark cannot disagree). Whether the note IS a harmonic at all is the
+   shared `common::core::isHarmonic`, which the 2D diamond head reads too (RULED 2026-09-17), so a
+   harmonic wears a harmonic cell on ONE rung and the mark predicate only says WHICH cell — the
+   board's own, or the pinch's, whose node the thumb grazes over the body. All covered by
    `test_highway_head_marks.cpp`. Two more sit beside it, and between them they hold every rule a
    floor mark and the tail above it have to agree on:
 
@@ -426,10 +429,11 @@ A **harmonic node light** (a floor glow under every note whose node lies on the 
 same way and recorded in the same place. What stands without it is the FLOOR MARK that light shared
 its position with: a harmonic's fret-span line is drawn NODE-centred rather than wire-to-wire across
 a fret slot, because the touch is at the node and a slot line points the hand a wire away from it.
-That footprint is `harmonicMarkFootprint`; which notes are harmonics is `highwayHarmonicMark`, the
-same predicate the head's harmonic cell reads, so a marked head and a floor mark cannot disagree. A
-pinch is absent by construction (its node is over the body, so the neck has nowhere to point) and a
-scrape by exclusion (its node is an in-memory latent, not a touch).
+That footprint is `harmonicMarkFootprint`; which notes the board can point at is
+`highwayHarmonicMark`, the same predicate that picks which harmonic cell the head wears, so a
+marked head and a floor mark cannot disagree. A pinch is absent by construction (its node is over
+the body, so the neck has nowhere to point, and its head takes the pinch cell instead) and a scrape
+by exclusion (its node is an in-memory latent, not a touch — refused by `isHarmonic` itself).
 
 Neither tabled feature states a FACT the 2D lane would have to answer, which is why their absence
 needs no tab-side change either: the node-centred line restates on the floor what the 2D lane

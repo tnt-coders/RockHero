@@ -518,17 +518,24 @@ is deliberately single-sourced:
 
 - **The head silhouette names the note's kind**, never which hand produced it (a present mark's
   *darkness* says that). `headShapeFor(note)` maps to `HeadShape::{Round, Diamond, Plectrum}` — a
-  diamond for anything carrying a harmonic node, a plectrum for a scrape, a circle otherwise. The
+  diamond for a harmonic, a plectrum for a scrape, a circle otherwise. The shape predicate is
+  `common::core::isHarmonic`, the same claim the highway's harmonic cell reads (RULED 2026-09-17),
+  and deliberately NOT the sounding rule the head *text* reads: a pinch is a harmonic whose node
+  lies over the body, so it wears the diamond — with its bar in front — while still printing its
+  fret NUMBER. In 2D the diamond is the only thing that says "harmonic"; reading the shape off
+  where the note sounds left a pinch as a bar on an ordinary head. The
   enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
   exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor leaves every pick
   slide wearing a circular selection ring around a plectrum head. Its bracket twin
   `strokeTabBracketOutline` exists for the same reason and reads the same columns the bars are
   filled from (`TabLaneGeometry::bracketColumnsAt`), so a selection edge cannot miss its bar.
 - **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
-  stop being labeled* rather than reading the note's own fret. Any harmonic whose node is on the
-  neck names its node — the predicate is `nodeIsOnNeck`, which excludes only a pinch — because the
-  node sets the pitch (a trailing `.0` is dropped so 12 / 7 / 5 stay as narrow as an ordinary
-  fret, and the pinch keeps its fret because its node sits off the neck).
+  stop being labeled* rather than reading the note's own fret. The label predicate is
+  `common::core::soundingStopAt` — WHERE the note sounds, the separate claim from the shape's —
+  so any harmonic whose node is on the neck names its node, because the node sets the pitch (a
+  trailing `.0` is dropped so 12 / 7 / 5 stay as narrow as an ordinary fret). The pinch keeps its
+  fret NUMBER here while wearing the diamond above, because its node sits off the neck and 2D has
+  no axis for it.
   Passing the stop is what lets one rule label *every* head of a gesture: the onset passes
   `note.fret`, a linked slide junction passes the fret the glide has reached, so a harmonic labels
   nodes at all of them instead of a node at the onset and a raw fret at the junctions.

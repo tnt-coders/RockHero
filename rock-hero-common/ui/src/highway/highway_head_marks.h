@@ -131,20 +131,19 @@ on the floor is drawn NODE-centred instead of slot-wide because of it (`harmonic
 the renderer). A head and a floor mark disagreeing about which notes are harmonics is precisely
 the two-spellings defect, so they read one predicate.
 
-Both exclusions are the shared chart authorities rather than named attacks. A PINCH is out
-because \ref common::core::nodeIsOnNeck is: its node is over the body where the thumb grazes, so
-neither the neck's fret axis nor a floor light has anywhere to put it, and it wears its own cell
-instead. A SCRAPE is out because a pick slide's node is the in-memory latent its attack toggle
-preserves rather than a touch anybody makes — `chart.h` records the two separate failures that
-reading it as one produced.
+Both halves are the shared chart authorities rather than named attacks. WHETHER the note is a
+harmonic is \ref common::core::isHarmonic, the claim the 2D diamond also reads, which is where a
+scrape's latent node is refused. Whether the board can POINT at it is
+\ref common::core::nodeIsOnNeck: a pinch's node is over the body where the thumb grazes, so neither
+the neck's fret axis nor a floor light has anywhere to put it, and it wears its own cell instead.
 
 \param note Projected note being drawn.
 \return True when the note is a harmonic the board points at.
 */
-[[nodiscard]] inline bool highwayHarmonicMark(const common::core::NoteViewState& note) noexcept
+[[nodiscard]] constexpr bool highwayHarmonicMark(const common::core::NoteViewState& note) noexcept
 {
-    return note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack) &&
-           !common::core::isScrape(note.attack);
+    return common::core::isHarmonic(note.harmonic_node, note.attack) &&
+           common::core::nodeIsOnNeck(note.attack);
 }
 
 /*!
@@ -264,13 +263,11 @@ ignores the flag and draws every mark upright.
         add(g_head_cell_legato, false, legato_cell == HighwayLegatoCell::Flipped);
     }
 
-    if (note.attack == common::core::NoteAttack::Pinch)
+    // One rung for one claim: a harmonic wears a harmonic cell, and which one says whether the
+    // board can point at its node or the thumb is grazing it over the body.
+    if (common::core::isHarmonic(note.harmonic_node, note.attack))
     {
-        add(g_head_cell_pinch_harmonic, true);
-    }
-    else if (highwayHarmonicMark(note))
-    {
-        add(g_head_cell_harmonic, true);
+        add(highwayHarmonicMark(note) ? g_head_cell_harmonic : g_head_cell_pinch_harmonic, true);
     }
 
     if (note.dead)

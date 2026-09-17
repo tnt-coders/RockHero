@@ -808,6 +808,30 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
     }
 }
 
+// The claim both drawing surfaces read for their harmonic mark — the 2D diamond head and the 3D
+// harmonic cell — kept apart from soundingStopAt's claim about WHERE the note sounds, because the
+// two part company at the pinch (RULED 2026-09-17).
+TEST_CASE("isHarmonic names a harmonic whichever hand makes it", "[core][chart]")
+{
+    // The thumb's squeal is stated by the ATTACK, so a pinch counts whether or not the charter has
+    // picked out which overtone it grazes. A saved pinch always carries a node, but the editor
+    // holds one that does not while the picker is still open.
+    CHECK(isHarmonic(24.0, NoteAttack::Pinch));
+    CHECK(isHarmonic(std::nullopt, NoteAttack::Pinch));
+
+    // Every other harmonic counts by carrying a node, whichever hand touches it: the fretting
+    // hand's finger on a natural harmonic's node, or the picking hand's on a tapped one.
+    CHECK(isHarmonic(12.0, NoteAttack::Pick));
+    CHECK(isHarmonic(17.0, NoteAttack::Tap));
+
+    // A scrape's node is the in-memory latent its attack toggle preserves rather than a touch
+    // anybody makes, so it is no harmonic and keeps the plectrum silhouette.
+    CHECK_FALSE(isHarmonic(12.0, NoteAttack::PickSlide));
+
+    // And a note with nothing touching it is a plain note.
+    CHECK_FALSE(isHarmonic(std::nullopt, NoteAttack::Pick));
+}
+
 // The chart-level half of the removed-field tripwire: the posture table and its spans are derived
 // from the notes now (deriveChartShapes), so a document carrying either key states a second,
 // unverifiable copy of what the notes already say. Silently ignoring them is the failure this

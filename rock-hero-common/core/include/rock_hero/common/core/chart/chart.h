@@ -1633,6 +1633,31 @@ node counts here and not there, because the tap's node belongs to the picking ha
 }
 
 /*!
+\brief True when the note IS a harmonic, whichever hand makes it.
+
+The claim about what the note sounds like, kept apart from \ref soundingStopAt's claim about WHERE
+it sounds, because the two part company at the pinch: a pinch is a harmonic whose node lies over the
+body, so it sounds at its stop as far as any neck coordinate goes and is a harmonic all the same.
+Both surfaces draw the first claim — 2D as the diamond head, 3D as the harmonic cell a head wears —
+and read it here so neither can call a note a harmonic the other does not. Folding the two claims
+into one is what once left a 2D pinch as a bar on an ordinary head, saying nothing of a harmonic.
+
+A pinch counts by its attack alone: the squeal is the thumb's, and the attack is what states it. Any
+other note counts by carrying a node, except a scrape, whose node is the in-memory latent its attack
+toggle preserves rather than a touch anybody makes.
+
+\param harmonic_node The note's node, if it has one.
+\param attack The note's attack.
+
+\return True when the note is a harmonic.
+*/
+[[nodiscard]] constexpr bool isHarmonic(
+    const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::Pinch || (harmonic_node.has_value() && !isScrape(attack));
+}
+
+/*!
 \brief True when the FRETTING finger is standing on the note's node.
 
 A refinement of \ref fretHandHarmonic rather than a near twin, and it is spelled as one so the two

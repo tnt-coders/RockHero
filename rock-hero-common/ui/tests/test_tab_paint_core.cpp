@@ -1476,13 +1476,13 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     CHECK(wide_plain_digit_top - wide_scrape_digit_top == 3);
 }
 
-// A pinch harmonic's head is its FRETTED stop's head, exactly as the highway draws it: both
-// surfaces today show only the pinch's left-hand half, and its node lies off the neck where the
-// thumb grazes, so the diamond — which names a node the fretting hand stands on — would claim a
-// node the hand is nowhere near. How the right-hand node will be shown is an open question; until
-// it is ruled, the head shape and the head text read the same sounding rule and cannot disagree.
-// Diamonding ANY note that carries a node would put a pinch in a shape the board never gives it.
-TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
+// A pinch harmonic wears the DIAMOND, because in 2D the diamond is the only thing that says
+// "harmonic" and a pinch is one whichever hand makes it (RULED 2026-09-17). The shape reads
+// common::core::isHarmonic — the same claim the highway's harmonic cell reads — while the head
+// TEXT keeps reading the sounding rule, so the pinch prints its FRET: its node is over the body
+// where the thumb grazes and 2D has no axis for it. Reading the shape off the sounding rule
+// instead is what once left a pinch as a bar on an ordinary head, saying nothing of a harmonic.
+TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     common::core::ChartViewState state;
@@ -1545,14 +1545,16 @@ TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
     constexpr int lane_y = 140; // string 3 of six in 240 px
 
     // Eight rows above the string line a disc still spans most of its radius while a diamond has
-    // tapered to a sliver, so one row's coverage tells the two silhouettes apart. The pinch must
-    // match the disc to the pixel and the natural must not — the second check is what proves the
-    // probe can see the difference at all.
+    // tapered to a sliver, so one row's coverage tells the two silhouettes apart. Every probe
+    // reads the head's RIGHT half, which the pinch bar — seated on the diamond's leftmost point —
+    // never reaches, so what is measured is the silhouette alone. The pinch must match the natural
+    // harmonic's diamond to the pixel and must NOT match the plain pick's disc; the second check
+    // is what proves the probe can see the difference at all.
     const double plain_row = rowCoverage(image, lane_y - 8, plain_x, plain_x + 15);
     const double pinch_row = rowCoverage(image, lane_y - 8, pinch_x, pinch_x + 15);
     const double harmonic_row = rowCoverage(image, lane_y - 8, harmonic_x, harmonic_x + 15);
-    CHECK(std::abs(pinch_row - plain_row) < 0.5);
-    CHECK(plain_row - harmonic_row > 3.0);
+    CHECK(std::abs(pinch_row - harmonic_row) < 0.5);
+    CHECK(plain_row - pinch_row > 3.0);
 }
 
 // The plectrum table is a hand-kept copy of a measurement of the shipped note atlas, which is the

@@ -414,8 +414,12 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   margin rule both it and the tap light rise read is `marginBefore` in grid arithmetic. `linked` is
   the read `linkedKeyframe(note, keyframe)`; the shape posture list is one `strings` on both
   surfaces; the per-note agreement test became "the highway composes the chart projection
-  unchanged". The review's item 9 rode along: 2D's head shape asks the same sounding rule as 3D's
-  node head, so a pinch wears its fretted head on both surfaces. The pattern catalog's View-state
+  unchanged". The review's item 9 rode along, and RULED 2026-09-17 it is TWO claims, not one:
+  WHERE a note sounds (`soundingStopAt` — the head text, the 3D placement and the node base) and
+  WHETHER it is a harmonic (`isHarmonic` — the 2D diamond head and the 3D harmonic cell). They part
+  company at the pinch, whose node is over the body: it sounds at its fretted stop, so it prints
+  its FRET, and it is a harmonic all the same, so it wears the diamond with the pinch bar in front.
+  3D is unchanged — a pinch already wore the harmonic cell. The pattern catalog's View-state
   push entry carries the element rule: types inside a view state are view state, named `*ViewState`,
   never `*View` (noting the float-member `std::is_eq` nuance against a defaulted `==`). An
   `INoteView` interface was considered and killed: it keeps the second producer, insures against
