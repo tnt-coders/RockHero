@@ -487,9 +487,11 @@ constexpr int g_add_lane_key = 'a';
     // have authored an off-by-one link. `Shift+H` is the letter's second claimant rather than a
     // magnitude variant: the pinch is the same technique reached by the OTHER hand, which is what
     // the shift plane is for one row over from the tap pair. Plain `H` takes the fretting hand's
-    // harmonic because that is the one a charter reaches for first, and because it is the one that
-    // states a value — the fret already typed becomes the node the finger touches.
-    add(EditorCommandId::ChartHarmonicToggle, "Toggle Harmonic", "Authoring", {chord('h')});
+    // harmonic because that is the one a charter reaches for first. It is not a toggle: the fret
+    // already typed becomes the node the finger touches, so the verb states a VALUE — it offers
+    // every change the selection allows, writes the one when there is only one, and asks when
+    // there are several. Hence the ellipsis in the label.
+    add(EditorCommandId::ChartHarmonic, "Harmonic...", "Authoring", {chord('h')});
     add(EditorCommandId::ChartPinchHarmonicToggle,
         "Toggle Pinch Harmonic",
         "Authoring",

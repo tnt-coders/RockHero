@@ -181,7 +181,10 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Set or clear one technique across the chart selection. */
     ToggleChartTechnique,
 
-    /*! \brief State the fret-hand harmonic on the chart selection at one chosen partial. */
+    /*! \brief Offer the fret-hand harmonic on the chart selection, asking when several are open. */
+    ChooseChartHarmonic,
+
+    /*! \brief Take the harmonic node picker's answer: one partial's node, or no harmonic at all. */
     SetChartHarmonicNode,
 
     /*! \brief Set the chart selection to the left-hand tap attack. */

@@ -269,6 +269,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ShiftChartFrets:
             case core::EditorActionId::AdjustChartSustain:
             case core::EditorActionId::ToggleChartTechnique:
+            case core::EditorActionId::ChooseChartHarmonic:
             case core::EditorActionId::SetChartHarmonicNode:
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartSilentHold:
@@ -355,6 +356,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::TypeChartFretDigit:
         case core::EditorActionId::ShiftChartFrets:
         case core::EditorActionId::AdjustChartSustain:
+        case core::EditorActionId::ChooseChartHarmonic:
         case core::EditorActionId::SetChartHarmonicNode:
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
@@ -1234,7 +1236,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
     add(note_menu, EditorCommandId::ChartAccentToggle);
     add(note_menu, EditorCommandId::ChartGhostToggle);
-    add(note_menu, EditorCommandId::ChartHarmonicToggle);
+    add(note_menu, EditorCommandId::ChartHarmonic);
     add(note_menu, EditorCommandId::ChartPinchHarmonicToggle);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
@@ -1316,17 +1318,20 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
             .withDeletionCheck(*this));
 }
 
-// The controller's request where the typed fret names more than one node: the choice is the
-// charter's, so the rows open instead of a write. Each row carries the partial's ORDINAL because
-// that is what the rows differ by — our frets are absolute where published tab is capo-relative, so
-// under a capo the values shift and the ordinal is the only stable name — and they are ordinary
-// menu items at platform size, which the lane's own ~26 x 16 px labels could never be.
+// The controller's request where the selection allows more than one change: the choice is the
+// charter's, so the rows open instead of a write. Each node row carries the partial's ORDINAL
+// because that is what the rows differ by — our frets are absolute where published tab is
+// capo-relative, so under a capo the values shift and the ordinal is the only stable name — and
+// they are ordinary menu items at platform size, which the lane's own ~26 x 16 px labels could
+// never be. The row the note already touches is ticked, and the "No harmonic" row, when the
+// controller offers one, sits last behind a separator.
 //
-// Rows are numbered from 1 in the order given, and item 1 opens SELECTED: JUCE matches
-// withInitiallySelectedItem against item IDs, so the lambda addItem overload (id -1) could never be
-// preselected — the tone picker numbers its rows for the same reason. The controller sends the
-// lowest partial first, so Return takes the harmonic a charter means by the label and the common
-// case stays two keystrokes; dismissing (Esc, a click elsewhere) reports 0 and touches nothing.
+// Rows are numbered from 1 in the order given: JUCE matches withInitiallySelectedItem against item
+// IDs, so the lambda addItem overload (id -1) could never be preselected — the tone picker numbers
+// its rows for the same reason. Which row opens SELECTED is the controller's to say (what a toggle
+// would have done), so Return keeps the common case at two keystrokes. Dismissing (Esc, a click
+// elsewhere) reports 0 and touches nothing; every other result names a row, and the row IS the
+// answer.
 //
 // Anchored at the head the rows describe — the object the choice is about — rather than at the
 // mouse, which the keyboard verb has no reason to be near. The head's rectangle is where it lies
@@ -1338,16 +1343,30 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
     juce::PopupMenu menu;
     for (std::size_t index = 0; index < picker.choices.size(); ++index)
     {
-        // The value through the ONE label authority, so a row and the head it will produce print
-        // the same number; the separator is a UTF-8 middle dot, spelled in escapes so the byte
-        // sequence cannot depend on the compiler's source encoding.
-        menu.addItem(
-            static_cast<int>(index) + 1,
-            juce::String{common::core::harmonicNodeText(picker.choices[index].node)} +
-                " \xc2\xb7 " + ordinalText(picker.choices[index].partial) + " partial");
+        const int item = static_cast<int>(index) + 1;
+        if (const auto* const node =
+                std::get_if<core::ChartHarmonicNodeChoice>(&picker.choices[index]);
+            node != nullptr)
+        {
+            // The value through the ONE label authority, so a row and the head it will produce
+            // print the same number; the separator is a UTF-8 middle dot, spelled in escapes so the
+            // byte sequence cannot depend on the compiler's source encoding.
+            menu.addItem(
+                item,
+                juce::String{common::core::harmonicNodeText(node->node)} + " \xc2\xb7 " +
+                    ordinalText(node->partial) + " partial",
+                true,
+                node->current);
+        }
+        else
+        {
+            menu.addSeparator();
+            menu.addItem(item, "No harmonic");
+        }
     }
     juce::PopupMenu::Options options =
-        juce::PopupMenu::Options{}.withDeletionCheck(*this).withInitiallySelectedItem(1);
+        juce::PopupMenu::Options{}.withDeletionCheck(*this).withInitiallySelectedItem(
+            static_cast<int>(picker.preselected) + 1);
     if (const std::optional<juce::Rectangle<float>> head = m_tab_view.noteHeadBounds(picker.note);
         head.has_value())
     {
@@ -1365,8 +1384,11 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
             {
                 return;
             }
+            const core::ChartHarmonicChoice& chosen =
+                owned_choices[static_cast<std::size_t>(result) - 1];
+            const auto* const node = std::get_if<core::ChartHarmonicNodeChoice>(&chosen);
             m_controller.onChartHarmonicNodeRequested(
-                owned_choices[static_cast<std::size_t>(result) - 1].partial);
+                node != nullptr ? std::optional{node->partial} : std::nullopt);
         });
 }
 
@@ -1642,7 +1664,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::ChartWideVibratoToggle:
-        case EditorCommandId::ChartHarmonicToggle:
+        case EditorCommandId::ChartHarmonic:
         case EditorCommandId::ChartPinchHarmonicToggle:
         case EditorCommandId::ChartTapToggle:
         case EditorCommandId::ChartSlapToggle:
@@ -2071,11 +2093,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ChartHarmonicToggle:
+        case EditorCommandId::ChartHarmonic:
         {
             if (hasChart())
             {
-                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Harmonic);
+                m_controller.onChartHarmonicRequested();
             }
             return true;
         }

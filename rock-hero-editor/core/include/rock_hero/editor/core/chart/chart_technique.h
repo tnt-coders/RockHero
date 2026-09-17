@@ -39,15 +39,16 @@ pair's rule, applied to a field with four claimants here instead of two. `LeftTa
 NOT among them: the fretting hand's tap is a statement no toggle may withdraw, so it keeps its own
 stating verb rather than a row (\ref IEditorController::onChartLeftTapRequested).
 
-`Harmonic` and `PinchHarmonic` are the third such pair, and the one whose two rows SET through
-different planners and CLEAR through the same one. Setting differs because the two hands do
-different things: `H` turns the fret already typed into the node the fretting finger touches, while
-`Shift+H` re-hands the note to the picking thumb, which is exactly the attack verb. Clearing is one
-plan for both because each row's noun is a HARMONIC, so its clear must remove one — where clearing
-the pinch through the attack row alone would leave a stop and a node behind, an artificial harmonic
-nobody authored. `Harmonic` is also the one row whose SET states a VALUE, so the verb routes it
-through the pending-entry machinery every stated value in this editor goes through; the row's own
-plan is what a press that states no choice means.
+`PinchHarmonic` is the attack verb of the picking thumb's harmonic, with one difference from the
+four attacks above: its noun is a HARMONIC, so its clear removes one (`planClearPinchHarmonic`,
+the thumb's own clear) — clearing to the plain pick alone would leave a stop and a node behind, an
+artificial harmonic nobody authored.
+
+The fret-hand harmonic (`H`) is deliberately NOT a row. Its set states a VALUE — which node the
+finger touches — and a label usually names several, so it is not a toggle at all: the verb offers
+every change the selection allows and asks when there is more than one (\ref
+IEditorController::onChartHarmonicRequested), and its run folds like a gesture rather than
+reversing like a toggle.
 */
 enum class ChartTechnique : std::uint8_t
 {
@@ -73,8 +74,6 @@ enum class ChartTechnique : std::uint8_t
     Slap,
     /*! \brief The popped attack. */
     Pop,
-    /*! \brief The fretting hand's harmonic: the finger touches its node and presses nothing. */
-    Harmonic,
     /*! \brief The pinch harmonic: the picking thumb grazes a node as the plectrum passes. */
     PinchHarmonic,
     /*! \brief The legato connection claim. */

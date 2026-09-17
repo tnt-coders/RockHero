@@ -553,6 +553,37 @@ admits, and ordering by partial puts the loudest — the one a charter means by 
 SNAP cap stays 8 for the corpus reason above: it is import's rule, and raising it would need the
 corpus re-measured.
 
+**RULED 2026-09-16: the verb offers every CHANGE the selection allows, and asks only where there is
+more than one.** `H` stopped being a technique toggle — `ChartTechnique::Harmonic` is deleted, and
+the verb raises `EditorAction::ChooseChartHarmonic` through
+`IEditorController::onChartHarmonicRequested()` — because with a multi-valued "on", "restore what the
+last press removed" and "set" diverge: an invisible window picking the restore made `H` after a clear
+behave differently from `H` on any other plain note. **Which rows CHANGE anything is the PLANNER's
+answer**, never a count kept beside it: each node row (`planSetHarmonic`) and the clear
+(`planClearHarmonic`) are planned over the live chart, and a `NoChange` plan is not a change — zero
+changes is an inert press, one applies in the keystroke, two or more ask. The node rows are those of the
+member whose label names the MOST nodes (a carrier's label is the fret its node lies at —
+`harmonicLabelFret`, which is also what the clear presses back down — so a note touching 4.98 is
+offered the 13th and 15th partials of a 5), and EVERY one of them is shown, a ticked row that changes
+nothing included, while the **"No harmonic"** row comes last, after a separator, only where the clear
+itself changes something. Several changes open the picker, answered by
+`onChartHarmonicNodeRequested(std::optional<int>)` → `SetChartHarmonicNode{partial}`, an absent
+partial being the clear. The TICKED row is the node the ANCHOR member — the note the rows were read
+from, whose head the menu sits on — is touching, not a statement about the selection as a whole; the
+PRESELECTED row is what the toggle
+would have done — "No harmonic" when every member carries a fret-hand harmonic (`carriesNeckHarmonic`:
+a node whose attack keeps it on the neck, a pinch excluded), else the lowest partial that CHANGES
+something — so `H`
+`Return` still clears a harmonic and still sets the lowest partial on a plain note. The clear is the
+FRET HAND's alone: `planClearHarmonic` writes only notes that `carriesNeckHarmonic`, the thumb's node
+being `planClearPinchHarmonic`'s, so a pinch selected beside a fret-hand carrier is left untouched by
+`H`. Consecutive
+choices on one selection FOLD into one undo entry through the shared gesture authority
+(`commitChartGestureStep`, an empty `ChartHarmonicGesture` alternative), and a choice back to the
+pre-run state retires the entry; restoring a node the label cannot name — an imported artificial 17.0
+on a fret 5 — is `Ctrl+Z` only. The pinch is expected to carry a node of its own eventually and to
+adopt the same law then.
+
 A related fact: **GP's `HFret` values are conventional labels, not exact physics.** The true 8th
 partial node is 2.313 but GP writes `2.4`; the 5th is 3.863 but GP writes `4.0`. The format
 therefore stores what a chart *says* and must never snap a node to a computed ideal.

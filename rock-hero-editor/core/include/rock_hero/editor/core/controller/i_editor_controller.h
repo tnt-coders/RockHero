@@ -442,34 +442,50 @@ public:
     applying would change nothing does the press mean clear, flattening the stored claims alone (a
     left-hand tap riding the selection keeps its attack). No direction is authored or stored.
 
-    `ChartTechnique::Harmonic` is the one row whose SET states a value, so a press can ASK instead
-    of write: where the typed fret names more than one node the press commits nothing and arms
-    nothing, and the controller asks the view for the rows through
-    \ref IEditorView::showChartHarmonicNodePicker; the row the charter chooses returns through
-    \ref onChartHarmonicNodeRequested, which is what writes. A fret naming one node, a clear, and a
-    reversal inside the verb window all behave exactly as they do for every other technique.
+    The fret-hand harmonic is not a technique here: its set states a VALUE, so it has its own verb,
+    \ref onChartHarmonicRequested.
 
     \param technique The technique to set or clear.
     */
     virtual void onChartTechniqueToggleRequested(ChartTechnique technique) = 0;
 
     /*!
-    \brief Handles a request to state the fret-hand harmonic at one chosen partial.
+    \brief Handles the fret-hand harmonic verb (`H`) over the selected notes.
 
-    The harmonic node picker's answer, and the only entry point that names a node. `H` over a
-    typed fret naming more than one node asks the view for the picker
-    (\ref IEditorView::showChartHarmonicNodePicker) instead of writing; the row the charter chooses
-    returns here. A row is already a deliberate choice, so it applies at once, in one compound undo
-    entry over the whole selection like the verb it shares a planner with, and arms the same
-    reversal window a choiceless press does.
+    Not a toggle. Which node the finger touches is a quantity, and a typed fret usually names
+    several (a 5 names the 4th partial's 4.98, the 13th's 4.54 and the 15th's 5.37), so the verb
+    offers every CHANGE the selection allows and asks only when there is more than one. The changes
+    are the node rows of the member whose label names the most nodes — a note already touching a
+    node reads its label from the fret that node lies at, so a 4.98 is offered the 13th and 15th of
+    a 5 — less the row it is touching while every member carries a harmonic, plus "no harmonic"
+    where any member carries one. One change applies at once: a 12 writes its single node, and a
+    12 already touching it clears. Several open the picker through
+    \ref IEditorView::showChartHarmonicNodePicker, committing nothing; the chosen row returns
+    through \ref onChartHarmonicNodeRequested. Return in that picker takes what a toggle would have
+    done — clear when every member carries a harmonic, else the lowest partial. A selection whose
+    labels name nothing (open strings, pinches) is inert.
 
-    The choice binds only the members it names: a selected note whose own label offers the chosen
-    partial takes that partial's node, one whose label does not takes its lowest partial — what a
-    choiceless press writes — and a note whose fret reaches none is skipped.
-
-    \param partial The partial whose node the selection's ambiguous members take.
+    The run folds like a gesture rather than reversing like a toggle: choices on one selection
+    replace one undo entry until a selection change, a caret move, another verb's edit, undo/redo or
+    a save ends the run, and a run that chooses its way back to where it began leaves no entry. An
+    open picker is a question, not an edit — it ends nothing another verb has staged; the choice
+    does.
     */
-    virtual void onChartHarmonicNodeRequested(int partial) = 0;
+    virtual void onChartHarmonicRequested() = 0;
+
+    /*!
+    \brief Handles the harmonic node picker's answer: the fret-hand harmonic at one chosen partial,
+    or no harmonic at all.
+
+    A row is already a deliberate choice, so it applies at once as one step of the harmonic run
+    (\ref onChartHarmonicRequested), over the whole selection. The choice binds only the members it
+    names: a selected note whose own label offers the chosen partial takes that partial's node, one
+    whose label does not takes its lowest partial, and a note whose fret reaches none is skipped.
+    Absent, every carried harmonic is cleared and the finger presses where it was touching.
+
+    \param partial The partial whose node the selection takes, or absent to clear.
+    */
+    virtual void onChartHarmonicNodeRequested(std::optional<int> partial) = 0;
 
     /*!
     \brief Handles a request to set the selected notes to the left-hand tap attack.

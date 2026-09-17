@@ -296,6 +296,10 @@ namespace
         {
             return "ToggleChartTechnique";
         }
+        case EditorAction::Id::ChooseChartHarmonic:
+        {
+            return "ChooseChartHarmonic";
+        }
         case EditorAction::Id::SetChartHarmonicNode:
         {
             return "SetChartHarmonicNode";
@@ -399,6 +403,7 @@ namespace
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
+            case EditorAction::Id::ChooseChartHarmonic:
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartSilentHold:
@@ -541,6 +546,7 @@ namespace
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
@@ -1120,7 +1126,12 @@ void EditorController::onChartTechniqueToggleRequested(const ChartTechnique tech
     m_impl->runAction(EditorAction::ToggleChartTechnique{.technique = technique});
 }
 
-void EditorController::onChartHarmonicNodeRequested(const int partial)
+void EditorController::onChartHarmonicRequested()
+{
+    m_impl->runAction(EditorAction::ChooseChartHarmonic{});
+}
+
+void EditorController::onChartHarmonicNodeRequested(const std::optional<int> partial)
 {
     m_impl->runAction(EditorAction::SetChartHarmonicNode{.partial = partial});
 }

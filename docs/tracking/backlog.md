@@ -1006,3 +1006,40 @@ written down.
   its declaration in the same header), which today falls out of the position sort rather than being
   written anywhere; and the common tests that pin the position order. Small, and no behaviour change
   expected.
+
+## Found while reviewing the harmonic verb's move to the gesture fold (2026-09-17)
+
+- **A picker answer is applied to the live selection, not the one the rows were read from.**
+  `SetChartHarmonicNode` (`rock-hero-editor/core/src/chart/chart_handlers.cpp`) re-reads
+  `chartSelection().notes()` when the answer arrives, so a selection change that does NOT dismiss the
+  popup — a timer, transport follow, a programmatic change — would apply the chosen partial, or the
+  clear, to notes the charter was never offered rows for. Accepted for now because the damage is
+  bounded and the path is hard to reach: a partial resolves per note against its own string, the clear
+  touches only fret-hand carriers, and a click anywhere else dismisses the menu with result 0 before
+  the selection moves. Every other async picker and dialog the view opens shares the property, so this
+  is a family question rather than this verb's. Fix shape: carry the offered keys in the request and
+  have the answer prove `chartSelection().keys()` still equals them before it writes — the shape the
+  verb window's own proof already uses.
+
+- **`commitChartGestureStep` retires on an empty WRITTEN plan for any verb.** The `written.empty()`
+  path in `rock-hero-editor/core/src/chart/chart_handlers.cpp` reads "wrote nothing" as "back to the
+  pre-run state" and retires the run's undo entry, so a plan that changes only silent keyframes — which
+  write as nothing — would retire an entry describing a real edit. Accepted for now because no plan
+  that hits it has been constructed: the harmonic verb is the third client of the shared authority and
+  both the fret and the node are stated fields, not keyframes. Recorded against the authority, not the
+  verb: the fix is to decide whether "written as nothing" should retire at all, or whether the planner
+  itself should refuse such a plan as `NoChange`.
+
+- **The harmonic verb plans every row just to count its changes.**
+  `performActionImpl(ChooseChartHarmonic)` (`rock-hero-editor/core/src/chart/chart_handlers.cpp`) runs
+  one `planSetHarmonic` per node row plus one `planClearHarmonic` over the live chart on every `H`
+  press, and each `planNoteWrite` copies the whole note stream — then, when anything changed,
+  `finalizePlan` sorts, normalizes, sweeps and validates that whole stream and builds a second
+  saved-form copy. Up to five plans per press, after which the accepted one is planned a sixth time.
+  Accepted for now because it is fine at the scale a charter works at — a chord, a phrase — and the
+  cost has not been measured; `Ctrl+A` over a long song is the case that would hurt, several
+  whole-chart passes on the message thread, and it needs a measurement through the `relwithdebinfo`
+  preset before anything is changed. Cheaper shape: expose `planNoteWrite`'s per-note half — "does any
+  keyed note's saved form change?" — so counting skips `finalizePlan` entirely, which would also force
+  the Invalid-versus-`NoChange` distinction to be answered explicitly instead of read off
+  `.has_value()`.

@@ -1,10 +1,12 @@
-#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -13,14 +15,33 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// The rows of the LAST picker request, or an empty list when no press has asked for one. The
-// REQUEST is the whole published surface: the fork lives in the controller, which decides it
-// against the chart the press lands on, so what the view was handed is the only record that a
-// press meant "the charter chooses".
-[[nodiscard]] std::vector<ChartHarmonicNodeChoice> lastPickerChoices(const FakeEditorView& view)
+// The NODE rows of a request, in the order it published them. A request is one list of variant rows
+// under a shape contract — nodes ascending by partial, then at most one clear row LAST — so reading
+// the nodes out is also where that shape is checked: a non-node row anywhere but the end is the
+// contract broken rather than a row to hand back.
+[[nodiscard]] std::vector<ChartHarmonicNodeChoice> nodeRows(const ChartHarmonicNodePicker& picker)
 {
-    return view.shown_harmonic_pickers.empty() ? std::vector<ChartHarmonicNodeChoice>{}
-                                               : view.shown_harmonic_pickers.back().choices;
+    std::vector<ChartHarmonicNodeChoice> rows;
+    rows.reserve(picker.choices.size());
+    for (std::size_t index = 0; index < picker.choices.size(); ++index)
+    {
+        const auto* const node = std::get_if<ChartHarmonicNodeChoice>(&picker.choices[index]);
+        if (node == nullptr)
+        {
+            CHECK(index + 1 == picker.choices.size());
+            break;
+        }
+        rows.push_back(*node);
+    }
+    return rows;
+}
+
+// Whether the request ends with the "No harmonic" row, which the controller appends only when a
+// clear over the live selection would change something.
+[[nodiscard]] bool offersClear(const ChartHarmonicNodePicker& picker)
+{
+    return !picker.choices.empty() &&
+           std::holds_alternative<ChartHarmonicClearChoice>(picker.choices.back());
 }
 
 // The controller wired for the node picker's scenarios: the shared six-string chart opened through
@@ -40,6 +61,9 @@ struct HarmonicPickerFixture
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
+            // Wired so one scenario can put a real commit point — a save — in the middle of a
+            // harmonic run; every other scenario here never asks for one.
+            .save_function = project_services.saveFunction(),
         }
     };
     FakeEditorView view;
@@ -58,19 +82,16 @@ struct HarmonicPickerFixture
         static_cast<void>(pending.scheduler.runDelayed());
     }
 
-    // The rows the view was last asked to open its popup on.
-    [[nodiscard]] std::vector<ChartHarmonicNodeChoice> choices() const
-    {
-        return lastPickerChoices(view);
-    }
-
-    // The note the last request named — the member the rows were read from, and the head the popup
-    // anchors on. Empty when no press has asked for one.
-    [[nodiscard]] std::optional<std::size_t> pickerNote() const
+    // The LAST request the view was handed, or nothing when no press has asked for one. The REQUEST
+    // is the whole published surface — the rows, the note they were read from, and the row Return
+    // takes — because the fork lives in the controller, which decides it against the chart the
+    // press lands on: what the view was handed is the only record that a press meant "the charter
+    // chooses".
+    [[nodiscard]] std::optional<ChartHarmonicNodePicker> lastPicker() const
     {
         return view.shown_harmonic_pickers.empty()
                    ? std::nullopt
-                   : std::optional<std::size_t>{view.shown_harmonic_pickers.back().note};
+                   : std::optional<ChartHarmonicNodePicker>{view.shown_harmonic_pickers.back()};
     }
 
     // How many presses handed the choice to the charter instead of answering it themselves.
@@ -84,6 +105,16 @@ struct HarmonicPickerFixture
     {
         const EditorViewState* const state = stateOrNull(view.last_state);
         return state == nullptr ? 0 : state->undo_history.labels.size();
+    }
+
+    // Ends the harmonic run without changing what the chart holds: a history move is a context
+    // switch, so it retires the burst record every coalescing window rests on and the next choice
+    // opens a fresh entry. The same "undo then redo" the technique-toggle suite closes its window
+    // with, named here because the harmonic scenarios lean on it repeatedly.
+    void endRun()
+    {
+        controller.onUndoRequested();
+        controller.onRedoRequested();
     }
 };
 
@@ -99,23 +130,38 @@ TEST_CASE("A harmonic press over an ambiguous fret requests the picker", "[core]
 
     click(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntries();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
 
     // Exactly one request, its rows ascending by partial. That order IS the contract: the view
     // preselects the first row, and the same row is what the planner's own default would write.
     CHECK(fixture.pickerRequests() == 1);
-    const std::vector<ChartHarmonicNodeChoice> choices = fixture.choices();
-    REQUIRE(choices.size() == 4);
-    if (choices.size() == 4)
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
     {
-        CHECK(choices[0].partial == 6);
-        CHECK(choices[0].node == Catch::Approx(3.1564).margin(0.001));
-        CHECK(choices[1].partial == 7);
-        CHECK(choices[1].node == Catch::Approx(2.6687).margin(0.001));
-        CHECK(choices[2].partial == 11);
-        CHECK(choices[2].node == Catch::Approx(3.4741).margin(0.001));
-        CHECK(choices[3].partial == 13);
-        CHECK(choices[3].node == Catch::Approx(2.8921).margin(0.001));
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 4);
+        if (choices.size() == 4)
+        {
+            CHECK(choices[0].partial == 6);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(3.1564, 0.001));
+            CHECK(choices[1].partial == 7);
+            CHECK_THAT(choices[1].node, Catch::Matchers::WithinAbs(2.6687, 0.001));
+            CHECK(choices[2].partial == 11);
+            CHECK_THAT(choices[2].node, Catch::Matchers::WithinAbs(3.4741, 0.001));
+            CHECK(choices[3].partial == 13);
+            CHECK_THAT(choices[3].node, Catch::Matchers::WithinAbs(2.8921, 0.001));
+            // Nothing is ticked: the finger is on the fret, not on any of the nodes it names.
+            CHECK_FALSE(choices[0].current);
+            CHECK_FALSE(choices[1].current);
+            CHECK_FALSE(choices[2].current);
+            CHECK_FALSE(choices[3].current);
+        }
+
+        // No harmonic to remove, so the rows end at the last node and Return takes the first of
+        // them: every row here changes something, so the lowest partial is what a toggle meant.
+        CHECK_FALSE(offersClear(*picker));
+        CHECK(picker->preselected == 0);
     }
 
     // The chart is exactly as the press found it, and the history never grew.
@@ -134,11 +180,11 @@ TEST_CASE("A chosen picker row writes the harmonic at once", "[core][chart]")
     HarmonicPickerFixture fixture;
 
     click(fixture.controller, 40.0f, 220.0f);
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
     REQUIRE(fixture.pickerRequests() == 1);
     const std::size_t entries_before = fixture.undoEntries();
 
-    fixture.controller.onChartHarmonicNodeRequested(7);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{7});
     const common::core::Chart* chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
     CHECK(chart->notes[0].fret == 0);
@@ -146,7 +192,7 @@ TEST_CASE("A chosen picker row writes the harmonic at once", "[core][chart]")
     REQUIRE(node.has_value());
     if (node.has_value())
     {
-        CHECK(*node == Catch::Approx(2.6687).margin(0.001));
+        CHECK_THAT(*node, Catch::Matchers::WithinAbs(2.6687, 0.001));
     }
     CHECK(fixture.undoEntries() == entries_before + 1);
 
@@ -157,9 +203,9 @@ TEST_CASE("A chosen picker row writes the harmonic at once", "[core][chart]")
     CHECK_FALSE(chart->notes[0].harmonic_node.has_value());
 }
 
-// A fret naming ONE node has nothing to choose, so the press is an ordinary technique toggle that
-// writes in the same keystroke: 12 names the octave and nothing else inside the partial bound, and
-// the charter is never shown a menu with a single row on it.
+// A fret naming ONE node has nothing to choose, so the press answers itself in the same keystroke:
+// 12 names the octave and nothing else inside the partial bound, and the charter is never shown a
+// menu with a single row on it.
 TEST_CASE("A label naming one node writes with no request", "[core][chart]")
 {
     common::core::Chart chart;
@@ -169,7 +215,7 @@ TEST_CASE("A label naming one node writes with no request", "[core][chart]")
 
     click(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntries();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
 
     const common::core::Chart* const live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
@@ -178,101 +224,571 @@ TEST_CASE("A label naming one node writes with no request", "[core][chart]")
     REQUIRE(node.has_value());
     if (node.has_value())
     {
-        CHECK(*node == Catch::Approx(12.0).margin(0.001));
+        CHECK_THAT(*node, Catch::Matchers::WithinAbs(12.0, 0.001));
     }
     CHECK(fixture.undoEntries() == entries_before + 1);
-    CHECK(fixture.view.shown_harmonic_pickers.empty());
+    CHECK(fixture.pickerRequests() == 0);
 }
 
-// UNIFORM SCOPE OVER A CHORD: one press, ONE request, and the rows come off the FIRST ambiguous
-// member — the fret-3 note's. One member speaks for the scope because a row carries a PARTIAL,
-// and that partial binds every member whose own label offers it; where it lands is each note's
-// own arithmetic, so one partial prints two numbers. A member whose label does not name the chosen
-// partial is not skipped: it takes its own first row, what a choiceless press would have written.
-TEST_CASE("A harmonic press over a chord requests one picker for the whole scope", "[core][chart]")
+// THE CARRIER WITH NOTHING ELSE ON OFFER CLEARS, and whether that clear costs an entry is the
+// RUN's question rather than the press's. A 12 already touching its one node has exactly one change
+// left — removal — so the press takes it without asking; inside the run that set it, removing walks
+// the chart back to where the run began, so the entry describing the run RETIRES rather than a
+// second one being pushed on top. Once a history move has ended the run, the same press is an
+// ordinary edit with an entry of its own.
+TEST_CASE("A carrier with one node clears, and the run decides what that costs", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 12)};
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    click(fixture.controller, 40.0f, 220.0f);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    // The set half, which opens the run.
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.undoEntries() == entries_before + 1);
+    REQUIRE(fixture.pickerRequests() == 0);
+
+    SECTION("a second press inside the run retires the entry it pushed")
+    {
+        fixture.controller.onChartHarmonicRequested();
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        CHECK(live->notes[0].fret == 12);
+        CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+        // Still no menu — the carrier's one row is the one it is standing on, so "remove" is the
+        // only change there is — and no trace in the history either.
+        CHECK(fixture.pickerRequests() == 0);
+        CHECK(fixture.undoEntries() == entries_before);
+    }
+
+    SECTION("with the run ended the clear is an entry of its own")
+    {
+        fixture.endRun();
+        const std::size_t entries_after_run = fixture.undoEntries();
+
+        fixture.controller.onChartHarmonicRequested();
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        CHECK(live->notes[0].fret == 12);
+        CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+        CHECK(fixture.pickerRequests() == 0);
+        CHECK(fixture.undoEntries() == entries_after_run + 1);
+    }
+}
+
+// THE CHANGES ARE COUNTED BY PLANNING, so a member that names nothing adds no row and no change: a
+// 12 already touching its one node, selected beside an open string, still has exactly ONE change on
+// offer — the clear — and the press takes it in the same keystroke. Counting the label's rows
+// instead would have made this two (a node row plus the clear) and opened a menu whose first row
+// does nothing.
+TEST_CASE("A one-node carrier beside a note naming nothing clears at once", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 12),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0),
+    };
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    // The string-1 note becomes the carrier through the verb, so its node is exactly the one the
+    // rows name; the run is then ended so the clear below is an ordinary edit rather than a retire.
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 0);
+    fixture.endRun();
+
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    // Both members are in scope, which is what makes the count below a statement about PLANNING
+    // rather than about a selection that quietly lost its second note.
+    const EditorViewState* const selected = stateOrNull(fixture.view.last_state);
+    REQUIRE(selected != nullptr);
+    if (selected != nullptr)
+    {
+        CHECK(selected->chart_edit.selected_notes.size() == 2);
+    }
+
+    const std::size_t entries_before = fixture.undoEntries();
+    fixture.controller.onChartHarmonicRequested();
+
+    // No menu: one change, applied at once.
+    CHECK(fixture.pickerRequests() == 0);
+    const common::core::Chart* const live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 12);
+    CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+    // The open string had nothing to clear, so the press passed over it.
+    CHECK(live->notes[1].fret == 0);
+    CHECK_FALSE(live->notes[1].harmonic_node.has_value());
+    CHECK(fixture.undoEntries() == entries_before + 1);
+}
+
+// A CARRIER'S LABEL IS THE FRET ITS NODE LIES AT, so a finger touching 4.98 is offered the OTHER
+// nodes of a 5 — the 13th and the 15th — with the row it is standing on ticked rather than dropped,
+// because the menu's job is to show where the hand is before it is moved. Every member carries a
+// harmonic, so the clear row is the preselected one: `H` then Return still removes, exactly as a
+// toggle would have.
+TEST_CASE("A harmonic press over a carrier offers the label's other nodes", "[core][chart]")
 {
     HarmonicPickerFixture fixture;
+
+    // The string-2 note at measure 2 beat 1 carries fret 5. Touched through the verb itself rather
+    // than authored by hand, so the stored node is bit-for-bit the one the rows name and the ticked
+    // row is decided by the arithmetic instead of by a literal.
+    click(fixture.controller, 40.0f, 180.0f);
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    fixture.endRun();
+    const std::size_t entries_before = fixture.undoEntries();
+    const std::size_t requests_before = fixture.pickerRequests();
+
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == requests_before + 1);
+
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[0].partial == 4);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(4.9804, 0.001));
+            CHECK(choices[0].current);
+            CHECK(choices[1].partial == 13);
+            CHECK_THAT(choices[1].node, Catch::Matchers::WithinAbs(4.5421, 0.001));
+            CHECK_FALSE(choices[1].current);
+            CHECK(choices[2].partial == 15);
+            CHECK_THAT(choices[2].node, Catch::Matchers::WithinAbs(5.3695, 0.001));
+            CHECK_FALSE(choices[2].current);
+        }
+
+        // Four rows, the clear last, and Return takes it: every selected note carries a harmonic,
+        // which is exactly when a toggle would have removed one.
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 3);
+    }
+
+    SECTION("the clear row presses the finger back onto the fret it was touching")
+    {
+        fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        CHECK(live->notes[1].fret == 5);
+        CHECK_FALSE(live->notes[1].harmonic_node.has_value());
+        CHECK(fixture.undoEntries() == entries_before + 1);
+    }
+
+    SECTION("another row moves the touch along the same label")
+    {
+        fixture.controller.onChartHarmonicNodeRequested(std::optional{13});
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        CHECK(live->notes[1].fret == 0);
+        const std::optional<double>& node = live->notes[1].harmonic_node;
+        REQUIRE(node.has_value());
+        if (node.has_value())
+        {
+            CHECK_THAT(*node, Catch::Matchers::WithinAbs(4.5421, 0.001));
+        }
+        CHECK(fixture.undoEntries() == entries_before + 1);
+    }
+}
+
+// THE RUN FOLDS LIKE A GESTURE, NOT LIKE A TOGGLE. Consecutive choices on one selection are one
+// edit — the second replaces the first's entry rather than stacking on it — so a charter trying the
+// 13th and settling on the 15th leaves ONE thing to undo, and that undo lands on the state the run
+// began at rather than on an intermediate node nobody asked to keep. A history move then ends the
+// run, and the next choice opens a fresh entry the way the first one did.
+TEST_CASE("Consecutive harmonic choices fold into one history entry", "[core][chart]")
+{
+    HarmonicPickerFixture fixture;
+
+    click(fixture.controller, 40.0f, 180.0f);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{13});
+    const std::size_t entries_after_first = fixture.undoEntries();
+    CHECK(entries_after_first == entries_before + 1);
+
+    // The second press reads the chart the first choice left, so the 13th is the ticked row.
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[1].partial == 13);
+            CHECK(choices[1].current);
+        }
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 3);
+    }
+
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{15});
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    const std::optional<double>& node = chart->notes[1].harmonic_node;
+    REQUIRE(node.has_value());
+    if (node.has_value())
+    {
+        CHECK_THAT(*node, Catch::Matchers::WithinAbs(5.3695, 0.001));
+    }
+    // The fold: the second choice rewrote the run's entry instead of pushing a second one.
+    CHECK(fixture.undoEntries() == entries_after_first);
+
+    // And the one entry describes start → now, so a single undo is the whole run undone.
+    fixture.controller.onUndoRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[1].fret == 5);
+    CHECK_FALSE(chart->notes[1].harmonic_node.has_value());
+
+    // The redo restores the touch AND ends the run, so the clear below is an ordinary edit with an
+    // entry of its own rather than the retire a third choice inside the run would have been.
+    fixture.controller.onRedoRequested();
+    const std::size_t entries_after_redo = fixture.undoEntries();
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[1].fret == 5);
+    CHECK_FALSE(chart->notes[1].harmonic_node.has_value());
+    CHECK(fixture.undoEntries() == entries_after_redo + 1);
+}
+
+// A SAVE IS A COMMIT POINT LIKE ANY OTHER, so the run ends there. The saved entry now describes
+// what the file holds, and rewriting it would make "return to clean" restore content the file does
+// not have — so the next choice PUSHES rather than replaces, and the charter keeps one Ctrl+Z back
+// to the saved state and another back to where the run began.
+TEST_CASE("A save mid-run starts a fresh entry on the next choice", "[core][chart]")
+{
+    HarmonicPickerFixture fixture;
+
+    click(fixture.controller, 40.0f, 180.0f);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{13});
+    CHECK(fixture.undoEntries() == entries_before + 1);
+
+    fixture.controller.onSaveRequested();
+    REQUIRE(fixture.project_services.save_call_count == 1);
+
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{15});
+
+    const common::core::Chart* const live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[1].fret == 0);
+    const std::optional<double>& node = live->notes[1].harmonic_node;
+    REQUIRE(node.has_value());
+    if (node.has_value())
+    {
+        CHECK_THAT(*node, Catch::Matchers::WithinAbs(5.3695, 0.001));
+    }
+    // Two entries, not one rewritten: the saved 13th and this choice's 15th.
+    CHECK(fixture.undoEntries() == entries_before + 2);
+}
+
+// A RUN THAT CHOOSES ITS WAY HOME LEAVES NOTHING BEHIND. Setting a node and then removing it inside
+// the same run describes no edit at all, so the entry the first choice pushed is RETIRED rather
+// than joined by a second: an entry describing nothing is a dead Ctrl+Z on a document reported
+// modified that is byte-identical to the one on disk. No reversal of its own is needed for this —
+// the replan against the run's start is what notices, which is why the verb needs no second-press
+// rule the way the technique toggle does.
+TEST_CASE("A harmonic run that returns to its start leaves no trace", "[core][chart]")
+{
+    HarmonicPickerFixture fixture;
+
+    // A preceding entry the run must not disturb, so "no trace" can be read off the history.
+    click(fixture.controller, 40.0f, 180.0f);
+    fixture.controller.onChartSustainAdjustRequested(1);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    CHECK(fixture.undoEntries() == entries_before + 1);
+
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+    const common::core::Chart* live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[1].fret == 5);
+    CHECK_FALSE(live->notes[1].harmonic_node.has_value());
+    CHECK(fixture.undoEntries() == entries_before);
+
+    // The next undo reaches past the retired run to the sustain adjust that preceded it.
+    fixture.controller.onUndoRequested();
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[1].sustain == g_fixture_sustain);
+}
+
+// UNIFORM SCOPE OVER A MIXED CHORD: one press, ONE request, and the rows come off the member whose
+// label names the MOST nodes — here the carrier at 4.98, whose label is the 5 its node lies at, not
+// the plain 7 that leads it in chart order. One member speaks for the scope because a row carries a
+// PARTIAL, and that partial binds every member whose own label offers it; where it lands is each
+// note's own arithmetic. Only some members carry a harmonic, so the clear is OFFERED rather than
+// preselected: Return still takes the first node row.
+TEST_CASE("A harmonic press over a mixed chord reads one member for the scope", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    // Chart order is (position, string), so the plain 7 leads and the ambiguous 5 follows it.
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 7),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5),
+    };
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    // Make the string-2 note a carrier through the verb, so its node is exactly a row's value.
+    click(fixture.controller, 40.0f, 180.0f);
+    fixture.controller.onChartHarmonicRequested();
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+
+    // Marquee both members: a carrier plus a plain note whose label names one node.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    const std::size_t entries_before = fixture.undoEntries();
+    const std::size_t requests_before = fixture.pickerRequests();
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == requests_before + 1);
+
+    // The request names the member the rows came from — the carrier at projection index 1 — because
+    // the 5's rows hanging under the 7's head would describe a note they do not touch.
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        CHECK(picker->note == 1);
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[0].partial == 4);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(4.9804, 0.001));
+            CHECK(choices[1].partial == 13);
+            CHECK(choices[2].partial == 15);
+        }
+        // The clear is on offer, because one member carries — but Return does NOT take it: the
+        // plain 7 carries nothing, so what a toggle would have done here is state the lowest
+        // partial, and that row changes something (the 7 takes its own single node).
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 0);
+    }
+
+    SECTION("a chosen partial binds the member that names it and defaults the one that does not")
+    {
+        fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        // Fret 7 names only the 3rd partial, so it takes its own first row rather than being
+        // skipped: one partial, two numbers.
+        CHECK(live->notes[0].fret == 0);
+        const std::optional<double>& other = live->notes[0].harmonic_node;
+        REQUIRE(other.has_value());
+        if (other.has_value())
+        {
+            CHECK_THAT(*other, Catch::Matchers::WithinAbs(7.0196, 0.001));
+        }
+        // The carrier was already standing on the 4th partial's node and stays there.
+        CHECK(live->notes[1].fret == 0);
+        const std::optional<double>& carried = live->notes[1].harmonic_node;
+        REQUIRE(carried.has_value());
+        if (carried.has_value())
+        {
+            CHECK_THAT(*carried, Catch::Matchers::WithinAbs(4.9804, 0.001));
+        }
+        CHECK(fixture.undoEntries() == entries_before + 1);
+    }
+
+    SECTION("the clear touches only the members that carry a harmonic")
+    {
+        fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        REQUIRE(live != nullptr);
+        // The plain member has nothing to remove, so the clear passes over it untouched.
+        CHECK(live->notes[0].fret == 7);
+        CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+        CHECK(live->notes[1].fret == 5);
+        CHECK_FALSE(live->notes[1].harmonic_node.has_value());
+        CHECK(fixture.undoEntries() == entries_before + 1);
+    }
+}
+
+// THE PINCH IS THE ONE NODE THIS VERB DOES NOT OWN. A thumb's graze belongs to the picking hand
+// and the `Shift+H` row clears it, so "No harmonic" here removes the fret-hand carrier's node and
+// leaves the pinch exactly as it was — a shared clear once reached both, and stripped a pinch the
+// charter had only selected in passing. The pinch is no carrier either, which is why Return does
+// NOT take the clear: not every selected note carries, so what a toggle would have done is state a
+// node — and the row the anchor already stands on is skipped for the first one that changes
+// something.
+TEST_CASE("The harmonic clear leaves a pinch beside a carrier alone", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    common::core::ChartNote pinch = makeTestNote({.measure = 2, .beat = 1}, 2, 5);
+    pinch.attack = common::core::NoteAttack::Pinch;
+    pinch.harmonic_node = 17.0;
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5),
+        std::move(pinch),
+    };
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    // The string-1 five becomes a carrier through the verb, and the run is ended so the clear below
+    // is an ordinary edit.
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 1);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    fixture.endRun();
 
     fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
     const std::size_t entries_before = fixture.undoEntries();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    const std::size_t requests_before = fixture.pickerRequests();
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == requests_before + 1);
 
-    CHECK(fixture.pickerRequests() == 1);
-    // The request names the member the rows came from — here the fret-3 note, projection index 0,
-    // which is also the earliest selected. The next case separates the two.
-    const std::optional<std::size_t> anchor = fixture.pickerNote();
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
     {
-        CHECK(*anchor == 0);
-    }
-    const std::vector<ChartHarmonicNodeChoice> choices = fixture.choices();
-    REQUIRE_FALSE(choices.empty());
-    if (!choices.empty())
-    {
-        CHECK(choices.front().partial == 6);
-        CHECK(choices.front().node == Catch::Approx(3.1564).margin(0.001));
+        // The rows are the carrier's label's — the pinch names none at all — so the anchor is the
+        // string-1 note at projection index 0.
+        CHECK(picker->note == 0);
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[0].partial == 4);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(4.9804, 0.001));
+            CHECK(choices[0].current);
+            CHECK(choices[1].partial == 13);
+            CHECK_THAT(choices[1].node, Catch::Matchers::WithinAbs(4.5421, 0.001));
+            CHECK(choices[2].partial == 15);
+        }
+        // Four rows, the clear last because the carrier gives it something to do — and Return takes
+        // the 13th at index 1, since the ticked 4th would change nothing.
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 1);
     }
 
-    // Nothing lands until a row is chosen — not even on the member whose label named one node.
-    const common::core::Chart* const asked = chartOrNull(fixture.controller);
-    REQUIRE(asked != nullptr);
-    CHECK(asked->notes[0].fret == 3);
-    CHECK_FALSE(asked->notes[0].harmonic_node.has_value());
-    CHECK(asked->notes[1].fret == 5);
-    CHECK_FALSE(asked->notes[1].harmonic_node.has_value());
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+    const common::core::Chart* const live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 5);
+    CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+    // The pinch is untouched: its attack, its fret and the thumb's node all stand.
+    CHECK(live->notes[1].attack == common::core::NoteAttack::Pinch);
+    CHECK(live->notes[1].fret == 5);
+    const std::optional<double>& grazed = live->notes[1].harmonic_node;
+    REQUIRE(grazed.has_value());
+    if (grazed.has_value())
+    {
+        CHECK_THAT(*grazed, Catch::Matchers::WithinAbs(17.0, 0.001));
+    }
+    CHECK(fixture.undoEntries() == entries_before + 1);
+}
+
+// A TICKED ROW MAY CHANGE NOTHING, and it is shown anyway: the tick is how the menu says where the
+// finger is before it is moved. What it must not be is the row Return takes — the charter would
+// press `H`, press Return, and watch nothing happen — so the preselection skips it for the first
+// row that actually plans a change. Choosing the dead row explicitly is still allowed and is still
+// a no-op: it plans NoChange, so no entry is pushed and the chart stands.
+TEST_CASE("A ticked row that changes nothing is shown but not preselected", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0),
+    };
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 1);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    fixture.endRun();
+
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    const std::size_t entries_before = fixture.undoEntries();
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            // Shown and ticked, and the open string cannot move it either: this row is dead.
+            CHECK(choices[0].partial == 4);
+            CHECK(choices[0].current);
+        }
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 1);
+    }
+
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+
+    const common::core::Chart* const live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 0);
+    const std::optional<double>& unmoved = live->notes[0].harmonic_node;
+    REQUIRE(unmoved.has_value());
+    if (unmoved.has_value())
+    {
+        CHECK_THAT(*unmoved, Catch::Matchers::WithinAbs(4.9804, 0.001));
+    }
+    CHECK(live->notes[1].fret == 0);
+    CHECK_FALSE(live->notes[1].harmonic_node.has_value());
     CHECK(fixture.undoEntries() == entries_before);
-
-    SECTION("a partial both labels name lands on both, in one entry")
-    {
-        fixture.controller.onChartHarmonicNodeRequested(13);
-        const common::core::Chart* const chart = chartOrNull(fixture.controller);
-        REQUIRE(chart != nullptr);
-        const std::optional<double>& ambiguous = chart->notes[0].harmonic_node;
-        REQUIRE(ambiguous.has_value());
-        if (ambiguous.has_value())
-        {
-            CHECK(*ambiguous == Catch::Approx(2.8921).margin(0.001));
-        }
-        const std::optional<double>& other = chart->notes[1].harmonic_node;
-        REQUIRE(other.has_value());
-        if (other.has_value())
-        {
-            CHECK(*other == Catch::Approx(4.5421).margin(0.001));
-        }
-        CHECK(fixture.undoEntries() == entries_before + 1);
-    }
-
-    SECTION("a partial only one label names leaves the other on its default")
-    {
-        // Fret 5 names the 4th, 13th and 15th partials and no 7th, so it takes its own first row.
-        fixture.controller.onChartHarmonicNodeRequested(7);
-        const common::core::Chart* const chart = chartOrNull(fixture.controller);
-        REQUIRE(chart != nullptr);
-        const std::optional<double>& ambiguous = chart->notes[0].harmonic_node;
-        REQUIRE(ambiguous.has_value());
-        if (ambiguous.has_value())
-        {
-            CHECK(*ambiguous == Catch::Approx(2.6687).margin(0.001));
-        }
-        const std::optional<double>& other = chart->notes[1].harmonic_node;
-        REQUIRE(other.has_value());
-        if (other.has_value())
-        {
-            CHECK(*other == Catch::Approx(4.9804).margin(0.001));
-        }
-        CHECK(fixture.undoEntries() == entries_before + 1);
-    }
 }
 
 // THE ANCHOR IS THE MEMBER THE ROWS CAME FROM, which need not be the earliest selected note. The
-// rows are read off the first AMBIGUOUS member, so over a chord whose earlier note names ONE node
-// and whose later one names three, the request names the LATER note — and the popup has to open on
-// that head, because the fret-5 rows hanging under the fret-7 head would describe a note they do
-// not touch.
+// rows are read off the member whose label names the most nodes, so over a chord whose earlier note
+// names ONE node and whose later one names three, the request names the LATER note — and the popup
+// has to open on that head, because the fret-5 rows hanging under the fret-7 head would describe a
+// note they do not touch.
 TEST_CASE("A harmonic press names the member its rows were read from", "[core][chart]")
 {
     common::core::Chart chart;
@@ -289,82 +805,30 @@ TEST_CASE("A harmonic press names the member its rows were read from", "[core][c
     fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
 
     CHECK(fixture.pickerRequests() == 1);
-    const std::optional<std::size_t> anchor = fixture.pickerNote();
-    REQUIRE(anchor.has_value());
-    if (anchor.has_value())
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
     {
-        CHECK(*anchor == 1);
+        CHECK(picker->note == 1);
+
+        // Fret 5's own three rows, the first of them 4.98 rather than the 7's single 7.02: the rows
+        // and the named note are one answer, read off the same member.
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[0].partial == 4);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(4.9804, 0.001));
+            CHECK(choices[1].partial == 13);
+            CHECK(choices[2].partial == 15);
+        }
+        // Neither member carries anything, so there is no clear row and Return takes the first.
+        CHECK_FALSE(offersClear(*picker));
+        CHECK(picker->preselected == 0);
     }
-
-    // Fret 5's own three rows, the first of them 4.98 rather than the 7's single 7.02: the rows and
-    // the named note are one answer, read off the same member.
-    const std::vector<ChartHarmonicNodeChoice> choices = fixture.choices();
-    REQUIRE(choices.size() == 3);
-    if (choices.size() == 3)
-    {
-        CHECK(choices[0].partial == 4);
-        CHECK(choices[0].node == Catch::Approx(4.9804).margin(0.001));
-        CHECK(choices[1].partial == 13);
-        CHECK(choices[2].partial == 15);
-    }
-}
-
-// THE REVERSAL A CLEAR MUST STILL GET. An imported artificial harmonic keeps the stop its fretting
-// hand presses, and that fret is a label like any other — but a press over a selection that
-// ALREADY carries the technique means REMOVE, so there is nothing to choose and no menu to open.
-// The clear's own arithmetic gives back only the fret; the node it dropped is a payload it cannot
-// reconstruct, so the second press must REVERSE that entry rather than re-derive anything — and
-// the pair must leave the history exactly as it found it.
-TEST_CASE("A harmonic press that cleared reverses exactly on the next press", "[core][chart]")
-{
-    common::core::Chart chart;
-    chart.tuning.strings = common::core::testing::standardTuning();
-    common::core::ChartNote artificial = makeTestNote({.measure = 2, .beat = 1}, 1, 5);
-    // Stated rather than left to the default: a plain pick is what makes this the FRETTING hand's
-    // artificial harmonic instead of the pinch, whose node belongs to the other hand entirely.
-    artificial.attack = common::core::NoteAttack::Pick;
-    artificial.harmonic_node = 17.0;
-    chart.notes = {std::move(artificial)};
-    HarmonicPickerFixture fixture{std::move(chart)};
-
-    // A preceding entry the pair must not disturb, so "no trace" can be read off the history.
-    click(fixture.controller, 40.0f, 220.0f);
-    fixture.controller.onChartSustainAdjustRequested(1);
-    const std::size_t entries_before = fixture.undoEntries();
-
-    // The first press CLEARS: the node goes, the pressed stop stays, and nothing was asked.
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
-    const common::core::Chart* live = chartOrNull(fixture.controller);
-    REQUIRE(live != nullptr);
-    CHECK(live->notes[0].fret == 5);
-    CHECK_FALSE(live->notes[0].harmonic_node.has_value());
-    CHECK(fixture.pickerRequests() == 0);
-    CHECK(fixture.undoEntries() == entries_before + 1);
-
-    // The second press reverses that entry exactly: the node is the one the import authored, not
-    // one the standing fret happens to name — and it still opens no picker.
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
-    live = chartOrNull(fixture.controller);
-    REQUIRE(live != nullptr);
-    CHECK(live->notes[0].fret == 5);
-    const std::optional<double>& restored = live->notes[0].harmonic_node;
-    REQUIRE(restored.has_value());
-    if (restored.has_value())
-    {
-        CHECK(*restored == Catch::Approx(17.0).margin(0.001));
-    }
-    CHECK(fixture.pickerRequests() == 0);
-
-    // No trace: the reversal consumed the clear's own entry, so the history holds what it held
-    // before the pair and the next undo reaches past it to the sustain adjust.
-    CHECK(fixture.undoEntries() == entries_before);
-    fixture.controller.onUndoRequested();
-    live = chartOrNull(fixture.controller);
-    REQUIRE(live != nullptr);
-    CHECK(live->notes[0].sustain == g_fixture_sustain);
 }
 
 // THE PROLOGUE RUNS BEFORE THE LABEL IS READ. The fork is asked below the settle, so a fret still
@@ -384,29 +848,37 @@ TEST_CASE("A pending fret entry settles before the harmonic rows are read", "[co
 
     // `H` inside the combine window: the entry settles as its own entry, and what the press then
     // reads is fret 1's four partials.
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
     const common::core::Chart* const live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
     CHECK(live->notes[0].fret == 1);
     CHECK_FALSE(live->notes[0].harmonic_node.has_value());
 
     CHECK(fixture.pickerRequests() == 1);
-    const std::vector<ChartHarmonicNodeChoice> choices = fixture.choices();
-    REQUIRE(choices.size() == 4);
-    if (choices.size() == 4)
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
     {
-        CHECK(choices[0].partial == 13);
-        CHECK(choices[0].node == Catch::Approx(1.3861).margin(0.001));
-        CHECK(choices[1].partial == 14);
-        CHECK(choices[1].node == Catch::Approx(1.2836).margin(0.001));
-        CHECK(choices[2].partial == 15);
-        CHECK(choices[2].node == Catch::Approx(1.1943).margin(0.001));
-        CHECK(choices[3].partial == 16);
-        CHECK(choices[3].node == Catch::Approx(1.1173).margin(0.001));
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 4);
+        if (choices.size() == 4)
+        {
+            CHECK(choices[0].partial == 13);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(1.3861, 0.001));
+            CHECK(choices[1].partial == 14);
+            CHECK_THAT(choices[1].node, Catch::Matchers::WithinAbs(1.2836, 0.001));
+            CHECK(choices[2].partial == 15);
+            CHECK_THAT(choices[2].node, Catch::Matchers::WithinAbs(1.1943, 0.001));
+            CHECK(choices[3].partial == 16);
+            CHECK_THAT(choices[3].node, Catch::Matchers::WithinAbs(1.1173, 0.001));
+        }
+        // The settled fret carries no node, so nothing is on offer to remove.
+        CHECK_FALSE(offersClear(*picker));
+        CHECK(picker->preselected == 0);
     }
 
     // ONE entry, the settle's; the press that only asked authored none, and nothing is left
-    // pending behind it. Read off the state the TOGGLE pushed, not the one the digit did.
+    // pending behind it. Read off the state the HARMONIC press pushed, not the one the digit did.
     CHECK(fixture.undoEntries() == entries_before + 1);
     const EditorViewState* const settled = stateOrNull(fixture.view.last_state);
     REQUIRE(settled != nullptr);
@@ -417,10 +889,10 @@ TEST_CASE("A pending fret entry settles before the harmonic rows are read", "[co
 }
 
 // The skips are silent: an open string states no position — its offset is zero, which is not a
-// touch — and a pinch's node belongs to the other hand, so neither names a row. With nothing to
-// choose the press falls through to the verb, which finds nothing it can state either: no request,
-// no entry, and the pinch keeps the node it came in with. (The counted-skip reason waits on the
-// non-modal refusal channel, exactly as the legato verb's does.)
+// touch — and a pinch's node belongs to the other hand, so neither names a row. With nothing on
+// offer the press asks nothing and writes nothing: no request, no entry, and the pinch keeps the
+// node it came in with. (The counted-skip reason waits on the non-modal refusal channel, exactly as
+// the legato verb's does.)
 TEST_CASE("A harmonic press over notes that name nothing is inert", "[core][chart]")
 {
     common::core::Chart chart;
@@ -439,7 +911,7 @@ TEST_CASE("A harmonic press over notes that name nothing is inert", "[core][char
     fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
     const std::size_t entries_before = fixture.undoEntries();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
 
     CHECK(fixture.pickerRequests() == 0);
     CHECK(fixture.undoEntries() == entries_before);
@@ -453,7 +925,7 @@ TEST_CASE("A harmonic press over notes that name nothing is inert", "[core][char
     REQUIRE(untouched.has_value());
     if (untouched.has_value())
     {
-        CHECK(*untouched == Catch::Approx(17.0).margin(0.001));
+        CHECK_THAT(*untouched, Catch::Matchers::WithinAbs(17.0, 0.001));
     }
 }
 
@@ -468,7 +940,7 @@ TEST_CASE("A harmonic press with no view attached asks and writes nothing", "[co
     const std::size_t entries_before = fixture.undoEntries();
 
     fixture.controller.detachView();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    fixture.controller.onChartHarmonicRequested();
 
     const common::core::Chart* const live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
@@ -482,36 +954,261 @@ TEST_CASE("A harmonic press with no view attached asks and writes nothing", "[co
     CHECK(fixture.undoEntries() == entries_before);
 }
 
-// A PRESS THAT ONLY ASKED STILL DISARMS. The verb window belongs to the last press, whichever verb
-// it was, and `H` consumes it on the way past even when it commits nothing — otherwise the window
-// another verb armed would outlive the press that interrupted it, and that verb's next press would
-// reverse an entry the charter had already moved on from.
-TEST_CASE("A harmonic press that only asked disarms another verb's window", "[core][chart]")
+// OPENING THE MENU DISARMS NOTHING. A question is not an edit, so a window some other verb staged
+// survives an `H` that only asked, and that verb's next press still means what it meant — an
+// escaped menu leaves the chart, and that gesture, exactly as it found them.
+TEST_CASE("A harmonic press that only asked leaves another verb's window armed", "[core][chart]")
 {
     HarmonicPickerFixture fixture;
 
-    click(fixture.controller, 40.0f, 220.0f);
+    click(fixture.controller, 40.0f, 180.0f);
     const std::size_t entries_before = fixture.undoEntries();
 
     // Vibrato on, which arms the window on Vibrato.
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     const common::core::Chart* live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
-    CHECK(live->notes[0].vibrato == common::core::VibratoState::Narrow);
+    CHECK(live->notes[1].vibrato == common::core::VibratoState::Narrow);
     CHECK(fixture.undoEntries() == entries_before + 1);
 
-    // `H` asks and writes nothing — but the window it walked past is gone.
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
+    // `H` asks and writes nothing, so the vibrato window it walked past is untouched.
+    fixture.controller.onChartHarmonicRequested();
     REQUIRE(fixture.pickerRequests() == 1);
     CHECK(fixture.undoEntries() == entries_before + 1);
 
-    // So the next vibrato press is a fresh CLEAR — its own entry on top — rather than the reversal
-    // the armed window would have made, which would have taken the history back to entries_before.
+    // The next vibrato press is therefore still the REVERSAL its armed window promised: the entry
+    // goes with it, and the history holds what it held before the pair.
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
-    CHECK(live->notes[0].vibrato == common::core::VibratoState::Off);
+    CHECK(live->notes[1].vibrato == common::core::VibratoState::Off);
+    CHECK(fixture.undoEntries() == entries_before);
+}
+
+// THE CHOICE IS WHAT ENDS IT. The same press that only asks above disarms the foreign window once a
+// row WRITES, so the interrupted verb's next press means its ordinary law rather than a reversal of
+// an entry the charter has already moved on from. The palm mute stands in for the vibrato here
+// deliberately: it says where the picking hand is rather than what the string sounds, so the touch
+// does not strip it, and the second press is unambiguously the CLEAR half of the toggle.
+TEST_CASE("A harmonic choice ends another verb's window", "[core][chart]")
+{
+    HarmonicPickerFixture fixture;
+
+    click(fixture.controller, 40.0f, 180.0f);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    const common::core::Chart* live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[1].palm_mute);
+    CHECK(fixture.undoEntries() == entries_before + 1);
+
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 1);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[1].fret == 0);
+    CHECK(live->notes[1].palm_mute);
     CHECK(fixture.undoEntries() == entries_before + 2);
+
+    // A fresh clear stacked on top — not the reversal that would have taken the history back to
+    // entries_before.
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK_FALSE(live->notes[1].palm_mute);
+    CHECK(fixture.undoEntries() == entries_before + 3);
+}
+
+// AN IMPORTED ARTIFICIAL HARMONIC KEEPS THE STOP ITS FRETTING HAND PRESSES, and that fret is a
+// label like any other — so the rows are the ones its 5 names, none of them ticked, because the
+// node it actually touches is not on the editor's table at all. Every member carries a harmonic, so
+// the clear is preselected and Return removes. What the clear cannot do is come back: the node it
+// dropped is a payload no arithmetic reconstructs, so a following press is offered the plain fret's
+// rows with NO clear on them, and Ctrl+Z is what restores the import.
+TEST_CASE("A harmonic press over an imported artificial reads its pressed fret", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    common::core::ChartNote artificial = makeTestNote({.measure = 2, .beat = 1}, 1, 5);
+    // Stated rather than left to the default: a plain pick is what makes this the FRETTING hand's
+    // artificial harmonic instead of the pinch, whose node belongs to the other hand entirely.
+    artificial.attack = common::core::NoteAttack::Pick;
+    artificial.harmonic_node = 17.0;
+    chart.notes = {std::move(artificial)};
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    click(fixture.controller, 40.0f, 220.0f);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 1);
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        REQUIRE(choices.size() == 3);
+        if (choices.size() == 3)
+        {
+            CHECK(choices[0].partial == 4);
+            CHECK_THAT(choices[0].node, Catch::Matchers::WithinAbs(4.9804, 0.001));
+            CHECK_FALSE(choices[0].current);
+            CHECK(choices[1].partial == 13);
+            CHECK_FALSE(choices[1].current);
+            CHECK(choices[2].partial == 15);
+            CHECK_FALSE(choices[2].current);
+        }
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 4);
+        CHECK(picker->preselected == 3);
+    }
+
+    // The clear gives back the stop and nothing else.
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+    const common::core::Chart* live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 5);
+    CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+    CHECK(fixture.undoEntries() == entries_before + 1);
+
+    // A second press finds a plain 5 and offers its rows with nothing to remove: the verb has no
+    // memory of the node it dropped, and never pretends to.
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+    const std::optional<ChartHarmonicNodePicker> plain = fixture.lastPicker();
+    REQUIRE(plain.has_value());
+    if (plain.has_value())
+    {
+        CHECK_FALSE(offersClear(*plain));
+        CHECK(plain->choices.size() == 3);
+        CHECK(plain->preselected == 0);
+    }
+
+    // Ctrl+Z is the restore, and it gives back the imported node exactly.
+    fixture.controller.onUndoRequested();
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 5);
+    const std::optional<double>& restored = live->notes[0].harmonic_node;
+    REQUIRE(restored.has_value());
+    if (restored.has_value())
+    {
+        CHECK_THAT(*restored, Catch::Matchers::WithinAbs(17.0, 0.001));
+    }
+}
+
+// A PARTIAL BINDS THE WHOLE CHORD AND EACH MEMBER LANDS ON ITS OWN NUMBER, and the clear walks
+// every one of them back to the stop its node lies at. The 13th partial names a node on both a 3
+// and a 5, so one choice touches both; the second press then reads two carriers, offers the rows of
+// the label naming the most (the 3's four), and — every member carrying — preselects the clear. One
+// press, one entry, and each finger back on the fret it left.
+TEST_CASE("A chord of carriers clears in one step and lands each on its own fret", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5),
+    };
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    // Both members become carriers through the verb, so their nodes are bit-for-bit the values the
+    // rows name and the ticked row below is decided by the arithmetic rather than by a literal.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 1);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{13});
+
+    const common::core::Chart* live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 0);
+    const std::optional<double>& third = live->notes[0].harmonic_node;
+    REQUIRE(third.has_value());
+    if (third.has_value())
+    {
+        CHECK_THAT(*third, Catch::Matchers::WithinAbs(2.8921, 0.001));
+    }
+    CHECK(live->notes[1].fret == 0);
+    const std::optional<double>& fifth = live->notes[1].harmonic_node;
+    REQUIRE(fifth.has_value());
+    if (fifth.has_value())
+    {
+        CHECK_THAT(*fifth, Catch::Matchers::WithinAbs(4.5421, 0.001));
+    }
+
+    fixture.endRun();
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        // The anchor is the carrier at 2.89, whose label is the 3 its node lies at: four nodes
+        // against the other member's three.
+        CHECK(picker->note == 0);
+        const std::vector<ChartHarmonicNodeChoice> choices = nodeRows(*picker);
+        CHECK(choices.size() == 4);
+        // Every member carries, so the clear is on offer and Return takes it — exactly what a
+        // toggle would have done.
+        CHECK(offersClear(*picker));
+        CHECK(picker->choices.size() == 5);
+        CHECK(picker->preselected == picker->choices.size() - 1);
+    }
+
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0].fret == 3);
+    CHECK_FALSE(live->notes[0].harmonic_node.has_value());
+    CHECK(live->notes[1].fret == 5);
+    CHECK_FALSE(live->notes[1].harmonic_node.has_value());
+    CHECK(fixture.undoEntries() == entries_before + 1);
+}
+
+// THE ROUND TRIP IS EXACT. A set followed by its clear is the identity on the note, not merely on
+// the two fields the verb writes: the fret comes back because the clear presses the finger onto the
+// stop the node lies at, and nothing else the note carries is disturbed on the way through.
+TEST_CASE("A set and its clear leave the note as it was", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 5)};
+    HarmonicPickerFixture fixture{std::move(chart)};
+
+    const common::core::Chart* live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    const common::core::ChartNote original = live->notes[0];
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHarmonicRequested();
+    REQUIRE(fixture.pickerRequests() == 1);
+    fixture.controller.onChartHarmonicNodeRequested(std::optional{4});
+    fixture.endRun();
+
+    fixture.controller.onChartHarmonicRequested();
+    CHECK(fixture.pickerRequests() == 2);
+    const std::optional<ChartHarmonicNodePicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        // The one member carries, so Return is the clear: the press back is what a toggle meant.
+        CHECK(offersClear(*picker));
+        CHECK(picker->preselected == picker->choices.size() - 1);
+    }
+
+    fixture.controller.onChartHarmonicNodeRequested(std::nullopt);
+
+    live = chartOrNull(fixture.controller);
+    REQUIRE(live != nullptr);
+    CHECK(live->notes[0] == original);
 }
 
 } // namespace rock_hero::editor::core

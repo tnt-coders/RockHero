@@ -40,7 +40,7 @@ verb so the deferral does not lose it.
   `tabNoteHeadText(note, fret_at_head)` (`rock-hero-common/ui/src/tab/tab_paint_core.cpp:1135`,
   described at `docs/developer/the-editor-2d-views.md:502-509`). 3D centres the fret-span line on
   the node via `harmonicMarkFootprint` (`docs/developer/the-3d-highway.md:199-216`).
-  `planClearHarmonic` (`chart_edits.cpp:2163-2189`) removes it.
+  `planClearHarmonic` (`chart_edits.cpp`) removes it.
 - **It is NEVER authored.** `rg -n "harmonic_node" rock-hero-editor/core/src` finds exactly three
   editor writers: `harmonicTouchNote`, which forces `fret = 0` before resolving the stop
   (`chart_edits.cpp:2059-2070`); the pinch arm of `planSetAttack`, which authors the octave at the
@@ -93,7 +93,8 @@ there". Leaving 3D node-only once authoring exists would let the surfaces diverg
 project forbids as a standing rule.
 
 **Picker rows.** Absolute touch positions with the partial ordinal beside them — the vocabulary the
-shipped natural picker (`SetChartHarmonicNode`) already uses. Preselect the **octave (2nd partial)**:
+shipped natural picker (`SetChartHarmonicNode`, whose partial became a `std::optional<int>` on
+2026-09-16) already uses. Preselect the **octave (2nd partial)**:
 it is the importer's own default and the easiest partial to ring at any stop. Offset rows,
 partial-only rows and pitch-only rows were all killed as row *labels*; a **sounding-pitch secondary
 column** beside the position is legitimate.
@@ -103,6 +104,21 @@ while the validation bound stays 16: above the 9th, adjacent nodes sit within ab
 10–15 mm fingertip. The bound itself admits 79 nodes. Recorded deliberately for comparison: for the
 **natural** picker the user ruled the *whole* bound (partials 2–16), rows sorted by partial, lowest
 first. The two verbs' list rules should therefore be compared on purpose, not diverge by accident.
+
+**What the natural verb became on 2026-09-16, and what this plan inherits.** `H` is no longer a
+toggle: its law is **offer every CHANGE the selection allows, and ask only where there is more than
+one**, and WHICH ROWS CHANGE ANYTHING IS THE PLANNER'S ANSWER: every node row its label names is
+shown (a ticked row that changes nothing included), and the **"No harmonic"** row comes last, after a
+separator, only where the clear itself changes something — hence the optional partial. The
+preselected row is what the old toggle would have done ("No
+harmonic" when every member carries a fret-hand harmonic, else the lowest partial that changes
+something), the row ticked is the node the ANCHOR member is touching,
+and consecutive choices FOLD into one undo entry through the shared gesture authority rather than
+reversing on a second press. The clear also split by hand that day: `planClearHarmonic` writes only
+fret-hand carriers and the pinch clears through its own `planClearPinchHarmonic`, which is the seam
+this plan's stop verb inherits. The pinch is expected to carry a node/partial eventually and to adopt
+the same law; this plan's stop verb should be designed against it rather than against the toggle it
+replaced.
 
 **Attack.** The touch verb leaves the attack alone. Tapped harmonics stay two presses; `T` and
 `Shift+T` own that axis.
@@ -121,7 +137,7 @@ first. The two verbs' list rules should therefore be compared on purpose, not di
 ## Defects this plan would close
 
 - **The one-way door.** An imported artificial harmonic can be *cleared* (`planClearHarmonic`,
-  `chart_edits.cpp:2163-2189`) but never authored and never restored. A charter who clears one has
+  `chart_edits.cpp`) but never authored and never restored. A charter who clears one has
   destroyed data the editor cannot rewrite. Live today.
 - **2D drops the stop.** For a `fret > 0` harmonic the pressed fret appears nowhere on the head
   (`tab_paint_core.cpp:1135`). Live today on imported charts — roadmap 57 cites a real

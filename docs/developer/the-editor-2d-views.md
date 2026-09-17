@@ -306,19 +306,33 @@ Three consequences worth knowing before touching this:
   nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it is held
   is the ring REVEAL — every visible note's ACTUAL stored ring — not a preview of a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
-  controller like every other technique letter, and where the selection's typed fret names more than
-  one node the CONTROLLER asks the view for the choice — after its settle prologue and after the
-  verb window has had its chance to reverse — through the port method
-  `IEditorView::showChartHarmonicNodePicker`. The view's answer is a `juce::PopupMenu` anchored at
+  controller as its own action, and where the selection offers more than ONE CHANGE the CONTROLLER
+  asks the view for the choice — after its settle prologue — through the port method
+  `IEditorView::showChartHarmonicNodePicker`. Which rows CHANGE anything is the PLANNER's answer:
+  the verb plans every node row and the clear over the live chart, and a `NoChange` plan is not a
+  change — zero of them is an inert press, one applies at once, and several ask. Every node row its
+  label names is shown (a ticked row included), and the **"No harmonic"** row comes last, after a
+  separator, only where the clear itself changes something — so `H` on a CARRIER reopens the menu
+  only where its label names OTHER nodes as well; a carrier whose label names a single node (7, 12,
+  19, 24) has just the clear left to do and clears in the keystroke. The payload is
+  `ChartHarmonicNodePicker{note, choices, preselected}`, `choices` a variant list of
+  `ChartHarmonicNodeChoice{node, partial, current}` and `ChartHarmonicClearChoice` with the clear
+  last when offered, and `preselected` an index into it. The view's answer is a `juce::PopupMenu`
+  anchored at
   `TabView::noteHeadBounds(picker.note)` — the head of the member the rows were READ from, the
   object the choice is about, which need NOT be the earliest selected note, rather than the mouse a
   keyboard verb has no reason to be near. Rows read
   `<node> · <ordinal> partial`: the value through the ONE label authority `harmonicNodeText`, so a
   row and the head it will produce print the same number, and the ordinal beside it because our
   frets are absolute where published tab is capo-relative. The rows are NUMBERED from 1 in the order
-  given, which is what lets the first — the lowest partial, the harmonic a charter means by the
-  label — open SELECTED so `Return` takes the common case: JUCE matches `withInitiallySelectedItem`
-  against item IDs, so an unnumbered row could never be preselected. `Esc` dismisses with the note
+  given, which is what lets any row open SELECTED at all: JUCE matches `withInitiallySelectedItem`
+  against item IDs, so an unnumbered row could never be preselected. **The node the ANCHOR member —
+  the note the rows were read from, whose head the menu sits on — is touching wears a TICK, and the
+  PRESELECTED row is what the old toggle would have done** —
+  "No harmonic" where every selected note carries a fret-hand harmonic, the lowest partial that
+  changes something (the harmonic a charter
+  means by the label) otherwise — so `Return` still takes the common case in two keystrokes, clearing
+  a harmonic and setting the lowest partial on a plain note. `Esc` dismisses with the note
   untouched. Nothing is PREVIEWED because nothing is provisional: the chosen row commits at once, so
   the lane carries no pending-harmonic layer and the committed head is the only head there ever is.
   Ordinary menu items at platform size are also the only targetable form this choice has — the

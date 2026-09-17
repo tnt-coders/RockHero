@@ -177,6 +177,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             const ChartSilentHoldToggle& lhs, const ChartSilentHoldToggle& rhs) noexcept = default;
     };
 
+    // The fret-hand harmonic verb's run. Carries nothing, like the arpeggio hold's: the LATEST
+    // choice is the whole gesture — a node or no harmonic — so each step re-plans from the press
+    // itself rather than from a list, and the window's job is only to say "the last edit was this
+    // verb's". A run of choices on one selection is then one entry, and a run that chooses its way
+    // back to the pre-gesture state retires it, which is what a toggle's reversal gave the other
+    // rows.
+    struct ChartHarmonicGesture
+    {
+        friend constexpr bool operator==(
+            const ChartHarmonicGesture& lhs, const ChartHarmonicGesture& rhs) noexcept = default;
+    };
+
     // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
     // grid line, so its size depends on where that end sits and there is no delta to accumulate
     // (a summed delta leaves a fine-tuned ring off-grid forever). The planner replays the list
@@ -211,7 +223,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
     using ChartVerbWindowVerb = std::variant<
-        ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture, ChartMoveGesture>;
+        ChartTechniqueToggle, ChartSilentHoldToggle, ChartHarmonicGesture, ChartSustainGesture,
+        ChartMoveGesture>;
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
@@ -250,11 +263,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, bool path, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
-    // The harmonic node picker over the current selection: the nodes a SET press would choose
-    // among, read off the first member whose typed fret names more than one node, and which member
-    // that was. Absent when no member is ambiguous. Asked by the harmonic toggle once its prologue
-    // has run, and handed to the view as a one-shot request.
+    // The harmonic node picker over the current selection: the node rows of the member whose label
+    // names the most nodes (which member that was, so the view can anchor on it), each marked when
+    // it is where that member already touches, plus whether a clear is among the changes and
+    // whether Return takes it. Absent when no member's label names a node at all. The harmonic
+    // verb reads the CHANGES on offer from it and asks only when there is more than one.
     [[nodiscard]] std::optional<ChartHarmonicNodePicker> chartHarmonicNodePicker() const;
+    // One step of the harmonic run: the selection takes the chosen partial's node (its lowest
+    // partial where a label does not offer it), or no harmonic at all. Folds through
+    // commitChartGestureStep, so a run of choices on one selection is one entry and a run that
+    // chooses its way back to the start leaves none.
+    void commitChartHarmonic(std::optional<int> partial);
     // The pending entry's lifecycle. Settle is the uniform prologue: commit the plan when it
     // holds one (one undo entry), apply nothing on NoChange, discard on Invalid — every action
     // and intent calls it first, which is the whole reason the stored plan can never go stale.
@@ -296,6 +315,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
+    void performActionImpl(const EditorAction::ChooseChartHarmonic& action);
     void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
     void performActionImpl(const EditorAction::ToggleChartSilentHold& action);

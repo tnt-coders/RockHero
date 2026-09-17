@@ -2069,13 +2069,29 @@ namespace
     return touched;
 }
 
-// The label the note's own fret states, in fret units above the stop the string SPEAKS from. Zero
-// for an open string, which names no touch at all and is why such a note has no candidates.
+// The fret the harmonic verb reads as the note's LABEL: the fret the charter typed, or — on a note
+// already touching an on-neck node, whose fret is zero because a touch presses nothing — the fret
+// that node lies at, the same number the clear presses back down. One spelling for both, so the
+// rows a carrier is offered and the fret its clear restores can never name different places.
+[[nodiscard]] int harmonicLabelFret(const common::core::ChartNote& note)
+{
+    // Bound to a local so the presence test and the read are provably one object.
+    const std::optional<double>& node = note.harmonic_node;
+    if (note.fret == 0 && node.has_value() && carriesNeckHarmonic(note))
+    {
+        return static_cast<int>(std::lround(*node));
+    }
+    return note.fret;
+}
+
+// The label the note states, in fret units above the stop the string SPEAKS from. Zero for an open
+// string, which names no touch at all and is why such a note has no candidates.
 [[nodiscard]] double harmonicLabelOf(const common::core::ChartNote& note, const int capo)
 {
     common::core::ChartNote unpressed = note;
     unpressed.fret = 0;
-    return static_cast<double>(note.fret - common::core::physicalStopFret(unpressed, capo));
+    return static_cast<double>(
+        harmonicLabelFret(note) - common::core::physicalStopFret(unpressed, capo));
 }
 
 } // namespace
@@ -2171,26 +2187,48 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
         label,
         StrandedStrikeRepair::Flatten,
         [](const common::core::ChartNote& note, common::core::ChartNote& cleared) {
-            // Bound to a local so the presence test and the read are provably one object.
-            const std::optional<double>& node = note.harmonic_node;
-            if (!node.has_value())
+            // The fretting hand's node only: a pinch's is the picking thumb's, and the row that
+            // owns that hand clears it (planClearPinchHarmonic). A shared clear once reached both,
+            // which let this verb's "No harmonic" strip a pinch selected beside a
+            // fret-hand carrier.
+            if (!carriesNeckHarmonic(note))
             {
                 return false;
             }
-            if (note.attack == common::core::NoteAttack::Pinch)
-            {
-                cleared.attack = common::core::NoteAttack::Pick;
-            }
-            // The finger presses where it was touching. Guarded on the node being ON THE NECK so a
-            // pinch's bridge-side graze is never pressed as a fret: only a fretting finger was
-            // ever standing somewhere a fret number can name.
-            if (note.fret == 0 && common::core::nodeIsOnNeck(note.attack))
-            {
-                cleared.fret = static_cast<int>(std::lround(*node));
-            }
+            // The finger presses where it was touching — the label the verb reads off a carrier,
+            // which is what makes the clear the exact inverse of the set.
+            cleared.fret = harmonicLabelFret(note);
             cleared.harmonic_node.reset();
             return true;
         });
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planClearPinchHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, const std::string_view label)
+{
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        StrandedStrikeRepair::Flatten,
+        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) {
+            if (note.attack != common::core::NoteAttack::Pinch || !note.harmonic_node.has_value())
+            {
+                return false;
+            }
+            // The note goes back to the plain pick it was picked as, and the thumb's node goes with
+            // it; the fret is untouched, because a pinch's fret was pressed all along.
+            cleared.attack = common::core::NoteAttack::Pick;
+            cleared.harmonic_node.reset();
+            return true;
+        });
+}
+
+bool carriesNeckHarmonic(const common::core::ChartNote& note) noexcept
+{
+    return note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack);
 }
 
 namespace
@@ -2342,7 +2380,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
     // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the two
     // vibrato rows are one shared row shape handed their own width, and the four attack rows are
     // another handed their own attack value, the plain pick being what each of them clears to; the
-    // two harmonic rows set through their own hand's planner and clear through one shared plan.
+    // pinch row sets through the attack verb and clears the thumb's node with it.
     // Every row but the vibrato pair reads `selection.notes()` alone, which is the empty-operand
     // rule doing the work a per-kind guard would otherwise do.
     switch (technique)
@@ -2504,38 +2542,6 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
         {
             return attackLaw<common::core::NoteAttack::Pop>("Pop");
         }
-        case ChartTechnique::Harmonic:
-        {
-            return ChartTechniqueLaw{
-                .noun = "Harmonic",
-                // Deliberately WIDER than fretHandHarmonic: any node the fretting side of the
-                // instrument owns counts, so the clear also reaches a tap harmonic and an imported
-                // artificial one, which nothing else in the editor can un-harmonic. The pinch is
-                // the one node it excludes, because the row below owns that hand.
-                .carried =
-                    [](const common::core::Chart& chart, const ChartSelection& selection) {
-                        return everySelectedNoteCarries(
-                            chart, selection, [](const common::core::ChartNote& note) {
-                                return note.harmonic_node.has_value() &&
-                                       common::core::nodeIsOnNeck(note.attack);
-                            });
-                    },
-                // The SET states no choice, which means each note's lowest partial. Where the
-                // typed fret names more than one node the view offers the picker instead, and a
-                // chosen row runs this same planner with its partial, so the two are one function
-                // and this row is what a choiceless press does.
-                .plan =
-                    [](const common::core::Chart& chart,
-                       const common::core::TempoMap& tempo_map,
-                       const ChartSelection& selection,
-                       const bool set,
-                       const std::string_view label) {
-                        return set ? planSetHarmonic(
-                                         chart, tempo_map, selection.notes(), std::nullopt, label)
-                                   : planClearHarmonic(chart, tempo_map, selection.notes(), label);
-                    },
-            };
-        }
         case ChartTechnique::PinchHarmonic:
         {
             // NOT attackLaw<Pinch>, and the difference is the clear: the row's noun is a HARMONIC,
@@ -2564,7 +2570,8 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                                          selection.notes(),
                                          common::core::NoteAttack::Pinch,
                                          label)
-                                   : planClearHarmonic(chart, tempo_map, selection.notes(), label);
+                                   : planClearPinchHarmonic(
+                                         chart, tempo_map, selection.notes(), label);
                     },
             };
         }

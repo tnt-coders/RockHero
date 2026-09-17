@@ -754,39 +754,52 @@ struct ChartHarmonicNodeChoice
     int partial{};
 
     /*!
-    \brief Compares two choices by their stored values.
-
-    Written out rather than defaulted: the node is a bare `double` here, and a defaulted comparison
-    over one trips `-Wfloat-equal` on the CI compilers. Exactness is what is wanted — two rows are
-    the same row only when they name the same node — so the spaceship result is asked directly, the
-    form docs/design/coding-conventions.md states for it.
-
-    \param lhs Left-hand choice.
-    \param rhs Right-hand choice.
-    \return True when both name the same node and partial.
+    \brief True when the note the rows describe already touches this node, so the row is drawn
+    ticked: the menu shows where the finger is before it is moved.
     */
-    friend bool operator==(const ChartHarmonicNodeChoice& lhs, const ChartHarmonicNodeChoice& rhs)
-    {
-        return std::is_eq(lhs.node <=> rhs.node) && lhs.partial == rhs.partial;
-    }
+    bool current{};
 };
 
 /*!
-\brief The harmonic node picker the controller asks the view to show: which note the rows were
-read from, and the rows.
+\brief The "No harmonic" row of the harmonic node picker: choosing it clears every fret-hand
+harmonic the selection carries.
 
-The note is named so the view can anchor the popup on the head the numbers describe. The rows come
-from the first selected member whose typed fret names more than one node, and that member need not
-be the earliest selected note — a chord of a 7 and a 5 offers the 5's rows — so "the selected head"
-would put the menu over a note the rows have nothing to do with.
+Carries nothing; it is one alternative of \ref ChartHarmonicChoice so that a picker is one list of
+rows, each an answer, and "a clear row that was never offered" cannot be preselected or chosen.
+*/
+struct ChartHarmonicClearChoice
+{
+};
+
+/*! \brief One row of the harmonic node picker: a node to move to, or no harmonic at all. */
+using ChartHarmonicChoice = std::variant<ChartHarmonicNodeChoice, ChartHarmonicClearChoice>;
+
+/*!
+\brief The harmonic node picker the controller asks the view to show: which note the rows were
+read from, the rows, and which row Return takes.
+
+The note is named so the view can anchor the popup on the head the numbers describe. The node rows
+come from the selected member whose label names the most nodes (the first such, in chart order),
+and that member need not be the earliest selected note — a chord of a 7 and a 5 offers the 5's rows
+— so "the selected head" would put the menu over a note the rows have nothing to do with. The clear
+row, when the selection carries anything to clear, is last. Every row is shown, the one the named
+note is touching ticked; a ticked row may change nothing when chosen, which is why the preselected
+row is the controller's to name: what a toggle would have done — the clear when every selected note
+carries a harmonic, else the lowest partial that changes something.
 */
 struct ChartHarmonicNodePicker
 {
     /*! \brief Index of the note the rows describe, in the tab projection's note order. */
     std::size_t note{};
 
-    /*! \brief The rows to offer, in the order to show them; never fewer than two. */
-    std::vector<ChartHarmonicNodeChoice> choices{};
+    /*!
+    \brief The rows to offer, in the order to show them: nodes ascending by partial, then the clear
+    if offered; never fewer than two.
+    */
+    std::vector<ChartHarmonicChoice> choices{};
+
+    /*! \brief Index into `choices` of the row that opens selected, so Return takes it. */
+    std::size_t preselected{};
 };
 
 /*!

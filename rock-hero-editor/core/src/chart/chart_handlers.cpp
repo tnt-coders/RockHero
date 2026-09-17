@@ -9,6 +9,7 @@
 #include <cassert>
 #include <chrono>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -2879,13 +2880,17 @@ bool EditorController::Impl::chartFretEntryContinuedBy(const EditorAction::Actio
     return std::holds_alternative<EditorAction::TypeChartFretDigit>(action);
 }
 
-// The picker over the CURRENT selection: what a SET press would choose among, read off the first
-// member whose typed fret names more than one node, and named so the view can anchor on that head.
-// One member speaks for the scope because the rows carry PARTIALS and the planner binds a chosen
-// partial on every member whose own label offers it: a chord of 5s and 7s offers the 5's rows, and
-// choosing the 4th partial touches each 5 at 4.98 while each 7 takes its single node. The printed
-// value is that member's stop plus each candidate's offset, so a row and the head it will produce
-// print the same number.
+// The node rows over the CURRENT selection, read off the member whose label names the most nodes
+// (the first such in chart order) and named so the view can anchor on that head. One member speaks
+// for the scope because the rows carry PARTIALS and the planner binds a chosen partial on every
+// member whose own label offers it: a chord of 5s and 7s offers the 5's rows, and choosing the 4th
+// partial touches each 5 at 4.98 while each 7 takes its single node. The printed value is that
+// member's stop plus each candidate's offset, so a row and the head it will produce print the same
+// number, and the row that member is touching now is marked current.
+//
+// A carrier's label is the fret its node lies at (chartHarmonicNodeCandidates reads it so), which
+// is how a note already touching 4.98 is offered the 13th and 15th partials of a 5. Which rows
+// CHANGE anything, and whether a clear is on offer, is not asked here: the verb asks the planner.
 //
 // By INDEX rather than through `notesForKeys`, which copies each note whole: a large selection
 // would otherwise pay a note copy per member to answer a question about a few numbers.
@@ -2897,12 +2902,14 @@ std::optional<ChartHarmonicNodePicker> EditorController::Impl::chartHarmonicNode
         return std::nullopt;
     }
     const common::core::Chart& chart = *arrangement->chart;
+    std::optional<ChartHarmonicNodePicker> picker;
     for (const std::size_t index : slotIndicesForKeys(chart.notes, chartSelection().notes()))
     {
         const common::core::ChartNote& note = chart.notes[index];
         const std::vector<common::core::HarmonicNodeCandidate> candidates =
             chartHarmonicNodeCandidates(note, chart.tuning, session().song().tempo_map);
-        if (candidates.size() <= 1)
+        if (candidates.empty() ||
+            (picker.has_value() && candidates.size() <= picker->choices.size()))
         {
             continue;
         }
@@ -2911,24 +2918,122 @@ std::optional<ChartHarmonicNodePicker> EditorController::Impl::chartHarmonicNode
         unpressed.fret = 0;
         const auto stop =
             static_cast<double>(common::core::physicalStopFret(unpressed, chart.tuning.capo));
-        ChartHarmonicNodePicker picker{.note = index, .choices = {}};
-        picker.choices.reserve(candidates.size());
+        // Bound to a local so the presence test and the read are provably one object.
+        const std::optional<double>& touching = note.harmonic_node;
+        picker = ChartHarmonicNodePicker{.note = index, .choices = {}, .preselected = 0};
+        picker->choices.reserve(candidates.size() + 1);
         for (const common::core::HarmonicNodeCandidate& candidate : candidates)
         {
-            picker.choices.push_back(
+            const double node = stop + candidate.position;
+            picker->choices.emplace_back(
                 ChartHarmonicNodeChoice{
-                    .node = stop + candidate.position,
+                    .node = node,
                     .partial = candidate.partial,
+                    // Exact, the form coding-conventions states: the set writes exactly this sum,
+                    // and import snaps onto the same table, so a touched node either IS a row's
+                    // value or names no row at all.
+                    .current = touching.has_value() && std::is_eq(*touching <=> node),
                 });
         }
-        return picker;
     }
-    return std::nullopt;
+    return picker;
 }
 
-// The row chosen in the picker the toggle asked the view to open: a row is already a deliberate
-// choice, so it applies at once through the same planner a choiceless press runs. Same uniform
-// scope, same single undo entry — only whether a partial was stated differs.
+// The fret-hand harmonic verb (`H`). Not a toggle: its set states a VALUE — which node the finger
+// touches — and a label usually names several, so the verb offers every CHANGE the selection allows
+// and asks only when there is more than one. WHAT CHANGES ANYTHING IS THE PLANNER'S ANSWER: each
+// node row and the clear are planned over the live chart, and a plan of NoChange is a row that
+// would do nothing — the node the anchor already touches with no other member to move, or a clear
+// with nothing carried. Counting rows by hand instead was a second model of the same question, and
+// it disagreed with the first. One change applies at once — a 12 writes its single node, a 12
+// already touching it clears — and several open the picker through the view port, committing
+// nothing; the chosen row returns through SetChartHarmonicNode. Every node row is shown so the tick
+// can say where the finger is, and Return takes what a toggle would have done: the clear when every
+// member carries a harmonic, else the lowest partial that changes something. A selection naming
+// nothing (open strings, pinches) is inert.
+//
+// Nothing here disarms another verb's window: opening a menu is a question, not an edit, so a
+// gesture some other verb has staged ends when a CHOICE writes (applyChartEditPlan's disarm), not
+// when the rows open — an escaped menu leaves the chart, and that gesture, exactly as it found
+// them.
+void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHarmonic&)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
+    {
+        return;
+    }
+    std::optional<ChartHarmonicNodePicker> picker = chartHarmonicNodePicker();
+    if (!picker.has_value())
+    {
+        // No member's label names a node — open strings, pinches — so nothing is on offer. No
+        // carrier lands here: a touching note's label is the fret its node lies at, which names
+        // that node among its rows (the candidate window is the rounding window), and a pressed
+        // note carrying an imported artificial node keeps the rows its pressed fret names.
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const std::vector<ChartSlotKey> keys = chartSelection().notes();
+    // Bound once above the loop, the shape this file uses wherever an optional's guarantee has to
+    // survive a loop the checker cannot see through.
+    ChartHarmonicNodePicker& rows = *picker;
+    // The answers that would write, in row order, each spelled as the choice that returns it.
+    std::vector<std::optional<int>> changes;
+    std::optional<std::size_t> first_changing_row;
+    // Every row is a node row here: the clear, if offered, is appended AFTER this loop.
+    for (std::size_t row = 0; row < rows.choices.size(); ++row)
+    {
+        const int partial = std::get<ChartHarmonicNodeChoice>(rows.choices[row]).partial;
+        if (planSetHarmonic(chart, tempo_map, keys, partial, "Harmonic").has_value())
+        {
+            changes.emplace_back(partial);
+            if (!first_changing_row.has_value())
+            {
+                first_changing_row = row;
+            }
+        }
+    }
+    std::optional<std::size_t> clear_row;
+    if (planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").has_value())
+    {
+        changes.emplace_back(std::nullopt);
+        clear_row = rows.choices.size();
+        rows.choices.emplace_back(ChartHarmonicClearChoice{});
+    }
+    if (changes.empty())
+    {
+        return;
+    }
+    if (changes.size() == 1)
+    {
+        commitChartHarmonic(changes.front());
+        return;
+    }
+    // Return's row: the clear when it is offered and every member carries a harmonic — what a
+    // toggle would have done — else the first changing node row, the lowest partial that does
+    // anything, which skips a ticked row the anchor is already standing on. Asked of the clear row
+    // that EXISTS rather than of the notes alone, so a clear the gate refused can never leave
+    // Return pointing one past the rows.
+    const bool all_carry = std::ranges::all_of(
+        slotIndicesForKeys(chart.notes, keys),
+        [&chart](const std::size_t index) { return carriesNeckHarmonic(chart.notes[index]); });
+    if (clear_row.has_value() && all_carry)
+    {
+        rows.preselected = *clear_row;
+    }
+    else if (first_changing_row.has_value())
+    {
+        // Always the case here: two or more changes with at most one clear among them means some
+        // node row changes something.
+        rows.preselected = *first_changing_row;
+    }
+    requestChartHarmonicNodePicker(std::move(*picker));
+}
+
+// The row chosen in the picker the harmonic verb asked the view to open: a partial, or no harmonic.
+// A row is already a deliberate choice, so it applies at once, as the step of the run a choiceless
+// press would have taken.
 void EditorController::Impl::performActionImpl(const EditorAction::SetChartHarmonicNode& action)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -2936,21 +3041,31 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartHarmo
     {
         return;
     }
-    const std::string_view noun = chartTechniqueLaw(ChartTechnique::Harmonic).noun;
-    if (applyChartEditPlan(planSetHarmonic(
-            *arrangement->chart,
-            session().song().tempo_map,
-            chartSelection().notes(),
-            action.partial,
-            noun)))
-    {
-        // The same window a choiceless press arms, and for the same reason: the next `H` reverses
-        // this entry exactly, giving back what the touch could not carry.
-        m_chart_verb_window = ChartVerbWindow{
-            .keys = chartSelection().keys(),
-            .verb = ChartTechniqueToggle{.technique = ChartTechnique::Harmonic},
-        };
-    }
+    commitChartHarmonic(action.partial);
+}
+
+// The harmonic run's step, in the gesture family rather than the toggle's: the latest choice IS the
+// gesture, so the replan reads it from this press and the window carries only the verb's name. A
+// second choice on the same selection replaces the first step's entry; choosing the way back to the
+// pre-gesture state plans NoChange against it and retires the entry, which is how `H` Return `H`
+// Return still leaves no trace without a reversal of its own.
+void EditorController::Impl::commitChartHarmonic(const std::optional<int> partial)
+{
+    const ChartVerbWindowVerb* const live_verb = liveChartGestureVerb();
+    const bool continues =
+        live_verb != nullptr && std::holds_alternative<ChartHarmonicGesture>(*live_verb);
+    // Bound before the step so the replan reads the keys the proof was made against.
+    const std::vector<ChartSlotKey> keys = chartSelection().notes();
+    static_cast<void>(commitChartGestureStep(
+        continues,
+        [this, &keys, partial](const common::core::Chart& pre_gesture) {
+            return partial.has_value()
+                       ? planSetHarmonic(
+                             pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
+                       : planClearHarmonic(
+                             pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
+        },
+        ChartHarmonicGesture{}));
 }
 
 // The one technique toggle verb. Uniform scope, one compound undo entry: a selection where every
@@ -2989,22 +3104,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     // reaches nothing in simply plans to NoChange instead of being filtered out here.
     const ChartTechniqueLaw law = chartTechniqueLaw(technique);
     const bool all_carry = law.carried(*arrangement->chart, chartSelection());
-    if (technique == ChartTechnique::Harmonic && !all_carry)
-    {
-        // THE ONE ROW WHOSE SET STATES A VALUE. Which node the finger touches is a quantity, and
-        // where the typed fret names more than one node the choice is the charter's: the view is
-        // asked to offer the rows, nothing commits, and the chosen row returns through
-        // SetChartHarmonicNode. Asked HERE, below the prologue and the window, so a live fret
-        // entry has settled before the label is read and a second `H` inside the window reverses
-        // instead of asking again — the fork and the reversal are one verb's, in one place. A
-        // fret naming one node falls through and writes it like any other technique.
-        if (std::optional<ChartHarmonicNodePicker> picker = chartHarmonicNodePicker();
-            picker.has_value())
-        {
-            requestChartHarmonicNodePicker(std::move(*picker));
-            return;
-        }
-    }
     const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
     if (applyChartEditPlan(law.plan(
             *arrangement->chart, session().song().tempo_map, chartSelection(), !all_carry, label)))

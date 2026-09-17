@@ -1741,11 +1741,13 @@ TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-vi
     CHECK(controller.chart_technique_toggles.size() == 3);
 }
 
-// The harmonic letter is an ORDINARY technique letter here: whether a press asks the charter for a
-// node or writes one is the controller's decision, made against the chart the press lands on, so
-// the view's whole job is to send the toggle. The picker it may be handed back afterwards is a
-// one-shot request, and the core's own suites pin when it is asked for and what it carries.
-TEST_CASE("EditorView routes the harmonic letter to the technique toggle", "[ui][editor-view]")
+// The harmonic letter is its OWN verb, not a row of the technique toggle: its set states a value
+// rather than a flag, so `H` sends the harmonic intent and nothing else. Whether that press asks
+// the charter for a node or writes one at once is the controller's decision, made against the chart
+// the press lands on — the view never forks on it, and never sends a technique here. The picker it
+// may be handed back afterwards is a one-shot request, and the core's own suites pin when it is
+// asked for and what it carries.
+TEST_CASE("EditorView routes the harmonic letter to the harmonic verb", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1761,9 +1763,8 @@ TEST_CASE("EditorView routes the harmonic letter to the technique toggle", "[ui]
 
     juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
     CHECK(mappings->keyPressed(juce::KeyPress{'h', juce::ModifierKeys{}, 0}, &view));
-    CHECK(
-        controller.chart_technique_toggles ==
-        std::vector<core::ChartTechnique>{core::ChartTechnique::Harmonic});
+    CHECK(controller.chart_harmonic_requests == 1);
+    CHECK(controller.chart_technique_toggles.empty());
 }
 
 // Selection verbs follow the selection, not the pointer: with a chart selection active,

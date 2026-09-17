@@ -56,19 +56,23 @@ public:
     virtual void showNotice(const std::string& title, const std::string& message) = 0;
 
     /*!
-    \brief Asks the view to offer the harmonic node picker: one row per node a selected note's typed
-    fret names, lowest partial first.
+    \brief Asks the view to offer the harmonic node picker: one row per node a selected note's label
+    names, lowest partial first, the node it already touches ticked, and a "No harmonic" row last
+    where a clear is among the changes.
 
     A one-shot request rather than view state, because the choice is the CONTROLLER's to ask for:
-    `H` reaches it only after the settle prologue has committed any pending fret entry and the verb
-    window has had its chance to reverse, so the rows always describe the chart the choice will land
-    on, and a press the controller answers itself — one node, a clear, a reversal — never shows a
+    `H` reaches it only after the settle prologue has committed any pending fret entry, so the rows
+    always describe the chart the choice will land on, and a press that allows exactly one change —
+    a lone node, a clear with nowhere else to move — is answered by the controller and never shows a
     menu. With no view attached the question is dropped like a notice and the press does nothing.
-    The view presents the rows as a popup at the named note's head with the first row preselected,
-    and returns the chosen partial through \ref IEditorController::onChartHarmonicNodeRequested;
-    dismissing chooses nothing and leaves the chart untouched.
+    The view presents the rows as a popup at the named note's head with the row the controller names
+    preselected (\ref ChartHarmonicNodePicker::preselected), and returns the chosen row's answer — a
+    partial, or none for the clear row — through
+    \ref IEditorController::onChartHarmonicNodeRequested; dismissing chooses nothing and leaves the
+    chart, and anything another verb has staged, untouched.
 
-    \param picker The note the rows describe and the rows, in the order to show them.
+    \param picker The note the rows describe, the rows in the order to show them, and which opens
+    selected.
     */
     virtual void showChartHarmonicNodePicker(ChartHarmonicNodePicker picker) = 0;
 

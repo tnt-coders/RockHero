@@ -301,7 +301,8 @@ one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCare
 `StepToRowObject`, `JumpToFocusRow`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`, `ToggleChartJunction`) — so
+`ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`, `ToggleChartSilentHold`,
+`ToggleChartJunction`) — so
 path (b) is path (a) with
 a different trigger: the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
@@ -309,7 +310,7 @@ owns the busy gate, the chart/transport/selection preconditions, and the logging
 is the keystroke that CONTINUES the live entry rather than acting against it, asked as
 `chartFretEntryContinuedBy(action)`: a DIGIT widens the typed value, and nothing else does — the
 harmonic node picker is a popup that commits on the row chosen, so no verb leaves a value
-provisional. EVERY digit continues a live entry, bare or under
+provisional, and a run of those choices folds into one undo entry rather than pending. EVERY digit continues a live entry, bare or under
 `Alt` — the FIRST digit's modifier is what decided the entry's target, and the ones after it only
 widen the value, so no keystroke re-derives what the entry creates. What stays per-verb is reading
 its own operand. Esc remains a direct ladder because its first rung is the invalid pending
@@ -399,7 +400,7 @@ selection is an operand neither chord has to choose between; only a digit at a b
 on a ring's exact end has anything to choose at all),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
-pick slide, right-hand tap, slap, pop, fret-hand harmonic, pinch harmonic, and legato, each a row of
+pick slide, right-hand tap, slap, pop, pinch harmonic, and legato, each a row of
 `chartTechniqueLaw` in `chart_edits.h` except legato, which plans through the resolver;
 uniform scope over the selection, one compound undo entry, one toggle
 window. Every row but the vibrato pair reads `selection.notes()` alone. **Vibrato has two
@@ -412,17 +413,14 @@ already at the OTHER tier is an ordinary set that replaces it in one entry — n
 followed by a set, and never a cycle. The four ATTACK rows (`Shift+X` pick slide, `T` right-hand
 tap, `S` slap, `P` pop) are the second such family and take the identical shape one level up
 (`attackLaw` beside `vibratoTierLaw`): the attack field holds exactly one value, so each row
-toggles its own against the plain pick and replaces any other in a single entry. **The two HARMONIC
-rows (`H`, `Shift+H`) are the third family, and the one whose rows SET through different planners
-and CLEAR through the same one**: `H` turns the fret already typed into the node the fretting finger
-touches (`planSetHarmonic`), `Shift+H` re-hands the note to the picking thumb through the attack
-verb, and both clear with `planClearHarmonic`, because each row's noun is a harmonic so its clear
-must remove one. `H` is also the one row whose SET states a VALUE, so where the typed fret names
-more than one node the CONTROLLER asks instead of writing — below the settle prologue and below the
-window's chance to reverse, and only where the press would SET, it reads the first ambiguous
-member's rows and hands them to the view port (`IEditorView::showChartHarmonicNodePicker`),
-returning with nothing written and no undo entry, so the fork and the reversal are one verb's, in
-one place; a fret naming a single node falls through and writes it like any other technique. Every
+toggles its own against the plain pick and replaces any other in a single entry. **`Shift+H`'s pinch
+is the family's ONE harmonic row**, and the one row whose CLEAR belongs to a verb outside the family:
+it re-hands the note to the picking thumb through the attack verb, and clears with
+`planClearPinchHarmonic` rather than `planSetAttack(Pick)`, because the row's noun is a harmonic so
+its clear must remove one — the thumb's own clear, which returns the note to the plain pick and drops
+the node while leaving the fret alone. The fret-hand harmonic `H` was the second harmonic row until 2026-09-16, when
+it stopped being a toggle and left `chartTechniqueLaw` — `ChartTechnique::Harmonic` went with it —
+for the stating verb described below. Every
 compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
 behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
 tap with nothing to strike is skipped (E4), an attack on a silent hold is refused for the ring it
@@ -469,10 +467,45 @@ stating no fret (a head must sit on a stated fret) and wherever a predecessor ca
 string over, and silent with nothing selected. No verb window is armed and none is needed: the
 SELECTION carries the toggle, since each press leaves exactly what it made selected — a split's new
 heads, a join's new point — so pressing again reverses it),
-`onChartHarmonicNodeRequested(partial)` (the harmonic node picker's ONE landing — the row chosen in
-the popup the controller asked the view to open arrives here, and a chosen row is already a
-deliberate choice, so it applies at once through the same `planSetHarmonic` a choiceless
-press runs, with the same uniform scope, the same single undo entry and the same verb window armed),
+`onChartHarmonicRequested()` (the fret-hand harmonic, `H` — NOT a toggle since 2026-09-16, and the
+one chart verb whose law is **offer every CHANGE the selection allows, and ask only where there is
+more than one**. WHICH ROWS CHANGE ANYTHING IS THE PLANNER'S ANSWER, never a count made beside it:
+the verb plans each node row (`planSetHarmonic`) and the clear (`planClearHarmonic`) over the live
+chart, and a plan of `NoChange` is a row that would do nothing — so ZERO changes is an inert press,
+ONE applies in the keystroke, and two or more ask. The node rows come from the member whose label
+names the MOST nodes — a carrier's label being the fret its node lies at, `harmonicLabelFret` in
+`chart_edits.cpp`, the same authority the clear presses back down, so a note touching 4.98 is offered
+the 13th and 15th partials of a 5 — and EVERY one of them is shown, a ticked row included, so the
+tick can say where the finger is; the "No harmonic" row comes last, after a separator, only where the
+clear itself changes something. The payload is `ChartHarmonicNodePicker{note, choices, preselected}`,
+`choices` a `std::vector<ChartHarmonicChoice>` — a variant of
+`ChartHarmonicNodeChoice{node, partial, current}` and `ChartHarmonicClearChoice` — node rows first
+ascending by partial, the clear row LAST when offered, and `preselected` an index into that list, so
+"a clear row that was never offered" cannot be preselected or chosen. The TICKED row is the node the
+ANCHOR member is touching — the note the rows were read from, the head the menu sits on — rather than
+a statement about the selection as a whole, and Return takes the clear where every selected note
+carries a fret-hand harmonic (`carriesNeckHarmonic`: a node whose attack keeps it on the neck, a pinch
+excluded), else the lowest partial that changes something. Labels naming nothing, an open string or a
+pinch, are inert; and the clear is the FRET HAND's alone — `planClearHarmonic` writes only notes that
+`carriesNeckHarmonic`, so a pinch selected beside a carrier is left alone by it, the picking thumb's
+node being `planClearPinchHarmonic`'s to clear. SEVERAL changes make the CONTROLLER ask, below the
+settle prologue, handing the rows to
+the view port (`IEditorView::showChartHarmonicNodePicker`) and returning with nothing written and no
+undo entry — a menu is a question, not an edit, so opening it ends nothing another verb staged, while
+the chosen row's WRITE does through `applyChartEditPlan`'s disarm. Consecutive choices on one
+selection FOLD: the verb runs the shared gesture authority `commitChartGestureStep` with an empty
+`ChartHarmonicGesture` alternative, so a run replaces one undo entry and a choice back to the pre-run
+state retires it, which is why `H` `Return` `H` `Return` leaves no trace of a carrier the VERB itself
+produced; an imported carrier whose payload (a bend, a shake) the set normalized away keeps an entry
+describing that strip, which is a real edit rather than a defect. There is no second-press
+reversal, so the exact restore of a node no label can name — an imported artificial 17.0 on a fret 5
+— is `Ctrl+Z` only; that is the price of a multi-valued "on", where "restore what the last press
+removed" and "set" cannot be the same act),
+`onChartHarmonicNodeRequested(std::optional<int> partial)` (the picker's ONE landing — the row chosen
+in the popup the controller asked the view to open arrives here, an absent partial being the
+"No harmonic" row, and a chosen row is already a deliberate choice, so it applies at once through the
+same `planSetHarmonic` / `planClearHarmonic` a choiceless press runs, with the same uniform scope and
+one undo entry, folded into the run above as one more step),
 `onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`

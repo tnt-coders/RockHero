@@ -4610,52 +4610,15 @@ TEST_CASE("planClearHarmonic presses the fret the touch was standing on", "[core
     }
 }
 
-// The shared clear both harmonic rows run, on the two shapes only it can reach. A pinch goes back
-// to the plain pick it was picked as — clearing through the raw attack row instead would leave the
-// node standing, an artificial harmonic nobody authored — and an IMPORTED artificial keeps the stop
-// its fretting hand is pressing, since the node it loses belonged to the other hand.
-TEST_CASE("planClearHarmonic removes the harmonic each hand owns", "[core][chart]")
+// THE FRETTING HAND'S CLEAR REACHES ONLY THE FRETTING HAND'S NODES. An IMPORTED artificial keeps
+// the stop its fretting hand is pressing, since the node it loses belonged to the other hand — and
+// a PINCH is left exactly as it was, because the thumb's graze is the `PinchHarmonic` row's to
+// clear (planClearPinchHarmonic). One clear once reached both, which let the picker's "No harmonic"
+// strip a pinch the charter had only selected beside a real carrier.
+TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
-
-    SECTION("a pinch loses its node and its attack")
-    {
-        common::core::Chart chart = makeSingleNoteChart(5);
-        common::core::ChartNote& pinch = chart.notes[0];
-        pinch.attack = common::core::NoteAttack::Pinch;
-        pinch.harmonic_node = 17.0;
-
-        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            applyAndValidate(chart, tempo_map, *plan);
-            CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
-            CHECK(chart.notes[0].fret == 5);
-            CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
-        }
-    }
-
-    SECTION("an open-string pinch's graze is never pressed as a fret")
-    {
-        // The on-neck guard: a thumb grazing out over the body was never standing anywhere a fret
-        // number can name, so the string stays open.
-        common::core::Chart chart = makeSingleNoteChart(0);
-        common::core::ChartNote& pinch = chart.notes[0];
-        pinch.attack = common::core::NoteAttack::Pinch;
-        pinch.harmonic_node = 12.0;
-
-        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            applyAndValidate(chart, tempo_map, *plan);
-            CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
-            CHECK(chart.notes[0].fret == 0);
-            CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
-        }
-    }
 
     SECTION("an imported artificial keeps the stop it is pressing")
     {
@@ -4671,6 +4634,129 @@ TEST_CASE("planClearHarmonic removes the harmonic each hand owns", "[core][chart
             CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
         }
     }
+
+    SECTION("a pinch is no carrier, so the press finds nothing to clear")
+    {
+        common::core::Chart chart = makeSingleNoteChart(5);
+        common::core::ChartNote& pinch = chart.notes[0];
+        pinch.attack = common::core::NoteAttack::Pinch;
+        pinch.harmonic_node = 17.0;
+
+        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+        REQUIRE_FALSE(plan.has_value());
+        if (!plan.has_value())
+        {
+            CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        }
+        // Nothing was written, so the thumb's graze and the attack carrying it both stand.
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pinch);
+        CHECK(chart.notes[0].fret == 5);
+        const std::optional<double>& grazed = chart.notes[0].harmonic_node;
+        REQUIRE(grazed.has_value());
+        if (grazed.has_value())
+        {
+            CHECK_THAT(*grazed, Catch::Matchers::WithinAbs(17.0, 0.001));
+        }
+    }
+}
+
+// THE PINCH ROW'S OWN CLEAR, and why that row is not a plain attack toggle: clearing to the pick
+// alone would leave a stop and a node standing — an artificial harmonic nobody authored. The FRET
+// is untouched, because a pinch's fret was pressed all along; there is no press-where-you-touched
+// arithmetic here at all, which is what leaves an open-string pinch open rather than pressing its
+// graze down as a fret number.
+TEST_CASE("planClearPinchHarmonic returns the pinch to the pick it was picked as", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    SECTION("a pinch loses its node and its attack")
+    {
+        common::core::Chart chart = makeSingleNoteChart(5);
+        common::core::ChartNote& pinch = chart.notes[0];
+        pinch.attack = common::core::NoteAttack::Pinch;
+        pinch.harmonic_node = 17.0;
+
+        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+            CHECK(chart.notes[0].fret == 5);
+            CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        }
+    }
+
+    SECTION("an open-string pinch's graze is never pressed as a fret")
+    {
+        // A thumb grazing out over the body was never standing anywhere a fret number can name, and
+        // the untouched fret is what says so: the string stays open.
+        common::core::Chart chart = makeSingleNoteChart(0);
+        common::core::ChartNote& pinch = chart.notes[0];
+        pinch.attack = common::core::NoteAttack::Pinch;
+        pinch.harmonic_node = 12.0;
+
+        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+            CHECK(chart.notes[0].fret == 0);
+            CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        }
+    }
+
+    SECTION("a fret-hand carrier is no pinch, so the press finds nothing to clear")
+    {
+        // The mirror of the clear above: this row owns one hand, and the other hand's touch stays
+        // planClearHarmonic's.
+        common::core::Chart chart = makeSingleNoteChart(5);
+        const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        REQUIRE(set.has_value());
+        if (set.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *set);
+        }
+
+        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        REQUIRE_FALSE(plan.has_value());
+        if (!plan.has_value())
+        {
+            CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        }
+    }
+}
+
+// WHAT "CARRIES" MEANS FOR THE FRET-HAND VERB — what its clear removes, what its picker ticks, and
+// what makes every member of a selection a carrier: any node whose attack keeps it on the neck.
+// Deliberately wider than the fret-hand harmonic proper, since a tap's node and an imported
+// artificial's both count (nothing else in the editor could un-harmonic them); the pinch is the one
+// node it excludes, and a note with no node at all carries nothing to remove.
+TEST_CASE("carriesNeckHarmonic answers for the hand that owns the node", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    // The fret-hand touch, made through the verb: fret 0, because the finger presses nothing, with
+    // the node it stands on.
+    common::core::Chart touched = makeSingleNoteChart(12);
+    const auto set = planSetHarmonic(touched, tempo_map, keys, std::nullopt, "Harmonic");
+    REQUIRE(set.has_value());
+    if (set.has_value())
+    {
+        applyAndValidate(touched, tempo_map, *set);
+    }
+    CHECK(touched.notes[0].fret == 0);
+    CHECK(carriesNeckHarmonic(touched.notes[0]));
+
+    common::core::ChartNote pinch = makeTestNote({.measure = 2, .beat = 1}, 1, 5);
+    pinch.attack = common::core::NoteAttack::Pinch;
+    pinch.harmonic_node = 17.0;
+    CHECK_FALSE(carriesNeckHarmonic(pinch));
+
+    CHECK_FALSE(carriesNeckHarmonic(makeTestNote({.measure = 2, .beat = 1}, 1, 5)));
 }
 
 // A FRET-HAND HARMONIC HAS NO STOP TO RETYPE. Its finger stands on the node and presses nothing, so
@@ -4736,24 +4822,25 @@ TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[
     }
 }
 
-// The uniform-scope law on the harmonic row, which reads exactly like the flag rows': a selection
-// where every note already carries one clears, and anything short of that sets. The row's question
-// is deliberately WIDER than a fret-hand harmonic — any node the fretting side of the instrument
-// owns counts — so the clear reaches a tap harmonic and an imported artificial too, which nothing
-// else in the editor can un-harmonic. The pinch is the one node it leaves to its own row.
-TEST_CASE("The harmonic law reads the whole selection for the direction", "[core][chart]")
+// The uniform-scope law on the pinch harmonic row, which reads exactly like the flag rows': a
+// selection where every note already carries the picking thumb's graze clears, and anything short
+// of that sets. The fret-hand harmonic has no row here at all — its set states a VALUE, so it runs
+// as its own verb rather than as a toggle — and the two nodes never read as one another's
+// technique: a node the fretting side owns is not this row's, and the thumb's is not the fret
+// hand's.
+TEST_CASE("The pinch harmonic law reads the whole selection for the direction", "[core][chart]")
 {
     common::core::Chart chart = makeSingleNoteChart(5);
     chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 5));
-    chart.notes[0].fret = 0;
-    chart.notes[0].harmonic_node = 4.98;
-    const ChartTechniqueLaw law = chartTechniqueLaw(ChartTechnique::Harmonic);
+    chart.notes[0].attack = common::core::NoteAttack::Pinch;
+    chart.notes[0].harmonic_node = 17.0;
+    const ChartTechniqueLaw law = chartTechniqueLaw(ChartTechnique::PinchHarmonic);
 
     ChartSelection carrying;
     carrying.add(ChartNoteKey{.slot = keyAt({.measure = 2, .beat = 1}, 1)});
     CHECK(law.carried(chart, carrying));
 
-    // One note without a node makes the press an ordinary SET over the whole scope.
+    // One note without a graze makes the press an ordinary SET over the whole scope.
     ChartSelection mixed;
     mixed.add(ChartNoteKey{.slot = keyAt({.measure = 2, .beat = 1}, 1)});
     mixed.add(ChartNoteKey{.slot = keyAt({.measure = 2, .beat = 1}, 2)});
@@ -4763,10 +4850,11 @@ TEST_CASE("The harmonic law reads the whole selection for the direction", "[core
     // plans to NoChange, the inert outcome every other row has.
     CHECK_FALSE(law.carried(chart, ChartSelection{}));
 
-    // The pinch belongs to the other row, so its node never reads as this one's technique.
-    chart.notes[0].attack = common::core::NoteAttack::Pinch;
+    // A node the fretting side owns belongs to the `H` verb, so it never reads as this row's.
+    chart.notes[0].attack = common::core::NoteAttack::Pick;
+    chart.notes[0].fret = 0;
+    chart.notes[0].harmonic_node = 4.98;
     CHECK_FALSE(law.carried(chart, carrying));
-    CHECK(chartTechniqueLaw(ChartTechnique::PinchHarmonic).carried(chart, carrying));
 }
 
 // The uniform-scope law under vibrato's TWO scopes: the direction a press means is read across

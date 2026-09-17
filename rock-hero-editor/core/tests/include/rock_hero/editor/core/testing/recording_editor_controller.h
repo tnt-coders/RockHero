@@ -320,8 +320,14 @@ public:
         chart_technique_toggles.push_back(technique);
     }
 
+    /*! \copydoc IEditorController::onChartHarmonicRequested */
+    void onChartHarmonicRequested() override
+    {
+        chart_harmonic_requests += 1;
+    }
+
     /*! \copydoc IEditorController::onChartHarmonicNodeRequested */
-    void onChartHarmonicNodeRequested(const int partial) override
+    void onChartHarmonicNodeRequested(const std::optional<int> partial) override
     {
         chart_harmonic_node_partials.push_back(partial);
     }
@@ -907,8 +913,11 @@ public:
     /*! \brief Every technique toggle received, in order. */
     std::vector<ChartTechnique> chart_technique_toggles{};
 
-    /*! \brief Every harmonic-node partial chosen through the menu, in order. */
-    std::vector<int> chart_harmonic_node_partials{};
+    /*! \brief Number of onChartHarmonicRequested() intents received. */
+    int chart_harmonic_requests{0};
+
+    /*! \brief Every harmonic-node answer chosen through the picker, in order (absent clears). */
+    std::vector<std::optional<int>> chart_harmonic_node_partials{};
 
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};

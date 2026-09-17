@@ -481,8 +481,11 @@ public:
     /*! \copydoc IEditorController::onChartTechniqueToggleRequested */
     void onChartTechniqueToggleRequested(ChartTechnique technique) override;
 
+    /*! \copydoc IEditorController::onChartHarmonicRequested */
+    void onChartHarmonicRequested() override;
+
     /*! \copydoc IEditorController::onChartHarmonicNodeRequested */
-    void onChartHarmonicNodeRequested(int partial) override;
+    void onChartHarmonicNodeRequested(std::optional<int> partial) override;
 
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override;

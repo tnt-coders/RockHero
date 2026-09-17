@@ -768,17 +768,28 @@ struct EditorAction
     };
 
     /*!
-    \brief State the fret-hand harmonic on the chart selection at one chosen partial.
+    \brief The fret-hand harmonic verb (`H`): offers every change the selection's harmonic allows
+    and asks through the view when there is more than one.
 
-    The picker's MOUSE form. The keyboard states its choice inside the pending entry, where a
-    second `H` cycles it; a menu row is already a deliberate choice, so it names the partial and
-    applies. Carries the ORDINAL rather than a node position because that is the stable name for a
-    choice: the position moves with the capo and with each member's own stop, the partial does not.
+    Not a technique toggle — its set states a value. See
+    \ref IEditorController::onChartHarmonicRequested.
+    */
+    struct ChooseChartHarmonic
+    {
+    };
+
+    /*!
+    \brief The harmonic node picker's answer: the partial whose node the selection takes, or absent
+    to clear every carried harmonic.
+
+    A row is already a deliberate choice, so it applies at once as one step of the harmonic run.
+    Carries the ORDINAL rather than a node position because that is the stable name for a choice:
+    the position moves with the capo and with each member's own stop, the partial does not.
     */
     struct SetChartHarmonicNode
     {
-        /*! \brief Partial whose node the selection's ambiguous members take. */
-        int partial{};
+        /*! \brief Partial whose node the selection takes, or absent to clear. */
+        std::optional<int> partial{};
     };
 
     /*! \brief Set the chart selection to the left-hand tap attack. */
@@ -887,9 +898,9 @@ struct EditorAction
         NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartHarmonicNode, SetChartLeftTap, ToggleChartSilentHold,
-        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
+        ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode, SetChartLeftTap,
+        ToggleChartSilentHold, ToggleChartJunction, SelectSongSection, InsertSongSection,
+        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

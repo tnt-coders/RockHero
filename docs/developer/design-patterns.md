@@ -397,9 +397,11 @@ The disposition rule (`armOrSettleChartFretEntry`) decides per planned value whe
 pends at all: an invalid value pends sticky because the red box must be seen, a valid value a
 further digit could still widen waits out the window, and everything else settles now. **The
 harmonic node picker deliberately does NOT ride this machinery** (ruled 2026-09-15, after a build
-that did): a node choice is a pick from a list, not a value being typed, so `H` over a label naming
-more than one node opens a popup that commits on the row chosen, and the fret entry stays the one
-thing that pends — which is what leaves the settle prologue with a single exemption to name.
+that did): a node choice is a pick from a list, not a value being typed, so `H` over a selection with
+more than one change to offer opens a popup that commits on the row chosen, and the fret entry stays
+the one thing that pends — which is what leaves the settle prologue with a single exemption to name.
+It rides the GESTURE fold below instead (2026-09-16): a run of choices on one selection replaces one
+undo entry, which is how a verb with no provisional value still keeps a burst to one Ctrl+Z.
 The engine's plugin dirty tracking settles
 state transactions behind a quiet debounce in the same spirit (`plugin_dirty_tracking.cpp`). Reach
 for the pending shape when a burst of inputs is one user gesture — the undo rule is one entry per
@@ -416,36 +418,45 @@ proof would otherwise still pass and act on a plan that no longer exists. The fr
 of those proofs: it settles before anything that could invalidate it runs, which is the pending
 model's whole bargain.
 
-**ONE window carries every verb that uses it**, as a variant of what the next press needs
-(`{keys, variant<ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture,
-ChartMoveGesture>}`), because at most one can ever be armed: every arming runs after
+**ONE window carries every verb that uses it**, as a variant of what the next press needs — five
+alternatives since 2026-09-16 (`{keys, variant<ChartTechniqueToggle, ChartSilentHoldToggle,
+ChartHarmonicGesture, ChartSustainGesture,
+ChartMoveGesture>}`) — because at most one can ever be armed: every arming runs after
 `applyChartEditPlan`, which disarms. Two optionals could both be armed — a state no verb can
 produce, and one every disarm site would have to remember. What each alternative does with the proof
 differs, and that is the point of keeping the proof outside them:
 
 - **The technique toggles** REVERSE their entry exactly, tails an assist grew included, and drop it
   (`dropTop`) so the pair leaves no trace.
-- **The gestures** — duration and move, and whatever joins them — record every step in press order,
-  re-plan the whole selection by REPLAYING that list over the state the gesture STARTED at, and
-  REPLACE the entry (`replaceTop`) so one entry always describes start → now. The start state needs
+- **The gestures** — duration, move, and the harmonic verb that joined them 2026-09-16 — REPLACE the
+  entry (`replaceTop`) so one entry always describes start → now, re-planning the whole selection from
+  the state the gesture STARTED at. Duration and move get there by recording every step in press
+  order and REPLAYING that list; the harmonic verb keeps no list, because its "gesture" is the LATEST
+  CHOICE and one choice planned from the pre-run chart already describes the whole run — which is why
+  `ChartHarmonicGesture` is an empty alternative. The retire is a plan test, not a keystroke count:
+  `H` `Return` `H` `Return` returns to the pre-run state, and so leaves no trace, for a carrier the
+  VERB produced, while a round trip over an IMPORTED carrier whose payload (a bend, a shake) the set
+  normalized away does not return to it — that entry describes a real strip and correctly stays. The
+  start state needs
   no snapshot: the entry's own plan, reversed, IS the pre-gesture chart — the settle sweep's method,
   reused. Replaying from the start rather than stepping the live value is what makes a gesture
   symmetric, so a chord member pinned at its own bound rejoins its neighbours exactly where it left
   them. The list is what a summed delta cannot be: a duration step moves the ring's END onto the
   adjacent grid line, so its size is only known once you know where that end sits, and a move step
   is the placement quantum scaled by the meter where the run has REACHED, so a run crossing a
-  signature change steps by two different amounts. A run that replays back to its start ends at the
+  signature change steps by two different amounts. A run that RETURNS to its start ends at the
   toggle's ending instead: there is nothing left to describe, so the entry is DROPPED and the chart
   walked back, because an entry describing nothing is a dead Ctrl+Z on a document reported modified
   that is identical to the saved file.
 
 **One authority serves every gesture** (`commitChartGestureStep`, `chart_handlers.cpp`): the verb
-appends its own step, then hands over a replan callback (`the whole run, given the state it started
+records its own step — nothing at all where a run's whole state is its latest choice — then hands
+over a replan callback (`the whole run, given the state it started
 from`), the verb value the next press must match, and — for a verb whose steps RE-KEY what they move
 — where the run has landed. Everything after that is shared: reconstructing the pre-gesture chart,
 push-or-replace, retire-on-`NoChange`, and arming the window. A second copy of that machinery per
 verb is exactly the "one rule stated twice" defect; adding a gesture verb means writing what a STEP
-means and nothing else. The move gesture is the one that needs the landing keys, because a note's
+means and nothing else — and three verbs run the shape today. The move gesture is the one that needs the landing keys, because a note's
 key is its slot and a keyframe's identity IS its offset, so every step re-points the selection — and
 the window's proof then compares against the re-pointed keys.
 

@@ -948,13 +948,16 @@ binary-search this precondition).
 
 THE FRET YOU TYPE IS THE NODE. A natural harmonic's finger stands where it would otherwise have
 pressed, so the fret-stating flow the editor already has states the node too: type 12, press `H`.
-This resolves the note's fret against the stop the string actually SPEAKS from
+This resolves the note's LABEL against the stop the string actually SPEAKS from
 (\ref common::core::physicalStopFret asked of the note with its own fret zeroed — the held stop
 under a right-hand onset, the capo otherwise) and hands that OFFSET to
-\ref common::core::harmonicNodeCandidates. One formula covers every hand: fret 5 open names 4.98,
-absolute fret 7 under a capo at 2 names 6.98 because our frets are absolute where Guitar Pro's
-labels are capo-relative, and a tap holding 5 and landing on 17 names 17 — the tap harmonic, whose
-node is measured from the stop it holds.
+\ref common::core::harmonicNodeCandidates. The label is the typed fret, or on a note already
+touching an on-neck node — whose fret is zero, because a touch presses nothing — the fret that node
+lies at, the same number \ref planClearHarmonic presses back down; so a note at 4.98 is offered the
+other nodes a 5 names, and the verb can re-node a harmonic without clearing it first. One formula
+covers every hand: fret 5 open names 4.98, absolute fret 7 under a capo at 2 names 6.98 because our
+frets are absolute where Guitar Pro's labels are capo-relative, and a tap holding 5 and landing on
+17 names 17 — the tap harmonic, whose node is measured from the stop it holds.
 
 REACHABILITY IS THE RULE AUTHORITY'S ANSWER. Each candidate is dropped by asking whether the write
 it would produce survives \ref common::core::validateChartNoteAlone on its saved form, so the neck
@@ -979,10 +982,11 @@ keyboard's default and the menu's first row cannot disagree. Import's nearest-no
 nearest node to a typed 3 is the 13th partial's 2.892, while the harmonic a charter means by that
 label is the 6th's 3.156.
 
-Empty therefore means "this press leaves the note alone", and a list of more than one means the
-charter has a choice, which is exactly when the verb offers its picker instead of writing.
+Empty therefore means "this press leaves the note alone". The verb counts these rows, less the
+one a carrier is touching, plus a clear where anything carries, as the CHANGES on offer, and asks
+through its picker exactly when there is more than one.
 
-\param note Note whose fret is read as a label.
+\param note Note whose fret (or touched node) is read as a label.
 \param tuning Tuning supplying the capo and the string count the rules judge against.
 \param tempo_map Tempo map the rule authority validates positions against.
 \return The reachable candidates, ascending by partial; empty when the fret names none.
@@ -1022,19 +1026,17 @@ binary-search this precondition).
     std::string_view label);
 
 /*!
-\brief Plans removing a harmonic from the keyed notes: the clear BOTH harmonic rows run.
+\brief Plans removing the fretting hand's harmonic from the keyed notes: the finger presses where it
+was touching, and the node goes.
 
-Shared rather than one clear per row because each row's noun is a harmonic, so its clear has to
-remove one. Three writes: a `Pinch` becomes the plain pick it was picked as; a note touching an
-on-neck node with nothing pressed presses where it was touching (`fret = 0` plus that node becomes
-the node's nearest fret); and the node goes.
-
-The press-where-you-touched arithmetic inverts \ref planSetHarmonic exactly for every label the set
-can produce — 4.98 back to 5, 3.86 to 4, 3.16 to 3, 7.02 to 7, 19.02 to 19 — which is why no memory
-of an overridden technique is needed: the fret comes back by arithmetic, and what the set's
-normalization stripped is restored by the verb window's reversal or by undo, the argument the
-arpeggio hold already makes for its own strip. The on-neck guard is what stops an open-string
-pinch's bridge-side graze from being pressed as a fret it never named.
+Only a note that \ref carriesNeckHarmonic is written; a pinch's node is the picking thumb's and
+\ref planClearPinchHarmonic owns it, so a pinch selected beside a fret-hand carrier is left exactly
+as it was. The press-where-you-touched arithmetic inverts \ref planSetHarmonic exactly for every
+label the set can produce — 4.98 back to 5, 3.86 to 4, 3.16 to 3, 7.02 to 7, 19.02 to 19 — and is
+the same label read \ref chartHarmonicNodeCandidates makes of a carrier, so the rows a touching
+note is offered and the fret its clear restores name one place. No memory of an overridden
+technique is needed: the fret comes back by arithmetic, and what the set's normalization stripped
+is restored by undo, the argument the arpeggio hold already makes for its own strip.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
@@ -1046,6 +1048,44 @@ binary-search this precondition).
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, std::string_view label);
+
+/*!
+\brief Plans removing the pinch harmonic from the keyed notes: the note goes back to the plain pick
+it was picked as, and the thumb's node goes with it.
+
+The clear of the \ref ChartTechnique::PinchHarmonic row, and why that row is not a plain attack
+toggle: clearing to the pick alone would leave a stop and a node standing — an artificial harmonic
+nobody authored. The fret is untouched, because a pinch's fret was pressed all along.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param keys Notes the pinch leaves, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
+\param label User-visible undo label.
+\return The plan; NoChange when no keyed note was a pinch carrying a node, Invalid when the gate
+refuses the result.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearPinchHarmonic(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& keys, std::string_view label);
+
+/*!
+\brief True when the note carries a harmonic the fretting side of the instrument owns: any node
+whose attack keeps it on the neck.
+
+The fret-hand harmonic verb's one notion of "carries" — what its clear removes, what its picker
+ticks, and what makes every member of a selection a carrier. Deliberately wider than
+\ref common::core::fretHandHarmonic: a tap harmonic's node and an imported artificial one both
+count, because nothing else in the editor could un-harmonic them. The pinch is the one node it
+excludes, because \ref ChartTechnique::PinchHarmonic owns that hand. The width also admits a
+scrape holding a latent node, which \ref common::core::fretHandHarmonic refuses; that note cannot
+reach this verb, because the attack change resets the node it would have carried and the verb
+offers a scrape no rows (its saved form records no node), so the predicate is never asked of one.
+
+\param note Note to test.
+\return True when the note carries a node the fretting hand owns.
+*/
+[[nodiscard]] bool carriesNeckHarmonic(const common::core::ChartNote& note) noexcept;
 
 /*!
 \brief One planned junction toggle: the stream change, and the selection it leaves behind.
@@ -1276,9 +1316,11 @@ struct ChartTechniqueLaw
 /*!
 \brief The law for every uniformly planned technique.
 
-Total over the thirteen techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
+Total over the twelve techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
 among them — its plan is \ref planSetLegato, which decides set-or-clear itself from what the
-resolver justifies — so asking for it is a caller error, not a row.
+resolver justifies — so asking for it is a caller error, not a row. The fret-hand harmonic is not
+a technique at all: its set states a value, so it has its own verb over \ref planSetHarmonic and
+\ref planClearHarmonic rather than a row.
 
 \param technique Technique the verb is toggling; never `Legato`.
 

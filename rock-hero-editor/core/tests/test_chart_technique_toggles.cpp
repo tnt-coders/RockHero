@@ -786,76 +786,10 @@ TEST_CASE("The arpeggio hold states a stop under a toggled tap", "[core][chart]"
     CHECK(chart->notes[2].held == std::optional{0});
 }
 
-// The harmonic verb under the shared toggle contract. The fixture's string-2 note at fret 5 names
-// three nodes, so the SET half arrives as a chosen partial — the 4th's 4.98, the row a choiceless
-// press would have preselected — and it arms the toggle window like any other set; a second press
-// inside that window reverses the entry exactly, which is what restores a payload the touch could
-// not carry, since the clear's own arithmetic only gives back the fret. (Which presses ask the
-// charter for the node instead of writing one is test_chart_harmonic_picker.cpp's subject.)
-TEST_CASE("EditorController toggles the harmonic with exact restoration", "[core][chart]")
-{
-    AttackToggleFixture fixture;
-
-    // The string-2 note at measure 2 beat 1 carries fret 5, the 4th partial's label.
-    click(fixture.controller, 40.0f, 180.0f);
-    fixture.controller.onChartSustainAdjustRequested(1);
-    const common::core::ChartNote original = chartOrNull(fixture.controller)->notes[1];
-
-    fixture.controller.onChartHarmonicNodeRequested(4);
-    const common::core::Chart* chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK(chart->notes[1].fret == 0);
-    CHECK(chart->notes[1].harmonic_node.has_value());
-
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
-    chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK(chart->notes[1] == original);
-
-    // No trace: the next undo reaches past the pair to the sustain adjust that preceded it.
-    fixture.controller.onUndoRequested();
-    chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK(chart->notes[1].sustain == g_fixture_sustain);
-}
-
-// Uniform scope over a chord, exactly as the flag rows read it: anything short of "all of them
-// already" means SET, and the press that follows once every member carries one clears them all in
-// a single entry — pressing each finger back onto the fret it was touching. Both fixture frets
-// name several nodes, so each SET here arrives as a chosen partial; only the CLEAR, which has
-// nothing to choose, is reached by the bare letter.
-TEST_CASE("EditorController harmonic toggle levels a chord and then clears it", "[core][chart]")
-{
-    AttackToggleFixture fixture;
-
-    // One member becomes a harmonic first, so the marquee below is mixed.
-    click(fixture.controller, 40.0f, 180.0f);
-    fixture.controller.onChartHarmonicNodeRequested(4);
-
-    // Marquee both measure-2 chord members: a harmonic plus a plain note at fret 3.
-    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
-    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
-    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
-
-    fixture.controller.onChartHarmonicNodeRequested(6);
-    const common::core::Chart* chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK(chart->notes[0].harmonic_node.has_value());
-    CHECK(chart->notes[0].fret == 0);
-    CHECK(chart->notes[1].harmonic_node.has_value());
-
-    // A history move COMMITS that entry and closes the toggle window, so the press below runs the
-    // verb's law rather than reversing the one above.
-    fixture.controller.onUndoRequested();
-    fixture.controller.onRedoRequested();
-    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Harmonic);
-    chart = chartOrNull(fixture.controller);
-    REQUIRE(chart != nullptr);
-    CHECK_FALSE(chart->notes[0].harmonic_node.has_value());
-    CHECK_FALSE(chart->notes[1].harmonic_node.has_value());
-    CHECK(chart->notes[0].fret == 3);
-    CHECK(chart->notes[1].fret == 5);
-}
+// The fret-hand harmonic is NOT a row of this verb: its set states a value, so it has its own verb
+// (`onChartHarmonicRequested`) whose run folds like a gesture instead of reversing like a toggle.
+// test_chart_harmonic_picker.cpp is its whole subject — which presses ask, what the rows carry, and
+// how the run's entry folds and retires.
 
 // `Shift+H` sets through the ATTACK verb — the pinch is the same technique reached by the other
 // hand, so it authors the octave at the stop rather than reading the note's own fret as a node —

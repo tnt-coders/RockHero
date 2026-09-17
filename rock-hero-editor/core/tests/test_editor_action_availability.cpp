@@ -263,6 +263,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
@@ -280,12 +281,14 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AdjustChartSustain, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 
     conditions.has_chart_selection = true;
     CHECK(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK(isActionAvailable(ActionId::AdjustChartSustain, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
     // The arpeggio hold reads the typed family's WIDER scope — the selection or the armed caret's
     // own slot — which the conditions carry as one answer rather than as two the table must
@@ -313,14 +316,17 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
 
     // Busy refuses every chart verb, and none of them takes over a busy operation.
     conditions.busy = true;
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartSilentHold, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::ChooseChartHarmonic));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartSilentHold));
 }
 

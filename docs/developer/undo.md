@@ -69,11 +69,20 @@ only, so re-running it on an authored edit would overwrite hand positions the ch
   `replaceTop`, so however many keys were pressed, one entry describes start → now and one Ctrl+Z
   undoes the run — and a run that replays back to its start ends at `dropTop` like the
   toggle, since an entry describing nothing is a dead Ctrl+Z on a document reported modified that
-  is byte-identical to the file. Two verbs run this shape today and share ONE authority
-  (`commitChartGestureStep`, `chart_handlers.cpp`), which is what keeps them from drifting into two
+  is byte-identical to the file. THREE verbs run this shape today and share ONE authority
+  (`commitChartGestureStep`, `chart_handlers.cpp`), which is what keeps them from drifting into three
   copies: the duration steps (`AdjustChartSustain`, ruled 2026-08-22 — before it, every step was its
-  own entry) and the `Alt`+arrow move (`moveChartSelection`, ruling 8's own extension). Each keeps
-  its STEPS rather than one summed delta: a duration step moves the ring's END onto the adjacent
+  own entry), the `Alt`+arrow move (`moveChartSelection`, ruling 8's own extension), and the
+  fret-hand harmonic verb `H` (`ChooseChartHarmonic` / `SetChartHarmonicNode`, which joined
+  2026-09-16 when it stopped being a toggle). The harmonic verb is the one with nothing to replay:
+  its "gesture" is the LATEST CHOICE, planned from the pre-run chart, so `ChartHarmonicGesture` is an
+  empty alternative — and because the fold RETIRES an entry that returns to the pre-run state, `H`
+  `Return` `H` `Return` leaves no trace of a carrier the VERB itself produced, by that rule rather
+  than by a second-press reversal. The rule is a PLAN test, not a keystroke count: over an imported
+  carrier whose payload (a bend, a shake) the set normalized away, the round trip does not return to
+  the pre-run state, so its entry — describing that real strip — correctly stays.
+  The other two keep
+  their STEPS rather than one summed delta: a duration step moves the ring's END onto the adjacent
   line of the placement quantum's lattice, so what it adds is whatever reaches that line (a summed
   delta carried a remainder through every later step — fixed 2026-08-23); a move step carries the
   selection by that quantum scaled by the meter where the run has REACHED, so a run crossing a

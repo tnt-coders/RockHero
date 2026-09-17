@@ -227,6 +227,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ToggleChartTechnique;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::ChooseChartHarmonic>)
+    {
+        return EditorAction::Id::ChooseChartHarmonic;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SetChartHarmonicNode>)
     {
         return EditorAction::Id::SetChartHarmonicNode;
