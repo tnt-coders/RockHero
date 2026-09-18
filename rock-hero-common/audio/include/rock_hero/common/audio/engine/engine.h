@@ -477,10 +477,16 @@ public:
     [[nodiscard]] Gain inputGain() const override;
 
     /*!
-    \brief Reads the current output gain applied after the signal chain.
-    \return Current output gain, or the default when no structural gain plugin exists.
+    \brief Reads the audible tone's authored output level.
+    \return The audible tone's level, or the default when no tone is loaded.
     */
     [[nodiscard]] Gain outputGain() const override;
+
+    /*!
+    \brief Reads the monitor level applied after the whole rig.
+    \return Current monitor level, or the default when no structural gain plugin exists.
+    */
+    [[nodiscard]] Gain monitorGain() const override;
 
     /*!
     \brief Sets the calibrated input gain applied before the signal chain.
@@ -524,11 +530,18 @@ public:
         bool enabled) override;
 
     /*!
-    \brief Sets the output gain applied after the signal chain.
-    \param gain Desired output gain; clamped to the accepted range.
-    \return Empty success, or a typed failure.
+    \brief Sets the audible tone's authored output level.
+    \param gain Desired level for the audible tone; clamped to the accepted range.
+    \return Empty success, or a typed failure when no tone is loaded.
     */
     [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
+
+    /*!
+    \brief Sets the monitor level applied after the whole rig.
+    \param gain Desired monitor level; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> setMonitorGain(Gain gain) override;
 
     /*!
     \brief Bakes the tone switch schedule into the loaded rig's branch-gain automation.

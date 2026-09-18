@@ -214,7 +214,7 @@ public:
     [[nodiscard]] common::audio::Gain backingVolume() const;
 
     /*!
-    \brief Sets the player-monitor volume (forwards to the live rig's output gain).
+    \brief Sets the player-monitor volume (forwards to the live rig's monitor stage).
     \param gain Desired monitor gain.
     \return The live rig's typed result.
     */

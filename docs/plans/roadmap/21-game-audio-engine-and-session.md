@@ -527,8 +527,12 @@ Scope: master, backing-track, and player-monitor volumes as a small common/audio
 (`IMixControls` or an extension of existing ports — decided at implementation against
 constraint (b)):
 
-- Player monitor: already exists as `ILiveRig::outputGain/setOutputGain` — reuse, do not
-  duplicate.
+- Player monitor: its own stage, `ILiveRig::monitorGain/setMonitorGain` on the structural gain
+  plugin after the rack (default unity, never persisted). **Corrected 2026-09-18**: this said
+  "reuse `outputGain/setOutputGain`, do not duplicate", which was wrong — that pair is the
+  charter's PER-TONE authored level, stored on each tone's own branch and persisted in its tone
+  document, so routing the player's mix through it would have overwritten the balance between a
+  song's tones. Two names for two facts is not duplication here.
 - Backing volume: a track-level gain that **composes with** (never overwrites) the
   normalization clip gain set at engine_song_audio.cpp:156-160.
 - Master: the edit's master volume facility — **verify with juce-tracktion-expert** which

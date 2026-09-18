@@ -1,6 +1,6 @@
 /*!
 \file live_rig_gain_plugin.h
-\brief Private Tracktion plugin used for live-rig input and output gain stages.
+\brief Private Tracktion plugin used for the live-rig input and monitor gain stages.
 */
 
 #pragma once

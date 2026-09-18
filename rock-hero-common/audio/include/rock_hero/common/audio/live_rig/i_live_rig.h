@@ -72,7 +72,7 @@ struct [[nodiscard]] LiveRigSnapshot
     /*! \brief Captured audible chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
 
-    /*! \brief Captured output gain after the signal chain. */
+    /*! \brief The audible tone's captured authored level. */
     Gain output_gain{};
 };
 
@@ -179,7 +179,7 @@ struct [[nodiscard]] LiveRigLoadResult
     /*! \brief The audible tone's restored chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
 
-    /*! \brief The audible tone's restored output gain. */
+    /*! \brief The audible tone's restored authored level. */
     Gain output_gain{};
 
     /*!
@@ -246,7 +246,7 @@ struct [[nodiscard]] AudibleToneState
     /*! \brief Full per-plugin state mementos in chain order, instance ids preserved. */
     std::vector<PluginInstanceState> plugin_states;
 
-    /*! \brief Output gain applied after the chain. */
+    /*! \brief The tone's authored level, carried on its own branch alongside the chain. */
     Gain output_gain{};
 };
 
@@ -422,17 +422,41 @@ public:
         const AudibleToneState& state) = 0;
 
     /*!
-    \brief Reads the current output gain applied after the signal chain.
-    \return Current output gain, or the default when no structural gain plugin exists.
+    \brief Reads the audible tone's authored output level.
+    \return The audible tone's level, or the default when no tone is loaded.
     */
     [[nodiscard]] virtual Gain outputGain() const = 0;
 
     /*!
-    \brief Sets the output gain applied after the signal chain.
-    \param gain Desired output gain; clamped to the accepted range.
-    \return Empty success, or a typed failure.
+    \brief Sets the audible tone's authored output level.
+
+    A per-tone value, stored on the tone's own gain block at the end of its branch and persisted in
+    its tone document, so the tone carries its level through every later switch — including one the
+    audio thread makes from a baked schedule, which no message-thread write could follow in time.
+    Contrast setMonitorGain, which scales whatever tone is audible.
+
+    \param gain Desired level for the audible tone; clamped to the accepted range.
+    \return Empty success, or a typed failure when no tone is loaded.
     */
     [[nodiscard]] virtual std::expected<void, LiveRigError> setOutputGain(Gain gain) = 0;
+
+    /*!
+    \brief Reads the monitor level applied after the whole rig.
+    \return Current monitor level, or the default when no rig stage exists.
+    */
+    [[nodiscard]] virtual Gain monitorGain() const = 0;
+
+    /*!
+    \brief Sets the monitor level applied after the whole rig.
+
+    How loud the player hears their own guitar, whichever tone is audible. It belongs to the
+    listener rather than to any tone, so no tone document carries it and loading a rig never
+    changes it. Defaults to unity.
+
+    \param gain Desired monitor level; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setMonitorGain(Gain gain) = 0;
 
 protected:
     /*! \brief Creates the live rig interface. */

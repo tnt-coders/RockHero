@@ -422,6 +422,17 @@ public:
         return {};
     }
 
+    [[nodiscard]] common::audio::Gain monitorGain() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setMonitorGain(
+        common::audio::Gain) override
+    {
+        return {};
+    }
+
     [[nodiscard]] common::audio::Gain inputGain() const override
     {
         return {};

@@ -934,6 +934,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
+    // Returns the current monitor gain stored by setMonitorGain or the default.
+    [[nodiscard]] common::audio::Gain monitorGain() const override
+    {
+        return current_monitor_gain;
+    }
+
+    // Records the monitor gain and returns success.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setMonitorGain(
+        common::audio::Gain gain) override
+    {
+        current_monitor_gain = common::audio::clampGain(gain);
+        return {};
+    }
+
     // Records the export request and returns the configured outcome.
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> exportAudibleTone(
         const common::audio::ToneFileExportRequest& request) override
@@ -1129,6 +1143,9 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Number of setOutputGain calls received.
     int set_output_gain_call_count{0};
+
+    // Current monitor gain value stored by setMonitorGain; the editor never writes it.
+    common::audio::Gain current_monitor_gain{};
 
     // Deferred live-rig completion captured with the result configured at load time.
     struct PendingLoad

@@ -177,9 +177,11 @@ private:
 
     // Stable IDs for structural live-rig plugins around the external plugin chain. These are
     // hidden from PluginChainEntry snapshots and from the removable plugin rows in the editor.
+    // The stage after the rack is the player's MONITOR level, not any tone's: a tone's authored
+    // level rides its own ToneBranchGainPlugin so a switch carries it.
     tracktion::EditItemID m_input_gain_plugin_id;
     tracktion::EditItemID m_input_meter_plugin_id;
-    tracktion::EditItemID m_output_gain_plugin_id;
+    tracktion::EditItemID m_monitor_gain_plugin_id;
     tracktion::EditItemID m_output_meter_plugin_id;
 
     // Structural master-output meter, living on the edit master plugin list rather than the
@@ -278,10 +280,6 @@ private:
     // undo. Written by prepareToneTimeline and cleared with the rack the curves live on.
     bool m_tone_schedule_baked{false};
 
-    // Per-branch output gains (aligned with m_tone_rack->branches) so switching the audible tone
-    // restores that tone's authored output level on the structural output gain stage.
-    std::vector<Gain> m_branch_output_gains;
-
     // Editor-owned panel layout per branch, captured at load and refreshed on capture. Chain
     // mutations can outrun it; readers fall back to a gapless layout past its size. The stable ids
     // are only trusted at load completion (LiveRigLoadResult.tone_chains), where they are fresh
@@ -308,8 +306,11 @@ private:
     // Returns the audible tone's branch index within the rack, when a rig is loaded.
     [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;
 
-    // Records the given loaded tone as audible and applies its authored output gain, switching the
-    // branch gains onto it as well unless a baked schedule owns them.
+    // Returns the branch gain plugin carrying the audible tone's level, or null without a rig.
+    [[nodiscard]] ToneBranchGainPlugin* audibleBranchGain() const;
+
+    // Records the given loaded tone as audible, switching the branch gains onto it unless a baked
+    // schedule owns them. Writes no level: each tone's level rides its own branch.
     [[nodiscard]] std::expected<void, LiveRigError> applyAudibleTone(
         const std::string& tone_document_ref);
 
@@ -701,9 +702,6 @@ private:
 
     // Clears live-rig meter windows retained by structural meter plugins across project changes.
     void clearRetainedLiveRigMeterState();
-
-    // Resets project-owned live-rig structural state while preserving device input calibration.
-    [[nodiscard]] std::expected<void, LiveRigError> resetLiveRigProjectState();
 
     // Reads the dB value from a structural live-rig gain plugin, returning default if absent.
     [[nodiscard]] Gain readGainFromPlugin(tracktion::EditItemID plugin_id) const;

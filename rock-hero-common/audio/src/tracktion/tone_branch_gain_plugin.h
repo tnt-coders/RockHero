@@ -5,19 +5,27 @@
 
 #pragma once
 
+#include <atomic>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::common::audio
 {
 
 /*!
-\brief Hidden Tracktion plugin that scales one multi-tone rack branch by an automatable gain.
+\brief Hidden Tracktion plugin that scales one multi-tone rack branch by audibility and level.
 
 This is the switch point of the multi-tone graph: every tone branch ends in one of these, the
-region schedule is baked into this plugin's gain automation curve, and the transport clock
-evaluates the curve so tone switches never require a graph change. The gain is linear 0..1 branch
-audibility (1 = active tone, 0 = silent), not a user-facing dB trim; `LiveRigGainPlugin` remains
-the message-thread dB trim for rig input/output stages.
+region schedule is baked into this plugin's branch-gain automation curve, and the transport clock
+evaluates the curve so tone switches never require a graph change. The branch gain is linear 0..1
+branch audibility (1 = active tone, 0 = silent), written only by the schedule or the direct switch.
+
+This is also the tone's own gain block, locked in the branch's final slot: the authored output level
+lives here as a plain message-thread dB value that is never automated. Both feed one smoother
+(target = branch gain x the level's linear gain), so a tone carries its level wherever the switch
+happens — including a switch the audio thread makes from a baked schedule, which no message-thread
+write could follow in time. `LiveRigGainPlugin` remains the message-thread dB trim for the rig's
+input stage and for the post-rack monitor stage, neither of which belongs to any tone.
 */
 class ToneBranchGainPlugin final : public tracktion::Plugin
 {
@@ -135,9 +143,28 @@ public:
     */
     [[nodiscard]] tracktion::AutomatableParameter::Ptr branchGainParameter() const;
 
+    /*!
+    \brief Stores this tone's authored output level, multiplied into the branch gain.
+    \param gain Desired level for the tone this branch plays; clamped to the accepted range.
+    */
+    void setOutputGain(Gain gain);
+
+    /*!
+    \brief Returns this tone's authored output level.
+    \return Current clamped level for the tone this branch plays.
+    */
+    [[nodiscard]] Gain outputGain() const noexcept;
+
 private:
+    [[nodiscard]] float targetOutputLinearGain() const noexcept;
+    void setTargetOutputGainDb(float gain_db) noexcept;
+    void valueTreePropertyChanged(
+        juce::ValueTree& changed_tree, const juce::Identifier& changed_property) override;
+
     juce::CachedValue<float> m_branch_gain;
     tracktion::AutomatableParameter::Ptr m_branch_gain_parameter;
+    juce::CachedValue<float> m_output_gain_db;
+    std::atomic<float> m_target_output_gain_db{static_cast<float>(defaultGainDb())};
     juce::SmoothedValue<float> m_smoothed_gain{1.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToneBranchGainPlugin)

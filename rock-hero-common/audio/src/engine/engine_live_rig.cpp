@@ -111,7 +111,7 @@ bool Engine::Impl::isStructuralLiveRigPlugin(const tracktion::Plugin* plugin) co
         return false;
     }
     return plugin->itemID == m_input_gain_plugin_id || plugin->itemID == m_input_meter_plugin_id ||
-           plugin->itemID == m_output_gain_plugin_id || plugin->itemID == m_output_meter_plugin_id;
+           plugin->itemID == m_monitor_gain_plugin_id || plugin->itemID == m_output_meter_plugin_id;
 }
 
 LiveRigGainPlugin* Engine::Impl::findStructuralGainPlugin(tracktion::EditItemID plugin_id) const
@@ -271,9 +271,9 @@ std::expected<void, LiveRigError> Engine::Impl::validateStructuralLiveRigPlugins
 
     const auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
     const auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
-    const auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
+    const auto* const monitor_plugin = findStructuralGainPlugin(m_monitor_gain_plugin_id);
     const auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
-    if (input_plugin == nullptr || input_meter == nullptr || output_plugin == nullptr ||
+    if (input_plugin == nullptr || input_meter == nullptr || monitor_plugin == nullptr ||
         output_meter == nullptr)
     {
         return std::unexpected{LiveRigError{
@@ -300,7 +300,7 @@ std::expected<void, LiveRigError> Engine::Impl::validateStructuralLiveRigPlugins
 
     if (plugin_list[0]->itemID != m_input_gain_plugin_id ||
         plugin_list[1]->itemID != m_input_meter_plugin_id ||
-        plugin_list[plugin_list.size() - 2]->itemID != m_output_gain_plugin_id ||
+        plugin_list[plugin_list.size() - 2]->itemID != m_monitor_gain_plugin_id ||
         plugin_list.getLast()->itemID != m_output_meter_plugin_id)
     {
         return std::unexpected{LiveRigError{
@@ -333,12 +333,12 @@ std::expected<void, LiveRigError> Engine::Impl::createStructuralLiveRigPlugins()
     }
     m_input_meter_plugin_id = (*created_input_meter)->itemID;
 
-    auto created_output_plugin = createLiveRigGainPlugin(-1);
-    if (!created_output_plugin.has_value())
+    auto created_monitor_plugin = createLiveRigGainPlugin(-1);
+    if (!created_monitor_plugin.has_value())
     {
-        return std::unexpected{std::move(created_output_plugin.error())};
+        return std::unexpected{std::move(created_monitor_plugin.error())};
     }
-    m_output_gain_plugin_id = (*created_output_plugin)->itemID;
+    m_monitor_gain_plugin_id = (*created_monitor_plugin)->itemID;
 
     auto created_output_meter = createLevelMeterPlugin(-1);
     if (!created_output_meter.has_value())
@@ -385,18 +385,6 @@ void Engine::Impl::clearRetainedLiveRigMeterState()
     detachAndClearMeter(m_output_meter_reader, findStructuralMeterPlugin(m_output_meter_plugin_id));
     detachAndClearMeter(
         m_master_meter_reader, findStructuralMasterMeterPlugin(m_master_meter_plugin_id));
-}
-
-std::expected<void, LiveRigError> Engine::Impl::resetLiveRigProjectState()
-{
-    auto output_reset = applyGainToPlugin(m_output_gain_plugin_id, Gain{defaultGainDb()});
-    if (!output_reset.has_value())
-    {
-        return std::unexpected{std::move(output_reset.error())};
-    }
-
-    clearRetainedLiveRigMeterState();
-    return {};
 }
 
 Gain Engine::Impl::readGainFromPlugin(tracktion::EditItemID plugin_id) const
@@ -466,6 +454,12 @@ std::optional<std::size_t> Engine::Impl::audibleBranchIndex() const
     return toneBranchIndex(m_audible_tone_ref);
 }
 
+ToneBranchGainPlugin* Engine::Impl::audibleBranchGain() const
+{
+    const ToneRackBranch* const branch = audibleToneBranch();
+    return branch != nullptr ? branch->branch_gain : nullptr;
+}
+
 std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
     const std::string& tone_document_ref)
 {
@@ -485,14 +479,13 @@ std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
     // already switched to whichever tone the transport is inside, so a message-thread write would
     // be undone by the next block. Recording the new audible tone is then all this call does to
     // the switch; everything else about the tone still follows it.
+    //
+    // No level is written here at all, whether a schedule exists or not: each tone's authored
+    // level rides its own branch, so the switch has nothing to restore and a crossing the audio
+    // thread makes carries the level with it.
     if (!m_tone_schedule_baked)
     {
         setAudibleBranch(*m_tone_rack, *branch_index);
-    }
-
-    if (*branch_index < m_branch_output_gains.size())
-    {
-        return applyGainToPlugin(m_output_gain_plugin_id, m_branch_output_gains[*branch_index]);
     }
     return {};
 }
@@ -511,7 +504,6 @@ void Engine::Impl::resetToneRackState()
     // The curves a schedule was baked onto died with the rack, so the flag recording that they are
     // owned has to die with it too; a fresh rack's gains are the direct switch's to write again.
     m_tone_schedule_baked = false;
-    m_branch_output_gains.clear();
     m_branch_display_metadata.clear();
 }
 
@@ -551,9 +543,8 @@ LiveRigLoadResult Engine::Impl::audibleToneResult() const
                 metadata.display_type_overrides[plugin_index];
         }
     }
-    result.output_gain = *branch_index < m_branch_output_gains.size()
-                             ? m_branch_output_gains[*branch_index]
-                             : readGainFromPlugin(m_output_gain_plugin_id);
+    result.output_gain =
+        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return result;
 }
 
@@ -585,12 +576,7 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
         return std::unexpected{std::move(cleared.error())};
     }
 
-    auto reset = m_impl->resetLiveRigProjectState();
-    if (!reset.has_value())
-    {
-        m_impl->endPluginUndoCaptureDeferral();
-        return std::unexpected{std::move(reset.error())};
-    }
+    m_impl->clearRetainedLiveRigMeterState();
 
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
@@ -602,13 +588,15 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     return {};
 }
 
-// Reads the current output gain from the structural live-rig gain plugin.
+// Reads the audible tone's authored level off its own branch, the one place it is stored.
 Gain Engine::outputGain() const
 {
-    return m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    const ToneBranchGainPlugin* const branch_gain = m_impl->audibleBranchGain();
+    return branch_gain != nullptr ? branch_gain->outputGain() : Gain{defaultGainDb()};
 }
 
-// Sets the output gain on the structural live-rig gain plugin after the signal chain.
+// Sets the audible tone's authored level on its own branch, which is what carries that level
+// through every later switch — including one the audio thread makes from a baked schedule.
 std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -616,22 +604,34 @@ std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
         return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
     }
 
-    gain = clampGain(gain);
-    auto applied = m_impl->applyGainToPlugin(m_impl->m_output_gain_plugin_id, gain);
-    if (!applied.has_value())
+    ToneBranchGainPlugin* const branch_gain = m_impl->audibleBranchGain();
+    if (branch_gain == nullptr)
     {
-        return std::unexpected{std::move(applied.error())};
+        return std::unexpected{
+            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to set the level on"}
+        };
     }
 
-    // Output gain is a per-tone value; remember it on the audible branch so switching away and
-    // back restores the edit.
-    const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
-    if (branch_index.has_value() && *branch_index < m_impl->m_branch_output_gains.size())
-    {
-        m_impl->m_branch_output_gains[*branch_index] = gain;
-    }
-
+    branch_gain->setOutputGain(gain);
     return {};
+}
+
+// Reads the player's monitor level from the structural stage after the rack.
+Gain Engine::monitorGain() const
+{
+    return m_impl->readGainFromPlugin(m_impl->m_monitor_gain_plugin_id);
+}
+
+// Sets the player's monitor level on the structural stage after the rack. Deliberately the one
+// gain no tone document carries: it scales whatever tone is audible and belongs to the listener.
+std::expected<void, LiveRigError> Engine::setMonitorGain(Gain gain)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    return m_impl->applyGainToPlugin(m_impl->m_monitor_gain_plugin_id, clampGain(gain));
 }
 
 // Switches the audible preloaded tone; only smoothed branch gains move, never the graph.
@@ -692,7 +692,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     m_impl->stopTransportAndReleaseContext();
 
     LiveRigSnapshot snapshot;
-    snapshot.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    snapshot.output_gain = outputGain();
 
     // Every loaded branch persists to its own document: any branch can drift from its file (undo
     // restores plugin state by instance id, plugin windows stay open across audibility switches),
@@ -845,12 +845,10 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             ++captured_plugin_index;
         }
 
-        // The audible branch reads the structural output plugin (the live editing surface); other
-        // branches persist their retained authored gain, which audible switching keeps in sync.
-        document.output_gain = is_audible ? snapshot.output_gain
-                                          : (branch_index < m_impl->m_branch_output_gains.size()
-                                                 ? m_impl->m_branch_output_gains[branch_index]
-                                                 : Gain{defaultGainDb()});
+        // Every branch carries its own level, audible or not, so there is one place to read it
+        // from and no audible/other split to keep honest.
+        document.output_gain = branch.branch_gain != nullptr ? branch.branch_gain->outputGain()
+                                                             : Gain{defaultGainDb()};
 
         const std::filesystem::path tone_document_path =
             request.song_directory / branch.tone_document_ref;
@@ -918,9 +916,8 @@ std::expected<void, LiveRigError> Engine::addEmptyToneBranch(const std::string& 
         return std::unexpected{std::move(added.error())};
     }
 
-    // The bookkeeping arrays stay parallel to the branches by appending together: unity authored
-    // gain and an empty retained layout, exactly what a fresh empty tone document loads as.
-    m_impl->m_branch_output_gains.push_back(Gain{defaultGainDb()});
+    // The retained layout stays parallel to the branches by appending with them; the new branch's
+    // level is already the unity a fresh empty tone document loads as, straight from its own state.
     m_impl->m_branch_display_metadata.push_back(Impl::BranchDisplayMetadata{});
     return {};
 }
@@ -1058,13 +1055,7 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    auto reset = m_impl->resetLiveRigProjectState();
-    if (!reset.has_value())
-    {
-        m_impl->endPluginUndoCaptureDeferral();
-        on_result(std::unexpected{std::move(reset.error())});
-        return;
-    }
+    m_impl->clearRetainedLiveRigMeterState();
 
     operation->request = std::move(request);
     operation->on_result = std::move(on_result);
@@ -1186,13 +1177,18 @@ void Engine::Impl::finalizeLiveRigLoad()
     // Adopt the rack immediately so every abort path below tears it down through the
     // non-structural sweep plus resetToneRackState().
     m_tone_rack = std::move(*built_rack);
-    m_branch_output_gains.clear();
-    m_branch_output_gains.reserve(m_load_op->tones.size());
     m_branch_display_metadata.clear();
     m_branch_display_metadata.reserve(m_load_op->tones.size());
-    for (const LiveRigLoadOperation::ToneLoad& tone : m_load_op->tones)
+    for (std::size_t branch_index = 0; branch_index < m_load_op->tones.size(); ++branch_index)
     {
-        m_branch_output_gains.push_back(tone.output_gain);
+        const LiveRigLoadOperation::ToneLoad& tone = m_load_op->tones[branch_index];
+        // Branches are built in tone order, so each document's authored level lands on the branch
+        // that plays it — the only place that level is kept from here on.
+        ToneBranchGainPlugin* const branch_gain = m_tone_rack->branches[branch_index].branch_gain;
+        if (branch_gain != nullptr)
+        {
+            branch_gain->setOutputGain(tone.output_gain);
+        }
         BranchDisplayMetadata metadata;
         metadata.block_indices.reserve(tone.chain.size());
         metadata.display_type_overrides.reserve(tone.chain.size());
@@ -1214,16 +1210,19 @@ void Engine::Impl::finalizeLiveRigLoad()
     }
 
     tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    const tracktion::Plugin* const output_gain = findStructuralGainPlugin(m_output_gain_plugin_id);
-    const int insert_index = instrument_track != nullptr && output_gain != nullptr
-                                 ? instrument_track->pluginList.indexOf(output_gain)
+    // The rack goes immediately before the monitor stage, so every tone branch is inside the gain
+    // the player controls rather than outside it.
+    const tracktion::Plugin* const monitor_gain =
+        findStructuralGainPlugin(m_monitor_gain_plugin_id);
+    const int insert_index = instrument_track != nullptr && monitor_gain != nullptr
+                                 ? instrument_track->pluginList.indexOf(monitor_gain)
                                  : -1;
     if (insert_index < 0)
     {
         abortLiveRigLoad(
             LiveRigError{
                 LiveRigErrorCode::PluginRestoreFailed,
-                "Structural live rig output gain plugin is missing",
+                "Structural live rig monitor gain plugin is missing",
             });
         return;
     }
@@ -1476,11 +1475,7 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
         {
             logInstrumentMonitoringFailure(toJuceString(cleared.error().message));
         }
-        auto reset = resetLiveRigProjectState();
-        if (!reset.has_value())
-        {
-            logInstrumentMonitoringFailure(toJuceString(reset.error().message));
-        }
+        clearRetainedLiveRigMeterState();
     }
     rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
     endPluginUndoCaptureDeferral();
@@ -1549,7 +1544,8 @@ std::expected<void, LiveRigError> Engine::exportAudibleTone(const ToneFileExport
         ++chain_index;
     }
 
-    document.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    document.output_gain =
+        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return writeToneFile(request.tone_file_path, document, plugin_states);
 }
 
@@ -1599,7 +1595,8 @@ std::expected<AudibleToneState, LiveRigError> Engine::captureAudibleToneState()
         state.plugin_states.push_back(std::move(*plugin_state));
     }
 
-    state.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    state.output_gain =
+        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return state;
 }
 
@@ -2022,15 +2019,11 @@ std::expected<void, LiveRigError> Engine::Impl::swapAudibleChainPlugins(
         }
     }
 
-    // The replacement chain's gain and retained panel layout become the audible branch's truth.
-    if (auto gain_applied = applyGainToPlugin(m_output_gain_plugin_id, output_gain);
-        !gain_applied.has_value())
+    // The replacement chain's level and retained panel layout become the audible branch's truth.
+    if (ToneBranchGainPlugin* const branch_gain = m_tone_rack->branches[*branch_index].branch_gain;
+        branch_gain != nullptr)
     {
-        logInstrumentMonitoringFailure(toJuceString(gain_applied.error().message));
-    }
-    if (*branch_index < m_branch_output_gains.size())
-    {
-        m_branch_output_gains[*branch_index] = output_gain;
+        branch_gain->setOutputGain(output_gain);
     }
     if (*branch_index < m_branch_display_metadata.size())
     {

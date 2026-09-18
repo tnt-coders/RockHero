@@ -178,6 +178,45 @@ TEST_CASE("Multi-tone rack switches the audible branch", "[audio][multi-tone-rac
         Catch::Approx(1.0f));
 }
 
+// Verifies each branch carries its own authored level, which is what lets a tone keep its level
+// through a switch the audio thread makes from a baked schedule.
+TEST_CASE("Multi-tone rack branches carry their own level", "[audio][multi-tone-rack]")
+{
+    const MultiToneRackHarness harness;
+    tracktion::Edit& edit = *harness.edit;
+
+    const std::vector<ToneRackBranchRequest> requests{
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/aaaaaaaa-1111-4111-8111-111111111111/tone.json",
+            .chain = {},
+        },
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/bbbbbbbb-2222-4222-8222-222222222222/tone.json",
+            .chain = {},
+        },
+    };
+    auto built = buildToneRack(edit, requests);
+    REQUIRE(built.has_value());
+
+    // A freshly built branch starts at unity, the level an empty tone document loads as.
+    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(defaultGainDb()));
+
+    built->branches[0].branch_gain->setOutputGain(Gain{-6.0});
+    built->branches[1].branch_gain->setOutputGain(Gain{3.0});
+    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(-6.0));
+    CHECK(built->branches[1].branch_gain->outputGain().db == Catch::Approx(3.0));
+
+    // Switching audibility moves the branch gain and no level: the two are separate facts on the
+    // same plugin, multiplied together only when the audio thread renders.
+    setAudibleBranch(*built, 1);
+    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(-6.0));
+    CHECK(built->branches[1].branch_gain->outputGain().db == Catch::Approx(3.0));
+
+    // The accepted range is the shared gain policy's, not a second opinion.
+    built->branches[0].branch_gain->setOutputGain(Gain{-100.0});
+    CHECK(built->branches[0].branch_gain->outputGain().db == Catch::Approx(minimumGainDb()));
+}
+
 // Verifies chain mutations rewire branch hops and never disturb the other branch.
 TEST_CASE("Multi-tone rack inserts removes and moves within a branch", "[audio][multi-tone-rack]")
 {

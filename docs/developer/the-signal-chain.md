@@ -30,8 +30,9 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
   instantiation, chain snapshots, and plugin state capture; the audible graph itself is the
   **tone rack** (`src/tracktion/multi_tone_rack.cpp`) — one parallel branch per tone, summed,
   with click-free smoothed switching. The editor always edits exactly one branch: the audible
-  (selected) tone's chain. Hidden structural plugins (`LiveRigGainPlugin` for input/output gain,
-  meters) are excluded from the user-visible `chain_index`.
+  (selected) tone's chain. Hidden structural plugins (`LiveRigGainPlugin` for the input and monitor
+  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility and its
+  authored level, meters) are excluded from the user-visible `chain_index`.
 
 # Flow: inserting a plugin
 

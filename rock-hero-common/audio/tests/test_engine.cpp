@@ -1373,20 +1373,44 @@ TEST_CASE("Engine plugin host rejects unknown plugin windows", "[audio][engine][
     CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
 }
 
-// Verifies project clear resets authored gain without clearing input calibration.
+// Verifies project clear drops the authored tone level with the tone that owned it, while input
+// calibration (a device fact) and the monitor level (a listener fact) both survive.
 TEST_CASE("Engine live rig clear preserves input gain", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+
     REQUIRE(live_input.setInputGain(Gain{12.0}).has_value());
     REQUIRE(live_rig.setOutputGain(Gain{-12.0}).has_value());
+    REQUIRE(live_rig.setMonitorGain(Gain{-4.0}).has_value());
 
     const auto result = live_rig.clearLiveRig();
 
     CHECK(result.has_value());
     CHECK(live_input.inputGain().db == Catch::Approx(12.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
+    CHECK(live_rig.monitorGain().db == Catch::Approx(-4.0));
+}
+
+// Verifies a tone level has nowhere to go without a loaded tone, rather than landing on a stage the
+// next load would silently overwrite.
+TEST_CASE("Engine live rig refuses a tone level with no tone loaded", "[audio][engine]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto refused = live_rig.setOutputGain(Gain{-6.0});
+
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error().code == LiveRigErrorCode::InvalidRequest);
     CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
 }
 
@@ -1636,7 +1660,8 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         result;
     REQUIRE(live_input.setInputGain(Gain{18.0}).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-18.0}).has_value());
+    // The monitor level belongs to the listener, so opening a project must not move it.
+    REQUIRE(live_rig.setMonitorGain(Gain{-18.0}).has_value());
 
     live_rig.loadLiveRig(
         common::audio::LiveRigLoadRequest{}, [&result](auto value) { result = std::move(value); });
@@ -1650,6 +1675,7 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         CHECK_THAT(load_result->output_gain.db, Catch::Matchers::WithinULP(0.0, 0));
         CHECK_THAT(live_rig.outputGain().db, Catch::Matchers::WithinULP(0.0, 0));
         CHECK(live_input.inputGain().db == Catch::Approx(18.0));
+        CHECK(live_rig.monitorGain().db == Catch::Approx(-18.0));
     }
 }
 
@@ -1733,6 +1759,15 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
+    // A level belongs to a tone, so one has to be loaded before it can be authored; the empty
+    // rig's placeholder branch is the smallest tone that carries one.
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+
     const auto input_result = live_input.setInputGain(Gain{24.0});
     const auto output_result = live_rig.setOutputGain(Gain{-24.0});
 
@@ -1764,17 +1799,27 @@ TEST_CASE(
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+
     const auto input_result = live_input.setInputGain(Gain{25.0});
     const auto output_result = live_rig.setOutputGain(Gain{-100.0});
+    const auto monitor_result = live_rig.setMonitorGain(Gain{100.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
+    REQUIRE(monitor_result.has_value());
     CHECK(live_input.inputGain().db == Catch::Approx(maximumGainDb()));
     CHECK(live_rig.outputGain().db == Catch::Approx(minimumGainDb()));
+    CHECK(live_rig.monitorGain().db == Catch::Approx(maximumGainDb()));
 }
 
-// Verifies capture rewrites every loaded branch's document, not just the audible one, and routes
-// the structural output gain to the audible branch while others keep their retained gain.
+// Verifies capture rewrites every loaded branch's document, not just the audible one, each carrying
+// the level stored on its own branch rather than one stage's reading standing in for all of them.
 TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
@@ -2047,6 +2092,86 @@ TEST_CASE(
     // And with the curves gone the direct write owns them again, proving the release left the rig
     // in the ordinary paused state rather than in a third one.
     REQUIRE(live_rig.setAudibleTone(schedule->front().tone_document_ref).has_value());
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+}
+
+// Verifies the whole point of putting a tone's level on its own branch: a switch carries the level
+// with it, so a scheduled crossing the audio thread makes plays the crossed-into tone at ITS level
+// without any message-thread write — and the switch call, which must not touch a gain the schedule
+// owns, still answers with that level so the panel and the fader can follow.
+TEST_CASE("Engine keeps each tone's level on its own branch", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    IToneTimelinePlayer& timeline = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+    const std::string first_ref = schedule->front().tone_document_ref;
+    const std::string second_ref = schedule->back().tone_document_ref;
+
+    // Author a level on each tone the only way the editor's fader ever does: while that tone is
+    // the audible one.
+    REQUIRE(live_rig.setOutputGain(Gain{-1.0}).has_value());
+    REQUIRE(live_rig.setAudibleTone(second_ref).has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
+
+    // Switching back brings the first tone's level with it, and the post-rack monitor stage has
+    // taken no part in any of it.
+    const auto to_first = live_rig.setAudibleTone(first_ref);
+    REQUIRE(to_first.has_value());
+    if (!to_first.has_value())
+    {
+        return;
+    }
+    CHECK(to_first->output_gain.db == Catch::Approx(-1.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-1.0));
+    CHECK(live_rig.monitorGain().db == Catch::Approx(defaultGainDb()));
+
+    // With a schedule baked the audio thread owns the branch gains. The switch records the new
+    // audible tone and answers with ITS level, leaving the gains exactly where the schedule put
+    // them — which is what makes a crossing play the right tone at the right level.
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), *schedule).has_value());
+    const auto scheduled_switch = live_rig.setAudibleTone(second_ref);
+    REQUIRE(scheduled_switch.has_value());
+    if (!scheduled_switch.has_value())
+    {
+        return;
+    }
+    CHECK(scheduled_switch->output_gain.db == Catch::Approx(-6.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-6.0));
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+    CHECK(live_rig.monitorGain().db == Catch::Approx(defaultGainDb()));
+}
+
+// Verifies the post-rack stage is the monitor level and nothing else: it scales whatever tone is
+// audible, moves no branch, and leaves every tone's authored level alone.
+TEST_CASE("Engine monitor gain is separate from a tone's level", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+
+    REQUIRE(live_rig.setOutputGain(Gain{-2.0}).has_value());
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+
+    REQUIRE(live_rig.setMonitorGain(Gain{-9.0}).has_value());
+
+    CHECK(live_rig.monitorGain().db == Catch::Approx(-9.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-2.0));
+    // Audibility is the branch gain's whole meaning, so the monitor must not have touched it.
     checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
 }
 

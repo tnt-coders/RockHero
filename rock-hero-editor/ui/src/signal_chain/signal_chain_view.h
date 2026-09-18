@@ -286,6 +286,13 @@ private:
     // Output gain slider positioned within the right-side output gain group.
     juce::Slider m_output_gain_slider;
 
+    // The application-wide tooltip window (created on first use, shared with every other holder),
+    // without which the slider's tooltip would be set but never painted: the main window holds no
+    // other. SharedResourcePointer rather than an owned instance is JUCE's documented fix for the
+    // duplicate-tooltip artifact, since two live TooltipWindows each register a global mouse
+    // listener and paint overlaid tips.
+    juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
+
     // True while JUCE is issuing drag-scoped output gain value changes.
     bool m_output_gain_dragging{false};
 

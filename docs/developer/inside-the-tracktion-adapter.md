@@ -24,9 +24,11 @@ extending it:
 - The editor edits **only the audible branch's chain** (`insertIntoBranch`, `removeFromBranch`,
   `moveWithinBranch`); the chain snapshot the UI renders is exactly that branch.
 
-`live_rig_gain_plugin.h` is the same hidden-plugin idea applied to the rig's input/output gain
+`live_rig_gain_plugin.h` is the same hidden-plugin idea applied to the rig's input and monitor gain
 stages: a private `tracktion::Plugin` that cannot be moved or added to racks, applying a
-smoothed `common::audio::Gain`. Hidden structural plugins like these are excluded from the
+smoothed `common::audio::Gain`. A tone's own authored level is NOT one of these — it lives on that
+tone's `ToneBranchGainPlugin`, so a switch carries it. Hidden structural plugins like these are
+excluded from the
 user-visible `chain_index`.
 
 # Plugin hygiene and undo capture

@@ -266,6 +266,10 @@ SignalChainView::SignalChainView(Listener& listener)
     });
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
+    // Moving this control edits the chart, so it says what it writes rather than leaving the
+    // charter to find out by saving.
+    m_output_gain_slider.setTooltip(
+        "This tone's output level, saved with the tone. Use it to match loudness between tones.");
     m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
     m_output_gain_slider.onDragStart = [this] { m_output_gain_dragging = true; };
     m_output_gain_slider.onValueChange = [this] {
@@ -402,10 +406,12 @@ void SignalChainView::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
 
-    // Output gain label above the right slider and post-fader meter group.
+    // The per-tone authored level, above the slider and post-fader meter group it labels. Named
+    // for what the control writes rather than for where the stage sits: this is the tone's own
+    // level, stored in the chart, not the player's listening volume.
     const auto output_label_area =
         area.removeFromRight(g_output_gain_width).removeFromTop(g_header_height);
-    g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
+    g.drawFittedText("Level", output_label_area, juce::Justification::centred, 1);
 
     // Center header with title.
     area.removeFromLeft(g_panel_inset);

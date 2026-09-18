@@ -803,25 +803,26 @@ Each re-verified against the code before being written down.
   `RecordingPluginHost::chain` — the static outlives each test and the pointer would dangle
   between them. The per-tone-chain work therefore has to move those call sites onto a caller-owned
   `FakeLiveRig` (or give the fake a lifetime-safe indirection) first; it is a harness design change,
-  not a local fix. The canned answer carries the same lie about the GAIN:
-  `editor_controller_test_harness.h:862-872` answers with `next_load_result.output_gain` rather than
-  the `current_output_gain` the fake's own `setOutputGain` recorded, where the real rig answers with
-  the branch's exact stored value (`engine_live_rig.cpp:535-537`). "Section rename leaves the
-  audible tone's published state alone" (`test_editor_controller_sections.cpp`) works around it by
-  tuning the canned gain to match the fader it just moved; per-tone chains should carry the gain too
-  and let that workaround go.
+  not a local fix. The canned answer carries the same lie about the GAIN: for a tone with no
+  `tone_results` entry, `FakeLiveRig::setAudibleTone` answers with `next_load_result.output_gain`
+  rather than the `current_output_gain` its own `setOutputGain` recorded, where the real rig answers
+  with the level stored on that tone's branch. "Section rename leaves the audible tone's published
+  state alone" (`test_editor_controller_sections.cpp`) works around it by tuning the canned gain to
+  match the fader it just moved; a `tone_results` entry per tone now CAN carry the gain, so that
+  workaround can go once the harness blocker above is cleared.
 
-- **Capture persists a float-rounded output gain.** `Engine::captureActiveRig` writes
-  `readGainFromPlugin(m_output_gain_plugin_id)` into the tone document
-  (`rock-hero-common/audio/src/engine/engine_live_rig.cpp:676`), and that reads
-  `LiveRigGainPlugin::gain()` off a `juce::CachedValue<float>`
-  (`rock-hero-common/audio/src/tracktion/live_rig_gain_plugin.h:151`,
-  `engine_live_rig.cpp:402-410`) — while the live value `setOutputGain` stored and
-  `audibleToneResult` answers with is the exact double kept in `m_branch_output_gains`
-  (`engine_impl.h:277`, `engine_live_rig.cpp:610-612`, `:535-537`). A save/reload round trip
-  therefore moves the fader by up to a float epsilon (~1e-7 dB at typical dB magnitudes) even though
-  nothing was edited. Harmless to hear; it does mean an exact dB comparison across a round trip is
-  never safe. Fix by capturing the stored branch gain instead of reading it back off the plugin.
+- **A tone's level is kept at float precision.** Re-verified 2026-09-18, after the level moved onto
+  each tone's own branch: the two-readings defect this item used to describe is GONE, because the
+  exact-double `m_branch_output_gains` it compared against no longer exists. `captureActiveRig`,
+  `outputGain()` and the switch result now all read the one stored value,
+  `ToneBranchGainPlugin::outputGain()`, so a save/reload no longer moves the fader relative to the
+  live value. What remains is that the one value is a `juce::CachedValue<float>` mirrored by a
+  `std::atomic<float>` (`tone_branch_gain_plugin.h`), matching `LiveRigGainPlugin`'s own storage and
+  the float the smoother consumes, while the fader and the tone document both carry a double. So a
+  committed fader value reads back rounded (~1e-7 dB at typical magnitudes) and `syncAudibleTone`'s
+  exact `<=>` comparison can see that difference and re-publish the rounded value once. Inaudible,
+  and no longer a disagreement between two stores; an exact dB comparison across the boundary is
+  still never safe. Fix, if it is ever worth one, by storing the level as a double on the branch.
 
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 
