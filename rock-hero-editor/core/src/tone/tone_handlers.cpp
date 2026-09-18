@@ -275,9 +275,11 @@ void EditorController::Impl::activateToneAtCursor()
 
 // THE OWNERSHIP LAW, one sentence: a baked schedule exists EXACTLY while the transport plays. While
 // it does, the audio thread evaluates the branch-gain curves against the transport every block and
-// switches tones sample-accurately, and no message-thread write to those gains can survive. While
+// switches tones sample-accurately, and the rig makes no message-thread write to those gains. While
 // it does not, the curves are empty, the parameters are not automated at all, and setAudibleTone
 // owns the gains — which is what lets the audible tone follow the caret and cursor while paused.
+// The editor states the law by baking and clearing here; it never has to repeat it at a call site,
+// because the rig itself is what declines to write a gain the schedule owns.
 //
 // `playing` is a parameter rather than a read of the transport because the two edges straddle the
 // transport call: Play bakes BEFORE starting it (so the play boundary's own resync applies the
@@ -321,10 +323,13 @@ void EditorController::Impl::publishToneSchedule(bool playing)
 // setSelection for every non-chart replacement, and chartSelectionMutable's emplace for the chart
 // one. The keyboard position changes at every cursor move and at every caret arming, and both call
 // here. Points the rig at the active region's tone document and rebinds the signal-chain panel to
-// what the rig reports back. Leaves everything unchanged when nothing resolves (no content loaded,
-// or the region has no tone yet); and while the transport plays — see the split below — the panel
-// still rebinds on every crossing, while the audible tone itself stays where the baked schedule,
-// which owns the branch gains, has put it.
+// what the rig reports back. Leaves the audible tone unchanged when nothing resolves (no content
+// loaded, or the region has no tone yet).
+//
+// The same call serves the playing transport. Who writes the branch gains is the RIG's decision and
+// not this one's: while a schedule is baked the audio thread has already switched, and
+// setAudibleTone only records which tone that is. So a crossing frame asks for exactly what a caret
+// move asks for, and the panel and the chain verbs all end up on the tone actually being heard.
 //
 // Idempotent on purpose, so no call site has to ask first whether the tone can have changed: the
 // chain replacement below is a no-op against a chain the panel already renders, and the fader moves
@@ -365,41 +370,31 @@ void EditorController::Impl::syncAudibleTone()
         return;
     }
 
-    // THE SPLIT, and the reason the rig offers two calls: DESCRIBING a loaded tone is a pure read
-    // and always safe, while MAKING it audible writes the branch gains, which the baked schedule
-    // owns while the transport plays (publishToneSchedule above states the law) and which the next
-    // audio block would undo. So the panel binding follows every crossing the audio thread makes,
-    // and only the gain write waits for the schedule to hand the gains back. Both calls answer from
-    // the same builder inside the rig, so the panel cannot see two accounts of one tone.
-    const bool schedule_owns_branch_gains = m_transport.state().playing;
-    auto described = schedule_owns_branch_gains
-                         ? m_live_rig.describeLoadedTone(region->tone_document_ref)
-                         : m_live_rig.setAudibleTone(region->tone_document_ref);
-    if (!described.has_value())
+    auto switched = m_live_rig.setAudibleTone(region->tone_document_ref);
+    if (!switched.has_value())
     {
         RH_LOG_WARNING(
             "editor.tone",
-            "Could not bind the audible tone tone_document_ref={:?} playing={} detail={:?}",
+            "Could not switch the audible tone tone_document_ref={:?} detail={:?}",
             region->tone_document_ref,
-            schedule_owns_branch_gains,
-            described.error().message);
+            switched.error().message);
         return;
     }
 
     // The panel binds to the audible tone, so the rig's answer is handed to it whole; replacing is
     // itself idempotent, so an answer the panel already renders costs it nothing.
-    const double described_gain_db = described->output_gain.db;
+    const double switched_gain_db = switched->output_gain.db;
     m_signal_chain.replaceSnapshot(
-        common::audio::PluginChainSnapshot{.plugins = std::move(described->plugins)});
+        common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
 
     // The fader is a separate fact, and the only one that is PREVIEWED ahead of a committed value,
     // so it moves only when the rig answers with a gain the editor is not already showing —
     // otherwise a mid-drag preview would lose the value its undo entry is measured from. Exact
     // comparison via the three-way operator keeps -Wfloat-equal builds clean, exactly as the
     // fader's own change detection does; the stored value is compared, not approximated.
-    if (std::is_neq(described_gain_db <=> m_output_gain_db))
+    if (std::is_neq(switched_gain_db <=> m_output_gain_db))
     {
-        m_output_gain_db = described_gain_db;
+        m_output_gain_db = switched_gain_db;
         m_output_gain_preview_before.reset();
     }
 }
@@ -416,11 +411,12 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
 // opinion about where a region begins.
 //
 // THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays — and the AUDIO already
-// says so, because the schedule baked at Play switches the branch gains on the audio thread. So
-// this tick is DISPLAY ONLY: it notices the crossing the audio thread has already made and moves
-// the editor's idea of the audible region onto it, so the tone row's active flag, the lanes and the
-// signal-chain panel follow. The only rig call syncAudibleTone makes while playing is the pure
-// describe read the panel binds to, so nothing here can change what is heard.
+// says so, because the schedule baked at Play switches the branch gains on the audio thread. So the
+// switch this tick performs is BOOKKEEPING rather than a change of which tone is heard: it notices
+// the crossing the audio thread has already made and moves the editor's idea of the audible region
+// onto it, which rebinds the tone row's active flag, the lanes, the signal-chain panel and the
+// branch every chain verb writes. The branch gains themselves stay the schedule's; the rig knows
+// that and leaves them alone.
 //
 // The frame asks one question — is the region the editor is AUDIBLY on still the one under the
 // playhead? — and re-derives whenever it is not. Two things can part them while playing: a BOUNDARY

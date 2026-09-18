@@ -30,10 +30,10 @@ at the root and keeps the intuitive Delete key.
   all — the Play handler bakes the tone track into branch-gain automation and the audio thread
   switches block-accurately against the transport, so the precision item that was open here is
   closed by construction. The two states are one law: a schedule exists exactly while the transport
-  plays, so the direct write described above owns the rig exactly while it does not. The
-  signal-chain **panel** is outside that law, because it binds to a *description* of a tone rather
-  than to the gains: it follows every crossing while playing, through the rig's pure
-  `describeLoadedTone` read (ruled 2026-09-18, after the bake shipped).
+  plays, so the direct write described above owns the BRANCH GAINS exactly while it does not. Which
+  tone the editor calls audible is not part of that law and follows the playhead either way: a
+  crossing frame makes the ordinary `setAudibleTone` call, and the rig — not the caller — is what
+  declines to move a gain the schedule owns.
 - **Selected region** — a deliberate, formal selection, set *only* by clicking a region. Cleared
   whenever the transport position changes (seek, playback advance, stop-to-start). Drives the
   white-outline highlight and the Delete target. While a region is selected it is also the active
@@ -85,10 +85,10 @@ two intents:
 - `onToneRegionActivated(id)` — the view's **playback/cursor follow** (and the controller's seek/load
   handlers) → set the active tone and **clear** the formal selection. *Shipped payload-less, and
   since 2026-09-14 narrowed further to `onPlaybackFrameAdvanced()`: the row reports only the render
-  cadence and the controller owns the crossing decision. Since 2026-09-18 that frame is DISPLAY
-  ONLY — the baked schedule moves the audio, so the frame moves the drawn active flag, the lanes and
-  the signal-chain panel, the last through the rig's pure `describeLoadedTone` read rather than a
-  branch-gain write.*
+  cadence and the controller owns the crossing decision. Since 2026-09-18 that frame changes no
+  sound — the baked schedule already moved the audio — but it still makes the ordinary
+  `setAudibleTone` call, so the drawn active flag, the lanes, the signal-chain panel and the branch
+  the chain verbs write all follow the crossing.*
 
 Selection therefore exists only between a click and the next transport move: play-start, seek, and
 boundary crossings all route through the "activate" path, which clears it. That is exactly "selected

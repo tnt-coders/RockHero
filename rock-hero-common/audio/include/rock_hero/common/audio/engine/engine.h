@@ -433,14 +433,6 @@ public:
     [[nodiscard]] std::expected<void, LiveRigError> clearLiveRig() override;
 
     /*!
-    \brief Describes a loaded tone's chain and output gain without making it audible.
-    \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
-    \return That tone's chain and output gain, or a typed failure when the tone is not loaded.
-    */
-    [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> describeLoadedTone(
-        const std::string& tone_document_ref) const override;
-
-    /*!
     \brief Switches which preloaded tone is audible and bound to the signal-chain panel.
     \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
     \return The now-audible tone's chain and output gain, or a typed failure.

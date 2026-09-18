@@ -964,21 +964,20 @@ highlight advances from a **split** between cadence and decision — the row sam
 only for its playing flag and reports each frame as one payload-less
 `onPlaybackFrameAdvanced()`, and the controller decides there what that frame has to correct.
 
-**The frame tick is display-only (2026-09-18).** The rule it serves is unchanged — *while the
+**The frame tick moves no sound (2026-09-18).** The rule it serves is unchanged — *while the
 transport plays, the playhead's tone is what plays* — but the AUDIO already obeys it without any
 help from the message thread: the Play handler bakes the tone track into branch-gain automation
 (`IToneTimelinePlayer::prepareToneTimeline`) before starting the transport, and the audio thread
-switches the gains block-accurately against that curve. `syncAudibleTone` therefore writes no branch
-gain while the transport plays; the frame moves the editor's idea of the audible region, and with it
-the drawn `active` flag, the lanes **and the signal-chain panel** — the panel follows a crossing as
-well (ruled 2026-09-18), because a panel left on the tone that was audible at Play would be
-describing a rig nobody is hearing. It rebinds through `ILiveRig::describeLoadedTone`, a pure read
-of one loaded branch that touches no gain; `setAudibleTone` answers from that same builder, so
-describing a tone and switching to it cannot give the panel two accounts of it. The schedule exists
-exactly while the transport
-plays: every end of playback reaches `onTransportStateChanged`, which clears the curves and hands
-the branch gains back to the direct `ILiveRig::setAudibleTone` write, which is what lets the paused
-highlight below move the rig at all.
+switches the gains block-accurately against that curve. A crossing frame still makes the *ordinary*
+`ILiveRig::setAudibleTone` call, the same one a caret move makes, because everything else about a
+tone has to follow the crossing too — the drawn `active` flag, the lanes, the signal-chain panel,
+and the branch every chain verb writes. What it does not do is move a branch gain, and that is the
+RIG's decision rather than the caller's: while a schedule is baked, `setAudibleTone` records which
+tone is audible and leaves the gains to the curve. The schedule exists exactly while the transport
+plays: every end of playback reaches `onTransportStateChanged`, which clears the curves — restoring
+the recorded audible tone's gains as it releases them, since `setAudibleTone` short-circuits on an
+unchanged reference and could not be relied on to do it afterwards — and hands them back to the
+direct write, which is what lets the paused highlight below move the rig at all.
 
 The frame asks one question — is the region the editor is *audibly* on still the one under the
 playhead? — comparing the region under the transport (`toneRegionAtPosition`, the one seconds-space

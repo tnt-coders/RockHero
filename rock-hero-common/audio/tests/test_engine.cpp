@@ -2005,6 +2005,51 @@ TEST_CASE("Engine tone timeline anchors and releases branch curves", "[audio][en
     checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
 }
 
+// Verifies the rig, not the caller, is what keeps a message-thread switch off gains the audio
+// thread owns. The editor asks for the crossed-into tone on every playback frame that crosses a
+// boundary — it has a panel and chain verbs to rebind — and that ask must move the audible
+// REFERENCE without touching a branch gain the baked curve is about to rewrite.
+TEST_CASE(
+    "Engine leaves branch gains to a baked schedule on an audible switch",
+    "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    IToneTimelinePlayer& timeline = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+    const std::string second_ref = schedule->back().tone_document_ref;
+
+    // Baking leaves the gains wherever they stood; the transport is at the origin, inside the
+    // first tone's region, which is where the load already put them.
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), *schedule).has_value());
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+
+    // The switch answers for the second tone and records it, and the gains do not move: the audio
+    // thread is the only writer while the curves are live.
+    const auto switched = live_rig.setAudibleTone(second_ref);
+    REQUIRE(switched.has_value());
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+
+    // Releasing the schedule is what hands the gains back, and it restores the tone the rig
+    // RECORDED as audible rather than the one the last gain write named. Nothing else can do it:
+    // setAudibleTone short-circuits on an unchanged reference, so asking again for the tone the rig
+    // already calls audible would never reach a gain write at all.
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), {}).has_value());
+    checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
+
+    // And with the curves gone the direct write owns them again, proving the release left the rig
+    // in the ordinary paused state rather than in a third one.
+    REQUIRE(live_rig.setAudibleTone(schedule->front().tone_document_ref).has_value());
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+}
+
 // Verifies a seek drags the baked tone schedule onto the new playhead position while stopped. A
 // headless test has no playback context, which is exactly the condition the resync exists for:
 // nothing renders blocks, so the branch gains only follow the curves if the seek pushes the
@@ -2321,86 +2366,6 @@ TEST_CASE("Engine live rig adds an empty tone branch incrementally", "[audio][en
     const auto second_document = readToneDocument(song_directory.path(), *second_ref);
     REQUIRE(second_document.has_value());
     CHECK(second_document->output_gain.db == Catch::Approx(-3.0));
-}
-
-// The describe query exists so the editor's signal-chain panel can follow a tone the BAKED SCHEDULE
-// made audible on the audio thread, where a message-thread branch-gain write would be undone by the
-// next block. So what it must prove is that describing costs the rig nothing, that it answers for
-// the branch asked about rather than the audible one, and that it is the same account the switch
-// gives — the panel must not be able to see one tone two ways.
-TEST_CASE(
-    "Engine describes a loaded tone without making it audible", "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    const TemporarySongDirectory song_directory;
-    ILiveRig& live_rig = harness.engine;
-
-    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
-    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
-    REQUIRE(first_ref.has_value());
-    REQUIRE(second_ref.has_value());
-    if (!first_ref.has_value() || !second_ref.has_value())
-    {
-        return;
-    }
-
-    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
-        loaded;
-    live_rig.loadLiveRig(
-        LiveRigLoadRequest{
-            .song_directory = song_directory.path(),
-            .tone_document_refs = {*first_ref, *second_ref},
-            .audible_tone_ref = *first_ref,
-            .progress_callback = {},
-            .yield_callback = [](const auto& next) { next(); },
-        },
-        [&loaded](auto value) { loaded = std::move(value); });
-    REQUIRE(loaded.has_value());
-    // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
-    // explicitly before dereferencing.
-    if (!loaded.has_value())
-    {
-        return;
-    }
-    REQUIRE(loaded->has_value());
-
-    // Give the two branches distinguishable output levels and leave the FIRST audible.
-    REQUIRE(live_rig.setAudibleTone(*second_ref).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
-    REQUIRE(live_rig.setAudibleTone(*first_ref).has_value());
-    REQUIRE(live_rig.setOutputGain(Gain{-1.0}).has_value());
-
-    // Describing the other tone answers for THAT branch, and the output stage still carries the
-    // audible branch's level afterwards, so nothing about what is heard moved.
-    const auto described = live_rig.describeLoadedTone(*second_ref);
-    REQUIRE(described.has_value());
-    if (!described.has_value())
-    {
-        return;
-    }
-    CHECK(described->output_gain.db == Catch::Approx(-6.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-1.0));
-
-    // And switching to it afterwards answers identically, because both calls build the description
-    // from the same branch walk.
-    const auto switched = live_rig.setAudibleTone(*second_ref);
-    REQUIRE(switched.has_value());
-    if (!switched.has_value())
-    {
-        return;
-    }
-    CHECK(switched->output_gain.db == Catch::Approx(described->output_gain.db));
-    CHECK(switched->plugins.size() == described->plugins.size());
-
-    // An unloaded reference is refused in the switch's exact words, so a caller can branch on one
-    // failure shape whichever call it made.
-    const auto missing_description = live_rig.describeLoadedTone("tones/unloaded/tone.json");
-    const auto missing_switch = live_rig.setAudibleTone("tones/unloaded/tone.json");
-    REQUIRE_FALSE(missing_description.has_value());
-    REQUIRE_FALSE(missing_switch.has_value());
-    CHECK(missing_description.error().code == LiveRigErrorCode::InvalidToneDocument);
-    CHECK(missing_switch.error().code == missing_description.error().code);
-    CHECK(missing_switch.error().message == missing_description.error().message);
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

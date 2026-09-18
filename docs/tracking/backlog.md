@@ -777,8 +777,8 @@ Each re-verified against the code before being written down.
   calls `syncAudibleTone()` after each landed commit); the paused undo path still does not.
   **Narrowed to the paused case 2026-09-18** by the baked-schedule protocol: while the transport
   PLAYS, `completeUndoTransition` rebuilds the schedule from the restored model, so a retone undo
-  mid-play is now carried into the audio correctly (only the signal-chain panel's binding still
-  lags, and it does not follow crossings during playback by design). The frame path never rescued
+  mid-play is now carried into the audio correctly, and the frame after it rebinds the panel through
+  the ordinary `setAudibleTone` call. The frame path never rescued
   the paused case and still does not (`onPlaybackFrameAdvanced`,
   `rock-hero-editor/core/src/tone/tone_handlers.cpp`): it asks whether the region the editor is
   audibly on is still the one under the playhead, and a non-merging retone's undo changes neither
@@ -789,7 +789,12 @@ Each re-verified against the code before being written down.
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds
   for that tone, wiping the snapshot the plugin edit restored. So give the fake per-tone chains
-  first, then take the unconditional sync. **Re-measured 2026-09-14** while making the marker plane
+  first, then take the unconditional sync. **Partly done 2026-09-18**: `FakeLiveRig` now carries a
+  `tone_results` map and `setAudibleTone` answers from it, falling back to `next_load_result` for a
+  tone with no entry — so a test that cares which tone the panel binds to can say so. That is the
+  fake's half; the harness blocker below is untouched, and no test has yet pointed a `tone_results`
+  entry at a live `RecordingPluginHost::chain`, which is what the plugin-undo cases would need.
+  **Re-measured 2026-09-14** while making the marker plane
   paused-only: taking the unconditional sync still turns 7 cases / 15 assertions red (5 in
   `test_editor_controller_plugins.cpp`, `Output gain undo redo restores live rig`, and the section
   workaround below). A blocker the earlier note missed: the plugin tests compose through
@@ -1138,17 +1143,3 @@ written down.
   states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
   such sources), which is also why it was left out of the ruling's own change rather than folded in
   unmeasured.
-
-## Found while letting the panel follow a tone crossing (2026-09-18)
-
-- **A chain edit made while playing lands on a tone the panel is no longer showing.** Since the
-  panel follows a scheduled crossing (`syncAudibleTone` rebinds through
-  `ILiveRig::describeLoadedTone`), the panel can render tone B's chain while the rig's *audible*
-  branch is still tone A — the one the baked schedule left `m_audible_tone_ref` pointing at. Every
-  chain verb (`insertIntoBranch`, `removeFromBranch`, the output fader, plugin state edits) writes
-  the AUDIBLE branch, so an insert made mid-playback edits tone A while the user is looking at tone
-  B, and the verb's own `replaceSnapshot` then snaps the panel back to A. Nothing guards it: unlike
-  the marker plane there is no playing-state gate on chain editing. The fix is a ruling, not a
-  patch — either chain editing joins the paused-only plane (the marker precedent, one published
-  flag), or the audible branch follows the schedule's crossing on the message thread as well so the
-  two can never part. Both are larger than the panel-follow change that exposed it.

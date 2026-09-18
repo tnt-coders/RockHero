@@ -102,16 +102,6 @@ void reportToneReplaceProgress(
     return state;
 }
 
-// The one refusal for a tone reference the loaded rig has no branch for, so the switch and the
-// describe query name the same fault in the same words.
-[[nodiscard]] LiveRigError toneNotLoadedError(const std::string& tone_document_ref)
-{
-    return LiveRigError{
-        LiveRigErrorCode::InvalidToneDocument,
-        "Tone is not loaded in the multi-tone rig: " + tone_document_ref,
-    };
-}
-
 } // namespace
 
 bool Engine::Impl::isStructuralLiveRigPlugin(const tracktion::Plugin* plugin) const
@@ -479,14 +469,28 @@ std::optional<std::size_t> Engine::Impl::audibleBranchIndex() const
 std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
     const std::string& tone_document_ref)
 {
-    if (!m_tone_rack.has_value() || !setAudibleBranch(*m_tone_rack, tone_document_ref))
+    const std::optional<std::size_t> branch_index = toneBranchIndex(tone_document_ref);
+    if (!branch_index.has_value())
     {
-        return std::unexpected{toneNotLoadedError(tone_document_ref)};
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument,
+            "Tone is not loaded in the multi-tone rig: " + tone_document_ref,
+        }};
     }
 
     m_audible_tone_ref = tone_document_ref;
-    const std::optional<std::size_t> branch_index = audibleBranchIndex();
-    if (branch_index.has_value() && *branch_index < m_branch_output_gains.size())
+
+    // THE ONE OWNERSHIP RULE, and the reason it lives here rather than at any call site: while a
+    // schedule is baked the audio thread already drives the branch gains from the curves, and has
+    // already switched to whichever tone the transport is inside, so a message-thread write would
+    // be undone by the next block. Recording the new audible tone is then all this call does to
+    // the switch; everything else about the tone still follows it.
+    if (!m_tone_schedule_baked)
+    {
+        setAudibleBranch(*m_tone_rack, *branch_index);
+    }
+
+    if (*branch_index < m_branch_output_gains.size())
     {
         return applyGainToPlugin(m_output_gain_plugin_id, m_branch_output_gains[*branch_index]);
     }
@@ -504,32 +508,34 @@ void Engine::Impl::resetToneRackState()
     m_tone_rack.reset();
     m_tone_rack_instance_id = {};
     m_audible_tone_ref.clear();
+    // The curves a schedule was baked onto died with the rack, so the flag recording that they are
+    // owned has to die with it too; a fresh rack's gains are the direct switch's to write again.
+    m_tone_schedule_baked = false;
     m_branch_output_gains.clear();
     m_branch_display_metadata.clear();
 }
 
-// Walks one loaded branch and pairs each plugin with its retained panel layout; positions past the
-// retained metadata fall back to a gapless layout. Branch-indexed rather than audible-only because
-// the panel must be able to follow a tone the schedule made audible on the audio thread, which
-// leaves m_audible_tone_ref where the last message-thread switch put it.
-LiveRigLoadResult Engine::Impl::loadedToneResult(std::size_t branch_index) const
+// Walks the audible branch and pairs each plugin with its retained panel layout; positions past
+// the retained metadata fall back to a gapless layout.
+LiveRigLoadResult Engine::Impl::audibleToneResult() const
 {
     LiveRigLoadResult result;
-    if (!m_tone_rack.has_value() || branch_index >= m_tone_rack->branches.size())
+    const ToneRackBranch* const branch = audibleToneBranch();
+    const std::optional<std::size_t> branch_index = audibleBranchIndex();
+    if (branch == nullptr || !branch_index.has_value())
     {
         return result;
     }
-    const ToneRackBranch& branch = m_tone_rack->branches[branch_index];
 
     static const BranchDisplayMetadata g_empty_metadata{};
-    const BranchDisplayMetadata& metadata = branch_index < m_branch_display_metadata.size()
-                                                ? m_branch_display_metadata[branch_index]
+    const BranchDisplayMetadata& metadata = *branch_index < m_branch_display_metadata.size()
+                                                ? m_branch_display_metadata[*branch_index]
                                                 : g_empty_metadata;
-    result.plugins.reserve(branch.chain.size());
-    for (std::size_t plugin_index = 0; plugin_index < branch.chain.size(); ++plugin_index)
+    result.plugins.reserve(branch->chain.size());
+    for (std::size_t plugin_index = 0; plugin_index < branch->chain.size(); ++plugin_index)
     {
         const auto* const external_plugin =
-            dynamic_cast<const tracktion::ExternalPlugin*>(branch.chain[plugin_index].get());
+            dynamic_cast<const tracktion::ExternalPlugin*>(branch->chain[plugin_index].get());
         if (external_plugin == nullptr)
         {
             continue;
@@ -545,16 +551,10 @@ LiveRigLoadResult Engine::Impl::loadedToneResult(std::size_t branch_index) const
                 metadata.display_type_overrides[plugin_index];
         }
     }
-    result.output_gain = branch_index < m_branch_output_gains.size()
-                             ? m_branch_output_gains[branch_index]
+    result.output_gain = *branch_index < m_branch_output_gains.size()
+                             ? m_branch_output_gains[*branch_index]
                              : readGainFromPlugin(m_output_gain_plugin_id);
     return result;
-}
-
-LiveRigLoadResult Engine::Impl::audibleToneResult() const
-{
-    const std::optional<std::size_t> branch_index = audibleBranchIndex();
-    return branch_index.has_value() ? loadedToneResult(*branch_index) : LiveRigLoadResult{};
 }
 
 // Clears the instrument plugin chain without touching the active backing arrangement.
@@ -634,28 +634,7 @@ std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
     return {};
 }
 
-// Describes a loaded tone without touching a gain: a pure read of that branch's chain and its
-// stored output level, which is what the signal-chain panel binds to.
-std::expected<LiveRigLoadResult, LiveRigError> Engine::describeLoadedTone(
-    const std::string& tone_document_ref) const
-{
-    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
-    {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
-    }
-
-    const std::optional<std::size_t> branch_index = m_impl->toneBranchIndex(tone_document_ref);
-    if (!branch_index.has_value())
-    {
-        return std::unexpected{toneNotLoadedError(tone_document_ref)};
-    }
-
-    return m_impl->loadedToneResult(*branch_index);
-}
-
-// Switches the audible preloaded tone; only smoothed branch gains move, never the graph. The answer
-// is built by the same loadedToneResult the describe query above returns, so switching to a tone
-// and merely describing it can never be two different accounts of it.
+// Switches the audible preloaded tone; only smoothed branch gains move, never the graph.
 std::expected<LiveRigLoadResult, LiveRigError> Engine::setAudibleTone(
     const std::string& tone_document_ref)
 {

@@ -159,7 +159,7 @@ TEST_CASE("Multi-tone rack switches the audible branch", "[audio][multi-tone-rac
     auto built = buildToneRack(edit, requests);
     REQUIRE(built.has_value());
 
-    REQUIRE(setAudibleBranch(*built, requests[1].tone_document_ref));
+    setAudibleBranch(*built, 1);
     CHECK(
         built->branches[0].branch_gain->branchGainParameter()->getCurrentValue() ==
         Catch::Approx(0.0f));
@@ -167,8 +167,12 @@ TEST_CASE("Multi-tone rack switches the audible branch", "[audio][multi-tone-rac
         built->branches[1].branch_gain->branchGainParameter()->getCurrentValue() ==
         Catch::Approx(1.0f));
 
-    // Unknown tones leave the gains untouched.
-    CHECK_FALSE(setAudibleBranch(*built, "tones/cccccccc-3333-4333-8333-333333333333/tone.json"));
+    // An index past the last branch leaves the gains untouched, so a caller that failed to resolve
+    // a tone cannot silence the whole rig by accident.
+    setAudibleBranch(*built, built->branches.size());
+    CHECK(
+        built->branches[0].branch_gain->branchGainParameter()->getCurrentValue() ==
+        Catch::Approx(0.0f));
     CHECK(
         built->branches[1].branch_gain->branchGainParameter()->getCurrentValue() ==
         Catch::Approx(1.0f));

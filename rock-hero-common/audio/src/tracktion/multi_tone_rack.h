@@ -106,15 +106,18 @@ fast path for creating a new (empty) tone; branches with persisted plugins still
 /*!
 \brief Makes exactly one branch audible and silences the others.
 
-Gains move through each branch plugin's per-sample smoother, so switching is click-free. This is
-the direct selection-driven switch path; baked schedule automation replaces it during playback
-once schedules land.
+Gains move through each branch plugin's per-sample smoother, so switching is click-free. This is the
+direct selection-driven switch path; while a schedule is baked the audio thread drives the same
+gains from the curves instead, and nothing calls this.
+
+Takes a resolved branch index rather than a tone reference: the caller has already resolved the
+reference to refuse an unknown tone, and resolving twice was the only reason for a second walk. An
+index past the last branch leaves every gain unchanged.
 
 \param rack Built rack whose branches should switch.
-\param tone_document_ref Tone whose branch becomes audible.
-\return True when a branch matched the reference; false leaves gains unchanged.
+\param audible_branch_index Index of the branch that becomes audible.
 */
-[[nodiscard]] bool setAudibleBranch(const ToneRack& rack, const std::string& tone_document_ref);
+void setAudibleBranch(const ToneRack& rack, std::size_t audible_branch_index);
 
 /*!
 \brief Inserts an already-created plugin into one branch's chain, rewiring around it.

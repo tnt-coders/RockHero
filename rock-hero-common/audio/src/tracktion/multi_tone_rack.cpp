@@ -1,6 +1,5 @@
 #include "tracktion/multi_tone_rack.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <utility>
 
@@ -299,27 +298,23 @@ std::expected<tracktion::Plugin::Ptr, LiveRigError> createToneRackInstance(
     return instance;
 }
 
-bool setAudibleBranch(const ToneRack& rack, const std::string& tone_document_ref)
+void setAudibleBranch(const ToneRack& rack, std::size_t audible_branch_index)
 {
-    const bool has_match =
-        std::ranges::any_of(rack.branches, [&tone_document_ref](const ToneRackBranch& branch) {
-            return branch.tone_document_ref == tone_document_ref;
-        });
-    if (!has_match)
+    if (audible_branch_index >= rack.branches.size())
     {
-        return false;
+        return;
     }
 
-    for (const ToneRackBranch& branch : rack.branches)
+    for (std::size_t index = 0; index < rack.branches.size(); ++index)
     {
+        const ToneRackBranch& branch = rack.branches[index];
         if (branch.branch_gain == nullptr)
         {
             continue;
         }
         branch.branch_gain->branchGainParameter()->setParameter(
-            branch.tone_document_ref == tone_document_ref ? 1.0f : 0.0f, juce::sendNotification);
+            index == audible_branch_index ? 1.0f : 0.0f, juce::sendNotification);
     }
-    return true;
 }
 
 std::expected<void, LiveRigError> insertIntoBranch(

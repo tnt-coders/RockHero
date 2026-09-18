@@ -186,10 +186,9 @@ struct [[nodiscard]] LiveRigLoadResult
     \brief Plugin identities for every loaded tone, in load order.
 
     Filled only by loadLiveRig() completions, whose identities come fresh from the parsed tone
-    documents; setAudibleTone() and describeLoadedTone() results leave this empty because retained
-    per-branch metadata can go positionally stale after chain mutations. The editor merges these
-    into its runtime instance-to-stable-id association at load completion and maintains it itself
-    afterwards.
+    documents; setAudibleTone() results leave this empty because retained per-branch metadata can
+    go positionally stale after chain mutations. The editor merges these into its runtime
+    instance-to-stable-id association at load completion and maintains it itself afterwards.
     */
     std::vector<LoadedToneChainIdentities> tone_chains{};
 };
@@ -345,32 +344,16 @@ public:
     [[nodiscard]] virtual std::expected<void, LiveRigError> clearLiveRig() = 0;
 
     /*!
-    \brief Describes a loaded tone's chain and output gain without making it audible.
-
-    A pure read of one loaded branch: no branch gain moves and nothing about the rig changes, so
-    this is the panel-rebinding path that stays correct while a baked schedule owns the gains
-    (IToneTimelinePlayer::prepareToneTimeline) and the audio thread is switching tones on its own.
-    setAudibleTone answers with this same description, so describing a tone and switching to it can
-    never give the panel two different accounts of it.
-
-    \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
-    \return That tone's chain and output gain for panel rebinding, or a typed failure when the tone
-            is not loaded.
-    */
-    [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> describeLoadedTone(
-        const std::string& tone_document_ref) const = 0;
-
-    /*!
     \brief Switches which preloaded tone is audible (and bound to the signal-chain panel).
 
     All tones stay loaded and processing; only branch gains move, through short click-free ramps.
     This is the selection-driven switch path; scheduled playback switching is baked separately.
 
-    Callers must not use it while a schedule is baked (IToneTimelinePlayer::prepareToneTimeline
-    with a non-empty schedule): the baked automation owns the branch gains and the audio thread
-    rewrites them every block, so a write made against it is silently undone. Bake an empty
-    schedule first to take ownership back, or use describeLoadedTone when only the panel's binding
-    has to follow.
+    Safe to call whether or not a schedule is baked (IToneTimelinePlayer::prepareToneTimeline with
+    a non-empty schedule), because the rig, not the caller, decides who writes the branch gains:
+    while a schedule is baked the audio thread has already switched to the tone the transport is
+    inside, so this call records which tone is audible and leaves those gains alone. Without a
+    schedule it moves them as well. Either way the answer is the caller's cue to rebind the panel.
 
     \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
     \return The now-audible tone's chain and output gain for panel rebinding, or a typed failure

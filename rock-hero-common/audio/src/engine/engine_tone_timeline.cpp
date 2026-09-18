@@ -49,6 +49,11 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
     // it at the one place schedules are baked.
     m_impl->m_edit->getAutomationRecordManager().setReadingAutomation(true);
 
+    // THE OWNERSHIP DATUM, recorded here because this is the one call that creates or destroys a
+    // schedule. While it is set, applyAudibleTone records the audible tone without writing the
+    // branch gains: the audio thread owns them and has already switched.
+    m_impl->m_tone_schedule_baked = !regions.empty();
+
     // An empty schedule hands the branch gains back to setAudibleTone: a tone-less arrangement, and
     // the editor's paused state, both ask for exactly that. Curves are always cleared first, so a
     // previous schedule can never leak into this one and a cleared parameter stops being automated
@@ -75,6 +80,20 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
             // of any undo stack.
             curve.addPoint(
                 tracktion::TimePosition::fromSeconds(point.seconds), point.gain, 0.0F, nullptr);
+        }
+    }
+
+    // Restoring the recorded audible tone's gains is part of RELEASING the schedule, not something
+    // the next caller can be relied on to do: a cleared parameter snaps to the last value written
+    // to it explicitly, the schedule may have moved the audible tone since that write, and
+    // setAudibleTone short-circuits on an unchanged reference — so a caller that asks for the tone
+    // the rig already calls audible would never reach a gain write at all.
+    if (regions.empty())
+    {
+        if (const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+            branch_index.has_value())
+        {
+            setAudibleBranch(*m_impl->m_tone_rack, *branch_index);
         }
     }
 

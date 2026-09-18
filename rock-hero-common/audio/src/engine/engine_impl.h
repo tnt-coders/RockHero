@@ -272,6 +272,12 @@ private:
     // Tone currently audible and bound to the signal-chain panel.
     std::string m_audible_tone_ref;
 
+    // Whether a non-empty schedule is baked onto the branch-gain curves. The ONE datum recording
+    // who owns those gains: while it is set the audio thread switches tones from the curves, so
+    // applyAudibleTone records the new audible tone without writing a gain the next block would
+    // undo. Written by prepareToneTimeline and cleared with the rack the curves live on.
+    bool m_tone_schedule_baked{false};
+
     // Per-branch output gains (aligned with m_tone_rack->branches) so switching the audible tone
     // restores that tone's authored output level on the structural output gain stage.
     std::vector<Gain> m_branch_output_gains;
@@ -288,12 +294,7 @@ private:
     };
     std::vector<BranchDisplayMetadata> m_branch_display_metadata;
 
-    // Builds one loaded branch's chain-and-gain result: the single description of a tone the
-    // signal-chain panel binds to, shared by load completion, audible switches and the describe
-    // query, so no two of them can answer for the same branch differently.
-    [[nodiscard]] LiveRigLoadResult loadedToneResult(std::size_t branch_index) const;
-
-    // Builds the audible tone's chain-and-gain result, empty when no rig is loaded.
+    // Builds the audible tone's chain-and-gain result for load completion and audible switches.
     [[nodiscard]] LiveRigLoadResult audibleToneResult() const;
 
     // Returns the branch the audible tone plays through, or null when no rig is loaded.
@@ -307,7 +308,8 @@ private:
     // Returns the audible tone's branch index within the rack, when a rig is loaded.
     [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;
 
-    // Switches branch gains and the structural output gain to the given loaded tone.
+    // Records the given loaded tone as audible and applies its authored output gain, switching the
+    // branch gains onto it as well unless a baked schedule owns them.
     [[nodiscard]] std::expected<void, LiveRigError> applyAudibleTone(
         const std::string& tone_document_ref);
 

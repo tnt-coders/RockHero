@@ -229,66 +229,18 @@ TEST_CASE(
 // A frame that crosses nothing must be free — this runs sixty times a second — so the two no-change
 // cases assert the absence of a rig call and of a view push, not merely the right end state.
 //
-// The crossing frame is DISPLAY ONLY now: the audio thread has already switched the branch gains
-// from the baked schedule, so the frame moves the drawn active flags and must make no rig call at
-// all — a message-thread write against a baked schedule is undone by the next audio block.
+// The crossing frame makes the ORDINARY rig call, the same one a caret move makes. It changes no
+// sound — the audio thread switched the branch gains from the baked schedule before the frame ran,
+// and the rig declines to write a gain the schedule owns — but it is what rebinds the signal-chain
+// panel and the branch every chain verb writes onto the tone actually being heard.
 TEST_CASE(
-    "EditorController follows the region a playback frame crossed into on the display only",
+    "EditorController follows the region a playback frame crossed into",
     "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
 
-    // Park the transport inside the first region through the seek entry: that is what records the
-    // region the next frame compares against, and it leaves the rig hosting Clean.
-    editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
-    REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
-    editor.transport.current_state.playing = true;
-
-    // A frame that moved the playhead WITHIN the first region crosses no boundary, so it decides
-    // nothing at all.
-    editor.transport.current_position = common::core::TimePosition{1.5};
-    const int rig_calls_inside = editor.live_rig.set_audible_tone_call_count;
-    const int pushes_inside = editor.view.set_state_call_count;
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_inside);
-    CHECK(editor.view.set_state_call_count == pushes_inside);
-
-    // Past the boundary at 2 s the crossing frame flips the drawn active flags and pushes — with
-    // no rig call, because the schedule owns the gains, and no formal selection left behind for
-    // Delete to find.
-    editor.transport.current_position = common::core::TimePosition{2.5};
-    const int rig_calls_before_crossing = editor.live_rig.set_audible_tone_call_count;
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_crossing);
-    CHECK(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
-    CHECK_FALSE(editor.regionDrawnActive(g_region_a));
-    CHECK(editor.regionDrawnActive(g_region_b));
-
-    // The next frame finds the same region under the playhead, so the debounce holds: no second
-    // push for a crossing that already happened.
-    const int pushes_after = editor.view.set_state_call_count;
-    editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.view.set_state_call_count == pushes_after);
-
-    // And the crossing the display recorded is what the handback lands on: the moment playback
-    // ends, the direct write points the rig at the region the playhead is standing in.
-    editor.reportPlaybackEnded();
-    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-}
-
-// The PANEL is display as well, and it follows the crossing for the same reason the drawn active
-// flag does (ruled 2026-09-18): the audio thread has already made the playhead's tone audible, so a
-// panel still bound to the tone that was audible at Play would be describing a rig nobody is
-// hearing. It rebinds through the rig's pure DESCRIBE query, which writes no branch gain, so the
-// switch call the schedule forbids is still never made.
-TEST_CASE(
-    "EditorController rebinds the signal-chain panel to the tone a playback frame crossed into",
-    "[core][editor-controller]")
-{
-    LoadedToneEditor editor{makeTwoRegionSong()};
-
-    // Give the second tone its own chain, which is what makes the binding visible: the panel must
-    // end up naming the tone the playhead crossed INTO.
+    // Give the second tone its own chain, which is what makes the rebinding visible: the panel
+    // must end up naming the tone the playhead crossed INTO.
     editor.live_rig.tone_results[g_second_tone_ref] = common::audio::LiveRigLoadResult{
         .plugins =
             {
@@ -306,25 +258,50 @@ TEST_CASE(
         .output_gain = common::audio::Gain{},
     };
 
-    // Park inside the first region and start playing; the panel shows the first tone's chain.
+    // Park the transport inside the first region through the seek entry: that is what records the
+    // region the next frame compares against, and it leaves the rig hosting Clean.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
+    REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
     editor.transport.current_state.playing = true;
-    const EditorViewState* const state = stateOrNull(editor.view.last_state);
-    REQUIRE(state != nullptr);
-    REQUIRE(state->signal_chain.plugins.size() == 1);
-    CHECK(state->signal_chain.plugins[0].name == "Loaded Amp");
+    const EditorViewState* const parked_state = stateOrNull(editor.view.last_state);
+    REQUIRE(parked_state != nullptr);
+    REQUIRE(parked_state->signal_chain.plugins.size() == 1);
+    CHECK(parked_state->signal_chain.plugins[0].name == "Loaded Amp");
 
-    // The crossing frame rebinds the panel by DESCRIBING the crossed-into tone, and makes no switch
-    // call at all — the baked schedule owns the branch gains until the transport stops.
-    const int switches_before = editor.live_rig.set_audible_tone_call_count;
-    const int describes_before = editor.live_rig.describe_call_count;
-    editor.transport.current_position = common::core::TimePosition{2.5};
+    // A frame that moved the playhead WITHIN the first region crosses no boundary, so it decides
+    // nothing at all.
+    editor.transport.current_position = common::core::TimePosition{1.5};
+    const int rig_calls_inside = editor.live_rig.set_audible_tone_call_count;
+    const int pushes_inside = editor.view.set_state_call_count;
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == switches_before);
-    CHECK(editor.live_rig.describe_call_count == describes_before + 1);
-    CHECK(editor.live_rig.last_described_tone_ref == g_second_tone_ref);
-    REQUIRE(state->signal_chain.plugins.size() == 1);
-    CHECK(state->signal_chain.plugins[0].name == "Dirty Amp");
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_inside);
+    CHECK(editor.view.set_state_call_count == pushes_inside);
+
+    // Past the boundary at 2 s the crossing frame flips the drawn active flags, switches the rig
+    // onto the crossed-into tone and pushes, leaving no formal selection for Delete to find. The
+    // panel follows that switch onto the tone the audio thread is already playing.
+    editor.transport.current_position = common::core::TimePosition{2.5};
+    const int rig_calls_before_crossing = editor.live_rig.set_audible_tone_call_count;
+    editor.controller.onPlaybackFrameAdvanced();
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_crossing + 1);
+    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
+    CHECK_FALSE(editor.regionDrawnActive(g_region_a));
+    CHECK(editor.regionDrawnActive(g_region_b));
+    const EditorViewState* const crossed_state = stateOrNull(editor.view.last_state);
+    REQUIRE(crossed_state != nullptr);
+    REQUIRE(crossed_state->signal_chain.plugins.size() == 1);
+    CHECK(crossed_state->signal_chain.plugins[0].name == "Dirty Amp");
+
+    // The next frame finds the same region under the playhead, so the debounce holds: no second
+    // push for a crossing that already happened.
+    const int pushes_after = editor.view.set_state_call_count;
+    editor.controller.onPlaybackFrameAdvanced();
+    CHECK(editor.view.set_state_call_count == pushes_after);
+
+    // The handback at the end of playback re-derives against the same region, so it lands on the
+    // tone the crossing already reached rather than moving the rig a second time.
+    editor.reportPlaybackEnded();
+    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
 }
 
 // The boundary crossing is the frame handler's ONLY input, because a playing transport admits no
@@ -392,11 +369,13 @@ TEST_CASE(
     REQUIRE(editor.tone_timeline.last_regions.size() == 2);
     CHECK(editor.tone_timeline.last_regions[1].tone_document_ref == g_second_tone_ref);
 
-    // The frame that follows carries the restored region into the display; the audio already
-    // switched itself from the rebaked schedule, so no rig call is made.
+    // The frame that follows carries the restored region into the display and rebinds the rig onto
+    // its tone. The audio already switched itself from the rebaked schedule, so that call moves no
+    // branch gain — it moves the panel and the branch the chain verbs write.
     const int rig_calls_before_frame = editor.live_rig.set_audible_tone_call_count;
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_frame);
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_frame + 1);
+    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
     CHECK_FALSE(editor.regionDrawnActive(g_region_a));
     CHECK(editor.regionDrawnActive(g_region_b));
 }
