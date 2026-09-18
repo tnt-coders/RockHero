@@ -22,16 +22,49 @@ They are recorded together because they share one subject and two of them share 
 claim/hand-table seam. Splitting them across the backlog would lose that, and none of them is a
 one-line fix.
 
+Item 9 joined them on 2026-09-18, from walking item 1 rather than from the original sighting. It is
+not a harmonic question at all — it is an ordinary chord pulled off to another chord — but it
+surfaced while asking what a bracket is FOR, and the answer it forced (a box states what was struck,
+not where the hand is) is the same distinction item 1 turns on. It stays here so the two are ruled
+against each other; it is the one item whose blast radius is the whole corpus.
+
 ---
 
 ## 1. A satellite always comes with a bracket — **RULED**
 
-**The ruling.** Wherever a held-stop satellite is displayed, a BRACKET (an arpeggio span) is
-displayed with it, for the duration the grip is held. So an artificial harmonic and a tapped
+**The ruling.** Wherever a STANDING held-stop satellite is displayed, a BRACKET (an arpeggio span)
+is displayed with it, for the duration the grip is held. So an artificial harmonic and a tapped
 harmonic over a pressed stop ALWAYS display with bracket notation — the pressed stop being the grip
 — except where the stop under the node is 0 or the capo, which is the natural harmonic and states no
 fretting-hand stop at all. Where a tap already stands over a bracket carrying a satellite, the
 satellite looks exactly as it does today; nothing about the satellite's own ink changes here.
+
+**The scope, narrowed 2026-09-18 during the walkthrough.** The ruling first read "wherever a
+satellite is displayed", and that sweep is wrong — a satellite is not a harmonic thing. `A HELD
+STOP'S FACE IS ITS OWN SATELLITE, at the note's own slot, for EVERY note carrying a resolved stop —
+mid-span taps and span-less claims included, and a fretting-hand source's plant`
+(`rock-hero-common/core/src/chart/chart_projection.cpp:441-445`), so the wide reading would grow a
+bracket at every pull-off and every tap in the corpus, which contradicts this item's own zero-census
+expectation below.
+
+The line the ruling actually wants already exists, with its reason written down — THE SATELLITE
+REVEAL LAW's two faces
+(`rock-hero-common/core/include/rock_hero/common/core/chart/chart_view_state.h:90-121`):
+
+- **Standing** — the harmonic's pressed stop, `because it is pitch-critical and nothing else prints
+  it`, and a tap's AUTHORED held stop. Nothing else in the lane says the number.
+  **Earns a bracket.**
+- **Revealed** — a derived pull-off stop, a fretting-hand source's PLANT, a bare tap's default:
+  `the pull-off notation already prints that fret, so a standing digit would state it twice … so,
+  unlike a tap's held stop, it never defers to the bracket`. **Earns none.**
+
+That is why a bracket over a plain pull-off sights wrong at the START of a span and fine in the
+middle: mid-span the fret was established by something the reader saw, while at a fresh open the
+bracket announces a finger whose only evidence is a slur that already implies it. Accuracy is not
+the bar for drawing a fact; non-redundancy is, and a plant is already stated. One axis decides the
+whole ruling — **is this stop sounding now?** The harmonic's pressed stop makes the pitch, so it is
+evidence and it founds; a plant sounds nothing until the release, so it rides a grip and never
+founds one.
 
 **Today.** A lone harmonic over a pressed stop founds NO span, in either form:
 
@@ -64,19 +97,42 @@ member arithmetic expresses it is not, because the code admits more than one rea
 
 - (a) **The claim counts as two.** The harmonic states two facts at one slot — the pressed stop the
   fretting hand holds and the node the other hand touches — so the figure is already a grip by the
-  existing rule 4 and nothing about the threshold moves. Attractive because it deletes a special
-  case rather than adding one, but it makes "member" mean two things.
-- (b) **A pressed-stop harmonic founds at one.** A named exemption to the threshold, keyed on
-  `harmonicOverPressedStop` at the founding site. Smallest change, but a second founding rule.
+  existing rule 4 and nothing about the threshold moves. **Dead as of 2026-09-18**: a member is a
+  thing that PRINTS in the bracket, and the node must not (that two-digit column is exactly what the
+  grip-statement ruling removed). Counting it means either printing it or carrying an `own` that has
+  no entry in `stops` — arithmetic that does not correspond to anything.
+- (b) **A pressed-stop harmonic founds at one.** A named exemption to the threshold at the founding
+  site. **Recommended**, but keyed on the REASON rather than on the shape: not "a harmonic is
+  special" but *a fretting-hand stop that is SOUNDING NOW and printed at no head founds a grip
+  alone*, which today is exactly `harmonicOverPressedStop` and which excludes a plant (sounds
+  nothing) and a natural harmonic (presses nothing) without naming either.
 - (c) **The threshold is the wrong question.** A satellite is published per note
   (`rock-hero-common/core/src/chart/chart_projection.cpp:281`, the `StopMarkSlot::Satellite` arm),
   and the ruling ties bracket to satellite — so the span could be founded by the SATELLITE's
-  existence rather than by counting stops. Largest change and the only one that makes the ruling
-  structurally true rather than arithmetically reproduced.
+  existence rather than by counting stops. A layering inversion as literally written: the satellite
+  is a projection mark and the span is a model fact, so the display would be founding the
+  derivation. Its INSTINCT survives inside (b) — one fact underneath, read by both the satellite and
+  the founding, rather than two rules that must agree by hand.
 
 Settle this in the law session, not in the implementing commit. Whichever wins must also state the
 span's EXTENT explicitly: the ruling says "for the duration the grip is held", which is the
-harmonic's ring plus every later note holding the same grip — not the harmonic's onset alone.
+harmonic's ring plus every later note holding the same grip — not the harmonic's onset alone. The
+extent the ruling wants is already reachable: `handFree` is `stop.fret == 0`
+(`rock-hero-common/core/src/chart/chart_shapes.cpp:235-238`), so a NATURAL harmonic's ring is
+hand-free — the finger lifts at the chime — while a pressed-stop harmonic's is hand-HELD, which is
+what lets its span run the ring.
+
+**What to verify that no existing figure covers: the one-string span.** Founding at one member makes
+this the FIRST span in the system whose posture is a single lane. Today founding always states at
+least two DISTINCT strings by construction — `own` counts one entry per string
+(`chart_shapes.cpp:1428-1442`), claims and strikes can never land on the same string, and the
+threshold is 2; a landing successor needs `survivors >= 2` as well. So nothing downstream has seen
+one: the bracket geometry, the box-vs-arpeggio class, the repeat-box identity test, the highway's
+consumers. The law is fine; what needs sighting is that a one-lane bracket draws as a statement
+rather than as a rendering accident. Note also that a bracket is ARPEGGIO furniture
+(`rock-hero-common/core/src/chart/chart_projection.cpp:310-311`), so a one-string bracket is being
+asked to say "held" rather than "rolled" — a mark taking a second job, which is worth putting to the
+notation judge before it ships.
 
 **Verify.** The fixture at 31:3 draws a bracket under its satellite; the artificial and the tapped
 forms of the same figure derive the same span (they already agree on the grip statement since
@@ -341,27 +397,110 @@ grip-statement law that did not take the 2026-09-18 harmonic clause. That one IS
 
 ---
 
+## 9. Two chords are two boxes — the 18:3 figure — **RULED**, with one OPEN predicate
+
+Opened 2026-09-18 during the walkthrough of item 1, from the user's sighting of the fixture at
+**18:3** — the legato block's second bar, a two-string dyad at 9 pulled off to 7 on both strings at
+once.
+
+**The ruling.** That figure displays as TWO chord spans. It is two chords; the display says two.
+The hand does NOT move — the fingers really are waiting on 7 before the 9s release — so the
+FRET-HAND POSITION must not move, and nothing here touches it. The plant stays true in
+`chartPlantedStops`, the wide table the hand window reads.
+
+**Today**, measured against the tree at `19a4c475` (throwaway probe, the two figures one attack
+apart):
+
+```
+with the pull-offs (the fixture)        shapes=1
+  #0 beat=3+0     sustain=1.5  parts=0  arpeggio=0  stops=[. . 7 7 . .]
+
+the same dyad with plain restrikes      shapes=2
+  #0 beat=3+0     sustain=0.5                       stops=[. . 9 9 . .]
+  #1 beat=3+0.5   sustain=1.0                       stops=[. . 7 7 . .]
+```
+
+So the system ALREADY derives the ruled display one attack apart. With the pull-offs it collapses
+into a single box 1.5 beats long, fronting under the 9s and labelled with the shape that arrives
+half a beat later. Both are boxes, not brackets (`arpeggio=0`) — what sights wrong at 18:3 is the
+stretched box, not bracket furniture.
+
+Two effects of the plant produce it, and they are worth keeping apart:
+
+1. The first chord's posture becomes 7 7, because a planting source states its PLANT as its grip
+   (`chart_shapes.cpp:251-264`, THE ONE AUTHORITY).
+2. The release founds nothing, because the span's grip is already 7 7, so the 7-7 stroke restates
+   `precisely its own grip` and rides the chug chain (`chart_shapes.cpp:1111-1119`).
+
+**Three collisions that bound the fix.** The obvious repairs are all already ruled against:
+
+- **"Founding reads what SOUNDS" is rejected**, and the rejection is written down for the sighted
+  open-chord intro (`rock-hero-common/core/tests/test_chart_shapes.cpp:5163-5172`): read on raw
+  strikes, that figure gives `a half-beat box at the stroke and a bracket fenced off the very stroke
+  that opened it`.
+- **The plant must still be STATED**, or the sighted slide figure breaks
+  (`test_chart_shapes.cpp:5086-5142`): the planting strike breaks the up-position span and the
+  successor's bracket wears the 5 where the finger demonstrably waits.
+- **"A whole-grip restatement founds a box" is too wide**: it would give every chug in a run its own
+  box (`chart_shapes.cpp:1111-1113`).
+
+**What changes.** The narrow rule that survives all three, and needs NO change to `gripStatement`: a
+release that restates the whole grip IN UNISON, with nothing from the previous stroke still ringing,
+and at DIFFERENT sounding stops, is a new chord statement rather than a continuation. Each clause
+earns its place against one of the figures above — the survivor clause spares the open-chord intro,
+the whole-grip clause spares the slide figure and every single-string ornament
+(`test_chart_shapes.cpp:5144`, the frame that must never flicker to 7), and the changed-sound clause
+spares the chug chain.
+
+**The seam underneath, and the reason this is a ruling rather than a patch.** Four clauses bolted
+onto the continuation test would be a smell, and the smell is real: the continuation test asks *is
+this the same hand?* and the box inherits that answer. But a box is a statement about WHAT WAS
+STRUCK, and at 18:3 two different chords were struck by a hand that never moved. Hand-continuity and
+chord-identity are two questions answered today by one predicate, and this figure is where they
+disagree. The FHP is the consumer of the first; the box is the consumer of the second. **OPEN for
+the law session:** whether to spell the narrow rule as stated above, or to separate the two
+questions at the source and let each consumer read its own — the second is larger and is the only
+one that makes the ruling structurally true.
+
+**Verify.** 18:3 of the showcase package draws two chord boxes, 9-9 then 7-7; the FHP stream across
+the figure is unchanged; `test_chart_shapes.cpp` keeps every section of `A co-struck source's
+release restates the plant under the stroke`, `A plant the grip never held is a new statement` and
+the chug runs green, and gains the whole-grip-unison-release case. **The corpus census WILL move**
+for this item — unlike every other item in this plan, it changes behavior for ordinary pull-offs,
+which the corpus carries in quantity. Census the delta and read a sample of it rather than
+expecting zero.
+
+---
+
 ## Order of work (proposed)
 
 1. **8 and 4** — the two span-law defects, which are one change to the claim/hand-table seam. Small,
    and they must land before anything sights a span over a harmonic.
-2. **1, then 3** — the founding rule, once the law session has picked (a)/(b)/(c). Item 3 is item
+2. **9** — the chord-identity seam, on its own. It is the only item here that moves the corpus,
+   so it lands alone and is censused alone; tangling it with the founding rule would leave
+   neither delta readable.
+3. **1, then 3** — the founding rule, once the law session has picked (a)/(b)/(c). Item 3 is item
    1's acceptance case on the fixture.
-3. **2** — the satellite ground.
-4. **5** — the highway's picking-hand cue at the node.
-5. **6** — after the authoring discussion.
-6. **7** stays a watch item and is not scheduled.
+4. **2** — the satellite ground.
+5. **5** — the highway's picking-hand cue at the node.
+6. **6** — after the authoring discussion.
+7. **7** stays a watch item and is not scheduled.
 
 ## Verification
 
-- **The showcase fixture, figure by figure, by measure**: 31:3 (item 1), 74 (item 3), 75 (item 8),
-  76 (item 4), plus every satellite the package carries on and off a tail (item 2) and its
-  artificial harmonics on the board beside its tapped ones (item 5).
-- **The corpus census** — ZERO change expected throughout: the corpus carries no harmonic over a
-  pressed stop, which is why every item here is a correctness question rather than a regression
-  risk. A census delta on any of these items means the change reached further than its ruling.
-- **The existing suites**: `test_chart_shapes.cpp` and `test_chart_projection.cpp` for items 1, 3, 4
-  and 8; `test_highway_projection.cpp` for item 5; the `common/ui` suite for item 2.
+- **The showcase fixture, figure by figure, by measure**: 18:3 (item 9), 31:3 (item 1), 74 (item 3),
+  75 (item 8), 76 (item 4), plus every satellite the package carries on and off a tail (item 2) and
+  its artificial harmonics on the board beside its tapped ones (item 5).
+- **The corpus census** — ZERO change expected for items 1–8: the corpus carries no harmonic over a
+  pressed stop, which is why each of those is a correctness question rather than a regression risk.
+  A census delta on any of them means the change reached further than its ruling. **Item 9 is the
+  exception** and moves the census by design — it changes ordinary pull-offs, which the corpus
+  carries in quantity — so it is censused alone, with a sample of the delta actually read.
+- **The existing suites**: `test_chart_shapes.cpp` and `test_chart_projection.cpp` for items 1, 3,
+  4, 8 and 9; `test_highway_projection.cpp` for item 5; the `common/ui` suite for item 2. Item 9 in
+  particular must keep every section of `A co-struck source's release restates the plant under the
+  stroke` and `A plant the grip never held is a new statement` green — those are the sighted figures
+  its narrowing exists to spare.
 
 ## Relation to other records
 
@@ -372,9 +511,10 @@ grip-statement law that did not take the 2026-09-18 harmonic clause. That one IS
   sequences, so the founding rule ruled here must not contradict 60-Q1..Q5; if it would, it is a
   law-session item, not a follow-up.
 - `docs/plans/in-progress/span-derivation-ground-up.md` — the law `chart_shapes.cpp` implements and
-  the referent for every rule number cited above. Items 1, 4 and 8 amend it.
-- `docs/plans/in-progress/chart-ruleset.md` — the reconciled ruleset; item 1's founding rule is a
-  law change it must absorb.
+  the referent for every rule number cited above. Items 1, 4, 8 and 9 amend it; item 9 amends the
+  continuation rule specifically, which that document states as one question.
+- `docs/plans/in-progress/chart-ruleset.md` — the reconciled ruleset; item 1's founding rule and
+  item 9's chord-identity split are both law changes it must absorb.
 - `docs/tracking/watch-items.md` — item 7 lives there, under *Chart editing (tab lane)*. The
   claim/hand-table seam items 4 and 8 share is the subject of the item RETIRED there on 2026-09-18
   ("A pressed-stop harmonic's claim column and its grip disagree about the planted finger"): that
