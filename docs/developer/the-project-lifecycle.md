@@ -1160,8 +1160,10 @@ neighbours.
     the charter wrote, so the field is cleared and the note stands.
     A stop the note's own PITCH is measured from is beyond the sweep by CONSTRUCTION rather than by
     an exemption: a tapped harmonic speaks from the fret it presses (`physicalStopFret`), the sweep
-    clears `held` and nothing else, and a note carrying a node never carries `held` — so no settle
-    can retune a record, and there is no clause saying it must not.
+    clears `held` and nothing else, and it reaches only a note the picking hand stops the string
+    for, which a note carrying a node is not — so no settle can retune a record, and there is no
+    clause saying it must not. A `held` field left on such a note is the LATENT an attack or
+    harmonic change leaves behind, which the saved form strips and the sweep never sees.
 
     **A claim that REACHES a span is never inert**, and the sweep needs
     no rule to say so. Reaching IS publishing: the derivation records the span each claim reached

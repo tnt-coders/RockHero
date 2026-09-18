@@ -4294,17 +4294,23 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         }
     }
 
-    SECTION("a tap's typed fret is a touch on the open string, and its planted finger goes")
+    SECTION("a tap's typed fret is a touch on the open string, and its planted finger goes latent")
     {
         // On a tap `H` authors an OPEN-STRING tapped harmonic: the tapping finger leaves the fret
         // it landed on and touches a node of the whole string, so the label resolves against the
-        // nut exactly as an unpressed note's does. The stop the fretting hand was holding under
-        // that tap goes with the press, because a note carrying a node states no planted finger —
-        // and the plan has to state that itself, since a record still carrying one is refused.
+        // nut exactly as an unpressed note's does. The stop the fretting hand was holding stays
+        // behind as a LATENT — a note carrying a node states no planted finger, so the saved form
+        // strips it and the claim query reads the touch's own stop instead — which is the chart's
+        // standing rule that changing back restores what the charter typed.
         common::core::Chart chart = makeSingleNoteChart(17);
         common::core::ChartNote& tap = chart.notes[0];
         tap.attack = common::core::NoteAttack::Tap;
         tap.held = 5;
+        // A second stop at the same slot, so the planted finger is a member of a grip rather than a
+        // claim that reaches nothing: an inert claim is swept in the plan gate that restores it
+        // (`sweepInertClaimedStops`), which would take the latent back for a reason that has
+        // nothing to do with the harmonic.
+        chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 7));
         const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -4315,7 +4321,12 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
             if (touched != nullptr)
             {
                 CHECK(touched->fret == 0);
-                CHECK_FALSE(touched->held.has_value());
+                // The latent, and the two readings that keep it invisible: the document records no
+                // planted finger, and the claim is the stop the touch speaks from — fret 0, the
+                // open string — rather than the finger waiting behind it.
+                CHECK(touched->held == std::optional{5});
+                CHECK_FALSE(common::core::savedChartNote(*touched).held.has_value());
+                CHECK(common::core::claimedStop(*touched) == std::optional{0});
                 const std::optional<double>& node = touched->harmonic_node;
                 REQUIRE(node.has_value());
                 if (node.has_value())
@@ -4325,7 +4336,26 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
                     CHECK_THAT(*node, Catch::Matchers::WithinAbs(16.9804, 0.001));
                 }
             }
-            applyAndValidate(chart, tempo_map, *plan);
+            // The latent makes the in-memory chart deliberately dirty, so the oracle is the SAVED
+            // form: the writer omits the planted finger and the reparse passes clean.
+            REQUIRE(applyChartChange(chart, *plan).has_value());
+            const auto saved =
+                common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
+            REQUIRE(saved.has_value());
+            CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
+
+            // Clearing the harmonic brings the latent back into scope: the finger presses the fret
+            // it was touching, and the stop the charter planted under it is still stated there.
+            const auto cleared = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+            REQUIRE(cleared.has_value());
+            if (cleared.has_value())
+            {
+                applyAndValidate(chart, tempo_map, *cleared);
+                CHECK(chart.notes[0].attack == common::core::NoteAttack::Tap);
+                CHECK(chart.notes[0].fret == 17);
+                CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+                CHECK(chart.notes[0].held == std::optional{5});
+            }
         }
     }
 

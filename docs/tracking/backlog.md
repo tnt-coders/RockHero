@@ -1093,3 +1093,12 @@ written down.
   gate on `pickingHandStopsString` instead, which is exactly the population whose fret belongs to
   the other hand. Measure against the corpus FHP accuracy before landing it; FHP derivation is
   under its own plan (`docs/plans/in-progress/fhp-derivation-algorithm.md`).
+
+- **Two read-only satellites refuse Delete with different faces.** `planClearHeldStops`
+  (`rock-hero-editor/core/src/chart/chart_edits.cpp`, ~1197-1201) refuses the press whole with
+  `Invalid` where `ChartResolutions::planted_stops` states a fretting-hand source's plant, but a
+  TAPPED HARMONIC's satellite is read-only for a different reason — its claim is the `fret` it
+  presses, so there is no `held` field to reset — and the reset falls through to a `NoChange`
+  finalize. Both satellites are read-only to the charter, so one press beeps and the other does
+  nothing at all. Align them — both refuse, or both no-op — when the satellite's read-only rule is
+  next touched.

@@ -1841,18 +1841,15 @@ namespace
 // cannot carry — a bend, a shake, the travel of a finger that presses nothing — so the note takes
 // the harmonic instead of being skipped for a payload it never needed. Safe here in a way it would
 // not be for a pinch: no repair can undo an on-neck node, so the normalizer can only take payloads,
-// never the harmonic.
+// never the harmonic. A planted finger the note was holding stays where the charter put it, as a
+// latent the saved form strips exactly as an attack change's latents are stripped, so clearing the
+// harmonic presses the fret back down with that finger under it again.
 [[nodiscard]] common::core::ChartNote harmonicTouchNote(
     const common::core::ChartNote& note, const double position,
     const common::core::ChartTuning& tuning)
 {
     common::core::ChartNote touched = note;
     touched.fret = 0;
-    // A note carrying a node has no planted finger beside it, so the touch RELEASES one the note
-    // was holding rather than leaving it behind as a latent the saved form would strip unseen: the
-    // press states both hands at once, and the clear that inverts it presses the fret back down
-    // with nothing planted under it.
-    touched.held.reset();
     const int stop = common::core::physicalStopFret(touched, tuning.capo);
     // Fret positions are logarithmic, so the stop and the offset simply add.
     touched.harmonic_node = static_cast<double>(stop) + position;
