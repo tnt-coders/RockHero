@@ -101,13 +101,14 @@ struct LoadedToneEditor
     ConfigurableSongAudio audio;
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
+    FakeToneTimeline tone_timeline;
     FakeProjectServices project_services;
     EditorController controller;
     FakeEditorView view;
 
     explicit LoadedToneEditor(common::core::Song song)
         : controller{
-              audioPorts(transport, audio, plugin_host, live_rig),
+              audioPorts(transport, audio, plugin_host, live_rig, tone_timeline),
               defaultControllerServices(),
               noopExitFunction(),
               EditorController::ProjectOperations{
@@ -159,6 +160,28 @@ struct LoadedToneEditor
         controller.onGridSnapToggleRequested();
         controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
     }
+
+    // The engine's own end-of-playback report, which FakeTransport leaves to the test: every stop
+    // reaches the controller as this one notification, whether it was Pause, Stop, the transport
+    // running off the end of the content, or a device failure releasing the playback context.
+    void reportPlaybackEnded()
+    {
+        transport.setStateAndNotify(common::audio::TransportState{.playing = false});
+    }
+
+    // Whether a region view state is drawn active, by region id.
+    [[nodiscard]] bool regionDrawnActive(const std::string& region_id) const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        if (state == nullptr)
+        {
+            return false;
+        }
+        const auto drawn = std::ranges::find_if(
+            state->tone_track.regions,
+            [&region_id](const ToneRegionViewState& region) { return region.id == region_id; });
+        return drawn != state->tone_track.regions.end() && drawn->active;
+    }
 };
 
 } // namespace
@@ -205,8 +228,12 @@ TEST_CASE(
 // The tone row supplies only the render cadence; the crossing decision and its debounce live here.
 // A frame that crosses nothing must be free — this runs sixty times a second — so the two no-change
 // cases assert the absence of a rig call and of a view push, not merely the right end state.
+//
+// The crossing frame is DISPLAY ONLY now: the audio thread has already switched the branch gains
+// from the baked schedule, so the frame moves the drawn active flags and must make no rig call at
+// all — a message-thread write against a baked schedule is undone by the next audio block.
 TEST_CASE(
-    "EditorController activates the region a playback frame crossed into",
+    "EditorController follows the region a playback frame crossed into on the display only",
     "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
@@ -226,24 +253,27 @@ TEST_CASE(
     CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_inside);
     CHECK(editor.view.set_state_call_count == pushes_inside);
 
-    // Past the boundary at 2 s the crossing frame switches the audible tone and flips the drawn
-    // active flags, with no formal selection left behind for Delete to find.
+    // Past the boundary at 2 s the crossing frame flips the drawn active flags and pushes — with
+    // no rig call, because the schedule owns the gains, and no formal selection left behind for
+    // Delete to find.
     editor.transport.current_position = common::core::TimePosition{2.5};
+    const int rig_calls_before_crossing = editor.live_rig.set_audible_tone_call_count;
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-    const EditorViewState* const state = stateOrNull(editor.view.last_state);
-    REQUIRE(state != nullptr);
-    REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK_FALSE(state->tone_track.regions[0].active);
-    CHECK(state->tone_track.regions[1].active);
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_crossing);
+    CHECK(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
+    CHECK_FALSE(editor.regionDrawnActive(g_region_a));
+    CHECK(editor.regionDrawnActive(g_region_b));
 
-    // The next frame finds the same region under the playhead, so the debounce holds: no second rig
-    // call and no second push for a crossing that already happened.
-    const int rig_calls_after = editor.live_rig.set_audible_tone_call_count;
+    // The next frame finds the same region under the playhead, so the debounce holds: no second
+    // push for a crossing that already happened.
     const int pushes_after = editor.view.set_state_call_count;
     editor.controller.onPlaybackFrameAdvanced();
-    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_after);
     CHECK(editor.view.set_state_call_count == pushes_after);
+
+    // And the crossing the display recorded is what the handback lands on: the moment playback
+    // ends, the direct write points the rig at the region the playhead is standing in.
+    editor.reportPlaybackEnded();
+    CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
 }
 
 // The boundary crossing is the frame handler's ONLY input, because a playing transport admits no
@@ -276,13 +306,13 @@ TEST_CASE(
 }
 
 // The MODEL can still move under a standing playhead, because undo and redo stay live while the
-// transport plays (the tone designer edits mid-play and must stay undoable). Keying the frame test
-// on the AUDIBLE region rather than on the last transport move is what sees it: the playhead has
-// not moved, but the region holding it has been replaced, so the next frame hands the tone back to
-// the cursor. Restored from the insert-behind-the-playhead case that the forward gate retired —
-// undo is now the only verb that can reach this state.
+// transport plays (the tone designer edits mid-play and must stay undoable). It is the one way a
+// baked schedule can go stale, so the transition rebuilds it — and the next frame, keyed on the
+// AUDIBLE region rather than on the last transport move, carries the restored region into the
+// display. Restored from the insert-behind-the-playhead case that the forward gate retired — undo
+// is now the only verb that can reach this state.
 TEST_CASE(
-    "EditorController follows an undone tone-region delete under a standing playhead",
+    "EditorController rebakes and redraws an undone tone-region delete under a standing playhead",
     "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
@@ -294,19 +324,116 @@ TEST_CASE(
     REQUIRE(editor.regions().size() == 1);
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
     REQUIRE(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
+
+    // Play through the handler, so a schedule genuinely exists; the fake transport does not move
+    // its own state, so the test reports the playing transport the engine would have.
+    editor.controller.onPlayPausePressed();
     editor.transport.current_state.playing = true;
+    const int bakes_before_undo = editor.tone_timeline.prepare_call_count;
 
     // Undo restores the later region under the standing playhead. The transport never moved.
     editor.controller.onUndoRequested();
     REQUIRE(editor.regions().size() == 2);
 
+    // The model moved under a live schedule, so the schedule is rebuilt from it — otherwise the
+    // rest of the song would play the tone track as it stood before the undo.
+    CHECK(editor.tone_timeline.prepare_call_count == bakes_before_undo + 1);
+    REQUIRE(editor.tone_timeline.last_regions.size() == 2);
+    CHECK(editor.tone_timeline.last_regions[1].tone_document_ref == g_second_tone_ref);
+
+    // The frame that follows carries the restored region into the display; the audio already
+    // switched itself from the rebaked schedule, so no rig call is made.
+    const int rig_calls_before_frame = editor.live_rig.set_audible_tone_call_count;
     editor.controller.onPlaybackFrameAdvanced();
+    CHECK(editor.live_rig.set_audible_tone_call_count == rig_calls_before_frame);
+    CHECK_FALSE(editor.regionDrawnActive(g_region_a));
+    CHECK(editor.regionDrawnActive(g_region_b));
+}
+
+// THE PROTOCOL, start to finish: Play bakes the tone track's schedule and only then asks the
+// transport to start, because from the moment a schedule exists the audio thread owns the branch
+// gains — the play boundary's own resync is what applies the curve before the first block.
+TEST_CASE("EditorController bakes the tone schedule before playing", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.tone_timeline.prepare_call_count == 0);
+
+    editor.controller.onPlayPausePressed();
+
+    CHECK(editor.tone_timeline.prepare_call_count == 1);
+    CHECK(editor.transport.play_call_count == 1);
+
+    // The ordering the protocol turns on, read off the shared call-sequence counter.
+    CHECK(editor.tone_timeline.last_prepare_sequence < editor.transport.last_play_sequence);
+
+    // The schedule is the tone track resolved to seconds: measure 1 and measure 2 at 120 BPM 4/4,
+    // with the first span owning the lead-in and the last running to the end of the content.
+    REQUIRE(editor.tone_timeline.last_regions.size() == 2);
+    CHECK(editor.tone_timeline.last_regions[0].tone_document_ref == g_tone_document_ref);
+    CHECK_THAT(
+        editor.tone_timeline.last_regions[0].time_range.start.seconds,
+        Catch::Matchers::WithinAbs(0.0, 1.0e-9));
+    CHECK_THAT(
+        editor.tone_timeline.last_regions[0].time_range.end.seconds,
+        Catch::Matchers::WithinAbs(2.0, 1.0e-9));
+    CHECK(editor.tone_timeline.last_regions[1].tone_document_ref == g_second_tone_ref);
+    CHECK_THAT(
+        editor.tone_timeline.last_regions[1].time_range.start.seconds,
+        Catch::Matchers::WithinAbs(2.0, 1.0e-9));
+    CHECK_THAT(
+        editor.tone_timeline.last_regions[1].time_range.end.seconds,
+        Catch::Matchers::WithinAbs(editor.arrangement().audio_duration.seconds, 1.0e-9));
+}
+
+// The other end of the protocol, reached through the ONE seam that sees every end of playback: the
+// transport's own state report. Pause, Stop, the transport running off the end of the content and
+// a device failure all arrive here identically, so clearing the schedule here covers the three no
+// editor handler ever runs for.
+TEST_CASE(
+    "EditorController clears the tone schedule when playback ends", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    editor.controller.onPlayPausePressed();
+    editor.transport.current_state.playing = true;
+    REQUIRE(editor.tone_timeline.prepare_call_count == 1);
+    REQUIRE_FALSE(editor.tone_timeline.last_regions.empty());
+
+    // Park the playhead in the later region before the stop, so the handback has somewhere to land
+    // that the pre-play direct write did not already point at.
+    editor.transport.current_position = common::core::TimePosition{2.5};
+    editor.reportPlaybackEnded();
+
+    // The clear is a prepare with an empty schedule; the direct write then owns the gains again and
+    // re-asserts the region the playhead is standing in.
+    CHECK(editor.tone_timeline.prepare_call_count == 2);
+    CHECK(editor.tone_timeline.last_regions.empty());
     CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
-    const EditorViewState* const state = stateOrNull(editor.view.last_state);
-    REQUIRE(state != nullptr);
-    REQUIRE(state->tone_track.regions.size() == 2);
-    CHECK_FALSE(state->tone_track.regions[0].active);
-    CHECK(state->tone_track.regions[1].active);
+
+    // And with no schedule, the paused caret owns the tone again: seeking back writes the rig.
+    const int rig_calls_before_seek = editor.live_rig.set_audible_tone_call_count;
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
+    CHECK(editor.live_rig.set_audible_tone_call_count > rig_calls_before_seek);
+    CHECK(editor.live_rig.last_audible_tone_ref == g_tone_document_ref);
+}
+
+// A region edit while paused bakes nothing: there is no schedule while paused, so the model is the
+// only thing that has to change, and the next Play derives the schedule from it.
+TEST_CASE(
+    "EditorController bakes no schedule for a paused region edit", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    editor.controller.onToneRegionDeleteRequested(g_region_b);
+    REQUIRE(editor.regions().size() == 1);
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+
+    CHECK(editor.tone_timeline.prepare_call_count == 0);
+
+    // The next Play is what carries the edit into playback, as the one region the model now holds.
+    editor.controller.onPlayPausePressed();
+    CHECK(editor.tone_timeline.prepare_call_count == 1);
+    CHECK(editor.tone_timeline.last_regions.size() == 1);
 }
 
 TEST_CASE(

@@ -545,16 +545,15 @@ private:
     return tone_ref;
 }
 
-// Reads the live rig's branch-gain values straight out of the backend graph, in branch order.
+// Visits the live rig's branch-gain plugins straight out of the backend graph, in branch order.
 //
 // The branch gain is a private structural plugin inside the tone rack, so no port exposes its
-// value and the tone-timeline resync has no other observable effect while the graph is released.
-// Walking Tracktion's own object graph keeps that observation in the test instead of adding a
-// test-only accessor to the engine. Only the harness's engine is alive during a test, and its
-// rack holds exactly one branch gain per loaded tone, in load-request order.
-[[nodiscard]] std::vector<float> readToneBranchGains()
+// value or its baked curve, and the tone-timeline resync has no other observable effect while the
+// graph is released. Walking Tracktion's own object graph keeps that observation in the test
+// instead of adding a test-only accessor to the engine. Only the harness's engine is alive during
+// a test, and its rack holds exactly one branch gain per loaded tone, in load-request order.
+void forEachToneBranchGain(const std::function<void(const ToneBranchGainPlugin&)>& visit)
 {
-    std::vector<float> gains;
     for (const tracktion::Engine* const tracktion_engine : tracktion::Engine::getEngines())
     {
         if (tracktion_engine == nullptr)
@@ -579,13 +578,35 @@ private:
                             dynamic_cast<const ToneBranchGainPlugin*>(plugin);
                         branch_gain != nullptr)
                     {
-                        gains.push_back(branch_gain->branchGainParameter()->getCurrentValue());
+                        visit(*branch_gain);
                     }
                 }
             }
         }
     }
+}
+
+// Reads the live rig's branch-gain values, in branch order.
+[[nodiscard]] std::vector<float> readToneBranchGains()
+{
+    std::vector<float> gains;
+    forEachToneBranchGain([&gains](const ToneBranchGainPlugin& branch_gain) {
+        gains.push_back(branch_gain.branchGainParameter()->getCurrentValue());
+    });
     return gains;
+}
+
+// Reads how many curve points each branch gain carries, in branch order. That count is what the
+// ownership protocol turns on: zero is not automated (the direct write owns the gain), two or more
+// is automated (the schedule owns it), and exactly one is the case both products avoid — discarded
+// by the audio thread yet rewritten in place by a message-thread gain write.
+[[nodiscard]] std::vector<int> readToneBranchCurvePointCounts()
+{
+    std::vector<int> point_counts;
+    forEachToneBranchGain([&point_counts](const ToneBranchGainPlugin& branch_gain) {
+        point_counts.push_back(branch_gain.branchGainParameter()->getCurve().getNumPoints());
+    });
+    return point_counts;
 }
 
 // Branch-gain values a settled two-region schedule holds, and the slack allowed reading them back
@@ -1937,6 +1958,51 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
         });
     REQUIRE_FALSE(unknown.has_value());
     CHECK(unknown.error().code == LiveRigErrorCode::InvalidRequest);
+}
+
+// Verifies the two ends of the ownership protocol against the real rack. A baked schedule leaves
+// EVERY branch carrying two or more curve points, including a tone the schedule never names — a
+// lone point is not automation to Tracktion and is rewritten in place by an ordinary gain write —
+// and clearing the schedule hands the gains back, so a setAudibleTone value then stands.
+TEST_CASE("Engine tone timeline anchors and releases branch curves", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    IToneTimelinePlayer& timeline = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+
+    // A schedule naming only the FIRST tone still gives the second branch a curve, and both curves
+    // carry the closing anchor that keeps them off the single-point case.
+    const std::vector<common::core::ToneSwitchRegion> first_only{schedule->front()};
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), first_only).has_value());
+    const std::vector<int> baked_point_counts = readToneBranchCurvePointCounts();
+    CHECK(baked_point_counts.size() == 2);
+    for (const int point_count : baked_point_counts)
+    {
+        CHECK(point_count >= 2);
+    }
+
+    // Clearing drops every point, which is what stops the parameter being automated at all.
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), {}).has_value());
+    const std::vector<int> cleared_point_counts = readToneBranchCurvePointCounts();
+    CHECK(cleared_point_counts.size() == 2);
+    for (const int point_count : cleared_point_counts)
+    {
+        CHECK(point_count == 0);
+    }
+
+    // With no points left the direct write owns the gains again: the second tone goes audible and
+    // stays that way, where a lone surviving point would have been rewritten under it.
+    const auto switched = live_rig.setAudibleTone(schedule->back().tone_document_ref);
+    REQUIRE(switched.has_value());
+    checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
 }
 
 // Verifies a seek drags the baked tone schedule onto the new playhead position while stopped. A

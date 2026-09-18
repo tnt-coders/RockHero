@@ -962,22 +962,34 @@ Every gesture ends as **one intent** through its `Listener`
 mutates the model. Its input is the `makeToneTrackViewState` projection; the active region
 highlight advances from a **split** between cadence and decision — the row samples `ITransport`
 only for its playing flag and reports each frame as one payload-less
-`onPlaybackFrameAdvanced()`, and the controller decides there what that frame has to correct. The
-rule it enforces: **while the transport plays, the playhead's tone is what plays.** It asks one
-question — is the region the rig is *audibly* on still the one under the playhead? — comparing the
-region under the transport (`toneRegionAtPosition`, the one seconds-space containment rule) against
-`m_audible_region_id`, which `syncAudibleTone` records wherever it decides the audible tone. Two
-things can part them while playing: **a boundary crossing, or an undo or redo of a marker edit** —
-undo stays live mid-play (the tone designer edits mid-play and must stay undoable), so that is the
-one way the MODEL can still move under a standing playhead. Nothing else can: the marker plane is
-paused-only, so no selection exists to outrank the keyboard position in `activeToneRegionId` (play
-clears it and selecting is refused) and no forward edit can land — and no caret is armed while
-playing, so the keyboard position IS the transport's. Comparing against the AUDIBLE region rather
-than the last transport move is what covers the undo case — a transition that changes which REGION
-holds the playhead is seen on the next frame. One that changes only which TONE the same region names
-is not; that gap is the undo-resync item in `docs/tracking/backlog.md`, and closing it is blocked on
-the live-rig test fake, not on this row. The row therefore holds no containment rule of its own to
-disagree with the drawn `active` flag.
+`onPlaybackFrameAdvanced()`, and the controller decides there what that frame has to correct.
+
+**The frame tick is display-only (2026-09-18).** The rule it serves is unchanged — *while the
+transport plays, the playhead's tone is what plays* — but the AUDIO already obeys it without any
+help from the message thread: the Play handler bakes the tone track into branch-gain automation
+(`IToneTimelinePlayer::prepareToneTimeline`) before starting the transport, and the audio thread
+switches the gains block-accurately against that curve. `syncAudibleTone` therefore makes no rig
+call at all while the transport plays; the frame only moves the editor's idea of the audible region,
+and with it the drawn `active` flag and the lanes. The schedule exists exactly while the transport
+plays: every end of playback reaches `onTransportStateChanged`, which clears the curves and hands
+the branch gains back to the direct `ILiveRig::setAudibleTone` write, which is what lets the paused
+highlight below move the rig at all.
+
+The frame asks one question — is the region the editor is *audibly* on still the one under the
+playhead? — comparing the region under the transport (`toneRegionAtPosition`, the one seconds-space
+containment rule) against `m_audible_region_id`, which `syncAudibleTone` records wherever it decides
+the audible tone. Two things can part them while playing: **a boundary crossing, or an undo or redo
+of a marker edit** — undo stays live mid-play (the tone designer edits mid-play and must stay
+undoable), so that is the one way the MODEL can still move under a standing playhead, and
+`completeUndoTransition` rebakes the schedule there for exactly that reason. Nothing else can: the
+marker plane is paused-only, so no selection exists to outrank the keyboard position in
+`activeToneRegionId` (play clears it and selecting is refused) and no forward edit can land — and no
+caret is armed while playing, so the keyboard position IS the transport's. Comparing against the
+AUDIBLE region rather than the last transport move is what covers the undo case — a transition that
+changes which REGION holds the playhead is seen on the next frame. One that changes only which TONE
+the same region names is not, and needs no frame: the rebake carries it into the audio and the
+transition's own publish carries it into the display. The row therefore holds no containment rule of
+its own to disagree with the drawn `active` flag.
 
 While PAUSED the highlight follows where the KEYBOARD stands rather than the playhead (ruled
 2026-09-18): `activeToneRegionId` resolves through `keyboardTimePosition()` — the armed caret's

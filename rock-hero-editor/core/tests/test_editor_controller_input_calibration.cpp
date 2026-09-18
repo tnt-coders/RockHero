@@ -1402,6 +1402,7 @@ using common::audio::testing::setLiveInputMonitoringCall;
         .audio_devices = audio_devices,
         .plugin_host = defaultPluginHost(),
         .live_rig = live_rig,
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }

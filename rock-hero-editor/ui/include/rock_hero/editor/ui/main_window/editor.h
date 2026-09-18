@@ -24,6 +24,7 @@ class IPluginHost;
 class ISongAudio;
 class IThumbnailFactory;
 class IToneAutomation;
+class IToneTimelinePlayer;
 class ITransport;
 class LiveInputMonitor;
 } // namespace rock_hero::common::audio
@@ -72,6 +73,9 @@ public:
 
         /*! \brief Live rig port used for tone document save and restore. */
         common::audio::ILiveRig& live_rig;
+
+        /*! \brief Tone timeline port the controller bakes the tone schedule onto at Play. */
+        common::audio::IToneTimelinePlayer& tone_timeline;
 
         /*! \brief Tone parameter automation port used to read and edit tone-chain plugin curves. */
         common::audio::IToneAutomation& tone_automation;

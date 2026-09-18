@@ -421,24 +421,36 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      arrangements never gain a persisted `toneTrack` because emission is conditional on authored
      regions.
 
-5. **Runtime switching** (shipped 2026-07-07 via vblank cursor-follow; baked automation superseded)
+5. **Runtime switching** (complete — 5a-5d shipped; the editor plays from the baked schedule since
+   2026-09-18)
 
-   **Status (2026-07-07).** Runtime tone switching is complete and clean, but it is delivered by a
-   simpler mechanism than the baked automation this slice originally specified.
-   `ToneTrackView::reportPlaybackFrame()` runs on a vblank attachment and reports each playing frame
-   as one payload-less `onPlaybackFrameAdvanced` intent; the controller decides there whether the
-   frame crossed a region boundary (`toneRegionIdAt` against the region its last transport-driven
-   entry resolved) and, when it did, runs `activateToneAtCursor()` →
-   `syncAudibleTone` → `ILiveRig::setAudibleTone` → the multi-tone rack's
-   `setAudibleBranch`, whose `ToneBranchGainPlugin` per-sample smoother makes the swap click-free.
-   Sub-phases **5a** (branch-gain plugin) and **5b** (multi-tone rack) shipped and are the audio
-   substrate this rests on. Sub-phases **5c–5e** (edit-timeline schedule baking,
-   `IToneTimelinePlayer`, paused-preview curve bypass, crossfade spikes) are **superseded for the
-   editor**: cursor-follow needs none of them, there is no offline-render path in the editor, and
-   the smoother already prevents clicks. Baked automation is the right answer only if a future
-   **offline bounce** or the **game runtime** (playback with no editor UI) later needs
-   UI-independent switching; revive 5c–5e at that point. The original design bullets and sub-phases
-   below are retained for that future.
+   **Status (2026-09-18).** Both products now switch tones from the baked branch-gain automation the
+   audio thread evaluates against the transport, so tone reproduction cannot diverge between them.
+   Sub-phases **5a** (branch-gain plugin), **5b** (multi-tone rack) and **5c** (`IToneTimelinePlayer`
+   plus schedule baking) shipped. **5d is resolved without a curve bypass:** the editor's paused
+   preview is not a bypass but the ABSENCE of a schedule — a schedule exists exactly while the
+   transport plays, so pausing clears the curves and `ILiveRig::setAudibleTone` owns the branch gains
+   again, following the caret and cursor. **5e** (crossfade spikes) is still open as a listening
+   pass; the `ToneBranchGainPlugin` per-sample smoother and the 10 ms baked ramp have not been
+   measured against each other in an offline render.
+
+   **Editor protocol.** The Play handler bakes `makeToneSchedule(...)` through `prepareToneTimeline`
+   immediately before `ITransport::play()`, and the engine's play-boundary resync applies the curve
+   before the first audio block. Every end of playback reaches `onTransportStateChanged` — Pause and
+   Stop, and equally the transport running off the end of the content, a rig load or clear releasing
+   the playback context, and a device failure — and that one seam clears the schedule and re-derives
+   the audible tone. A tone-track undo or redo mid-play rebuilds the schedule in
+   `completeUndoTransition`, the one model change that can land under a live schedule.
+
+   **The vblank frame tick survives as DISPLAY ONLY.** `ToneTrackView::reportPlaybackFrame()` still
+   reports each playing frame as one payload-less `onPlaybackFrameAdvanced` intent, and the
+   controller still decides there whether the frame crossed a region boundary — but
+   `syncAudibleTone` makes no rig call while the transport plays, so the tick only moves the drawn
+   active flag onto the crossing the audio thread already made. What it used to do — drive the
+   switch itself from the message thread, a frame and an audio block late — is gone.
+
+   The original design bullets and sub-phases below are retained as the record of how this was
+   specified.
 
    - Add an audio boundary for prepared tone timelines.
    - Convert regions to seconds through `TempoMap`.
@@ -461,10 +473,14 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
       existing flat-`pluginList` live rig: signal-chain panel, capture, undo, and meters must see
       the selected tone's chain. This is the integration-heavy sub-phase.
    3. **5c — Schedule baking + editor-core wiring.** `IToneTimelinePlayer` port; editor core
-      converts regions to seconds and hands the schedule over on load and after region edits;
-      backend bakes branch-gain curves (coalesced rebuild expected, see mechanism notes).
-   4. **5d — Paused preview + selection wiring.** Curve bypass + direct gain set while paused;
-      play/seek exits preview (mechanism notes above).
+      converts regions to seconds and hands the schedule over; backend bakes branch-gain curves.
+      Shipped. Two expectations stated here were wrong and are corrected in the code comments: a
+      curve edit triggers NO graph rebuild (Edit's TreeWatcher has no automation-curve case, so the
+      "coalesced rebuild" in the mechanism notes never happens), and the editor hands the schedule
+      over at PLAY rather than on load, because a schedule must not exist while it is paused.
+   4. **5d — Paused preview + selection wiring.** Resolved without the curve bypass this bullet
+      specified: the paused state simply has no schedule, so no bypass is needed and play/seek has
+      no preview to exit.
    5. **5e — Spikes and listening pass.** The three spikes from the adversarial review as
       offline-render tests where possible, plus a manual listening pass in the app.
 

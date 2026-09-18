@@ -91,19 +91,23 @@ struct ToneGainPoint
 Pure scheduling policy, shared so the playback backend is a thin point-writing adapter:
 
 - The envelope always starts with an explicit point at the timeline origin (1 when the schedule
-  opens on this tone, else 0), so a tone that is never referenced yields exactly one silent
-  point.
+  opens on this tone, else 0), so playback has a defined value before the first boundary.
 - Every boundary where the audible tone changes bakes a linear crossfade of
   `ramp_seconds` starting at the boundary: the outgoing tone holds 1 at the boundary and
   reaches 0 at boundary + ramp; the incoming tone mirrors it. Boundaries between two spans of
   the SAME tone bake nothing (no dip to silence on a re-strike of the same tone).
 - The ramp is clamped to half the incoming span so back-to-back short spans cannot overlap
   their crossfades.
+- The envelope always ends with a closing point at the schedule's end carrying the gain already
+  reached, so every branch — a tone the schedule never names included — reaches the backend with
+  at least TWO points. A single-point curve is not automation to Tracktion, and a lone point is
+  rewritten by an ordinary gain write; the closing segment is flat, so anchoring changes nothing
+  a listener can hear.
 
 \param schedule Contiguous switch regions from makeToneSchedule.
 \param tone_document_ref Tone whose envelope to build.
 \param ramp_seconds Crossfade length at each switch boundary.
-\return Envelope points in ascending time order; never empty.
+\return Envelope points in ascending time order; always at least two.
 */
 [[nodiscard]] std::vector<ToneGainPoint> makeToneGainEnvelope(
     std::span<const ToneSwitchRegion> schedule, const std::string& tone_document_ref,

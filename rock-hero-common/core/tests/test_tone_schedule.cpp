@@ -136,20 +136,48 @@ TEST_CASE("Tone gain envelope bakes mirrored crossfades", "[core][tone-schedule]
     };
 
     const auto envelope_a = makeToneGainEnvelope(schedule, "tones/a/tone.json", 0.01);
-    REQUIRE(envelope_a.size() == 3);
+    REQUIRE(envelope_a.size() == 4);
     checkGainPoint(envelope_a[0], 0.0, 1.0F);
     checkGainPoint(envelope_a[1], 4.0, 1.0F);
     checkGainPoint(envelope_a[2], 4.01, 0.0F);
+    checkGainPoint(envelope_a[3], 8.0, 0.0F);
 
     const auto envelope_b = makeToneGainEnvelope(schedule, "tones/b/tone.json", 0.01);
-    REQUIRE(envelope_b.size() == 3);
+    REQUIRE(envelope_b.size() == 4);
     checkGainPoint(envelope_b[0], 0.0, 0.0F);
     checkGainPoint(envelope_b[1], 4.0, 0.0F);
     checkGainPoint(envelope_b[2], 4.01, 1.0F);
+    checkGainPoint(envelope_b[3], 8.0, 1.0F);
+}
+
+// Verifies the closing anchor every envelope carries: a point at the schedule's end repeating the
+// gain already reached. It exists so no branch ever reaches Tracktion with a single point, which is
+// discarded as "not automated" and is rewritten in place by an ordinary gain write.
+TEST_CASE("Tone gain envelope closes on the schedule end", "[core][tone-schedule]")
+{
+    const std::vector<ToneSwitchRegion> schedule{
+        ToneSwitchRegion{
+            .time_range = {.start = TimePosition{0.0}, .end = TimePosition{6.5}},
+            .tone_document_ref = "tones/a/tone.json",
+        },
+    };
+
+    // One region, no boundary to cross: the opening and the closing anchor are the whole envelope.
+    const auto envelope_a = makeToneGainEnvelope(schedule, "tones/a/tone.json", 0.01);
+    REQUIRE(envelope_a.size() == 2);
+    checkGainPoint(envelope_a[0], 0.0, 1.0F);
+    checkGainPoint(envelope_a[1], 6.5, 1.0F);
+
+    // An empty schedule has no end to close on, so both anchors sit silent at the origin — still
+    // two points, which is the property the backend depends on.
+    const auto envelope_none = makeToneGainEnvelope({}, "tones/a/tone.json", 0.01);
+    REQUIRE(envelope_none.size() == 2);
+    checkGainPoint(envelope_none[0], 0.0, 0.0F);
+    checkGainPoint(envelope_none[1], 0.0, 0.0F);
 }
 
 // Verifies a boundary between two spans of the SAME tone bakes nothing (no dip to silence) and
-// a never-referenced tone yields exactly one silent origin point.
+// a never-referenced tone yields a flat silent envelope rather than a lone point.
 TEST_CASE("Tone gain envelope skips same-tone boundaries", "[core][tone-schedule]")
 {
     const std::vector<ToneSwitchRegion> schedule{
@@ -164,12 +192,14 @@ TEST_CASE("Tone gain envelope skips same-tone boundaries", "[core][tone-schedule
     };
 
     const auto envelope_a = makeToneGainEnvelope(schedule, "tones/a/tone.json", 0.01);
-    REQUIRE(envelope_a.size() == 1);
-    checkGainPoint(envelope_a.front(), 0.0, 1.0F);
+    REQUIRE(envelope_a.size() == 2);
+    checkGainPoint(envelope_a[0], 0.0, 1.0F);
+    checkGainPoint(envelope_a[1], 8.0, 1.0F);
 
     const auto envelope_c = makeToneGainEnvelope(schedule, "tones/c/tone.json", 0.01);
-    REQUIRE(envelope_c.size() == 1);
-    checkGainPoint(envelope_c.front(), 0.0, 0.0F);
+    REQUIRE(envelope_c.size() == 2);
+    checkGainPoint(envelope_c[0], 0.0, 0.0F);
+    checkGainPoint(envelope_c[1], 8.0, 0.0F);
 }
 
 // Verifies the crossfade clamps to half the incoming span so back-to-back short spans cannot
@@ -188,8 +218,9 @@ TEST_CASE("Tone gain envelope clamps ramps to short spans", "[core][tone-schedul
     };
 
     const auto envelope_b = makeToneGainEnvelope(schedule, "tones/b/tone.json", 0.01);
-    REQUIRE(envelope_b.size() == 3);
+    REQUIRE(envelope_b.size() == 4);
     checkGainPoint(envelope_b[2], 1.005, 1.0F);
+    checkGainPoint(envelope_b[3], 1.01, 1.0F);
 }
 
 } // namespace rock_hero::common::core

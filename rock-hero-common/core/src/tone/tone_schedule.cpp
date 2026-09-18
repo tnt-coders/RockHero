@@ -106,6 +106,19 @@ std::vector<ToneGainPoint> makeToneGainEnvelope(
             ToneGainPoint{.seconds = boundary + ramp, .gain = is_incoming ? 1.0F : 0.0F});
     }
 
+    // The closing anchor, unconditional so EVERY branch reaches the backend with two or more
+    // points. Tracktion treats a one-point curve as no automation at all
+    // (AutomationIterator::isEmpty() is points.size() <= 1) and, worse, silently REWRITES that lone
+    // point to follow a message-thread gain write (tracktion_AutomatableParameter.cpp:1436-1440),
+    // so a tone the schedule never names would have its envelope edited by the direct audible-tone
+    // write. The authored-lane writer anchors for exactly this pair of reasons
+    // (tone_automation_curve.cpp). Repeating the gain already reached keeps the closing segment
+    // flat, and the schedule's end is never earlier than the last crossfade point, whose span the
+    // ramp clamp keeps inside its own region.
+    const double schedule_end = schedule.empty() ? 0.0 : schedule.back().time_range.end.seconds;
+    const float closing_gain = envelope.back().gain;
+    envelope.push_back(ToneGainPoint{.seconds = schedule_end, .gain = closing_gain});
+
     return envelope;
 }
 

@@ -349,6 +349,11 @@ public:
     All tones stay loaded and processing; only branch gains move, through short click-free ramps.
     This is the selection-driven switch path; scheduled playback switching is baked separately.
 
+    Callers must not use it while a schedule is baked (IToneTimelinePlayer::prepareToneTimeline
+    with a non-empty schedule): the baked automation owns the branch gains and the audio thread
+    rewrites them every block, so a write made against it is silently undone. Bake an empty
+    schedule first to take ownership back.
+
     \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
     \return The now-audible tone's chain and output gain for panel rebinding, or a typed failure
             when the tone is not loaded.

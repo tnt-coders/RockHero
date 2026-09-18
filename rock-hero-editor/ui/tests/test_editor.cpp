@@ -23,6 +23,7 @@
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
+#include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
@@ -168,9 +169,17 @@ class FakeEditorAudioPorts final : public common::audio::IAudioDeviceConfigurati
                                    public common::audio::ILiveInput,
                                    public common::audio::IAudioMeterSource,
                                    public common::audio::IToneAutomation,
+                                   public common::audio::IToneTimelinePlayer,
                                    public common::audio::IPlaybackClock
 {
 public:
+    // Tone timeline port: no project is opened in these view tests, so no schedule is ever baked.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> prepareToneTimeline(
+        const std::filesystem::path&, std::span<const common::core::ToneSwitchRegion>) override
+    {
+        return {};
+    }
+
     // Playback clock port: never publishes; the preview never opens in these tests.
     [[nodiscard]] common::audio::PlaybackClockSnapshot snapshot() const noexcept override
     {
@@ -486,6 +495,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
             .audio_devices = audio_ports,
             .plugin_host = audio_ports,
             .live_rig = audio_ports,
+            .tone_timeline = audio_ports,
             .tone_automation = audio_ports,
             .live_input = audio_ports,
             .meter_source = audio_ports,

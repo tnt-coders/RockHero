@@ -24,9 +24,13 @@ at the root and keeps the intuitive Delete key.
 
   RULED 2026-09-18: while PAUSED the audible tone follows the caret as well as the cursor. The
   caret step never followed before, because the derivation read the raw transport clock and arming
-  never moves the playhead, so stepping into another region left the rig behind. Separately OPEN:
-  while PLAYING the audible tone must follow the transport with precision — the per-frame crossing
-  check is unchanged by that ruling and its accuracy is its own item.
+  never moves the playhead, so stepping into another region left the rig behind.
+
+  SETTLED 2026-09-18, same day: while PLAYING the audible tone no longer follows the keyboard at
+  all — the Play handler bakes the tone track into branch-gain automation and the audio thread
+  switches block-accurately against the transport, so the precision item that was open here is
+  closed by construction. The two states are one law: a schedule exists exactly while the transport
+  plays, so the direct write described above owns the rig exactly while it does not.
 - **Selected region** — a deliberate, formal selection, set *only* by clicking a region. Cleared
   whenever the transport position changes (seek, playback advance, stop-to-start). Drives the
   white-outline highlight and the Delete target. While a region is selected it is also the active
@@ -78,7 +82,8 @@ two intents:
 - `onToneRegionActivated(id)` — the view's **playback/cursor follow** (and the controller's seek/load
   handlers) → set the active tone and **clear** the formal selection. *Shipped payload-less, and
   since 2026-09-14 narrowed further to `onPlaybackFrameAdvanced()`: the row reports only the render
-  cadence and the controller owns the crossing decision.*
+  cadence and the controller owns the crossing decision. Since 2026-09-18 that frame is DISPLAY
+  ONLY — the baked schedule moves the audio, so the frame moves only the drawn active flag.*
 
 Selection therefore exists only between a click and the next transport move: play-start, seek, and
 boundary crossings all route through the "activate" path, which clears it. That is exactly "selected

@@ -859,8 +859,9 @@ EditorController::EditorController(
     : m_impl(
           std::make_unique<Impl>(
               audio_ports.transport, audio_ports.song_audio, audio_ports.audio_devices,
-              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.tone_automation, services,
-              std::move(exit_function), std::move(project_operations)))
+              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.tone_timeline,
+              audio_ports.tone_automation, services, std::move(exit_function),
+              std::move(project_operations)))
 {}
 
 // Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
@@ -1433,6 +1434,7 @@ EditorController::Impl::Impl(
     common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+    common::audio::IToneTimelinePlayer& tone_timeline,
     common::audio::IToneAutomation& tone_automation, EditorController::Services services,
     EditorController::ExitFunction exit_function,
     EditorController::ProjectOperations project_operations)
@@ -1441,6 +1443,7 @@ EditorController::Impl::Impl(
     , m_audio_devices(audio_devices)
     , m_plugin_host(plugin_host)
     , m_live_rig(live_rig)
+    , m_tone_timeline(tone_timeline)
     , m_tone_automation(tone_automation)
     , m_open_function(
           project_operations.open_function ? std::move(project_operations.open_function)
@@ -2068,8 +2071,20 @@ void EditorController::Impl::completeUndoTransition(
     // tone again instead of leaving the restored model pointing at missing branches.
     if (m_project.has_value() && m_project_audio_ready && !loadedRigCoversModelTones())
     {
+        // The reload stops the transport and releases the playback context, so the transport
+        // listener retires the schedule on the way through; there is nothing to rebake onto a rack
+        // that is about to be replaced.
         reloadLiveRigForToneSet();
         return;
+    }
+
+    // A tone-track undo or redo is the ONE model change that lands while the transport plays — the
+    // tone designer edits mid-play and must stay undoable — and the baked schedule is derived from
+    // that model, so it is rebuilt here or the rest of the song plays the tone track as it stood
+    // before the transition. Nothing to do while paused: no schedule exists then.
+    if (m_transport.state().playing)
+    {
+        publishToneSchedule(true);
     }
 
     updateView();
@@ -2255,8 +2270,8 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
         // in-place dissolve every editing handoff makes, so it is spelled with it rather than
         // beside it. Playback then clears the note selection — one position concept per transport
         // state, with only the row memory surviving for the next arming. Starting playback also
-        // makes the region under the cursor the active tone; the tone row keeps it following
-        // boundary crossings at render cadence.
+        // makes the region under the cursor the active tone; from there the baked schedule the
+        // transport plays against carries every boundary crossing.
         dissolveChartCaretInPlace();
         clearSelection();
         // Starting playback is a settle event: authoring is over for now, so a claim the last burst
@@ -2265,6 +2280,12 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
         // already empty still settles.
         static_cast<void>(settleChart());
         activateToneAtCursor();
+
+        // The bake is the LAST thing before the transport starts, and it must be: from the moment a
+        // schedule exists the audio thread owns the branch gains, so the direct write above has to
+        // have landed first, and the engine's play-boundary resync — which runs inside play() after
+        // the transport is told to start — is what applies the curve before the first block.
+        publishToneSchedule(true);
         m_transport.play();
         updateView();
     }
@@ -2435,6 +2456,18 @@ void EditorController::Impl::onTransportStateChanged(common::audio::TransportSta
     {
         disarmChartMarker();
         clearSelection();
+    }
+    else
+    {
+        // THE ONE PLACE A SCHEDULE IS RETIRED, for the same reason this seam exists at all: it is
+        // the only one that sees EVERY end of playback. Pause and Stop arrive here, and so do the
+        // three no editor handler ever runs for — the transport reaching the end of the content, a
+        // rig load or clear releasing the playback context in place, and an audio-device failure.
+        // Clearing the curves stops the parameter being automated, so the direct write below (and
+        // the caret-follow that succeeds it) owns the branch gains again; the rig may be on a stale
+        // tone because nothing wrote it while the schedule played, so the derivation re-asserts.
+        publishToneSchedule(false);
+        syncAudibleTone();
     }
     updateView();
 }

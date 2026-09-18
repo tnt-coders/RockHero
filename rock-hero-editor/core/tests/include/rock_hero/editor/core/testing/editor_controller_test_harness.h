@@ -32,6 +32,7 @@
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
+#include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
 #include <rock_hero/common/core/session/session.h>
@@ -510,6 +511,21 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
     return states;
 }
 
+/*!
+\brief Returns the next monotonic call-order stamp shared across the harness fakes.
+
+Some contracts are about ORDER between two ports — the tone schedule must be baked before the
+transport is asked to play — and a per-fake counter cannot express that. Calls that participate
+stamp themselves from this one counter, so a smaller stamp means "happened first".
+
+\return The next sequence value; the first stamp is 1.
+*/
+[[nodiscard]] inline int nextCallSequence() noexcept
+{
+    static int g_call_sequence = 0;
+    return ++g_call_sequence;
+}
+
 // Records control intents and exposes a manual notification hook for controller tests.
 class FakeTransport final : public common::audio::ITransport, public common::audio::ILiveInput
 {
@@ -518,6 +534,7 @@ public:
     void play() override
     {
         ++play_call_count;
+        last_play_sequence = nextCallSequence();
     }
 
     // Records that pause was requested without mutating state unless a test does it directly.
@@ -714,6 +731,9 @@ public:
 
     // Number of play requests received.
     int play_call_count{0};
+
+    // Shared-counter stamp of the last play request, for ordering against the tone-schedule bake.
+    int last_play_sequence{0};
 
     // Number of pause requests received.
     int pause_call_count{0};
@@ -1162,6 +1182,65 @@ inline common::audio::LiveInputMonitor& defaultLiveInputMonitor() noexcept
 }
 
 /*!
+\brief Recording fake for the tone timeline port, mirroring the game's FakeToneTimeline.
+
+Records every prepare in call order against a shared counter the other fakes also stamp, because
+the editor's protocol is as much about ORDER as about content: the schedule must be baked before
+the transport is asked to play.
+*/
+struct FakeToneTimeline final : public common::audio::IToneTimelinePlayer
+{
+    /*!
+    \brief Records the prepared schedule, or fails on demand.
+    \param song_directory Song workspace the schedule was prepared against.
+    \param regions Seconds-resolved switch regions; empty means the schedule was cleared.
+    \return Empty success, or the configured failure.
+    */
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> prepareToneTimeline(
+        const std::filesystem::path& song_directory,
+        std::span<const common::core::ToneSwitchRegion> regions) override
+    {
+        if (fail_prepare)
+        {
+            return std::unexpected{common::audio::LiveRigError{
+                common::audio::LiveRigErrorCode::InvalidRequest, "fake timeline failure"
+            }};
+        }
+
+        prepare_call_count += 1;
+        last_song_directory = song_directory;
+        last_regions.assign(regions.begin(), regions.end());
+        last_prepare_sequence = nextCallSequence();
+        return {};
+    }
+
+    /*! \brief When set, prepareToneTimeline fails with a typed error. */
+    bool fail_prepare{false};
+
+    /*! \brief Number of successful prepare calls observed. */
+    int prepare_call_count{0};
+
+    /*! \brief Workspace directory the schedule was most recently prepared against. */
+    std::filesystem::path last_song_directory{};
+
+    /*! \brief Schedule most recently handed over; empty after a clear. */
+    std::vector<common::core::ToneSwitchRegion> last_regions{};
+
+    /*! \brief Shared-counter stamp of the last prepare, for ordering against the transport. */
+    int last_prepare_sequence{0};
+};
+
+/*!
+\brief Supplies a default tone-timeline port for tests that do not exercise scheduled switching.
+\return Process-lifetime fake tone timeline.
+*/
+[[nodiscard]] inline FakeToneTimeline& defaultToneTimeline()
+{
+    static FakeToneTimeline g_tone_timeline;
+    return g_tone_timeline;
+}
+
+/*!
 \brief Configurable, recording fake for the tone parameter automation port.
 
 Stores written curves keyed by (tone, instance, parameter) so writes round-trip through reads, and
@@ -1307,6 +1386,7 @@ stays explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1328,6 +1408,7 @@ stays explicit.
         .audio_devices = audio_devices,
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1348,6 +1429,7 @@ stays explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1370,6 +1452,35 @@ stays explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_timeline = defaultToneTimeline(),
+        .tone_automation = defaultToneAutomation(),
+    };
+}
+
+/*!
+\brief Replaces the plugin-host, live-rig, and tone-timeline ports in the test controller bundle.
+
+The bundle for scheduled-tone-switching tests: the live rig answers the paused direct write and the
+tone timeline records the bake and the clear.
+
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\param live_rig Live-rig fake used by the controller under test.
+\param tone_timeline Tone-timeline fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
+[[nodiscard]] inline EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host,
+    FakeLiveRig& live_rig, FakeToneTimeline& tone_timeline)
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = defaultAudioDevices(),
+        .plugin_host = plugin_host,
+        .live_rig = live_rig,
+        .tone_timeline = tone_timeline,
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1393,6 +1504,7 @@ stays explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = tone_automation,
     };
 }
@@ -1415,6 +1527,7 @@ stays explicit.
         .audio_devices = audio_devices,
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1439,6 +1552,7 @@ stays explicit.
         .audio_devices = audio_devices,
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -1469,6 +1583,7 @@ together.
         .audio_devices = audio_devices,
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_timeline = defaultToneTimeline(),
         .tone_automation = tone_automation,
     };
 }

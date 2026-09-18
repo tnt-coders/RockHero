@@ -47,6 +47,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
+#include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/session/session.h>
@@ -116,6 +117,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
         common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+        common::audio::IToneTimelinePlayer& tone_timeline,
         common::audio::IToneAutomation& tone_automation, EditorController::Services services,
         EditorController::ExitFunction exit_function,
         EditorController::ProjectOperations project_operations);
@@ -469,6 +471,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::string& param_id) const;
     void activateToneAtCursor();
     void syncAudibleTone();
+    // Bakes or clears the tone track's playback schedule (the definition states the ownership law).
+    void publishToneSchedule(bool playing);
     // Refuses a typed tone name the produced catalog would then hold twice, reporting it to the
     // charter rather than logging it: the name came from a prompt they can retype. Normalizes the
     // snapshot first, so a tone this very edit prunes never blocks its own replacement's name.
@@ -894,6 +898,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Live rig port used to persist and restore arrangement-owned plugin state.
     common::audio::ILiveRig& m_live_rig;
+
+    // Tone timeline port the tone track's switch schedule is baked onto while the transport plays.
+    common::audio::IToneTimelinePlayer& m_tone_timeline;
 
     // Tone parameter automation port used to read and edit tone-chain plugin curves.
     common::audio::IToneAutomation& m_tone_automation;

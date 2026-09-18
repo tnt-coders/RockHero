@@ -225,7 +225,9 @@ rest, each verified against the code, each a fix rather than a question unless m
   jumping.
 - Tone changes should switch SLIGHTLY before the tone region begins (~100 ms ahead?) so the
   transition still feels seamless for players who are a little out of time — needs evaluation and
-  tuning.
+  tuning. It now has one obvious home: a lead-in offset applied where `makeToneGainEnvelope`
+  (`rock-hero-common/core/src/tone/tone_schedule.cpp`) places each crossfade, which both products
+  play from — the editor since 2026-09-18 — so tuning it once tunes both.
 - Evaluate VST2 support feasibility.
 - Automation lane "+" should look closer to the signal-chain "+" for visual consistency.
 - Report the bgfx Conan-package issue upstream to conan-center — we rolled our own recipe because
@@ -763,24 +765,26 @@ Each re-verified against the code before being written down.
   moving the code.
 
 
-- **Undo does not resync the audible tone unless tone coverage changes.** `completeUndoTransition`
-  (`editor_controller.cpp`, the `!loadedRigCoversModelTones()` branch that calls
-  `reloadLiveRigForToneSet`) is the only rig resync on the undo path, so a transition that moves
-  which tone the ACTIVE region names — but hosts no new tone — leaves the rig playing the old one.
-  Measured: undoing a `SetToneRegionTone` repoint restores the model but leaves
+- **Undo does not resync the audible tone while PAUSED, unless tone coverage changes.**
+  `completeUndoTransition` (`editor_controller.cpp`, the `!loadedRigCoversModelTones()` branch that
+  calls `reloadLiveRigForToneSet`) is the only rig resync on the paused undo path, so a transition
+  that moves which tone the ACTIVE region names — but hosts no new tone — leaves the rig playing
+  the old one. Measured: undoing a `SetToneRegionTone` repoint restores the model but leaves
   `last_audible_tone_ref` on the tone the repoint chose. `MoveToneBoundary` is worse and
   pre-existing: moving a boundary past the cursor flips the view state's `active` flag to the other
   region while the rig stays on the old tone, on the FORWARD path, so its undo never diverges
   because it never converged. Every marker verb now syncs on its FORWARD path (`commitMarkerModel`
-  calls `syncAudibleTone()` after each landed commit); the undo path still does not. **Not rescued
-  by the playback frame path added 2026-09-14** (`onPlaybackFrameAdvanced`,
-  `rock-hero-editor/core/src/tone/tone_handlers.cpp:346-390`): that test asks whether the region the
-  rig is audibly on is still the one under the playhead, and a non-merging retone's undo changes
-  neither the region id nor which region holds the playhead, so `m_audible_region_id` still matches
-  and no frame corrects it — exactly as the old view-side `active`-flag comparison could not see it
-  either. `completeUndoTransition` (`editor_controller.cpp:2030-2062`) still reaches a rig call only
-  through the `!loadedRigCoversModelTones()` branch, which a repoint between two already-hosted tones
-  does not take. The one-authority fix is an unconditional `syncAudibleTone()` after every
+  calls `syncAudibleTone()` after each landed commit); the paused undo path still does not.
+  **Narrowed to the paused case 2026-09-18** by the baked-schedule protocol: while the transport
+  PLAYS, `completeUndoTransition` rebuilds the schedule from the restored model, so a retone undo
+  mid-play is now carried into the audio correctly (only the signal-chain panel's binding still
+  lags, and it does not follow crossings during playback by design). The frame path never rescued
+  the paused case and still does not (`onPlaybackFrameAdvanced`,
+  `rock-hero-editor/core/src/tone/tone_handlers.cpp`): it asks whether the region the editor is
+  audibly on is still the one under the playhead, and a non-merging retone's undo changes neither
+  the region id nor which region holds the playhead, so `m_audible_region_id` still matches and no
+  frame corrects it — exactly as the old view-side `active`-flag comparison could not see it
+  either. The one-authority fix is an unconditional `syncAudibleTone()` after every
   committed undo transition, beside the reconciliations already there. Taking it as-is turns nine
   plugin-undo tests red: `syncAudibleTone()` also rebinds the panel from the rig's chain, and
   `FakeLiveRig::setAudibleTone` returns the canned `next_load_result` instead of the chain it holds

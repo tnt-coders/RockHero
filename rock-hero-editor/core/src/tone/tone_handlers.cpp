@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/tone/tone_schedule.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
@@ -272,6 +273,47 @@ void EditorController::Impl::activateToneAtCursor()
     syncAudibleTone();
 }
 
+// THE OWNERSHIP LAW, one sentence: a baked schedule exists EXACTLY while the transport plays. While
+// it does, the audio thread evaluates the branch-gain curves against the transport every block and
+// switches tones sample-accurately, and no message-thread write to those gains can survive. While
+// it does not, the curves are empty, the parameters are not automated at all, and setAudibleTone
+// owns the gains — which is what lets the audible tone follow the caret and cursor while paused.
+//
+// `playing` is a parameter rather than a read of the transport because the two edges straddle the
+// transport call: Play bakes BEFORE starting it (so the play boundary's own resync applies the
+// curve ahead of the first audio block), while every stop reports through the transport listener
+// after the fact. Clearing is idempotent and costs one ValueTree pass per branch, so the listener
+// can clear unconditionally without asking whether a schedule was ever baked.
+//
+// A failure is logged rather than reported: the schedule is a playback optimization over a tone
+// track the editor can still show, and the charter has no action to take. The port refuses without
+// touching the curves, so neither outcome leaves them half-written.
+void EditorController::Impl::publishToneSchedule(bool playing)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (!m_project_audio_ready || arrangement == nullptr)
+    {
+        // No rig is loaded, so there are no branch-gain curves to own in either direction.
+        return;
+    }
+
+    const std::vector<common::core::ToneSwitchRegion> schedule =
+        playing
+            ? common::core::makeToneSchedule(
+                  arrangement->tone_track, session().song().tempo_map, arrangement->audio_duration)
+            : std::vector<common::core::ToneSwitchRegion>{};
+    if (const auto prepared = m_tone_timeline.prepareToneTimeline(currentSongDirectory(), schedule);
+        !prepared.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Could not publish the tone switch schedule playing={} regions={} detail={:?}",
+            playing,
+            schedule.size(),
+            prepared.error().message);
+    }
+}
+
 // THE LAW: the audible tone is a pure function of three inputs — the selection (a selected tone
 // region's tone), the keyboard position (the region under the armed caret, else under the
 // transport) and the tone model (which region references which tone) — and it is re-derived exactly
@@ -280,7 +322,8 @@ void EditorController::Impl::activateToneAtCursor()
 // one. The keyboard position changes at every cursor move and at every caret arming, and both call
 // here. Points the rig at the active region's tone document and rebinds the signal-chain panel to
 // what the rig reports back. Leaves the audible tone unchanged when nothing resolves (no content
-// loaded, or the region has no tone yet).
+// loaded, or the region has no tone yet), and — see the guard below — while the transport plays,
+// where the derivation still runs but the baked schedule owns the rig.
 //
 // Idempotent on purpose, so no call site has to ask first whether the tone can have changed: the
 // chain replacement below is a no-op against a chain the panel already renders, and the fader moves
@@ -305,7 +348,13 @@ void EditorController::Impl::syncAudibleTone()
     // ever made for.
     const std::string active_region_id = activeToneRegionId();
     m_audible_region_id = active_region_id;
-    if (active_region_id.empty())
+
+    // Everything above is DISPLAY — the tone row's active flag, the lanes, the panel's idea of
+    // which region holds the playhead — and follows whatever the transport does. Everything below
+    // writes the RIG, which the baked schedule owns while the transport plays (publishToneSchedule
+    // above states the law). Writing anyway would be undone by the next audio block, so the frame
+    // tick that reaches here on a boundary crossing while playing updates the display and stops.
+    if (active_region_id.empty() || m_transport.state().playing)
     {
         return;
     }
@@ -360,17 +409,24 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
 // containment rule every other cursor-follow site resolves through, so no surface can hold a second
 // opinion about where a region begins.
 //
-// THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays. So the frame asks one
-// question — is the region the rig is AUDIBLY on still the one under the playhead? — and hands the
-// tone back to the cursor whenever it is not. Two things can part them while playing: a BOUNDARY
+// THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays — and the AUDIO already
+// says so, because the schedule baked at Play switches the branch gains on the audio thread. So
+// this tick is DISPLAY ONLY: it notices the crossing the audio thread has already made and moves
+// the editor's idea of the audible region onto it, so the tone row's active flag and the lanes
+// follow. syncAudibleTone makes no rig call while playing (its guard states the ownership law), so
+// nothing here can change what is heard.
+//
+// The frame asks one question — is the region the editor is AUDIBLY on still the one under the
+// playhead? — and re-derives whenever it is not. Two things can part them while playing: a BOUNDARY
 // CROSSING, and an UNDO OR REDO of a marker edit — undo stays live mid-play (the tone designer
 // edits mid-play and must stay undoable), so that is the one way the MODEL can still move under a
-// standing playhead. No marker selection can exist to outrank the cursor (Play clears it, and
-// selecting is refused), and no forward marker edit can land. Comparing against the AUDIBLE region
-// rather than the last transport move is what covers the undo case: m_audible_region_id is written
-// where the audible tone is decided, so a transition that changes WHICH REGION holds the playhead
-// is seen on the next frame. A transition changing only which TONE the same region names is not —
-// that gap is the undo-resync item in docs/tracking/backlog.md, not the frame tick's to close.
+// standing playhead; the schedule itself is rebaked there, in completeUndoTransition. No marker
+// selection can exist to outrank the cursor (Play clears it, and selecting is refused), and no
+// forward marker edit can land. Comparing against the AUDIBLE region rather than the last transport
+// move is what covers the undo case: m_audible_region_id is written where the audible tone is
+// decided, so a transition that changes WHICH REGION holds the playhead is seen on the next frame.
+// A transition changing only which TONE the same region names is not, and needs no frame: the
+// rebake carries it into the audio and the transition's own publish carries it into the display.
 //
 // Comparing region IDS — not tones — is exact because the coalesce law forbids a boundary with no
 // tone change across it, so adjacent regions never share a tone and "the region changed" IS "the

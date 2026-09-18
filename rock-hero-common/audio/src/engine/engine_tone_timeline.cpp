@@ -9,10 +9,12 @@
 namespace rock_hero::common::audio
 {
 
-// Bakes the switch schedule onto the loaded rig's branch-gain curves. One-time message-thread
-// ValueTree work: curve edits under the rack state trigger ONE coalesced, lock-free graph
-// rebuild (old graph keeps playing until the new one is ready; live plugins take the
-// initialiseWithoutStopping path), which is why baking belongs in preparation, never mid-song.
+// Bakes the switch schedule onto the loaded rig's branch-gain curves, and clears them for an empty
+// schedule. Message-thread ValueTree work only: a curve edit rebuilds NO playback graph (Edit's
+// TreeWatcher has no automation-curve or automation-point case), and its one deferred consequence
+// is a ~10 ms per-parameter iterator swap. Measured at 0.04-0.5 ms for 4-64 regions, independent of
+// tone count, so preparing is cheap enough to run at a transport boundary — the editor bakes at
+// Play and clears at every stop, while the game bakes once per rig load.
 std::expected<void, LiveRigError> Engine::prepareToneTimeline(
     const std::filesystem::path& /*song_directory*/,
     std::span<const common::core::ToneSwitchRegion> regions)
@@ -47,8 +49,10 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
     // it at the one place schedules are baked.
     m_impl->m_edit->getAutomationRecordManager().setReadingAutomation(true);
 
-    // An empty schedule leaves selection-driven switching in charge (tone-less arrangements).
-    // Curves are still cleared so a previous song's schedule can never leak into this one.
+    // An empty schedule hands the branch gains back to setAudibleTone: a tone-less arrangement, and
+    // the editor's paused state, both ask for exactly that. Curves are always cleared first, so a
+    // previous schedule can never leak into this one and a cleared parameter stops being automated
+    // at all — which is what lets the direct write own the gain again.
     for (const ToneRackBranch& branch : m_impl->m_tone_rack->branches)
     {
         const tracktion::AutomatableParameter::Ptr parameter =
@@ -89,11 +93,13 @@ tracktion::RackType* Engine::Impl::loadedToneRack() noexcept
 // the playback context released leaves every tone parameter reading its pre-jump value.
 // RackType::updateAutomatableParamPositions is the engine's public hook for exactly this: it walks
 // the rack's plugins and modifiers into AutomatableParameter::updateToFollowCurve, which reads the
-// curve directly rather than the audio-thread parameter stream, so it needs no running graph and
-// honours a single-point curve the stream discards. It deliberately bypasses
-// setAutomatableParamPosition's lastTime dedupe and its isReadingAutomation() gate;
-// prepareToneTimeline pins that flag on, so there is nothing left to gate against. One call covers
-// the whole rig because every tone plugin and every branch gain lives inside the single rack.
+// curve directly rather than the audio-thread parameter stream, so it needs no running graph. It
+// reaches only parameters Tracktion considers automated (updateAutomatableParamPosition is gated on
+// isAutomationActive()), and a curve of one point settles as not automated once its deferred
+// iterator update runs — which is why every envelope this rig bakes carries at least two points. It
+// deliberately bypasses setAutomatableParamPosition's lastTime dedupe and its isReadingAutomation()
+// gate; prepareToneTimeline pins that flag on, so there is nothing left to gate against. One call
+// covers the whole rig because every tone plugin and every branch gain lives inside the one rack.
 //
 // This is the only place a position reaches the rack, and publishClockBoundary is its only caller:
 // every playhead discontinuity runs through that boundary, so no port surface pushes position.
