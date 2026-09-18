@@ -1228,6 +1228,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     using ChartMarker = std::variant<ChartCursor, ChartCaret>;
     ChartMarker m_chart_marker{ChartCursor{}};
 
+    // THE writer of the armed caret: arms the marker and re-derives the audible tone, because
+    // where the keyboard stands is a position input of that tone.
+    void setArmedCaret(ChartCaret caret);
+
     // Returns the armed caret, or null while the marker is passive.
     [[nodiscard]] const ChartCaret* armedChartCaret() const noexcept;
 

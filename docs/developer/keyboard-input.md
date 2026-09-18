@@ -509,10 +509,11 @@ SECONDS-space sibling of `keyboardPosition()`, for the rules that resolve in sec
 caret's own grid position converted exactly — never the quantised reading — else the transport's
 clock, which a playing transport always gives since arming is paused-only. The **audible tone** reads
 it (ruled 2026-09-18): the active tone is the selected region else the region where the keyboard
-stands, so every caret arming re-derives it (`armChartCaret`, `armChartHeldStopHandle`,
-`armLaneCaret` each end in `syncAudibleTone`) and a caret stepped into the next tone region takes
-the rig, the lanes and the signal-chain panel with it. Arming still seeks NOTHING — the playhead does
-not move for a caret. Up/Down walk ONE stack of
+stands, so every WRITE of the caret re-derives it — `setArmedCaret` is the one writer of the armed
+caret and ends in `syncAudibleTone`, which is why a caret stepped into the next tone region takes
+the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a nudged note or
+automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
+does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
 — the ruler's section, tempo and time-signature rows, the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes

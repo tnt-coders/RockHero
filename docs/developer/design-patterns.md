@@ -104,6 +104,11 @@ Exemplars, each the *only* home of its rule:
   alternative has its own seam, `chartSelectionMutable()`, whose EMPLACE branch (the one that
   replaces another kind) owes the same re-derivation; its early return does not, because a marquee
   drag reaches it once per move.
+- `setArmedCaret(...)` (`editor_controller_impl.h`) — the one writer of the armed caret, carrying
+  the audible-tone re-derivation because where the keyboard stands is one of that tone's three
+  inputs. Five sites arm the caret — the three arming funnels plus a caret riding a nudged note or
+  automation point — and a caret that crossed a tone-region boundary while riding was the bug that
+  proved a tail each site had to remember was a rule stated five times.
 - `valueBandFor`/`valueBandY` (`ui/src/tone/tone_automation_lanes_view.h`) — the lane
   value-band geometry authority that replaced five hand-copied formulas across paint, hit-test,
   and editor anchoring.

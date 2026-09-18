@@ -2132,8 +2132,8 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         caret->lane->instance_id == selection.instance_id &&
         caret->lane->param_id == selection.param_id && caret->position == selection.position)
     {
-        m_chart_marker =
-            ChartCaret{.position = new_position, .string = caret->string, .lane = caret->lane};
+        setArmedCaret(
+            ChartCaret{.position = new_position, .string = caret->string, .lane = caret->lane});
     }
     setSelection(
         AutomationPointSelection{

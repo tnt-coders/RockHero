@@ -238,6 +238,18 @@ void EditorController::Impl::clearCursorCoupledSelection()
     }
 }
 
+// THE ONE WRITER of the armed caret, and the reason it exists: where the keyboard stands is one of
+// the three inputs the audible tone is derived from (syncAudibleTone's law), and arming never
+// seeks, so the transport cannot report the caret's new region on its behalf. Every write of it
+// therefore re-derives the tone HERE — a caret riding a nudged note across a tone-region boundary
+// as much as a deliberate arming — rather than at each site that moves it. The sync is idempotent,
+// so a write that lands inside the region the rig already plays costs one compare.
+void EditorController::Impl::setArmedCaret(ChartCaret caret)
+{
+    m_chart_marker = std::move(caret);
+    syncAudibleTone();
+}
+
 // Returns the armed caret, or null while the marker is passive.
 const EditorController::Impl::ChartCaret* EditorController::Impl::armedChartCaret() const noexcept
 {
@@ -618,7 +630,11 @@ void EditorController::Impl::armChartCaret(
     {
         channel = common::core::ChartStopChannel::Sounding;
     }
-    m_chart_marker = ChartCaret{.position = position, .string = string, .channel = channel};
+    // The write re-derives the audible tone before the selection below is replaced, which is the
+    // same answer either way: the only selection that outranks the caret is a selected tone region,
+    // and both branches below replace it through chartSelectionMutable's emplace — itself a
+    // re-derivation — so the last word always comes after this new caret is in place.
+    setArmedCaret(ChartCaret{.position = position, .string = string, .channel = channel});
     if (const std::optional<ChartSelectionKey> object = chartObjectAt(position, string);
         object.has_value())
     {
@@ -639,10 +655,6 @@ void EditorController::Impl::armChartCaret(
     // restore at project open, where the loaded chart is already settled and the sweep finds
     // nothing.
     static_cast<void>(settleChart());
-    // Where the keyboard stands is an input to the audible tone (syncAudibleTone's law), and this
-    // arm is the only thing that moved it: arming never seeks, so the transport cannot report the
-    // caret's new region. Idempotent, so an arm within the same region costs one compare.
-    syncAudibleTone();
 }
 
 // THE SELECTION HANDLE: a selected note's satellite belongs to the selection, so reaching for it
@@ -658,19 +670,17 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
 {
     settleChartFretEntry();
     disarmChartVerbWindow();
-    m_chart_marker = ChartCaret{
-        .position = slot.position,
-        .string = slot.string,
-        .channel = common::core::ChartStopChannel::Held,
-        .lane = {},
-    };
+    setArmedCaret(
+        ChartCaret{
+            .position = slot.position,
+            .string = slot.string,
+            .channel = common::core::ChartStopChannel::Held,
+            .lane = {},
+        });
     // A caret move is a settle point whatever else it does, which is the one thing this shares with
     // the arm it deliberately is not: the press that reached this stop is where a claim the chart
     // no longer justifies gets written down as the pick it plays as.
     static_cast<void>(settleChart());
-    // A caret move is equally a keyboard-position move, and the selection this arm deliberately
-    // preserves cannot re-derive the tone on its behalf.
-    syncAudibleTone();
 }
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
@@ -693,11 +703,10 @@ void EditorController::Impl::armLaneCaret(
     {
         setSelection(std::monostate{});
     }
-    m_chart_marker =
-        ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)};
-    // The marker write above is what moved the keyboard position, so the tone re-derives after it,
-    // not in the setSelection call ahead of it, which still saw the caret's old slot.
-    syncAudibleTone();
+    // The marker write is what moved the keyboard position, so the tone re-derives with it and not
+    // in the setSelection call ahead of it, which still saw the caret's old slot.
+    setArmedCaret(
+        ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)});
 }
 
 bool EditorController::Impl::lanePointAt(
@@ -2040,9 +2049,12 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         {
             const ChartSlotKey landed =
                 chartCaretSlotFor(session().song().tempo_map, landed_keys.front());
-            m_chart_marker = ChartCaret{
-                .position = landed.position, .string = landed.string, .channel = rides_channel
-            };
+            setArmedCaret(
+                ChartCaret{
+                    .position = landed.position,
+                    .string = landed.string,
+                    .channel = rides_channel,
+                });
             updateView();
         }
     }

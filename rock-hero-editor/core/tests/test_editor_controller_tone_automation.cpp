@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
@@ -2174,6 +2175,55 @@ TEST_CASE(
     // 2.5 s is the second beat of measure 2, a quarter note inside the later region.
     editor.controller.onChartPointerDown(chartPressAt(2.5, 1));
     editor.controller.onChartPointerUp(chartPressAt(2.5, 1));
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].active);
+    CHECK(state->tone_track.regions[1].active);
+}
+
+// A caret that rides a NUDGED note across the boundary carries the rig too: the caret is the
+// keyboard position however it got there, so the one writer re-derives the tone for a caret moved
+// by an edit exactly as for one moved by an arrow. The nudge authors, and still seeks nothing.
+TEST_CASE(
+    "EditorController follows a caret riding a nudged note into another tone's region",
+    "[core][tone-automation]")
+{
+    common::core::Song song = makeTwoToneChartedSong(gridAt(2, 1));
+    std::optional<common::core::Chart>& charted = song.arrangements.front().chart;
+    REQUIRE(charted.has_value());
+    if (charted.has_value())
+    {
+        // One quarter note short of the boundary, so a single Alt+Right step lands the note on the
+        // later region's first beat.
+        charted->notes.push_back(makeTestNote(gridAt(1, 4), 1, 5));
+    }
+    AutomationEditor editor{std::move(song)};
+    const double parked_seconds = editor.transport.position().seconds;
+    REQUIRE(parked_seconds < 2.0);
+
+    // Four presses from the passive marker: the first arms in place on the first beat of measure 1
+    // and the three steps after it reach the note, which the arming selects.
+    for (int press = 0; press < 4; ++press)
+    {
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    }
+    REQUIRE(
+        editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+
+    const common::core::Arrangement* const arrangement =
+        editor.controller.session().currentArrangement();
+    REQUIRE(arrangement != nullptr);
+    REQUIRE(arrangement->chart.has_value());
+    if (arrangement->chart.has_value())
+    {
+        REQUIRE(arrangement->chart->notes.size() == 1);
+        CHECK(arrangement->chart->notes.front().position == gridAt(2, 1));
+    }
     CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
     CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
