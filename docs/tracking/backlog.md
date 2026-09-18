@@ -823,6 +823,8 @@ Each re-verified against the code before being written down.
   exact `<=>` comparison can see that difference and re-publish the rounded value once. Inaudible,
   and no longer a disagreement between two stores; an exact dB comparison across the boundary is
   still never safe. Fix, if it is ever worth one, by storing the level as a double on the branch.
+  Retired by Phase 2 of docs/plans/in-progress/gain-block-and-signal-chain-panel.md, which deletes
+  that store.
 
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 
