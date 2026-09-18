@@ -728,6 +728,28 @@ finger for. **Remedy**: allow `held` beside a node ONLY as a planted finger stri
 (the pressed stop stays the claim, so nothing about pitch moves), with the pull-off derivation of
 rule 12c supplying it first, so the notation states the finger before the stored field may.
 
+### A slide on the pressed stop under a harmonic would draw the wrong hand — trigger: a fret keyframe on a pressed-stop harmonic
+
+Physically the fretting hand can slide the pressed stop while a harmonic rings above it, and the
+chart model already follows it: `soundingStopAt` derives the sounding place as
+`nodeStop(*harmonic_node + (fret_at_point - note_fret))`
+(`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:1639`), so the node RIDES the
+stop by construction — fret spacing is logarithmic, so the node's offset above the stop is constant
+in fret units and a glide that moves the stop moves the node by the same amount.
+
+**Why it is accepted rather than designed.** What the model gets right the DRAWING would get wrong:
+a slide tail drawn on the node reads as the picking hand sliding, when the hand that moves is the
+LEFT one — the picking hand stays put on the node it is damping, which travels only because the stop
+beneath it did. Saying that correctly means deciding a mark for "the stop moved, so the node moved
+with it", on both surfaces, which is a notation question nobody has asked. No known song does this,
+and no corpus package carries one, so there is nothing to sight the answer against.
+
+**Trigger**: a corpus or authored figure with a fret keyframe on a harmonic over a pressed stop
+(`harmonicOverPressedStop`). **Remedy**: design the mark with the notation expert before drawing
+anything — the existing slide tail is the one shape it must NOT reuse unexamined. Recorded with
+`docs/plans/in-progress/harmonic-display-followups.md` item 7, which is where the surrounding
+harmonic display rulings live.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
