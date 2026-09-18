@@ -479,6 +479,74 @@ TEST_CASE("A tapped harmonic's satellite states its pressed stop, read-only", "[
     }
 }
 
+// AN ARTIFICIAL HARMONIC'S SATELLITE STATES THE SAME UNSTORED STOP, at every one of those layers.
+// The picking hand touches the node and the fretting hand presses the fret beneath it, so the head
+// prints the node and the number beside it is the note's own fret — which no field carries, exactly
+// as under the tapped harmonic. Only the hand that sounded the string differs between the two, and
+// nothing about the mark turns on that: it is drawn without a reveal, the caret reaches it, a digit
+// typed at it is refused in red, and Delete withdraws nothing.
+TEST_CASE("An artificial harmonic's satellite states its pressed stop, read-only", "[core][chart]")
+{
+    // The tapped-shape figure with the string-3 note PICKED instead of tapped, stopped at 7 with
+    // the octave node at 19 touched over it: the chord holds strings 1 and 2 across it as before.
+    common::core::Chart touching = makeTappedShapeChart();
+    touching.notes[2].attack = common::core::NoteAttack::Pick;
+    touching.notes[2].fret = 7;
+    touching.notes[2].harmonic_node = 19.0;
+    HeldStopFixture fixture{std::move(touching)};
+
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.notes.size() == 3);
+    CHECK(tab.notes[2].held == std::optional{7});
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<common::core::StopMarkViewState>& mark = tab.notes[2].stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        CHECK(mark->face == common::core::StopMarkFace::Standing);
+        CHECK(common::core::stopMarkShown(*mark, false));
+    }
+
+    // Leave the caret on the head, so the satellite click is what changes the channel — and it
+    // reaches the mark with nothing revealed, because the mark is drawn.
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // READ-ONLY: the digit is refused in red rather than landing on the sounding fret beside it.
+    fixture.controller.onChartFretDigitTyped(4);
+    const std::optional<ChartPendingFretViewState>& pending =
+        chartEditState(fixture.view).pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "4");
+        CHECK_FALSE(pending->valid);
+    }
+
+    // DELETE withdraws nothing: the number the satellite shows is the note's own pressed fret, and
+    // there is no held field to take.
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    if (chart != nullptr)
+    {
+        REQUIRE(chart->notes.size() == 3);
+        CHECK(chart->notes[2].attack == common::core::NoteAttack::Pick);
+        CHECK(chart->notes[2].fret == 7);
+        CHECK_FALSE(chart->notes[2].held.has_value());
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<double>& node = chart->notes[2].harmonic_node;
+        REQUIRE(node.has_value());
+        if (node.has_value())
+        {
+            CHECK_THAT(*node, Catch::Matchers::WithinAbs(19.0, 0.001));
+        }
+    }
+}
+
 // The keyboard twin of that click: the caret visits both marks of one note in DISPLAY order — the
 // head, then the satellite to its right — and reversed going left. On the held stop the digits go
 // where the click's do, and Delete takes the STATEMENT rather than the note under it.

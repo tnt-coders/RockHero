@@ -211,15 +211,21 @@ std::vector<std::optional<int>> chartHeldStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // THE PLANT'S FACE: a fretting-hand onset IS the hand, so the one second stop it can hold
-        // is the one a pull-off PLANTS beneath it — the wide table the hold-under law derives
-        // whichever hand made the onset, which is this note's whole held tier. Every tier below is
-        // the RIGHT-HAND onset's, whose fretting-hand stop the claim query names
-        // (\ref claimedStop): the planted finger beside a plain tap or a scrape, the pressed fret
-        // under a tapped harmonic.
+        // THE PRESSED STOP, first of the fretting hand's two tiers: a harmonic sounded over a
+        // pressed stop prints the NODE at its head while the hand is on the stop below it
+        // (\ref harmonicOverPressedStop), so that stop is what this note holds — and it OUTRANKS
+        // the plant, because the pressed fret is pitch-critical and nothing else states it, while a
+        // plant is a span fact the bracket prints.
+        //
+        // THE PLANT'S FACE: every other fretting-hand onset IS the hand, so the one second stop it
+        // can hold is the one a pull-off PLANTS beneath it — the wide table the hold-under law
+        // derives whichever hand made the onset. Every tier below is the RIGHT-HAND onset's, whose
+        // fretting-hand stop the claim query names (\ref claimedStop): the planted finger beside a
+        // plain tap or a scrape, the pressed fret under a tapped harmonic.
         if (!rightHandOnset(note.attack))
         {
-            held[index] = planted_stops[index];
+            held[index] =
+                harmonicOverPressedStop(note) ? std::optional{note.fret} : planted_stops[index];
             continue;
         }
         // Bound to a local so the presence test and the read are provably the same object. The

@@ -2,10 +2,12 @@
 
 Status: **DESIGN RECORD, not scheduled.** Opened 2026-09-15, the day the user scoped harmonic
 authoring to the natural and pinch families only and deferred the artificial (touch-over-a-stop)
-and tapped family here. Nothing below is built. **The user has ruled NOTHING in this record beyond
-the deferral itself** — every design statement is either a verified code fact, published-notation
-precedent, or the music-notation expert's recommendation of 2026-09-15, and each is labelled as
-such. The rulings the user still owes are listed at the bottom.
+and tapped family here. The VERB is still unbuilt. The DISPLAY half is not: rulings 4 and 5 were
+ruled 2026-09-18 and shipped with the pressed-stop rule, which states the stop of any harmonic
+standing over one on both surfaces whether or not the editor can yet author one. Every other design
+statement below is a verified code fact, published-notation precedent, or the music-notation
+expert's recommendation of 2026-09-15, each labelled as such. The rulings the user still owes are
+listed at the bottom.
 
 ## Why this exists
 
@@ -38,8 +40,9 @@ verb so the deferral does not lose it.
   node is `stop + offset` and fret spacing is logarithmic
   (`rock-hero-editor/core/src/chart/chart_edits.cpp:1338-1353`). 2D labels the head through
   `tabNoteHeadText(note, fret_at_head)` (`rock-hero-common/ui/src/tab/tab_paint_core.cpp:1135`,
-  described at `docs/developer/the-editor-2d-views.md:502-509`). 3D centres the fret-span line on
-  the node via `harmonicMarkFootprint` (`docs/developer/the-3d-highway.md:199-216`).
+  described at `docs/developer/the-editor-2d-views.md:502-509`) and states the pressed stop on the
+  note's own satellite. 3D runs the fret-span line from that stop to the node via
+  `harmonicMarkFootprint` (`docs/developer/the-3d-highway.md:199-216`).
   `planClearHarmonic` (`chart_edits.cpp`) removes it.
 - **It is NEVER authored.** `rg -n "harmonic_node" rock-hero-editor/core/src` finds exactly three
   editor writers: `harmonicTouchNote`, which forces `fret = 0` before resolving the stop
@@ -47,9 +50,11 @@ verb so the deferral does not lose it.
   physical stop and leaves the node off the neck (`chart_edits.cpp:1773-1776`); and the retype
   above, which only *moves* a node that already exists. No verb produces `fret > 0` plus an on-neck
   node.
-- **2D drops the stop.** For a `fret > 0` harmonic the head carries the NODE and nothing on the
-  head states the pressed fret (`tab_paint_core.cpp:1135`, `the-editor-2d-views.md:502-509`). The
-  number a charter reads is the touch; the press is invisible.
+- **Both surfaces state the stop (RULED 2026-09-18).** The head still carries the NODE, and the
+  pressed fret stands beside it: in 2D on the note's own SATELLITE — the digit column a tapped
+  harmonic already used — standing and read-only, and in 3D as a fret-span line running from the
+  stop to the node. One predicate names the family on both surfaces,
+  `harmonicOverPressedStop(fret, node, attack)` in `chart.h`.
 
 ## The notation precedent (the expert's findings, 2026-09-15)
 
@@ -102,12 +107,14 @@ bridge-side node at `stop + 12 * log2(p)`, of which today's fixed `p = 2` — th
 arm of `planSetAttack` writes — is the default case. Recorded so the stop verb's picker is designed
 against a pinch that names partials; nothing about it is signed.
 
-**Surfaces.** The head keeps the **node**. But the **stop must also be recoverable on both
-surfaces** for a `fret > 0` harmonic. 2D: the published compound — the stop beside the bracketed
-touch, the shape legends print as "A.H. 5 17" — with the exact form a question for the UI design
-expert. 3D: the node-centred fret-span line becomes a **stop→node** line, saying "press here, touch
-there". Leaving 3D node-only once authoring exists would let the surfaces diverge, which the
-project forbids as a standing rule.
+**Surfaces — RULED 2026-09-18, and built ahead of the verb.** The head keeps the **node**, and the
+**stop is recoverable on both surfaces** for a `fret > 0` harmonic. 2D: the stop takes the note's
+own **SATELLITE** — the digit column outboard of the bracket's closing bar that a tapped harmonic
+already used — standing and read-only, which is the published compound's "stop then touch" pair in
+the column pair this lane already has, rather than a new mark. 3D: the fret-span line runs from the
+**stop to the node**, saying "press here, touch there", and reduces to today's node-centred line for
+a natural, where the two ends coincide. Leaving either surface node-only would let them diverge,
+which the project forbids as a standing rule.
 
 **Picker rows.** Absolute touch positions with the partial ordinal beside them — the vocabulary the
 shipped natural picker (`SetChartHarmonicNode`, whose partial became a `std::optional<int>` on
@@ -156,22 +163,24 @@ replaced.
 - **The one-way door.** An imported artificial harmonic can be *cleared* (`planClearHarmonic`,
   `chart_edits.cpp`) but never authored and never restored. A charter who clears one has
   destroyed data the editor cannot rewrite. Live today.
-- **2D drops the stop.** For a `fret > 0` harmonic the pressed fret appears nowhere on the head
-  (`tab_paint_core.cpp:1135`). Live today on imported charts — roadmap 57 cites a real
-  third-partial artificial with its node at 24.02.
+- ~~**2D drops the stop.**~~ **CLOSED 2026-09-18**, independently of this verb: the pressed fret of
+  any harmonic standing over one now states itself beside the head on both surfaces (see "What
+  exists today" above). The figure that exposed it — roadmap 57's real third-partial artificial with
+  its node at 24.02 — reads its press off the satellite.
 
 ## Rulings for the user
 
-Each with the expert's recommended answer; none of these is decided.
+Each with the expert's recommended answer. The two SURFACE questions were ruled 2026-09-18 and are
+marked so; the verb's four are still open.
 
 1. **One key or two?** — Recommended: two. `H` stays natural-only; the stop verb is its sibling.
 2. **Which chord for the stop verb?** — Recommended: `Alt+H`, subject to the keymap matrix and the
    naming expert.
 3. **Ladder length on the stop verb** — Recommended: through the 8th–9th partial, with the
    validation bound unchanged at 16, and compared against the natural picker's ruled 2–16.
-4. **The 2D form** — Recommended: the published compound (stop beside bracketed touch); exact shape
-   to the UI design expert.
-5. **The 3D form** — Recommended: the fret-span line becomes stop→node.
+4. **The 2D form** — **RULED 2026-09-18**: the note's own satellite, standing and read-only — the
+   same column and the same face a tapped harmonic's pressed stop already wears.
+5. **The 3D form** — **RULED 2026-09-18**: the fret-span line runs stop→node.
 6. **Does the touch verb write `attack: Tap`?** — Recommended: no; the attack axis stays with `T` /
    `Shift+T`.
 

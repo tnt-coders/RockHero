@@ -1222,9 +1222,12 @@ neighbours.
     **WHERE A SATELLITE STANDS is a question about AUTHORSHIP**, not about where in a span the note
     sits (`StopMarkFace`, written once in `chart_projection.cpp`). A stop THE CHART ITSELF STATES
     stands wherever it lies — front, mid-span and span-less alike — because such a statement is the
-    charter's and nothing else in the picture prints it: the authored `held`, and a tapped
-    harmonic's pressed `fret`, which is its claim and is what its pitch is measured from, standing
-    read-only there since the stop is the note's own fret. A DERIVED one does not: the pull-off
+    charter's and nothing else in the picture prints it: the authored `held`, and the pressed
+    `fret` of a harmonic standing over it — the tapped one and the artificial one alike
+    (`harmonicOverPressedStop`) — which is what that note's pitch is measured from, standing
+    read-only there since the stop is the note's own fret. It stands even where a pull-off PLANTS
+    another stop beneath it: the press outranks the plant, which reaches the picture through the
+    covering span's posture instead. A DERIVED one does not: the pull-off
     notation already prints that fret, so it is REVEALED on the note's own truth channel, visible
     exactly while that note's real ring is. And a tap FRONTING a bracket stands whatever its
     authorship, because its own head occupies the string's centre there and the bracket's digit is
@@ -1270,8 +1273,9 @@ neighbours.
     a FRETTING-hand head already states the hand's presence with its own number, so the stop a
     pull-off plants beneath it is the note's own reveal-only satellite (`NoteViewState::held`,
     `StopMarkFace::Revealed`) and the bracket prints nothing on that string, while a fretting-hand
-    head holding no second stop (an artificial harmonic) has no face of its own and the bracket
-    prints its pressed fret, standing.
+    head whose own number is a NODE — an artificial harmonic — HAS a face of its own: the fret it
+    presses, on its own satellite, standing and read-only, so the bracket prints nothing there
+    either.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.
@@ -1292,7 +1296,8 @@ neighbours.
     behind that stop unsayable (the watch item in `docs/tracking/watch-items.md` carries it); the
     same pull-off plants its stop under a FRETTING-hand source too, and there it is a face and a
     refusal rather than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b
-    above).
+    above) — except under a harmonic standing over a PRESSED stop, whose satellite the press itself
+    holds, standing; there the plant reaches the picture through the covering span's posture alone.
 
     A stored `held` is authoritative only where no such evidence exists. **ONE resolver in common
     core is the single reader authority** (`chartClaimedStops`): the span derivation, the

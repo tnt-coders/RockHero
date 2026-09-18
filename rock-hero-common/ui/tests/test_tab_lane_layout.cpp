@@ -304,6 +304,27 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
         }
     }
 
+    // AN ARTIFICIAL HARMONIC wears it too, and for the same reason: the picking hand touches the
+    // node its head prints while the fretting hand presses the stop this column states. The column
+    // answers the FACE and the stop, never which hand sounded the string, so the two harmonics lay
+    // out on one rectangle.
+    common::core::NoteViewState picked = touched;
+    picked.attack = common::core::NoteAttack::Pick;
+    const std::optional<TabHeldStopLayout> artificial_harmonic =
+        tabHeldStopLayout(geometry, picked, false);
+    REQUIRE(artificial_harmonic.has_value());
+    if (artificial_harmonic.has_value())
+    {
+        REQUIRE(standing.has_value());
+        if (standing.has_value())
+        {
+            CHECK(artificial_harmonic->box.x == Catch::Approx(standing->box.x));
+            CHECK(artificial_harmonic->box.width == Catch::Approx(standing->box.width));
+            CHECK(artificial_harmonic->center_x == Catch::Approx(standing->center_x));
+            CHECK(artificial_harmonic->center_y == Catch::Approx(standing->center_y));
+        }
+    }
+
     // A REVEAL-ONLY face is absent until the note's truth is on show, and present exactly then.
     CHECK_FALSE(
         tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), false).has_value());

@@ -44,11 +44,17 @@ enum class StopMarkSlot : std::uint8_t
     /*!
     \brief The satellite column outboard of the closing bar.
 
-    Where a right-hand onset heads the string AT THE MARK'S OWN INSTANT printing a DIFFERENT fret:
-    the tap keeps the centre because it is what rings, and the fretting hand's stop — still true —
-    takes the column beside the bracket. The FRONT TAP, in other words, which is the only tap that
-    displaces anything: one further along the span heads nothing at the mark's instant, so its stop
-    prints in the bracket as an ordinary membership digit.
+    Where a head at THE MARK'S OWN INSTANT owns the string's centre printing a DIFFERENT stop, and
+    states no satellite of its own carrying this one: the head keeps the centre because it is what
+    rings, and the posture's stop — still true — takes the column beside the bracket. The FRONT
+    head, in other words, which is the only one that displaces anything: one further along the span
+    heads nothing at the mark's instant, so its stop prints in the bracket as an ordinary membership
+    digit.
+
+    A right-hand onset printing another stop always lands here, the front tap and the tapped
+    harmonic alike, because the bracket owes that statement. A fretting-hand head lands here only
+    where its own satellite holds some OTHER stop: one already printing the posture's stop would say
+    the number twice, so nothing is drawn on that string at all.
     */
     Satellite,
 };
@@ -87,9 +93,15 @@ enum class StopMarkFace : std::uint8_t
     A stop the note itself CLAIMS, anywhere it sits (\ref claimedStop). A held stop the charter
     typed is one, and a mid-span tap therefore carries TWO marks that say different things: its fret
     prints in the opening bracket as grip MEMBERSHIP (the digit window), and this is the note's own
-    face — what a press addresses and a typed digit retypes. The pressed stop a TAPPED HARMONIC's
-    node rides is the other, standing because it is pitch-critical, and read-only where the typed
-    one is writable: a note carrying a node carries no planted finger for a digit to state.
+    face — what a press addresses and a typed digit retypes.
+
+    The PRESSED STOP a harmonic's node rides is the other, and it is one answer for the whole family
+    (\ref harmonicOverPressedStop): the tapped harmonic and the artificial one alike print the node
+    at the head while the fretting hand is on the stop below it, so that stop stands here because it
+    is pitch-critical and nothing else prints it. Read-only where the typed one is writable — a note
+    carrying a node carries no planted finger for a digit to state — and standing even where a
+    pull-off plants a finger beneath it, because the plant reaches the SPAN while the pressed
+    stop is the note's own statement.
     */
     Standing,
 
@@ -414,29 +426,33 @@ struct NoteViewState
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
-    \brief The fretting-hand stop under a right-hand onset, or the plant beneath a fretting-hand
-           pull-off source; absent elsewhere.
+    \brief The fretting-hand stop under a right-hand onset, the pressed stop under a harmonic whose
+           head prints its node, or the plant beneath a fretting-hand pull-off source; absent
+           elsewhere.
 
-    The COMPLETE resolved stop (\ref chartHeldStops), not the stored `ChartNote::held`, and three
-    tiers fold into it in this order. The note's OWN CLAIM is what the charter typed: the planted
-    finger beside a plain tap or a pick slide, and under a tapped harmonic the pressed stop its node
-    rides, which is the note's own fret (\ref claimedStop). A pull-off off an onset the picking hand
-    stops the string for STATES the stop the other hand was holding under it, so that DERIVATION
-    supersedes the field wherever the notation already says the fret (DERIVED HELD) — and only
-    there, so the pressed stop under a tapped harmonic stands. And where the
-    chart states neither, THE DEFAULT answers: a tap says nothing about the other hand, so the hand
-    is holding whatever grip the covering span holds — its posture's fret on this string, or 0, the
-    open string, where no span covers the note or the posture names no fret there. Every consumer
-    reads this one answer, which is what keeps all three the same kind of statement on every
-    surface.
+    The COMPLETE resolved stop (\ref chartHeldStops), not the stored `ChartNote::held`. Under a
+    RIGHT-HAND onset three tiers fold into it in this order. The note's OWN CLAIM is what the
+    charter typed: the planted finger beside a plain tap or a pick slide, and under a tapped
+    harmonic the pressed stop its node rides, which is the note's own fret (\ref claimedStop). A
+    pull-off off an onset the picking hand stops the string for STATES the stop the other hand was
+    holding under it, so that DERIVATION supersedes the field wherever the notation already says
+    the fret (DERIVED HELD) — and only there, so the pressed stop under a tapped harmonic stands.
+    And where the chart states neither, THE DEFAULT answers: a tap says nothing about the other
+    hand, so the hand is holding whatever grip the covering span holds — its posture's fret on this
+    string, or 0, the open string, where no span covers the note or the posture names no fret
+    there. Every consumer reads this one answer, which is what keeps all three the same kind of
+    statement on every surface.
 
-    PRESENT FOR EVERY RIGHT-HAND ONSET, therefore, and — under THE PLANT'S FACE — for every
-    fretting-hand onset a pull-off PLANTS a stop beneath: a fretting-hand onset IS the hand, so that
-    plant is the one second stop it can hold, and it wears it as its own reveal-only satellite
-    exactly as a tap wears a derived one. Absent on every other note. Presence does not say the
-    chart states a stop; it says the question arises. WHICH tier answered it is \ref stop_mark's
-    \ref StopMarkFace, and whether the stop is drawn at all is that same mark's answer, so a
-    satellite is never inferred from this field alone.
+    PRESENT FOR EVERY RIGHT-HAND ONSET, therefore; for EVERY HARMONIC OVER A PRESSED STOP
+    (\ref harmonicOverPressedStop) — artificial or tapped, whose head prints the node the picking
+    hand touches while the fretting hand is on the stop below it, so the stop the head does not
+    print is stated here; and — under THE PLANT'S FACE — for every fretting-hand onset a pull-off
+    PLANTS a stop beneath: a fretting-hand onset IS the hand, so that plant is the one second stop
+    it can hold, and it wears it as its own reveal-only satellite exactly as a tap wears a derived
+    one. Absent on every other note. Presence does not say the chart states a stop; it says the
+    question arises. WHICH tier answered it is \ref stop_mark's \ref StopMarkFace, and whether the
+    stop is drawn at all is that same mark's answer, so a satellite is never inferred from this
+    field alone.
     */
     std::optional<int> held{};
 
@@ -694,19 +710,20 @@ struct ShapeStringViewState
     pass paints after the brackets, so a head sounding elsewhere covers it, and the satellite is the
     one slot it cannot paint over. Compared as PLACES (\ref ChartStop), never as printed digits: two
     facts that happen to print the same number are still two facts, so a tap at fret 12 under a
-    node-12 grip takes the satellite and both print "12", while a fretted-5 head printing its node
-    "17" over a grip holding 5 puts the 5 in the satellite beside it rather than losing it under the
-    head.
+    node-12 grip takes the satellite and both print "12", and a fretted-5 head printing its node
+    "17" over a grip holding 5 is a head sounding at ANOTHER place, so the 5 is never lost under the
+    head — which ink states it is the hand's question below.
 
     The hand IS the answer to WHO prints a displaced digit (THE PLANT'S FACE). The bracket's number
     is the one statement that the left hand is on the string at all, so under a RIGHT-hand head the
     bracket prints the held stop itself, standing whatever its authorship (\ref
     StopMarkFace::Posture) — under a TAPPED harmonic that stop is the fret it presses, the one its
-    node rides. A FRETTING-hand head already states the hand's presence with its own
-    number, so the stop a pull-off plants beneath it is the note's OWN reveal-only face (\ref
-    NoteViewState::held) and this entry is absent — one ink states it. A fretting-hand head that
-    carries no plant, an artificial harmonic whose head prints its node over the fret it presses,
-    has no face of its own, so the bracket prints that fret, standing.
+    node rides. A FRETTING-hand head already states the hand's presence with its own number, so
+    EVERY second stop it holds is the note's OWN face (\ref NoteViewState::held) and this entry is
+    absent — one ink states it either way: the stop a pull-off plants beneath it, reveal-only, and
+    the PRESSED stop under a harmonic whose head prints its node instead, standing (\ref
+    harmonicOverPressedStop). So the fretted-5 head above puts its 5 in its own satellite and the
+    bracket says nothing on that string.
 
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's

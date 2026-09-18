@@ -127,9 +127,10 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 
 Two things on this board turn on that one fact and neither may answer it for itself: the head
 wears the harmonic cell because of it (\ref highwayHeadMarks below), and the note's fret-span line
-on the floor is drawn NODE-centred instead of slot-wide because of it (`harmonicMarkFootprint` in
-the renderer). A head and a floor mark disagreeing about which notes are harmonics is precisely
-the two-spellings defect, so they read one predicate.
+on the floor runs from the stop to the node rather than spanning its fret slot because of it
+(`harmonicMarkFootprint` in the renderer), node-centred where the stop IS the node. A head and a
+floor mark disagreeing about which notes are harmonics is precisely the two-spellings defect, so
+they read one predicate.
 
 Both halves are the shared chart authorities rather than named attacks. WHETHER the note is a
 harmonic is \ref common::core::isHarmonic, the claim the 2D diamond also reads, which is where a

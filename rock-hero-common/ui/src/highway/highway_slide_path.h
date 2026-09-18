@@ -39,12 +39,14 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 /*!
 \brief Where a STOPPED note sounds on the fretboard axis, and the one authority for that anchor.
 
-A fret-0 note never asks it — the open-string bar across the hand window is its own treatment.
+A genuine open string never asks it — the open-string bar across the hand window is its own
+treatment. That branch is gated on \ref common::core::openString, which a node makes false, so a
+natural harmonic's fret 0 does reach here, and lands on its node exactly as any other harmonic
+does.
 
-A stopped harmonic (a tapped artificial, say — a natural's fret 0 takes the open-string bar and
-never reaches here) is touched AT its node rather than behind a fret wire, so its head, its tail
-and every point its glide passes through must all read the same value: the node lands just past a
-wire while the fret slot's middle sits between the two wires behind it, half a slot away.
+A harmonic is touched AT its node rather than behind a fret wire, so its head, its tail and every
+point its glide passes through must all read the same value: the node lands just past a wire while
+the fret slot's middle sits between the two wires behind it, half a slot away.
 
 The stop is a parameter because a gesture sounds from more than one of them — the onset from the
 note's own fret, a slide from each fret it travels to — and a harmonic's node RIDES its stop: fret
@@ -53,11 +55,12 @@ that moves the stop moves the node by the same amount. Passing `note.fret` there
 onset's anchor, and the shift is zero there. This is the same rule `tabNoteHeadText` labels every
 head of a gesture by, so the two surfaces cannot disagree about what a glide arrives at.
 
-Note the asymmetry with the fret-span line, which marks where the HAND goes and so stays on the
-stop: on an artificial harmonic the hand presses at `fret` while the sound comes from the node
-twelve-or-so frets up, and both facts are drawn. A note's own glow post is not furniture — it is
-the head's shadow, so it travels with the head, node shift and glide included. A KEYFRAME's post is
-furniture and does stay on its stop, because that is a place the hand goes.
+Note the asymmetry with the fret-span line, which marks where the HAND goes: on an artificial
+harmonic the hand presses at `fret` while the sound comes from the node twelve-or-so frets up, and
+both facts are drawn, because that line runs from the stop's fret slot to the node rather than
+sitting on either one alone. A note's own glow post is not furniture — it is the head's shadow, so
+it travels with the head, node shift and glide included. A KEYFRAME's post is furniture and does
+stay on its stop, because that is a place the hand goes.
 
 A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
 this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).

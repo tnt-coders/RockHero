@@ -214,17 +214,23 @@ picking hand, so the fretting hand stays on the stop and the ordinary fret slot 
 node still awaits its own right-hand cue, 25-Q5).
 
 The fret-span line under a note is furniture in exactly that sense, and every note but a harmonic
-takes the wire-to-wire slot line. **A HARMONIC'S LINE IS NODE-CENTRED**: it rides
-`harmonicMarkFootprint` and is centred on the node itself, because the touch that makes the figure
-a harmonic lands there and a slot line points the hand a wire away from it.
+takes the wire-to-wire slot line. **A HARMONIC'S LINE RUNS FROM THE STOP TO THE NODE**: it rides
+`harmonicMarkFootprint`, which spans from the fretting hand's fret slot (its midpoint, the same
+place an ordinary note's slot line is centred on) to the drawn node, so both places the figure is
+made at are stated — the press the head never prints, and the touch that makes it a harmonic. It
+is node-centred exactly where the stop **is** the node, which is a natural harmonic: that hand
+stands on the node its head already prints, its two ends coincide, and the run collapses to the
+node-centred mark. A pressed-stop harmonic's stop is stated on this surface the same way the 2D
+lane states it in the satellite beside the head. A plain tap's planted finger, by contrast, still
+has no 3D cue at all — the remaining 2D/3D asymmetry.
 
 Where every one of those lines ENDS is not a per-line question. **The taper is consistent
 everywhere**: every horizontal line the board lays on its floor — the fret-span line under a note,
 the one under a slide keyframe, and the beat and measure bars alike — dissolves at both x ends over
 the open-string bar's own end-fade, which `pushTaperedFloorQuad` derives from the line's own span
 rather than taking as an argument. A hard end reads as an edge belonging to nothing wherever it
-falls, wires included, and the node-centred line does not stop on the wires that would give a slot
-line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
+falls, wires included, and a harmonic's stop-to-node line does not stop on the wires that would give
+a slot line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
 
 **A song section boundary is a promoted downbeat bar, not a mark of its own.** Sections snap to
 measure downbeats (the authoring verb enforces it), so a boundary *is* a bar the board already
@@ -427,8 +433,9 @@ in `docs/tracking/backlog.md`.
 
 A **harmonic node light** (a floor glow under every note whose node lies on the neck) is tabled the
 same way and recorded in the same place. What stands without it is the FLOOR MARK that light shared
-its position with: a harmonic's fret-span line is drawn NODE-centred rather than wire-to-wire across
-a fret slot, because the touch is at the node and a slot line points the hand a wire away from it.
+its position with: a harmonic's fret-span line runs from its stop to its node rather than
+wire-to-wire across a fret slot, because the press and the touch lie in two places and a slot line
+alone points the hand a wire away from the touch.
 That footprint is `harmonicMarkFootprint`; which notes the board can point at is
 `highwayHarmonicMark`, the same predicate that picks which harmonic cell the head wears, so a
 marked head and a floor mark cannot disagree. A pinch is absent by construction (its node is over
@@ -436,9 +443,9 @@ the body, so the neck has nowhere to point, and its head takes the pinch cell in
 by exclusion (its node is an in-memory latent, not a touch — refused by `isHarmonic` itself).
 
 Neither tabled feature states a FACT the 2D lane would have to answer, which is why their absence
-needs no tab-side change either: the node-centred line restates on the floor what the 2D lane
-already says with the diamond head and the node number, and the hand WINDOW is board-only furniture
-2D has no lit region for.
+needs no tab-side change either: the stop-to-node line restates on the floor what the 2D lane
+already says with the diamond head, the node number and the satellite's pressed stop, and the hand
+WINDOW is board-only furniture 2D has no lit region for.
 
 # Two visual paths: chart visuals and screen-space overlays
 

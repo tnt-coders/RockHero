@@ -909,8 +909,10 @@ ChartShapes deriveChartShapes(
             {
                 return std::nullopt;
             }
-            // A harmonic strike never plants, so it always states its node — the plant arm needs
-            // no harmonic clause.
+            // The plant arm needs no harmonic clause. A NODE-grip harmonic — a natural, whose grip
+            // IS the node — never plants, the resolver refusing a fretHandHarmonic as a pull-off
+            // source, so nothing can displace that node; a harmonic over a PRESSED stop grips the
+            // stop like any other note and states the plant when a pull-off leaves one behind it.
             const std::optional<ChartStop> planted = plantedGrip(planted_stops[*striking]);
             return planted.has_value() ? planted : slot.strikes[string_index];
         };

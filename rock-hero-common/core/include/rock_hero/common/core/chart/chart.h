@@ -1629,6 +1629,35 @@ toggle preserves rather than a touch anybody makes.
 }
 
 /*!
+\brief True when a harmonic is played over a PRESSED stop: the fretting hand presses \ref
+ChartNote::fret while the picking hand touches the node above it.
+
+The artificial (harp) harmonic and the tapped harmonic, which differ only in how the picking hand
+sounds the string. What makes them one family for every surface is that the head prints the NODE
+(\ref soundingStopAt) while the fretting hand is somewhere else, on the stop the head does not
+print — so both surfaces state that stop beside the head, the 2D lane in the satellite and the
+highway as the run of the floor line from the stop to the node. A natural harmonic is out because
+its hand is on the node the head prints; a pinch because its head prints the fret it presses.
+
+\param fret The note's stop.
+\param harmonic_node The note's node, if it has one.
+\param attack The note's attack.
+
+\return True for a harmonic whose fretting hand presses a stop the head does not print.
+*/
+[[nodiscard]] constexpr bool harmonicOverPressedStop(
+    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
+{
+    return fret > 0 && harmonic_node.has_value() && nodeIsOnNeck(attack) && !isScrape(attack);
+}
+
+/*! \copydoc harmonicOverPressedStop(int,const std::optional<double>&,NoteAttack) */
+[[nodiscard]] constexpr bool harmonicOverPressedStop(const ChartNote& note) noexcept
+{
+    return harmonicOverPressedStop(note.fret, note.harmonic_node, note.attack);
+}
+
+/*!
 \brief True when the FRETTING finger is standing on the note's node.
 
 A refinement of \ref fretHandHarmonic rather than a near twin, and it is spelled as one so the two

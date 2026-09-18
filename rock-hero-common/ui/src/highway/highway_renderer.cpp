@@ -724,16 +724,27 @@ constexpr double g_inlay_double_string_spacings = 1.5;
             });
 }
 
-// The footprint a HARMONIC's floor marks occupy: centred on the drawn node — the note's own
-// fretboard anchor, which for a harmonic IS the node (highwayNoteFretboardX) — and slightly wider
-// than the head above it, by half the floor lights' edge band on each side.
+// The footprint a HARMONIC's floor marks occupy: a run from the fretting hand's stop to the drawn
+// node — the note's own fretboard anchor, which for a harmonic IS the node (highwayNoteFretboardX)
+// — widened past each end by the head's own half width plus half the floor lights' edge band.
 //
-// The CENTRE is the decided part: a fret-span line drawn wire-to-wire in a fret slot points a wire
-// away from the hand, because the touch that makes the figure a harmonic is at the node. The WIDTH
-// is derived from the harmonic node light's lit core, spill included, and is kept as the value the
-// centre was sighted at rather than because a light needs matching. A node-centred line one fret
-// slot wide is the obvious alternative if this is ever re-sighted. Stated once here so the mark
-// has one authority rather than a width per drawer.
+// The RUN is the decided part. A harmonic over a PRESSED stop presses one place and touches
+// another, and the board states both: a line on the stop's slot alone points a wire away from the
+// touch that makes the figure a harmonic, while a line on the node alone leaves the pressed stop
+// undrawn here even though the 2D satellite states it beside the head. A natural harmonic's hand
+// is on the node its head already prints, so it has no second place to state — its two ends
+// coincide and the run reduces to the node-centred mark, which is why the ends are asked for
+// separately instead of the natural taking a code path of its own.
+//
+// The STOP end is the fret slot's MIDPOINT (highwayNoteCenterX at fretFor's slot), which is the
+// same authority the non-harmonic branch's wire-to-wire line spans and a slide keyframe's
+// furniture centres on, and what highwayStopX places any pressed fret at — so the hand end of this
+// run lands exactly where an ordinary note's line sits. A near wire would have to pick a side, and
+// which side is nearer flips under `mirrored`.
+//
+// The WIDTH past each end is derived from the harmonic node light's lit core, spill included, and
+// is kept as the value the mark was sighted at rather than because a light needs matching. Stated
+// once here so the mark has one authority rather than a width per drawer.
 //
 // This is highwayFloorFootprint's FRETTED answer spelled here rather than routed through it,
 // because a harmonic never takes the open-string branch — openString is false wherever a node is
@@ -743,9 +754,15 @@ constexpr double g_inlay_double_string_spacings = 1.5;
     const common::core::NoteViewState& note, const common::core::HighwayMetrics& metrics,
     const bool mirrored)
 {
+    const double node_x = highwayNoteFretboardX(note, note.fret, metrics, mirrored);
+    const double stop_x =
+        common::core::harmonicOverPressedStop(note.fret, note.harmonic_node, note.attack)
+            ? common::core::highwayNoteCenterX(common::core::fretFor(note), metrics, mirrored)
+            : node_x;
     return HighwayFloorFootprint{
-        .center_x = highwayNoteFretboardX(note, note.fret, metrics, mirrored),
-        .half_width = metrics.note_half_width + (g_window_light_falloff / 2.0),
+        .center_x = (stop_x + node_x) / 2.0,
+        .half_width = (std::abs(node_x - stop_x) / 2.0) + metrics.note_half_width +
+                      (g_window_light_falloff / 2.0),
     };
 }
 
@@ -1309,14 +1326,14 @@ void pushTailGlowSegment(
 // the quad's OWN span rather than stated by the caller, which is what keeps one dissolve rule
 // instead of a value each site spells.
 //
-// The harmonic line is what forces the question — it is node-centred, so it does not stop on the
-// fret wires that give a slot line its flat ends — but the answer is general: a hard end reads as
-// an edge belonging to nothing wherever it falls, wires included.
+// The harmonic line is what forces the question — it ends on its node, which sits anywhere inside
+// a slot rather than on the fret wires that give a slot line its flat ends — but the answer is
+// general: a hard end reads as an edge belonging to nothing wherever it falls, wires included.
 //
 // Three columns, because one quad carries one linear gradient and this needs a ramp at each end.
 // When z alpha also moves, the mark carries the same x-taper times z-envelope product as a ribbon
 // band. One two-triangle quad cannot carry that product: a fixed split diagonal biases the fade
-// sideways, which is obvious when a harmonic mark is node-centred inside a fret slot. The same
+// sideways, which is obvious when a harmonic mark's end lands inside a fret slot. The same
 // product-error budget used by sustain ribbons bounds the z slices here, and the falling x-taper
 // flips its split so the residual one-slice error mirrors instead of steering the fading trail.
 void pushTaperedFloorQuad(
@@ -4723,9 +4740,9 @@ void HighwayRenderer::Impl::draw(
         // strike transient it keeps the onset anchor and fade while the head pins.
         //
         // WHERE the line spans is the caller's question and the only one left here: a HARMONIC's
-        // is node-centred (harmonicMarkFootprint, below), every other note's runs wire to wire
-        // across its fret slot. HOW it ends is not a question at all — every floor line of this
-        // family dissolves at its ends, which pushTaperedFloorQuad states once.
+        // runs from its stop to its node (harmonicMarkFootprint, below), every other note's runs
+        // wire to wire across its fret slot. HOW it ends is not a question at all — every floor
+        // line of this family dissolves at its ends, which pushTaperedFloorQuad states once.
         const auto push_span_line = [&](const double span_x0, const double span_x1) {
             const double onset_z = time_to_z(note.start_seconds);
             const double core_from_z = onset_z - g_attack_line_half_length;
@@ -5035,13 +5052,14 @@ void HighwayRenderer::Impl::draw(
 
         if (!in_chord)
         {
-            // A HARMONIC's line is centred on the NODE, where the touch that makes the figure a
-            // harmonic actually lands: a slot line would draw the hand a wire away from it. The
-            // footprint function is shared rather than private so the line and anything else
-            // marking a harmonic's place on the floor read one answer.
+            // A HARMONIC's line runs from the fretting hand's STOP to the NODE, the two places
+            // the figure is made at — and collapses onto the node for a natural, whose hand is on
+            // the node already. The footprint function is shared rather than private so the line
+            // and anything else marking a harmonic's place on the floor read one answer.
             //
             // Every other note spans from the FRETTING HAND's fret slot: the wires bound the
-            // line so it sits aligned in a fret, which is exactly where a finger presses.
+            // line so it sits aligned in a fret, which is exactly where a finger presses. That
+            // slot is the stop end of the harmonic's run too, taken at its midpoint.
             if (highwayHarmonicMark(note))
             {
                 const HighwayFloorFootprint footprint =

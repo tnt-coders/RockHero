@@ -1098,19 +1098,21 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
                            const common::core::StopMarkFace face,
                            const bool revealed,
                            const int held = 7,
-                           const std::optional<double> node = std::nullopt) {
+                           const std::optional<double> node = std::nullopt,
+                           const common::core::NoteAttack sounded_by =
+                               common::core::NoteAttack::Tap) {
         common::core::ChartViewState state;
         state.open_strings = common::core::testing::standardTuning();
-        common::core::NoteViewState tap;
-        tap.start_seconds = 10.0;
-        tap.end_seconds = 10.0;
-        tap.string = 3;
-        tap.fret = 12;
-        tap.attack = common::core::NoteAttack::Tap;
-        tap.held = held;
-        tap.harmonic_node = node;
-        tap.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
-        state.notes = {tap};
+        common::core::NoteViewState sounded;
+        sounded.start_seconds = 10.0;
+        sounded.end_seconds = 10.0;
+        sounded.string = 3;
+        sounded.fret = 12;
+        sounded.attack = sounded_by;
+        sounded.held = held;
+        sounded.harmonic_node = node;
+        sounded.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
+        state.notes = {sounded};
 
         const TabLaneMetrics metrics = makeTabLaneMetrics(
             bounds,
@@ -1211,6 +1213,23 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         144));
     CHECK(white_in(
         paint(common::core::StopMarkFace::Standing, false, 5, 17.0),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+
+    // AN ARTIFICIAL HARMONIC prints the same pair for the same reason — a head on the node, the
+    // pressed stop in this column — and only the hand that sounded the string differs. This pass
+    // reads the published face rather than the attack, so the pick's satellite has to be the tap's
+    // to the pixel; an arm that gated on the tapping hand would leave this number undrawn.
+    CHECK_FALSE(white_in(
+        paint(common::core::StopMarkFace::Revealed, false, 5, 17.0, common::core::NoteAttack::Pick),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+    CHECK(white_in(
+        paint(common::core::StopMarkFace::Standing, false, 5, 17.0, common::core::NoteAttack::Pick),
         chip_left + slot.gap,
         chip_right - slot.gap,
         135,

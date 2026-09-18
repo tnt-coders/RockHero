@@ -1220,19 +1220,18 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             });
     }
 
-    SECTION("an artificial harmonic's head prints its node, so the pressed stop it holds prints")
+    SECTION("an artificial harmonic's pressed stop prints once, in the note's own satellite")
     {
         // A fret-5 head damped at node 17 prints "17" — it sounds at the node — while the fretting
-        // hand presses 5, which is the grip the span states. A fret-number comparison (5 == 5)
-        // would suppress the bracket and draw the posture's 5 nowhere; two different places are not
-        // one number, so the 5 prints beside the head's 17. A number stated twice beside itself is
-        // the only thing suppression exists to prevent, and 17 and 5 are not the same number.
+        // hand presses 5, which is the grip the span states. The PLACE test cannot suppress that 5:
+        // two different places are not one number, and 17 and 5 are not the same number. What
+        // suppresses it is the arm below, the one every fretting-hand head takes: the note carries
+        // the pressed stop as its own held stop and prints it beside its own head, so a bracket
+        // digit would be that same 5 twice on one string.
         //
-        // In the SATELLITE, not the bracket's centre: the head owns the string's centre at the
-        // mark's instant whichever hand made it, and a centred 5 under a 17 head is painted over
-        // by the note pass. Which hand struck is no part of the test — the satellite carries what
-        // the fretting hand HOLDS under a head that sounds elsewhere, a tap's and this one's
-        // alike.
+        // Which hand struck is no part of either test. A TAP holding the same 5 keeps its bracket
+        // digit (the sections around this one), because there the span's number is the only
+        // statement that the fretting hand is on the string at all.
         ChartNote artificial = strike(1, 1, 5, Fraction{4});
         artificial.harmonic_node = 17.0;
         const ChartViewState state = project({
@@ -1245,9 +1244,18 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(state.shapes[0].strings.size() == 3);
         CHECK(
             state.shapes[0].strings[0] ==
-            ShapeStringViewState{
-                .string = 1, .stop = frettedStop(5), .digit = StopMarkSlot::Satellite
-            });
+            ShapeStringViewState{.string = 1, .stop = frettedStop(5), .digit = std::nullopt});
+        // WHERE THE 5 WENT, asserted beside the silence so the two are read together: the note's
+        // own satellite, standing, which is the whole ground for the suppression above.
+        REQUIRE(!state.notes.empty());
+        CHECK(state.notes.front().held == std::optional{5});
+        const std::optional<StopMarkViewState>& mark = state.notes.front().stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            CHECK(mark->face == StopMarkFace::Standing);
+            CHECK(stopMarkShown(*mark, false));
+        }
     }
 
     SECTION("a tap AT the bracket displaces its stop into the satellite column")
@@ -1647,29 +1655,72 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a fretting-hand head nothing plants under has no face, so the bracket prints for it")
+    SECTION("an artificial harmonic's PRESSED stop stands on the very same terms")
     {
-        // The artificial harmonic of the sections above, restated from this side: its head prints
-        // its node over the fret it presses, it carries no held stop, and the bracket's satellite
-        // is the only ink that number has — standing, because the pressed fret is authored. The
-        // discrimination against the tapped harmonic above, which stores the same two fields: the
-        // FRETTING hand made this onset, so its own fret was never the other hand's and there is no
-        // claim to wear a face for.
-        ChartNote artificial = strike(1, 1, 5, Fraction{4});
+        // The two hands part company here exactly as they do above — the head prints the node the
+        // picking hand touches, the fretting hand is on the 5 it presses — and only WHICH hand
+        // sounded the string differs. The displaced stop is the fretting hand's either way, so it
+        // wears the same standing face at the same instant: a note with one number of its own has
+        // no second ink to wait for.
+        ChartNote artificial = strike(2, 3, 5, Fraction{1});
         artificial.harmonic_node = 17.0;
-        const ChartViewState state = project({
-            artificial,
-            strike(2, 2, 7, Fraction{3}),
-            strike(3, 3, 9, Fraction{2}),
-        });
+        const ChartViewState state = project({artificial});
+
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& pressed = state.notes.front();
+        CHECK(pressed.held == std::optional{5});
+        const std::optional<StopMarkViewState>& mark = pressed.stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            CHECK(mark->face == StopMarkFace::Standing);
+            CHECK(stopMarkShown(*mark, false));
+            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(pressed.start_seconds, 1e-9));
+            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+        }
+    }
+
+    SECTION("a plant beneath an artificial harmonic leaves the pressed stop standing")
+    {
+        // The pressed stop outranks the plant, because the node the head prints is MEASURED from
+        // it: lose the 5 and the reader cannot place the 17 at all, while the finger waiting behind
+        // it is a span fact the notation already prints in the pull-off. So the note's own
+        // satellite states the pressed stop, standing, and the plant reaches the projection as the
+        // span's own displaced digit. Both of those land in the satellite column at the same
+        // instant in this figure, and the lane paints the note's face last over an opaque ground,
+        // so the 5 is what a reader sees; which of the two that one column should carry is the
+        // open sighting question `docs/tracking/backlog.md` records.
+        ChartNote artificial = strike(1, 3, 5, Fraction{1});
+        artificial.harmonic_node = 17.0;
+        const ChartViewState state = project(
+            {artificial,
+             pull_to(2, 3, 3, Fraction{3}),
+             strike(3, 1, 5, Fraction{2}),
+             strike(4, 2, 7, Fraction{1})});
 
         REQUIRE(state.shapes.size() == 1);
-        const auto pressed =
-            std::ranges::find(state.shapes.front().strings, 1, &ShapeStringViewState::string);
-        REQUIRE(pressed != state.shapes.front().strings.end());
-        CHECK(pressed->digit == std::optional{StopMarkSlot::Satellite});
-        CHECK_FALSE(state.notes.front().held.has_value());
-        CHECK_FALSE(state.notes.front().stop_mark.has_value());
+        const ShapeViewState& span = state.shapes.front();
+        const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
+        REQUIRE(planted != span.strings.end());
+        CHECK(planted->stop == frettedStop(3));
+        CHECK(planted->digit == std::optional{StopMarkSlot::Satellite});
+
+        const auto touched = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
+            return note.string == 3 && note.harmonic_node.has_value();
+        });
+        REQUIRE(touched != state.notes.end());
+        if (touched == state.notes.end())
+        {
+            return;
+        }
+        CHECK(touched->held == std::optional{5});
+        const std::optional<StopMarkViewState>& mark = touched->stop_mark;
+        REQUIRE(mark.has_value());
+        if (mark.has_value())
+        {
+            CHECK(mark->face == StopMarkFace::Standing);
+            CHECK(stopMarkShown(*mark, false));
+        }
     }
 }
 

@@ -788,6 +788,42 @@ TEST_CASE("isHarmonic names a harmonic whichever hand makes it", "[core][chart]"
     CHECK_FALSE(isHarmonic(std::nullopt, NoteAttack::Pick));
 }
 
+// The one name for the family whose head prints somewhere the fretting hand is not, which is why
+// both surfaces state that hand's stop beside the head — the 2D lane in the satellite, the highway
+// as the floor line's run from the stop to the node (RULED 2026-09-18).
+TEST_CASE("harmonicOverPressedStop names the harmonics whose stop the head omits", "[core][chart]")
+{
+    // An ARTIFICIAL harmonic: the fretting hand presses 5 while the picking hand touches the node
+    // above it, so the 17 the head prints says nothing about where that hand is.
+    CHECK(harmonicOverPressedStop(5, 17.0, NoteAttack::Pick));
+    // A TAPPED harmonic stores those same two numbers and differs only in how the picking hand
+    // sounds the string, which is exactly why the two are one case here.
+    CHECK(harmonicOverPressedStop(5, 17.0, NoteAttack::Tap));
+
+    // A NATURAL harmonic's finger is on the node the head prints, so nothing is displaced and the
+    // note has one number to state.
+    CHECK_FALSE(harmonicOverPressedStop(0, 12.0, NoteAttack::Pick));
+    // A PINCH's node lies over the body rather than the neck, so its head prints the very fret the
+    // fretting hand presses.
+    CHECK_FALSE(harmonicOverPressedStop(5, 29.0, NoteAttack::Pinch));
+    // A PLAIN note has nothing touching it at all.
+    CHECK_FALSE(harmonicOverPressedStop(5, std::nullopt, NoteAttack::Pick));
+    // A SCRAPE's node is the in-memory latent its attack toggle preserves rather than a touch
+    // anybody makes, so there is no second place for the head to print.
+    CHECK_FALSE(harmonicOverPressedStop(5, 12.0, NoteAttack::PickSlide));
+
+    // The note overload reads those same three fields, so no caller can ask a different question by
+    // handing over the note itself.
+    ChartNote artificial;
+    artificial.position = GridPosition{.measure = 1, .beat = 1};
+    artificial.string = 1;
+    artificial.fret = 5;
+    artificial.harmonic_node = 17.0;
+    CHECK(harmonicOverPressedStop(artificial));
+    artificial.fret = 0;
+    CHECK_FALSE(harmonicOverPressedStop(artificial));
+}
+
 // The chart-level half of the removed-field tripwire: the posture table and its spans are derived
 // from the notes now (deriveChartShapes), so a document carrying either key states a second,
 // unverifiable copy of what the notes already say. Silently ignoring them is the failure this

@@ -228,12 +228,11 @@ ChartViewState makeChartViewState(
     // all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever
     // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture) — a TAPPED
     // harmonic included, whose pressed stop is that statement while its own head prints the node
-    // it sounds. A FRETTING-hand head states the hand's presence with its own number, so the stop
-    // planted beneath it is the refinement the notation already prints in the pull-off, and the
-    // NOTE wears it as its own reveal-only satellite (\ref chartHeldStops): the bracket then
-    // prints nothing on that string, so exactly one ink states it. A fretting-hand head that holds
-    // no second stop at all — an artificial harmonic pressing the fret its head does not print —
-    // has no face of its own, so the bracket prints its pressed fret, standing.
+    // it sounds. A FRETTING-hand head carries its OWN satellite for whatever second stop it holds
+    // (\ref chartHeldStops) — the stop a pull-off plants beneath it, or the pressed stop under a
+    // harmonic whose head prints the node instead — and the bracket then prints nothing on that
+    // string, so exactly one ink states it. A fretting-hand head holding no second stop states the
+    // hand's presence with its own number, which is the place test above.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds is a fact about the chart, not about which tails the caller drew. The held
@@ -260,11 +259,16 @@ ChartViewState makeChartViewState(
             {
                 return std::nullopt;
             }
-            // The note's own face states a fretting-hand head's plant, so the bracket does not —
-            // asked as an EQUALITY with the posture's stop rather than as the plant's presence,
-            // because the two agree by construction today (the planting strike's posture entry IS
-            // its plant) and a two-place agreement is exactly what a test should not assume: were
-            // they ever to differ, the honest picture is two facts in two inks, never silence.
+            // The note's own face already states a fretting-hand head's second stop, so the bracket
+            // does not — WHICHEVER tier answered it, the plant beneath the head or the pressed stop
+            // under a harmonic printing its node, because the satellite is one ink either way and
+            // this arm reads the resolved table rather than the tier that filled it. Asked as an
+            // EQUALITY with the posture's stop rather than as the held stop's presence, because the
+            // two answer different questions and only their agreement is one number stated twice: a
+            // planting strike's posture entry IS its plant, and so equals its held stop, while a
+            // pressed-stop harmonic that ALSO plants holds its pressed fret here and hands the
+            // posture the plant instead — two stops, two facts. Where they differ the bracket keeps
+            // its digit, so both are published and neither is silenced.
             // Bound once so the presence test and the read are provably the same object.
             const auto index = static_cast<std::size_t>(head - presented_notes.begin());
             const std::optional<int>& held = resolutions.held_stops[index];
@@ -451,18 +455,26 @@ ChartViewState makeChartViewState(
             // Asked of the RESOLUTIONS rather than of the stored field, because who states a stop
             // is exactly what those walks answer and a value comparison cannot: a claim present
             // that no pull-off plants is the authored one, and everything else is answered by
-            // something other than the charter. A tapped harmonic's claim is the pressed stop it
-            // speaks from, its own fret (\ref claimedStop), which the charter typed like any other
-            // number, so it stands here as a typed `held` does — until a pull-off off that very
-            // note puts an entry in the wide table, which reads as the notation's and demotes the
-            // pressed stop to the reveal beside it; that split is the open figure
-            // `docs/tracking/watch-items.md` carries. The wide table is the one ownership
-            // authority (\ref ChartResolutions::planted_stops); a fretting-hand note claims
-            // nothing, so it can only ever answer Revealed here.
+            // something other than the charter. The wide table is the one ownership authority
+            // (\ref ChartResolutions::planted_stops); a fretting-hand note claims nothing, so a
+            // plant is all it can ever answer Revealed from.
+            //
+            // THE PRESSED STOP STANDS, whatever else is true of the note, and it is the one arm
+            // that is not a question of authorship: a harmonic over a pressed stop
+            // (\ref harmonicOverPressedStop) prints the NODE at its head, so the stop below is
+            // pitch-critical and no other ink in the lane states it — the tapped harmonic's and the
+            // artificial one's alike, one family, one answer. It stands even where a pull-off puts
+            // an entry in the wide table off that very note: the plant is a fact about the hand the
+            // SPAN carries, and demoting the pressed stop to a reveal behind it would hide the only
+            // statement of what the string is actually sounding from.
             double mark_seconds = view.start_seconds;
-            const bool authored = resolutions.claimed_stops[note_index].has_value() &&
-                                  !resolutions.planted_stops[note_index].has_value();
-            StopMarkFace face = authored ? StopMarkFace::Standing : StopMarkFace::Revealed;
+            // Named for what it decides rather than for one of its two grounds: the second arm IS
+            // authorship, the first is pitch-criticality, and one of them standing is the whole
+            // question the face asks.
+            const bool stands = harmonicOverPressedStop(note) ||
+                                (resolutions.claimed_stops[note_index].has_value() &&
+                                 !resolutions.planted_stops[note_index].has_value());
+            StopMarkFace face = stands ? StopMarkFace::Standing : StopMarkFace::Revealed;
             // THE ONE EXCEPTION, and it is [D2]'s displaced digit: a tap FRONTING its span's
             // bracket has that bracket printing its stop, because the tap's own head holds the
             // string's centre there. The bracket OWES the statement, so the stop stands whatever

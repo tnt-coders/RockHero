@@ -447,15 +447,18 @@ color strings through it. The glyph renderer itself is the **shared notation pai
 lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,
 and the same for a linked keyframe's head and for a **claimed stop's satellite** — the digit column
 outboard of a bracket's closing bar, where a right-hand onset prints the stop the fretting hand
-holds while its own head prints where the note sounds (the planted `held` beside a plain tap; the
-pressed fret beside a tapped harmonic, whose head prints its node), and where
+holds while its own head prints where the note sounds (the planted `held` beside a plain tap), where
+a HARMONIC OVER A PRESSED STOP prints that pressed fret beside the node its own head prints —
+the ARTIFICIAL one, sounded by a pick or by the fretting hand itself, exactly as much as the tapped
+one — and where
 a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
 column's width lives on `TabLaneGeometry`, derived from the lane's text scale rather
 than measured from the digits, which is exactly what lets the framework-free layout bound the mark
 the painter draws and keeps the painter and the hit test on one authority. It is an independent
 TARGET: clicking it selects the note and pre-arms the
-held-stop entry, so the digits that follow state that stop — read-only on a tapped harmonic, whose
-claimed stop is the note's own fret and whose Held channel therefore has nothing to author.
+held-stop entry, so the digits that follow state that stop — read-only on a harmonic over a pressed
+stop, whose stated stop is the note's own fret and whose Held channel therefore has nothing to
+author.
 
 WHICH column a posture digit lands in is the projection's derivation, not the painter's: it is
 published per posture string (`ShapeStringViewState::digit`), with each claim's own FACE beside it
@@ -479,9 +482,11 @@ authorship. A FRETTING-hand head already states the hand's presence with its own
 a pull-off plants beneath it is the refinement the pull-off already prints: the NOTE wears it as its
 own reveal-only satellite (`NoteViewState::held`, `StopMarkFace::Revealed`), the bracket prints
 nothing on that string, and the held channel refuses to retype it exactly as it refuses a derived
-tap stop. A fretting-hand head that holds no second stop — an artificial harmonic whose head prints
-its node over the fret it presses — has no face of its own, so the bracket prints its pressed fret,
-standing. A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
+tap stop. A fretting-hand head whose own number is a NODE — an artificial harmonic, pressing a fret
+its head does not print — HAS a face: it states that pressed fret on its own satellite, standing and
+read-only (`harmonicOverPressedStop`, RULED 2026-09-18), so the bracket prints nothing on that
+string either, the note's own ink having already said it.
+A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
 FRAME, so it states the whole membership where the reader meets it and an accumulation's members
 print their frets there, their own heads restating them as they arrive. That is why the window is
 the mark's own instant rather than the span: asking over the whole SPAN empties that frame of
@@ -693,9 +698,13 @@ recorded as a sighting item in `docs/tracking/watch-items.md` rather than pre-em
 FACE, note-scoped, at the note's own slot — and whether it stands is a question about AUTHORSHIP
 rather than about where in a span the note sits. A stop **the chart itself states** earns standing
 ink wherever it lies, mid-span and span-less alike: such a statement is the charter's, and nothing
-else in the picture prints it. That is the authored `held`, and a **tapped harmonic's pressed
-fret** — its claim, the stop its own pitch is measured from, which stands for the same reason and is
-read-only, the stop being the note's own fret rather than a field beside it. A stop a PULL-OFF **derives** is already printed by that notation, so
+else in the picture prints it. That is the authored `held`, and a **harmonic over a pressed
+stop** — the tapped one and the artificial one alike (`harmonicOverPressedStop`) — whose pressed
+`fret` is the stop its own pitch is measured from, standing for the same reason and read-only, the
+stop being the note's own fret rather than a field beside it. That pressed stop stands even where a
+PULL-OFF plants another beneath it: the press is what the pitch is measured from, so it OUTRANKS the
+plant, and the plant reaches the picture through the covering span's posture instead of through this
+note's face. A stop a PULL-OFF **derives** is already printed by that notation, so
 it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
 note's real ring is, which is the selection-and-reveal pick the lane already makes. Revealing a note
 shows the whole truth about it at once. And a **tap fronting a bracket** stands whatever its
@@ -721,9 +730,10 @@ about one fret.
 MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is
 the note's own face, what a press addresses and a typed digit retypes. A derived satellite is
 read-only: the derivation owns the stop, so the retype verbs refuse it in red rather than quietly
-landing the digit on the sounding fret beside it. A TAPPED HARMONIC's satellite is read-only for a
-different reason — a harmonic has no planted finger, so the Held channel refuses to state one on a
-note carrying a node, and the pressed stop it shows is retyped through the head that owns it. The refusal keys on the **pull-off derivation's
+landing the digit on the sounding fret beside it. A HARMONIC OVER A PRESSED STOP — tapped or
+artificial — wears a read-only satellite for a different reason: a harmonic carries no planted
+finger of its own, so the Held channel refuses to state one on a note carrying a node, and the
+pressed stop it shows is retyped through the head that owns it. The refusal keys on the **pull-off derivation's
 presence** — asked of the WIDE table (`ChartResolutions::planted_stops`), where a right-hand entry
 IS the derived claim and a fretting-hand entry is the PLANT the note wears itself, both refused
 alike (THE PLANT'S FACE) — and never on the face or on the held field being there, which is what

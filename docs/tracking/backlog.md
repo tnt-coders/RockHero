@@ -621,8 +621,10 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
     string — white excluded by signed convention as the picking hand's. Also unruled: whether the
     light means "a harmonic is here" (as built) or strictly "the left hand acts here". What
     SURVIVES the removal and stands on its own: `highwayHarmonicMark` (the lifted predicate the
-    head cell reads) and `harmonicMarkFootprint` — a harmonic's fret-span line stays NODE-centred,
-    which was the user's own sighting and is right with or without a light over it.
+    head cell reads) and `harmonicMarkFootprint` — a harmonic's fret-span line, which was the
+    user's own sighting and is right with or without a light over it. That line is NODE-centred
+    where the stop IS the node, a natural; since 2026-09-18 a harmonic standing over a PRESSED stop
+    runs it from the stop to the node instead.
 
 - **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
   documented reason the two normalization sweeps were order-dependent ("flattening a claim
@@ -1102,3 +1104,28 @@ written down.
   finalize. Both satellites are read-only to the charter, so one press beeps and the other does
   nothing at all. Align them — both refuse, or both no-op — when the satellite's read-only rule is
   next touched.
+
+## Found while ruling the pressed stop's display (2026-09-18)
+
+- **A plain tap's planted finger has no 3D cue at all.** 2D prints it on the tap's own satellite —
+  the planted `held`, authored or derived or the default fact — while the highway draws the tap's
+  head at the fret it sounds and says nothing about the stop the fretting hand is holding under it.
+  The 2026-09-18 pressed-stop rule gave the highway a stop→node line for a harmonic standing over a
+  pressed stop (`harmonicMarkFootprint`), which is the same class of fact for a different family, so
+  the asymmetry is now visible by contrast — but it is PRE-EXISTING and out of that rule's scope,
+  the tap's planted stop being a fretting-hand fact the highway has never drawn. Deciding it means
+  deciding what a highway mark for "a finger is down here too" looks like, which is a sighting
+  question, not a wiring one.
+
+- **Two digits reach one satellite column under a planting pressed-stop harmonic.** The figure: an
+  artificial harmonic FRONTING its span, pressing 5 with its node at 17, with a pull-off to 3 behind
+  it. The projection publishes both facts, as it should — the note's own satellite states the
+  pressed 5, standing, and the span's posture holds the plant 3, displaced into the satellite slot
+  because the head at that instant sounds at the node — but both are the same string at the same
+  instant, so both `drawSatelliteDigit` calls take the same `bracketColumnsAt` rectangle. The note's
+  own pass paints after the brackets over an opaque ground, so the reader sees the 5 and the 3 is
+  gone. Pinned by the projection test "a plant beneath an artificial harmonic leaves the pressed
+  stop standing" (`test_chart_projection.cpp`), which asserts both publications. What to DO about it
+  is a sighting question with more than one honest answer — a second column, a stacked pair, or a
+  ruling that the press is simply the one the column owes — so it waits for the figure to be seen
+  rather than being pre-empted here.

@@ -276,18 +276,27 @@ walk that establishes it instead of being spelled a second time here.
 
 /*!
 \brief THE COMPLETE HELD TABLE: the stop the fretting hand holds under every head that sounds
-       elsewhere — every right-hand onset, and every fretting-hand onset a pull-off plants under.
+       elsewhere — every right-hand onset, every harmonic over a pressed stop, and every
+       fretting-hand onset a pull-off plants under.
 
 THE DEFAULT HELD FACT. A tap says nothing about the other hand, so the question "what is under this
 tap" always has an answer — and where the chart states none, the answer is a FACT of the tap rather
 than a blank: the hand is holding whatever grip it is holding, and releasing the tap lands on it.
 
-THE PLANT'S FACE. A fretting-hand onset IS the hand, so the one second stop it can hold is the one a
-pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law): that entry is its held stop
-here, so the note wears the plant as its own satellite on the reveal's terms — the notation states
-it in the pull-off itself, exactly as a derived tap stop is stated — and the bracket prints nothing
-beside a head that states the hand's presence itself. A fretting-hand onset nothing plants under
-holds no second stop, so its entry stays absent.
+TWO TIERS under a fretting-hand onset, in precedence order:
+
+- THE PRESSED STOP. A harmonic sounded over a pressed stop prints the NODE at its head
+  (\ref soundingStopAt) while the hand is on the stop below it, so that stop is its held one — the
+  artificial harmonic here, the tapped one through its claim below, one family named once
+  (\ref harmonicOverPressedStop). It outranks the plant: the pressed fret is pitch-critical and no
+  other ink states it, while a plant is a span fact the bracket prints.
+- THE PLANT'S FACE. Every other fretting-hand onset IS the hand, so the one second stop it can hold
+  is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law): that entry
+  is its held stop here, so the note wears the plant as its own satellite on the reveal's terms —
+  the notation states it in the pull-off itself, exactly as a derived tap stop is stated — and the
+  bracket prints nothing beside a head that states the hand's presence itself. A fretting-hand onset
+  that presses no displaced stop and has nothing planted under it holds no second stop, so its entry
+  stays absent.
 
 THREE TIERS under a right-hand onset, in precedence order, and the third is what this table adds
 over \ref chartClaimedStops:

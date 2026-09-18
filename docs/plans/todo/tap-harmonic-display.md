@@ -29,7 +29,9 @@ touch and an open-string one carries 0 (ruled 2026-09-17 — `held` never rides 
   `highwayDrawnStop` authority (exact for node ≤ 24; held at the board's edge past
   that — the plan-57 interim), wearing the *generic* technique base plus TWO stacked generic
   markers: the harmonic cell and the tap cell. Nobody ever designed "a tap harmonic's mark";
-  this is two independent rules composing.
+  this is two independent rules composing. Its fret-span line on the floor runs from the PRESSED
+  stop to the node (`harmonicMarkFootprint`), stating the press the head does not print — ruled
+  2026-09-18 for every harmonic standing over a pressed stop, this one included.
 - **An open-string tap harmonic** (fret 0): takes the open-string BAR across the hand window —
   no head at the node, no harmonic cell, no tap cell — while the tap LIGHT lights at the node
   and the camera frames the node. So three systems say "the node" and the drawn note itself says
