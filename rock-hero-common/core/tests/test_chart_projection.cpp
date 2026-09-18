@@ -1655,6 +1655,25 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
+    SECTION("an open-string tapped harmonic states no stop beside its head")
+    {
+        // The other form of the same record, and it is a NATURAL harmonic whose node the picking
+        // hand touches: the fretting hand presses nothing, so there is no second stop to state and
+        // the head's node is the whole of what the note says. A "0" beside it would claim a finger
+        // on the nut that no hand is holding — and a natural harmonic prints none either.
+        ChartNote touched_open = tap(2, 3, 0, std::nullopt, Fraction{1});
+        touched_open.harmonic_node = 12.0;
+        const ChartViewState state = project({touched_open});
+
+        const NoteViewState* const touched = tap_view(state);
+        REQUIRE(touched != nullptr);
+        if (touched != nullptr)
+        {
+            CHECK_FALSE(touched->held.has_value());
+            CHECK_FALSE(touched->stop_mark.has_value());
+        }
+    }
+
     SECTION("an artificial harmonic's PRESSED stop stands on the very same terms")
     {
         // The two hands part company here exactly as they do above — the head prints the node the

@@ -212,13 +212,13 @@ THE FIELD'S SCOPE (DERIVED HELD): what a derivation supersedes is a stop the `he
 and only a note the PICKING hand stops the string for carries that field at all
 (\ref pickingHandStopsString) — so no other note takes a derived one HERE. Under a FRETTING-hand
 onset the fretting hand's stop is already the note's own fret. Under a TAPPED HARMONIC it is the
-PRESSED stop the note states as that same fret, and the model gives that hand no second finger, so
-a pull-off from one derives nothing here and the harmonic's claim stays its pressed fret. Where an
-entry is present the NOTATION owns that stop: the stored \ref ChartNote::held beside it is residue
-the writer must not emit (\ref sweepDerivedHeldStops), and the claim column folds this OVER the
-field rather than beside it (\ref chartClaimedStops). Answering
-both off one function is what keeps "the derivation owns this" from being spelled once as a value
-comparison and once as a fold.
+stop that note's node rides, stated as that same fret, and the model gives that hand no second
+finger, so a pull-off from one derives nothing here and the harmonic's claim stays what the claim
+query answers — its pressed stop, or nothing over the open string. Where an entry is present the
+NOTATION owns that stop: the stored \ref ChartNote::held beside it is residue the writer must not
+emit (\ref sweepDerivedHeldStops), and the claim column folds this OVER the field rather than
+beside it (\ref chartClaimedStops). Answering both off one function is what keeps "the derivation
+owns this" from being spelled once as a value comparison and once as a fold.
 
 THE HELD-CHANNEL REFUSAL IS NOT ANSWERED HERE, because of THE PLANT'S FACE: it asks the wider \ref
 chartPlantedStops, because a plant under an onset carrying no `held` field is REFUSABLE WITHOUT
@@ -257,7 +257,8 @@ one; and a stop inside the onset's own traveled range is refused exactly as an a
 
 Every other entry is the note's own claim (\ref claimedStop), unchanged: the planted finger beside a
 plain tap or a pick slide, the PRESSED STOP a tapped harmonic states as its own fret, and nothing at
-all on a note whose fret the posture rules already read as the fretting hand's.
+all on a note whose fret the posture rules already read as the fretting hand's — an open-string
+tapped harmonic among them, which presses no stop to claim.
 
 THE SINGLE READER AUTHORITY. Every consumer — the span derivation (\ref deriveChartShapes), the
 projection's satellite digit, the editor's verbs — reads this and never \ref ChartNote::held, which
@@ -276,38 +277,41 @@ walk that establishes it instead of being spelled a second time here.
 
 /*!
 \brief THE COMPLETE HELD TABLE: the stop the fretting hand holds under every head that sounds
-       elsewhere — every right-hand onset, every harmonic over a pressed stop, and every
-       fretting-hand onset a pull-off plants under.
+       elsewhere — every note the picking hand stops the string for, every harmonic over a pressed
+       stop, and every other note a pull-off plants under.
 
 THE DEFAULT HELD FACT. A tap says nothing about the other hand, so the question "what is under this
 tap" always has an answer — and where the chart states none, the answer is a FACT of the tap rather
 than a blank: the hand is holding whatever grip it is holding, and releasing the tap lands on it.
 
-TWO TIERS under a fretting-hand onset, in precedence order:
+TWO TIERS under every note the PICKING HAND DOES NOT STOP THE STRING FOR
+(\ref pickingHandStopsString) — the ordinary press, the harmonic of either hand, and the TAPPED
+harmonic with them, whose stop is the fretting hand's exactly as an artificial one's is — in
+precedence order:
 
 - THE PRESSED STOP. A harmonic sounded over a pressed stop prints the NODE at its head
   (\ref soundingStopAt) while the hand is on the stop below it, so that stop is its held one — the
-  artificial harmonic here, the tapped one through its claim below, one family named once
+  artificial harmonic and the tapped one alike, one family named once
   (\ref harmonicOverPressedStop). It outranks the plant: the pressed fret is pitch-critical and no
   other ink states it, and the SPAN says the same — the grip a harmonic over a pressed stop states
   is that pressed stop, never the finger a pull-off plants beneath it (chart_shapes.cpp, RULED
   2026-09-18) — so the plant is printed nowhere under such a note; it is the hand window's to reach.
-- THE PLANT'S FACE. Every other fretting-hand onset IS the hand, so the one second stop it can hold
-  is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law): that entry
-  is its held stop here, so the note wears the plant as its own satellite on the reveal's terms —
-  the notation states it in the pull-off itself, exactly as a derived tap stop is stated — and the
-  bracket prints nothing beside a head that states the hand's presence itself. A fretting-hand onset
-  that presses no displaced stop and has nothing planted under it holds no second stop, so its entry
-  stays absent.
+- THE PLANT'S FACE. Every other note here IS the fretting hand on the string, so the one second stop
+  it can hold is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law):
+  that entry is its held stop here, so the note wears the plant as its own satellite on the reveal's
+  terms — the notation states it in the pull-off itself, exactly as a derived tap stop is stated —
+  and the bracket prints nothing beside a head that states the hand's presence itself. A note that
+  presses no displaced stop and has nothing planted under it holds no second stop, so its entry
+  stays absent — a TAPPED HARMONIC OVER THE OPEN STRING among them, which is a natural harmonic
+  whose node the picking hand touches and states a fretting-hand stop no more than a natural does.
 
-THREE TIERS under a right-hand onset, in precedence order, and the third is what this table adds
-over \ref chartClaimedStops:
+THREE TIERS under a note the PICKING HAND STOPS THE STRING FOR — a plain two-hand tap or a pick
+slide — in precedence order, and the third is what this table adds over \ref chartClaimedStops:
 
-- the note's OWN CLAIM (\ref claimedStop), which the charter typed: the planted finger beside a
-  plain tap or a pick slide, the pressed stop a tapped harmonic states as its own fret;
-- the PULL-OFF DERIVATION, which supersedes the `held` FIELD (DERIVED HELD) and is narrowed to the
-  notes that carry one (\ref chartDerivedStops), so a tapped harmonic's pressed stop stands — both
-  of these arrive together as the resolved claim, already folded in that order;
+- the note's OWN CLAIM (\ref claimedStop), which the charter typed: the planted finger beside it;
+- the PULL-OFF DERIVATION, which supersedes the `held` FIELD (DERIVED HELD) and is narrowed to
+  exactly these notes (\ref chartDerivedStops) — both of these arrive together as the resolved
+  claim, already folded in that order;
 - THE DEFAULT: the fret the COVERING SPAN'S POSTURE holds on the tap's own string, or 0 — the open
   string, nothing held — where no span covers the tap or the posture states nothing there.
 

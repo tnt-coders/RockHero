@@ -763,11 +763,12 @@ struct ChartNote
     already \ref fret and a second copy could only ever drift from it — on an ordinary press, and on
     a HARMONIC of either hand, whose \ref fret is the stop the fretting hand presses while the node
     is touched above it; a tapped harmonic states its pressed stop in \ref fret exactly as an
-    artificial one does, and \ref claimedStop reads it from there. That rule is enforced through the
-    same fixpoint the pick slide's latents use (\ref savedChartNote strips the field everywhere it
-    is not legal), so no list of attacks has to be kept in step. Which means the field OUTLIVES an
-    attack change in memory, exactly as those latents do, so nothing reads it bare:
-    \ref claimedStop is the read, and it asks the same questions the writer does.
+    artificial one does, and \ref claimedStop reads it from there — or, over the open string,
+    states no fretting-hand stop at all, exactly as a natural harmonic does. That rule is enforced
+    through the same fixpoint the pick slide's latents use (\ref savedChartNote strips the field
+    everywhere it is not legal), so no list of attacks has to be kept in step. Which means the
+    field OUTLIVES an attack change in memory, exactly as those latents do, so nothing reads it
+    bare: \ref claimedStop is the read, and it asks the same questions the writer does.
 
     Refused where the onset's own travel covers it (\ref travelsThroughFret): the planted finger is
     on the string, so the picking hand cannot start on it, end on it, or pass through it. One rule
@@ -914,17 +915,57 @@ struct ChartNote
 };
 
 /*!
+\brief True when a harmonic is played over a PRESSED stop: the fretting hand presses \ref
+ChartNote::fret while the picking hand touches the node above it.
+
+The artificial (harp) harmonic and the tapped harmonic, which differ only in how the picking hand
+sounds the string. What makes them one family for every surface is that the head prints the NODE
+(\ref soundingStopAt) while the fretting hand is somewhere else, on the stop the head does not
+print — so both surfaces state that stop beside the head, the 2D lane in the satellite and the
+highway as the run of the floor line from the stop to the node. A natural harmonic is out because
+its hand is on the node the head prints; a pinch because its head prints the fret it presses.
+
+\param fret The note's stop.
+\param harmonic_node The note's node, if it has one.
+\param attack The note's attack.
+
+\return True for a harmonic whose fretting hand presses a stop the head does not print.
+*/
+[[nodiscard]] constexpr bool harmonicOverPressedStop(
+    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
+{
+    return fret > 0 && harmonic_node.has_value() && nodeIsOnNeck(attack) && !isScrape(attack);
+}
+
+/*! \copydoc harmonicOverPressedStop(int,const std::optional<double>&,NoteAttack) */
+[[nodiscard]] constexpr bool harmonicOverPressedStop(const ChartNote& note) noexcept
+{
+    return harmonicOverPressedStop(note.fret, note.harmonic_node, note.attack);
+}
+
+/*!
 \brief The fretting-hand stop this note CLAIMS at its slot, if any — the one claim query.
 
 A shape is made of stops, and a claim is a stop the fretting hand holds under an onset the OTHER
 hand makes, so the hand's stop is not the one the ordinary posture rules read off the note. It
-comes from one of two fields, and this is the one place that says which: under a plain two-hand
-tap or a pick slide the picking hand stops the string at \ref ChartNote::fret and the fretting
-hand's planted finger rides the note as \ref ChartNote::held; under a TAPPED HARMONIC the picking
-hand only touches the node, so the stop the fretting hand presses is the stop the string speaks
-from — \ref ChartNote::fret itself — and there is no planted finger to read. The span derivation,
-the inert sweep and the posture display ask THIS rather than testing the attack and then reading a
-field themselves — two spellings that would be free to disagree about what a claim is.
+comes from one of two fields, and this is the one place that says which.
+
+Under a plain two-hand tap or a pick slide the picking hand stops the string at \ref
+ChartNote::fret, so the fretting hand's own stop is the planted finger riding beside it
+(\ref ChartNote::held).
+
+Under a TAPPED HARMONIC the answer is the harmonic's, because every harmonic is ONE RECORD — a
+stop, a node and an attack. A natural harmonic is one over the open string, an artificial one is
+over a stop the fretting hand presses, and a tapped one is that artificial form struck by the other
+hand. So a tapped harmonic claims a stop exactly where it is a harmonic over a pressed stop
+(\ref harmonicOverPressedStop) — its own \ref ChartNote::fret, the stop the string speaks from,
+with no planted finger to read. Over the OPEN string it claims nothing, being a natural harmonic
+whose node the picking hand happens to touch, and it states no fretting-hand stop for the same
+reason a natural does.
+
+The span derivation, the inert sweep and the posture display ask THIS rather than testing the
+attack and then reading a field themselves — two spellings that would be free to disagree about
+what a claim is.
 
 Absent on every note whose own \ref ChartNote::fret the ordinary posture rules already read as the
 fretting hand's: there is nothing extra to claim, because the note itself is the claim.
@@ -946,8 +987,11 @@ the settle that judges claims runs on the in-memory stream.
     {
         return std::nullopt;
     }
-    return pickingHandStopsString(note.attack, note.harmonic_node) ? note.held
-                                                                   : std::optional{note.fret};
+    if (pickingHandStopsString(note.attack, note.harmonic_node))
+    {
+        return note.held;
+    }
+    return harmonicOverPressedStop(note) ? std::optional{note.fret} : std::nullopt;
 }
 
 /*!
@@ -1629,35 +1673,6 @@ toggle preserves rather than a touch anybody makes.
 }
 
 /*!
-\brief True when a harmonic is played over a PRESSED stop: the fretting hand presses \ref
-ChartNote::fret while the picking hand touches the node above it.
-
-The artificial (harp) harmonic and the tapped harmonic, which differ only in how the picking hand
-sounds the string. What makes them one family for every surface is that the head prints the NODE
-(\ref soundingStopAt) while the fretting hand is somewhere else, on the stop the head does not
-print — so both surfaces state that stop beside the head, the 2D lane in the satellite and the
-highway as the run of the floor line from the stop to the node. A natural harmonic is out because
-its hand is on the node the head prints; a pinch because its head prints the fret it presses.
-
-\param fret The note's stop.
-\param harmonic_node The note's node, if it has one.
-\param attack The note's attack.
-
-\return True for a harmonic whose fretting hand presses a stop the head does not print.
-*/
-[[nodiscard]] constexpr bool harmonicOverPressedStop(
-    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
-{
-    return fret > 0 && harmonic_node.has_value() && nodeIsOnNeck(attack) && !isScrape(attack);
-}
-
-/*! \copydoc harmonicOverPressedStop(int,const std::optional<double>&,NoteAttack) */
-[[nodiscard]] constexpr bool harmonicOverPressedStop(const ChartNote& note) noexcept
-{
-    return harmonicOverPressedStop(note.fret, note.harmonic_node, note.attack);
-}
-
-/*!
 \brief True when the FRETTING finger is standing on the note's node.
 
 A refinement of \ref fretHandHarmonic rather than a near twin, and it is spelled as one so the two
@@ -1709,11 +1724,11 @@ counts there and not here, because the tap's node belongs to the picking hand.
 ASKED ONLY OF AN ONSET THE FRETTING HAND MAKES. Where \ref rightHandOnset holds, the fret arm can
 be no grip at all: a plain tap's fret is where the tapping finger landed and a scrape's is where
 the pick started, so the fretting hand's own stop is the planted finger beside it
-(\ref ChartNote::held), while a TAPPED HARMONIC's fret IS the stop that hand presses. One query
-answers both (\ref claimedStop), and the complete table it feeds is \ref chartHeldStops. Every
-caller excludes those onsets before asking (the walk's
-strike table and the 3D chord-group identity both skip them), which is why the arm is written for
-the hand that makes the shape and not guarded here.
+(\ref ChartNote::held), while a TAPPED HARMONIC's fret is the stop its node rides — the one that
+hand presses, where it presses one at all. One query answers both (\ref claimedStop), and the
+complete table it feeds is \ref chartHeldStops. Every caller excludes those onsets before asking
+(the walk's strike table and the 3D chord-group identity both skip them), which is why the arm is
+written for the hand that makes the shape and not guarded here.
 
 \param fret Stored fret; zero is the open string.
 \param harmonic_node The note's node, if it has one.

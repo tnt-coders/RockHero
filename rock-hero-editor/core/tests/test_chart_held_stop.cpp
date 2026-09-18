@@ -479,6 +479,39 @@ TEST_CASE("A tapped harmonic's satellite states its pressed stop, read-only", "[
     }
 }
 
+// AN OPEN-STRING TAPPED HARMONIC WEARS NO SATELLITE AT ALL. It is a NATURAL harmonic whose node the
+// picking hand touches rather than the fretting one, so the fretting hand presses nothing and there
+// is no second stop for a mark to state. The head prints the node and that is the whole of the
+// note: no held stop resolves, no mark is published, and neither the click nor the caret can find a
+// Held channel to land on.
+TEST_CASE("An open-string tapped harmonic wears no satellite", "[core][chart]")
+{
+    // The tapped-shape figure with the tap touching the octave node of the OPEN string instead of
+    // landing on a fret: the chord still holds strings 1 and 2 across it.
+    common::core::Chart touching = makeTappedShapeChart();
+    touching.notes[2].fret = 0;
+    touching.notes[2].harmonic_node = 12.0;
+    HeldStopFixture fixture{std::move(touching)};
+
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.notes.size() == 3);
+    CHECK_FALSE(tab.notes[2].held.has_value());
+    CHECK_FALSE(tab.notes[2].stop_mark.has_value());
+
+    // The head takes the click, and the satellite column beside it has nothing to take: the caret
+    // stays on the sounding stop rather than opening a channel over a mark that was never drawn.
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+
+    // The keyboard twin: stepping right off the head finds no second stop within the slot either.
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+}
+
 // AN ARTIFICIAL HARMONIC'S SATELLITE STATES THE SAME UNSTORED STOP, at every one of those layers.
 // The picking hand touches the node and the fretting hand presses the fret beneath it, so the head
 // prints the node and the number beside it is the note's own fret — which no field carries, exactly

@@ -3289,8 +3289,9 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 // fretting hand's stop under an onset the OTHER hand made, and where it is written down depends on
 // what the picking hand is doing at the fret: stopping the string itself, so the hand's own stop is
 // the separate `held`; or only touching a node, so the stop the string speaks from — `fret` — is
-// the fretting hand's already. Everything span-scoped reads the one query, which is why these two
-// answers are worth pinning apart from the surfaces that consume them.
+// the fretting hand's already — and where that stop is the OPEN string the hand presses nothing, so
+// there is no claim at all. Everything span-scoped reads the one query, which is why these answers
+// are worth pinning apart from the surfaces that consume them.
 TEST_CASE("A claim reads the held stop or the fret, by what the picking hand does", "[core][chart]")
 {
     const auto note_with = [](const NoteAttack attack,
@@ -3320,7 +3321,7 @@ TEST_CASE("A claim reads the held stop or the fret, by what the picking hand doe
             std::optional{11});
     }
 
-    SECTION("a tapped harmonic only touches its node, so the claim is its pressed stop")
+    SECTION("a tapped harmonic over a pressed stop claims that stop, not a planted finger")
     {
         CHECK_FALSE(pickingHandStopsString(NoteAttack::Tap, std::optional{17.0}));
         CHECK(claimedStop(note_with(NoteAttack::Tap, 5, std::nullopt, 17.0)) == std::optional{5});
@@ -3328,6 +3329,17 @@ TEST_CASE("A claim reads the held stop or the fret, by what the picking hand doe
         // says, which is what makes this a query about the record's shape rather than about which
         // members happen to be set.
         CHECK(claimedStop(note_with(NoteAttack::Tap, 5, 3, 17.0)) == std::optional{5});
+    }
+
+    SECTION("a tapped harmonic over the OPEN string claims nothing, exactly as a natural does")
+    {
+        // Every harmonic is one record, and this one is a NATURAL whose node the picking hand
+        // happens to touch: the fretting hand presses nothing, so there is no stop to state beside
+        // the head (\ref harmonicOverPressedStop).
+        CHECK_FALSE(harmonicOverPressedStop(note_with(NoteAttack::Tap, 0, std::nullopt, 12.0)));
+        CHECK_FALSE(claimedStop(note_with(NoteAttack::Tap, 0, std::nullopt, 12.0)).has_value());
+        // And a latent field an earlier form left behind changes nothing, exactly as above.
+        CHECK_FALSE(claimedStop(note_with(NoteAttack::Tap, 0, 3, 12.0)).has_value());
     }
 
     SECTION("a fretting-hand onset claims nothing, harmonic or not")

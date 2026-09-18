@@ -40,7 +40,10 @@ read through `claimedStop`. Sound truth is never bent for display; nothing deriv
   hand is what stops the string (`pickingHandStopsString`: a plain tap or a pick slide, carrying no
   node). **Fret 0 in a `held` stop is a VOICING member** — the chord frame's "o",
   not a finger — and is described that way. `claimedStop` is the one reading of a claim: `held`
-  where the picking hand stops the string, the note's own `fret` under a tapped harmonic.
+  where the picking hand stops the string, the note's own `fret` under a tapped harmonic sounded
+  over a PRESSED stop, and nothing at all under one sounded over the open string — that form is a
+  natural harmonic whose node the picking hand touches, so it states no fretting-hand stop any more
+  than a natural does (`harmonicOverPressedStop`, RULED 2026-09-18).
 - **Vibrato has two tiers and an off state** (`VibratoState{Off, Narrow, Wide}`, saved as `narrow`,
   `wide` or `off`). Ordinary guitar vibrato IS physically narrow — a fraction of a semitone of
   excursion — while wide is the deliberate exaggeration, so `narrow` is an accurate intrinsic
@@ -154,17 +157,20 @@ implementation before writing any custom duration rule.
   publishing, so the derivation records the span each claim reached (`ChartShapes::claim_shapes`)
   and the sweep reads that same record.
 - **A harmonic needs no exemption, and the sweep carries none** (2026-09-17). A tapped harmonic's
-  claim is its own `fret` — the pressed stop its pitch is measured from — while the sweep clears
-  `held` and nothing else, and a node-bearing note carries no `held` at all, so a stop the record's
-  own pitch depends on is out of the sweep's reach by construction rather than by a clause. A PLAIN
+  claim is its own `fret` where it presses one — the stop its pitch is measured from — while the
+  sweep clears `held` and nothing else, and a node-bearing note carries no `held` at all, so a stop
+  the record's own pitch depends on is out of the sweep's reach by construction rather than by a
+  clause. A PLAIN
   tap's lone held always sweeps, and correctly so — a lone member opens no span, so the claim
   reached nothing.
 - **A claim is a member that does not SOUND on its own, and its CARRIER is a note that sounds at
   that slot.** A claim comes from one of two fields and `claimedStop` is the one place that says
   which: `held` under a plain tap or a pick slide, where the picking hand stops the string and the
-  fretting hand's planted finger is the claim; and the note's own `fret` under a TAPPED HARMONIC,
-  where the picking hand only touches the node and the string speaks from the stop the fretting hand
-  presses. Either way the claim is answered in the slot that founds it — the tapped harmonic sounds
+  fretting hand's planted finger is the claim; and the note's own `fret` under a TAPPED HARMONIC
+  SOUNDED OVER A PRESSED STOP, where the picking hand only touches the node and the string speaks
+  from the stop the fretting hand presses — over the OPEN string that same record claims nothing,
+  being a natural harmonic the other hand touches. Either way the claim is answered in the slot that
+  founds it — the tapped harmonic sounds
   FROM its claimed stop, and a plain tap's plant is the stop its string falls back to when the
   tapping finger lifts. A
   shape the hand alone states therefore needs nothing later to earn it: it publishes at its own
@@ -589,8 +595,9 @@ node, and a fretted head printing the same digit over a node grip does not.
 
 **WHO PRINTS A DISPLACED POSTURE DIGIT is the hand's question.** A RIGHT-hand head shows nothing
 about the left hand, so under a tap the bracket prints the CLAIMED stop itself in the satellite
-column — the planted `held` under a plain tap, the pressed `fret` under a tapped harmonic —
-standing whatever its authorship, and the note's face defers to it (`StopMarkFace::Posture`) — the
+column — the planted `held` under a plain tap, the pressed `fret` under a tapped harmonic sounded
+over one — standing whatever its authorship, and the note's face defers to it
+(`StopMarkFace::Posture`) — the
 bracket's number is the one statement that the left hand is on that string at all, and a bracket's
 fret number is important information. A FRETTING-hand head already states the hand's presence with
 its own number, so the stop a pull-off PLANTS beneath it is the refinement the notation already
@@ -625,11 +632,16 @@ disagreeing, its grip statement under such a harmonic being that same pressed st
 so the two inks can never state two numbers in one column; it is read-only because the stop is the
 note's own `fret`, the Held channel refusing to state one on a note carrying a node and the fret
 itself being retyped through the head. Tapped and artificial harmonics reach that tier alike
-(`harmonicOverPressedStop`, RULED 2026-09-18).
+(`harmonicOverPressedStop`, RULED 2026-09-18). A harmonic over the OPEN string reaches NO tier: it
+presses no stop, so it holds none, wears no satellite, and takes the same tiers an artificial one
+takes — the pressed stop, then the plant — under which it simply answers nothing
+(RULED 2026-09-18).
 
-**THE DEFAULT HELD FACT.** A right-hand onset whose held stop is UNDEFINED still HAS one, because a
-tap says nothing about the other hand and the other hand is holding whatever it is holding. A tapped
-harmonic never reaches this tier — its claim is the `fret` it is pressed at, which is defined. It is a
+**THE DEFAULT HELD FACT.** An onset the PICKING HAND STOPS THE STRING FOR whose held stop is
+UNDEFINED still HAS one, because a tap says nothing about the other hand and the other hand is
+holding whatever it is holding. A tapped harmonic never reaches this tier — over a pressed stop its
+claim is the `fret` it is pressed at, which is defined, and over the open string it states nothing
+and is asked nothing. It is a
 FACT of the tap, not presentation decoration, which is why it resolves in core and every surface
 copies it. Inside a span the release lands on WHATEVER STOP THE COVERING SPAN'S POSTURE HOLDS on the
 tap's own string (the pressed fret, which a node grip states as 0 by construction, since a node

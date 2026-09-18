@@ -477,7 +477,7 @@ pass paints after the brackets, so any head sounding elsewhere covers a centred 
 is the only slot that survives. **The hand IS the answer to WHO prints a displaced digit — THE
 PLANT'S FACE.** The bracket's number is the one statement that the left hand is on the string at
 all, so under a RIGHT-hand head the bracket prints the CLAIMED stop itself — the planted `held`
-under a plain tap, the pressed fret under a tapped harmonic — standing whatever its
+under a plain tap, the pressed fret under a tapped harmonic sounded over one — standing whatever its
 authorship. A FRETTING-hand head already states the hand's presence with its own number, so the stop
 a pull-off plants beneath it is the refinement the pull-off already prints: the NOTE wears it as its
 own reveal-only satellite (`NoteViewState::held`, `StopMarkFace::Revealed`), the bracket prints
@@ -716,8 +716,11 @@ shows the whole truth about it at once. And a **tap fronting a bracket** stands 
 authorship, because there the bracket owes the statement: the tap's head holds the string's centre,
 so the posture's digit is displaced into the satellite column and IS that tap's face ([D2]).
 
-**AND EVERY RIGHT-HAND ONSET HAS ONE, because every one of them has a held stop** — THE DEFAULT HELD
-FACT, which a tapped harmonic never reaches, its claim being the fret it presses. A tap that states
+**AND EVERY ONSET THE PICKING HAND STOPS THE STRING FOR HAS ONE, because every one of them has a
+held stop** — THE DEFAULT HELD FACT, which a tapped harmonic never reaches: over a pressed stop its
+claim is that fret, and over the OPEN string it states nothing at all, being a natural harmonic
+whose node the picking hand touches — no satellite, exactly as a natural wears none
+(RULED 2026-09-18). A tap that states
 nothing — no authored field, no pull-off to derive one — is not a tap with
 no fretting hand under it; the hand is holding whatever grip it is holding, so the release lands on
 the **covering span's posture PRESSED fret for that string** (a harmonic node in the posture presses

@@ -223,7 +223,7 @@ plant beneath a fretting-hand source — off the one ownership table \ref planRe
 (\ref common::core::ChartResolutions::planted_stops): the charter typed nothing there, so there is
 nothing of theirs to withdraw, and only unwriting the pull-off would. A slot carrying no held field
 clears nothing, so a press over defaults alone settles as the no-op it is — and so does one over a
-tapped harmonic, whose satellite states the stop its fretting hand presses (the note's own fret) and
+harmonic sounded over a PRESSED stop, whose satellite states that pressed fret (the note's own) and
 whose node forbids the field entirely.
 
 \param chart Chart being edited.
@@ -436,13 +436,13 @@ falling out of the derivation rather than a second rule written into this planne
 The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
 and on the write, so both read one query. The channel exists on a note exactly where the satellite
 that states it does, and that is now THREE populations under one rule. A bare tap's satellite
-carries THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every right-hand
-onset: typing at a default AUTHORS a real held stop, where a gate on the stored field instead would
-let the digit fall through and change nothing. Under THE PLANT'S FACE a fretting-hand onset a
-pull-off PLANTS under wears that plant as its own satellite, so the channel reaches it too — and
-lands on the refusal below, never on a held FIELD its attack forbids. And a TAPPED HARMONIC's
-satellite states the stop its fretting hand presses, which is the note's own fret and no planted
-finger at all, so the channel reaches that one as well and lands on the refusal after it. The
+carries THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every onset the
+picking hand stops the string for: typing at a default AUTHORS a real held stop, where a gate on the
+stored field instead would let the digit fall through and change nothing. Under THE PLANT'S FACE a
+note a pull-off PLANTS under wears that plant as its own satellite, so the channel reaches it too —
+and lands on the refusal below, never on a held FIELD its attack forbids. And a HARMONIC OVER A
+PRESSED STOP's satellite states that pressed fret, which is the note's own and no planted finger at
+all, so the channel reaches that one as well and lands on the refusal after it. The
 sounding channel reaches every note, because every note has a fret. Nothing here decides WHEN the
 held channel applies: that is the verb scope's answer (the caret's stop), stated once there.
 
@@ -474,8 +474,8 @@ satellites while the agreeing derived ones stand.
 A NOTE CARRYING A NODE HAS NO PLANTED FINGER, so the held channel is REFUSED outright on one. The
 field is legal only where the picking hand is what stops the string
 (\ref common::core::pickingHandStopsString, asked rather than restated, so a scrape's latent node
-never reads as a harmonic), and the satellite over a tapped harmonic states the stop its FRETTING
-hand presses — the note's own fret, which the sounding channel addresses. The same-fret settle does
+never reads as a harmonic), and the satellite over a harmonic sounded over a PRESSED stop states
+that pressed fret — the note's own, which the sounding channel addresses. The same-fret settle does
 not ride this refusal: that one agrees with a value the field could hold, while this one names a
 field the note cannot carry at all.
 

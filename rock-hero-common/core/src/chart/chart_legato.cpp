@@ -160,12 +160,12 @@ std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connec
     // the `held` FIELD states, and only a note the picking hand stops the string for carries that
     // field at all (pickingHandStopsString). Under a FRETTING-hand onset the same planted finger
     // rides BESIDE the note's own fret: it states nothing the charter could have typed, supersedes
-    // no field and leaves no residue. Under a TAPPED HARMONIC the fretting hand is on the pressed
-    // stop the note itself states, and the model gives that hand no second finger, so a pull-off
-    // from one derives nothing here either — its claim stays the pressed fret. Every FIELD-scoped
-    // reader takes this narrowing, so a plant under either can never reach the claim column or the
-    // writer's residue sweep. Who reads the WIDE table instead is stated once, on
-    // \ref chartPlantedStops.
+    // no field and leaves no residue. Under a TAPPED HARMONIC the fretting hand is on the stop the
+    // note itself states, and the model gives that hand no second finger, so a pull-off from one
+    // derives nothing here either — its claim stays what the claim query answers, the pressed stop
+    // or nothing at all over the open string. Every FIELD-scoped reader takes this narrowing, so a
+    // plant under either can never reach the claim column or the writer's residue sweep. Who reads
+    // the WIDE table instead is stated once, on \ref chartPlantedStops.
     std::vector<std::optional<int>> derived = chartPlantedStops(connections);
     for (std::size_t index = 0; index < derived.size(); ++index)
     {
@@ -211,18 +211,22 @@ std::vector<std::optional<int>> chartHeldStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // THE PRESSED STOP, first of the fretting hand's two tiers: a harmonic sounded over a
-        // pressed stop prints the NODE at its head while the hand is on the stop below it
+        // THE PRESSED STOP, first of these two tiers: a harmonic sounded over a pressed stop prints
+        // the NODE at its head while the hand is on the stop below it
         // (\ref harmonicOverPressedStop), so that stop is what this note holds — and it OUTRANKS
         // the plant, because the pressed fret is pitch-critical and nothing else states it, while a
         // plant is a span fact the bracket prints.
         //
-        // THE PLANT'S FACE: every other fretting-hand onset IS the hand, so the one second stop it
-        // can hold is the one a pull-off PLANTS beneath it — the wide table the hold-under law
-        // derives whichever hand made the onset. Every tier below is the RIGHT-HAND onset's, whose
-        // fretting-hand stop the claim query names (\ref claimedStop): the planted finger beside a
-        // plain tap or a scrape, the pressed fret under a tapped harmonic.
-        if (!rightHandOnset(note.attack))
+        // THE PLANT'S FACE: every other note here IS the fretting hand on the string, so the one
+        // second stop it can hold is the one a pull-off PLANTS beneath it — the wide table the
+        // hold-under law derives whichever hand made the onset.
+        //
+        // These are the tiers of every note the picking hand does NOT stop the string for: the
+        // ordinary press, the harmonic of either hand, and a TAPPED harmonic with them, whose stop
+        // is the fretting hand's exactly as an artificial one's is (\ref pickingHandStopsString).
+        // The tiers below are the rest of the right-hand onsets', whose fretting-hand stop the
+        // claim query names (\ref claimedStop): the planted finger beside a plain tap or a scrape.
+        if (!pickingHandStopsString(note.attack, note.harmonic_node))
         {
             held[index] =
                 harmonicOverPressedStop(note) ? std::optional{note.fret} : planted_stops[index];
@@ -390,9 +394,9 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     {
         ChartNote& note = notes[index];
         // FIELD SCOPE, the same narrowing the residue sweep takes: what this clears is the `held`
-        // FIELD, so the only claim it can take is one that field states. A tapped harmonic claims
-        // the stop it SPEAKS from — its own fret (\ref claimedStop) — which is the sound the
-        // charter wrote, carries no field to clear, and is no more inert than a head is.
+        // FIELD, so the only claim it can take is one that field states. A harmonic over a pressed
+        // stop claims that pressed fret (\ref claimedStop) — the sound the charter wrote, carrying
+        // no field to clear and no more inert than a head is.
         if (!pickingHandStopsString(note.attack, note.harmonic_node) ||
             !claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
         {

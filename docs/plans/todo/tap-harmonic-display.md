@@ -37,6 +37,9 @@ touch and an open-string one carries 0 (ruled 2026-09-17 — `held` never rides 
   and the camera frames the node. So three systems say "the node" and the drawn note itself says
   "the whole window": a known gap against the two-surfaces/one-fact law, noted in
   `docs/developer/the-3d-highway.md` and tracked with the note-view unification watch item.
+  It states NO fretting-hand stop on either surface — no floor run, and in the 2D lane no
+  satellite beside its head — because it is a natural harmonic whose node the picking hand
+  touches and the fretting hand presses nothing (RULED 2026-09-18).
 - **The tap light**: lights at the node and, since 2026-08-10, glides along the node path when
   the tap glides (before that it walked the stop path under a head that rode the node path).
 - **The camera**: frames the node, including the open-string case (before 2026-08-10 the

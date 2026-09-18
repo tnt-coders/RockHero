@@ -110,8 +110,9 @@ where clicking the head addresses the sounding fret. THREE populations wear one:
 under a plain tap or a scrape, whose own fret is the picking hand's; the PRESSED stop of a harmonic
 whose head prints its node instead (\ref common::core::harmonicOverPressedStop) — the artificial one
 and the tapped one alike, the fretting hand's stop under a node the picking hand only touches; and
-the stop a pull-off PLANTS beneath a FRETTING-hand onset (THE PLANT'S FACE), which the bracket then
-prints nothing of on that string, so exactly one ink states it either way.
+the stop a pull-off PLANTS beneath a note the picking hand does NOT stop the string for (THE PLANT'S
+FACE), which the bracket then prints nothing of on that string, so exactly one ink states it either
+way.
 
 Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
 note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face

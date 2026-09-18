@@ -108,7 +108,11 @@ arm of `planSetAttack` writes — is the default case. Recorded so the stop verb
 against a pinch that names partials; nothing about it is signed.
 
 **Surfaces — RULED 2026-09-18, and built ahead of the verb.** The head keeps the **node**, and the
-**stop is recoverable on both surfaces** for a `fret > 0` harmonic. 2D: the stop takes the note's
+**stop is recoverable on both surfaces** for a `fret > 0` harmonic. The three forms are ONE record —
+a stop, a node, an attack: natural over the open string, artificial over a pressed one, tapped the
+artificial form struck by the other hand — so the `fret > 0` test is the whole of it, and a tapped
+harmonic over the OPEN string is a natural whose node the other hand touches and states no stop on
+either surface (RULED 2026-09-18). 2D: the stop takes the note's
 own **SATELLITE** — the digit column outboard of the bracket's closing bar that a tapped harmonic
 already used — standing and read-only, which is the published compound's "stop then touch" pair in
 the column pair this lane already has, rather than a new mark. 3D: the fret-span line runs from the

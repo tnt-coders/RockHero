@@ -4300,8 +4300,8 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         // it landed on and touches a node of the whole string, so the label resolves against the
         // nut exactly as an unpressed note's does. The stop the fretting hand was holding stays
         // behind as a LATENT — a note carrying a node states no planted finger, so the saved form
-        // strips it and the claim query reads the touch's own stop instead — which is the chart's
-        // standing rule that changing back restores what the charter typed.
+        // strips it and the claim query answers off the record's shape instead — which is the
+        // chart's standing rule that changing back restores what the charter typed.
         common::core::Chart chart = makeSingleNoteChart(17);
         common::core::ChartNote& tap = chart.notes[0];
         tap.attack = common::core::NoteAttack::Tap;
@@ -4322,11 +4322,12 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
             {
                 CHECK(touched->fret == 0);
                 // The latent, and the two readings that keep it invisible: the document records no
-                // planted finger, and the claim is the stop the touch speaks from — fret 0, the
-                // open string — rather than the finger waiting behind it.
+                // planted finger, and the note claims nothing at all — a harmonic over the open
+                // string presses no stop, so neither the touch's own 0 nor the finger waiting
+                // behind it is a claim.
                 CHECK(touched->held == std::optional{5});
                 CHECK_FALSE(common::core::savedChartNote(*touched).held.has_value());
-                CHECK(common::core::claimedStop(*touched) == std::optional{0});
+                CHECK_FALSE(common::core::claimedStop(*touched).has_value());
                 const std::optional<double>& node = touched->harmonic_node;
                 REQUIRE(node.has_value());
                 if (node.has_value())
@@ -4696,7 +4697,7 @@ TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[
 }
 
 // A NOTE CARRYING A NODE HAS NO PLANTED FINGER, so the held channel is refused on one outright. The
-// satellite over a tapped harmonic states the stop its FRETTING hand presses — the note's own fret,
+// satellite over a harmonic sounded above a PRESSED stop states that pressed fret — the note's own,
 // which the sounding channel addresses — so a digit landing here would author a field the writer
 // strips and the rules refuse.
 TEST_CASE("planRetypeFrets refuses the held channel on a note carrying a node", "[core][chart]")
@@ -5858,8 +5859,9 @@ TEST_CASE(
 // THE DEFAULT SATELLITE IS A TARGET, the other side of the refusal above and the reason the two
 // must not be answered by one test. A bare tap's held stop resolves to the grip under it — 0 where
 // no span covers it — so the satellite that states it is DRAWN, and the held channel reaches every
-// right-hand onset. Typing there AUTHORS a real held stop, because nothing owns a default: gating
-// the channel on the STORED field instead would pass the digit through untouched and diff empty.
+// onset the picking hand stops the string for. Typing there AUTHORS a real held stop, because
+// nothing owns a default: gating the channel on the STORED field instead would pass the digit
+// through untouched and diff empty.
 // `test_chart_projection.cpp` carries the same claim at the projection.
 TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][chart]")
 {

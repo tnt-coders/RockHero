@@ -1269,7 +1269,8 @@ neighbours.
     survives. **The hand IS the answer to WHO prints a displaced digit — THE PLANT'S FACE**: the
     bracket's number is the one statement that the left hand is on the string at all, so under a
     RIGHT-hand head the bracket prints the CLAIMED stop itself — the planted `held` under a plain
-    tap, the pressed fret under a tapped harmonic — standing whatever its authorship;
+    tap, the pressed fret under a tapped harmonic sounded over one — standing whatever its
+    authorship;
     a FRETTING-hand head already states the hand's presence with its own number, so the stop a
     pull-off plants beneath it is the note's own reveal-only satellite (`NoteViewState::held`,
     `StopMarkFace::Revealed`) and the bracket prints nothing on that string, while a fretting-hand
@@ -1296,7 +1297,8 @@ neighbours.
     the chart never defines derives nothing. The derivation is scoped to the onset the PICKING hand
     stops the string for (`pickingHandStopsString`), which is exactly the population carrying a
     `held` field, so no other note takes a derived CLAIM — a tapped harmonic included, whose claim
-    stays the pressed fret it states itself however low the pull-off lands, leaving the second finger
+    stays the pressed fret it states itself however low the pull-off lands (and nothing at all over
+    the OPEN string, where it presses none), leaving the second finger
     behind that stop unsayable (the watch item in `docs/tracking/watch-items.md` carries it); the
     same pull-off plants its stop under a FRETTING-hand source too, and there it is a face and a
     refusal rather than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b

@@ -1784,9 +1784,10 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // down (DERIVED HELD), and a plain tap's own fret is right-hand travel. A TAPPED HARMONIC is the
 // right-hand onset whose fret belongs to the OTHER hand: the tapping finger only touches the node,
 // so the stop the string speaks from is the fret the fretting hand presses, and the claim query
-// reads it straight off the note. A ring that has travelled carries the finger with it, which is
-// why the fret comes from the channel's statement at the instant asked about rather than from the
-// onset.
+// reads it straight off the note — or answers nothing where that string is open, such a harmonic
+// being a natural one whose node the tapping finger touches. A ring that has travelled carries the
+// finger with it, which is why the fret comes from the channel's statement at the instant asked
+// about rather than from the onset.
 //
 // The stop is the FRETTING HAND'S PLACE (\ref rock_hero::common::core::frettingStopAt, the one
 // reader the span machine's grip column answers through): a natural harmonic states its NODE and

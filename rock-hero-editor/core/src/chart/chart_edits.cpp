@@ -1015,8 +1015,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // A NOTE CARRYING A NODE HAS NO PLANTED FINGER. The field this channel writes is legal
             // only where the picking hand is what stops the string, and that one authority is asked
             // rather than restated: under a tapped harmonic the picking hand only touches the node,
-            // so the satellite states the stop the FRETTING hand presses — the note's own fret,
-            // which the sounding channel addresses. Refused whole, the shape of the ownership
+            // so a satellite over one states the stop the FRETTING hand presses — the note's own
+            // fret, which the sounding channel addresses. Refused whole, the shape of the ownership
             // refusal above and for its reason. No same-fret settle rides this one: that settle
             // agrees with a value the field COULD hold, while here the note cannot carry the field
             // at all.

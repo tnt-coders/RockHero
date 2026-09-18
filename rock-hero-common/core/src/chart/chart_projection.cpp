@@ -227,12 +227,12 @@ ChartViewState makeChartViewState(
     // halves. The bracket's number is the one statement that the left hand is on that string at
     // all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever
     // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture) — a TAPPED
-    // harmonic included, whose pressed stop is that statement while its own head prints the node
-    // it sounds. A FRETTING-hand head carries its OWN satellite for whatever second stop it holds
-    // (\ref chartHeldStops) — the stop a pull-off plants beneath it, or the pressed stop under a
-    // harmonic whose head prints the node instead — and the bracket then prints nothing on that
-    // string, so exactly one ink states it. A fretting-hand head holding no second stop states the
-    // hand's presence with its own number, which is the place test above.
+    // harmonic over a PRESSED stop included, whose pressed stop is that statement while its own
+    // head prints the node it sounds. A FRETTING-hand head carries its OWN satellite for whatever
+    // second stop it holds (\ref chartHeldStops) — the stop a pull-off plants beneath it, or the
+    // pressed stop under a harmonic whose head prints the node instead — and the bracket then
+    // prints nothing on that string, so exactly one ink states it. A fretting-hand head holding no
+    // second stop states the hand's presence with its own number, which is the place test above.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds is a fact about the chart, not about which tails the caller drew. The held
