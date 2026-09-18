@@ -639,6 +639,10 @@ void EditorController::Impl::armChartCaret(
     // restore at project open, where the loaded chart is already settled and the sweep finds
     // nothing.
     static_cast<void>(settleChart());
+    // Where the keyboard stands is an input to the audible tone (syncAudibleTone's law), and this
+    // arm is the only thing that moved it: arming never seeks, so the transport cannot report the
+    // caret's new region. Idempotent, so an arm within the same region costs one compare.
+    syncAudibleTone();
 }
 
 // THE SELECTION HANDLE: a selected note's satellite belongs to the selection, so reaching for it
@@ -664,6 +668,9 @@ void EditorController::Impl::armChartHeldStopHandle(const ChartSlotKey& slot)
     // the arm it deliberately is not: the press that reached this stop is where a claim the chart
     // no longer justifies gets written down as the pick it plays as.
     static_cast<void>(settleChart());
+    // A caret move is equally a keyboard-position move, and the selection this arm deliberately
+    // preserves cannot re-derive the tone on its behalf.
+    syncAudibleTone();
 }
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
@@ -688,6 +695,9 @@ void EditorController::Impl::armLaneCaret(
     }
     m_chart_marker =
         ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)};
+    // The marker write above is what moved the keyboard position, so the tone re-derives after it,
+    // not in the setSelection call ahead of it, which still saw the caret's old slot.
+    syncAudibleTone();
 }
 
 bool EditorController::Impl::lanePointAt(

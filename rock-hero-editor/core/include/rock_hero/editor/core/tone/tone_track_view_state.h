@@ -39,9 +39,9 @@ struct ToneRegionViewState
     /*!
     \brief True when this region's tone is the active (audible / edited) tone.
 
-    The active tone follows the cursor and is what the rig plays and the signal-chain panel edits;
-    it is drawn with the normal highlight fill. Exactly one region is
-    active while content is loaded.
+    The active tone follows where the keyboard stands — the armed caret while one is armed, else the
+    cursor — and is what the rig plays and the signal-chain panel edits; it is drawn with the normal
+    highlight fill. Exactly one region is active while content is loaded.
     */
     bool active{false};
 

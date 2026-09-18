@@ -212,6 +212,23 @@ std::optional<common::core::GridPosition> EditorController::Impl::keyboardPositi
     return pausedCursorPosition(g_tick_quantum_note_value);
 }
 
+// keyboardPosition's seconds-space sibling, for the rules that resolve in seconds — the tone
+// regions' containment rule above all. A caret riding an automation lane answers here too, since
+// that is an armed caret naming its lane. The conversion reads the caret's own GridPosition rather
+// than the quantised keyboardPosition(), so the answer is the instant the caret is drawn at and a
+// containment test can never put it on the wrong side of a region boundary. With no caret armed the
+// transport's clock is the answer, which is also what a playing transport always gives: arming is
+// paused-only.
+common::core::TimePosition EditorController::Impl::keyboardTimePosition() const
+{
+    if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
+    {
+        return common::core::TimePosition{secondsAtGridPosition(
+            session().song().tempo_map, caret->position)};
+    }
+    return m_transport.position();
+}
+
 std::optional<common::core::GridPosition> EditorController::Impl::selectionStart() const
 {
     // A chart selection made without a caret (a marquee, a plain click on a note) may stand far

@@ -970,13 +970,20 @@ region under the transport (`toneRegionAtPosition`, the one seconds-space contai
 things can part them while playing: **a boundary crossing, or an undo or redo of a marker edit** —
 undo stays live mid-play (the tone designer edits mid-play and must stay undoable), so that is the
 one way the MODEL can still move under a standing playhead. Nothing else can: the marker plane is
-paused-only, so no selection exists to outrank the cursor in `activeToneRegionId` (play clears it
-and selecting is refused) and no forward edit can land. Comparing against the AUDIBLE region rather
+paused-only, so no selection exists to outrank the keyboard position in `activeToneRegionId` (play
+clears it and selecting is refused) and no forward edit can land — and no caret is armed while
+playing, so the keyboard position IS the transport's. Comparing against the AUDIBLE region rather
 than the last transport move is what covers the undo case — a transition that changes which REGION
 holds the playhead is seen on the next frame. One that changes only which TONE the same region names
 is not; that gap is the undo-resync item in `docs/tracking/backlog.md`, and closing it is blocked on
 the live-rig test fake, not on this row. The row therefore holds no containment rule of its own to
 disagree with the drawn `active` flag.
+
+While PAUSED the highlight follows where the KEYBOARD stands rather than the playhead (ruled
+2026-09-18): `activeToneRegionId` resolves through `keyboardTimePosition()` — the armed caret's
+instant, else the cursor's — so an arrow step, a jump or a pointer arm into the next region moves
+the highlight, the rig, the lanes and the signal-chain panel together, while the playhead stays
+put. Arming never seeks; the frame path above is untouched.
 
 *Design in flux: the active-vs-selected semantics of tone regions are proposed to change
 (`docs/plans/in-progress/tone-active-vs-selected.md`, awaiting sign-off) — treat the selection

@@ -233,6 +233,10 @@ remembered point row.
   `syncAudibleTone`, and `dissolveChartCaretInPlace` and the column rule move the cursor through it.
   `activateToneAtCursor` (clear plus sync) is unchanged for the transport moves. This retires
   dissolve's "display handoff, not a listening move" rationale.
+  *Superseded 2026-09-18*: the dissolve is no longer the only caret motion the rig follows. The
+  audible tone now derives from `keyboardTimePosition()` — the armed caret's instant else the
+  transport's — so every caret arming re-derives it and a caret stepped into another region switches
+  the rig without waiting for the dissolve.
 - *Undo never releases a stale section selection* (fixed in 1b). `releaseToneSelectionNamingNothing`
   became `releaseMarkerSelectionNamingNothing` over `selectedMarker()`, at both call sites (every
   tone commit and every undo transition).

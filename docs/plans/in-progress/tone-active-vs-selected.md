@@ -16,10 +16,17 @@ at the root and keeps the intuitive Delete key.
 
 - **Active tone** — the tone the rig plays and the default editing context (signal-chain panel and
   tone-automation lanes bind to it). `active = the selected region if one is selected, else the tone
-  under the cursor (toneRegionIdAt(cursor))`. There is **always** an active tone: tone regions are
+  where the keyboard stands (toneRegionIdAt(keyboardTimePosition()))` — the armed caret's instant
+  while a caret is armed, else the cursor's. There is **always** an active tone: tone regions are
   gapless by design and the schedule spans the whole chart — the first region owns `[0, …)` (the
-  pre-measure-1 lead-in) and the last region owns `[…, end of chart)` — so no cursor position is ever
+  pre-measure-1 lead-in) and the last region owns `[…, end of chart)` — so no position is ever
   tone-less.
+
+  RULED 2026-09-18: while PAUSED the audible tone follows the caret as well as the cursor. The
+  caret step never followed before, because the derivation read the raw transport clock and arming
+  never moves the playhead, so stepping into another region left the rig behind. Separately OPEN:
+  while PLAYING the audible tone must follow the transport with precision — the per-frame crossing
+  check is unchanged by that ruling and its accuracy is its own item.
 - **Selected region** — a deliberate, formal selection, set *only* by clicking a region. Cleared
   whenever the transport position changes (seek, playback advance, stop-to-start). Drives the
   white-outline highlight and the Delete target. While a region is selected it is also the active

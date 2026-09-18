@@ -1370,6 +1370,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // cursor. Nothing with no arrangement.
     [[nodiscard]] std::optional<common::core::GridPosition> keyboardPosition() const;
 
+    // Where the keyboard stands in SECONDS: the armed caret's position converted exactly from its
+    // GridPosition — a caret on a lane included, since that is an armed caret naming its lane —
+    // else the transport's own clock. An armed caret implies a paused transport, so a playing
+    // transport always answers with its clock. Converted from the caret's exact grid position
+    // rather than rounded through keyboardPosition()'s quantum, so a seconds-space containment
+    // rule reaches the same answer as the drawn caret at a region boundary.
+    [[nodiscard]] common::core::TimePosition keyboardTimePosition() const;
+
     // The first member of what a selection verb acts on, published for the view to centre when
     // acted on off-screen: the earliest selected chart object; else the selected automation point;
     // else the selected marker's start — the chip, whichever way the cursor stands to it; else the

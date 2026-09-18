@@ -11,6 +11,8 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
@@ -227,6 +229,21 @@ constexpr float g_pointer_band_height = 40.0F;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     song.arrangements.front().chart = std::move(chart);
     return song;
+}
+
+// A tab-lane press on a string at a musical time, over a 400x240 six-lane band spanning the whole
+// four-second fixture timeline: 100 px/s and 40 px lanes, so string 1 draws at the bottom (y = 220)
+// and each string above it 40 px higher.
+[[nodiscard]] ChartPointerEvent chartPressAt(double seconds, int string_number)
+{
+    return ChartPointerEvent{
+        .geometry = common::ui::makeTabLaneGeometry(
+            0.0F, 0.0F, 400.0F, 240.0F, pointerVisibleTimeline(), 6, 6),
+        .x = static_cast<float>(seconds * 100.0),
+        .y = 240.0F - (static_cast<float>(string_number) * 40.0F) + 20.0F,
+        .modifiers = {},
+        .clicks = 1,
+    };
 }
 
 // The charted automation song with a second tone change: the opening region keeps the harness tone,
@@ -2035,20 +2052,20 @@ TEST_CASE(
     CHECK(state->tone_track.regions[1].selected);
 }
 
-// A caret that walks into another tone's region and is then dissolved in place takes the rig with
-// it: the lanes and the panel follow the cursor, so the audible tone must too. Esc dissolves with
-// nothing selected afterwards, so only the dissolve itself can have moved the rig.
+// A caret that walks into another tone's region takes the rig with it: the audible tone follows
+// where the keyboard stands, and arming never moves the playhead. Esc then dissolves the caret onto
+// the position it already reached, so the tone it switched to stays.
 TEST_CASE(
-    "EditorController points the rig at the tone a caret dissolves into", "[core][tone-automation]")
+    "EditorController points the rig at the tone a caret walks into", "[core][tone-automation]")
 {
     AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
 
     // Arm at the cursor in the first region, then jump a measure into the later one: the caret
-    // moves, the transport does not.
+    // moves, the transport does not, and the rig follows the caret.
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, true);
     REQUIRE(editor.transport.position().seconds < 2.0);
-    CHECK(editor.live_rig.last_audible_tone_ref != std::optional<std::string>{g_later_tone_ref});
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
 
     editor.controller.onChartEscapePressed();
     CHECK(editor.transport.position().seconds == Catch::Approx(2.0));
@@ -2059,6 +2076,111 @@ TEST_CASE(
     REQUIRE(state->tone_track.regions.size() == 2);
     CHECK_FALSE(state->tone_track.regions[0].selected);
     CHECK_FALSE(state->tone_track.regions[1].selected);
+}
+
+// The arrow walk across a region boundary is the plain case of the rule above: the tone the rig
+// plays and the tone row's highlight both move onto the region the caret entered, while the
+// playhead stays exactly where it was.
+TEST_CASE(
+    "EditorController follows the caret across a tone boundary with the arrows",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    const double parked_seconds = editor.transport.position().seconds;
+    REQUIRE(parked_seconds < 2.0);
+
+    // Five presses from the passive marker: the first arms in place on the first beat of measure 1
+    // without stepping, and the four quarter-note steps after it reach the first beat of measure 2,
+    // which is where the later region begins.
+    for (int press = 0; press < 5; ++press)
+    {
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    }
+
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].active);
+    CHECK(state->tone_track.regions[1].active);
+
+    // And back: the walk is symmetric, so the rig returns to the opening tone with the caret.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
+    const EditorViewState* const back = stateOrNull(editor.view.last_state);
+    REQUIRE(back != nullptr);
+    REQUIRE(back->tone_track.regions.size() == 2);
+    CHECK(back->tone_track.regions[0].active);
+    CHECK_FALSE(back->tone_track.regions[1].active);
+}
+
+// The big jumps carry the tone exactly as a step does — the rule is the caret's position, not how
+// it got there.
+TEST_CASE(
+    "EditorController follows the caret across a tone boundary on a chart-end jump",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    const double parked_seconds = editor.transport.position().seconds;
+    REQUIRE(parked_seconds < 2.0);
+
+    editor.controller.onChartCaretJumpRequested(ChartCaretJump::ChartEnd);
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+
+    editor.controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
+}
+
+// A step that stays inside the region the caret already stood in names the same tone again. The
+// derivation still runs and still hands the rig an answer — it is idempotent by design rather than
+// gated — so what the step must not do is CHANGE the tone.
+TEST_CASE(
+    "EditorController leaves the audible tone alone stepping within a region",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    REQUIRE(
+        editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
+
+    // The first press arms in place and the two steps after it stay inside measure 1, which the
+    // opening region owns whole.
+    for (int press = 0; press < 3; ++press)
+    {
+        editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    }
+
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_tone_document_ref});
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK(state->tone_track.regions[0].active);
+    CHECK_FALSE(state->tone_track.regions[1].active);
+}
+
+// A pointer arm is the same arming funnel, so a click in the tab lane inside another region moves
+// the audible tone the way an arrow step does — and still seeks nothing.
+TEST_CASE(
+    "EditorController follows a pointer-armed caret into another tone's region",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(gridAt(2, 1))};
+    const double parked_seconds = editor.transport.position().seconds;
+    REQUIRE(parked_seconds < 2.0);
+
+    // 2.5 s is the second beat of measure 2, a quarter note inside the later region.
+    editor.controller.onChartPointerDown(chartPressAt(2.5, 1));
+    editor.controller.onChartPointerUp(chartPressAt(2.5, 1));
+    CHECK(editor.transport.position().seconds == Catch::Approx(parked_seconds));
+    CHECK(editor.live_rig.last_audible_tone_ref == std::optional<std::string>{g_later_tone_ref});
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK_FALSE(state->tone_track.regions[0].active);
+    CHECK(state->tone_track.regions[1].active);
 }
 
 // Stepping off a pointer-selected region moves the cursor to that region's exact start, and the

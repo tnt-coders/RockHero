@@ -207,15 +207,18 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
 }
 
 // Resolves the active tone region: the formally selected region if one is selected, otherwise the
-// region under the cursor. The active tone is what the rig plays and the signal-chain panel edits;
-// the selection is a separate, deliberate concept (the Delete target).
+// region where the keyboard stands — the armed caret's instant, else the transport's. Read through
+// keyboardTimePosition() rather than the transport clock because arming never moves the playhead: a
+// caret stepped into the next region would otherwise leave the rig, the lanes and the signal-chain
+// panel on the region it left. The active tone is what the rig plays and the signal-chain panel
+// edits; the selection is a separate, deliberate concept (the Delete target).
 std::string EditorController::Impl::activeToneRegionId() const
 {
     if (std::string selected = selectedToneRegionId(); !selected.empty())
     {
         return selected;
     }
-    return toneRegionIdAt(m_transport.position());
+    return toneRegionIdAt(keyboardTimePosition());
 }
 
 // Names the tone document referenced by the active region, or empty when nothing resolves. Scopes
@@ -270,13 +273,14 @@ void EditorController::Impl::activateToneAtCursor()
 }
 
 // THE LAW: the audible tone is a pure function of three inputs — the selection (a selected tone
-// region's tone), the cursor (the region under the transport) and the tone model (which region
-// references which tone) — and it is re-derived exactly where one of those changes, and nowhere
-// else. The selection has two funnels and both re-derive: setSelection for every non-chart
-// replacement, and chartSelectionMutable's emplace for the chart one. Points the rig at the active
-// region's tone document and rebinds the signal-chain panel to what the rig reports back. Leaves
-// the audible tone unchanged when nothing resolves (no content loaded, or the region has no tone
-// yet).
+// region's tone), the keyboard position (the region under the armed caret, else under the
+// transport) and the tone model (which region references which tone) — and it is re-derived exactly
+// where one of those changes, and nowhere else. The selection has two funnels and both re-derive:
+// setSelection for every non-chart replacement, and chartSelectionMutable's emplace for the chart
+// one. The keyboard position changes at every cursor move and at every caret arming, and both call
+// here. Points the rig at the active region's tone document and rebinds the signal-chain panel to
+// what the rig reports back. Leaves the audible tone unchanged when nothing resolves (no content
+// loaded, or the region has no tone yet).
 //
 // Idempotent on purpose, so no call site has to ask first whether the tone can have changed: the
 // chain replacement below is a no-op against a chain the panel already renders, and the fader moves

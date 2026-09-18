@@ -504,7 +504,15 @@ the cursor at, which `pausedCursorPosition(quantum)` trusts only while the trans
 there — one trust rule, read at the placement quantum by an arming and at the tick by the marker
 rows, which coincide once snap is off. `cursorPosition(quantum)` is its ARMED-AWARE wrapper: the
 armed caret's position, else that paused answer, and nothing at all while playing or with no song.
-That wrapper is the one position authority every marker verb reads). Up/Down walk ONE stack of
+That wrapper is the one position authority every marker verb reads). `keyboardTimePosition()` is the
+SECONDS-space sibling of `keyboardPosition()`, for the rules that resolve in seconds: the armed
+caret's own grid position converted exactly — never the quantised reading — else the transport's
+clock, which a playing transport always gives since arming is paused-only. The **audible tone** reads
+it (ruled 2026-09-18): the active tone is the selected region else the region where the keyboard
+stands, so every caret arming re-derives it (`armChartCaret`, `armChartHeldStopHandle`,
+`armLaneCaret` each end in `syncAudibleTone`) and a caret stepped into the next tone region takes
+the rig, the lanes and the signal-chain panel with it. Arming still seeks NOTHING — the playhead does
+not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
 — the ruler's section, tempo and time-signature rows, the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
