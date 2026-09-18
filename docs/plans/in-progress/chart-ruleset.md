@@ -495,7 +495,11 @@ that second stop nowhere: the notation already states it, in the pull-off itself
 (`chartPlantedStops`). Where a figure holds a grip and a finger is added above it, the added note
 sounds a fret foreign to the grip and yet lifts nothing — the gripped stop was down before it, under
 it, and after it — so the bracket does not seam, neither when the finger arrives above the grip nor
-when the release returns to it.
+when the release returns to it. **The bridge asks what the source STATES** (`gripStatement`), the
+one authority the grip column asks, because a bridge is the claim that two stops are one statement
+of one hand: so a pull-off from a harmonic over a pressed stop never rides beneath it — that
+harmonic states its pressed fret, so the landing is a NEW statement and the span closes at the
+release with the pressed fret in its bracket.
 
 - **Every fret derives alike, ZERO included**: what the pull-off states beneath its source is the
   STOP the string falls to when the finger lifts, and for a pull onto the open string that stop is

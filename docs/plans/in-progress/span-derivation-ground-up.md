@@ -343,6 +343,8 @@ THE GRIP COLUMN HOLDS PLACES, NOT FRET NUMBERS. Every stop the walk carries — 
 `(fret, node)` pair a note already spells, so a natural harmonic states its NODE through the one
 channel reader (`statedStopFrom` wraps its answer in `frettingStopAt`) and node 5 is neither fret 5
 nor the open string. Claims and plants stay pressed frets and are lifted into the column through
-`frettedStop` / `plantedGrip`. No harmonic clause exists anywhere in the walk: the split a harmonic
-makes is the ordinary contradiction law reading a stop that can no longer say a node is fret 0, and
-a node on an unstated string grows the span like any new stop.
+`frettedStop` / `gripStatement`. Exactly ONE harmonic clause exists in the walk and it lives in that
+one function (RULED 2026-09-18): a harmonic over a PRESSED stop states that stop rather than a
+finger a pull-off plants beneath it, and the grip column and both hold-under arms read it alike.
+Every other split a harmonic makes is the ordinary contradiction law reading a stop that can no
+longer say a node is fret 0, and a node on an unstated string grows the span like any new stop.

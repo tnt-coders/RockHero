@@ -1279,8 +1279,11 @@ neighbours.
     either. Under such a harmonic the SPAN states that same pressed fret as its grip and never a
     planted finger a pull-off derives beneath it (RULED 2026-09-18) — the node is measured from the
     pressed stop, so that is the grip the figure needs — which is why satellite and bracket agree
-    and the digit falls away. The plant stays true in the derived table and is the hand window's to
-    reach, not the bracket's to print.
+    and the digit falls away. That answer holds wherever the release falls, because the HOLD-UNDER
+    test asks the same authority: a landing rides beneath a source only where it is the stop that
+    source STATES, so a pull-off from such a harmonic is a new statement and the span closes at the
+    release even when the chord around it goes on ringing. The plant stays true in the derived table
+    and is the hand window's to reach, not the bracket's to print.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.
@@ -1303,7 +1306,8 @@ neighbours.
     same pull-off plants its stop under a FRETTING-hand source too, and there it is a face and a
     refusal rather than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b
     above) — except under a harmonic standing over a PRESSED stop, whose satellite the press itself
-    holds, standing; there the plant reaches the picture through the covering span's posture alone.
+    holds, standing; there the plant reaches the picture through the posture of the span the release
+    OPENS, never through the harmonic's own, which the release closes.
 
     A stored `held` is authoritative only where no such evidence exists. **ONE resolver in common
     core is the single reader authority** (`chartClaimedStops`): the span derivation, the

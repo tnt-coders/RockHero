@@ -1119,22 +1119,27 @@ written down.
 
 ## Found while ruling the bracket under a pressed-stop harmonic (2026-09-18)
 
-- **A release restated INSIDE the span still hands the bracket the finger it lands on.** The
-  2026-09-18 ruling made a harmonic over a pressed stop state that pressed stop as its grip, which
-  settles the fronting figure completely (the span's front moves to the release, whose own head
-  states its fret, so no digit prints). It does NOT settle the figure where the harmonic is
-  CO-STRUCK into a span that is still standing when the pull-off lands: the release's strike is a
-  later statement on the same string, the hold-under law lets it ride rather than break, and a
-  posture keeps ONE stop per string — so the entry ends as the released fret, and a bracket drawn at
-  the harmonic's own onset prints THAT number into the satellite column beside the head's standing
-  pressed stop. Measured with a probe at the ruling: artificial co-struck → one span, posture 3,
-  satellite digit; the TAPPED twin of the same figure → two spans, the first stating the pressed 5,
-  because a tapped harmonic reaches the span as a CLAIM and the claim witness breaks there. So the
-  two forms agree in the fronting figure and disagree in this one. Two honest shapes: let such a
-  release break the span the way the tapped form already does (the forms then agree everywhere and
-  the two-digit column cannot arise at all), or keep the last statement and rule which ink that
-  column owes. Zero occurrences corpus-wide (the 2026-09-18 census counted no artificial harmonic
-  that is a pull-off source), so it is a correctness question, not a sighting emergency.
+- **A stale finger on the release's own fret defeats the split under a TAPPED harmonic.** The
+  2026-09-18 hold-under change closed the co-struck figure — a pull-off from a harmonic over a
+  pressed stop is a new statement, so the span closes at the release with the pressed fret in its
+  bracket — and the ARTIFICIAL form now derives that way unconditionally, because its own
+  fretting-hand strike refreshes the string's finger in the walk's hand table. The TAPPED form does
+  not: a tap makes no fretting-hand strike, so `hand[string].finger` stays whatever last PRESSED
+  that string while the tap's own sound renews the string's reach, and the walk goes on reading
+  that older finger's stop as what the string holds. Where that stop happens to be the fret the
+  release lands on, the release reads as the stop already standing and the span does not break —
+  the posture then ends as the released fret and the bracket prints it beside the head's standing
+  pressed stop, which is exactly the two-digit column the ruling removed. Reproduced 2026-09-18 in
+  `test_chart_shapes.cpp` terms: the co-struck tapped figure ALONE splits in two; the same figure
+  preceded by one plain note on its string at the release's fret (3) derives ONE span with posture
+  3; at another fret (7) it splits again; the artificial twin splits under either prefix. The
+  showcase package carries it at the (f2) measure, right after an (f1) measure that leaves a finger
+  on 3. The root is the claim/hand-table seam `docs/tracking/watch-items.md` already tracks — a
+  right-hand onset's CLAIM does not become the string's finger — so the fix belongs with that item
+  rather than with the grip-statement law, and it is a design question (what a claim does to the
+  hand table) rather than a local patch. Zero occurrences corpus-wide (the 2026-09-18 census counted
+  no harmonic over a pressed stop that is a pull-off source), so it is a correctness question, not a
+  sighting emergency.
 
 - **The importer's let-ring grip statement still reads the plant bare.** `gripStatementAt`
   (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:1889`) is a second spelling of the

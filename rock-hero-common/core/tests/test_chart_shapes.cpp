@@ -5263,6 +5263,12 @@ TEST_CASE("A co-struck source's release restates the plant under the stroke", "[
 // derives beneath it. The plant stays true in the wide table the hold-under law derives — a finger
 // really is waiting there, and the FRET-HAND POSITION derivation is what factors it in — but the
 // bracket does not print it. RULED 2026-09-18.
+//
+// ONE AUTHORITY, so the HOLD-UNDER arms answer it too: a bridge between two stops is the claim
+// that they are one statement of one hand, and such a harmonic states its pressed stop, not the
+// plant. So the release is a NEW statement wherever it falls — the two families of case below are
+// the span ENDING with the harmonic's ring (the fronting figure) and the span still standing when
+// the release lands (the co-struck figure), and the answer is the pressed stop in both.
 TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core][chart]")
 {
     // A whole-grip stroke: two plain strings and the harmonic on string 3, each ringing one beat,
@@ -5305,6 +5311,84 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
 
         REQUIRE_FALSE(derived.shapes.empty());
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(3)});
+    }
+
+    // THE CO-STRUCK FIGURE — the sighting that sent the ruling into the HOLD-UNDER arms as well
+    // (2026-09-18). The same harmonic, struck inside a chord that is STILL STANDING when the
+    // release lands: two plain 5s ringing four beats around it, the harmonic ringing one, and the
+    // release landing on its plant at the far end of that ring. The span therefore does not end
+    // with the harmonic's own ring, so the release is a statement made INSIDE it — and the
+    // hold-under law, reading the plant bare, called that release the span's own finger lifting
+    // and let it write 3 over the 5 in a posture the bracket prints beside the head's standing 5.
+    const auto co_struck = [](ChartNote sounded) {
+        return streamOf({
+            noteAt(1, Fraction{}, 3, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 5, 5, Fraction{4}),
+            std::move(sounded),
+            pullOffAt(2, Fraction{}, 4, 3, Fraction{2}),
+        });
+    };
+    // What the law yields once both arms ask the grip statement: the span founded at the harmonic's
+    // onset keeps the PRESSED 5 on its string and CLOSES at the release's own onset (the close's
+    // event arm), and the release founds its own span there — taking the two chord strings in as
+    // the rings they still are, and stating its 3 on the string it landed on.
+    const auto splitsAtTheRelease = [](const std::vector<ChartNote>& notes) {
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(5)});
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        // One beat from beat 1 at 4/4: the release's onset, which is also where span 1 opens.
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(derived.shapes[0].closing_onset == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derivedStops(derived, 1)[3] == std::optional{frettedStop(3)});
+        CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(5)});
+        CHECK(derivedStops(derived, 1)[4] == std::optional{frettedStop(5)});
+        everySpanIsPositive(derived);
+    };
+
+    SECTION("a release inside the span is a new statement, never a finger already down")
+    {
+        ChartNote inner = noteAt(1, Fraction{}, 4, 5, Fraction{1});
+        inner.harmonic_node = 17.0;
+        splitsAtTheRelease(co_struck(std::move(inner)));
+    }
+
+    SECTION("the co-struck tapped twin derives the same two spans")
+    {
+        // The tapped form already split here before the ruling, by a different road — a tapped
+        // harmonic reaches the span as a CLAIM, and the claim witness broke on the release — so
+        // this section is what pins the two forms AGREEING. One figure, one answer, whichever hand
+        // sounds the string.
+        //
+        // The agreement is not yet unconditional, and the gap is NOT this law: a tapped harmonic
+        // makes no fretting-hand strike, so the string's finger in the hand table stays whatever
+        // last pressed it, and an earlier finger left on the release's OWN fret still reads as the
+        // stop standing. `docs/tracking/backlog.md` carries that one with its reproduction; the
+        // artificial form is immune because its own strike refreshes the string.
+        ChartNote tapped = tapAt(1, Fraction{}, 4, 5, Fraction{1});
+        tapped.harmonic_node = 17.0;
+        splitsAtTheRelease(co_struck(std::move(tapped)));
+    }
+
+    SECTION("a plain tap's release onto its own planted finger still rides")
+    {
+        // The hold-under law itself, untouched: a tap at 12 over a finger planted on 5, released
+        // onto THAT 5. The tap states the 5 it plants, the release states the same 5, so the two
+        // are one statement of one hand and the span rides through them whole — which is exactly
+        // what the harmonic above is NOT, because it states the stop its node is measured from
+        // instead of the finger waiting under it.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 3, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 5, 5, Fraction{4}),
+            tapHoldingAt(1, Fraction{}, 4, 12, Fraction{1}, 5),
+            pullOffAt(2, Fraction{}, 4, 5, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(5)});
+        everySpanIsPositive(derived);
     }
 }
 

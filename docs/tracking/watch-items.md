@@ -711,8 +711,9 @@ the span's posture rather than through the note's own face.
 What remains split is WHICH readers see that plant. The WIDE planted table is the one that does not
 narrow: `resolveLegato` accepts a tapped harmonic as a pull-off source (it refuses only a scrape and
 a `fretHandHarmonic` predecessor), so `chartPlantedStops` records the plant beneath it and the span
-derivation reads that table through `plantedGrip` — which is how an ARTIFICIAL harmonic's grip gets
-its planted finger. The CLAIM column does narrow (`chartDerivedStops` asks
+derivation reads that table through `gripStatement` — which is how an ORDINARY source's grip gets
+its planted finger, and where a harmonic over a pressed stop is refused one (RULED 2026-09-18: such
+a harmonic states its pressed fret instead). The CLAIM column does narrow (`chartDerivedStops` asks
 `pickingHandStopsString`), so a pull-off from a TAPPED harmonic derives no claim at all: the
 successor sounds wherever it states and the harmonic's claim stays its pressed fret whatever that
 destination is. One figure therefore reaches the spans through one reader for the fretting hand and

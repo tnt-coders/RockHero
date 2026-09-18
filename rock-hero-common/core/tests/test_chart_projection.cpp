@@ -1796,6 +1796,64 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             }
         }
     }
+
+    SECTION("a co-struck harmonic's own span prints the pressed stop, not the plant")
+    {
+        // THE CO-STRUCK FIGURE, which is where the two-digit column could still have arisen: the
+        // harmonic struck INSIDE a chord that goes on ringing past the release, so the span it
+        // fronts does not end with its ring. The release is then a statement made inside that span
+        // — and while the hold-under law read the plant bare, it counted as the span's own finger
+        // lifting and wrote the 3 into a bracket drawn at the harmonic's own onset, into the very
+        // satellite column the head's standing 5 paints over. Now the release states a grip the
+        // harmonic never did, so the span CLOSES there and the first one keeps the pressed 5.
+        //
+        // The digit is absent for the same reason it is absent everywhere a head stands at the
+        // bracket: the harmonic's head is right there on the string, so what states the 5 is the
+        // head's own satellite and the frame states nothing.
+        //
+        // The third string joins a beat later so the span SOUNDS IN PARTS and therefore draws a
+        // bracket at all: a box-class span states itself with its strums' own boxes and opens no
+        // mark, which would leave the digit empty for a reason that has nothing to do with this.
+        ChartNote artificial = strike(1, 4, 5, Fraction{2});
+        artificial.harmonic_node = 17.0;
+        const ChartViewState state = project(
+            {artificial,
+             strike(1, 3, 5, Fraction{5}),
+             strike(2, 5, 5, Fraction{4}),
+             pull_to(3, 4, 3, Fraction{2})});
+
+        REQUIRE(state.shapes.size() == 2);
+        const ShapeViewState& fronted = state.shapes.front();
+        // Beat 1 at 120 BPM: the span's own front, where the harmonic's head stands.
+        REQUIRE(fronted.bracket_seconds.has_value());
+        if (fronted.bracket_seconds.has_value())
+        {
+            CHECK_THAT(*fronted.bracket_seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
+        }
+        const auto pressed = std::ranges::find(fronted.strings, 4, &ShapeStringViewState::string);
+        REQUIRE(pressed != fronted.strings.end());
+        if (pressed != fronted.strings.end())
+        {
+            CHECK(pressed->stop == frettedStop(5));
+            CHECK(pressed->digit == std::nullopt);
+        }
+        const ShapeViewState& released = state.shapes.back();
+        const auto landed = std::ranges::find(released.strings, 4, &ShapeStringViewState::string);
+        REQUIRE(landed != released.strings.end());
+        if (landed != released.strings.end())
+        {
+            CHECK(landed->stop == frettedStop(3));
+        }
+
+        const auto touched = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
+            return note.string == 4 && note.harmonic_node.has_value();
+        });
+        REQUIRE(touched != state.notes.end());
+        if (touched != state.notes.end())
+        {
+            CHECK(touched->held == std::optional{5});
+        }
+    }
 }
 
 // [D2]'s amendment 2, projected. A span an event states keeps its bracket at its own start, because
