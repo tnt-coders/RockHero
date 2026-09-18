@@ -248,10 +248,14 @@ struct StopClaim
     return stop == frettedStop(0);
 }
 
-// The stop a pull-off plants, as a GRIP. A pull-off lands on a fret or the open string and never
+// The stop a pull-off plants, as a STOP. A pull-off lands on a fret or the open string and never
 // on a node: the resolver refuses a fret-hand harmonic as a source (chart_legato.cpp, the
-// predecessor gate) and refuses a node-bearing destination, so a planted grip is always a pressed
+// predecessor gate) and refuses a node-bearing destination, so a planted stop is always a pressed
 // one. Lifted once so the plant predicates and the carry sites cannot come to disagree about that.
+//
+// THE PLANT IS PHYSICAL — a finger is waiting on that fret for the whole of the source's ring — so
+// this is what the HOLD-UNDER arms ask, of every source that plants one without exception. What a
+// source STATES as its grip is the narrower question below.
 [[nodiscard]] std::optional<ChartStop> plantedGrip(const std::optional<int>& planted)
 {
     if (!planted.has_value())
@@ -259,6 +263,24 @@ struct StopClaim
         return std::nullopt;
     }
     return frettedStop(*planted);
+}
+
+// The grip a source STATES, which is what every posture entry records. A planting source states its
+// PLANT — the fret it sounds is the ornament riding above it — except under a harmonic played over
+// a pressed stop (\ref harmonicOverPressedStop), which states that PRESSED STOP: the node its head
+// prints is measured from that stop, so it is the grip the figure needs, and it is the very number
+// the satellite beside the head prints. A bracket printing the finger waiting underneath instead
+// would state the one grip the figure does not need and disagree with the head's own satellite. The
+// planted finger stays true in the wide table because it is real — it is the HAND WINDOW's to
+// reach, not the bracket's to print.
+//
+// Empty where the source states no grip of its own, and every caller then falls back to the stop
+// the string speaks from — which under such a harmonic IS the pressed stop (\ref frettingStopAt),
+// so the rule needs no second spelling of that fret anywhere.
+[[nodiscard]] std::optional<ChartStop> gripStatement(
+    const ChartNote& note, const std::optional<int>& planted)
+{
+    return harmonicOverPressedStop(note) ? std::nullopt : plantedGrip(planted);
 }
 
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
@@ -861,6 +883,12 @@ ChartShapes deriveChartShapes(
         // displacement reads, so the ring bound and the slide-out exemption are not spelled a
         // second time — a dead source's planted finger is as gone as its sound.
         //
+        // Both arms read the plant BARE (\c plantedGrip) and carry no harmonic clause: the question
+        // here is whether a finger is DOWN on that fret, and the pull-off proves it is, whatever
+        // the source states as its grip. So a harmonic over a pressed stop bridges its own plant
+        // exactly like any other source — the pull-off that follows it displaces nothing — while
+        // the bracket it hands the span states the pressed stop (\c gripStatement).
+        //
         // WHAT THE PLANT REACHES (the one list; the deriveChartShapes \param is a pointer here).
         // The pair feeds every seam verdict — displacement, the grip contradiction, the claim
         // witness — and, under THE FOLD, the statement-began column and the foreign-sound floor, so
@@ -902,18 +930,21 @@ ChartShapes deriveChartShapes(
         // gripped stop is a plain restatement (the held figure rides, and the ornament never
         // rewrites its string's entry).
         const auto grip_statement_of =
-            [&planted_stops, &slot](const std::size_t string_index) -> std::optional<ChartStop> {
+            [&saved_notes, &planted_stops, &slot](
+                const std::size_t string_index) -> std::optional<ChartStop> {
             // Bound once so the presence test and the read are provably the same object.
             const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
             if (!striking.has_value())
             {
                 return std::nullopt;
             }
-            // The plant arm needs no harmonic clause. A NODE-grip harmonic — a natural, whose grip
-            // IS the node — never plants, the resolver refusing a fretHandHarmonic as a pull-off
-            // source, so nothing can displace that node; a harmonic over a PRESSED stop grips the
-            // stop like any other note and states the plant when a pull-off leaves one behind it.
-            const std::optional<ChartStop> planted = plantedGrip(planted_stops[*striking]);
+            // The plant arm carries the harmonic clause with it (\c gripStatement), so this site
+            // and every other statement site read one rule: a harmonic over a PRESSED stop states
+            // that stop, and the fall-through below hands back exactly it. A NODE-grip harmonic — a
+            // natural, whose grip IS the node — never plants at all, the resolver refusing a
+            // fretHandHarmonic as a pull-off source, so nothing can displace that node.
+            const std::optional<ChartStop> planted =
+                gripStatement(saved_notes[*striking], planted_stops[*striking]);
             return planted.has_value() ? planted : slot.strikes[string_index];
         };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
@@ -978,9 +1009,10 @@ ChartShapes deriveChartShapes(
             {
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 std::optional<ChartStop> held_statement = held;
-                if (held.has_value() && finger.has_value() && planted_stops[*finger].has_value())
+                if (held.has_value() && finger.has_value())
                 {
-                    held_statement = plantedGrip(planted_stops[*finger]);
+                    held_statement =
+                        gripStatement(saved_notes[*finger], planted_stops[*finger]).value_or(*held);
                 }
                 const bool statement_continues = statement.has_value() &&
                                                  held_statement.has_value() &&
@@ -1237,7 +1269,7 @@ ChartShapes deriveChartShapes(
                     return false;
                 }
                 const ChartStop part_statement =
-                    plantedGrip(planted_stops[ahead]).value_or(*sounded_stop);
+                    gripStatement(member, planted_stops[ahead]).value_or(*sounded_stop);
                 if (*stated != part_statement)
                 {
                     return false;
@@ -1468,8 +1500,11 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 // A carried source states its plant, like every grip statement: the ring sounds
-                // the ornament, and the grip beneath it is the planted stop.
-                stops[string_index] = plantedGrip(planted_stops[*finger]).value_or(*carried);
+                // the ornament, and the grip beneath it is the planted stop — except under a
+                // harmonic over a pressed stop, whose grip is that pressed stop and so is the
+                // stop it is still ringing from (\c gripStatement).
+                stops[string_index] =
+                    gripStatement(saved_notes[*finger], planted_stops[*finger]).value_or(*carried);
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without

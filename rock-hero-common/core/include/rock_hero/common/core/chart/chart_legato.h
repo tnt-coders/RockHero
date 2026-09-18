@@ -289,7 +289,9 @@ TWO TIERS under a fretting-hand onset, in precedence order:
   (\ref soundingStopAt) while the hand is on the stop below it, so that stop is its held one — the
   artificial harmonic here, the tapped one through its claim below, one family named once
   (\ref harmonicOverPressedStop). It outranks the plant: the pressed fret is pitch-critical and no
-  other ink states it, while a plant is a span fact the bracket prints.
+  other ink states it, and the SPAN says the same — the grip a harmonic over a pressed stop states
+  is that pressed stop, never the finger a pull-off plants beneath it (chart_shapes.cpp, RULED
+  2026-09-18) — so the plant is printed nowhere under such a note; it is the hand window's to reach.
 - THE PLANT'S FACE. Every other fretting-hand onset IS the hand, so the one second stop it can hold
   is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law): that entry
   is its held stop here, so the note wears the plant as its own satellite on the reveal's terms —

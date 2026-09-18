@@ -5257,6 +5257,57 @@ TEST_CASE("A co-struck source's release restates the plant under the stroke", "[
     }
 }
 
+// THE PRESSED STOP IS THE GRIP under a harmonic played over one (\ref harmonicOverPressedStop):
+// the node its head prints is MEASURED from that stop, so the pressed fret is the grip the figure
+// needs, and a pull-off from such a harmonic never moves the bracket onto the finger the release
+// derives beneath it. The plant stays true in the wide table the hold-under law derives — a finger
+// really is waiting there, and the FRET-HAND POSITION derivation is what factors it in — but the
+// bracket does not print it. RULED 2026-09-18.
+TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core][chart]")
+{
+    // A whole-grip stroke: two plain strings and the harmonic on string 3, each ringing one beat,
+    // with the release landing exactly where the harmonic's ring ends — strict adjacency, which is
+    // what resolves it as a pull. The stroke's span therefore closes AT the release, so what it
+    // publishes is the harmonic's own statement and nothing stated after it.
+    const auto figure = [](ChartNote sounded) {
+        return streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+            std::move(sounded),
+            pullOffAt(2, Fraction{}, 3, 3, Fraction{2}),
+        });
+    };
+    ChartNote artificial = noteAt(1, Fraction{}, 3, 5, Fraction{1});
+    artificial.harmonic_node = 17.0;
+
+    SECTION("the posture holds the pressed fret while the wide table holds the plant")
+    {
+        const std::vector<ChartNote> notes = figure(artificial);
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        REQUIRE(resolutions.connections.legato[indexAt(notes, 1, 2, 3)] == LegatoMotion::Pull);
+        // The plant is REAL, and the wide table says so: a finger waits on 3 for the whole of the
+        // harmonic's ring, which is exactly what the hand window has to reach.
+        CHECK(resolutions.planted_stops[indexAt(notes, 1, 1, 3)] == std::optional{3});
+
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE_FALSE(derived.shapes.empty());
+        CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(5)});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("an ordinary source in the same figure still states its plant")
+    {
+        // The discriminating negative, one field apart: drop the node and the head prints the 5 it
+        // sounds, so nothing is left unstated by taking the plant as the grip and the slide/bracket
+        // law runs unchanged.
+        const std::vector<ChartNote> notes = figure(noteAt(1, Fraction{}, 3, 5, Fraction{1}));
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE_FALSE(derived.shapes.empty());
+        CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(3)});
+    }
+}
+
 // THE NODE GRIP: a natural harmonic is a fretting-hand statement of its NODE, and node 5 is not
 // fret 5 — nor the open string it shares a fret number with. No harmonic clause exists anywhere in
 // the walk: the split a harmonic makes falls out of the ordinary contradiction law reading a stop

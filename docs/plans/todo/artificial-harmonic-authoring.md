@@ -116,6 +116,14 @@ the column pair this lane already has, rather than a new mark. 3D: the fret-span
 a natural, where the two ends coincide. Leaving either surface node-only would let them diverge,
 which the project forbids as a standing rule.
 
+**And the BRACKET states the pressed fret too — RULED 2026-09-18.** Where a pull-off derives a
+finger planted beneath such a harmonic, the span's grip statement is the pressed stop and never
+that finger: the node is measured from the stop, so the stop is the grip the figure needs, and the
+bracket agreeing with the satellite is what keeps one number in one column (the digit rule
+suppresses the span's digit on exactly that equality). The planted finger stays true in the derived
+table because it is real — the FRET-HAND POSITION derivation must reach it
+(`docs/plans/in-progress/fhp-derivation-algorithm.md`, law 12), the bracket must not print it.
+
 **Picker rows.** Absolute touch positions with the partial ordinal beside them — the vocabulary the
 shipped natural picker (`SetChartHarmonicNode`, whose partial became a `std::optional<int>` on
 2026-09-16) already uses. Preselect the **octave (2nd partial)**:

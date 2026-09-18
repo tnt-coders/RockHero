@@ -100,6 +100,22 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     sight, the marker renders THERE as itself (a boundary tick in the marker's visual
     grammar) — a display-layer choice, never a stream entry.
 
+12. **[LAW — RULED 2026-09-18]** A planted finger a pull-off derives beneath a source — a harmonic
+    over a pressed stop included — is in the hand's reach: it is a coverage demand for the whole of
+    that source's ring, exactly as a written ring is under rule 6. The bracket does NOT print it
+    under such a harmonic (the span posture states the pressed stop the chime is measured from, so
+    the surface says the pressed fret and the satellite beside the head says it too); the window is
+    what accounts for the finger waiting underneath. The plant is derived, never authored — it is
+    the pull-off itself that states it (`chartPlantedStops`) — so this law costs the charter
+    nothing to read. *Status: the current generator does NOT satisfy it.*
+    `generateFretHandPositions` is plant-blind by construction — it is handed only the built notes
+    (`gp_chart_builder.cpp:3614`), and its three coverage sources all read a note's own channel:
+    the onset hull through `fretFor` (`:2340`), the slide-keyframe hull through `fretFor` plus the
+    channel (`:2243`), and THE PINNED-FINGER UNION through `ringStateAt` (`:2435`). The plant
+    enters the hull only later, at the pull-off's own onset, so the window covers the waiting
+    finger only by luck of width. `chartPlantedStops` reaches the importer solely through the
+    let-ring figure law (`:3646`, `letRingFigureEnds`), which decides ring ends, never windows.
+
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 
 | | exact | within-1 | churn (authored) | coverage |

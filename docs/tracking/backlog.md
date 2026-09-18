@@ -1117,15 +1117,30 @@ written down.
   deciding what a highway mark for "a finger is down here too" looks like, which is a sighting
   question, not a wiring one.
 
-- **Two digits reach one satellite column under a planting pressed-stop harmonic.** The figure: an
-  artificial harmonic FRONTING its span, pressing 5 with its node at 17, with a pull-off to 3 behind
-  it. The projection publishes both facts, as it should — the note's own satellite states the
-  pressed 5, standing, and the span's posture holds the plant 3, displaced into the satellite slot
-  because the head at that instant sounds at the node — but both are the same string at the same
-  instant, so both `drawSatelliteDigit` calls take the same `bracketColumnsAt` rectangle. The note's
-  own pass paints after the brackets over an opaque ground, so the reader sees the 5 and the 3 is
-  gone. Pinned by the projection test "a plant beneath an artificial harmonic leaves the pressed
-  stop standing" (`test_chart_projection.cpp`), which asserts both publications. What to DO about it
-  is a sighting question with more than one honest answer — a second column, a stacked pair, or a
-  ruling that the press is simply the one the column owes — so it waits for the figure to be seen
-  rather than being pre-empted here.
+## Found while ruling the bracket under a pressed-stop harmonic (2026-09-18)
+
+- **A release restated INSIDE the span still hands the bracket the finger it lands on.** The
+  2026-09-18 ruling made a harmonic over a pressed stop state that pressed stop as its grip, which
+  settles the fronting figure completely (the span's front moves to the release, whose own head
+  states its fret, so no digit prints). It does NOT settle the figure where the harmonic is
+  CO-STRUCK into a span that is still standing when the pull-off lands: the release's strike is a
+  later statement on the same string, the hold-under law lets it ride rather than break, and a
+  posture keeps ONE stop per string — so the entry ends as the released fret, and a bracket drawn at
+  the harmonic's own onset prints THAT number into the satellite column beside the head's standing
+  pressed stop. Measured with a probe at the ruling: artificial co-struck → one span, posture 3,
+  satellite digit; the TAPPED twin of the same figure → two spans, the first stating the pressed 5,
+  because a tapped harmonic reaches the span as a CLAIM and the claim witness breaks there. So the
+  two forms agree in the fronting figure and disagree in this one. Two honest shapes: let such a
+  release break the span the way the tapped form already does (the forms then agree everywhere and
+  the two-digit column cannot arise at all), or keep the last statement and rule which ink that
+  column owes. Zero occurrences corpus-wide (the 2026-09-18 census counted no artificial harmonic
+  that is a pull-off source), so it is a correctness question, not a sighting emergency.
+
+- **The importer's let-ring grip statement still reads the plant bare.** `gripStatementAt`
+  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:1889`) is a second spelling of the
+  grip-statement law — its own comment says it seams where the spans break, "one law read off one
+  derived table" — and it did not take the 2026-09-18 harmonic clause, so under a harmonic over a
+  pressed stop the let-ring figure law and the span machine now disagree about what that note
+  states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
+  such sources), which is also why it was left out of the ruling's own change rather than folded in
+  unmeasured.

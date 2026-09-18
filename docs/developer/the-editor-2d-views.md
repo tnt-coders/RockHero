@@ -485,7 +485,12 @@ nothing on that string, and the held channel refuses to retype it exactly as it 
 tap stop. A fretting-hand head whose own number is a NODE — an artificial harmonic, pressing a fret
 its head does not print — HAS a face: it states that pressed fret on its own satellite, standing and
 read-only (`harmonicOverPressedStop`, RULED 2026-09-18), so the bracket prints nothing on that
-string either, the note's own ink having already said it.
+string either, the note's own ink having already said it. **The bracket states the PRESSED fret
+under such a harmonic**, never a planted finger a pull-off derives beneath it (RULED 2026-09-18):
+the node the head prints is measured from that stop, so the pressed fret is the grip the figure
+needs, the span's own grip statement is that fret, and satellite and bracket therefore agree — which
+is exactly why the digit falls away. The planted finger stays true in the derived table because it
+is real; it is the FRET-HAND POSITION derivation that must reach it, not the bracket that prints it.
 A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
 FRAME, so it states the whole membership where the reader meets it and an accumulation's members
 print their frets there, their own heads restating them as they arrive. That is why the window is

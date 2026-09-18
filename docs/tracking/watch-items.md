@@ -674,7 +674,24 @@ probe, the head-loop skips and the marquee pass all left with it, so the hit tes
 and a bracket takes no clicks at all. Reopen only if a mark is ever given a hit pass ahead of the
 heads again.
 
-### A pressed-stop harmonic's claim column and its grip disagree about the planted finger — trigger: a figure where a tapped harmonic pulls off to a stop other than its pressed fret
+### ~~A pressed-stop harmonic's claim column and its grip disagree about the planted finger~~ — RETIRED 2026-09-18: the grip no longer reads the plant under such a harmonic
+
+**The disagreement the item named is gone, by ruling rather than by narrowing a table.** Under a
+harmonic played over a pressed stop — artificial or tapped alike (`harmonicOverPressedStop`) — the
+SPAN'S GRIP STATEMENT is the pressed fret and never the finger a pull-off derives beneath it: the
+node the head prints is measured from that stop, so the pressed fret is the grip the figure needs,
+and it is the very number the satellite beside the head prints. One helper in
+`chart_shapes.cpp` (`gripStatement`) states that once for every statement site, so the artificial
+form now derives exactly what the tapped one always did and the two columns say one thing.
+
+The plant stays TRUE in the wide table (`chartPlantedStops`), because it is real: a finger waits on
+that fret for the whole of the source's ring. What reads it is the FRET-HAND POSITION derivation —
+the window has to reach the waiting finger — and that law is recorded in
+`docs/plans/in-progress/fhp-derivation-algorithm.md` (law 12, RULED 2026-09-18), with the standing
+note that the current generator does not satisfy it yet. The hold-under law still reads the plant
+bare, as it must: the question there is whether a finger is DOWN, and the pull-off proves it is.
+
+The original item, for the record:
 
 Recorded with the 2026-09-17 ruling that `fret` is the stop the string speaks from for every note
 that sounds: a harmonic of either hand stores its PRESSED stop there, and `held` narrowed to the

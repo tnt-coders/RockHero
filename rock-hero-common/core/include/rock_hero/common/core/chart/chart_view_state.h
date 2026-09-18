@@ -100,8 +100,9 @@ enum class StopMarkFace : std::uint8_t
     at the head while the fretting hand is on the stop below it, so that stop stands here because it
     is pitch-critical and nothing else prints it. Read-only where the typed one is writable — a note
     carrying a node carries no planted finger for a digit to state — and standing even where a
-    pull-off plants a finger beneath it, because the plant reaches the SPAN while the pressed
-    stop is the note's own statement.
+    pull-off plants a finger beneath it, because the SPAN states that same pressed stop as its grip
+    there (the bracket never prints the plant under such a harmonic) and the finger waiting
+    underneath is the hand window's to reach.
     */
     Standing,
 
@@ -723,7 +724,9 @@ struct ShapeStringViewState
     absent — one ink states it either way: the stop a pull-off plants beneath it, reveal-only, and
     the PRESSED stop under a harmonic whose head prints its node instead, standing (\ref
     harmonicOverPressedStop). So the fretted-5 head above puts its 5 in its own satellite and the
-    bracket says nothing on that string.
+    bracket says nothing on that string. Under such a harmonic the two agree by derivation rather
+    than by luck: the span's grip statement on that string IS the pressed stop, never the finger a
+    pull-off derives beneath it, so the equality this entry is decided by holds.
 
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's

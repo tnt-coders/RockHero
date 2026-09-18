@@ -1275,7 +1275,11 @@ neighbours.
     `StopMarkFace::Revealed`) and the bracket prints nothing on that string, while a fretting-hand
     head whose own number is a NODE — an artificial harmonic — HAS a face of its own: the fret it
     presses, on its own satellite, standing and read-only, so the bracket prints nothing there
-    either.
+    either. Under such a harmonic the SPAN states that same pressed fret as its grip and never a
+    planted finger a pull-off derives beneath it (RULED 2026-09-18) — the node is measured from the
+    pressed stop, so that is the grip the figure needs — which is why satellite and bracket agree
+    and the digit falls away. The plant stays true in the derived table and is the hand window's to
+    reach, not the bracket's to print.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.

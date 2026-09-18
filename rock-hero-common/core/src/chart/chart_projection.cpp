@@ -265,10 +265,12 @@ ChartViewState makeChartViewState(
             // this arm reads the resolved table rather than the tier that filled it. Asked as an
             // EQUALITY with the posture's stop rather than as the held stop's presence, because the
             // two answer different questions and only their agreement is one number stated twice: a
-            // planting strike's posture entry IS its plant, and so equals its held stop, while a
-            // pressed-stop harmonic that ALSO plants holds its pressed fret here and hands the
-            // posture the plant instead — two stops, two facts. Where they differ the bracket keeps
-            // its digit, so both are published and neither is silenced.
+            // planting strike's posture entry IS its plant and so equals its held stop, and a
+            // harmonic over a pressed stop hands the span that same pressed stop as its grip
+            // statement (chart_shapes.cpp, RULED 2026-09-18), so it agrees here too. Where the span
+            // states something else on that string — a later release the same hand restated into
+            // the span — the bracket keeps its digit, so both are published and neither is
+            // silenced.
             // Bound once so the presence test and the read are provably the same object.
             const auto index = static_cast<std::size_t>(head - presented_notes.begin());
             const std::optional<int>& held = resolutions.held_stops[index];

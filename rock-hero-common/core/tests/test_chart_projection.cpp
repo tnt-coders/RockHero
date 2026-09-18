@@ -1680,16 +1680,22 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a plant beneath an artificial harmonic leaves the pressed stop standing")
+    SECTION("a plant beneath an artificial harmonic never reaches the bracket")
     {
-        // The pressed stop outranks the plant, because the node the head prints is MEASURED from
-        // it: lose the 5 and the reader cannot place the 17 at all, while the finger waiting behind
-        // it is a span fact the notation already prints in the pull-off. So the note's own
-        // satellite states the pressed stop, standing, and the plant reaches the projection as the
-        // span's own displaced digit. Both of those land in the satellite column at the same
-        // instant in this figure, and the lane paints the note's face last over an opaque ground,
-        // so the 5 is what a reader sees; which of the two that one column should carry is the
-        // open sighting question `docs/tracking/backlog.md` records.
+        // THE BRACKET STATES THE PRESSED FRET under such a harmonic and never the finger a pull-off
+        // derives beneath it: the node the head prints is MEASURED from that stop, so the pressed
+        // fret is the grip the figure needs, and it is the very number the head's own satellite
+        // prints. The planted finger stays true in the wide table because it is real — it is the
+        // hand window's to reach, not the bracket's to print.
+        //
+        // Here that shows as the SPAN'S FRONT. The harmonic states 5 and the release states 3, so
+        // the two statements differ and the release begins its own: the span fronts at the pull-off
+        // rather than inheriting the harmonic's beginning, and the head standing right there states
+        // the 3 itself, so the bracket prints no digit on the string at all. The harmonic's own
+        // satellite is then the one ink in that column, which is what the ruling bought — before
+        // it, the bracket printed the planted 3 into the same satellite column at the same instant
+        // as the head's 5. The span's entry is that 3 because the harmonic's ring is long over by
+        // the time three rings found the span: what the hand is on there is the pulled note.
         ChartNote artificial = strike(1, 3, 5, Fraction{1});
         artificial.harmonic_node = 17.0;
         const ChartViewState state = project(
@@ -1703,7 +1709,13 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
         REQUIRE(planted != span.strings.end());
         CHECK(planted->stop == frettedStop(3));
-        CHECK(planted->digit == std::optional{StopMarkSlot::Satellite});
+        CHECK_FALSE(planted->digit.has_value());
+        // Beat 2 at 120 BPM: the pull-off's own onset, not the harmonic's.
+        REQUIRE(span.bracket_seconds.has_value());
+        if (span.bracket_seconds.has_value())
+        {
+            CHECK_THAT(*span.bracket_seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+        }
 
         const auto touched = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
             return note.string == 3 && note.harmonic_node.has_value();
@@ -1720,6 +1732,49 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         {
             CHECK(mark->face == StopMarkFace::Standing);
             CHECK(stopMarkShown(*mark, false));
+        }
+    }
+
+    SECTION("the tapped twin derives the same span, digit for digit")
+    {
+        // ONE FAMILY, one answer. The two forms differ only in which hand sounds the string — the
+        // tapping finger touches the node the picking hand otherwise touches — so the figure above
+        // must project identically here: the same one span, the same bracket at the pull-off's own
+        // onset, the same empty digit on the string, and the same standing 5 beside the head that
+        // prints the node. Before the ruling the two disagreed, the artificial form putting the
+        // planted 3 in the bracket's satellite column while the tapped one never did.
+        ChartNote tapped = tap(1, 3, 5, std::nullopt, Fraction{1});
+        tapped.harmonic_node = 17.0;
+        const ChartViewState state = project(
+            {tapped,
+             pull_to(2, 3, 3, Fraction{3}),
+             strike(3, 1, 5, Fraction{2}),
+             strike(4, 2, 7, Fraction{1})});
+
+        REQUIRE(state.shapes.size() == 1);
+        const ShapeViewState& span = state.shapes.front();
+        const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
+        REQUIRE(planted != span.strings.end());
+        CHECK(planted->stop == frettedStop(3));
+        CHECK_FALSE(planted->digit.has_value());
+        REQUIRE(span.bracket_seconds.has_value());
+        if (span.bracket_seconds.has_value())
+        {
+            CHECK_THAT(*span.bracket_seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+        }
+
+        const NoteViewState* const touched = tap_view(state);
+        REQUIRE(touched != nullptr);
+        if (touched != nullptr)
+        {
+            CHECK(touched->held == std::optional{5});
+            const std::optional<StopMarkViewState>& mark = touched->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Standing);
+                CHECK(stopMarkShown(*mark, false));
+            }
         }
     }
 }

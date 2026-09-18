@@ -472,7 +472,12 @@ picking hand's nodes are not grips: a two-hand tap harmonic states the stop it c
 `fret` it presses under the touched node, an artificial harmonic the same, a pinch its fret. A
 harmonic standing over a PRESSED stop — tapped or artificial alike
 (`harmonicOverPressedStop`) — PRINTS that stop beside its head, standing and read-only, since the
-head itself prints the node (RULED 2026-09-18). Consequences that follow: a lone natural harmonic
+head itself prints the node (RULED 2026-09-18). **It also STATES that pressed stop as its grip**
+(RULED 2026-09-18): where a pull-off derives a finger planted beneath such a harmonic, the span's
+grip statement is the pressed fret and never the plant — the node is measured from that fret, so
+that is the grip the figure needs, and satellite and bracket then say one number. The plant stays
+true in the wide table because it is real: it is the hand window's to reach, not the bracket's to
+print. Consequences that follow: a lone natural harmonic
 mid-span closes the span and, unless two more stops or three carried rings are present, opens
 nothing; and stop-identical postures deduplicate, so a node grip and a fret grip printing the same
 number are two postures because they are two grips.
@@ -593,12 +598,14 @@ prints in the pull-off: the NOTE wears it as its own reveal-only satellite and t
 nothing on that string — one ink states it. A fretting-hand head whose own number is a NODE — an
 artificial harmonic, pressing a fret its head does not print — HAS a face: the pressed fret itself,
 on the note's own satellite, standing and read-only, so the bracket prints nothing on that string
-either and the plant a pull-off leaves beneath it reaches the picture through the posture alone.
+either — the posture states that same pressed fret there (THE NODE GRIP), so the two agree and the
+digit falls away, while the plant a pull-off leaves beneath it reaches the hand window alone.
 
 **THE SATELLITE REVEAL.** A satellite is the note's claimed FACE, note-scoped, at the note's own
 slot, and its visibility is keyed to AUTHORSHIP: a stop THE CHART ITSELF STATES stands everywhere —
 an authored `held`, and the pressed `fret` of a harmonic standing over it, tapped or artificial
-alike, which is pitch-critical and stands even where a pull-off plants another stop beneath it; a
+alike, which is pitch-critical and stands even where a pull-off plants another stop beneath it —
+the plant reaching the hand window, never the bracket, so nothing contradicts it there; a
 tap FRONTING a bracket stands regardless of authorship, because the bracket owes the statement there; anything the
 chart did not state — a pull-off derivation, a plant, the default fact — is REVEALED on the note's
 truth channel, shown exactly while the note's full ring is, through the existing
@@ -613,7 +620,9 @@ clickable by construction and an undrawn one is not.
 READ-ONLY) > AUTHORED (standing face, typeable) > PULL-OFF-DERIVED (revealed face, typing REFUSED —
 it retypes via the pull-off target) > THE DEFAULT FACT (revealed face, typing AUTHORS a real held
 stop). The pressed stop leads because it is what the note's own pitch is measured from, so it
-outranks a plant beneath it as much as a default beneath it; it is read-only because the stop is the
+outranks a plant beneath it as much as a default beneath it — and the SPAN agrees rather than
+disagreeing, its grip statement under such a harmonic being that same pressed stop (THE NODE GRIP),
+so the two inks can never state two numbers in one column; it is read-only because the stop is the
 note's own `fret`, the Held channel refusing to state one on a note carrying a node and the fret
 itself being retyped through the head. Tapped and artificial harmonics reach that tier alike
 (`harmonicOverPressedStop`, RULED 2026-09-18).
