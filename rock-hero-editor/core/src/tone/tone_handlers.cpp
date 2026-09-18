@@ -321,9 +321,10 @@ void EditorController::Impl::publishToneSchedule(bool playing)
 // setSelection for every non-chart replacement, and chartSelectionMutable's emplace for the chart
 // one. The keyboard position changes at every cursor move and at every caret arming, and both call
 // here. Points the rig at the active region's tone document and rebinds the signal-chain panel to
-// what the rig reports back. Leaves the audible tone unchanged when nothing resolves (no content
-// loaded, or the region has no tone yet), and — see the guard below — while the transport plays,
-// where the derivation still runs but the baked schedule owns the rig.
+// what the rig reports back. Leaves everything unchanged when nothing resolves (no content loaded,
+// or the region has no tone yet); and while the transport plays — see the split below — the panel
+// still rebinds on every crossing, while the audible tone itself stays where the baked schedule,
+// which owns the branch gains, has put it.
 //
 // Idempotent on purpose, so no call site has to ask first whether the tone can have changed: the
 // chain replacement below is a no-op against a chain the panel already renders, and the fader moves
@@ -349,12 +350,7 @@ void EditorController::Impl::syncAudibleTone()
     const std::string active_region_id = activeToneRegionId();
     m_audible_region_id = active_region_id;
 
-    // Everything above is DISPLAY — the tone row's active flag, the lanes, the panel's idea of
-    // which region holds the playhead — and follows whatever the transport does. Everything below
-    // writes the RIG, which the baked schedule owns while the transport plays (publishToneSchedule
-    // above states the law). Writing anyway would be undone by the next audio block, so the frame
-    // tick that reaches here on a boundary crossing while playing updates the display and stops.
-    if (active_region_id.empty() || m_transport.state().playing)
+    if (active_region_id.empty())
     {
         return;
     }
@@ -369,31 +365,41 @@ void EditorController::Impl::syncAudibleTone()
         return;
     }
 
-    auto switched = m_live_rig.setAudibleTone(region->tone_document_ref);
-    if (!switched.has_value())
+    // THE SPLIT, and the reason the rig offers two calls: DESCRIBING a loaded tone is a pure read
+    // and always safe, while MAKING it audible writes the branch gains, which the baked schedule
+    // owns while the transport plays (publishToneSchedule above states the law) and which the next
+    // audio block would undo. So the panel binding follows every crossing the audio thread makes,
+    // and only the gain write waits for the schedule to hand the gains back. Both calls answer from
+    // the same builder inside the rig, so the panel cannot see two accounts of one tone.
+    const bool schedule_owns_branch_gains = m_transport.state().playing;
+    auto described = schedule_owns_branch_gains
+                         ? m_live_rig.describeLoadedTone(region->tone_document_ref)
+                         : m_live_rig.setAudibleTone(region->tone_document_ref);
+    if (!described.has_value())
     {
         RH_LOG_WARNING(
             "editor.tone",
-            "Could not switch the audible tone tone_document_ref={:?} detail={:?}",
+            "Could not bind the audible tone tone_document_ref={:?} playing={} detail={:?}",
             region->tone_document_ref,
-            switched.error().message);
+            schedule_owns_branch_gains,
+            described.error().message);
         return;
     }
 
     // The panel binds to the audible tone, so the rig's answer is handed to it whole; replacing is
     // itself idempotent, so an answer the panel already renders costs it nothing.
-    const double switched_gain_db = switched->output_gain.db;
+    const double described_gain_db = described->output_gain.db;
     m_signal_chain.replaceSnapshot(
-        common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
+        common::audio::PluginChainSnapshot{.plugins = std::move(described->plugins)});
 
     // The fader is a separate fact, and the only one that is PREVIEWED ahead of a committed value,
     // so it moves only when the rig answers with a gain the editor is not already showing —
     // otherwise a mid-drag preview would lose the value its undo entry is measured from. Exact
     // comparison via the three-way operator keeps -Wfloat-equal builds clean, exactly as the
     // fader's own change detection does; the stored value is compared, not approximated.
-    if (std::is_neq(switched_gain_db <=> m_output_gain_db))
+    if (std::is_neq(described_gain_db <=> m_output_gain_db))
     {
-        m_output_gain_db = switched_gain_db;
+        m_output_gain_db = described_gain_db;
         m_output_gain_preview_before.reset();
     }
 }
@@ -412,9 +418,9 @@ void EditorController::Impl::onToneRegionSelected(std::string region_id)
 // THE RULE: while the transport plays, the PLAYHEAD'S tone is what plays — and the AUDIO already
 // says so, because the schedule baked at Play switches the branch gains on the audio thread. So
 // this tick is DISPLAY ONLY: it notices the crossing the audio thread has already made and moves
-// the editor's idea of the audible region onto it, so the tone row's active flag and the lanes
-// follow. syncAudibleTone makes no rig call while playing (its guard states the ownership law), so
-// nothing here can change what is heard.
+// the editor's idea of the audible region onto it, so the tone row's active flag, the lanes and the
+// signal-chain panel follow. The only rig call syncAudibleTone makes while playing is the pure
+// describe read the panel binds to, so nothing here can change what is heard.
 //
 // The frame asks one question — is the region the editor is AUDIBLY on still the one under the
 // playhead? — and re-derives whenever it is not. Two things can part them while playing: a BOUNDARY

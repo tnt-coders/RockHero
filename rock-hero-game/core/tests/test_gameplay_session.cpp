@@ -417,6 +417,15 @@ public:
         return {};
     }
 
+    // The session never binds a signal-chain panel; fail loudly if it ever asks for a description.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    describeLoadedTone(const std::string& /*tone_document_ref*/) const override
+    {
+        return std::unexpected{common::audio::LiveRigError{
+            common::audio::LiveRigErrorCode::InvalidRequest, "tone description not expected"
+        }};
+    }
+
     // The session never switches audible tones itself (the timeline owns switching).
     [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
     setAudibleTone(const std::string& /*tone_document_ref*/) override

@@ -968,9 +968,14 @@ only for its playing flag and reports each frame as one payload-less
 transport plays, the playhead's tone is what plays* — but the AUDIO already obeys it without any
 help from the message thread: the Play handler bakes the tone track into branch-gain automation
 (`IToneTimelinePlayer::prepareToneTimeline`) before starting the transport, and the audio thread
-switches the gains block-accurately against that curve. `syncAudibleTone` therefore makes no rig
-call at all while the transport plays; the frame only moves the editor's idea of the audible region,
-and with it the drawn `active` flag and the lanes. The schedule exists exactly while the transport
+switches the gains block-accurately against that curve. `syncAudibleTone` therefore writes no branch
+gain while the transport plays; the frame moves the editor's idea of the audible region, and with it
+the drawn `active` flag, the lanes **and the signal-chain panel** — the panel follows a crossing as
+well (ruled 2026-09-18), because a panel left on the tone that was audible at Play would be
+describing a rig nobody is hearing. It rebinds through `ILiveRig::describeLoadedTone`, a pure read
+of one loaded branch that touches no gain; `setAudibleTone` answers from that same builder, so
+describing a tone and switching to it cannot give the panel two accounts of it. The schedule exists
+exactly while the transport
 plays: every end of playback reaches `onTransportStateChanged`, which clears the curves and hands
 the branch gains back to the direct `ILiveRig::setAudibleTone` write, which is what lets the paused
 highlight below move the rig at all.

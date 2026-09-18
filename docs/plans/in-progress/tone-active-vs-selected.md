@@ -30,7 +30,10 @@ at the root and keeps the intuitive Delete key.
   all — the Play handler bakes the tone track into branch-gain automation and the audio thread
   switches block-accurately against the transport, so the precision item that was open here is
   closed by construction. The two states are one law: a schedule exists exactly while the transport
-  plays, so the direct write described above owns the rig exactly while it does not.
+  plays, so the direct write described above owns the rig exactly while it does not. The
+  signal-chain **panel** is outside that law, because it binds to a *description* of a tone rather
+  than to the gains: it follows every crossing while playing, through the rig's pure
+  `describeLoadedTone` read (ruled 2026-09-18, after the bake shipped).
 - **Selected region** — a deliberate, formal selection, set *only* by clicking a region. Cleared
   whenever the transport position changes (seek, playback advance, stop-to-start). Drives the
   white-outline highlight and the Delete target. While a region is selected it is also the active
@@ -83,7 +86,9 @@ two intents:
   handlers) → set the active tone and **clear** the formal selection. *Shipped payload-less, and
   since 2026-09-14 narrowed further to `onPlaybackFrameAdvanced()`: the row reports only the render
   cadence and the controller owns the crossing decision. Since 2026-09-18 that frame is DISPLAY
-  ONLY — the baked schedule moves the audio, so the frame moves only the drawn active flag.*
+  ONLY — the baked schedule moves the audio, so the frame moves the drawn active flag, the lanes and
+  the signal-chain panel, the last through the rig's pure `describeLoadedTone` read rather than a
+  branch-gain write.*
 
 Selection therefore exists only between a click and the next transport move: play-start, seek, and
 boundary crossings all route through the "activate" path, which clears it. That is exactly "selected

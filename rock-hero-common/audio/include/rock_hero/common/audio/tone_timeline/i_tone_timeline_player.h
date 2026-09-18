@@ -24,9 +24,11 @@ position to trigger a switch during playback.
 
 OWNERSHIP, the one rule both products obey: a baked schedule owns the branch gains, and
 ILiveRig::setAudibleTone must not be called while one exists. Baking an empty schedule clears the
-curves and hands the gains back to that direct write. The game bakes once per rig load and keeps
-the schedule for the whole session; the editor bakes at Play and clears at every stop, because
-while it is paused the audible tone follows the caret rather than the timeline.
+curves and hands the gains back to that direct write. ILiveRig::describeLoadedTone is exempt: it
+writes no gain, which is how the editor's signal-chain panel follows a scheduled switch. The game
+bakes once per rig load and keeps the schedule for the whole session; the editor bakes at Play and
+clears at every stop, because while it is paused the audible tone follows the caret rather than the
+timeline.
 
 A playhead jump made while the graph renders no blocks is the exception: automation is only
 evaluated per block, so the rig would keep its pre-jump values. That is handled entirely inside the

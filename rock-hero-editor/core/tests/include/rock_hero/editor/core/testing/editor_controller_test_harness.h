@@ -885,6 +885,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return true;
     }
 
+    // Records describe queries and answers with the tone's configured chain, writing nothing.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    describeLoadedTone(const std::string& tone_document_ref) const override
+    {
+        last_described_tone_ref = tone_document_ref;
+        describe_call_count += 1;
+        if (next_describe_error.has_value())
+        {
+            return std::unexpected{*next_describe_error};
+        }
+
+        return resultForTone(tone_document_ref);
+    }
+
     // Records audible-tone switches and returns the configured load result as the new chain.
     [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
     setAudibleTone(const std::string& tone_document_ref) override
@@ -896,7 +910,16 @@ struct FakeLiveRig final : public common::audio::ILiveRig
             return std::unexpected{*next_set_audible_tone_error};
         }
 
-        return next_load_result;
+        return resultForTone(tone_document_ref);
+    }
+
+    // The engine answers both calls from one builder; the fake keeps that property so a test can
+    // tell the tones apart without the two paths describing the same tone differently.
+    [[nodiscard]] common::audio::LiveRigLoadResult resultForTone(
+        const std::string& tone_document_ref) const
+    {
+        const auto configured = tone_results.find(tone_document_ref);
+        return configured != tone_results.end() ? configured->second : next_load_result;
     }
 
     // Records explicit clear requests made during project teardown.
@@ -1078,6 +1101,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Number of setAudibleTone calls received.
     int set_audible_tone_call_count{0};
+
+    // Per-tone chain answers keyed by tone document reference; a tone with no entry here answers
+    // with next_load_result, which is what every test that does not care about the tone's identity
+    // relies on.
+    std::map<std::string, common::audio::LiveRigLoadResult> tone_results{};
+
+    // Last tone reference passed to describeLoadedTone; mutable because the query is a const read.
+    mutable std::optional<std::string> last_described_tone_ref{};
+
+    // Number of describeLoadedTone calls received; mutable for the same reason.
+    mutable int describe_call_count{0};
+
+    // Optional describe error returned instead of the tone's chain.
+    std::optional<common::audio::LiveRigError> next_describe_error{};
 
     // When set, loadLiveRig stores its completion so tests can finish it explicitly.
     bool defer_load_completion{false};

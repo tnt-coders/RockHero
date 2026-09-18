@@ -288,12 +288,21 @@ private:
     };
     std::vector<BranchDisplayMetadata> m_branch_display_metadata;
 
-    // Builds the audible tone's chain-and-gain result for load completion and audible switches.
+    // Builds one loaded branch's chain-and-gain result: the single description of a tone the
+    // signal-chain panel binds to, shared by load completion, audible switches and the describe
+    // query, so no two of them can answer for the same branch differently.
+    [[nodiscard]] LiveRigLoadResult loadedToneResult(std::size_t branch_index) const;
+
+    // Builds the audible tone's chain-and-gain result, empty when no rig is loaded.
     [[nodiscard]] LiveRigLoadResult audibleToneResult() const;
 
     // Returns the branch the audible tone plays through, or null when no rig is loaded.
     [[nodiscard]] ToneRackBranch* audibleToneBranch();
     [[nodiscard]] const ToneRackBranch* audibleToneBranch() const;
+
+    // Returns a loaded tone's branch index within the rack, when that tone is loaded.
+    [[nodiscard]] std::optional<std::size_t> toneBranchIndex(
+        const std::string& tone_document_ref) const;
 
     // Returns the audible tone's branch index within the rack, when a rig is loaded.
     [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;

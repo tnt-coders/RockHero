@@ -1138,3 +1138,17 @@ written down.
   states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
   such sources), which is also why it was left out of the ruling's own change rather than folded in
   unmeasured.
+
+## Found while letting the panel follow a tone crossing (2026-09-18)
+
+- **A chain edit made while playing lands on a tone the panel is no longer showing.** Since the
+  panel follows a scheduled crossing (`syncAudibleTone` rebinds through
+  `ILiveRig::describeLoadedTone`), the panel can render tone B's chain while the rig's *audible*
+  branch is still tone A — the one the baked schedule left `m_audible_tone_ref` pointing at. Every
+  chain verb (`insertIntoBranch`, `removeFromBranch`, the output fader, plugin state edits) writes
+  the AUDIBLE branch, so an insert made mid-playback edits tone A while the user is looking at tone
+  B, and the verb's own `replaceSnapshot` then snaps the panel back to A. Nothing guards it: unlike
+  the marker plane there is no playing-state gate on chain editing. The fix is a ruling, not a
+  patch — either chain editing joins the paused-only plane (the marker precedent, one published
+  flag), or the audible branch follows the schedule's crossing on the message thread as well so the
+  two can never part. Both are larger than the panel-follow change that exposed it.

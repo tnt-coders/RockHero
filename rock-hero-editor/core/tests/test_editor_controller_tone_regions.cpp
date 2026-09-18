@@ -276,6 +276,57 @@ TEST_CASE(
     CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
 }
 
+// The PANEL is display as well, and it follows the crossing for the same reason the drawn active
+// flag does (ruled 2026-09-18): the audio thread has already made the playhead's tone audible, so a
+// panel still bound to the tone that was audible at Play would be describing a rig nobody is
+// hearing. It rebinds through the rig's pure DESCRIBE query, which writes no branch gain, so the
+// switch call the schedule forbids is still never made.
+TEST_CASE(
+    "EditorController rebinds the signal-chain panel to the tone a playback frame crossed into",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    // Give the second tone its own chain, which is what makes the binding visible: the panel must
+    // end up naming the tone the playhead crossed INTO.
+    editor.live_rig.tone_results[g_second_tone_ref] = common::audio::LiveRigLoadResult{
+        .plugins =
+            {
+                common::audio::PluginChainEntry{
+                    .instance_id = "dirty-instance",
+                    .plugin_id = "dirty-plugin",
+                    .name = "Dirty Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .category = {},
+                    .chain_index = 0,
+                    .display_type_override = {},
+                },
+            },
+        .output_gain = common::audio::Gain{},
+    };
+
+    // Park inside the first region and start playing; the panel shows the first tone's chain.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
+    editor.transport.current_state.playing = true;
+    const EditorViewState* const state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->signal_chain.plugins.size() == 1);
+    CHECK(state->signal_chain.plugins[0].name == "Loaded Amp");
+
+    // The crossing frame rebinds the panel by DESCRIBING the crossed-into tone, and makes no switch
+    // call at all — the baked schedule owns the branch gains until the transport stops.
+    const int switches_before = editor.live_rig.set_audible_tone_call_count;
+    const int describes_before = editor.live_rig.describe_call_count;
+    editor.transport.current_position = common::core::TimePosition{2.5};
+    editor.controller.onPlaybackFrameAdvanced();
+    CHECK(editor.live_rig.set_audible_tone_call_count == switches_before);
+    CHECK(editor.live_rig.describe_call_count == describes_before + 1);
+    CHECK(editor.live_rig.last_described_tone_ref == g_second_tone_ref);
+    REQUIRE(state->signal_chain.plugins.size() == 1);
+    CHECK(state->signal_chain.plugins[0].name == "Dirty Amp");
+}
+
 // The boundary crossing is the frame handler's ONLY input, because a playing transport admits no
 // other: marker selection and every marker edit are paused-only, so a click on a region while the
 // song plays reaches nothing and the frame after it still finds no selection to reconcile.
