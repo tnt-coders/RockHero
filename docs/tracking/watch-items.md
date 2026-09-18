@@ -674,6 +674,41 @@ probe, the head-loop skips and the marquee pass all left with it, so the hit tes
 and a bracket takes no clicks at all. Reopen only if a mark is ever given a hit pass ahead of the
 heads again.
 
+### A tapped harmonic can state no planted finger behind its stop — trigger: a figure where a tapped harmonic pulls off to a stop other than its pressed fret
+
+Recorded with the 2026-09-17 ruling that `fret` is the stop the string speaks from for every note
+that sounds: a harmonic of either hand stores its PRESSED stop there, and `held` narrowed to the
+planted finger under an onset the PICKING hand stops the string for — a plain tap or a pick slide
+(`pickingHandStopsString`). A note carrying a node therefore carries no `held` at all
+(`savedChartNote` strips it, and the saved-form fixpoint refuses one in memory), and
+`claimedStop` answers a tapped harmonic's pressed `fret` instead, so the stop is stated once and
+reaches the postures as a claim like any other.
+
+What that cannot write down is the SECOND finger. Physically a tapped harmonic pulls off like
+anything else: the tapping finger lifts and the string falls to the fretting hand's stop — the
+pressed `fret`, which the model does state — or to a finger planted behind it, which the model
+gives it no way to say at all, stored or derived. There is no `held` to store, and the claim
+column's derivation narrows to the notes that carry that field (`chartDerivedStops` asks
+`pickingHandStopsString`), so a pull-off from a tapped harmonic derives nothing: the successor
+sounds wherever it states, and the harmonic's claim stays its pressed fret whatever that
+destination is. The WIDE planted table is the one reader that does NOT narrow: `resolveLegato`
+accepts a tapped harmonic as a pull-off source (it refuses only a scrape and a `fretHandHarmonic`
+predecessor), so `chartPlantedStops` still records the plant beneath it and the span derivation
+reads that table through `plantedGrip`, while the claim column and the held table both narrow by
+`pickingHandStopsString` and see nothing there — the figure is refused nowhere, reaches the spans
+through one reader but not the other, and costs the pressed stop its standing face besides, the
+projection's authorship test asking the same wide table (`planted_stops`) and so demoting a
+plant-bearing tapped harmonic's satellite to the reveal. Resolving that split — refusing the
+source, or narrowing the wide table with the others — is part of this item's remedy. Accepted
+because the single-finger reading is the figure the corpus and the importer actually carry, and
+because the alternative is a second stop on a note whose own pitch is measured from the first.
+
+**Trigger**: a corpus or authored figure where a tapped harmonic is followed by a pull-off to a
+stop OTHER than its pressed fret — the destination the derivation would have to invent a planted
+finger for. **Remedy**: allow `held` beside a node ONLY as a planted finger strictly BELOW `fret`
+(the pressed stop stays the claim, so nothing about pitch moves), with the pull-off derivation of
+rule 12c supplying it first, so the notation states the finger before the stored field may.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong

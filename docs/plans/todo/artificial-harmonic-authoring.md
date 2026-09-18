@@ -78,12 +78,29 @@ string that ladder collapses to the natural ladder. (The expert's sketch predate
 picker's bound of 16, under which frets 1, 11 and 13 name nodes of their own; under the stop verb
 they are ordinary stops carrying a playable ladder either way.)
 
-**Stored model: NO change.** One absolute node with the note's fret as the stop already covers
-every case — natural (`fret = 0`, node on the open ladder), artificial (`fret > 0`), tapped
-(`attack: Tap`, the stop riding `held`, `physicalStopFret` resolving it), pinch (node off the neck)
-and capo. The expert killed stop+offset and stop+partial storage: a second frame buys nothing the
-one absolute number does not already carry, and a stored partial does not *name* a node — it would
+**Stored model: NO change, and RULED 2026-09-17 to be ONE shape for the whole family.** One
+absolute node beside the note's own fret covers every case, because `ChartNote::fret` is the stop
+the string SPEAKS from whichever hand stopped it: natural (`fret = 0`, the nut or the capo, node on
+the open ladder), artificial (`fret > 0`, the pressed stop), TAPPED (`attack: Tap` over that same
+pressed `fret`), pinch (node off the neck) and capo, with `physicalStopFret` resolving the open
+case. `held` never rides a harmonic — it is the finger planted under an onset the PICKING hand
+stops the string for, a plain tap or a pick slide, and a node-bearing note is never one — so the
+pressed stop has exactly one spelling and the tapped member of the family needs no second reading.
+The expert killed stop+offset and stop+partial storage: a second frame buys nothing the one
+absolute number does not already carry, and a stored partial does not *name* a node — it would
 force snapping to computed ideals, which the format forbids.
+
+**What `H` writes under that shape (2026-09-17).** The typed fret is the TOUCH on the OPEN string:
+`H` writes `fret = 0` and the node its label names, so on a `Tap` it authors an open-string tapped
+harmonic and nothing else. Authoring a harmonic over a PRESSED stop — artificial, or a stopped
+tapped one — is exactly this record's verb, still unbuilt, with its chord under discussion
+(ruling 2 below).
+
+**The pinch's partial — direction under discussion, NOT ruled.** The pinch is expected to carry a
+partial of its own eventually, with its node DERIVED from the stop rather than typed: the
+bridge-side node at `stop + 12 * log2(p)`, of which today's fixed `p = 2` — the octave the pinch
+arm of `planSetAttack` writes — is the default case. Recorded so the stop verb's picker is designed
+against a pinch that names partials; nothing about it is signed.
 
 **Surfaces.** The head keeps the **node**. But the **stop must also be recoverable on both
 surfaces** for a `fret > 0` harmonic. 2D: the published compound — the stop beside the bracketed

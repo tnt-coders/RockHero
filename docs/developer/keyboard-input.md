@@ -572,7 +572,9 @@ not traversal and always lands on the stop every note has, and the channel is wo
 drawn picture still says, asked again at the moment it is spent.
 
 Which notes wear that second mark is now exactly the RIGHT-HAND ONSETS, because the DEFAULT gives
-every one of them a held stop even where the chart states none (user ruling 2026-09-02). Two
+every one of them a held stop even where the chart states none (user ruling 2026-09-02) — a TAPPED
+HARMONIC wearing its own pressed fret there instead, its claim, where the channel is read-only
+because that stop is the note's own `fret` (2026-09-17). Two
 consequences for this grammar. Clearing an authored stop no longer takes the mark away: Delete drops
 that satellite back to its default, so the caret stays on the held channel and the next digit
 AUTHORS a fresh statement in the same place. And what still leaves the caret on the head is a note

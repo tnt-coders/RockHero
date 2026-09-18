@@ -528,6 +528,13 @@ bool EditorController::Impl::dissolveSilentKeyframes(
 // asking the drawn picture is what keeps the caret's second stop, the click target and the mark
 // itself from ever disagreeing about whether there is one.
 //
+// It answers whether a satellite is THERE, never whether the charter may write over it. A stop the
+// notation owns is reached by the caret exactly like any other — a pull-off's PLANT, and a tapped
+// harmonic's pressed stop, which its satellite states because the picking hand only touches the
+// node — and the planner that would write it is what refuses (planRetypeFrets). One rule answers
+// for the pointer, the arrow and the digit alike, instead of a second one here holding the caret
+// off a mark the charter can see.
+//
 // THE CARET IS ITSELF A REVEAL, which is why the terms below are met rather than computed. Every
 // reader of this predicate is a caret standing on the note or moving onto it, and arming a caret
 // SELECTS what sits under it — one of the reveal's own grounds — so a reveal-only satellite is

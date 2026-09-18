@@ -156,17 +156,21 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
 
 std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connections)
 {
-    // THE FIELD'S SCOPE, stated HERE and nowhere else. A claim is a statement the `held` FIELD
-    // makes (\ref claimedStop), and only a right-hand onset carries one — its own fret belongs to
-    // the other hand. Under a FRETTING-hand onset the same planted finger rides BESIDE the note's
-    // own fret: it states nothing the charter could have typed, supersedes no field and leaves no
-    // residue. Every FIELD-scoped reader takes this narrowing, so a plant under a fretting-hand
-    // onset can never reach the claim column or the writer's residue sweep. Who reads the WIDE
-    // table instead is stated once, on \ref chartPlantedStops.
+    // THE FIELD'S SCOPE, stated HERE and nowhere else. What a derivation can supersede is a stop
+    // the `held` FIELD states, and only a note the picking hand stops the string for carries that
+    // field at all (pickingHandStopsString). Under a FRETTING-hand onset the same planted finger
+    // rides BESIDE the note's own fret: it states nothing the charter could have typed, supersedes
+    // no field and leaves no residue. Under a TAPPED HARMONIC the fretting hand is on the pressed
+    // stop the note itself states, and the model gives that hand no second finger, so a pull-off
+    // from one derives nothing here either — its claim stays the pressed fret. Every FIELD-scoped
+    // reader takes this narrowing, so a plant under either can never reach the claim column or the
+    // writer's residue sweep. Who reads the WIDE table instead is stated once, on
+    // \ref chartPlantedStops.
     std::vector<std::optional<int>> derived = chartPlantedStops(connections);
     for (std::size_t index = 0; index < derived.size(); ++index)
     {
-        if (!rightHandOnset(connections.saved_notes[index].attack))
+        const ChartNote& note = connections.saved_notes[index];
+        if (!pickingHandStopsString(note.attack, note.harmonic_node))
         {
             derived[index].reset();
         }
@@ -210,7 +214,9 @@ std::vector<std::optional<int>> chartHeldStops(
         // THE PLANT'S FACE: a fretting-hand onset IS the hand, so the one second stop it can hold
         // is the one a pull-off PLANTS beneath it — the wide table the hold-under law derives
         // whichever hand made the onset, which is this note's whole held tier. Every tier below is
-        // the RIGHT-HAND onset's, whose own fret is the other hand's.
+        // the RIGHT-HAND onset's, whose fretting-hand stop the claim query names
+        // (\ref claimedStop): the planted finger beside a plain tap or a scrape, the pressed fret
+        // under a tapped harmonic.
         if (!rightHandOnset(note.attack))
         {
             held[index] = planted_stops[index];
@@ -355,11 +361,13 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
 std::vector<ChartConversion> sweepInertClaimedStops(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    // A stream that claims no stop at all has nothing to sweep, and this runs on every plan the
+    // A stream stating no field claim at all has nothing to sweep, and this runs on every plan the
     // editor gates. The scan is a bare read; the derivation below presents and walks the whole
     // stream before it could answer the same question.
-    if (std::ranges::none_of(
-            notes, [](const ChartNote& note) { return claimedStop(note).has_value(); }))
+    if (std::ranges::none_of(notes, [](const ChartNote& note) {
+            return pickingHandStopsString(note.attack, note.harmonic_node) &&
+                   claimedStop(note).has_value();
+        }))
     {
         return {};
     }
@@ -375,26 +383,17 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
-        if (!claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
+        // FIELD SCOPE, the same narrowing the residue sweep takes: what this clears is the `held`
+        // FIELD, so the only claim it can take is one that field states. A tapped harmonic claims
+        // the stop it SPEAKS from — its own fret (\ref claimedStop) — which is the sound the
+        // charter wrote, carries no field to clear, and is no more inert than a head is.
+        if (!pickingHandStopsString(note.attack, note.harmonic_node) ||
+            !claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
         {
             continue;
         }
         const std::string where =
             formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
-        // A stop the note's own PITCH is measured from is never inert, whatever the shapes made of
-        // it. A harmonic speaks from the STOPPED length (\ref physicalStopFret), so on a tapped
-        // harmonic the held fret is not a claim about the hand that happens to ride a note — it is
-        // where the note sounds from, and clearing it would retune the record and could leave its
-        // node at or behind its own stop, which the validator refuses. The settle takes statements
-        // that reach nothing; it never takes the sound the charter wrote.
-        //
-        // Asked of the SAVED form, like every other judgment here: a node the writer strips — a
-        // scrape's latent one — describes no sound this record will ever have, so it cannot hold a
-        // stop in place either.
-        if (savedChartNote(note).harmonic_node.has_value())
-        {
-            continue;
-        }
         // The note still states its own onset, so only the statement that reached nothing goes:
         // the sound the charter wrote stays exactly as authored.
         note.held.reset();

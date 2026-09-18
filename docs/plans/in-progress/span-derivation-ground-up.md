@@ -15,8 +15,9 @@ is bookkeeping about that tenure.
 
 1. A note stores its onset, string, fret, and its RING — how long the string truly sounds.
    Rings are facts; nothing alters one.
-2. A new ring on a string ends the previous ring there. Taps included — a tap is a new ring
-   sounding the stop the other hand holds, and its held fret participates fully in derivation.
+2. A new ring on a string ends the previous ring there. Taps included — a plain tap is a new ring
+   sounding where its own finger lands, and the stop the other hand holds beneath it participates
+   fully in derivation as its claim (a tapped harmonic's claim is the fret it presses).
 3. Spans are derived fresh on every read, never stored. Authored markers are a future tool.
 
 ### When a span exists

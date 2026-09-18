@@ -156,11 +156,12 @@ without them in view.
   repo per the corpus firewall); watch entries J and K in `docs/tracking/watch-items.md`.
 - Spans are derived at read (`chart_shapes.cpp`), store nothing, never overlap, leave gaps; the
   three-member accumulation minimum is a signed constant. `NoteAttack::None` and the `N` verb are
-  GONE (DONE 2026-09-17, ahead of this plan and out of phase — see Phase 3 item 5). A claim has one
-  shape, the `held` stop under a right-hand onset, and the claims machinery around it stands —
+  GONE (DONE 2026-09-17, ahead of this plan and out of phase — see Phase 3 item 5). A claim is read
+  through one query (`claimedStop`) — the `held` stop under a plain tap or a pick slide, the pressed
+  `fret` under a tapped harmonic (ruled the same day) — and the claims machinery around it stands —
   except LAW II's justification half, which left with the attack value as dead code: a claim's
-  carrier sounds the stop it holds, so a hand-alone shape publishes at its instant with nothing to
-  justify and nothing to dissolve.
+  carrier is a note that sounds at its slot, so a hand-alone shape publishes at its instant with
+  nothing to justify and nothing to dissolve.
 - No fingering exists anywhere in the model; no marker, template or zone storage exists.
 - The keyboard marker-row model is built through step 4a: `MarkerFocusRow{row}` walks every
   marker row, `markerHolderIndex` answers the holder, `landOnRow` lands, `FocusRowJump` jumps,

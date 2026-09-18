@@ -2157,10 +2157,10 @@ TEST_CASE("A held stop inside a shape continues it or splits it, by the fret", "
 {
     // The hand states fret 5 on strings 1 and 3 at beat one; a note at beat two PLAYS the string-1
     // stop, which gives the statement an extent of two more beats. A tap harmonic lands inside that
-    // extent at beat three, and what it does to the span is decided by the stop UNDER it, never by
-    // the tap.
-    const auto figure = [](const int held) {
-        ChartNote harmonic = tapHoldingAt(3, Fraction{}, 3, 17, Fraction{1}, held);
+    // extent at beat three, and what it does to the span is decided by the stop its fretting hand
+    // PRESSES, never by the node the tapping finger touches above it.
+    const auto figure = [](const int pressed) {
+        ChartNote harmonic = tapAt(3, Fraction{}, 3, pressed, Fraction{1});
         harmonic.harmonic_node = 17.0;
         return streamOf({
             claimAt(1, Fraction{}, 1, 5),
@@ -2190,7 +2190,7 @@ TEST_CASE("A held stop inside a shape continues it or splits it, by the fret", "
         // finger is ONE claim, and the only ring crossing that instant is the string it claims, so
         // the slot musters two members against a minimum of three (rule 5) and an own-count of one
         // against the statement threshold of two (rule 4). The stop is a statement that reaches no
-        // shape, and only the harmonic rule keeps the settle off its field.
+        // shape, and the settle below takes nothing from it all the same.
         std::vector<ChartNote> notes = figure(9);
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
@@ -2203,8 +2203,8 @@ TEST_CASE("A held stop inside a shape continues it or splits it, by the fret", "
         // The moved finger reaches no span at all.
         CHECK_FALSE(spanOfClaim(notes, derived, 3, 3).has_value());
         // And the settle still takes nothing — not because the claim states a shape, but because
-        // the note is a tapped HARMONIC and its pitch speaks from the stopped length, which is the
-        // one thing the sweep may never clear.
+        // the sweep clears the `held` FIELD and a note carrying a node has none: its claim is the
+        // fret it presses, which is also the pitch its node is measured from.
         CHECK(sweepInertClaimedStops(notes, makeTempoMap()).empty());
     }
 
@@ -3492,19 +3492,29 @@ TEST_CASE("The inert-claim settle clears a held stop without taking its note", "
         CHECK(notes.front().sustain == Fraction{1});
     }
 
-    SECTION("a stop the note's own PITCH speaks from is never inert")
+    SECTION("a tapped harmonic's stop is its claim, reaches the span, and is no field to clear")
     {
-        // The lone tap above, tapping a HARMONIC over its held stop. The claim still reaches no
-        // shape, and the field still cannot go: a harmonic speaks from the stopped length, so
-        // clearing it would retune the note and leave its node level with the tapped point it
-        // would then speak from — a record the rules refuse. The settle takes statements that
-        // reach nothing, never the sound the charter wrote.
-        ChartNote harmonic = tapHoldingAt(1, Fraction{}, 3, 17, Fraction{1}, 5);
+        // The tap above, tapping a HARMONIC instead: the fretting hand presses 5 and the tapping
+        // finger touches the node twelve frets above it, so the claim the sweep judges is the
+        // note's own fret. It joins the claim on string 1 to open a span the arrival at beat three
+        // plays, so it states something — and it is out of the sweep's reach either way, because
+        // what the sweep clears is the `held` field and this record carries none.
+        ChartNote harmonic = tapAt(1, Fraction{}, 3, 5, Fraction{2});
         harmonic.harmonic_node = 17.0;
-        std::vector<ChartNote> notes{harmonic};
+        std::vector<ChartNote> notes = streamOf({
+            claimAt(1, Fraction{}, 1, 5),
+            harmonic,
+            noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+        });
         CHECK(sweepInertClaimedStops(notes, tempo_map).empty());
-        REQUIRE(notes.size() == 1);
-        CHECK(notes.front().held == std::optional{5});
+        REQUIRE(notes.size() == 3);
+        CHECK(claimedStop(notes[1]) == std::optional{5});
+        CHECK_FALSE(notes[1].held.has_value());
+
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.postures.front().stops[2] == std::optional{frettedStop(5)});
     }
 
     SECTION("a held stop that states a shape is left alone")
@@ -5441,12 +5451,11 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
 
     SECTION("the scope guards: the picking hand's nodes and a pressed stop stay frets")
     {
-        // A two-hand tap harmonic over a held 5 states the 5 it claims, never its node; an
-        // artificial harmonic (a pressed 5 under a damped node 17) states its pressed 5. Neither
-        // touches the grip, so the span that holds string 1 at 5 rides through both.
-        ChartNote tapped = tapAt(2, Fraction{}, 1, 17, Fraction{1});
+        // A two-hand tap harmonic pressing 5 states that 5, never its node; an artificial harmonic
+        // (the same pressed 5 under a node 17) states its pressed 5 alike. Neither touches the
+        // grip, so the span that holds string 1 at 5 rides through both.
+        ChartNote tapped = tapAt(2, Fraction{}, 1, 5, Fraction{1});
         tapped.harmonic_node = 17.0;
-        tapped.held = 5;
         ChartNote artificial = noteAt(3, Fraction{}, 1, 5, Fraction{1});
         artificial.harmonic_node = 17.0;
         const ChartShapes derived = deriveFrom(streamOf({

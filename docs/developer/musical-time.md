@@ -249,12 +249,15 @@ settle sweep and the editor's `H` verb take, and they run at every caret move, s
 change; `chartResolutions` carries its result rather than repeating the walk. The same walk answers
 `chartClaimedStops` — each note's RESOLVED claimed stop, carried on `chartResolutions` as
 `claimed_stops` — because a pull-off states the held stop under a right-hand onset, so which stop a
-note claims is a fact about its NEIGHBOUR. Every consumer reads that resolution and never
-`ChartNote::held`.
+note claims is a fact about its NEIGHBOUR. What it resolves OVER is the claim query's own two
+sources (`claimedStop`): the planted `held` under a plain tap or a pick slide, and the pressed
+`fret` under a tapped harmonic, whose stop is the one its own pitch is measured from. Every consumer
+reads that resolution and never `ChartNote::held`.
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
 COMPLETE held stop under every head that sounds ELSEWHERE. Under a RIGHT-HAND onset that is the
-authored value, the one a pull-off derives over it, or, where the chart states neither, **the
+resolved claim — the authored `held`, a tapped harmonic's pressed `fret`, or the stop a pull-off
+derives over either — or, where the chart states none of those, **the
 DEFAULT: the PRESSED fret the covering span's posture holds on that string — a harmonic node in the
 posture presses nothing — else 0**. Under a FRETTING-HAND onset it is the stop a pull-off PLANTS
 beneath it — the wide `planted_stops` table, read here at its one field-scoped site, THE PLANT'S

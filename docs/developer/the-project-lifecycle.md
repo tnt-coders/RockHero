@@ -374,9 +374,10 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
 under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
 posture from the note stream wherever they are read, once per chart revision inside
-`chartResolutions`. The one authored input rides in the stream itself: the `held` stop under a
-right-hand onset (rule 12b) — the single posture fact no function of a stream of STROKES can
-distinguish.
+`chartResolutions`. The one authored input rides in the stream itself: the `held` stop under a plain
+tap or a scrape (rule 12b) — the single posture fact no function of a stream of STROKES can
+distinguish. A tapped harmonic's pressed fret reaches the postures through the same claim query,
+being a stop the note already states.
 Rules 10 to 12b below are that derivation's maintained plain-English spec — this page is where they
 are stated, and `chart_shapes.h` points here rather than restating them.
 
@@ -413,7 +414,7 @@ neighbours.
     stores — so no member's claim can be false, and the opening test needs no fretted-only branch.
 
     A member is a sounding fretting-hand onset, a ring still sounding at a stated stop, or a stop
-    the hand CLAIMS — the RESOLVED held stop under a right-hand onset (rule 12b). **ONE COUNT over
+    the hand CLAIMS — the RESOLVED claim under a right-hand onset (rule 12b). **ONE COUNT over
     the three kinds**, because they
     are three ways of stating the one thing a shape is made of: where a finger is. Each threshold
     is named ONCE in the walk and appears nowhere else, so neither can fork. **CLAIMS stay outside
@@ -572,7 +573,7 @@ neighbours.
     above is spelled once and nowhere else — the reach says where a boundary COULD fall, and
     whether the tenure actually ENDED there is this law's
     own question, asked once. Which stop a slot SOUNDS carries the two-hand law with it: a
-    right-hand onset holding a resolved stop sounds that stop exactly as a fretting finger does
+    right-hand onset holding a resolved stop STATES that stop as surely as a fretting finger does
     (the carrier law under rule 12b), while a tap holding
     nothing neither extends nor closes anything.
 
@@ -718,9 +719,9 @@ neighbours.
     it states where a finger is and never how long anything sounds, so a span of claims alone
     states its posture at its own instant and runs no distance at all (rule 12b), until a MEMBER
     sounds inside it and lends its ring.
-    A held-carrying tap is where that split shows: its ring IS real evidence
-    about the stop (a tapped harmonic dies the moment the held fret lifts), and it still adds no
-    length, because the evidence arrives as a claim. **EVERY SOUNDED MEMBER BOUNDS, carried or
+    A tapped harmonic is where that split shows: its ring IS real evidence
+    about the stop it speaks from (the chime dies the moment the pressed fret lifts), and it still
+    adds no length, because the evidence arrives as a claim. **EVERY SOUNDED MEMBER BOUNDS, carried or
     struck**: there is ONE
     kind of member, so a ring crossing in over covered ground states the grip AND lends its
     reach, and what keeps let-ring texture from fragmenting the passage it sits under is the
@@ -968,7 +969,7 @@ neighbours.
     at the opening and every accumulation is an arpeggio by construction rather than by a rule of
     its own.
 
-    (b) **A CLAIMED member** (rule 12b) — the held stop under a right-hand onset. The bracket is the
+    (b) **A CLAIMED member** (rule 12b) — the stop a right-hand onset claims. The bracket is the
     only mark with anywhere to print a fret nothing struck, so a span carrying one must arrive as an
     arpeggio or the stated fact is stored and never shown.
 
@@ -1089,8 +1090,9 @@ neighbours.
     shape and picking four of it streams *identically* to a hand holding four and moving to the
     fifth later. Both are real playing, which is why the CHARTER states the second reading rather
     than the derivation guessing it: the derivation notates the
-    literal notes, and the `held` field on a right-hand onset — a tap or a scrape — is how a charter
-    states what the OTHER hand holds while the picking hand sounds that string. It rides the note
+    literal notes, and the `held` field on an onset the PICKING hand stops the string for — a plain
+    tap or a scrape — is how a charter states what the OTHER hand holds while that hand sounds the
+    string. It rides the note
     stream rather
     than a slot-keyed array of its own, because a second array would make disjointness a rule where
     one stream owes slot uniqueness anyway.
@@ -1112,9 +1114,9 @@ neighbours.
     claim is no exception to it: a claim on a new string joins the standing grip IN PLACE,
     and the figure stays one span. What a claim can still do is CONTRADICT — a string the shape
     states ANOTHER stop on is the finger MOVED, and that breaks the grip however the old stop was
-    written down. A held fret matching the span's continues it; a differing one splits it, so a tap
-    harmonic mid-span whose `held` matches the shape's stop leaves one shape and a differing one
-    leaves two. One comparison decides it,
+    written down. A claimed fret matching the span's continues it; a differing one splits it, so a
+    tapped harmonic mid-span whose PRESSED stop matches the shape's leaves one shape and a differing
+    one leaves two. One comparison decides it,
     because there is one question — what stop does the shape state on this string, by sound or by
     claim — and only a claim restating the shape's own stop takes no new stop at all. WHICH SIDE
     WITNESSES is graded (rule 11a): a differing CLAIM against a carried claim always witnesses,
@@ -1134,11 +1136,12 @@ neighbours.
     question). A statement only claims have made yet is still being ASSEMBLED, so a later finger
     landing on it JOINS the assembly rather than contradicting it (LAW II) — the grading above.
 
-    **A claimed stop has exactly ONE shape, and the rules above bind it.** Where the PICKING hand
-    sounds the string, the fretting hand's
-    stop rides that note as `held` — the whole of what a claim is, asked through
-    one query (`claimedStop`) and resolved for every consumer by `chartClaimedStops`, where a
-    pull-off's derived stop outranks the stored field. What a `held` stop may NOT do is lie inside
+    **A claimed stop comes from one of TWO fields, and ONE query says which.** Where the picking
+    hand STOPS the string — a plain tap or a pick slide — the fretting hand's planted finger rides
+    that note as `held`; under a TAPPED HARMONIC the picking hand only touches the node, so the stop
+    the fretting hand presses is the stop the string speaks from, the note's own `fret`, and that is
+    its claim. `claimedStop` is the one place that asks, and `chartClaimedStops` resolves it for
+    every consumer, where a pull-off's derived stop outranks what the note itself states. What a `held` stop may NOT do is lie inside
     its own note's TRAVEL: the
     planted finger is on the string, so the onset cannot start on it, end on
     it, or pass through it. One rule over both attacks that can carry a stop, because it reads the
@@ -1155,10 +1158,10 @@ neighbours.
     claim was a member of nothing and no span's membership moves when it goes — there is no cascade
     for a loop to chase. What it takes is the STATEMENT and never more: a `held` stop rides an onset
     the charter wrote, so the field is cleared and the note stands.
-    And a held stop the note's own PITCH is measured from is not taken at
-    all: a tapped harmonic speaks from the stopped length (`physicalStopFret`), so clearing it would
-    retune the record and could leave its node at or behind its own stop, which the rules refuse —
-    the settle takes statements that reach nothing, never the sound the charter wrote.
+    A stop the note's own PITCH is measured from is beyond the sweep by CONSTRUCTION rather than by
+    an exemption: a tapped harmonic speaks from the fret it presses (`physicalStopFret`), the sweep
+    clears `held` and nothing else, and a note carrying a node never carries `held` — so no settle
+    can retune a record, and there is no clause saying it must not.
 
     **A claim that REACHES a span is never inert**, and the sweep needs
     no rule to say so. Reaching IS publishing: the derivation records the span each claim reached
@@ -1170,18 +1173,21 @@ neighbours.
     One consequence worth naming. An edit that strands a claim clears it
     in the SAME undo entry, so one Ctrl+Z restores the pair.
 
-    **A CLAIM IS A MEMBER THAT DOES NOT SOUND ON ITS OWN, AND ITS CARRIER SOUNDS IT** (LAW II).
-    A claim has exactly one shape: `held` on a right-hand onset — a tap or a pick slide — on the
-    claim's OWN string, and that onset sounds the very stop the claim states. So every claim is
+    **A CLAIM IS A MEMBER THAT DOES NOT SOUND ON ITS OWN, AND ITS CARRIER SOUNDS AT ITS SLOT**
+    (LAW II). A claim rides a right-hand onset — a tap or a pick slide — on the claim's OWN string,
+    and that onset is a note that SOUNDS there. So every claim is
     answered in the slot that founds it, and there is no test for a shape the hand alone states to
-    pass: two held stops at one slot open a span — rule 10 counts members, not strikes — and that
+    pass: two claimed stops at one slot open a span — rule 10 counts members, not strikes — and that
     span publishes at its own instant, with no ring to measure and nothing to wait for.
 
-    WHY THE CARRIER SOUNDS THE STOP. A tap harmonic's pitch derives from
-    the stopped length — the held fret never sounds directly, it sounds as the fundamental this
-    overtone divides — so the held fret is sonically participating, and a scrape dragged across a
-    planted finger is the same picture. The single-string figure is self-contained for that reason:
-    hold a fret, tap the harmonic above it, and ONE record has stated the stop and played it.
+    WHY THE CARRIER ANSWERS FOR THE STOP, and it answers differently on the two arms. A TAPPED
+    HARMONIC's pitch IS its claim: the overtone divides the length the pressed fret sets, so the
+    stop the claim states is the stop the note speaks from, and one record has stated it and played
+    it. A PLAIN TAP sounds where its own finger LANDS, and the claim beneath it is the stop the
+    string falls back to when that finger lifts — the pull-off a following note may state — which is
+    evidence just as direct that the fretting hand is on the string at that instant; a scrape
+    dragged across a planted finger is the same picture. Either way the single-string figure is
+    self-contained: hold a fret, tap above it, and ONE record carries both hands.
 
     A SOUNDING ARRIVAL GROWS such a span rather than replacing it: a lone re-pick at a claimed stop
     attaches to the span, so its extent becomes the span's, and a CHORD carrying that stop grows the
@@ -1202,7 +1208,7 @@ neighbours.
     with no rule of its own. Because the settle above clears every claim that states nothing, there
     is no invisible-and-unreachable statement to find: what a chart claims, some bracket prints.
 
-    **A held stop's face is the SATELLITE beside that bracket.** The note
+    **A claimed stop's face is the SATELLITE beside that bracket.** The note
     carrying it has a head of its own, and that head is already printing what the picking hand
     sounds, so the fretting hand's stop takes the digit column outboard of the bracket's closing bar
     — the two-slot rule the posture display was built with. It is an independent TARGET: clicking it
@@ -1212,9 +1218,11 @@ neighbours.
     where digits do the same and Delete clears the statement rather than the note.
 
     **WHERE A SATELLITE STANDS is a question about AUTHORSHIP**, not about where in a span the note
-    sits (`StopMarkFace`, written once in `chart_projection.cpp`). An AUTHORED held stop stands
-    wherever it lies — front, mid-span and span-less alike — because an authored statement is the
-    charter's and nothing else in the picture prints it. A DERIVED one does not: the pull-off
+    sits (`StopMarkFace`, written once in `chart_projection.cpp`). A stop THE CHART ITSELF STATES
+    stands wherever it lies — front, mid-span and span-less alike — because such a statement is the
+    charter's and nothing else in the picture prints it: the authored `held`, and a tapped
+    harmonic's pressed `fret`, which is its claim and is what its pitch is measured from, standing
+    read-only there since the stop is the note's own fret. A DERIVED one does not: the pull-off
     notation already prints that fret, so it is REVEALED on the note's own truth channel, visible
     exactly while that note's real ring is. And a tap FRONTING a bracket stands whatever its
     authorship, because its own head occupies the string's centre there and the bracket's digit is
@@ -1231,8 +1239,8 @@ neighbours.
     slot uniqueness refuses, forcing the charter to state the stop a quantum early. The `held` field
     makes it one record at one slot, which is what lets
     the stop under a tap be a MEMBER of the shape at the tap's own instant — and, under LAW II's
-    carrier rule above, the SOUND of it too, since the record states the stop and plays
-    it at once.
+    carrier rule above, a member ANSWERED at that instant, since the record states the stop and
+    sounds at the same slot.
 
     **A DISPLACED posture digit is its owner's target**, so a drawn digit never clicks nowhere.
     Which column a posture string's fret prints in is a property of
@@ -1255,7 +1263,8 @@ neighbours.
     brackets, so any head sounding elsewhere covers it; the satellite is the only slot that
     survives. **The hand IS the answer to WHO prints a displaced digit — THE PLANT'S FACE**: the
     bracket's number is the one statement that the left hand is on the string at all, so under a
-    RIGHT-hand head the bracket prints the held stop itself, standing whatever its authorship;
+    RIGHT-hand head the bracket prints the CLAIMED stop itself — the planted `held` under a plain
+    tap, the pressed fret under a tapped harmonic — standing whatever its authorship;
     a FRETTING-hand head already states the hand's presence with its own number, so the stop a
     pull-off plants beneath it is the note's own reveal-only satellite (`NoteViewState::held`,
     `StopMarkFace::Revealed`) and the bracket prints nothing on that string, while a fretting-hand
@@ -1274,10 +1283,14 @@ neighbours.
     legato, the claim resolves to a PULL against this very onset (which carries strict adjacency
     with it — a released string hands nothing over), and the successor stops the string at a fret
     LOWER than the onset's own — every fret alike, the open string's 0 included; only a destination
-    the chart never defines derives nothing. Only a right-hand
-    onset can carry the `held` FIELD, so no other note takes a derived CLAIM; the same pull-off
-    plants its stop under a FRETTING-hand source too, and there it is a face and a refusal rather
-    than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b above).
+    the chart never defines derives nothing. The derivation is scoped to the onset the PICKING hand
+    stops the string for (`pickingHandStopsString`), which is exactly the population carrying a
+    `held` field, so no other note takes a derived CLAIM — a tapped harmonic included, whose claim
+    stays the pressed fret it states itself however low the pull-off lands, leaving the second finger
+    behind that stop unsayable (the watch item in `docs/tracking/watch-items.md` carries it); the
+    same pull-off plants its stop under a FRETTING-hand source too, and there it is a face and a
+    refusal rather than a field — the note's own reveal-only satellite (THE PLANT'S FACE, 12b
+    above).
 
     A stored `held` is authoritative only where no such evidence exists. **ONE resolver in common
     core is the single reader authority** (`chartClaimedStops`): the span derivation, the

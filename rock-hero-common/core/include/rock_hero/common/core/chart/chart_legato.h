@@ -205,25 +205,30 @@ more.
     const ChartConnections& connections);
 
 /*!
-\brief The planted stops narrowed to notes that CARRY a held field — the claim column's derivation.
+\brief The planted stops narrowed to the onsets that CAN carry a held field — the claim column's
+       derivation.
 
-THE FIELD'S SCOPE (DERIVED HELD): a claim is a statement the `held` field makes (\ref claimedStop),
-and only a right-hand onset carries one — its own fret belongs to the other hand — so no other note
-takes a derived one HERE. Where an entry is present the NOTATION owns that stop: the stored \ref
-ChartNote::held beside it is residue the writer must not emit (\ref sweepDerivedHeldStops), and the
-claim column folds this OVER the field rather than beside it (\ref chartClaimedStops). Answering
+THE FIELD'S SCOPE (DERIVED HELD): what a derivation supersedes is a stop the `held` field states,
+and only a note the PICKING hand stops the string for carries that field at all
+(\ref pickingHandStopsString) — so no other note takes a derived one HERE. Under a FRETTING-hand
+onset the fretting hand's stop is already the note's own fret. Under a TAPPED HARMONIC it is the
+PRESSED stop the note states as that same fret, and the model gives that hand no second finger, so
+a pull-off from one derives nothing here and the harmonic's claim stays its pressed fret. Where an
+entry is present the NOTATION owns that stop: the stored \ref ChartNote::held beside it is residue
+the writer must not emit (\ref sweepDerivedHeldStops), and the claim column folds this OVER the
+field rather than beside it (\ref chartClaimedStops). Answering
 both off one function is what keeps "the derivation owns this" from being spelled once as a value
 comparison and once as a fold.
 
 THE HELD-CHANNEL REFUSAL IS NOT ANSWERED HERE, because of THE PLANT'S FACE: it asks the wider \ref
-chartPlantedStops, because a plant under a FRETTING-hand onset is REFUSABLE WITHOUT BEING WRITABLE —
-the note wears it as its own satellite, so typing at it must be turned away, while no `held` field
-exists there for the writer to clear or the claim column to fold. Refusal scope and FIELD scope are
-not the same set, so they are not the same table. The Held-channel Delete asks the wide table too,
-through the clearing planner of its own that reads it (`planClearHeldStops`).
+chartPlantedStops, because a plant under an onset carrying no `held` field is REFUSABLE WITHOUT
+BEING WRITABLE — the note wears it as its own satellite, so typing at it must be turned away, while
+no `held` field exists there for the writer to clear or the claim column to fold. Refusal scope and
+FIELD scope are not the same set, so they are not the same table. The Held-channel Delete asks the
+wide table too, through the clearing planner of its own that reads it (`planClearHeldStops`).
 
-This output is \ref chartPlantedStops with every fretting-hand entry cleared — the field's own
-scope, by construction rather than by promise.
+This output is \ref chartPlantedStops with every entry the picking hand does not stop the string for
+cleared — every note that can carry the field, by construction rather than by promise.
 
 \param connections The resolved connections.
 
@@ -246,11 +251,13 @@ The derivation is exactly the connection this walk has already resolved: the not
 successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
 (which carries the strict-adjacency test with it — a released string hands nothing over), and the
 successor states the stop the string falls to — every fret alike, the open string's 0 included. Only
-a right-hand onset can carry a held stop, so no other note takes a derived one; and a stop inside
-the onset's own traveled range is refused exactly as an authored one is (\ref chartDerivedStops).
+a note the picking hand stops the string for carries a held stop, so no other note takes a derived
+one; and a stop inside the onset's own traveled range is refused exactly as an authored one is
+(\ref chartDerivedStops).
 
-Every other entry is the note's own stored claim (\ref claimedStop), unchanged: a plain onset claims
-nothing beyond the fret it sounds.
+Every other entry is the note's own claim (\ref claimedStop), unchanged: the planted finger beside a
+plain tap or a pick slide, the PRESSED STOP a tapped harmonic states as its own fret, and nothing at
+all on a note whose fret the posture rules already read as the fretting hand's.
 
 THE SINGLE READER AUTHORITY. Every consumer — the span derivation (\ref deriveChartShapes), the
 projection's satellite digit, the editor's verbs — reads this and never \ref ChartNote::held, which
@@ -285,9 +292,11 @@ holds no second stop, so its entry stays absent.
 THREE TIERS under a right-hand onset, in precedence order, and the third is what this table adds
 over \ref chartClaimedStops:
 
-- an AUTHORED held stop, which the charter typed;
-- the PULL-OFF DERIVATION, which supersedes it (DERIVED HELD) — both of
-  these arrive together as the resolved claim, already folded in that order;
+- the note's OWN CLAIM (\ref claimedStop), which the charter typed: the planted finger beside a
+  plain tap or a pick slide, the pressed stop a tapped harmonic states as its own fret;
+- the PULL-OFF DERIVATION, which supersedes the `held` FIELD (DERIVED HELD) and is narrowed to the
+  notes that carry one (\ref chartDerivedStops), so a tapped harmonic's pressed stop stands — both
+  of these arrive together as the resolved claim, already folded in that order;
 - THE DEFAULT: the fret the COVERING SPAN'S POSTURE holds on the tap's own string, or 0 — the open
   string, nothing held — where no span covers the tap or the posture states nothing there.
 
@@ -362,12 +371,13 @@ struct ChartResolutions
     value is READ-ONLY — the verbs refuse to retype or withdraw it, and the projection shows its
     face only while the note's truth is revealed (\ref StopMarkFace::Revealed), because the notation
     already prints that fret. THE WIDE TABLE, whichever hand made the onset (THE PLANT'S FACE):
-    under a right-hand onset an entry here IS the derived claim, and under a fretting-hand onset it
-    is the PLANT that note wears as its own satellite (\ref held_stops). Never the claim column and
-    never the writer's sweep: those ask the narrowing, \ref chartDerivedStops, so a plant under a
-    fretting-hand onset is a face and a refusal and nothing more. Carried rather than re-derived by
-    each consumer for the reason every vector here is: two readers asking the same walk twice is how
-    a chart comes to be described two ways.
+    under an onset the picking hand stops the string for an entry here IS the derived claim, and
+    under a fretting-hand onset it is the PLANT that note wears as its own satellite
+    (\ref held_stops). Never the claim column and never the writer's sweep: those ask the narrowing,
+    \ref chartDerivedStops, so a plant under any onset carrying no `held` field — a fretting-hand
+    one, or a tapped harmonic, whose claim stays its pressed fret — is a face and a refusal and
+    nothing more. Carried rather than re-derived by each consumer for the reason every vector here
+    is: two readers asking the same walk twice is how a chart comes to be described two ways.
     */
     std::vector<std::optional<int>> planted_stops;
 
@@ -508,9 +518,15 @@ no flatten can create or destroy another note's justification.
 \brief Clears every claimed stop the chart's shapes leave stating nothing.
 
 The legato sweep's sibling, and here beside it for the same reason: it is relational and stateless,
-judging only the stream it is handed. One law over every claim (\ref claimedStop): a claim that
-reaches no span (\ref ChartShapes::claim_shapes absent) changes no posture, draws nowhere and
-hit-tests nowhere, so keeping it saves a statement the charter can neither see nor find.
+judging only the stream it is handed. One law over every claim the `held` FIELD states
+(\ref claimedStop where \ref pickingHandStopsString holds): a claim that reaches no span
+(\ref ChartShapes::claim_shapes absent) changes no posture, draws nowhere and hit-tests nowhere, so
+keeping it saves a statement the charter can neither see nor find.
+
+FIELD SCOPE, the same narrowing the residue sweep takes, because a claim it cannot clear is a claim
+it cannot judge: a tapped harmonic claims the stop it SPEAKS from, its own fret, and that stop is
+the sound the charter wrote — there is no field beside it to take and no span that could leave it
+stating nothing.
 
 Three ways to state nothing, one test for all of them, because the derivation answers all three the
 same way: joining no span at all (a lone member), landing past the end of the span it joined, and

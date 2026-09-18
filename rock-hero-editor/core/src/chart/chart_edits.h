@@ -222,7 +222,9 @@ Refused whole where any named slot's stop is the NOTATION's — a tap's derived 
 plant beneath a fretting-hand source — off the one ownership table \ref planRetypeFrets reads
 (\ref common::core::ChartResolutions::planted_stops): the charter typed nothing there, so there is
 nothing of theirs to withdraw, and only unwriting the pull-off would. A slot carrying no held field
-clears nothing, so a press over defaults alone settles as the no-op it is.
+clears nothing, so a press over defaults alone settles as the no-op it is — and so does one over a
+tapped harmonic, whose satellite states the stop its fretting hand presses (the note's own fret) and
+whose node forbids the field entirely.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -433,22 +435,25 @@ falling out of the derivation rather than a second rule written into this planne
 
 The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
 and on the write, so both read one query. The channel exists on a note exactly where the satellite
-that states it does, and that is now TWO populations under one rule. A bare tap's satellite carries
-THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every right-hand onset:
-typing at a default AUTHORS a real held stop, where a gate on the stored field instead would let the
-digit fall through and change nothing. And under THE PLANT'S FACE a fretting-hand onset a pull-off
-PLANTS under wears that plant as its own satellite, so the channel reaches it too — and lands on the
-refusal below, never on a held FIELD its attack forbids. The sounding channel reaches every note,
-because every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb
-scope's answer (the caret's stop), stated once there.
+that states it does, and that is now THREE populations under one rule. A bare tap's satellite
+carries THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every right-hand
+onset: typing at a default AUTHORS a real held stop, where a gate on the stored field instead would
+let the digit fall through and change nothing. Under THE PLANT'S FACE a fretting-hand onset a
+pull-off PLANTS under wears that plant as its own satellite, so the channel reaches it too — and
+lands on the refusal below, never on a held FIELD its attack forbids. And a TAPPED HARMONIC's
+satellite states the stop its fretting hand presses, which is the note's own fret and no planted
+finger at all, so the channel reaches that one as well and lands on the refusal after it. The
+sounding channel reaches every note, because every note has a fret. Nothing here decides WHEN the
+held channel applies: that is the verb scope's answer (the caret's stop), stated once there.
 
 A FRET-HAND HARMONIC HAS NO STOP TO RETYPE, so the sounding channel is REFUSED outright on one: the
 finger stands on the node and presses nothing, and landing a digit would author a stop and a touch
 naming two different places. Restating a node is press `H`, type, press `H`. Every OTHER node
 travels with the stop it is measured from — a node is `stop + offset` on a logarithmic board, so a
-stop that moves and a node that does not name an offset the harmonic never had — which reaches the
-artificial family, a tap harmonic's own landing point, and a pinch's graze alike. Whether the moved
-node is still legal is the finalize gate's answer, like every other bound here.
+stop that moves and a node that does not name an offset the harmonic never had — which reaches every
+pressed stop under a node alike: the artificial family, a tapped harmonic's stop, and a pinch's
+graze. Whether the moved node is still legal is the finalize gate's answer, like every other bound
+here.
 
 THE DERIVATION OWNS SOME HELD STOPS (DERIVED HELD), and the held channel is REFUSED outright where a
 pull-off already states one — asked of the WIDE planted table (\ref
@@ -466,6 +471,14 @@ and every member the derivation does not own is retyped as ever. So a selection 
 agreeing derived stops plans to NoChange, and a mixed one authors at its default and authored
 satellites while the agreeing derived ones stand.
 
+A NOTE CARRYING A NODE HAS NO PLANTED FINGER, so the held channel is REFUSED outright on one. The
+field is legal only where the picking hand is what stops the string
+(\ref common::core::pickingHandStopsString, asked rather than restated, so a scrape's latent node
+never reads as a harmonic), and the satellite over a tapped harmonic states the stop its FRETTING
+hand presses — the note's own fret, which the sounding channel addresses. The same-fret settle does
+not ride this refusal: that one agrees with a value the field could hold, while this one names a
+field the note cannot carry at all.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of every note the retype writes through, in chart slot order.
@@ -477,7 +490,8 @@ naming no keyframe, or one stating no fret, are skipped.
 \param channel Which stop of each named NOTE to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
         when the gate refuses the result, when the held channel names a stop the derivation owns
-        and the entry disagrees with it, or when the sounding channel names a fret-hand harmonic.
+        and the entry disagrees with it, when the held channel names a note carrying a node, or
+        when the sounding channel names a fret-hand harmonic.
         The split is what lets the pending entry paint a refused value red without painting a valid
         no-op red.
 */
@@ -868,18 +882,24 @@ binary-search this precondition).
 /*!
 \brief The nodes this note's own fret names AND this note can reach — the harmonic verb's operand.
 
-THE FRET YOU TYPE IS THE NODE. A natural harmonic's finger stands where it would otherwise have
-pressed, so the fret-stating flow the editor already has states the node too: type 12, press `H`.
-This resolves the note's LABEL against the stop the string actually SPEAKS from
-(\ref common::core::physicalStopFret asked of the note with its own fret zeroed — the held stop
-under a right-hand onset, the capo otherwise) and hands that OFFSET to
+THE FRET YOU TYPE IS THE NODE, AND THE NODE IS A TOUCH ON THE OPEN STRING. A natural harmonic's
+finger stands where it would otherwise have pressed, so the fret-stating flow the editor already has
+states the node too: type 12, press `H`. This resolves the note's LABEL against the stop an
+UNPRESSED string speaks from (\ref common::core::physicalStopFret asked of the note with its own
+fret zeroed — the nut, or the capo) and hands that OFFSET to
 \ref common::core::harmonicNodeCandidates. The label is the typed fret, or on a note already
-touching an on-neck node — whose fret is zero, because a touch presses nothing — the fret that node
-lies at, the same number \ref planClearHarmonic presses back down; so a note at 4.98 is offered the
-other nodes a 5 names, and the verb can re-node a harmonic without clearing it first. One formula
-covers every hand: fret 5 open names 4.98, absolute fret 7 under a capo at 2 names 6.98 because our
-frets are absolute where Guitar Pro's labels are capo-relative, and a tap holding 5 and landing on
-17 names 17 — the tap harmonic, whose node is measured from the stop it holds.
+touching an on-neck node from the open string — whose fret is zero, because nothing is pressed — the
+fret that node lies at, the same number \ref planClearHarmonic presses back down; so a note at 4.98
+is offered the other nodes a 5 names, and the verb can re-node a harmonic without clearing it first.
+One formula covers every hand: fret 5 open names 4.98, and absolute fret 7 under a capo at 2 names
+6.98 because our frets are absolute where Guitar Pro's labels are capo-relative.
+
+ON A TAP, `H` AUTHORS AN OPEN-STRING TAPPED HARMONIC — the tapping finger leaves the fret it landed
+on and touches a node of the whole string. A harmonic touched above a PRESSED stop, which a note
+states as a positive fret beside its node, is a different statement: one hand holds the fret while
+the other touches the node. The pinch row authors the picking thumb's, and a TAPPED one reaches the
+chart through import alone until the verb for it is built — so pressing `H` on one reads its pressed
+fret as a label like any other and offers the open-string ladder that number names.
 
 REACHABILITY IS THE RULE AUTHORITY'S ANSWER. Each candidate is dropped by asking whether the write
 it would produce survives \ref common::core::validateChartNoteAlone on its saved form, so the neck
@@ -922,11 +942,13 @@ through its picker exactly when there is more than one.
 finger touches.
 
 Per note the verb asks \ref chartHarmonicNodeCandidates for what that fret names, writes `fret = 0`
-with the chosen node placed at the real stop, and runs \ref common::core::normalizeChartNote so a
-payload a touch cannot carry (the bend, the shake, the travel of a finger that presses nothing) is
-stripped by the ONE authority rather than by a list copied into this verb. A note whose fret names
-nothing it can reach is SKIPPED, never repaired: moving the hand to the nearest node would author a
-position the charter never typed.
+with the chosen node measured from the open string's stop (the nut, or the capo), and runs
+\ref common::core::normalizeChartNote so a payload a touch cannot carry (the bend, the shake, the
+travel of a finger that presses nothing) is stripped by the ONE authority rather than by a list
+copied into this verb. A planted finger goes the same way, by the rule rather than by the
+normalizer: a note carrying a node states no \ref common::core::ChartNote::held, so the write
+releases one the note was holding. A note whose fret names nothing it can reach is SKIPPED, never
+repaired: moving the hand to the nearest node would author a position the charter never typed.
 
 THE CHOICE BINDS ONLY WHAT IT NAMES. `chosen_partial` takes that partial's node on every note whose
 label offers it — the picker's rows are read off one member, and a chord's other members share the
@@ -956,9 +978,11 @@ Only a note that \ref carriesNeckHarmonic is written; a pinch's node is the pick
 as it was. The press-where-you-touched arithmetic inverts \ref planSetHarmonic exactly for every
 label the set can produce — 4.98 back to 5, 3.86 to 4, 3.16 to 3, 7.02 to 7, 19.02 to 19 — and is
 the same label read \ref chartHarmonicNodeCandidates makes of a carrier, so the rows a touching
-note is offered and the fret its clear restores name one place. No memory of an overridden
-technique is needed: the fret comes back by arithmetic, and what the set's normalization stripped
-is restored by undo.
+note is offered and the fret its clear restores name one place. A PRESSED-STOP harmonic — a positive
+fret beside a node, the form import writes for a tapped one — reads that same label off its own
+fret, so the clear takes the touch away and leaves a plain note stopped where it already was. No
+memory of an overridden technique is needed: the fret comes back by arithmetic, and what the set's
+normalization stripped is restored by undo.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.

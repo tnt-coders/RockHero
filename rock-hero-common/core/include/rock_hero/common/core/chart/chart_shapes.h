@@ -153,8 +153,8 @@ struct ChartShape
     Zero is therefore reserved for the one case that means it: a span whose members are ALL held
     fingers states its posture at an instant and is published there. Its length is whatever the
     FRETTING hand's own stops reach, so a span holding none reaches its own start — a right-hand
-    onset says nothing about the fretting hand, so the carrier sounding a held stop never bounds
-    the span, and such a span lengthens only once a strike grows its grip. The bracket draws at
+    onset's SOUND is the other hand's, so the carrier ringing over a claimed stop never bounds the
+    span, and such a span lengthens only once a strike grows its grip. The bracket draws at
     the span start whatever the length, and the rails a positive span draws have nothing to cover.
 
     TRAVEL does not shorten a span to its own start; the split happens at the LANDING: a chord slide
@@ -353,8 +353,8 @@ struct ChartShapes
     none.
 
     Same order and size as the note streams, so a caller indexes it by the note it already holds.
-    Every claim resolves through it (\ref chartClaimedStops): a held stop riding a right-hand onset,
-    whose note has a head of its own but whose held fret does not.
+    Every claim resolves through it (\ref chartClaimedStops): the stop a right-hand onset states its
+    fretting hand holds, whose note has a head of its own but whose claimed fret does not.
 
     This is where a claim BECOMES visible. A held stop prints in the satellite slot beside that
     span's posture bracket, which is its own independent target, and the editor reads this to place
@@ -405,8 +405,8 @@ change at the landing. Publication rides the push, which is what keeps that drop
 
 \param saved_notes The stored stream, sorted by position; rings are facts and are never written.
 \param claimed_stops The resolved claim table: what the fretting hand HOLDS under each right-hand
-       onset (a tap's pitch derives from the stopped length, so its held fret participates fully on
-       the statement path).
+       onset (a claim states where that hand is, so a claimed fret participates fully on the
+       statement path).
 \param planted_stops The hold-under table (\ref chartPlantedStops): per
        note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
        Feeds the seam verdicts and — since THE FOLD — the statement dating, never the grip

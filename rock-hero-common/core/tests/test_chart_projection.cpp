@@ -1621,11 +1621,40 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
+    SECTION("a tapped harmonic's PRESSED stop stands, because its head prints the node instead")
+    {
+        // The tapping finger only touches the node here, so the stop the fretting hand presses is
+        // the note's own fret and the claim is read straight off it. The head prints the node, so
+        // that 5 has no other ink at all — which is why it stands rather than waiting for a reveal,
+        // exactly as a typed held stop does under a plain tap.
+        ChartNote tapped = tap(2, 3, 5, std::nullopt, Fraction{1});
+        tapped.harmonic_node = 17.0;
+        const ChartViewState state = project({tapped});
+
+        const NoteViewState* const touched = tap_view(state);
+        REQUIRE(touched != nullptr);
+        if (touched != nullptr)
+        {
+            CHECK(touched->held == std::optional{5});
+            const std::optional<StopMarkViewState>& mark = touched->stop_mark;
+            REQUIRE(mark.has_value());
+            if (mark.has_value())
+            {
+                CHECK(mark->face == StopMarkFace::Standing);
+                CHECK(stopMarkShown(*mark, false));
+                CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+            }
+        }
+    }
+
     SECTION("a fretting-hand head nothing plants under has no face, so the bracket prints for it")
     {
         // The artificial harmonic of the sections above, restated from this side: its head prints
         // its node over the fret it presses, it carries no held stop, and the bracket's satellite
-        // is the only ink that number has — standing, because the pressed fret is authored.
+        // is the only ink that number has — standing, because the pressed fret is authored. The
+        // discrimination against the tapped harmonic above, which stores the same two fields: the
+        // FRETTING hand made this onset, so its own fret was never the other hand's and there is no
+        // claim to wear a face for.
         ChartNote artificial = strike(1, 1, 5, Fraction{4});
         artificial.harmonic_node = 17.0;
         const ChartViewState state = project({

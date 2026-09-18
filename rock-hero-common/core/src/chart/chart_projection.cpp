@@ -226,13 +226,14 @@ ChartViewState makeChartViewState(
     // WHO PRINTS the displaced digit is the hand's question, and THE PLANT'S FACE settles both
     // halves. The bracket's number is the one statement that the left hand is on that string at
     // all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever
-    // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture). A
-    // FRETTING-hand head states the hand's presence with its own number, so the stop planted
-    // beneath it is the refinement the notation already prints in the pull-off, and the NOTE wears
-    // it as its own reveal-only satellite (\ref chartHeldStops): the bracket then prints nothing on
-    // that string, so exactly one ink states it. A fretting-hand head that holds no second stop at
-    // all — an artificial harmonic pressing the fret its head does not print — has no face of its
-    // own, so the bracket prints its pressed fret, standing.
+    // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture) — a TAPPED
+    // harmonic included, whose pressed stop is that statement while its own head prints the node
+    // it sounds. A FRETTING-hand head states the hand's presence with its own number, so the stop
+    // planted beneath it is the refinement the notation already prints in the pull-off, and the
+    // NOTE wears it as its own reveal-only satellite (\ref chartHeldStops): the bracket then
+    // prints nothing on that string, so exactly one ink states it. A fretting-hand head that holds
+    // no second stop at all — an artificial harmonic pressing the fret its head does not print —
+    // has no face of its own, so the bracket prints its pressed fret, standing.
     //
     // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
     // string sounds is a fact about the chart, not about which tails the caller drew. The held
@@ -422,11 +423,11 @@ ChartViewState makeChartViewState(
         view.fret = note.fret;
         view.attack = note.attack;
         // The COMPLETE resolved held stop, copied straight across (\ref chartHeldStops): under a
-        // right-hand onset the authored value, the one a pull-off derives over it (DERIVED HELD),
-        // or — where the chart states neither — THE DEFAULT FACT of the tap, the grip the covering
-        // span holds on its string; under a fretting-hand onset the stop a pull-off PLANTS beneath
-        // it (THE PLANT'S FACE). Which notes carry one is a rule the resolution owns rather than
-        // one this pass re-applies.
+        // right-hand onset the note's own claim (\ref claimedStop), the one a pull-off derives over
+        // it (DERIVED HELD), or — where the chart states neither — THE DEFAULT FACT of the tap, the
+        // grip the covering span holds on its string; under a fretting-hand onset the stop a
+        // pull-off PLANTS beneath it (THE PLANT'S FACE). Which notes carry one is a rule the
+        // resolution owns rather than one this pass re-applies.
         view.held = resolutions.held_stops[note_index];
         // THE FACE THIS NOTE'S CLAIMED STOP WEARS — where its ink draws, and on what terms it shows
         // (THE SATELLITE REVEAL).
@@ -450,9 +451,14 @@ ChartViewState makeChartViewState(
             // Asked of the RESOLUTIONS rather than of the stored field, because who states a stop
             // is exactly what those walks answer and a value comparison cannot: a claim present
             // that no pull-off plants is the authored one, and everything else is answered by
-            // something other than the charter. The wide table is the one ownership authority
-            // (\ref ChartResolutions::planted_stops); a fretting-hand note claims nothing, so it
-            // can only ever answer Revealed here.
+            // something other than the charter. A tapped harmonic's claim is the pressed stop it
+            // speaks from, its own fret (\ref claimedStop), which the charter typed like any other
+            // number, so it stands here as a typed `held` does — until a pull-off off that very
+            // note puts an entry in the wide table, which reads as the notation's and demotes the
+            // pressed stop to the reveal beside it; that split is the open figure
+            // `docs/tracking/watch-items.md` carries. The wide table is the one ownership
+            // authority (\ref ChartResolutions::planted_stops); a fretting-hand note claims
+            // nothing, so it can only ever answer Revealed here.
             double mark_seconds = view.start_seconds;
             const bool authored = resolutions.claimed_stops[note_index].has_value() &&
                                   !resolutions.planted_stops[note_index].has_value();

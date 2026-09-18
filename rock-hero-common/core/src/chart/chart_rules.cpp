@@ -733,7 +733,9 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
-    // nothing vibrates there.
+    // nothing vibrates there. The stop is the note's own fret (\ref physicalStopFret) whichever
+    // hand touches the node: a tapped harmonic states the fret its fretting hand presses exactly
+    // as an artificial one does, so the node rides that stop under either.
     if (note.harmonic_node.has_value() &&
         *note.harmonic_node <= static_cast<double>(physicalStopFret(note, tuning.capo)))
     {
@@ -776,14 +778,14 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
     }
-    // The fretting-hand stop under a right-hand onset. WHICH attacks may carry one is the fixpoint
-    // below; these are the two facts a stop of its own has. The board and the capo bind it exactly
-    // as they bind `fret` — 0 is the open string a voicing deliberately leaves, and a stop the capo
-    // covers has no repair that is not an invented pitch — while the ceiling is the normalizer's
-    // clamp, asked as that same fixpoint.
+    // The finger the fretting hand plants under an onset the picking hand stops the string for.
+    // WHICH notes may carry one is the fixpoint below; these are the two facts a stop of its own
+    // has. The board and the capo bind it exactly as they bind `fret` — 0 is the open string a
+    // voicing deliberately leaves, and a stop the capo covers has no repair that is not an invented
+    // pitch — while the ceiling is the normalizer's clamp, asked as that same fixpoint.
     //
     // And it must lie OUTSIDE the onset's own travel: the planted finger is on the string, so the
-    // picking hand cannot start on it, end on it, or pass through it. One rule for both attacks
+    // picking hand cannot start on it, end on it, or pass through it. One rule for both shapes
     // that can carry a stop, because \ref travelsThroughFret reads the PATH rather than the attack
     // — an onset stating none has a hull of one point, which is the equal-fret refusal as the
     // degenerate case, while a scrape always states a path and a tap does wherever the charter
@@ -870,18 +872,19 @@ std::expected<void, ChartError> validateChartNoteAlone(
             }};
         }
     }
-    // WHAT THIS ATTACK MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
+    // WHAT THIS NOTE MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
     // must already equal its own saved form. Two things carry less than the whole record — a SAVED
     // pick slide carries no pitched technique, because the writer omits the in-memory overrides
-    // (chart.h); and a HELD stop rides only a right-hand onset, because on every other attack the
-    // fretting hand's stop already is the note's own fret — and enumerating either set here would
-    // duplicate exactly what savedChartNote strips, leaving the writer and this rule to agree by
-    // hand while a field added to ChartNote updated only one of them. Asked unconditionally because
-    // the comparison is identity for every attack that overrides nothing.
+    // (chart.h); and a HELD stop rides only a note the picking hand stops the string for, because
+    // everywhere else — an ordinary press, and a harmonic of either hand — the fretting hand's stop
+    // already is the note's own fret — and enumerating either set here would duplicate exactly what
+    // savedChartNote strips, leaving the writer and this rule to agree by hand while a field added
+    // to ChartNote updated only one of them. Asked unconditionally because the comparison is
+    // identity for every note that overrides nothing.
     //
-    // The message names the cause because the two cases are disjoint by attack: a scrape can only
-    // have failed on the pitched latents (it is the one attack that keeps a held stop AND sheds
-    // techniques), and any other attack on exactly one thing — the held stop it may not carry.
+    // The message names the cause because the two cases are disjoint: a scrape can only have failed
+    // on the pitched latents (it is the one attack that keeps a held stop AND sheds techniques),
+    // and every other note on exactly one thing — the held stop it may not carry.
     // Emphasis is a scrape's own dynamics and is never stripped.
     if (!(savedChartNote(note) == note))
     {
@@ -895,8 +898,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message =
-                "only a right-hand onset carries a held stop at " + positionText(note.position),
+            .message = "only a plain tap or a pick slide carries a held stop at " +
+                       positionText(note.position),
         }};
     }
     // The scrape's own gesture: the required unpitched terminal, exactly at the sustain (nothing

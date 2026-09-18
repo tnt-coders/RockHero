@@ -910,8 +910,11 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   refinements: E22 (and `fretFor`) exclude the `Tap` attack — an open-string tap harmonic's node
   belongs to the picking hand, so only the universal node bound applies to it — while E7/E9/E19
   *include* `Tap` (nothing pressed is nothing pressed). A 2D display note for the notation pass, no
-  action now: a fretted tap harmonic's head shows the node, and the stop is carried nowhere on the
-  2D surface — a two-position technique may eventually want both. 3D already carries both, which
+  action now: a fretted tap harmonic's head shows the node, and its pressed stop reaches 2D only as
+  its CLAIM — the standing satellite beside the bracket, read-only there (2026-09-17, the ruling
+  that puts a harmonic's pressed stop in `fret` for either hand) — while an artificial harmonic's
+  press reaches it only through a covering span's own bracket digit. A two-position technique may
+  eventually want both on the head itself. 3D already carries both, which
   settles what "both" should look like: the note (head, tail, glide) sounds from the node, while the
   board's own furniture — glow post and fret-span line — marks the stop the hand presses. That
   division is stated once, in `highwayNoteFretboardX`, which takes the stop as a parameter so every

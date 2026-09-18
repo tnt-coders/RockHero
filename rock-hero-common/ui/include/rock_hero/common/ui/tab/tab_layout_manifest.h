@@ -106,10 +106,11 @@ struct TabHeldStopLayout
 The second stop a note states (\ref common::core::NoteViewState::held) prints in its own column
 outboard of the head's own bracket columns, because the head's centre is already carrying what
 that head SOUNDS. That column is its independent target: clicking it addresses the held stop
-where clicking the head addresses the sounding fret. TWO populations wear one: the stop under a
-RIGHT-hand onset, whose own fret is the picking hand's; and the stop a pull-off PLANTS beneath a
-FRETTING-hand onset (THE PLANT'S FACE), which the bracket then prints nothing of on that string, so
-exactly one ink states it either way.
+where clicking the head addresses the sounding fret. THREE populations wear one: the planted finger
+under a plain tap or a scrape, whose own fret is the picking hand's; the PRESSED stop a tapped
+harmonic states as its own fret, the fretting hand's under a node the picking hand only touches;
+and the stop a pull-off PLANTS beneath a FRETTING-hand onset (THE PLANT'S FACE), which the bracket
+then prints nothing of on that string, so exactly one ink states it either way.
 
 Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
 note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face

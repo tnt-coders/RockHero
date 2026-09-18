@@ -1865,6 +1865,9 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         {
             CHECK(*note.harmonic_node == Catch::Approx(17.0));
         }
+        // And no planted finger beside it: the stop the string speaks from is the note's own fret,
+        // so there is nothing left for the held field to say.
+        CHECK_FALSE(note.held.has_value());
         CHECK(common::core::nodeIsOnNeck(note.attack));
     }
 

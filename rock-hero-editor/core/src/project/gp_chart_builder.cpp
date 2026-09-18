@@ -1779,11 +1779,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // The picking hand states nothing about the fretting hand, so a right-hand onset speaks only
 // through the stop it CLAIMS — the RESOLVED claim the pass derived once (`chartClaimedStops`),
 // never the stored field. An import writes no `held` at all, so the raw field would leave every
-// imported tap contributing nothing to a grip and contradicting none, which is exactly the
+// imported PLAIN tap contributing nothing to a grip and contradicting none, which is exactly the
 // two-hand material this cut exists for; the pull-off under the tap is where the stop is written
-// down (DERIVED HELD). Its own fret is right-hand travel either way. A ring that has travelled
-// carries the finger with it, which is why the fret comes from the channel's statement at the
-// instant asked about rather than from the onset.
+// down (DERIVED HELD), and a plain tap's own fret is right-hand travel. A TAPPED HARMONIC is the
+// right-hand onset whose fret belongs to the OTHER hand: the tapping finger only touches the node,
+// so the stop the string speaks from is the fret the fretting hand presses, and the claim query
+// reads it straight off the note. A ring that has travelled carries the finger with it, which is
+// why the fret comes from the channel's statement at the instant asked about rather than from the
+// onset.
 //
 // The stop is the FRETTING HAND'S PLACE (\ref rock_hero::common::core::frettingStopAt, the one
 // reader the span machine's grip column answers through): a natural harmonic states its NODE and
@@ -3139,6 +3142,9 @@ void resolveSlideOutExits(
                 }
                 else if (source.harmonic_type == "Tap")
                 {
+                    // The tapping finger only touches the node, so the fret the score states stays
+                    // the note's PRESSED stop — the fretting hand's — with the node above it. The
+                    // same record an artificial harmonic writes, differing in the attack alone.
                     note.attack = NoteAttack::Tap;
                 }
                 // The stop the harmonic speaks from — the note's (already capo-shifted,

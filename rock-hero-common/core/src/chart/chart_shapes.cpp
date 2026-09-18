@@ -782,9 +782,9 @@ ChartShapes deriveChartShapes(
                         .fret = *claim,
                     });
             }
-            // THE FRETTING HAND'S OWN STRIKES alone: a right-hand onset sounds the stop the other
-            // hand holds under it and asserts no grip of its own, so it strikes nothing here — its
-            // held fret reaches the statement path as the claim above.
+            // THE FRETTING HAND'S OWN STRIKES alone: a right-hand onset is the other hand's and
+            // asserts no grip of its own, so it strikes nothing here — the fretting-hand stop under
+            // it reaches the statement path as the claim above (\ref claimedStop).
             if (string_index.has_value() && !rightHandOnset(member.attack))
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
@@ -809,11 +809,11 @@ ChartShapes deriveChartShapes(
         // member whose sound ends exactly here and is re-sounded was replaced, not silenced).
         const bool standing = open.has_value() && in_force(*open, slot.beat, slot.sounding);
 
-        // WHAT THIS SLOT STATES per string, strikes and claims as one table: a tap's held fret is a
-        // STATEMENT about where the fretting hand is, exactly as a strike is (rule 2 — the held
-        // fret participates fully on the statement path), so the contradiction and displacement
-        // witnesses read them identically. A slot never states one string twice: two records at one
-        // (position, string) are a collision, not an overlap.
+        // WHAT THIS SLOT STATES per string, strikes and claims as one table: a tap's claimed stop
+        // is a STATEMENT about where the fretting hand is, exactly as a strike is (rule 2 — the
+        // claimed fret participates fully on the statement path), so the contradiction and
+        // displacement witnesses read them identically. A slot never states one string twice: two
+        // records at one (position, string) are a collision, not an overlap.
         std::vector<std::optional<ChartStop>> stated_here(string_count);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {

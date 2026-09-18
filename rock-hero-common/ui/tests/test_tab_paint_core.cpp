@@ -1094,35 +1094,38 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
     // The held VALUE is incidental to every case here but one, so it defaults: what these probe is
     // the face. The exception is THE DEFAULT's open string, whose number is the one a value test
     // would have dropped.
-    const auto paint =
-        [&bounds, &visible_timeline](
-            const common::core::StopMarkFace face, const bool revealed, const int held = 7) {
-            common::core::ChartViewState state;
-            state.open_strings = common::core::testing::standardTuning();
-            common::core::NoteViewState tap;
-            tap.start_seconds = 10.0;
-            tap.end_seconds = 10.0;
-            tap.string = 3;
-            tap.fret = 12;
-            tap.attack = common::core::NoteAttack::Tap;
-            tap.held = held;
-            tap.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
-            state.notes = {tap};
+    const auto paint = [&bounds, &visible_timeline](
+                           const common::core::StopMarkFace face,
+                           const bool revealed,
+                           const int held = 7,
+                           const std::optional<double> node = std::nullopt) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        common::core::NoteViewState tap;
+        tap.start_seconds = 10.0;
+        tap.end_seconds = 10.0;
+        tap.string = 3;
+        tap.fret = 12;
+        tap.attack = common::core::NoteAttack::Tap;
+        tap.held = held;
+        tap.harmonic_node = node;
+        tap.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
+        state.notes = {tap};
 
-            const TabLaneMetrics metrics = makeTabLaneMetrics(
-                bounds,
-                visible_timeline,
-                common::core::displayedStringCount(state.stringCount(), 0),
-                state.stringCount());
-            const juce::Image image{juce::SoftwareImageType{}.create(
-                juce::Image::ARGB, 400, 240, true)};
-            juce::Graphics graphics{image};
-            const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
-            paintTabLane(graphics, metrics, state, prefix_max, {}, {}, [revealed](std::size_t) {
-                return revealed;
-            });
-            return image;
-        };
+        const TabLaneMetrics metrics = makeTabLaneMetrics(
+            bounds,
+            visible_timeline,
+            common::core::displayedStringCount(state.stringCount(), 0),
+            state.stringCount());
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
+        paintTabLane(graphics, metrics, state, prefix_max, {}, {}, [revealed](std::size_t) {
+            return revealed;
+        });
+        return image;
+    };
 
     // The same columns the displaced case reads: the onset at 10.0s lands at x = 200, the head's
     // own bracket column closes at 216, and string 3 renders at lane centre y = 140. Derived from
@@ -1190,6 +1193,24 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
     // displaced digit, so a second copy from this pass would be one number drawn twice.
     CHECK_FALSE(white_in(
         paint(common::core::StopMarkFace::Posture, true),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+
+    // A TAPPED HARMONIC prints both of its numbers, in the two inks that belong to them: its head
+    // states the node the tapping finger touches, and this column states the stop the fretting hand
+    // presses. The reveal-only control is what pins the second number to this pass — the head's own
+    // ink never reaches the column, so the digit that appears when the face stands is the
+    // satellite's.
+    CHECK_FALSE(white_in(
+        paint(common::core::StopMarkFace::Revealed, false, 5, 17.0),
+        chip_left + slot.gap,
+        chip_right - slot.gap,
+        135,
+        144));
+    CHECK(white_in(
+        paint(common::core::StopMarkFace::Standing, false, 5, 17.0),
         chip_left + slot.gap,
         chip_right - slot.gap,
         135,

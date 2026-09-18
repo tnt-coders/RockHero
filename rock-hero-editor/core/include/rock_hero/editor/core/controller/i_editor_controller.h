@@ -465,6 +465,12 @@ public:
     done — clear when every member carries a harmonic, else the lowest partial. A selection whose
     labels name nothing (open strings, pinches) is inert.
 
+    THE TOUCH STANDS ON THE OPEN STRING, whichever hand delivers the onset: the verb writes a node
+    measured from the nut (or the capo) and leaves nothing pressed, so on a tap it authors an
+    open-string tapped harmonic. A harmonic touched above a PRESSED stop is a different statement:
+    the pinch row authors the picking thumb's, and a TAPPED one reaches the chart through import
+    alone, so pressing `H` on one reads its pressed fret as a label like any other.
+
     The run folds like a gesture rather than reversing like a toggle: choices on one selection
     replace one undo entry until a selection change, a caret move, another verb's edit, undo/redo or
     a save ends the run, and a run that chooses its way back to where it began leaves no entry. An
@@ -481,7 +487,9 @@ public:
     (\ref onChartHarmonicRequested), over the whole selection. The choice binds only the members it
     names: a selected note whose own label offers the chosen partial takes that partial's node, one
     whose label does not takes its lowest partial, and a note whose fret reaches none is skipped.
-    Absent, every carried harmonic is cleared and the finger presses where it was touching.
+    Absent, every carried harmonic is cleared: a touch on the open string becomes a press at the
+    fret its node lies at, and one above a pressed stop simply loses the touch and stays stopped
+    where it was.
 
     \param partial The partial whose node the selection takes, or absent to clear.
     */

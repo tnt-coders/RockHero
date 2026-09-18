@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
+#include <optional>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -280,6 +281,27 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
             standing->center_x ==
             Catch::Approx(bar_right + static_cast<float>(slot.extent()) / 2.0f));
         CHECK(standing->center_y == Catch::Approx(220.5f));
+    }
+
+    // A TAPPED HARMONIC wears that same column. Its head prints the node the tapping finger
+    // touches, while the satellite states the stop the fretting hand presses — two different
+    // numbers for one note, so the column has to be the STOP's and unmoved by what the head says.
+    common::core::NoteViewState touched = tap(common::core::StopMarkFace::Standing);
+    touched.fret = 5;
+    touched.harmonic_node = 17.0;
+    const std::optional<TabHeldStopLayout> tapped_harmonic =
+        tabHeldStopLayout(geometry, touched, false);
+    REQUIRE(tapped_harmonic.has_value());
+    if (tapped_harmonic.has_value())
+    {
+        REQUIRE(standing.has_value());
+        if (standing.has_value())
+        {
+            CHECK(tapped_harmonic->box.x == Catch::Approx(standing->box.x));
+            CHECK(tapped_harmonic->box.width == Catch::Approx(standing->box.width));
+            CHECK(tapped_harmonic->center_x == Catch::Approx(standing->center_x));
+            CHECK(tapped_harmonic->center_y == Catch::Approx(standing->center_y));
+        }
     }
 
     // A REVEAL-ONLY face is absent until the note's truth is on show, and present exactly then.

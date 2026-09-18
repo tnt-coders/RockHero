@@ -1068,3 +1068,28 @@ written down.
   under either reading. Pre-existing. Fix shape: decide what the guide means by "planner" (returns
   `std::expected<ChartEditPlan, ChartPlanRefusal>`, or any plan-producing function), then list by
   that rule — or drop the count and point at `chart_edits.h`, which cannot go stale.
+
+## Found while unifying fret and held (2026-09-17)
+
+- **`planRetypeFrets`' Sounding-channel refusal on a fret-hand harmonic states a wrong reason.**
+  `rock-hero-editor/core/src/chart/chart_edits.cpp` (~1038-1049) and `chart_edits.h` (~449-452) both
+  say landing a digit there would author "fret 5 + node 4.98, a stop and a touch naming two
+  different places, which no rule catches". It would not: the write below (~1122-1137) is A NODE
+  TRAVELS WITH ITS STOP, so a digit on a fret-0 harmonic with node 5.0 would move the node by the
+  same amount and produce fret 5 + node 10.0 — an ordinary pressed-stop harmonic, legal under the
+  2026-09-17 ruling that `fret` is the stop the string speaks from. The refusal is still sound as
+  AUTHORING POLICY (on a fret-hand harmonic the fret channel is not a stop the charter stated at
+  all — the digit would restate the node, which is press `H`, type, press `H`), so what is wrong is
+  the reason, not the behaviour. Reword both when next touching the planner.
+
+- **The FHP hand hull excludes tapped harmonics.** `rock-hero-editor/core/src/project/`
+  `gp_chart_builder.cpp` gates every hand-window contribution on `rightHandOnset` —
+  `heldHullAtSlideKeyframe` (~2244), the onset hull (~2338) and the still-ringing union (~2425) —
+  under "right-hand onsets float above the hand". That is true of a plain tap and a scrape, whose
+  `fret` is the picking hand's, but a TAPPED HARMONIC's `fret` is the stop the FRETTING hand
+  presses (`fretFor` returns it, `frettingFingerOnNode` being false for a `Tap`), so a passage of
+  them contributes nothing and leaves the window unanchored where a real hand is demonstrably on
+  the neck — the same failure the comment at ~2240 already names for natural harmonics. Fix shape:
+  gate on `pickingHandStopsString` instead, which is exactly the population whose fret belongs to
+  the other hand. Measure against the corpus FHP accuracy before landing it; FHP derivation is
+  under its own plan (`docs/plans/in-progress/fhp-derivation-algorithm.md`).

@@ -1003,12 +1003,29 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
                 }
                 continue;
             }
-            // Bound to a local so the presence test and the read are provably one object.
-            if (const std::optional<int>& held = resolutions.held_stops[*index]; held.has_value())
+            // Bound to a local so the presence test and the read are provably one object. A note
+            // the channel states nothing on contributes nothing — the shape a mixed selection
+            // takes, so a chord member with no satellite rides through a held-channel entry the way
+            // it rides through a sounding one.
+            const std::optional<int>& held = resolutions.held_stops[*index];
+            if (!held.has_value())
             {
-                addressed.push_back(
-                    AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = *held});
+                continue;
             }
+            // A NOTE CARRYING A NODE HAS NO PLANTED FINGER. The field this channel writes is legal
+            // only where the picking hand is what stops the string, and that one authority is asked
+            // rather than restated: under a tapped harmonic the picking hand only touches the node,
+            // so the satellite states the stop the FRETTING hand presses — the note's own fret,
+            // which the sounding channel addresses. Refused whole, the shape of the ownership
+            // refusal above and for its reason. No same-fret settle rides this one: that settle
+            // agrees with a value the field COULD hold, while here the note cannot carry the field
+            // at all.
+            if (!common::core::pickingHandStopsString(note.attack, note.harmonic_node))
+            {
+                return std::unexpected{ChartPlanRefusal::Invalid};
+            }
+            addressed.push_back(
+                AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = *held});
         }
     }
     else
@@ -1106,8 +1123,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
                 // logarithmic, so the offset the harmonic names survives a move only if the node
                 // moves by the same amount; leaving it behind authors a touch that is no node of
                 // the string as newly stopped. The fret-hand form never reaches here — it was
-                // refused above — so what this moves is the artificial family (a real stop under a
-                // node), a tap harmonic's own landing point, and a pinch's graze. Whether the
+                // refused above — so what this moves is the pressed stop under a node: the
+                // artificial family, a tapped harmonic's stop, and a pinch's graze. Whether the
                 // moved node is still legal is the finalize gate's answer, like every other bound
                 // this planner leaves to it.
                 //
@@ -1533,10 +1550,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
             // commonest squeal — matching the import default. An existing node keeps its
             // position; it names the same physical point under either picking-hand reading.
             //
-            // Asked of the RETYPED note, which is the one the node will describe: the stop a string
-            // speaks from depends on the attack (a right-hand onset holds its stop beside its own
-            // fret), so asking the note as it stood would measure a pinch's node from the stop the
-            // tap it just stopped being was holding.
+            // Asked of the RETYPED note because that is the note the node will describe. The stop a
+            // string speaks from is the note's own fret whichever hand made the onset, and this
+            // verb moves no fret, so the number is the same either way.
             if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
             {
                 retyped.harmonic_node = static_cast<double>(common::core::physicalStopFret(
@@ -1815,18 +1831,28 @@ namespace
 
 // The note the harmonic verb would WRITE at one candidate node — the ONE spelling of that write,
 // so the candidate probe below and the plan itself can never disagree about what a chosen node
-// produces. The fret is zeroed BEFORE the stop is asked, because the number being resolved is a
-// touch and not a press: a note holding nothing must read its stop from the capo rather than from
-// the fret the charter just typed. The normalizer then strips what a touch cannot carry — a bend,
-// a shake, the travel of a finger that presses nothing — so the note takes the harmonic instead of
-// being skipped for a payload it never needed. Safe here in a way it would not be for a pinch: no
-// repair can undo an on-neck node, so the normalizer can only take payloads, never the harmonic.
+// produces. THE TYPED FRET IS A TOUCH ON THE OPEN STRING, which is the whole of `H`'s law: the fret
+// is zeroed and the node then measured from the stop an unpressed string speaks from — the nut, or
+// the capo — so the number the charter typed names a position the finger touches rather than one it
+// presses. On a tap that authors an OPEN-STRING tapped harmonic, the tapping finger on a node of
+// the whole string. A harmonic touched above a PRESSED stop is a different statement — one hand
+// holds a fret while the other touches the node, which the note states as a positive `fret` beside
+// its node — and the verb that authors one is not this one. The normalizer then strips what a touch
+// cannot carry — a bend, a shake, the travel of a finger that presses nothing — so the note takes
+// the harmonic instead of being skipped for a payload it never needed. Safe here in a way it would
+// not be for a pinch: no repair can undo an on-neck node, so the normalizer can only take payloads,
+// never the harmonic.
 [[nodiscard]] common::core::ChartNote harmonicTouchNote(
     const common::core::ChartNote& note, const double position,
     const common::core::ChartTuning& tuning)
 {
     common::core::ChartNote touched = note;
     touched.fret = 0;
+    // A note carrying a node has no planted finger beside it, so the touch RELEASES one the note
+    // was holding rather than leaving it behind as a latent the saved form would strip unseen: the
+    // press states both hands at once, and the clear that inverts it presses the fret back down
+    // with nothing planted under it.
+    touched.held.reset();
     const int stop = common::core::physicalStopFret(touched, tuning.capo);
     // Fret positions are logarithmic, so the stop and the offset simply add.
     touched.harmonic_node = static_cast<double>(stop) + position;
@@ -1835,9 +1861,13 @@ namespace
 }
 
 // The fret the harmonic verb reads as the note's LABEL: the fret the charter typed, or — on a note
-// already touching an on-neck node, whose fret is zero because a touch presses nothing — the fret
-// that node lies at, the same number the clear presses back down. One spelling for both, so the
-// rows a carrier is offered and the fret its clear restores can never name different places.
+// already touching an on-neck node from the OPEN string, whose fret is zero because nothing is
+// pressed — the fret that node lies at, the same number the clear presses back down. One spelling
+// for both, so the rows a carrier is offered and the fret its clear restores can never name
+// different places. A PRESSED-STOP harmonic — a positive fret beside a node, artificial or tapped —
+// takes the plain reading of its own fret, which is the verb's law applied without an exception:
+// that number names the ladder of the OPEN string, so `H` offers it the nodes a touch there would
+// reach, and the clear leaves the note pressed exactly where it already was.
 [[nodiscard]] int harmonicLabelFret(const common::core::ChartNote& note)
 {
     // Bound to a local so the presence test and the read are provably one object.
@@ -1849,8 +1879,9 @@ namespace
     return note.fret;
 }
 
-// The label the note states, in fret units above the stop the string SPEAKS from. Zero for an open
-// string, which names no touch at all and is why such a note has no candidates.
+// The label the note states, in fret units above the stop an UNPRESSED string speaks from — the
+// nut, or the capo — because the touch this verb authors stands on the open string. Zero for an
+// open string, which names no touch at all and is why such a note has no candidates.
 [[nodiscard]] double harmonicLabelOf(const common::core::ChartNote& note, const int capo)
 {
     common::core::ChartNote unpressed = note;
@@ -1961,7 +1992,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
                 return false;
             }
             // The finger presses where it was touching — the label the verb reads off a carrier,
-            // which is what makes the clear the exact inverse of the set.
+            // which is what makes the clear the exact inverse of the set. On a PRESSED-STOP
+            // harmonic that label is the note's own fret: the touch goes and a plain note is left
+            // stopped exactly where it already was.
             cleared.fret = harmonicLabelFret(note);
             cleared.harmonic_node.reset();
             return true;

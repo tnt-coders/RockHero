@@ -33,8 +33,8 @@ selection), and `editing-interaction-model.md`, and this document dissolves into
   span and its posture are derived from the notes, so nothing authors either and nothing can
   disagree with them; the classification is `chartShapeArrivals` (`chart/chart_shapes.h`), which
   asks that one question at the four places a sounding can be incomplete: a posture string carried
-  into the span's start still ringing with no onset at it, a CLAIMED member — the held stop under a
-  right-hand onset — that no stroke sounds as a voice of its own, a slot inside the span that
+  into the span's start still ringing with no onset at it, a CLAIMED member — the stop a right-hand
+  onset claims (`claimedStop`) — that no stroke sounds as a voice of its own, a slot inside the span that
   sounds only part of the shape, and a picking-hand
   onset (a tap or a pick slide) sounding anywhere within the span.
 - Because the classification reads the sounds, a claim flips the span
@@ -186,8 +186,10 @@ mechanism the "all tails display" phrasing above only sketches, and the outcomes
   dedicated template editor, for every string a right-hand onset reaches. Stating a stop on a string
   where NOTHING sounds waits on plan 60's span templates (RULED 2026-09-17).
 
-> **How the member is stored, and what the span is.** A claimed member is the `held` field on a
-> right-hand onset — a tap or a pick slide — resolved against the DERIVED span at read time.
+> **How the member is stored, and what the span is.** A claimed member is the `held` field on an
+> onset the picking hand stops the string for — a plain tap or a pick slide — or the pressed `fret`
+> of a tapped harmonic, read through one query (`claimedStop`) and resolved against the DERIVED span
+> at read time.
 > There is no authored template in the format, no extent that belongs to one, and no
 > template-relative comparison: the span and its posture are derived from the notes
 > (`deriveChartShapes`), and the arpeggio flip is carried on the span the derivation resolved the

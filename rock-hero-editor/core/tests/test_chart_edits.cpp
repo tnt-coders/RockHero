@@ -4232,10 +4232,9 @@ TEST_CASE("chartHarmonicNodeCandidates reads the fret as a label", "[core][chart
 }
 
 // The harmonic verb's whole arithmetic: the fret a charter typed IS the node the finger touches,
-// resolved against the stop the string actually SPEAKS from rather than against the number typed.
-// The three sections are the three hands that stop can come from — the nut, a capo, and the stop a
-// tap holds beside its own landing point — and one formula covers all of them because fret
-// positions are logarithmic, so the stop and the offset simply add.
+// resolved against the stop an UNPRESSED string speaks from — the nut, or the capo — because the
+// touch this verb authors stands on the open string. One formula covers every hand, because fret
+// positions are logarithmic and the stop and the offset simply add.
 TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -4295,11 +4294,13 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         }
     }
 
-    SECTION("a tap resolves against the stop its fretting hand holds")
+    SECTION("a tap's typed fret is a touch on the open string, and its planted finger goes")
     {
-        // The tap-harmonic figure: hold 5, tap the octave twelve frets above it. The node is
-        // measured from the HELD stop, so the landing point states itself and the offset is the
-        // octave — asking the note's own fret would measure the node from where the tap landed.
+        // On a tap `H` authors an OPEN-STRING tapped harmonic: the tapping finger leaves the fret
+        // it landed on and touches a node of the whole string, so the label resolves against the
+        // nut exactly as an unpressed note's does. The stop the fretting hand was holding under
+        // that tap goes with the press, because a note carrying a node states no planted finger —
+        // and the plan has to state that itself, since a record still carrying one is refused.
         common::core::Chart chart = makeSingleNoteChart(17);
         common::core::ChartNote& tap = chart.notes[0];
         tap.attack = common::core::NoteAttack::Tap;
@@ -4313,13 +4314,18 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
             REQUIRE(touched != nullptr);
             if (touched != nullptr)
             {
+                CHECK(touched->fret == 0);
+                CHECK_FALSE(touched->held.has_value());
                 const std::optional<double>& node = touched->harmonic_node;
                 REQUIRE(node.has_value());
                 if (node.has_value())
                 {
-                    CHECK_THAT(*node, Catch::Matchers::WithinAbs(17.0, 0.001));
+                    // The 8th partial's node at three eighths of the string — the octave above the
+                    // 4.98 a typed 5 names, which is what a typed 17 names on the open string.
+                    CHECK_THAT(*node, Catch::Matchers::WithinAbs(16.9804, 0.001));
                 }
             }
+            applyAndValidate(chart, tempo_map, *plan);
         }
     }
 
@@ -4429,6 +4435,27 @@ TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[cor
             applyAndValidate(chart, tempo_map, *plan);
             CHECK(chart.notes[0].fret == 5);
             CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        }
+    }
+
+    SECTION("a tapped harmonic keeps the stop it is pressing and loses the touch")
+    {
+        // The same press-where-you-touched arithmetic read off a positive fret: the label IS that
+        // fret, so the note comes back as the plain tap it was stopped as, with the tapping finger
+        // off the node.
+        common::core::Chart chart = makeSingleNoteChart(5);
+        chart.notes[0].attack = common::core::NoteAttack::Tap;
+        chart.notes[0].harmonic_node = 17.0;
+
+        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            CHECK(chart.notes[0].attack == common::core::NoteAttack::Tap);
+            CHECK(chart.notes[0].fret == 5);
+            CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+            CHECK_FALSE(chart.notes[0].held.has_value());
         }
     }
 
@@ -4588,27 +4615,28 @@ TEST_CASE("planRetypeFrets refuses the sounding stop of a fret-hand harmonic", "
 }
 
 // A NODE TRAVELS WITH ITS STOP. The node is `stop + offset` on a logarithmic board, so a stop that
-// moves while its node stands still names an offset the harmonic never had: an artificial at fret 5
-// touching 17 is the octave, and retyped to 7 it must touch 19 to stay one.
+// moves while its node stands still names an offset the harmonic never had: a harmonic at fret 5
+// touching 17 is the octave, and retyped to 7 it must touch 19 to stay one. One law over every
+// pressed stop under a node, whichever hand touches it — what differs between the two forms is only
+// which hand made the onset, and neither the fret nor the offset cares.
 TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    common::core::Chart chart = makeSingleNoteChart(5);
-    chart.notes[0].harmonic_node = 17.0;
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
-
-    const auto plan = planRetypeFrets(
-        chart,
-        tempo_map,
-        chart.notes,
-        keys,
-        {},
-        ChartFretSet{.fret = 7},
-        common::core::ChartStopChannel::Sounding);
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
-    {
-        applyAndValidate(chart, tempo_map, *plan);
+    const auto retyped_to_seven = [&tempo_map, &keys](common::core::Chart& chart) {
+        const auto plan = planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            keys,
+            {},
+            ChartFretSet{.fret = 7},
+            common::core::ChartStopChannel::Sounding);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+        }
         CHECK(chart.notes[0].fret == 7);
         const std::optional<double>& node = chart.notes[0].harmonic_node;
         REQUIRE(node.has_value());
@@ -4616,6 +4644,78 @@ TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[
         {
             CHECK_THAT(*node, Catch::Matchers::WithinAbs(19.0, 0.001));
         }
+    };
+
+    SECTION("an artificial harmonic's pressed stop")
+    {
+        common::core::Chart chart = makeSingleNoteChart(5);
+        chart.notes[0].harmonic_node = 17.0;
+        retyped_to_seven(chart);
+    }
+
+    SECTION("a tapped harmonic's pressed stop, which this channel addresses like any other")
+    {
+        // The picking hand only touches the node here, so the fret this channel names is the stop
+        // the FRETTING hand presses — a real value to restate, unlike the fret-hand form whose
+        // finger presses nothing at all.
+        common::core::Chart chart = makeSingleNoteChart(5);
+        chart.notes[0].attack = common::core::NoteAttack::Tap;
+        chart.notes[0].harmonic_node = 17.0;
+        retyped_to_seven(chart);
+    }
+}
+
+// A NOTE CARRYING A NODE HAS NO PLANTED FINGER, so the held channel is refused on one outright. The
+// satellite over a tapped harmonic states the stop its FRETTING hand presses — the note's own fret,
+// which the sounding channel addresses — so a digit landing here would author a field the writer
+// strips and the rules refuse.
+TEST_CASE("planRetypeFrets refuses the held channel on a note carrying a node", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 2}, 3)};
+    // A chord ringing on strings 1 and 2 across a tap on string 3, so the tap's claim opens a span
+    // at its own instant: a stop that reaches nothing is taken back by the inert settle, which
+    // would answer the control below with a no-op instead of an authored field.
+    const auto tapped_chord = [](const std::optional<double> node) {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{2}),
+            makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{2}),
+            makeTestNote({.measure = 2, .beat = 2}, 3, 7, common::core::Fraction{1, 2}),
+        };
+        chart.notes[2].attack = common::core::NoteAttack::Tap;
+        chart.notes[2].harmonic_node = node;
+        return chart;
+    };
+    const auto set_held_three = [&tempo_map, &keys](const common::core::Chart& chart) {
+        return planRetypeFrets(
+            chart,
+            tempo_map,
+            chart.notes,
+            keys,
+            {},
+            ChartFretSet{.fret = 3},
+            common::core::ChartStopChannel::Held);
+    };
+
+    const common::core::Chart touching = tapped_chord(19.0);
+    const auto refused = set_held_three(touching);
+    REQUIRE_FALSE(refused.has_value());
+    if (!refused.has_value())
+    {
+        CHECK(refused.error() == ChartPlanRefusal::Invalid);
+    }
+
+    // The control that keeps the refusal about the NODE and not about the tap: the same figure
+    // touching nothing is exactly the satellite this channel exists for, and the digit lands.
+    common::core::Chart plain = tapped_chord(std::nullopt);
+    const auto authored = set_held_three(plain);
+    REQUIRE(authored.has_value());
+    if (authored.has_value())
+    {
+        applyAndValidate(plain, tempo_map, *authored);
+        CHECK(plain.notes[2].held == std::optional{3});
     }
 }
 

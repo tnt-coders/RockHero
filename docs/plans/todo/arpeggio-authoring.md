@@ -2,11 +2,17 @@
 
 Status: **HISTORICAL as of 2026-09-17.** The `N` verb ("Arpeggio Hold") and the attack value this
 record settled on, `NoteAttack::None`, were removed from the model entirely on that date; `N` is
-unbound and free for reuse. A claim now has ONE shape — the `held` stop under a right-hand
-onset — and stating a fretting-hand stop on a string where nothing sounds waits on the span
+unbound and free for reuse. A claim is now read through ONE query (`claimedStop`) — the `held` stop
+under a plain tap or a pick slide, and a tapped harmonic's own pressed `fret` — and stating a
+fretting-hand stop on a string where nothing sounds waits on the span
 templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5. LAW II's justification half — a shape
 the hand alone states must be justified by a later sound at a claimed stop or it dissolves — was
-deleted the same day along with the attack value, every claim now being sounded by its own carrier.
+deleted the same day along with the attack value, every claim now riding a note that sounds at its
+own slot. The tap-harmonic arm this record describes — `fret` the touch, `held` the stop — was
+replaced on 2026-09-17 too: `ChartNote::fret` is the stop the string SPEAKS from, so a harmonic of
+either hand states its pressed stop there and `held` never rides one, which retires the "signed
+into #78" importer item below — the importer already writes the pressed-stop form, and that form is
+the canonical one.
 Everything below is kept in its
 original tense as the record of why each decision went the way it did; nothing below describes the
 code as it stands.
@@ -1395,6 +1401,12 @@ PICKING hand landed — level with the node for the commonest tapped harmonic of
 `physicalStopFret` now answers with `claimedStop`'s stop, which is the fretting hand's, so the
 record validates, derives (claim answered, span justified, stop shown in the satellite) and
 round-trips.
+
+> **The conclusion INVERTED on 2026-09-17, and the rule it called defective is the correct one.**
+> `ChartNote::fret` became the stop the string SPEAKS from on every note that sounds, so a tapped
+> harmonic writes its pressed stop there — `{pressed fret, tap, node}`, `held` gone — and E21
+> reading the note's own fret through `physicalStopFret` is exactly right. The defect was never the
+> test; it was the record putting the touch in `fret` and the stop in `held`.
 
 **One settle consequence, ruled by the same physics.** The inert-claim sweep may not take a held
 stop the note's own PITCH is measured from: clearing it retunes the record, and can leave a node at

@@ -18,6 +18,11 @@ open-string form (fret 0, node only) that E4 explicitly admits, and nodes up to
 the node belongs to the PICKING hand (`nodeIsOnNeck` includes Tap; `frettingFingerOnNode`
 excludes it).
 
+Both forms exist and the split below is the real one: `ChartNote::fret` is the stop the string
+speaks from, so a stopped tap harmonic carries the PRESSED fret the fretting hand holds under the
+touch and an open-string one carries 0 (ruled 2026-09-17 — `held` never rides a harmonic, and
+`physicalStopFret` reads `fret`, answering the capo only for the open form).
+
 ## What the 3D board draws today (verified 2026-08-10)
 
 - **A stopped tap harmonic** (fret > 0): the head draws at its NODE via the shared
