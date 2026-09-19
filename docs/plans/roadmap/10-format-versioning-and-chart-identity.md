@@ -1,6 +1,15 @@
 # Plan 10 — Format Versioning and Chart Identity
 
-**Status**: Decision-gated | 2026-07-06 | baseline `refactor @ 3c7febe0`
+**Status**: Deferred (G10-DECISIONS still unsigned) | 2026-07-06 | baseline `refactor @ 3c7febe0`
+
+> **DEFERRED 2026-09-19 (user): this plan starts just AFTER the first releasable editor, when
+> people are actually using packages.** Before that release there is nothing to be compatible
+> with — the format changes in place, versions never bump, and old packages are re-imported — so no
+> ladder, no newer-format rejection and no identity hash is built now, and
+> `docs/plans/roadmap/43-song-information-and-art.md` no longer waits on Phase 2. The first release
+> is the moment the rule flips: from then on a user's package must survive an editor update, which
+> is exactly what Phases 1–2 provide. Re-verify the inventory before executing; the read-result
+> surface and the write path have both changed since the baseline.
 
 ## 1. Goal
 

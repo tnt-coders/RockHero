@@ -170,7 +170,7 @@ first-executable phases are editor-side; the artifact it themes is shared by bot
 
 | Gate | Defined in | Condition | Blocks |
 |---|---|---|---|
-| **G10-DECISIONS** | docs/plans/roadmap/10-format-versioning-and-chart-identity.md Phase 0 | User signs off 10-Q1..Q5 | 10 Phases 1–5; 43 blocked until 10 Phase 2 (migration ladder); 29/26/24/11/27 hash consumers blocked until 10 Phase 3 (each carries a nullable-hash interim, so only the final hash-keyed behavior waits) |
+| **G10-DECISIONS** | docs/plans/roadmap/10-format-versioning-and-chart-identity.md Phase 0 | User signs off 10-Q1..Q5 | 10 Phases 1–5 (the whole plan DEFERRED 2026-09-19 until just after the first releasable editor; 43 no longer waits on it — the format changes in place until that release); 29/26/24/11/27 hash consumers blocked until 10 Phase 3 (each carries a nullable-hash interim, so only the final hash-keyed behavior waits) |
 | **G20-RENDER** | docs/plans/roadmap/20-game-architecture-and-render-stack.md Phases 0a–0c | Platform scope declared; SDL3+bgfx spike passes criteria S1–S6 (JUCE/Tracktion message-loop coexistence, bgfx-in-JUCE-child-HWND, Conan-vs-vendored, shaderc in the build graph, headless Noop CI path, measured CI cost); renderer-sharing seam chosen; STOP → user sign-off; architecture.md update confirmed | 20 Phases 1–4; 25 Phase 3+; 44 (all code phases); 26 Phases 5–9; 27 Phase 6; 28 Phase 6; creation of the game-render-expert agent |
 | **G21-TRACKTION-GO** | docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 0 | **CLOSED 2026-07-10: GO — embed `common::audio::Engine` in the game** (user sign-off; coexistence proven by 20 Phase 0b criterion S1) | Nothing — 21 Phases 1–6 unblocked |
 | **GATE-A (detection contract)** | docs/plans/roadmap/22-note-detection.md Phase 1 | **CLOSED 2026-07-16: user co-signed the vetted matrix + latency budget** (dsp-expert-vetted, amended via a three-pass max-effort review + user decisions: PitchStep legato onsets, PolyphonicSalience chord evidence, strum coalescing, evidence-gated lapse, overstrum streak-break behind a walk-back flag, committed-only display counters, WoR feel baseline, gold-star FC, fail-on default with a separated no-fail category) | Nothing — 22 Phases 2+, 24 Phase 2, and 23 Phases 1/2/6 unblocked |
@@ -222,7 +222,7 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 **Stage 1 — Foundations (start immediately, parallel-friendly)**
 1. docs/plans/roadmap/13-audio-device-settings-and-calibration.md Phases 1–2 (shared settings store, editor migration) — earliest shared-infrastructure win; Phases 3–6 may trail.
 2. docs/plans/roadmap/12-playback-clock.md Phases 1–4 (clock port, engine publishes, audio-derived publishing, extrapolator) — milestone 0's render loop needs this; Phase 5 closeout with first consumers.
-3. docs/plans/roadmap/10-format-versioning-and-chart-identity.md Phase 0 (answer 10-Q1..Q5) then Phases 1–5 — unblocks the widest set of downstream consumers; cheap, pure, no UI.
+3. **[MOVED to Stage 7, 2026-09-19]** docs/plans/roadmap/10-format-versioning-and-chart-identity.md — deferred by user ruling until just after the first releasable editor; see item 34.
 4. docs/plans/roadmap/22-note-detection.md Phase 1 (detection contract — GATE-A) co-authored with docs/plans/roadmap/24-scoring-star-power-failure.md Phase 1. **This is the single most schedule-critical de-risking step**: it costs no DSP work and settles the latency-budget physics everything else designs around.
 5. docs/plans/roadmap/47-editor-loop-selection.md Phase 1 (shared loop-region port + Tracktion adapter in common/audio) — dependency-free and foundation-caliber: it lands the loop backend that docs/plans/roadmap/28-practice-mode.md Phase 2 consumes, and relieves docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 1 to add only the speed surface (whichever-executes-first rule).
 
@@ -258,7 +258,7 @@ docs/plans/in-progress/first-releasable-editor.md, which sequences plans 41, 43,
 and names the decision gates on that path. The items below stay the per-plan record; where the two
 disagree about order, that plan wins.
 
-22. docs/plans/roadmap/43-song-information-and-art.md Phase 0 → Phases 1–5 (after 10 Phase 2).
+22. docs/plans/roadmap/43-song-information-and-art.md Phase 0 → Phases 1–5 (the wait on 10 Phase 2 was cut 2026-09-19; fields are added in place).
 23. docs/plans/roadmap/41-tempo-map-authoring.md Phases 1–5 (Phase 6 behind G41-TS); the docs/plans/completed/tone-track-tempo-map-plan.md editor work is complete, so Phase 2 is no longer held.
 24. docs/plans/roadmap/40-chart-editing.md Phases 1–10 (from-scratch charting promise waits on 41 Phases 1–4).
 25. docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md Phases 1–7 — the settled keyboard + pointer surface, driving docs/plans/roadmap/46-editor-keybinds.md Phases 1–3/5 as its registry phases (46 Phase 4 rescoped: no injection seam — the core trio is non-rebindable; only the Ctrl+Shift+Z redo alias + predicate dedupe remain). Phase 0 closed 2026-07-20; 53 Phase 3 and Phase 7's keyboard half landed ahead of sequence 2026-07-19/20 (pre-registry, in `EditorView::keyPressed`; they migrate onto the registry during 53 Phase 1). **53 Phase 5, the plugin-chain keyboard model, is the explicit next unbuilt keyboard phase (re-stamped 2026-09-14)**: the signal chain has no keyboard interface, and it gates the tone-region `Enter` drill — `Enter` retones until Phase 5 is built (docs/plans/completed/keyboard-focus-rows.md Phase 3 item 3).
@@ -286,6 +286,7 @@ disagree about order, that plan wins.
 31. docs/plans/roadmap/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
 32. docs/plans/roadmap/31-integrated-game-editor-workflow.md (Deferred; revisit when the game is audible on the per-app audio foundation and an installer/distribution story exists — the concrete driver for the `IDeviceOwnershipArbiter` device handoff).
 33. docs/plans/roadmap/33-cross-platform-port.md (Ready but unscheduled — start at user direction; all prerequisites shipped. Phase 1 deletes generalizable platform guards first per the plan's guiding principle — platform-specific code only where provably essential; Phases 2–4 are small parallel-friendly seam work; Phase 8 real-GPU bring-up is the risk; Phase 9 editor-preview port is separable and may stay deferred).
+34. docs/plans/roadmap/10-format-versioning-and-chart-identity.md (Deferred 2026-09-19 by user ruling — the FIRST item after the first releasable editor ships, not before: until people hold packages there is nothing to stay compatible with, and from that release on a package must survive an editor update. Phase 0 answers 10-Q1..Q5, then Phases 1–2 (newer-format rejection, migration ladder) lead; Phase 3's identity hash still serves the game-side consumers 24/26/29/11/27, each of which carries a nullable-hash interim.)
 
 ---
 
@@ -700,7 +701,7 @@ One line per plan; update the right-hand cell as phases complete.
 
 | Plan | Status | Scope (one line) | Progress |
 |---|---|---|---|
-| docs/plans/roadmap/10-format-versioning-and-chart-identity.md | Decision-gated (G10-DECISIONS) | formatVersion policy, migration ladder, semantic chart-identity hash (RHCI-1), atomic package replace | Not started |
+| docs/plans/roadmap/10-format-versioning-and-chart-identity.md | **Deferred 2026-09-19** until just after the first releasable editor (G10-DECISIONS unsigned) | formatVersion policy, migration ladder, semantic chart-identity hash (RHCI-1), atomic package replace | Not started |
 | docs/plans/roadmap/11-derived-difficulty-calculator.md | Ready | Versioned pure difficulty calculator, corpus calibration, additive persistence, game-side degraded contract | Not started |
 | docs/plans/roadmap/12-playback-clock.md | **Phases 1–5 complete** | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Done 2026-07-10 @ c5950abf (12-Q1: A, 12-Q2: B, 12-Q3: A adopted); final acceptance bundle pending user-triggered clang-tidy |
 | docs/plans/roadmap/13-audio-device-settings-and-calibration.md | Ready | **Per-app** audio-config store (shared type, independent files), latency-offset model, calibration capture, device-loss policy | Not started — reworked to per-app 2026-07-12 (IAudioConfigStore/ActiveDeviceRoute, no InterProcessLock; 13-Q3 superseded) |

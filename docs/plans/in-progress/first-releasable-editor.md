@@ -262,13 +262,13 @@ reopen, or that either surface states wrongly.
 Open calls this plan cannot make. Each has a recommendation; none is settled until signed.
 
 - **D1 — Plan 43 and plan 10's migration ladder. HALF RULED 2026-09-19 (user): no backward
-  compatibility is wanted, so the ladder (plan 10 Phase 2) is not built and plan 43 does not wait on
-  it — 43 adds its `song.json` fields in place. The refusals the readers carry today are not
+  compatibility is wanted BEFORE the first release, so plan 10 is deferred to just after it — the
+  moment people hold packages that must survive an editor update — and plan 43 does not wait on
+  it: 43 adds its `song.json` fields in place. The refusals the readers carry today are not
   compatibility: the removed-spelling rows in `chart_document.cpp` exist to fail loudly and are
   deleted once the corpus is re-imported, and the artificial / tapped harmonic refusal is
-  forward-looking, because those forms are planned. Plan 10's other halves (the chart-identity
-  hash, the newer-format rejection, atomic package replace) are game-side or hardening and stay out
-  of this release; plan 10's own text is amended when the user confirms its fate. Still open: how
+  forward-looking, because those forms are planned. Plan 10 is marked Deferred in place and sits first in the
+  roadmap's Stage 7, so it is the first thing picked up after this release. Still open: how
   much of 43 is in — recommended Phases 1, 2 and 4 (fields, workflow,
   dialog); the art codec (3) if album art is a supported field; the export gate (5) out.
 - **D2 — Pointer drag-move** (`docs/plans/todo/tab-pointer-drag-editing.md`). The keyboard moves

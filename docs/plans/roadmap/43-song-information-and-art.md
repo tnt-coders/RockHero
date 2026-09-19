@@ -2,6 +2,12 @@
 
 **Status**: Decision-gated | 2026-07-06 | baseline `refactor @ 13e82fb0`
 
+> **2026-09-19 (user): this plan no longer waits on plan 10.** Plan 10 is deferred until just after
+> the first releasable editor, and until then the format changes in place. Every step below that
+> bumps `formatVersion`, registers a v1→v2 migration, or reports `migrated` (Phase 1 items 4–5, the
+> rollback note) is VOID: add the fields to the one current shape and re-import what predates
+> them. Re-verify the phases against this before executing.
+
 ## 1. Goal
 
 Charters can author complete song presentation data and every exported `.rock` package carries it:
@@ -167,9 +173,10 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 Upstream (blocking):
 
-- `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` Phase 0 (Q1 bump rule, Q4 per-document
-  ladders) and Phase 2 (migration ladder + `SongReadResult.migrated`) — Phase 1 here is the first
-  real `song.json` schema change and must ride that ladder, not precede it.
+- None. **2026-09-19 (user): the dependency on
+  `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` is CUT.** Plan 10 is deferred
+  until just after the first releasable editor; before that release the format changes in place,
+  so Phase 1 here adds its `song.json` fields directly and rides no ladder.
 
 Downstream (consumers; recorded in their Dependencies sections too):
 
@@ -202,9 +209,10 @@ Restated with sources; a fresh session must not re-litigate these.
   mechanism in the inventory is the only integration point for new edits.
 - **FLAC is the enforced package audio format** — `docs/design/architecture.md` "Technology
   Stack"; untouched here.
-- **Format changes route through plan 10** —
-  `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` Non-goals and Dependencies name this
-  plan as the first real bump; its rollback notes state the first real migration step ships here.
+- **Format changes are made in place until the first release** — superseded 2026-09-19: this plan
+  was to be the first real bump on
+  `docs/plans/roadmap/10-format-versioning-and-chart-identity.md`'s ladder, but that plan is
+  deferred until after the first releasable editor, so no bump and no migration step ships here.
 - **Package timing precision is a fixed 3-decimal grid** — `docs/design/architecture.md` "Song
   Data Model"; the preview fields reuse it (seconds, `{:.3f}`), matching the `startOffset`
   precedent rather than inventing a new time spelling.
@@ -275,11 +283,10 @@ Mirrored into `docs/plans/roadmap/00-roadmap.md` Decisions-needed. Phase 0 prese
 ### Phase 0 — decision gate
 
 Present Q1–Q6 with the inventory evidence. **STOP — present findings and get sign-off.** No
-later phase starts before this gate closes and plan 10's Phase 0/Phase 2 have landed. No code
-changes.
+later phase starts before this gate closes. No code changes. (The wait on plan 10's Phase 0 and
+Phase 2 was cut 2026-09-19.)
 
-**Exit criteria**: the user has answered Q1–Q6 and signed off, and plan 10's Phase 0 and
-Phase 2 have landed.
+**Exit criteria**: the user has answered Q1–Q6 and signed off.
 **Verification**: none — no code changes in this phase.
 
 ### Phase 1 — song.json metadata extensions *(assumes plan 10 Q1-A and Q4-A; Q3-A, Q4-A here)*
