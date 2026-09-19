@@ -5,8 +5,9 @@
 (4 adversarial lenses + judge, all findings folded in below). This document is kept as the RULING,
 sentence-for-sentence as signed; the standing record of what shipped — with the code anchors, the
 physics, and the graveyard of everything this replaced — is `legato-authoring-model.md`. Analysis
-trail: `legato-simplicity-analysis.md`, `legato-design-options-explained.md`,
-`legato-tap-notation-final-pass.md`.
+trail: `docs/plans/completed/legato-simplicity-analysis.md`,
+`docs/plans/completed/legato-design-options-explained.md`,
+`docs/plans/completed/legato-tap-notation-final-pass.md`.
 
 **Chord substitution 2026-08-12 (recorded rather than silent, like the departures below):** the
 technique-letter amendment (`keymap-matrix.md`, user-signed) moved the toggle's default chord to

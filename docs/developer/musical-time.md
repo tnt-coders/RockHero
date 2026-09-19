@@ -337,7 +337,7 @@ the one authority, returns the grid note value while grid snap is on and the tic
 (`g_tick_quantum_note_value`, 1/3840 of a whole note — the MIDI PPQ tick) while it is off. Every
 verb that quantizes a time POSITION reads it, with no per-verb modifier opt-out; a verb needing a
 musical DURATION keeps reading the grid VALUE, because that is the unit the user authors in
-(`docs/plans/in-progress/grid-snap.md`). Pointer gestures must go through
+(`docs/plans/completed/grid-snap.md`). Pointer gestures must go through
 `musicalGridPositionForX` (see \ref guide_2d_views); keyboard stepping has its own single
 primitives in the same header — `gridStepBeats(...)` (one step's size at a measure) and
 `adjacentTempoGridPosition(...)` (the next line from any position: common core's
@@ -359,7 +359,7 @@ change is worth one beat per press before the boundary and two after it (a quart
 Sizing every press against the measure the run started in — which is all a summed delta could do —
 would put the whole run on a lattice it has already left.
 
-*Design in flux: making the tempo map user-visible/editable is active work
-(`docs/plans/in-progress/tone-track-tempo-map-plan.md`), and tempo-anchor authoring is an
+*Design in flux: making the tempo map user-visible/editable shipped
+(`docs/plans/completed/tone-track-tempo-map-plan.md`), but tempo-anchor authoring is still an
 unbuilt roadmap area (`docs/plans/roadmap/41-tempo-map-authoring.md`) — the model above is
 stable; its editing UI is not.*

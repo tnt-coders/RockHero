@@ -134,7 +134,7 @@ Keep this list and the session task list in step.
   dirty with the file untouched until the user saves. Validation's droppable section is the fixpoint
   `note == normalizeChartNote(note)`. The display needed no branch at all: under E25 every surviving
   muted tail already carries teeth or a diagonal. The full design record is
-  `docs/plans/in-progress/e25-muted-tail-implementation.md`, and the principle is in
+  `docs/plans/completed/e25-muted-tail-implementation.md`, and the principle is in
   `architectural-principles.md`.
 - [ ] **W5 — `L` eligible-subset fix and counted feedback: the data ships, the surface does not.**
   The eligible-subset half: the controller asks `planSetLegato` itself whether applying would change
@@ -443,7 +443,7 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   cross-reference scan against the notes at the span start is gone with it (a shape projection now
   asks the note list nothing), and the digit's COLUMN is the projection's choice —
   `ShapeStringViewState::digit` is published per posture string, and the painter draws where the
-  projection put it. **The display question is OPEN**, worked in
+  projection put it. **The display question is SETTLED** in
   `docs/plans/in-progress/arpeggio-posture-display-options.md`. A satellite digit outboard of the
   closing bracket bar was tried and rejected in live use on two objections no harness measurement
   could catch, because neither is a contrast problem: the digits are unreadable at the real lane
@@ -992,7 +992,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   construction (the enum IS the hardening). `Soft` dropped (GP has one quiet tier; detection argues
   against a second), `Heavy` deferred — GP heavy accents import as regular accents for now, with a
   comment that Heavy may be supported later. Full design in
-  `docs/plans/in-progress/note-emphasis-axis.md`.
+  `docs/plans/completed/note-emphasis-axis.md`.
 - [x] **D9 — The GP capo frame — ANSWERED: capo-relative, and shipped.** With a capo at 3, an
   entered "1" resolves to the pitch at absolute fret 4, corroborated by a real capo'd tab.
   Consequences: the importer shifts fretted notes by the capo (relative F > 0 → absolute F + capo; 0

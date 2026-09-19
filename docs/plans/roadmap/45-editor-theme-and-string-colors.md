@@ -138,7 +138,7 @@ Plan-specific hard rules:
   Roots Hold Folders Only" govern the new files; "CMake and Test Layout" prescribes per-library
   test targets.
 - **In-flight work caution** — the working tree carries uncommitted editor-core tone-handler and
-  tone-UI changes (see `docs/plans/in-progress/tone-track-tempo-map-plan.md`). Phases 2–3 touch
+  tone-UI changes (see `docs/plans/completed/tone-track-tempo-map-plan.md`). Phases 2–3 touch
   editor-core controller/view-state files; re-verify merge state before executing.
 
 Verified against code on 2026-07-06, refactor @ 13e82fb0.

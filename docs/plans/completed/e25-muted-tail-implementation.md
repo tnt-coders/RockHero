@@ -25,8 +25,9 @@ zero ring any more, because no note stores one.
 The rule itself was signed 2026-08-09 as E25 (ruling D16) and needs no revisiting. What this
 document holds is the *implementation* design, opened 2026-08-20, paused mid-discussion, and
 settled later the same day: the user ruled all four open questions, each on the recommended
-option (the resolutions are recorded in §6). What remains before code is §6.5 — a standing
-watch-item remedy that the load design overrides and that needs the user's read.
+option (the resolutions are recorded in §6), and §6.5's watch-item knock-on was ruled with the
+load design in the same session. Nothing here is outstanding. Closed 2026-09-19: moved to
+completed/ after verification against the tree.
 
 Source of the rule: `technique-review-walkthrough.md` (D16 for the ruling, W4 for the work item)
 and `technique-compatibility-and-hardening.md` (the E25 row, and the matrix status line that names
@@ -182,7 +183,7 @@ hold-scoring question, not a chart one.
 
 ---
 
-## 6. OPEN QUESTIONS — settle these before writing code
+## 6. The four implementation questions — ALL RULED 2026-08-20
 
 > **Second look, 2026-08-20 (later session): the normalizer already exists, which resolves most of
 > this.** `executableChartNote` (`chart_rules.cpp:239`) already DROPS exactly the payloads the
@@ -254,7 +255,7 @@ thing Q2 forbids) or admitting an invalid chart. The reconciliation, RULED with 
 - Retire the watch item with this ruling recorded (its trigger has fired and its remedy is
   superseded), per the registry's own discipline.
 
-## 6.6. Q2's PREMISE WAS FALSIFIED the same day — range rules change too (needs the user's read)
+## 6.6. Q2's PREMISE WAS FALSIFIED the same day — range rules change too (RULED 2026-08-20)
 
 Q2 classed range violations (fret past the cap, a fret on or below the capo, an FHP window off
 the neck) as *structural*: "only producible by a corrupt or hand-mangled file, never by a rule
@@ -344,41 +345,6 @@ ALSO offer "repair and save", because the repair is the same normalizer applied 
 edit (diff the normalized chart against memory into a `ChartNotesEditPlan`, push it as "Repair
 chart", then write) — so the user is never stranded, and the offer adds no second rule. The
 offer must not soften the message: an auto-fix that hides the bug is worse than the bug.
-
-**Q1. Normalize-on-load forces a taxonomy the rules do not currently have.** If load normalizes
-rather than refuses, every rule must be normalizable or load still has a failure path. Today they
-are not uniform:
-
-| rule | today |
-|---|---|
-| dead + bend/vibrato | validator **refuses** |
-| dead + pinch harmonic | validator **refuses** |
-| pick slide carrying anything | fixpoint against `savedChartNote` (**drops**) |
-| **E25** dead + plain sustain | D16 specifies **drop** |
-
-E25 is specified as droppable while its two immediate siblings are hard refusals, so a chart with a
-dead+bend note would still fail to load. *Agent's lean:* make them all drops — they are all "this
-payload cannot exist on this note", and dropping the payload is the obvious repair in each case. The
-fixpoint pattern would absorb them and the validator's dead-note section would largely **delete**.
-
-**Q2. Some violations are not payload-shaped.** Trimming a tail or dropping a bend is repair. A note
-on a string the tuning lacks, a fret past the board, or non-ascending slide keyframes is not — the
-note itself is incoherent, and "normalizing" it means inventing data or deleting the note. Silently
-deleting a user's notes on load is a very different act from trimming a tail. *Agent's lean:* name
-two classes explicitly — **droppable** (a payload the note may not carry: normalize and warn) and
-**structural** (the note is incoherent: still fail the load, loudly). Structural violations can only
-come from a corrupt or hand-mangled file, never from a rule change, so "load never refuses" still
-holds for every case that arises in practice.
-
-**Q3. Where does the normalizer live?** The proposal adds a third boundary function beside
-`savedChartNote` (write-time latents) and `executableChartNote` (playability). Three normalizers is
-a smell worth poking at; the alternative is folding legality into one of the existing two. *Agent's
-lean:* keep it separate, because the jobs really are distinct — but this is not settled, and if it
-should be two, which one absorbs it must be worked out before any code.
-
-**Q4. What surface carries the warning?** `showError` is transient. On a GP import of a dense song
-this could be hundreds of notes, and a toast that vanishes is close to silent — which defeats the
-point of warning at all. A durable surface would fix it but adds UI concepts. Needs the user's read.
 
 ---
 

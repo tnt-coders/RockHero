@@ -1,6 +1,7 @@
 # Start Here
 
-*Snapshot taken 2026-09-18 at the end of a session, so the next one can open cold.*
+*Snapshot taken 2026-09-18 at the end of a session, so the next one can open cold. The release-plan
+section was amended 2026-09-19.*
 
 **The session task list is authoritative; this file is a convenience copy.** Where the two
 disagree, believe the task list and fix this file. Re-verify anything here against the code before
@@ -59,13 +60,22 @@ whether minting belongs inside the retone at all.
 
 ## The larger queue behind all this
 
-`#252` **G0** is the umbrella: minimum editing functionality, meaning author a full tab INCLUDING
-FHPs / span markers (plan 60's hand marker) and harmonic-display follow-ups **#2** and **#3**. The
-handoff note briefly narrowed this too far; the 2026-09-19 ruling restores those pieces to G0.
-Under it, unstarted: `#259` **G7** tuning, capo and cent-offset dialog; `#260` **G8** copy, paste,
-transpose and select-all; `#261`–`#264` **G9** the bend display anchor, the keyframe ruling bundle,
-W9-F, and bend authoring itself; `#265` **G10** tempo map and time-signature authoring, which gates
-the New-chart entry point.
+`#252` **G0** is now the first releasable editor bar, not the old narrow minimum-editing bar. The
+working plan is [first-releasable-editor.md](first-releasable-editor.md): a new project can be
+created from scratch, and every supported chart fact can be authored, edited, saved, reopened and
+played back. It is the ONE document that orders work; it names what already ships, the six decision
+gates on the path, seven phases with exits, nine open decisions (D1–D9) waiting on the user, and
+what is out of scope. **Its next action is the user's pass over D1–D9**, then the ungated builds:
+the non-modal notice channel, plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo.
+
+FHPs / span markers are in scope through plan 60's hand marker, as are New Chart,
+tempo/time-signature authoring, tuning/capo/cent-offsets, bend authoring, bulk editing and harmonic
+display follow-ups **#2**, **#4** and **#9**. Follow-up **#3** is parked with artificial harmonics;
+it becomes release scope only if they are re-enabled before release.
+
+This folder was sorted on 2026-09-19. Eleven documents whose work was verified shipped moved to
+`docs/plans/completed/`. Everything left here besides the release plan is a companion record —
+the release plan's closing table says what each one is and which phase it feeds.
 
 ## Not covered here
 

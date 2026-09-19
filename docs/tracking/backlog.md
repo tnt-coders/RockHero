@@ -947,14 +947,14 @@ written down.
 
 ## Found while making the marker plane paused-only (2026-09-14)
 
-- **`tone-active-vs-selected.md`'s selection semantics need re-reading against the playback ruling
-  before that plan is signed.** Its 2026-07-08 confirmations
-  (`docs/plans/in-progress/tone-active-vs-selected.md:48-56`) settle the active/selected split
+- **`tone-active-vs-selected.md`'s selection semantics need re-reading against the playback
+  ruling.** Its 2026-07-08 confirmations
+  (`docs/plans/completed/tone-active-vs-selected.md:48-56`) settle the active/selected split
   partly on "editing during playback is unusual, so this is acceptable" and on the selection
   clearing at any transport move. Marker selection and every marker edit are now unavailable while
   the transport plays (ruled 2026-09-14), so the playback half of those answers is no longer a
-  tradeoff but a structural fact — re-verify each of the four against the current code before the
-  plan is executed.
+  tradeoff but a structural fact — the plan shipped on those answers, so re-verify each of the four
+  against the current code and correct whichever no longer holds.
   (The automation lanes' point and lane menus were on this list for the same reason; they now grey
   their editing rows from the published `marker_edits_enabled` flag, so the item is closed.)
 
@@ -1146,3 +1146,79 @@ written down.
   states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
   such sources), which is also why it was left out of the ruling's own change rather than folded in
   unmeasured.
+
+## Carried out of the plans closed on 2026-09-19
+
+- **The tone crossfade has never had its listening pass.** Slice 5e of
+  `docs/plans/completed/tone-track-tempo-map-plan.md` is the one part of that plan that did not
+  ship: the `ToneBranchGainPlugin`'s per-sample smoother and the 10 ms baked ramp have never been
+  measured against each other in an offline render, so the composite fade shape at a region boundary
+  is assumed rather than known. Three spikes were specified and none was run — (1) bake and rebake
+  curve points while playing with a latency-heavy plugin in another branch, diffing the recorded
+  output for discontinuities; (2) two branches with step curves, measuring the composite fade
+  envelope (baked ramp times `smoothingRampTimeSeconds`) and tuning the smoothing time from it; (3)
+  with latency compensation off, crossfade between two branches of mismatched latency and confirm
+  the tone-to-tone phase smear is inaudible. Nothing sounds wrong today, which is why this is a
+  measurement owed and not a defect. Run them as offline-render tests where possible, plus a manual
+  listening pass in the app.
+
+- **Four fret hit-light tuning calls are still open by eye.**
+  `docs/plans/completed/fret-hit-light-effect.md` shipped all six phases with its open decisions 1,
+  2, 3 and 5 unresolved, each a look question that
+  needs a dense chart in front of a person rather than code: (1) **envelope feel** — amplitude,
+  release and falloff were iterated by eye (90 ms → 200 ms → 350 ms; falloff 0.35 → 0.2) and the
+  renderer constants are the authoritative current tune, not a signed one; (2) **chord-box interior
+  treatment** — only the edge frets flash and the interior gets no glow, and whether a strum wants
+  something inside the frame is unanswered; (3) **tap-light distinctness** — the tapping-hand light
+  is already a warm-leaning blue, so a fretting-hand strike may want a distinctly whiter-cored or
+  more red/gold orange if the two cues should read as different; (4) **paused-transport static
+  glow** — the envelope is stateless in `since` with a `since >= 0` gate, so parking the cursor
+  exactly on an onset shows a full-intensity glow that never decays, where the old flash showed
+  nothing. Decide whether the glow should gate on the transport playing.
+
+- **Plan 22 has no treatment for the emphasis axis.** `docs/plans/roadmap/22-note-detection.md`
+  carries one `Accent | Cosmetic` row in its per-technique verifiability table (`:318`) and no Ghost
+  row at all, and its chart-field list (`:93`) still names the retired `accent` bool rather than
+  `NoteEmphasis`. Item 6 of `docs/plans/completed/note-emphasis-axis.md` is the ask: ghost notes are
+  quiet by definition, so record in plan 22's own terms how the detector should treat them — a lower
+  confidence threshold, or a cosmetic tier like accent's — before anything emphasis-aware ships in
+  scoring. Nothing is blocked today because plan 22's detectors are unbuilt; settle it when they
+  are built.
+
+## Recovered from the session task lists (2026-09-19)
+
+These lived only in a session task store, which does not survive the machine. Each was re-verified
+against the tree on the date above.
+
+- **The floor law has two live breaches and no single authority.** The highway floor is y = 0 and
+  content is raised above it, yet `highway_renderer.cpp` passes `-glyph_height / 2.0` for every
+  scrolling fret number (`:3854`), centering the glyph ON the floor with half its ink below it, and
+  `holder_background` opens its outline at `{-0.01, -0.01}` (`:1578`) inside the function that
+  declares 0.0 as its floor. Fix those two first; they are small. Then the consolidation: the law
+  is restated at about six sites with no `g_floor_y` and nothing a comment can reference, the two
+  bare floor-plane literals (0.004, 0.015) are unnamed, and the comment beside `highwayBentNoteY`
+  names the floor while the clamp is at the string grid base (0.075). The fingering panel this item
+  once named is gone and was never a breach. (task #276)
+
+- **The head-mark order audit is unfinished, with two findings in hand.** (1)
+  `HighwayHeadMarkStack::g_capacity` is 5 (`highway_head_marks.h:176`) but the true maximum is 4 —
+  two rungs both key off the single attack slot — and `test_highway_head_marks.cpp` asserts
+  `count == g_capacity` on a Tap + Hammer combination no chart can carry. (2) Since the 2026-08-18 ruling (E8: `dead` excludes only
+  the pinch's harmonic) harmonic-under-X is live, which gives a second concentric-overlap pair the
+  order was never walked for; the task also reported rendered matrix cells still forbidding
+  full-mute + node, which a 2026-09-19 search could not find — confirm while walking. Finish the
+  pair-by-pair walk against the order authority in `highway_head_marks.h`, end with a test pinning
+  the order per LEGAL combination, and reconcile
+  `docs/plans/in-progress/technique-compatibility-and-hardening.md`. Not gated on plan 56, which
+  owns the overlap-conflict work. (task #275)
+
+- **"Planted" names two things (PARKED by the user 2026-09-06 — "forget the renaming for now").**
+  The naming judge's verdict: `chartDerivedStops` is `chartPlantedStops` with a filter — one fact,
+  two nouns — and "planted" is a live homonym with the FHP derivation's "planted finger"
+  (`gp_chart_builder.cpp`, `docs/developer/the-project-lifecycle.md`). With fret 0 deriving,
+  "planted" also lies at the nut, where "held 0" is signed tab vocabulary. Recommended shape, rooted
+  on "held": `chartPlantedStops` → `chartHoldUnderStops`, `planted_stops` → `hold_under_stops`,
+  `plants_under` / `planted_under` → `holds_under_here` / `holds_under_down`, `chartDerivedStops` →
+  `chartDerivedHeldStops`; `chartHeldStops`, `ChartNote::held` and the JSON `held` key unchanged.
+  About 20 files, no format change. The two files above carry BOTH senses, so rename them by hand,
+  never by sweep. Pick up only when the user asks. (task #287)

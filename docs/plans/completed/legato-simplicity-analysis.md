@@ -6,7 +6,8 @@ shipped the same day (`006ae58e`, `2e840872`, `7f6c4517`). The ruling as signed 
 is the analysis as it stood before the ruling — the candidate field, the kills, and the ledger — kept
 because the kills are why the shipped design has its shape. The one line now out of date is the
 paused-implementation note at the end of this header: the recalc window was cancelled unbuilt (task
-#63) rather than paused.
+#63) rather than paused. Closed 2026-09-19: moved to completed/ after verification against the
+tree.
 
 **Analysis record (pre-ruling): ANALYSIS COMPLETE 2026-08-11, NOTHING RULED.** The user directed a ground-up
 re-derivation of the simplest correct legato design, with sunk cost explicitly excluded: "the

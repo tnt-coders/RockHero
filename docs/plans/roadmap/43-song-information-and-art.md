@@ -157,9 +157,9 @@ paths below are relative to `external/tracktion_engine/modules/juce/modules/juce
 **Corpus**: 39 local `.rock` packages (converted commercial content — local-only, never committed,
 never in CI); all carry `formatVersion 1` and no art/sort/preview fields.
 
-The working tree currently carries in-flight editor-core tone-handler and UI changes
-(`docs/plans/in-progress/tone-track-tempo-map-plan.md` is active work); this plan's editor-core phases
-must rebase over that work when it lands and must not touch tone files meanwhile.
+The editor-core tone-handler and UI changes are committed
+(`docs/plans/completed/tone-track-tempo-map-plan.md` is complete); this plan's editor-core phases
+therefore build on that work rather than waiting to rebase over it.
 
 Verified against code on 2026-07-06, refactor @ 13e82fb0.
 

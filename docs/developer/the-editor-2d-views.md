@@ -1001,9 +1001,9 @@ instant, else the cursor's — so an arrow step, a jump or a pointer arm into th
 the highlight, the rig, the lanes and the signal-chain panel together, while the playhead stays
 put. Arming never seeks; the frame path above is untouched.
 
-*Design in flux: the active-vs-selected semantics of tone regions are proposed to change
-(`docs/plans/in-progress/tone-active-vs-selected.md`, awaiting sign-off) — treat the selection
-behavior described here as current, not final.*
+The active-vs-selected semantics of tone regions were signed 2026-07-08 and are implemented
+(`docs/plans/completed/tone-active-vs-selected.md`); the selection behavior described here is
+current.
 
 ## Automation lanes — `ToneAutomationLanesView`
 

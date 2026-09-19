@@ -1,8 +1,11 @@
 # Tone: active tone vs. selected region
 
-Status: **proposed, awaiting sign-off. Not implemented.** Supersedes the "auto-select on load"
-behavior committed for task #16 (`fb587bd1`) by refining "select" into "activate", so that commit is
-a stepping stone, not a revert.
+Status: **SIGNED 2026-07-08, amended 2026-09-18, IMPLEMENTED.** The active/selected split ships as
+the `active` and `selected` flags on `ToneRegionViewState`
+(`rock-hero-editor/core/include/rock_hero/editor/core/tone/tone_track_view_state.h`). Supersedes the
+"auto-select on load" behavior committed for task #16 (`fb587bd1`) by refining "select" into
+"activate", so that commit is a stepping stone, not a revert. Closed 2026-09-19: moved to
+completed/ after verification against the tree.
 
 ## Motivation
 

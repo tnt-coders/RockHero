@@ -103,7 +103,7 @@ Repo state (paths repo-relative):
   keys** (`projectCursor:<path>`, `projectGridNoteValue:<path>`, `projectTimelineZoom:<path>`,
   `projectSelectedArrangement:<path>`; editor_settings.cpp). `project.json` is now only a
   `{ "formatVersion": 1 }` manifest — the `editorState` object and `ProjectEditorState` were
-  removed (see docs/plans/in-progress/app-local-project-view-state.md), so nothing per-project-view lives
+  removed (see docs/plans/completed/app-local-project-view-state.md), so nothing per-project-view lives
   in the .rhp package.
 - Interaction surfaces: `TimelineRuler` (pinned band above the canvas, height 53px) handles
   `mouseDown` only, converting clicks to snapped cursor placement
@@ -196,7 +196,7 @@ Verified against code on 2026-07-07, refactor @ 0ffb6efe.
 - docs/plans/roadmap/44-editor-3d-preview.md — shares only the follow-decision stance: the smooth-scroll
   evaluation (docs/plans/todo/smooth-scroll-follow-evaluation.md) is the user's pending call;
   referenced, never decided (its non-goal 3 phrasing is the template for this plan's non-goal).
-- docs/plans/in-progress/tone-track-tempo-map-plan.md — active tone work; this plan touches none of its
+- docs/plans/completed/tone-track-tempo-map-plan.md — complete tone work; this plan touches none of its
   files, and the ruler surface avoids its gestures (inventory).
 - docs/plans/roadmap/52-range-edit-operations.md — downstream consumer (Phases 2–3 here must land
   first); it reuses `LoopSelectionViewState` as the edit range and adds copy/cut/paste/delete

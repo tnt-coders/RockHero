@@ -278,6 +278,21 @@ ladder above, sighted at about 100 ms, in its own commit with the census re-sign
 by its own sighting, never in the same change. Design notes in
 docs/plans/todo/sustain-tail-display-policy.md.
 
+### `ChartStop`'s ordering is partial by type and total only by validation — trigger: the node refusal relaxes, or a new `ChartStop` producer appears
+
+`ChartStop`'s defaulted `operator<=>` returns `std::partial_ordering`, because its `node` is an
+`optional<double>`, yet the type keys a `std::map` in `chart_shapes.cpp` (the posture map) and feeds
+`std::ranges::sort` in `highway_view_state.h`. It is a strict weak ordering only because
+`validateChartNoteAlone` refuses NaN and any node outside `(0, g_max_harmonic_node]`, so the
+container's freedom from undefined behaviour rests on a validator in a different file rather than
+on the type. `chart.h` documents the dependency beside the operator and the reasoning is sound,
+which is why two independent reviews (2026-09-07) flagged it without calling it a defect.
+
+**Trigger:** any relaxation of the node range or NaN refusal in `chart_rules.cpp`, or a new producer
+of `ChartStop` that bypasses `frettedStop` / `nodeStop`. **Remedy:** hand-write `operator<=>` over
+`std::strong_order` on the node — the same semantics, total by type, and the cross-file dependency
+is deleted.
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges
@@ -1083,7 +1098,7 @@ claim is reported beside every trimmed tail in the one-shot open notice with its
 session opens dirty, and the file is untouched until the user saves. Nothing is silent, which was
 this item's real complaint; "reversible" is answered by the untouched file rather than by undo.
 Pinned by the normalizer's own test ("the whole chart normalizes in one call, with the settle
-sweep last"). Design: `docs/plans/in-progress/e25-muted-tail-implementation.md` §6.5 and §6.7.
+sweep last"). Design: `docs/plans/completed/e25-muted-tail-implementation.md` §6.5 and §6.7.
 
 **Reversed at the root on 2026-08-22 (note-sustain model, stage A3):** E25 is a PRESENTATION rule
 now, so nothing trims a stored ring at all — a dead note carries the duration of its damped stroke,

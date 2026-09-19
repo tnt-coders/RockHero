@@ -17,6 +17,12 @@ more to make invalid combinations impossible as much as it can."*
 > below says `Hammer` or `Pull` it names the MOTION the resolver derives (`LegatoMotion`), never a
 > stored value.
 
+> **`slide_out` is gone — read every `slide_out` row as "the release keyframe".** The field named in
+> the surface table below and in rows E2, E7, E10, E17 and E25 was DELETED 2026-09-09 and replaced
+> by the RELEASE keyframe, the keyframe at the ring's end (`releaseKeyframe` and
+> `slideOutFretOrNull` in `chart.h`). The rows are left as written: the rule each states is
+> unchanged, only the datum it names moved.
+
 **Order matters and is deliberate: the matrix settles first, the format second.** Restructuring the
 type on a guessed cell means restructuring it again when the cell flips.
 

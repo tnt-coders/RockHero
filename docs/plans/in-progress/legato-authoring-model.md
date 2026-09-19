@@ -4,8 +4,10 @@ Status: **IMPLEMENTED 2026-08-11** (`006ae58e` the model, `2e840872` the toggle'
 `7f6c4517` the scenario tests). This file is the standing record of legato in RockHero: what the
 chart stores, what every consumer reads, what the two verbs do, and why each of those is the shape
 it is. The *ruling* that produced it is `legato-final-spec.md`, kept sentence-for-sentence as
-signed; the analysis that killed the alternatives is `legato-simplicity-analysis.md`,
-`legato-design-options-explained.md`, and `legato-tap-notation-final-pass.md`. Where this file and
+signed; the analysis that killed the alternatives is
+`docs/plans/completed/legato-simplicity-analysis.md`,
+`docs/plans/completed/legato-design-options-explained.md`, and
+`docs/plans/completed/legato-tap-notation-final-pass.md`. Where this file and
 the code disagree, the code is the truth and this file is the defect. Default chords since
 2026-08-12: the toggle on plain `L`, the left-hand tap on `Shift+T` (the technique-letter amendment
 in `keymap-matrix.md`; they shipped on `H`/`Ctrl+H`, and the deliberation records keep those
@@ -447,9 +449,10 @@ as precedent rather than later under pressure.
 
 Every entry below was a real candidate, and several were signed before being overturned. They are
 kept because the kills are the reasons the shipped model is shaped as it is; the full arguments live
-in `legato-simplicity-analysis.md` (the ground-up pass that ranked five designs),
-`legato-design-options-explained.md` (the three finalists, line-by-line), and
-`legato-tap-notation-final-pass.md` (the notation half, S1–S5).
+in `docs/plans/completed/legato-simplicity-analysis.md` (the ground-up pass that ranked five
+designs), `docs/plans/completed/legato-design-options-explained.md` (the three finalists,
+line-by-line), and `docs/plans/completed/legato-tap-notation-final-pass.md` (the notation half,
+S1–S5).
 
 ## Stored direction itself — the root of everything below
 

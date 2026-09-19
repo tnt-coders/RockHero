@@ -272,7 +272,7 @@ a time position lands on the session grid; with it off they land on the tick lat
 (`g_tick_quantum_note_value`, 1/3840 of a whole note — the MIDI PPQ tick). There is no per-verb
 modifier tier: `Ctrl` composes nothing on a placement, on any surface. The switch is session-only,
 never persisted, and reset to on at every project boundary (see
-`docs/plans/in-progress/grid-snap.md`). A verb needing a musical DURATION — the ring a placement
+`docs/plans/completed/grid-snap.md`). A verb needing a musical DURATION — the ring a placement
 authors — keeps reading the grid VALUE, which is why the two are separate readers in the
 controller (`chartGridStepBeats` for the duration, `placementQuantum` for the position).
 
@@ -285,7 +285,7 @@ way out of the dialog reports `KeepSnappingOn`. Turning snapping back on is neve
 lives in the action, not in the view, so the `Ctrl+G` the 3D preview window forwards is warned
 about exactly like the one typed in the authoring window; the dialog belongs to the main editor
 window either way. Nothing suppresses the warning and nothing records it — see the ruling in
-`docs/plans/in-progress/grid-snap.md`. The dialog's copy names the binding itself (an accidental
+`docs/plans/completed/grid-snap.md`. The dialog's copy names the binding itself (an accidental
 press is exactly the case where the user does not know what they pressed), reading it live from
 the mapping set through `commandChordText`, so a rebind moves the dialog's text with the menus'.
 

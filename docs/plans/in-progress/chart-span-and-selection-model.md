@@ -11,7 +11,7 @@ selection), and `editing-interaction-model.md`, and this document dissolves into
 > while it is off — read by every position-quantizing verb with no per-verb opt-out. There is no
 > `Ctrl` 1/960 tier, so where a section below reaches for one (notably §11's "Ctrl's one meaning is
 > precision" clause and §9b's `Ctrl+Alt+arrows` fine step) the live rule is the mode, and the design
-> is `docs/plans/in-progress/grid-snap.md`.
+> is `docs/plans/completed/grid-snap.md`.
 
 ## 1. Onset groups and chord boxes — SETTLED
 

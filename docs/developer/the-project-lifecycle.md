@@ -1662,9 +1662,8 @@ Per-project view state (cursor, grid note value, zoom, selected arrangement) per
 **per-user editor settings keyed by project path, outside the `.rhp`** — deliberately, so moving
 the cursor never dirties the project.
 
-*Design in flux: view-state storage is mid-migration
-(`docs/plans/in-progress/app-local-project-view-state.md`) — the manifest already carries no
-editor state, and the remaining store simplification is active work.*
+The view-state migration is complete (`docs/plans/completed/app-local-project-view-state.md`): the
+manifest carries no editor state, and the store simplification shipped.
 
 # Dirty tracking and faulting
 

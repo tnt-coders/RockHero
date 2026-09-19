@@ -7,7 +7,10 @@ wrong gets a note beside it, and the arc is closed when every box is ticked or c
 
 Sections A–F are the gate for Phase 1, and they are met. What is carried consciously rather than
 sighted is listed in section H; the two items still open inside section E name the work they are
-carried into.
+carried into — the editor-acts item by `docs/plans/roadmap/60-hand-markers.md`, whose span-delete
+criterion is Phase 4's exit in `docs/plans/in-progress/first-releasable-editor.md`; the hidden-head
+mark is a 2D + 3D design question that plan lists as out of the release scope. Closed 2026-09-19: moved to completed/ after verification
+against the tree.
 
 ## A. The #141 gate — the accumulation law itself (2D lane, on corpus material)
 
@@ -181,6 +184,8 @@ re-signed there.
 
 - The span-marker Phase 1 items (Shift+S, the `"span"` record, the opening slot
   published on ChartShape). `NoteAttack::None` left ahead of them, out of phase, DONE 2026-09-17.
+  **The `Shift+S` chord itself was withdrawn 2026-09-12** and is not coming back: the hand marker
+  is `Ctrl+H`, ruled 2026-09-15 (`docs/plans/roadmap/60-hand-markers.md`, 60-H2).
 - The scoring rider (a bonus for holding the handshape, minimum-distance clipping) — the
   note-detection plan revisits DEFINITIVELY.
 - The tap-harmonics open area, the template system, and everything else in

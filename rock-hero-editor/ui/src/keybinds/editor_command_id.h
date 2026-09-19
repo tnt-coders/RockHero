@@ -299,7 +299,7 @@ enum class EditorCommandId : std::uint16_t
     SelectionMoveDown = 0x160C,
 
     // 0x160D-0x1610 were the fine-tier selection moves, retired with the Ctrl fine tier when grid
-    // snap took over off-grid placement (docs/plans/in-progress/grid-snap.md). The values stay
+    // snap took over off-grid placement (docs/plans/completed/grid-snap.md). The values stay
     // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
 
     /*! \brief Delete the selection, whatever its kind (`Delete`). */

@@ -13,7 +13,7 @@ from the old reference is resolved here.
 This supersedes `docs/plans/todo/tone-automation-track-plan.md` (a read-only UX sketch full of "eventually"
 and open questions). It is built directly on the shipped item-1 tone feature (tone-change model,
 catalog, six operations, and UI gestures — all on `refactor`; see
-[[project_tone_catalog_model]] in agent memory and `docs/plans/in-progress/tone-track-tempo-map-plan.md`).
+[[project_tone_catalog_model]] in agent memory and `docs/plans/completed/tone-track-tempo-map-plan.md`).
 
 ## Goal
 

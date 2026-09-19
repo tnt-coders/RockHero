@@ -1,7 +1,8 @@
 # Grid snap
 
 Status: **settled, 2026-08-23** (every point ruled by the user). This replaces the `Ctrl` fine
-tier, which is deleted outright.
+tier, which is deleted outright. Closed 2026-09-19: moved to completed/ after verification against
+the tree.
 
 ## Goal
 

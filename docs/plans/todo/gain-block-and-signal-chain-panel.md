@@ -137,7 +137,7 @@ edits the tone; the uncalibrated state offers calibration in place.
 
 ## Relation to other records
 
-- `docs/plans/in-progress/tone-active-vs-selected.md` — the active tone the panel binds to;
+- `docs/plans/completed/tone-active-vs-selected.md` — the active tone the panel binds to;
   unchanged.
 - `docs/plans/roadmap/21-game-audio-engine-and-session.md` — the monitor stage; unchanged by this
   plan.

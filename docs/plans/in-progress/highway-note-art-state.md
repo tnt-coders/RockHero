@@ -157,8 +157,8 @@ silhouette) with no note-kind branch. A fretted tail's own pixels are identical 
 The head/sustain split an earlier trial carried (0.45 head against 0.65 tail) was a distinction the
 eye never made. The 2D lane keeps every normal note ink color, flattens each note's opaque tail and
 head art together, then applies the shared 0.5 opacity once; fret numbers remain opaque overlays
-while their plates use 0.75 opacity. See `note-emphasis-axis.md` item 4 for the group-compositing
-rationale.
+while their plates use 0.75 opacity. See `docs/plans/completed/note-emphasis-axis.md` item 4 for
+the group-compositing rationale.
 
 ## Decided, with the numbers the decisions rest on
 

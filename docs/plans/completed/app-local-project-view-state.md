@@ -1,8 +1,9 @@
 # App-local project view state (selected arrangement + settings storage simplification)
 
-Status: in progress. Alternatives were reviewed (independent from-scratch design draft plus an
-adversarial critique, reconciled 2026-07-07); the decisions below are final and the phase plan is
-implementable top to bottom from the current tree state. Implementation state is at the bottom.
+Status: **COMPLETE and committed.** Alternatives were reviewed (independent from-scratch design
+draft plus an adversarial critique, reconciled 2026-07-07); the decisions below are final and all
+four phases shipped. Implementation state is at the bottom. Closed 2026-09-19: moved to completed/
+after verification against the tree.
 
 ## Goal
 
@@ -251,7 +252,7 @@ referenced widely).
 
 ## Implementation state
 
-**COMPLETE (uncommitted).** All four phases landed; the tree builds, all four test suites pass,
+**COMPLETE and committed.** All four phases landed; the tree builds, all four test suites pass,
 whole-project clang-tidy is clean, and pre-commit (clang-format + conventions) passes.
 
 - **Phase 1 — `ProjectEditorState` tear-out:** struct/overloads/`editorState()`/`m_editor_state`
@@ -272,4 +273,4 @@ whole-project clang-tidy is clean, and pre-commit (clang-format + conventions) p
   plugin-window-persistence staleness note added; architecture.md verified unchanged; full verify
   bundle green.
 
-Not yet committed — awaiting review.
+Committed and shipped.

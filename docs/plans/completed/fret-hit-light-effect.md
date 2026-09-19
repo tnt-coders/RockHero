@@ -1,8 +1,15 @@
 # Fret hit-glow as a real additive light effect
 
-**Status:** in progress — design approved; the 2026-07-30 pre-implementation review's fixes are
-folded in below (submission point, envelope home, release/fade invariant) and implementation is
-under way.
+**Status:** COMPLETE — all six phases (0–5) shipped: the additive glow pass lives in
+`highway_renderer.cpp`, the envelope math in `highway_hit_glow.h`/`.cpp` with
+`test_highway_hit_glow.cpp` beside it, and the old flat flash (`g_fret_flash_seconds`) is retired.
+The 2026-07-30 pre-implementation review's fixes are folded in below (submission point, envelope
+home, release/fade invariant). Closed 2026-09-19: moved to completed/ after verification against
+the tree.
+
+**Where the open decisions went.** Decisions 1–3 and 5 below are tuning calls, not blockers; they
+moved to `docs/tracking/backlog.md`. Decision 4 (bend segment display in 3D) is carried by
+`docs/plans/in-progress/first-releasable-editor.md` Phase 3.
 **Scope:** the editor app's 3D preview (shared highway renderer, so it also lands in the game
 highway). The trigger here is deterministic *note arrival*; a later input-gated game version reuses
 the same light pass unchanged (only the trigger source changes).

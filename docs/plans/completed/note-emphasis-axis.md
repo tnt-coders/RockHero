@@ -1,13 +1,18 @@
 # Note Emphasis Axis — ghost notes, and accent's generalization
 
-Status: **PARTLY BUILT 2026-08-15**, and moved here from `todo/` because it is now half-executed
-with live remaining items. Checklist items 1, 2 and 3 are shipped: `NoteEmphasis` replaces the
+Status: **BUILT.** Checklist items 1, 2 and 3 are shipped: `NoteEmphasis` replaces the
 `accent` bool through the format, both projections, and both surfaces; the document writes
 `"emphasis"` and refuses the old key loudly; the Guitar Pro importer maps `AntiAccent` to `Ghost`
 and both loud tiers to `Accent`. Item 4's GHOST half is signed on both surfaces and its
 alternatives are ripped out; its ACCENT half SIGNED 2026-08-18 as the rendered `medium flat`
-light (see `highway-note-art-state.md`). What remains is item 5's editing verb, item 6's
-detection touchpoint, and item 7's re-import.
+light (see `highway-note-art-state.md`). Item 5's editing verb SHIPPED: `ChartGhostToggle` on
+plain `G`, signed and live 2026-08-18 (`keymap-matrix.md`). Closed 2026-09-19: moved to completed/
+after verification against the tree.
+
+**Where the two remainders went.** Item 7 (the old `"accent"`-key tripwire in `chart_document.cpp`,
+the corpus re-import, and the external converter still emitting `"accent"`) is carried by
+`docs/plans/in-progress/first-releasable-editor.md` Phase 6. Item 6 (the detection touchpoint) is
+game-side and recorded in `docs/tracking/backlog.md`.
 
 **Item 7 has a second producer nobody had counted.** The external converter tool under
 `custom-song-importer/tools/` writes these same chart documents and still emits `"accent": true`,
@@ -128,9 +133,9 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    Accent rendering: the 2D glow is unchanged; 3D became a **rendered light** and the atlas ring
    it replaces is retired (cell 3 of the head atlas is now empty), because a mark drawn on a head
    could only ever say "accent" and could not be worn by an open string at all.
-5. **Editing verb:** the accent toggle (`A`) becomes a three-state concern — decide the grammar in
-   the keymap doc when this executes (likely: `A` toggles Accent, a second key or modifier for
-   Ghost; do NOT guess here).
+5. ~~**Editing verb:**~~ **SHIPPED.** The emphasis axis took two plain letters rather than a
+   `Shift` pair: `A` toggles Accent and `G` toggles Ghost (`ChartGhostToggle`), signed and live
+   2026-08-18 (`keymap-matrix.md`).
 6. **Detection touchpoint:** ghost notes are quiet by definition — record in plan 22's terms how
    the detector should treat them (lower confidence threshold? cosmetic tier?) before scoring ships
    anything emphasis-aware.

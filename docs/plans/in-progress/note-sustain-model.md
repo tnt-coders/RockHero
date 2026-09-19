@@ -1,9 +1,10 @@
 # Note sustain model — actual durations stored, presentation derived
 
-**Status:** In progress on branch `note-sustain-experiment`. The data model, the editor's Alt
-reveal of the actual rings, and the derived hand-posture spans all stand. What remains open is the
-span-end question (item #59 — should a span's end stop obeying the margin), the arpeggio-bracket
-verb, the converter default of ruling 7, and whether to merge.
+**Status:** Implemented on master; the `note-sustain-experiment` branch is gone and the merge
+question with it. The data model, the editor's Alt reveal of the actual rings, and the derived
+hand-posture spans all stand. What remains open is the span-end question (item #59 — should a
+span's end stop obeying the margin), the arpeggio-bracket verb's dependency on a posture
+dictionary, and the converter default of ruling 7.
 
 ## The model in one paragraph
 
@@ -318,9 +319,9 @@ and has no instances on that material.
   text pass, `ShapeStringViewState::finger` and the highway's fingering panel (with its
   `fingering.png` asset and `HighwayTexture` enumerator), and the timeline ruler's name-chip band.
   When names and fingerings are ever authored they arrive as a dictionary keyed by a posture, not
-  as fields on one; the arpeggio-bracket posture verb
-  (`docs/plans/in-progress/arpeggio-posture-display-options.md`) is still open and two of its
-  rejected options need that dictionary before they could be revisited. The reader refuses a
+  as fields on one; the display question is SETTLED in
+  `docs/plans/in-progress/arpeggio-posture-display-options.md`, but two of the options it rejected
+  would need that dictionary before they could ever be revisited. The reader refuses a
   document carrying either key, with the re-import remedy named — the same tripwire the removed
   note fields get. The validator has no posture or span rules (`normalizeChordTemplate`,
   `ChartErrorCode::InvalidTemplate` and `InvalidShape` do not exist): derived data cannot be
@@ -421,7 +422,7 @@ and has no instances on that material.
    Off-grid authoring is a session MODE (`Ctrl+G`) behind one **placement quantum** — the grid note
    value while snap is on, the 1/3840-whole-note tick while it is off — read by every verb that
    quantizes a time POSITION; there is no `Ctrl` fine tier. The design is
-   `docs/plans/in-progress/grid-snap.md`.
+   `docs/plans/completed/grid-snap.md`.
 
    **Addendum — a step moves the ring's END, so the gesture keeps its STEPS.** A summed delta is
    wrong about what a step IS: leave a tail's end between lines — snap-off placement can — and

@@ -1,7 +1,21 @@
 # Tempo-Mapped Tone Track Plan
 
-Status: in progress. This is the active plan for making the tempo map visible and adding a simple
-tone track that schedules whole-rig tone changes over the song grid.
+Status: **COMPLETE.** Slices 1–5 shipped: the tempo map is visible, the tone track authors regions
+over the song grid, and both products switch tones from baked branch-gain automation. Closed
+2026-09-19: moved to completed/ after verification against the tree.
+
+**The model sections below are HISTORICAL.** A region now stores only a sub-beat
+`common::core::GridPosition start` — there is no `end` field and no `ToneGridPosition` type; a
+boundary is a CHANGE and a region's extent is derived from the next start
+(`rock-hero-common/core/include/rock_hero/common/core/tone/tone_track.h`). `docs/developer/` and
+the code are the live reference for the shipped model; read every `ToneGridPosition` and
+`start`/`end` pair below as the design as it was specified, not as it is.
+
+**Where the remainders went.** Slice **5e** (the crossfade listening pass and its three spikes)
+moved to `docs/tracking/backlog.md`. Open Question (i) — the grid subdivision after whole-beat
+resizing — is answered: endpoints are exact-rational `GridPosition`, so any subdivision is
+representable. Open Question (ii) — reusable named tone slots — belongs to
+`docs/plans/roadmap/50-tone-designer-and-tone-files.md`.
 
 ## Goal
 

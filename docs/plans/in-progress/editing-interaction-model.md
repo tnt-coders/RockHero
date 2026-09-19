@@ -20,7 +20,7 @@ caret arm; amendment record at the bottom).
 > still reads the grid VALUE. Every line below that reads "fine", "1/960", "off-grid under `Ctrl`",
 > or `Ctrl+Alt+arrows` is retired; `Ctrl`'s surviving meanings on this model are REACH (navigation
 > and selection extension) and TOGGLE membership (clicking an existing object). The design is
-> `docs/plans/in-progress/grid-snap.md`; the affected rows here are stale until it is folded in.
+> `docs/plans/completed/grid-snap.md`; the affected rows here are stale until it is folded in.
 
 ## Goal
 

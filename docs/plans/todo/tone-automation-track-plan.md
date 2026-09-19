@@ -7,7 +7,7 @@ an editable-lane design keyed to the shipped item-1 tone model.
 
 Prior status: deferred UX reference, revised 2026-07-05. The tone track itself now exists
 (`ToneTrackView` renders persisted tone regions with selection and resize; see
-`docs/plans/in-progress/tone-track-tempo-map-plan.md`), so this document no longer plans that
+`docs/plans/completed/tone-track-tempo-map-plan.md`), so this document no longer plans that
 component — it keeps the automation-lane UX that layers on top of it: per-automation sub-lanes
 expanding beneath the compact tone strip when a region is clicked. That work is sequenced after
 the note-storage format and tablature display per the tone plan's Non-Goals. Sections below that
@@ -142,7 +142,7 @@ persistence for user-authored curves is an open decision for this deferred work.
 ## Remaining Implementation Scope
 
 The tone row, region rendering, selection, and resize shipped via
-`docs/plans/in-progress/tone-track-tempo-map-plan.md` slices 2-3. What remains for this plan:
+`docs/plans/completed/tone-track-tempo-map-plan.md` slices 2-3. What remains for this plan:
 
 1. Expand/collapse per-automation sub-lanes beneath the tone strip when a region is clicked
    (disclosure-style; the 30 px strip is the collapsed state).

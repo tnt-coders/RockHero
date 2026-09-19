@@ -49,7 +49,7 @@ settled.
   registered by docs/plans/roadmap/40-chart-editing.md and docs/plans/roadmap/41-tempo-map-authoring.md when their
   phases land; this plan provides the mechanism plus reserved conventions (Appendix tier B).
 - Localizing shortcut display names (JUCE's `getTextDescription()` is English-only; accepted).
-- Touching the in-flight editor-core tone work (docs/plans/in-progress/tone-track-tempo-map-plan.md);
+- Touching the completed editor-core tone work (docs/plans/completed/tone-track-tempo-map-plan.md);
   its Ctrl+T marker shortcut is migrated into the registry during Phase 1 inventory re-check, not
   redesigned here.
 
@@ -171,8 +171,8 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   docs/plans/roadmap/41-tempo-map-authoring.md (tap key and anchor-nudge keys register here when this
   lands), docs/plans/roadmap/44-editor-3d-preview.md (the preview window is one more consumer of the
   centralized map).
-- docs/plans/in-progress/tone-track-tempo-map-plan.md — active work; any shortcut it ships (Ctrl+T tone
-  marker) is migrated into the registry during Phase 1, referenced never absorbed.
+- docs/plans/completed/tone-track-tempo-map-plan.md — complete work; any shortcut it ships
+  (Ctrl+T tone marker) is migrated into the registry during Phase 1, referenced never absorbed.
 - External decisions: Q1–Q3 below (Phase 0 gate).
 
 ## Decisions already made

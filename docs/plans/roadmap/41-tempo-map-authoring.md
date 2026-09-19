@@ -136,9 +136,9 @@ than shipping the minimal "empty chart" action it explicitly rejects.
 - docs/plans/roadmap/46-editor-keybinds.md: the tap key and anchor nudge keys register through the
   centralized keybind system when it lands; until then they live in `EditorView::keyPressed`
   like every other shortcut.
-- docs/plans/in-progress/tone-track-tempo-map-plan.md: active tone work touches the same Session,
-  action variant, and handler TUs. Start Phase 2 only after the in-flight tone handler/UI work
-  is committed, to avoid churning shared files (reference only — active work is never absorbed).
+- docs/plans/completed/tone-track-tempo-map-plan.md: that tone work is complete and touched the same
+  Session, action variant, and handler TUs. Its handler/UI work is committed, so the shared-file
+  hold on Phase 2 is lifted (reference only — completed work is never absorbed).
 
 ## Decisions already made
 

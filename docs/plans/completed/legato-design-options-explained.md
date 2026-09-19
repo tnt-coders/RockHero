@@ -5,7 +5,7 @@ shipped the same day** (`006ae58e`, `2e840872`, `7f6c4517`). The ruling as signe
 `legato-final-spec.md`; the record of what shipped is `legato-authoring-model.md`. The two losing
 designs stay here in full: MINIMAL-EXPRESSION describes the recalc window that was cancelled
 unbuilt, and RADICAL-MIN the amputation that would have deleted the assist and the toggle window the
-user kept.
+user kept. Closed 2026-09-19: moved to completed/ after verification against the tree.
 
 Companion to `legato-simplicity-analysis.md` — the full statement of what each surviving design
 actually is, how the same editing stories play out under each, what each deletes, what each

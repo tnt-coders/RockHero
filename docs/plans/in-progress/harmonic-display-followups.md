@@ -490,9 +490,8 @@ expecting zero.
 
 While artificial and tapped harmonics are disabled (see the status note at the top), only items 9,
 4 and 2 can execute immediately — none of them needs a disabled harmonic. User ruling 2026-09-19:
-items **2** and **3** both belong to G0's minimum-editor-functionality scope. Item 3 still rides the
-founding rule / artificial-harmonic reopen path, but it is G0 acceptance work rather than a later
-polish pass.
+item **2** belongs to the first-releasable-editor scope; item **3** is not relevant until artificial
+harmonics are re-enabled, because it is an acceptance case for that disabled form.
 
 1. **9** — the chord-identity seam, on its own. It is the only item here that moves the corpus,
    so it lands alone and is censused alone; tangling it with the founding rule would leave
@@ -503,8 +502,8 @@ polish pass.
    stop).
 4. **8** — the tapped harmonic's stale finger in the hand table. PARKED.
 5. **1, then 3** — the founding rule, once the law session has picked (a)/(b)/(c). Item 3 is item
-   1's acceptance case on the fixture, and is in G0 even though it is parked behind the disabled
-   artificial/tapped-harmonic forms.
+   1's acceptance case on the fixture and stays parked behind the disabled artificial/tapped
+   harmonic forms.
 6. **5** — the highway's picking-hand cue at the node. PARKED.
 7. **6** — after the authoring discussion. PARKED.
 8. **7** stays a watch item and is not scheduled.

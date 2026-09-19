@@ -26,7 +26,7 @@
 > off) answers every position-quantizing verb on every surface. Every row below reading "fine",
 > "1/960", or "off-grid under `Ctrl`" is retired with it — the six `Ctrl+Alt…` commands are gone
 > and `Ctrl` composes nothing on a placement. The design is
-> `docs/plans/in-progress/grid-snap.md`; this matrix's affected rows are stale until it is folded
+> `docs/plans/completed/grid-snap.md`; this matrix's affected rows are stale until it is folded
 > in.
 >
 > **Amended 2026-09-11 (user-signed): every note is TYPED, a click never creates, and `Alt` creates
@@ -378,7 +378,7 @@ chip scrolling in.
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |
 | **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | **Retired 2026-08-23** — snap off + `Alt`+wheel |
 | **`Shift+Alt`+wheel** | fret shift ±1 | `✗` | `✗` | Live (chart only) |
-| **Right-click** | keybind-discovery menu (scheduled) `✚` | keybind-discovery menu | keybind-discovery menu | Live (lanes/tone) · `✚` chart |
+| **Right-click** | keybind-discovery menu | keybind-discovery menu | keybind-discovery menu | Live (all three; the chart menu is `EditorView::showChartDiscoveryMenu`) |
 | **Ruler drag** | create time selection → feeds loop region | — same span — | — same span — | `▷47` |
 
 ## Editor-wide (one behavior, surface-independent)
@@ -651,10 +651,10 @@ Each coverage gap gets decided explicitly: **close** (schedule the parity work) 
 (document the per-surface difference as deliberate). Working through them one at a time:
 
 1. Chart pointer drag-editing — **CLOSE: drag-move only** (reposition a note by mouse; plain = grid, `Ctrl` = off-grid). **Sustain edge-drag dropped** — `Alt`+wheel is already the mouse sustain command, so an edge-drag would be redundant. · **scheduled**
-2. Right-click on the chart — **CLOSE: build it as a keybind-discovery menu** listing every applicable action + its **live keybind** (context-sensitive). Reframes the menu from "redundant action path" to "teach the shortcuts." Applies to **all surfaces'** menus for consistency; best built on plan 46's command registry (JUCE surfaces the current shortcut per item automatically). Supersedes the "deferred until techniques" note. · **scheduled**
+2. Right-click on the chart — **CLOSE: build it as a keybind-discovery menu** listing every applicable action + its **live keybind** (context-sensitive). Reframes the menu from "redundant action path" to "teach the shortcuts." Applies to **all surfaces'** menus for consistency; best built on plan 46's command registry (JUCE surfaces the current shortcut per item automatically). Supersedes the "deferred until techniques" note. · **DONE** — the chart menu is Live as `EditorView::showChartDiscoveryMenu` (`editor_view.cpp`), joining the lane and tone menus
 3. Multi-select on automation lanes — **CLOSE: `Ctrl`+click toggle + marquee** for points (join the object-selection like notes). Use case: select a run of points and bump the whole shape across a grid line together. · **scheduled**
 4. Multi-select on the tone strip — **INTENTIONAL: leave single-select.** Tone changes are sparse and rarely bulk-edited; single-select matches the strip's already-distinct sparse/structural, pointer-only nature. Documented as deliberate, not a gap. · **intentional**
-5. Extent-resize on tone regions — **CLOSE: keyboard `Shift+Alt+←/→` resize + `Ctrl+Shift+Alt` fine**, via a new selectable **tone-region row** in the vertical stack (select the region at the cursor's time). Lanes stay `—` (no extent). This also brings the tone strip into keyboard nav — see *Tone-region row* below. · **scheduled**
+5. Extent-resize on tone regions — **RETIRED 2026-09-13.** This scheduled the keyboard `Shift+Alt+←/→` resize + `Ctrl+Shift+Alt` fine via a selectable **tone-region row**; the row shipped, but the re-ruling recorded under *Tone-region row* above retired the keyboard `Shift+Alt` resize along with that row's own caret and the `Insert` split. Lanes stay `—` (no extent). · **retired**
 
 ## Fold-in issue resolutions (settled while folding rules into the design docs, 2026-07-20)
 

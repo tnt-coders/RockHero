@@ -275,9 +275,9 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- `docs/plans/in-progress/tone-track-tempo-map-plan.md` — active tone work with uncommitted editor-core
-  changes in flight. **Do not start Phase 2 until that work is committed**; both touch
-  `editor_controller_impl.h` and the handler-TU layout.
+- `docs/plans/completed/tone-track-tempo-map-plan.md` — complete tone work; its editor-core changes
+  are committed, so the hold on Phase 2 is lifted. Both touch `editor_controller_impl.h` and the
+  handler-TU layout.
 - `docs/plans/roadmap/41-tempo-map-authoring.md` — gates the *from-scratch* charting promise only, which
   is now **Phase 11** and the last phase here. Phases 1-10 are all executable against imported packages
   (GP import already builds tempo maps), so 41 blocks nothing else; the roadmap sequences 41 before

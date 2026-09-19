@@ -229,7 +229,7 @@ exploration passes (session/engine lifecycle, tone persistence, undo/dirty/UI).
 - Signal-chain UI: `SignalChainPanel`/`SignalChainView` already render a header tone name
   (`setToneName`, `signal_chain_view.h:152-155`) bound to the **active tone**
   (`editor_view.cpp:511-521`; active = selected region ?? cursor tone per
-  docs/plans/in-progress/tone-active-vs-selected.md, and the audible tone mirrors it,
+  docs/plans/completed/tone-active-vs-selected.md, and the audible tone mirrors it,
   `i_live_rig.h:126-128`). The panel is always visible; its controls are gated by view-state
   flags. File choosers follow an async `juce::FileChooser` + `SafePointer` pattern with
   `m_file_chooser` ownership (`editor_view.cpp:1059-1155`); none persist a directory yet.

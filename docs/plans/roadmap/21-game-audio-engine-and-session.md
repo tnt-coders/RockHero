@@ -104,7 +104,7 @@ charter authored in the editor.
 - The playback-clock design itself (docs/plans/roadmap/12-playback-clock.md owns IPlaybackClock; this
   plan consumes it).
 - Audio device selection/calibration UX (docs/plans/roadmap/13-audio-device-settings-and-calibration.md).
-- Editor tone-authoring work; docs/plans/in-progress/tone-track-tempo-map-plan.md slice 5 is active
+- Editor tone-authoring work; docs/plans/completed/tone-track-tempo-map-plan.md slice 5 is complete
   editor work that this plan references and must not duplicate or modify.
 
 ## Constraints
@@ -181,7 +181,7 @@ Additional binding design-doc rules:
   the region schedule" (rock-hero-common/audio/src/tracktion/multi_tone_rack.h:27-78,
   tone_branch_gain_plugin.h/.cpp). **No schedule-baking port exists yet**: `rg` finds no
   `IToneTimelinePlayer`/`prepareToneTimeline` anywhere in the tree — that is editor slice 5c,
-  in flight per docs/plans/in-progress/tone-track-tempo-map-plan.md.
+  complete per docs/plans/completed/tone-track-tempo-map-plan.md.
 - The tone data model is in common/core: `Tone` (named catalog entry keyed by
   `tone_document_ref`), `ToneRegion` (musical `start`/`end`, tone ref), `ToneTrack` (sorted,
   non-overlapping regions; "Gaps are allowed; playback holds the previous region's tone through
@@ -262,7 +262,7 @@ dead; (4) editor slice 5c has NOT landed `IToneTimelinePlayer` (re-verified: no 
 tree), so per Phase 3a/3b's own whichever-first wording, Phase 2 pulls forward the MINIMAL 3a
 conversion (pure regions-to-seconds in common/core tone/, landed there directly — never
 game-side) and the 3b port declaration (adopted shape from
-docs/plans/in-progress/tone-track-tempo-map-plan.md "Runtime Audio Direction", with the schedule value
+docs/plans/completed/tone-track-tempo-map-plan.md "Runtime Audio Direction", with the schedule value
 type in common/core because core cannot depend on audio); 3c gameplay-fit verification and 3d
 missing-plugin fallback remain Phase 3's substance.
 
@@ -290,7 +290,7 @@ missing-plugin fallback remain Phase 3's substance.
   whichever-executes-first rule (its Decisions) and is expected to execute first, landing the
   Tracktion-backed loop; Phase 1 here then re-verifies the landed surface and adds only the
   speed methods.
-- docs/plans/in-progress/tone-track-tempo-map-plan.md — slice 5 (runtime switching) is active editor
+- docs/plans/completed/tone-track-tempo-map-plan.md — slice 5 (runtime switching) is complete editor
   work defining the schedule-baking mechanism and its verified Tracktion facts. Reference only;
   Phase 3 coordinates with it instead of duplicating it.
 
@@ -304,28 +304,28 @@ Restated inline so a fresh session needs no other context:
   (docs/design/architecture.md, "Architecture Diagram").
 - **Tone switching is preloaded multi-tone rack + branch-gain automation evaluated by the audio
   thread against the transport; no external position pushes** — a second clock is forbidden
-  (docs/plans/in-progress/tone-track-tempo-map-plan.md, Decisions 5-7; docs/design/architecture.md,
+  (docs/plans/completed/tone-track-tempo-map-plan.md, Decisions 5-7; docs/design/architecture.md,
   "Timing and Latency"). Automation evaluates once per audio block, so switch onsets quantize to
   the block (~3-10 ms) with per-sample smoothing keeping transitions click-free — that meets the
   product bar; do not chase sample accuracy (same doc, Decision 7).
 - **Seek resync is automatic**: parameter streams follow the transport position while stopped or
   scrubbing, so branch gains snap to the playhead without an explicit position push
-  (docs/plans/in-progress/tone-track-tempo-map-plan.md, verified mechanism notes, citing
+  (docs/plans/completed/tone-track-tempo-map-plan.md, verified mechanism notes, citing
   plugins/tracktion_Plugin.cpp:676 in the vendored engine).
 - **Latency compensation should be OFF for the live path**: `Edit::setLatencyCompensationEnabled
   (false)` is a public API (vendored tracktion_Edit.h:539); with PDC on, rack monitoring latency
   equals the worst branch at all times; with it off, latency equals the active branch only
-  (docs/plans/in-progress/tone-track-tempo-map-plan.md, latency amendment 2026-07-05).
+  (docs/plans/completed/tone-track-tempo-map-plan.md, latency amendment 2026-07-05).
 - **Gap behavior**: a tone-track gap holds the previous region's tone; before the first region
   the arrangement default tone (`tone_document_ref`) is audible
   (rock-hero-common/core/include/rock_hero/common/core/tone/tone_track.h ToneTrack docblock;
-  docs/plans/in-progress/tone-track-tempo-map-plan.md, Validation).
+  docs/plans/completed/tone-track-tempo-map-plan.md, Validation).
 - **FLAC is enforced by the package reader**; audio entering in other formats was transcoded on
   import (docs/design/architecture.md, "Technology Stack").
 - **The game never mutates user packages** (docs/design/architecture.md, "Application
   Responsibilities": the game "Treats the `Song` model as read-only during gameplay").
 - **Pre-activated silent plugins are the accepted CPU tradeoff**; do not design tone-count caps
-  now (docs/plans/in-progress/tone-track-tempo-map-plan.md, preloading tradeoff note; matches
+  now (docs/plans/completed/tone-track-tempo-map-plan.md, preloading tradeoff note; matches
   docs/design/architecture.md "VST Plugin Safety" pre-activation guidance).
 
 ## Open questions for the user
@@ -487,7 +487,7 @@ rack, verifying fit of the editor mechanism instead of assuming it:
   `common::core::TempoMap`, gap-hold expansion, default-tone head region) must live in
   `rock-hero-common/core` (tone/ feature) with unit tests, because both products need it.
   Editor slice 5c currently plans this conversion in editor/core
-  (docs/plans/in-progress/tone-track-tempo-map-plan.md, sub-phase 5c). Coordination rule: if 5c has
+  (docs/plans/completed/tone-track-tempo-map-plan.md, sub-phase 5c). Coordination rule: if 5c has
   landed it editor-side by execution time, this phase **promotes** it to common/core and
   repoints the editor (a mechanical move, done here, with the editor building green before and
   after); if 5c has not landed, land it in common/core directly and tell the editor work to
@@ -505,7 +505,7 @@ rack, verifying fit of the editor mechanism instead of assuming it:
   (no graph rebuild or plugin instantiation between `Ready` and the first note). Each is an
   adapter test in rock-hero-common/audio/tests where drivable, plus a listening check in
   Phase 6. If any fails, the named fallback is hidden parallel AudioTracks per the adversarial
-  review in docs/plans/in-progress/tone-track-tempo-map-plan.md — same switching model, different
+  review in docs/plans/completed/tone-track-tempo-map-plan.md — same switching model, different
   host topology; escalate to the user before switching backends.
 - **3d — missing-plugin fallback** per the answer to open question 1, implemented at rig-load
   time with a typed report the session surfaces to UI (list of missing plugins per tone).

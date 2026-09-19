@@ -1,8 +1,9 @@
 # Left-hand-tap notation — the final adversarial pass
 
 **Status: IMPLEMENTED 2026-08-11.** The user ruled the same day and the outcome shipped
-(`006ae58e`, `2e840872`, `7f6c4517`). How each signature landed, against `legato-final-spec.md` as
-the ruling of record:
+(`006ae58e`, `2e840872`, `7f6c4517`). Closed 2026-09-19: moved to completed/ after verification
+against the tree. How each signature landed, against `legato-final-spec.md` as the ruling of
+record:
 
 - **S1, S5 — signed as written.** The causal correction stands, and the per-note intent modifier
   stays shelved priced-but-unadopted.
