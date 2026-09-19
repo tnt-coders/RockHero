@@ -8,6 +8,14 @@
 > rollback note) is VOID: add the fields to the one current shape and re-import what predates
 > them. Re-verify the phases against this before executing.
 
+> **2026-09-19 (user), two rulings on the export gate** (recorded in
+> `docs/plans/in-progress/first-releasable-editor.md`, D1 and D6). The first releasable editor ships
+> with **export disabled**, and export returns only when this plan has landed in full. And the gate
+> Phase 5 builds is wider than metadata presence: export is refused until the chart is CLEAN —
+> every span carries an explicit fingering and a chord name, and plan 42 reports no findings — so
+> Q1's "plan 42 appends to the same list later" is a condition of re-enabling export, not a later
+> nicety. Q2's answer is therefore at least (A), all five metadata fields.
+
 ## 1. Goal
 
 Charters can author complete song presentation data and every exported `.rock` package carries it:

@@ -226,9 +226,6 @@ Exit: a full song can be charted and revised without repeated one-object reconst
   release rather than shipping them. The external converter still emits `"accent"`
   (`docs/plans/completed/note-emphasis-axis.md` item 7), so its output must be fixed or retired
   first, or the row's "re-import" advice is untrue on that path.
-- **The minimum-sustain-distance override** (`chart-span-and-selection-model.md` §10, OPEN). The
-  blanket clamp is a restriction a charter meets constantly; rule whether the release ships the safe
-  default or the override (D7).
 - Sighting passes: keyboard rows, marker rows (#301 P10's three feel questions, #270's batch
   remainder, task #298 the marker grammar end to end), the release keyframe and slide margin work
   marked UNSIGHTED in the walkthrough, hand markers, bends, New Chart, the loop region, and the
@@ -300,17 +297,28 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   region** (plan 47 Phase 4) — it joins Phase 5 beside the ruler-drag time selection that feeds
   it — and **the keybind dialog's in-action review** (plan 46 Phase 3; code-complete, needs only
   the user's review), which joins Phase 6's sighting passes.
-- **D4 — The claimed stop's missing 3D face.** Build a mark, or record a deliberate divergence. The
-  surfaces-must-not-diverge rule argues for building it; rule it with the G60 session since the hand
-  marker work touches the same stop.
-- **D5 — Which listed defects block.** Recommendation: #271 (open-string ring), undo-not-resyncing
-  the tone and the section-insert position are blockers — they make authored material play or land
-  wrongly; #267, #268 and #274 are display defects on supported techniques and block under
-  corollary 1 unless the user rules them tolerable for a first release.
+- **D4 — The claimed stop's missing 3D face. RULED 2026-09-19 (user):** a tap's `held` gets NO
+  mark of its own on the highway. It is stated in 3D only as a member of a span it FITS INTO —
+  the bracket's posture — and never founds a span to get one. This is the same rule as a
+  pull-off's plant: a stop that sounds nothing rides a grip and never founds one. So there is no
+  3D mark to build; what remains is making the derivation obey the rule (today a claim counts
+  toward founding at `chart_shapes.cpp`'s `own += slot.claims.size()`), which rides the
+  pull-off span fix in Phase 2.
+- **D5 — Which listed defects block. RULED 2026-09-19 (user): all of them.** #271 (open-string
+  ring, fixed the same day), undo-not-resyncing the tone and the section-insert position make
+  authored material play or land wrongly; #267, #268 and #274 are display defects on supported
+  techniques and all three are fixed before release — none is ruled tolerable.
 - **D6 — Forced chord naming** with a name-suggestion algorithm
-  (`chart-span-and-selection-model.md` §3). Recommendation: out; validation flags an unnamed chord.
-- **D7 — Minimum-sustain-distance override.** Recommendation: ship the safe default, leave the
-  override design deferred, and revisit on the first real chart that needs it.
+  (`chart-span-and-selection-model.md` §3). **RULED 2026-09-19 (user):** it belongs to the template
+  and chord-dictionary work (Phase 4, plan 60 Phase 5), and a span WITHOUT a template is acceptable
+  in the first release — which ships with export disabled (D1). **The condition rides export's
+  return:** when export is re-enabled, every span must carry an explicit fingering and a chord
+  name, and export is refused until the chart is CLEAN — fully labeled, fully fingered, and free
+  of validation findings. So the export readiness gate (plan 43 Phase 5) is not a metadata check
+  alone: plan 42's chart findings and the span-completeness check join the same blocker list.
+- **D7 — Minimum-sustain-distance override. RULED 2026-09-19 (user): deferred.** The release ships
+  the default. Tails now draw from the specified note duration, and the current tail display
+  ruleset reads well across every chart sighted, so nothing is asking for an override.
 - **D8 — "Rebase"** is listed in `chart-ruleset.md`'s open verbs without a definition. If it means
   re-timing a chart against an edited tempo map it is Phase 1 work; say which.
 - **D9 — Does the edit position survive multi-select?** (task #272, deliberately reopened.) Shipped
