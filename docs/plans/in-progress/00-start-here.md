@@ -63,7 +63,7 @@ whether minting belongs inside the retone at all.
 `#252` **G0** is now the first releasable editor bar, not the old narrow minimum-editing bar. The
 working plan is [first-releasable-editor.md](first-releasable-editor.md): a new project can be
 created from scratch, and every supported chart fact can be authored, edited, saved, reopened and
-played back. It is the ONE document that orders work; it names what already ships, the six decision
+played back. It is the ONE document that orders work; it names what already ships, the five decision
 gates on the path, seven phases with exits, nine open decisions (D1–D9) waiting on the user, and
 what is out of scope. **Its next action is the user's pass over D1–D9**, then the ungated builds:
 the non-modal notice channel, plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo.

@@ -57,7 +57,6 @@ phase it blocks cannot start without it.
 |---|---|---|
 | **G41-TS** — content policy for a beats-per-measure edit | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Phase 1 (time signatures) |
 | **G43-METADATA** — 43-Q1..Q6 | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Phase 1 (song information) |
-| **Plan 43's dependency on plan 10** | 43 Phase 0 exit waits on plan 10 Phases 0 and 2 (the format migration ladder) | Phase 1 — see Decisions, D1 |
 | **The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G** | `technique-review-walkthrough.md` W9, `highway-note-art-state.md` Open decisions | Phase 3 |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 (Phase 0 of plan 60 is ungated) |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
@@ -219,11 +218,13 @@ Exit: a full song can be charted and revised without repeated one-object reconst
 ### 6. Validation and release hardening
 
 - **Plan 42** chart validation report, including degenerate-span flagging.
-- Load / save checks for every authored stream; **old-package refusals checked against scope** —
-  in particular the armed `"accent"` key tripwire in `chart_document.cpp`, whose "re-import" advice
-  is untrue for packages from the external converter, which still emits `"accent"`
-  (`docs/plans/completed/note-emphasis-axis.md` item 7), and the retired `"harmonic"` / `"touch"` /
-  `"slideOut"` tripwires.
+- Load / save checks for every authored stream. **Delete the removed-spelling rows** in
+  `chart_document.cpp` (`"mute"`, `"harmonic"`, `"touch"`, `"accent"`, `"slideOut"` and the rest):
+  they are fail-loudly tripwires, not compatibility, and their own comment says each goes once the
+  packages carrying it are re-imported — so re-import the local corpus and delete them before
+  release rather than shipping them. The external converter still emits `"accent"`
+  (`docs/plans/completed/note-emphasis-axis.md` item 7), so its output must be fixed or retired
+  first, or the row's "re-import" advice is untrue on that path.
 - **The minimum-sustain-distance override** (`chart-span-and-selection-model.md` §10, OPEN). The
   blanket clamp is a restriction a charter meets constantly; rule whether the release ships the safe
   default or the override (D7).
@@ -260,10 +261,15 @@ reopen, or that either surface states wrongly.
 
 Open calls this plan cannot make. Each has a recommendation; none is settled until signed.
 
-- **D1 — Plan 43 waits on plan 10's migration ladder.** The project's standing rule is no legacy or
-  migration code and formats changing in place, which plan 10 Phase 2 contradicts. Recommendation:
-  cut the dependency — plan 43 adds its `song.json` fields in place, and plan 10 stays out of the
-  release. Also decide how much of 43 is in: recommended Phases 1, 2 and 4 (fields, workflow,
+- **D1 — Plan 43 and plan 10's migration ladder. HALF RULED 2026-09-19 (user): no backward
+  compatibility is wanted, so the ladder (plan 10 Phase 2) is not built and plan 43 does not wait on
+  it — 43 adds its `song.json` fields in place. The refusals the readers carry today are not
+  compatibility: the removed-spelling rows in `chart_document.cpp` exist to fail loudly and are
+  deleted once the corpus is re-imported, and the artificial / tapped harmonic refusal is
+  forward-looking, because those forms are planned. Plan 10's other halves (the chart-identity
+  hash, the newer-format rejection, atomic package replace) are game-side or hardening and stay out
+  of this release; plan 10's own text is amended when the user confirms its fate. Still open: how
+  much of 43 is in — recommended Phases 1, 2 and 4 (fields, workflow,
   dialog); the art codec (3) if album art is a supported field; the export gate (5) out.
 - **D2 — Pointer drag-move** (`docs/plans/todo/tab-pointer-drag-editing.md`). The keyboard moves
   everything already. Recommendation: out of the bar; it authors no new fact.
