@@ -76,9 +76,7 @@ namespace
 // OK is always available (it commits that route). It is the one input to ok_enabled that does not
 // come from the settings backend.
 [[nodiscard]] AudioDeviceSettingsViewState toViewState(
-    const common::audio::AudioDeviceSettingsState& state, bool uses_game_audio_settings,
-    InputCalibrationStatus input_calibration_status,
-    std::optional<double> input_calibration_gain_db, bool calibrate_enabled)
+    const common::audio::AudioDeviceSettingsState& state, bool uses_game_audio_settings)
 {
     std::vector<std::string> stereo_pair_labels;
     stereo_pair_labels.reserve(state.stereo_output_pairs.size());
@@ -86,13 +84,6 @@ namespace
     {
         stereo_pair_labels.push_back(pair.label);
     }
-
-    const bool ok_enabled =
-        uses_game_audio_settings ||
-        (state.selected_audio_system_id > 0 &&
-         (state.uses_separate_input_output_devices
-              ? state.selected_input_device_id > 0 && state.selected_output_device_id > 0
-              : state.selected_device_id > 0));
 
     return AudioDeviceSettingsViewState{
         .audio_systems = choicesFromLabels(state.audio_systems),
@@ -114,13 +105,12 @@ namespace
         .selected_buffer_size_id = state.selected_buffer_size_id,
         .control_panel_supported = state.control_panel_supported,
         .staged_device_error = state.staged_device_error,
-        .ok_enabled = ok_enabled,
+        .ok_enabled = uses_game_audio_settings || (state.selected_audio_system_id > 0 &&
+                                                   (state.uses_separate_input_output_devices
+                                                        ? state.selected_input_device_id > 0 &&
+                                                              state.selected_output_device_id > 0
+                                                        : state.selected_device_id > 0)),
         .error_message = state.error_message,
-        .input_calibration_status = input_calibration_status,
-        .input_calibration_gain_db = input_calibration_gain_db,
-        // Calibrating applies the staged route first, so it needs everything OK needs plus a route
-        // calibration can actually run against.
-        .calibrate_enabled = calibrate_enabled && ok_enabled,
     };
 }
 
@@ -128,11 +118,9 @@ namespace
 
 // Subscribes for backend refreshes while the already-started settings edit is alive.
 AudioDeviceSettingsController::AudioDeviceSettingsController(
-    common::audio::IAudioDeviceSettings& settings, AudioDeviceSettingsDispatcher dispatcher,
-    InputCalibrationRequestedCallback on_calibration_requested)
+    common::audio::IAudioDeviceSettings& settings, AudioDeviceSettingsDispatcher dispatcher)
     : m_settings(settings)
     , m_dispatcher(std::move(dispatcher))
-    , m_on_calibration_requested(std::move(on_calibration_requested))
     , m_settings_listener(settings, *this)
 {}
 
@@ -228,57 +216,22 @@ void AudioDeviceSettingsController::onOkRequested()
         return;
     }
 
-    runFinishingOperation(finishingOperation());
-}
-
-// OK's own finishing operation, plus the calibration request the press stands for. A failed apply
-// reports exactly as OK's does and the window stays with nothing requested.
-void AudioDeviceSettingsController::onCalibrateInputRequested()
-{
-    if (!m_last_state.calibrate_enabled)
+    // While the game source is active the live toggle already opened the desired device and nothing
+    // was staged here, so OK commits that route (keeping it, not restoring the captured previous
+    // one). Commit blocks the message thread the same way apply and cancel do, so both arms run
+    // behind the same fence.
+    if (m_uses_game_audio_settings)
     {
-        updateView();
+        runFinishingOperation([this] { return m_settings.commit(); });
         return;
     }
 
-    runFinishingOperation(finishingOperation(), true);
-}
-
-// While the game source is active the live toggle already opened the desired device and nothing was
-// staged here, so the window commits that route (keeping it, not restoring the captured previous
-// one). Commit blocks the message thread the same way apply and cancel do, so both arms run behind
-// the same fence.
-std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()>
-AudioDeviceSettingsController::finishingOperation()
-{
-    if (m_uses_game_audio_settings)
-    {
-        return [this] { return m_settings.commit(); };
-    }
-
-    return [this] { return m_settings.apply(); };
+    runFinishingOperation([this] { return m_settings.apply(); });
 }
 
 void AudioDeviceSettingsController::onUseGameAudioSettingsChanged(bool enabled)
 {
     m_uses_game_audio_settings = enabled;
-    updateView();
-}
-
-// Equality-gated: the editor re-derives its view state on every caret step, so an unchanged push
-// must not re-render the window.
-void AudioDeviceSettingsController::onInputCalibrationChanged(
-    InputCalibrationStatus status, std::optional<double> gain_db, bool calibrate_enabled)
-{
-    if (m_input_calibration_status == status && m_input_calibration_gain_db == gain_db &&
-        m_calibrate_enabled == calibrate_enabled)
-    {
-        return;
-    }
-
-    m_input_calibration_status = status;
-    m_input_calibration_gain_db = gain_db;
-    m_calibrate_enabled = calibrate_enabled;
     updateView();
 }
 
@@ -295,8 +248,7 @@ void AudioDeviceSettingsController::onCancelRequested()
 // via finishAndClose(). This is what gives every finishing intent the same dismiss-immediately,
 // busy-overlay-painted feel.
 void AudioDeviceSettingsController::runFinishingOperation(
-    std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation,
-    bool calibration_requested)
+    std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation)
 {
     if (m_dispatcher)
     {
@@ -316,7 +268,7 @@ void AudioDeviceSettingsController::runFinishingOperation(
 
                 *succeeded = owned_operation().has_value();
             },
-            [this, alive = std::weak_ptr<bool>{m_alive}, succeeded, calibration_requested]() {
+            [this, alive = std::weak_ptr<bool>{m_alive}, succeeded]() {
                 if (alive.expired())
                 {
                     return;
@@ -325,7 +277,7 @@ void AudioDeviceSettingsController::runFinishingOperation(
                 updateView();
                 if (*succeeded)
                 {
-                    finishAndClose(calibration_requested);
+                    finishAndClose();
                     return;
                 }
                 if (m_view != nullptr)
@@ -343,7 +295,7 @@ void AudioDeviceSettingsController::runFinishingOperation(
         return;
     }
 
-    finishAndClose(calibration_requested);
+    finishAndClose();
 }
 
 // External backend changes re-enter through the shared settings listener surface.
@@ -355,29 +307,17 @@ void AudioDeviceSettingsController::onAudioDeviceSettingsChanged()
 // Pulls the shared state and sends an editor-specific state to the view.
 void AudioDeviceSettingsController::updateView()
 {
-    m_last_state = toViewState(
-        m_settings.state(),
-        m_uses_game_audio_settings,
-        m_input_calibration_status,
-        m_input_calibration_gain_db,
-        m_calibrate_enabled);
+    m_last_state = toViewState(m_settings.state(), m_uses_game_audio_settings);
     if (m_view != nullptr)
     {
         m_view->setState(m_last_state);
     }
 }
 
-// Marks the edit finished before requesting close so destruction does not cancel twice. The
-// calibration request is raised before the close only because the close is terminal here; it
-// records a request the host answers later, so either order would do.
-void AudioDeviceSettingsController::finishAndClose(bool calibration_requested)
+// Marks the edit finished before requesting close so destruction does not cancel twice.
+void AudioDeviceSettingsController::finishAndClose()
 {
     m_finished = true;
-    if (calibration_requested && m_on_calibration_requested)
-    {
-        m_on_calibration_requested();
-    }
-
     if (m_view != nullptr)
     {
         m_view->requestClose();

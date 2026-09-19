@@ -795,17 +795,36 @@ Each re-verified against the code before being written down.
   fake's half; the harness blocker below is untouched, and no test has yet pointed a `tone_results`
   entry at a live `RecordingPluginHost::chain`, which is what the plugin-undo cases would need.
   **Re-measured 2026-09-14** while making the marker plane
-  paused-only: taking the unconditional sync still turned 7 cases / 15 assertions red, mostly in
-  `test_editor_controller_plugins.cpp` (the count is stale — the output-gain cases it included are
-  gone with that control). A blocker the earlier note missed: the plugin tests compose through
+  paused-only: taking the unconditional sync still turns 7 cases / 15 assertions red (5 in
+  `test_editor_controller_plugins.cpp`, `Output gain undo redo restores live rig`, and the section
+  workaround below). A blocker the earlier note missed: the plugin tests compose through
   `audioPorts(transport, audio, audio_devices, plugin_host)`, whose live rig is the SHARED STATIC
   `defaultLiveRig()`, so the per-tone chain cannot simply be pointed at the test's own
   `RecordingPluginHost::chain` — the static outlives each test and the pointer would dangle
   between them. The per-tone-chain work therefore has to move those call sites onto a caller-owned
   `FakeLiveRig` (or give the fake a lifetime-safe indirection) first; it is a harness design change,
-  not a local fix. (The level half of this item is gone: a switch answers with the chain and
-  nothing else now that a tone's level is a gain plugin inside that chain, so there is no canned
-  gain left to disagree with a fader.)
+  not a local fix. The canned answer carries the same lie about the GAIN: for a tone with no
+  `tone_results` entry, `FakeLiveRig::setAudibleTone` answers with `next_load_result.output_gain`
+  rather than the `current_output_gain` its own `setOutputGain` recorded, where the real rig answers
+  with the level stored on that tone's branch. "Section rename leaves the audible tone's published
+  state alone" (`test_editor_controller_sections.cpp`) works around it by tuning the canned gain to
+  match the fader it just moved; a `tone_results` entry per tone now CAN carry the gain, so that
+  workaround can go once the harness blocker above is cleared.
+
+- **A tone's level is kept at float precision.** Re-verified 2026-09-18, after the level moved onto
+  each tone's own branch: the two-readings defect this item used to describe is GONE, because the
+  exact-double `m_branch_output_gains` it compared against no longer exists. `captureActiveRig`,
+  `outputGain()` and the switch result now all read the one stored value,
+  `ToneBranchGainPlugin::outputGain()`, so a save/reload no longer moves the fader relative to the
+  live value. What remains is that the one value is a `juce::CachedValue<float>` mirrored by a
+  `std::atomic<float>` (`tone_branch_gain_plugin.h`), matching `LiveRigGainPlugin`'s own storage and
+  the float the smoother consumes, while the fader and the tone document both carry a double. So a
+  committed fader value reads back rounded (~1e-7 dB at typical magnitudes) and `syncAudibleTone`'s
+  exact `<=>` comparison can see that difference and re-publish the rounded value once. Inaudible,
+  and no longer a disagreement between two stores; an exact dB comparison across the boundary is
+  still never safe. Fix, if it is ever worth one, by storing the level as a double on the branch.
+  Phase 2 of docs/plans/todo/gain-block-and-signal-chain-panel.md would retire it by deleting that
+  store, but that plan is parked as of 2026-09-18, so the item stands.
 
 ## Found while planning Phase 4 of the focus rows (2026-09-14)
 
@@ -1127,20 +1146,3 @@ written down.
   states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
   such sources), which is also why it was left out of the ruling's own change rather than folded in
   unmeasured.
-
-## Found while moving calibration into the audio-device settings window (2026-09-18)
-
-- **The settings window's error label spells its own colour.** `m_error_label` sets
-  `juce::Label::textColourId` to `juce::Colours::lightsalmon` directly
-  (`rock-hero-editor/ui/src/audio_device/audio_device_settings_view.cpp`, `configureControls`),
-  which is the one colour in that view outside `EditorTheme`. Pre-existing, untouched by the
-  calibration move; the new status line beside it takes `muted_text` / `primary_text` from the theme
-  as everything else does. Fold it into the theme (an `error_text` role) when that file is next
-  opened.
-
-- **`SignalChainViewState::input_calibration_status` has no reader in the panel.** The panel renders
-  `disabled_message`, which the projection already derives from that status, so the status field
-  itself is read only by the audio-device settings push and by core tests. It is the natural home
-  for the calibration facts the editor publishes (its gain sibling was added beside it for the
-  settings window), but the struct is named for the panel. Either rename the group or move the three
-  calibration fields to `EditorViewState` when that state is next restructured.

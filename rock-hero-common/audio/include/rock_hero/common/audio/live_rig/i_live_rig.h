@@ -71,6 +71,9 @@ struct [[nodiscard]] LiveRigSnapshot
 {
     /*! \brief Captured audible chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
+
+    /*! \brief The audible tone's captured authored level. */
+    Gain output_gain{};
 };
 
 /*! \brief Progress reported while restoring plugins into the live rig. */
@@ -176,6 +179,9 @@ struct [[nodiscard]] LiveRigLoadResult
     /*! \brief The audible tone's restored chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
 
+    /*! \brief The audible tone's restored authored level. */
+    Gain output_gain{};
+
     /*!
     \brief Plugin identities for every loaded tone, in load order.
 
@@ -200,9 +206,9 @@ using LiveRigLoadResultCallback =
 /*!
 \brief Message-thread request to export the audible tone's rig to a standalone tone file.
 
-The exported file carries the rig only: plugin chain and full plugin state. It never carries
-automation, catalog identity, or durable plugin ids — the tone-file container normalizes those
-away on write regardless of the live chain's state.
+The exported file carries the rig only: plugin chain, full plugin state, and output gain. It
+never carries automation, catalog identity, or durable plugin ids — the tone-file container
+normalizes those away on write regardless of the live chain's state.
 */
 struct [[nodiscard]] ToneFileExportRequest
 {
@@ -239,6 +245,9 @@ struct [[nodiscard]] AudibleToneState
 {
     /*! \brief Full per-plugin state mementos in chain order, instance ids preserved. */
     std::vector<PluginInstanceState> plugin_states;
+
+    /*! \brief The tone's authored level, carried on its own branch alongside the chain. */
+    Gain output_gain{};
 };
 
 /*! \brief Message-thread request to replace the audible tone's chain from a tone file. */
@@ -287,11 +296,11 @@ public:
     /*!
     \brief Writes a fresh empty tone document into the song workspace.
 
-    Creates a tone whose chain is empty and returns its package-relative reference. The tone is not
-    loaded into the rig by this call: the caller stores the reference on the arrangement and reloads
-    the rig (loadLiveRig) to give the tone its own branch. Minting eagerly (before the reference is
-    stored) is required because loadLiveRig fails on a reference whose document file does not yet
-    exist.
+    Creates a tone whose chain is empty and whose output gain is unity, and returns its
+    package-relative reference. The tone is not loaded into the rig by this call: the caller stores
+    the reference on the arrangement and reloads the rig (loadLiveRig) to give the tone its own
+    branch. Minting eagerly (before the reference is stored) is required because loadLiveRig fails
+    on a reference whose document file does not yet exist.
 
     \param song_directory Native song workspace directory that owns package-relative tone files.
     \return The new tone's package-relative document reference, or a typed failure.
@@ -347,8 +356,8 @@ public:
     schedule it moves them as well. Either way the answer is the caller's cue to rebind the panel.
 
     \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
-    \return The now-audible tone's chain for panel rebinding, or a typed failure when the tone is
-            not loaded.
+    \return The now-audible tone's chain and output gain for panel rebinding, or a typed failure
+            when the tone is not loaded.
     */
     [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> setAudibleTone(
         const std::string& tone_document_ref) = 0;
@@ -413,6 +422,25 @@ public:
         const AudibleToneState& state) = 0;
 
     /*!
+    \brief Reads the audible tone's authored output level.
+    \return The audible tone's level, or the default when no tone is loaded.
+    */
+    [[nodiscard]] virtual Gain outputGain() const = 0;
+
+    /*!
+    \brief Sets the audible tone's authored output level.
+
+    A per-tone value, stored on the tone's own gain block at the end of its branch and persisted in
+    its tone document, so the tone carries its level through every later switch — including one the
+    audio thread makes from a baked schedule, which no message-thread write could follow in time.
+    Contrast setMonitorGain, which scales whatever tone is audible.
+
+    \param gain Desired level for the audible tone; clamped to the accepted range.
+    \return Empty success, or a typed failure when no tone is loaded.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setOutputGain(Gain gain) = 0;
+
+    /*!
     \brief Reads the monitor level applied after the whole rig.
     \return Current monitor level, or the default when no rig stage exists.
     */
@@ -423,8 +451,7 @@ public:
 
     How loud the player hears their own guitar, whichever tone is audible. It belongs to the
     listener rather than to any tone, so no tone document carries it and loading a rig never
-    changes it. Defaults to unity. A tone's own level is a gain plugin inside its chain, not a
-    control on this port.
+    changes it. Defaults to unity.
 
     \param gain Desired monitor level; clamped to the accepted range.
     \return Empty success, or a typed failure.

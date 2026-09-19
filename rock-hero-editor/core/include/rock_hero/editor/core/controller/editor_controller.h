@@ -694,6 +694,18 @@ public:
     void onInputCalibrationDismissed() override;
 
     /*!
+    \brief Handles a preview-only output gain change while the user is dragging the slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    void onOutputGainPreviewChanged(double gain_db) override;
+
+    /*!
+    \brief Handles a committed change to the output gain slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    void onOutputGainChanged(double gain_db) override;
+
+    /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
     \param change_audio_device Callable run after the busy overlay paints.
     \param after_busy_cleared Callable run after the busy overlay clears.
@@ -710,9 +722,6 @@ public:
 
     /*! \brief Handles the audio-device settings window closing. */
     void onAudioDeviceSettingsClosed() override;
-
-    /*! \brief Records the settings window's request to calibrate the input. */
-    void onAudioDeviceSettingsCalibrationRequested() override;
 
     /*! \brief Handles the audio-device settings window's asynchronous teardown completing. */
     void onAudioDeviceSettingsTeardownComplete() override;

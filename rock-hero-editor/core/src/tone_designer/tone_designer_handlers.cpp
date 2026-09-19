@@ -77,6 +77,8 @@ void EditorController::Impl::enterToneDesignerIfNoProject(std::string_view conte
 
                 m_signal_chain.replaceSnapshot(
                     common::audio::PluginChainSnapshot{.plugins = result->plugins});
+                m_output_gain_db = result->output_gain.db;
+                m_output_gain_preview_before.reset();
             }));
     static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
     updateView();
@@ -157,6 +159,8 @@ void EditorController::Impl::finishToneDesignerReplace(
     std::string operation_label, const common::audio::LiveRigLoadResult& result)
 {
     m_signal_chain.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = result.plugins});
+    m_output_gain_db = result.output_gain.db;
+    m_output_gain_preview_before.reset();
     m_tone_designer.document_path = std::move(opened_file);
 
     auto after = captureToneDesignerSnapshot(true);
@@ -671,6 +675,8 @@ void EditorController::Impl::finishToneImport(
     }
 
     m_signal_chain.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = result.plugins});
+    m_output_gain_db = result.output_gain.db;
+    m_output_gain_preview_before.reset();
 
     auto after_state = m_live_rig.captureAudibleToneState();
     if (!after_state.has_value())

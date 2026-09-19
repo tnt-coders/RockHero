@@ -207,14 +207,13 @@ linkNext identity-fragmentation is rejected for the same reason.
 # Tone document — `tones/<uuid>/tone.json`
 
 Owned by `common/audio` (`tone_document.cpp`); core treats it as opaque. Gate: `formatVersion`
-must be `1`. A tone IS its chain plus its plugin state and nothing else — a tone's level is a gain
-plugin inside that chain, so the document carries no level of its own. The `.tone` file below is
-the same document shape in an archive, so this holds for both.
+must be `1`.
 
 | key | type | req | meaning (default) |
 |---|---|---|---|
 | `slots` | array ≥1 | req | **Only `slots[0]` is read.** |
 | `slots[0].chain[]` | array | req | Ordered plugin records; capped at the signal-chain maximum. |
+| `slots[0].outputGainDb` | number | opt | Clamped on read (default gain). |
 | `chain[].id` | string | req | Plugin record id. |
 | `chain[].tracktionState` | string | req | Canonical sidecar ref under `state/`; must exist. |
 | `chain[].blockIndex` | int | opt | Editor-owned visual block (`0`); opaque to audio. |

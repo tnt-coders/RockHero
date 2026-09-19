@@ -239,21 +239,25 @@ TEST_CASE(
 {
     LoadedToneEditor editor{makeTwoRegionSong()};
 
-    // Give the second tone its own chain, which is what makes the rebinding visible: the panel
-    // must end up bound to the tone the playhead crossed INTO.
+    // Give the second tone its own chain AND its own authored level, which is what makes the
+    // rebinding visible: the panel and the fader must end up naming the tone the playhead crossed
+    // INTO. The level is the tone's own, carried on its branch, so the crossing reveals it rather
+    // than moving it.
     editor.live_rig.tone_results[g_second_tone_ref] = common::audio::LiveRigLoadResult{
-        .plugins = {
-            common::audio::PluginChainEntry{
-                .instance_id = "dirty-instance",
-                .plugin_id = "dirty-plugin",
-                .name = "Dirty Amp",
-                .manufacturer = "Example Audio",
-                .format_name = "VST3",
-                .category = {},
-                .chain_index = 0,
-                .display_type_override = {},
+        .plugins =
+            {
+                common::audio::PluginChainEntry{
+                    .instance_id = "dirty-instance",
+                    .plugin_id = "dirty-plugin",
+                    .name = "Dirty Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .category = {},
+                    .chain_index = 0,
+                    .display_type_override = {},
+                },
             },
-        },
+        .output_gain = common::audio::Gain{-7.5},
     };
 
     // Park the transport inside the first region through the seek entry: that is what records the
@@ -289,6 +293,7 @@ TEST_CASE(
     REQUIRE(crossed_state != nullptr);
     REQUIRE(crossed_state->signal_chain.plugins.size() == 1);
     CHECK(crossed_state->signal_chain.plugins[0].name == "Dirty Amp");
+    CHECK_THAT(crossed_state->signal_chain.output_gain.db, Catch::Matchers::WithinULP(-7.5, 0));
 
     // The next frame finds the same region under the playhead, so the debounce holds: no second
     // push for a crossing that already happened.
@@ -297,15 +302,13 @@ TEST_CASE(
     CHECK(editor.view.set_state_call_count == pushes_after);
 
     // The handback at the end of playback re-derives against the same region, so it lands on the
-    // tone the crossing already reached rather than moving the rig a second time, and the panel
-    // keeps the chain the crossing bound it to. The switch carries no level field to follow: a
-    // tone's level is a gain plugin inside that chain.
+    // tone the crossing already reached rather than moving the rig a second time — and the fader
+    // keeps the level it took at the crossing, which is the crossed-into tone's own.
     editor.reportPlaybackEnded();
     CHECK(editor.live_rig.last_audible_tone_ref == g_second_tone_ref);
     const EditorViewState* const stopped_state = stateOrNull(editor.view.last_state);
     REQUIRE(stopped_state != nullptr);
-    REQUIRE(stopped_state->signal_chain.plugins.size() == 1);
-    CHECK(stopped_state->signal_chain.plugins[0].name == "Dirty Amp");
+    CHECK_THAT(stopped_state->signal_chain.output_gain.db, Catch::Matchers::WithinULP(-7.5, 0));
 }
 
 // The boundary crossing is the frame handler's ONLY input, because a playing transport admits no

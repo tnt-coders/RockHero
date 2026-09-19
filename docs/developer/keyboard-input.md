@@ -138,9 +138,8 @@ lane redraws in the actual form) and the `F6` toggle that had let the two candid
 between is gone with the losing one. The 3D preview once had its own `F1` rig for the same datum
 and that is gone too, so `Alt` is the whole of this idiom on either surface.
 
-`Alt`+letter chords now exist: `Alt+F`, `Alt+E`, `Alt+V` open the menu-bar menus (the
-platform's access-key convention, implemented by the app because JUCE's menu bar has no mnemonic
-handling).
+`Alt`+letter chords now exist: `Alt+F`, `Alt+E`, `Alt+V` open the menu-bar menus (the platform's
+access-key convention, implemented by the app because JUCE's menu bar has no mnemonic handling).
 Pressing one flashes the reveal for the chord's duration, the same way `Alt`+digit and `Alt`+arrows
 always have. The held-Alt poll feeds both hints from one sample: `EditorView::syncAltHeldState`
 pushes the same boolean to `TabView::setActualRingReveal` and to

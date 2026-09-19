@@ -1014,6 +1014,18 @@ public:
     virtual void onInputCalibrationDismissed() = 0;
 
     /*!
+    \brief Handles a preview-only output gain change while the user is dragging the slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+
+    /*!
+    \brief Handles a committed change to the output gain slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    virtual void onOutputGainChanged(double gain_db) = 0;
+
+    /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
 
     The supplied work callable runs after the busy overlay paints, so the user sees a static
@@ -1041,19 +1053,6 @@ public:
     virtual void onAudioDeviceSettingsClosed() = 0;
 
     /*!
-    \brief Records that the audio-device settings window asked for input calibration.
-
-    The window's Calibrate Input button raises this; it does not open calibration, because the
-    shared workflow refuses a calibration prompt while audio-device settings are open. The request
-    is one-shot and is answered from the single seam that opens calibration after that window,
-    onAudioDeviceSettingsTeardownComplete(), so a press and an uncalibrated route reaching the same
-    close cannot open the prompt twice. It may arrive before or after
-    onAudioDeviceSettingsClosed(); a request that never reaches teardown is dropped when the window
-    next opens.
-    */
-    virtual void onAudioDeviceSettingsCalibrationRequested() = 0;
-
-    /*!
     \brief Handles the audio-device settings window's asynchronous teardown completing.
 
     Called by the view after the window object is destroyed, when any staged-edit rollback
@@ -1061,7 +1060,7 @@ public:
     the first trustworthy moment to evaluate whether the editor ended up without an open audio
     device; evaluating at onAudioDeviceSettingsClosed() would see the staged edit's transiently
     closed device and flash a spurious failure prompt over a route that reopens one message hop
-    later. For the same reason it is the one seam that opens input calibration after that window.
+    later.
     */
     virtual void onAudioDeviceSettingsTeardownComplete() = 0;
 

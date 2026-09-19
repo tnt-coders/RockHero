@@ -1,11 +1,9 @@
 #include "audio_device_settings_view.h"
 
-#include "shared/editor_theme.h"
 #include "shared/themed_message_box.h"
 
 #include <algorithm>
 #include <expected>
-#include <optional>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -22,11 +20,7 @@ constexpr int g_row_gap{8};
 constexpr int g_button_width{96};
 constexpr int g_utility_button_width{116};
 constexpr int g_error_height{32};
-
-// Audio system, device, input channel, output pair, sample rate, buffer size -- plus the
-// control-free input-calibration status line, which takes a form row of its own so the window's
-// height comes from one row model.
-constexpr int g_min_control_rows{7};
+constexpr int g_min_control_rows{6};
 constexpr int g_max_window_width{1000};
 constexpr int g_max_window_height{760};
 constexpr int g_toggle_row_height{26};
@@ -79,50 +73,6 @@ void populateChoiceCombo(
     combo.setSelectedId(selected_id, juce::dontSendNotification);
 }
 
-// Names the selected input route's calibration on the window's status line, from the same status
-// the signal-chain panel's message is derived from. The two uncalibrated cases say what happens
-// next, because this window is where calibration is reached; a calibrated route is settled fact and
-// just reports its gain.
-[[nodiscard]] juce::String inputCalibrationStatusText(
-    core::InputCalibrationStatus status, std::optional<double> gain_db)
-{
-    switch (status)
-    {
-        case core::InputCalibrationStatus::MissingCalibration:
-        {
-            return "Not calibrated - calibration opens when you close this window";
-        }
-        case core::InputCalibrationStatus::CalibrationRouteMismatch:
-        {
-            return "Not calibrated for this device - calibration opens when you close this window";
-        }
-        case core::InputCalibrationStatus::Calibrated:
-        {
-            // Calibrated always carries its gain; the fallback keeps the line honest rather than
-            // printing a number the route does not have.
-            return gain_db.has_value()
-                       ? juce::String{"Input calibration: "} + juce::String{*gain_db, 1} + " dB"
-                       : juce::String{"Calibrated"};
-        }
-        case core::InputCalibrationStatus::NoActiveInputDevice:
-        case core::InputCalibrationStatus::Unavailable:
-        {
-            break;
-        }
-    }
-
-    return "Unavailable";
-}
-
-// The part of a form row that belongs to its control: what is left after the label and its gap.
-// The one answer, so anything aligned to the control column lands where the controls do.
-[[nodiscard]] juce::Rectangle<int> controlColumn(juce::Rectangle<int> row) noexcept
-{
-    row.removeFromLeft(std::min(g_label_width, row.getWidth()));
-    row.removeFromLeft(std::min(g_row_gap, row.getWidth()));
-    return row;
-}
-
 // Lays out one label/control row when that row is visible for the current audio system.
 void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int>& area) noexcept
 {
@@ -131,9 +81,10 @@ void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int
         return;
     }
 
-    const auto row = area.removeFromTop(g_row_height);
-    label.setBounds(row.withWidth(std::min(g_label_width, row.getWidth())));
-    control.setBounds(controlColumn(row));
+    auto row = area.removeFromTop(g_row_height);
+    label.setBounds(row.removeFromLeft(std::min(g_label_width, row.getWidth())));
+    row.removeFromLeft(std::min(g_row_gap, row.getWidth()));
+    control.setBounds(row);
     area.removeFromTop(std::min(g_row_gap, area.getHeight()));
 }
 
@@ -321,18 +272,11 @@ void AudioDeviceSettingsView::resized()
     {
         m_control_panel_button.setBounds(
             button_row.removeFromLeft(std::min(g_utility_button_width, button_row.getWidth())));
-        button_row.removeFromLeft(std::min(g_row_gap, button_row.getWidth()));
     }
     else
     {
         m_control_panel_button.setBounds({});
     }
-
-    // The hand-off into calibration joins the bottom-left utility cluster: it acts on the route,
-    // like the driver's own control panel, rather than settling the dialog like OK and Cancel.
-    const int calibrate_width = m_calibrate_button.getBestWidthForHeight(g_row_height);
-    m_calibrate_button.setBounds(
-        button_row.removeFromLeft(std::min(calibrate_width, button_row.getWidth())));
 
     area.removeFromBottom(std::min(g_row_gap, area.getHeight()));
     m_error_label.setBounds(area.removeFromBottom(std::min(g_error_height, area.getHeight())));
@@ -353,13 +297,6 @@ void AudioDeviceSettingsView::resized()
     layoutRow(m_input_device_label, m_input_device_combo, area);
     layoutRow(m_output_pair_label, m_output_pair_combo, area);
     layoutRow(m_input_channel_label, m_input_channel_combo, area);
-
-    // The status line sits directly under the input row it describes, on that row's own control
-    // column, so it reads as belonging to that field rather than as a caption of its own.
-    m_input_calibration_label.setBounds(
-        controlColumn(area.removeFromTop(std::min(g_row_height, area.getHeight()))));
-    area.removeFromTop(std::min(g_row_gap, area.getHeight()));
-
     layoutRow(m_sample_rate_label, m_sample_rate_combo, area);
     layoutRow(m_buffer_size_label, m_buffer_size_combo, area);
 }
@@ -432,10 +369,6 @@ void AudioDeviceSettingsView::configureControls()
     m_output_pair_combo.setComponentID("audio_settings_output_pair");
     m_sample_rate_combo.setComponentID("audio_settings_sample_rate");
     m_buffer_size_combo.setComponentID("audio_settings_buffer_size");
-    m_input_calibration_label.setComponentID("audio_settings_input_calibration");
-    // Presentation only: the status line carries no control, so clicks fall through to the panel.
-    m_input_calibration_label.setInterceptsMouseClicks(false, false);
-    m_calibrate_button.setComponentID("audio_settings_calibrate_button");
     m_error_label.setComponentID("audio_settings_error");
     // Backend detail can make the unavailable notice long; truncate with an ellipsis rather than
     // letting the label compress the glyphs to fit.
@@ -447,7 +380,6 @@ void AudioDeviceSettingsView::configureControls()
     m_error_label.setColour(juce::Label::textColourId, juce::Colours::lightsalmon);
     m_error_label.setJustificationType(juce::Justification::centredLeft);
     m_control_panel_button.setButtonText("Control Panel");
-    m_calibrate_button.setButtonText("Calibrate Input...");
     m_ok_button.setButtonText("OK");
     m_cancel_button.setButtonText("Cancel");
 
@@ -478,7 +410,6 @@ void AudioDeviceSettingsView::configureControls()
         m_controller.onBufferSizeSelected(m_buffer_size_combo.getSelectedId());
     };
     m_control_panel_button.onClick = [this] { m_controller.onControlPanelRequested(); };
-    m_calibrate_button.onClick = [this] { m_controller.onCalibrateInputRequested(); };
     m_ok_button.onClick = [this] { m_controller.onOkRequested(); };
     m_cancel_button.onClick = [this] {
         // Restore the editor-side toggle first (source, persistence, checkbox, and original-device
@@ -506,10 +437,8 @@ void AudioDeviceSettingsView::configureControls()
     addAndMakeVisible(m_sample_rate_combo);
     addAndMakeVisible(m_buffer_size_label);
     addAndMakeVisible(m_buffer_size_combo);
-    addAndMakeVisible(m_input_calibration_label);
     addAndMakeVisible(m_error_label);
     addAndMakeVisible(m_control_panel_button);
-    addAndMakeVisible(m_calibrate_button);
     addAndMakeVisible(m_ok_button);
     addAndMakeVisible(m_cancel_button);
 }
@@ -594,22 +523,6 @@ void AudioDeviceSettingsView::applyStateToControls()
     // The controller owns OK's availability, including the game-source case where the locked fields
     // stage nothing and OK commits the already-open route; the view only adds the apply fence.
     m_ok_button.setEnabled(!m_applying && m_state.ok_enabled);
-
-    // The status line names the selected route's calibration. A calibrated route is settled fact
-    // and reads quietly; the three unfinished states read at full strength because each one is
-    // something the user still has to do.
-    const bool calibrated =
-        m_state.input_calibration_status == core::InputCalibrationStatus::Calibrated;
-    m_input_calibration_label.setText(
-        inputCalibrationStatusText(
-            m_state.input_calibration_status, m_state.input_calibration_gain_db),
-        juce::dontSendNotification);
-    m_input_calibration_label.setColour(
-        juce::Label::textColourId,
-        calibrated ? editorTheme().muted_text : editorTheme().primary_text);
-    // Calibrating applies the staged route first, so it rides the same fence OK does on top of the
-    // controller's own availability answer.
-    m_calibrate_button.setEnabled(!m_applying && m_state.calibrate_enabled);
     // Cancel closes the window in either source mode, so it follows only the apply fence, not the
     // read-only game lock. The toggle stays usable while locked so the user can always uncheck it
     // to switch back to the editor's own audio. With no game configuration at all (NotConfigured,

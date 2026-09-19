@@ -5,9 +5,6 @@
 
 #pragma once
 
-#include <optional>
-#include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
-
 namespace rock_hero::editor::core
 {
 
@@ -71,31 +68,6 @@ public:
 
     /*! \brief Handles an OK button press. */
     virtual void onOkRequested() = 0;
-
-    /*!
-    \brief Handles a Calibrate Input button press.
-
-    The staged route is applied through OK's own path and the window closes; the press itself only
-    raises a calibration request, which the host answers from its own seam once this window has torn
-    down, because the shared workflow refuses a calibration prompt while audio-device settings are
-    open. The request and the close are independent, so their order carries no meaning. A failed
-    apply reports exactly as OK's does, and the window stays with nothing requested.
-    */
-    virtual void onCalibrateInputRequested() = 0;
-
-    /*!
-    \brief Handles the editor's current input-route calibration facts.
-
-    Calibration is app-local state keyed to the physical route, which the settings backend knows
-    nothing about, so the editor controller pushes it in on every state derivation. That cadence is
-    what keeps the status line live while the user stages a different input device.
-
-    \param status Calibration status of the selected input route.
-    \param gain_db Gain of the calibration held for that route, absent when none is held.
-    \param calibrate_enabled True when calibration may run for that route.
-    */
-    virtual void onInputCalibrationChanged(
-        InputCalibrationStatus status, std::optional<double> gain_db, bool calibrate_enabled) = 0;
 
     /*!
     \brief Handles the resolved "use game audio settings" toggle value.

@@ -914,6 +914,26 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
+    // Returns the current output gain stored by setOutputGain or the default.
+    [[nodiscard]] common::audio::Gain outputGain() const override
+    {
+        return current_output_gain;
+    }
+
+    // Records the output gain and returns success.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
+        common::audio::Gain gain) override
+    {
+        if (next_set_output_gain_error.has_value())
+        {
+            return std::unexpected{*next_set_output_gain_error};
+        }
+
+        current_output_gain = common::audio::clampGain(gain);
+        set_output_gain_call_count += 1;
+        return {};
+    }
+
     // Returns the current monitor gain stored by setMonitorGain or the default.
     [[nodiscard]] common::audio::Gain monitorGain() const override
     {
@@ -985,34 +1005,38 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Snapshot returned by the next successful capture.
     common::audio::LiveRigSnapshot next_capture_snapshot{
-        .plugins = {
-            common::audio::PluginChainEntry{
-                .instance_id = "captured-instance",
-                .plugin_id = "captured-plugin",
-                .name = "Captured Amp",
-                .manufacturer = "Example Audio",
-                .format_name = "VST3",
-                .category = {},
-                .chain_index = 0,
-                .display_type_override = {},
+        .plugins =
+            {
+                common::audio::PluginChainEntry{
+                    .instance_id = "captured-instance",
+                    .plugin_id = "captured-plugin",
+                    .name = "Captured Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .category = {},
+                    .chain_index = 0,
+                    .display_type_override = {},
+                },
             },
-        },
+        .output_gain = common::audio::Gain{},
     };
 
     // Result returned by the next successful load.
     common::audio::LiveRigLoadResult next_load_result{
-        .plugins = {
-            common::audio::PluginChainEntry{
-                .instance_id = "loaded-instance",
-                .plugin_id = "loaded-plugin",
-                .name = "Loaded Amp",
-                .manufacturer = "Example Audio",
-                .format_name = "VST3",
-                .category = {},
-                .chain_index = 0,
-                .display_type_override = {},
+        .plugins =
+            {
+                common::audio::PluginChainEntry{
+                    .instance_id = "loaded-instance",
+                    .plugin_id = "loaded-plugin",
+                    .name = "Loaded Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .category = {},
+                    .chain_index = 0,
+                    .display_type_override = {},
+                },
             },
-        },
+        .output_gain = common::audio::Gain{},
     };
 
     // Optional capture error returned instead of the configured snapshot.
@@ -1023,6 +1047,9 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Optional clear error returned instead of success.
     std::optional<common::audio::LiveRigError> next_clear_error{};
+
+    // Optional output-gain error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_set_output_gain_error{};
 
     // Optional audible-tone error returned instead of success.
     std::optional<common::audio::LiveRigError> next_set_audible_tone_error{};
@@ -1110,6 +1137,12 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Number of clear calls received.
     int clear_call_count{0};
+
+    // Current output gain value stored by setOutputGain.
+    common::audio::Gain current_output_gain{};
+
+    // Number of setOutputGain calls received.
+    int set_output_gain_call_count{0};
 
     // Current monitor gain value stored by setMonitorGain; the editor never writes it.
     common::audio::Gain current_monitor_gain{};

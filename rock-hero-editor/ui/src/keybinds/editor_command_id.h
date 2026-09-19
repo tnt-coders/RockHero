@@ -20,9 +20,9 @@ plan 53 Phase 1b):
 
 - New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
   blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx
-  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks are
-  historical hints only — the registry row owns the display category (CancelDismiss, 0x1708, lists
-  under Selection).
+  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks
+  are historical hints only — the registry row owns the display category (CancelDismiss,
+  0x1708, lists under Selection).
 - One command per (chord, verb) pair: precision/reach tiers (`Ctrl` variants) are separate
   commands, so every binding is individually rebindable. The interaction grammar's modifier
   algebra survives as the *shape of the default map*, not as an enforced restriction.

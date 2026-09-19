@@ -13,6 +13,7 @@
 #include <optional>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <tracktion_engine/tracktion_engine.h>
 #include <vector>
@@ -63,6 +64,9 @@ struct ToneDocument
 {
     /*! \brief Persisted plugin chain in playback order. */
     std::vector<PluginRecord> chain;
+
+    /*! \brief Persisted fixed output gain applied after the external chain. */
+    Gain output_gain;
 };
 
 /*!

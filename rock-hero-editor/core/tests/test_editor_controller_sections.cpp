@@ -163,6 +163,13 @@ struct LoadedSectionEditor
         return state != nullptr ? state->signal_chain.plugins : std::vector<PluginViewState>{};
     }
 
+    // The published output fader value, which a preview moves ahead of any committed value.
+    [[nodiscard]] double publishedOutputGainDb() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        return state != nullptr ? state->signal_chain.output_gain.db : 0.0;
+    }
+
     // True while the published state offers an undo, which is how a refusal proves it pushed
     // nothing rather than pushing an entry that happens to restore the same list.
     [[nodiscard]] bool undoAvailable() const
@@ -440,10 +447,12 @@ TEST_CASE("Section rename refuses an empty name", "[core][sections]")
 }
 
 // The audible tone is derived from the selection, the cursor and the tone model, so a verb that
-// moves none of the three must not republish it. A section rename resolves the same tone and the
-// same chain, so its sync is a no-op — which is what leaves the panel's chain bound as it was. A
-// republish would replace the chain snapshot, re-applying the snapshot's own block placement over
-// any authored one, which SignalChainWorkflow's own suite pins.
+// moves none of the three must not republish it. A section rename resolves the same tone, the same
+// chain and the same gain, so its sync is a no-op — which is what leaves the panel's chain bound as
+// it was and an in-flight fader drag alive. A republish would take both away: it replaces the chain
+// snapshot (re-applying the snapshot's own block placement over any authored one, which
+// SignalChainWorkflow's own suite pins) and it drops the preview's "before" value, the only thing
+// the commit's undo entry can be measured from.
 TEST_CASE("Section rename leaves the audible tone's published state alone", "[core][sections]")
 {
     LoadedSectionEditor editor{
@@ -453,11 +462,26 @@ TEST_CASE("Section rename leaves the audible tone's published state alone", "[co
     const std::vector<PluginViewState> chain_before = editor.publishedPlugins();
     REQUIRE(chain_before.size() == 2);
 
+    // Drag the output fader without releasing. FakeLiveRig answers setAudibleTone with its canned
+    // load result rather than the gain it was just set to (docs/tracking/backlog.md), so the canned
+    // result is made to agree with the fader — which is what the real rig reports back.
+    editor.controller.onOutputGainPreviewChanged(-6.0);
+    editor.live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
+
     editor.controller.onSongSectionSelected(downbeat(2));
     editor.controller.onSongSectionRenameRequested(downbeat(2), "Chorus");
     REQUIRE(editor.sections().front().name == "Chorus");
 
     CHECK(editor.publishedPlugins() == chain_before);
+    CHECK(std::is_eq(editor.publishedOutputGainDb() <=> -6.0));
+
+    // Releasing the fader records the whole drag as one entry from the value it started at, which
+    // is only possible while the preview survived the rename. Undo therefore answers the fader, not
+    // the rename.
+    editor.controller.onOutputGainChanged(-6.0);
+    editor.controller.onUndoRequested();
+    CHECK(std::is_eq(editor.publishedOutputGainDb() <=> 0.0));
+    CHECK(editor.sections().front().name == "Chorus");
 }
 
 // Alt+arrows move the selected section one MEASURE, because a measure is the section's step, and

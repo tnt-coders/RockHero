@@ -11,6 +11,7 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
@@ -218,6 +219,22 @@ struct [[nodiscard]] PluginStateEdit final : IEdit
 
     /*! \brief Display-only label hint for the plugin or state change. */
     std::string label_hint;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores the fixed output-gain plugin value. */
+struct [[nodiscard]] OutputGainEdit final : IEdit
+{
+    /*! \brief Output gain before the edit. */
+    common::audio::Gain before_gain;
+
+    /*! \brief Output gain after the edit. */
+    common::audio::Gain after_gain;
 
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
         EditorEditContext& context) const override;

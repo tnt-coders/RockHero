@@ -14,7 +14,8 @@ is **two-phase application**:
 
 1. `beginUndo()` / `beginRedo()` return a pending transition *without* moving the cursor.
 2. The caller applies the edit's side effects through `EditorEditContext` (a bundle of the
-   session and the ports: signal chain, plugin host, live rig, tone automation, tone designer).
+   session and the ports: signal chain, plugin host, live rig, tone automation, output gain,
+   tone designer).
 3. Only on success does the caller `commit(pending)`; on failure it `abort(pending, code)` and
    the cursor never moved. Pending transitions carry a token, so a stale commit is rejected.
 

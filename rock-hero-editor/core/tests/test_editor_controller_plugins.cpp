@@ -2318,6 +2318,55 @@ TEST_CASE("EditorController routes plugin window undo", "[core][editor-controlle
     CHECK(plugin_host.last_set_state == std::optional{before_state});
 }
 
+// Output gain is tracked separately and preserves earlier placement undo entries behind it.
+TEST_CASE("EditorController keeps placement undo after output gain", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(
+        edited_state->undo_label ==
+        std::optional<std::string>{"Rearrange Plugin Blocks on Default"});
+
+    controller.onOutputGainChanged(-6.0);
+
+    const EditorViewState* gain_state = stateOrNull(view.last_state);
+    REQUIRE(gain_state != nullptr);
+    CHECK(gain_state->undo_label == std::optional<std::string>{"Set Output Gain to -6 dB"});
+    CHECK_FALSE(gain_state->redo_label.has_value());
+
+    controller.onUndoRequested();
+    controller.onUndoRequested();
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
+}
+
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.
 TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 {
@@ -2475,6 +2524,7 @@ TEST_CASE("EditorController faults after rollback violation", "[core][editor-con
     CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
     CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
     CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.output_gain_controls_enabled);
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(
         view.shown_errors.back() ==

@@ -176,8 +176,7 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1000, 500);
 
-    // The height follows the signal-chain panel's minimum, which the meters' tick ladder sets.
-    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 240});
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 252});
     CHECK(track_content.getWidth() - timelineGutterWidth(viewport) == timeline_pixels);
     CHECK(track_content.getHeight() == defaultUsableTrackViewportHeight(viewport));
     CHECK(

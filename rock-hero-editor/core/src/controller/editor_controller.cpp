@@ -1391,6 +1391,16 @@ void EditorController::onInputCalibrationDismissed()
     m_impl->onInputCalibrationDismissed();
 }
 
+void EditorController::onOutputGainPreviewChanged(double gain_db)
+{
+    m_impl->onOutputGainPreviewChanged(gain_db);
+}
+
+void EditorController::onOutputGainChanged(double gain_db)
+{
+    m_impl->onOutputGainChanged(gain_db);
+}
+
 void EditorController::onAudioDeviceChangeRequested(
     std::function<void()> change_audio_device, std::function<void()> after_busy_cleared)
 {
@@ -1406,11 +1416,6 @@ bool EditorController::onAudioDeviceSettingsOpenRequested()
 void EditorController::onAudioDeviceSettingsClosed()
 {
     m_impl->onAudioDeviceSettingsClosed();
-}
-
-void EditorController::onAudioDeviceSettingsCalibrationRequested()
-{
-    m_impl->onAudioDeviceSettingsCalibrationRequested();
 }
 
 void EditorController::onAudioDeviceSettingsTeardownComplete()
@@ -2127,6 +2132,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
         .live_rig = m_live_rig,
         .tone_automation = m_tone_automation,
         .tone_plugin_bindings = m_tone_plugin_bindings,
+        .output_gain_db = m_output_gain_db,
         .tone_designer = m_tone_designer,
     };
 }
@@ -2185,6 +2191,7 @@ void EditorController::Impl::faultSessionAfterRollbackContractViolation(
 // Clears the current undo stack at a project or partial-coverage invalidation boundary.
 void EditorController::Impl::resetUndoHistory(std::string_view context)
 {
+    m_output_gain_preview_before.reset();
     // Every entry the coalescing windows name is gone with the stack.
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
@@ -2671,9 +2678,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
             isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
         .plugins = m_signal_chain.plugins(),
         .input_calibration_status = input_calibration.status,
-        .input_calibration_gain_db = input_calibration.calibration_gain_db,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,
+        .output_gain_controls_enabled =
+            ((m_project_audio_ready && action_conditions.has_loaded_arrangement) ||
+             m_tone_designer.active) &&
+            !action_conditions.session_faulted,
+        .output_gain = common::audio::Gain{m_output_gain_db},
         .tone_import_enabled =
             isActionAvailable(EditorAction::Id::ImportToneFile, action_conditions),
         .tone_export_enabled =

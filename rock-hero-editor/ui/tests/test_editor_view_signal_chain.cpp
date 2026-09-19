@@ -97,6 +97,15 @@ public:
     void onOpenPluginPressed(std::string /*instance_id*/) override
     {}
 
+    void onInputCalibrationPressed() override
+    {}
+
+    void onOutputGainPreviewChanged(double /*gain_db*/) override
+    {}
+
+    void onOutputGainChanged(double /*gain_db*/) override
+    {}
+
     void onNewTonePressed() override
     {
         new_tone_press_count += 1;
@@ -182,6 +191,31 @@ void dropPluginOnTarget(
 
 } // namespace
 
+// Verifies that input calibration and output gain controls exist and are disabled by default.
+TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+
+    CHECK_FALSE(calibrate_button.isEnabled());
+    CHECK_FALSE(output_slider.isEnabled());
+    CHECK(output_slider.isDoubleClickReturnEnabled());
+    CHECK(output_slider.getTextBoxPosition() == juce::Slider::TextBoxBelow);
+    CHECK(output_slider.isTextBoxEditable());
+    CHECK(output_slider.getTextBoxWidth() == 72);
+    CHECK(output_slider.getTextBoxHeight() == 20);
+    CHECK(std::is_eq(output_slider.getMinimum() <=> common::audio::minimumGainDb()));
+    CHECK(std::is_eq(output_slider.getMaximum() <=> common::audio::maximumGainDb()));
+    CHECK(std::is_eq(output_slider.getDoubleClickReturnValue() <=> common::audio::defaultGainDb()));
+}
+
 // Verifies the global and live-rig meter widgets are present in the composed editor view.
 TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 {
@@ -193,7 +227,7 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
     CHECK(input_meter.level() == common::audio::AudioMeterLevel{});
@@ -247,110 +281,29 @@ TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][
     CHECK_FALSE(save_button.isVisible());
 }
 
-// The two meters are the same reading on opposite ends of one chain, and they now bound the dark
-// chain surface itself: exactly its height, flush against its edges, with the chain-facing frame
-// edge left open so the signal line reads as running through them.
-TEST_CASE("Signal chain meters bound the chain surface", "[ui][editor-view]")
+TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainViewListener listener;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    // 172 is the panel's floor and 260 its ceiling; 320 wide forces the horizontal scrollbar, which
-    // the surface must leave room for, and 1280 wide leaves the content unscrolled.
-    for (const int panel_height : {172, 260})
-    {
-        for (const int panel_width : {320, 1280})
-        {
-            SignalChainPanel panel{listener};
-            panel.setBounds(0, 0, panel_width, panel_height);
-            panel.setState(core::SignalChainViewState{.insert_plugin_enabled = true});
+    view.setBounds(0, 0, 1280, 800);
 
-            INFO("panel " << panel_width << "x" << panel_height);
-            const auto& viewport =
-                findRequiredDescendant<juce::Viewport>(panel, "signal_chain_viewport");
-            const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(panel, "input_meter");
-            const auto& output_meter =
-                findRequiredDescendant<AudioLevelMeter>(panel, "output_meter");
-            const int surface_height = viewport.getMaximumVisibleHeight();
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
-            CHECK(input_meter.getY() == viewport.getY());
-            CHECK(output_meter.getY() == input_meter.getY());
-            CHECK(input_meter.getHeight() == surface_height);
-            CHECK(output_meter.getHeight() == surface_height);
-            CHECK(output_meter.getWidth() == input_meter.getWidth());
-
-            // Flush: no gutter on either side of the surface.
-            CHECK(input_meter.getRight() == viewport.getX());
-            CHECK(output_meter.getX() == viewport.getRight());
-        }
-    }
-}
-
-// The captions went with the gutters, so each meter carries its name as an accessible title. Meters
-// take no mouse hits, which rules out a tooltip.
-TEST_CASE("Signal chain meters name themselves", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainViewListener listener;
-    SignalChainPanel panel{listener};
-
-    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(panel, "input_meter");
-    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(panel, "output_meter");
-
-    CHECK(input_meter.getTitle() == "Input level");
-    CHECK(output_meter.getTitle() == "Output level");
-}
-
-// The open frame edge is a pixel fact: the border the meter shares with the chain surface is left
-// undrawn so the signal line reads as running through it, while the other three sides stay.
-TEST_CASE("Audio level meter leaves its open edge undrawn", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-
-    // The meter insets its frame by one pixel, so the border columns are x = 1 and x = width - 2.
-    constexpr int meter_width = 28;
-    constexpr int meter_height = 120;
-    constexpr int left_border_x = 1;
-    constexpr int right_border_x = meter_width - 2;
-    const auto border_pixels = [](AudioLevelMeterOpenEdge open_edge) {
-        AudioLevelMeter meter{AudioLevelMeterOrientation::Vertical, {}, open_edge};
-        meter.setBounds(0, 0, meter_width, meter_height);
-        const juce::Image snapshot = meter.createComponentSnapshot(meter.getLocalBounds());
-        return std::pair<juce::Colour, juce::Colour>{
-            snapshot.getPixelAt(left_border_x, meter_height / 2),
-            snapshot.getPixelAt(right_border_x, meter_height / 2),
-        };
-    };
-
-    const auto [closed_left, closed_right] = border_pixels(AudioLevelMeterOpenEdge::None);
-    const auto [right_open_left, right_open_right] = border_pixels(AudioLevelMeterOpenEdge::Right);
-    const auto [left_open_left, left_open_right] = border_pixels(AudioLevelMeterOpenEdge::Left);
-
-    // A closed frame draws both sides in one colour; each open edge drops exactly its own side and
-    // leaves the opposite one untouched.
-    CHECK(closed_left == closed_right);
-    CHECK(right_open_right != closed_right);
-    CHECK(right_open_left == closed_left);
-    CHECK(left_open_left != closed_left);
-    CHECK(left_open_right == closed_right);
-}
-
-// The meter's tick ladder drops rungs below a floor of its own, which is what sets the panel's
-// minimum height: at that floor the surface must still leave the five-rung ladder its 18 px gaps.
-TEST_CASE("Signal chain meters keep their tick ladder at the panel floor", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainViewListener listener;
-    SignalChainPanel panel{listener};
-
-    // 320 wide forces the horizontal scrollbar, the worst case for the surface's height.
-    panel.setBounds(0, 0, 320, 172);
-    panel.setState(core::SignalChainViewState{.insert_plugin_enabled = true});
-
-    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(panel, "input_meter");
-
-    // The meter insets its frame by 1 and its inner column by 2 more; the ladder needs 99 px there.
-    CHECK(input_meter.getHeight() - 6 >= 99);
+    CHECK(input_meter.getBottom() <= calibrate_button.getY());
+    CHECK(output_meter.getHeight() == input_meter.getHeight());
+    CHECK(output_meter.getY() == input_meter.getY());
+    CHECK(output_slider.getBottom() == calibrate_button.getBottom());
+    CHECK(output_meter.getX() > output_slider.getX());
+    CHECK(output_meter.getRight() <= output_slider.getRight());
+    CHECK(output_meter.getX() - output_slider.getX() <= (output_slider.getWidth() / 2) + 4);
 }
 
 // Verifies EditorView samples the optional meter port and forwards the values to meter widgets.
@@ -372,12 +325,39 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(meter_source.snapshot_read_count >= 1);
     CHECK(master_meter.level() == meter_source.snapshot.master_output);
     CHECK(input_meter.level() == meter_source.snapshot.live_rig_input);
     CHECK(output_meter.level() == meter_source.snapshot.live_rig_output);
+}
+
+// Verifies that signal-chain controls follow their independent view-state gates.
+TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .input_calibrate_enabled = true,
+                .output_gain_controls_enabled = true,
+                .output_gain = common::audio::Gain{-24.0},
+            },
+        });
+
+    CHECK(calibrate_button.isEnabled());
+    CHECK(output_slider.isEnabled());
+    CHECK(std::is_eq(output_slider.getValue() <=> -24.0));
 }
 
 // Verifies signal-chain buttons cannot steal focus from editor-level keyboard shortcuts.
@@ -395,12 +375,17 @@ TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor
                 .insert_plugin_enabled = true,
                 .remove_plugins_enabled = true,
                 .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
+                .input_calibrate_enabled = true,
             },
         });
 
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
     auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
     auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
 
+    CHECK_FALSE(calibrate_button.getWantsKeyboardFocus());
+    CHECK_FALSE(calibrate_button.getMouseClickGrabsKeyboardFocus());
     CHECK_FALSE(insert_append.getWantsKeyboardFocus());
     CHECK_FALSE(insert_append.getMouseClickGrabsKeyboardFocus());
     CHECK_FALSE(remove_amp.getWantsKeyboardFocus());

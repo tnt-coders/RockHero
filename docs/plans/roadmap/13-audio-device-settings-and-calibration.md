@@ -23,7 +23,7 @@ timing architecture from day one, not bolted on later" — this plan is that day
   (docs/plans/roadmap/24-scoring-star-power-failure.md consumes the offset contract defined here).
 - Instrument profiles, cloud sync, cross-user settings, or per-product settings beyond audio.
 - Moving editor workflow state (last-open project, cursors, grid, zoom) out of `EditorSettings`;
-  it stays editor-only by design. Tone-document state stays Tracktion-managed.
+  it stays editor-only by design. Output gain and tone-document state stay Tracktion-managed.
 
 ## Constraints
 
@@ -86,20 +86,6 @@ Verified paths and behavior on the baseline tree:
   (input/input_calibration_state.h) is a *gain* record (`Gain` + identity, clamped ±24 dB via
   shared/gain.h). Searches for video latency, latency offsets, or hit windows find nothing —
   the offset model in this plan is entirely new code.
-- **The editor reaches gain calibration from the audio-device settings window** (2026-09-18). That
-  window is where a route is chosen, so it is where the route's calibration is named and run: a
-  control-free status line under the Input row says whether the selected route is calibrated (and at
-  what gain, or that the held calibration belongs to another route), and a **Calibrate Input...**
-  button in its bottom-left utility cluster applies the staged route, closes the window, and records
-  a calibration request — it cannot open the prompt itself, because `InputCalibrationWorkflow`
-  refuses one while audio-device settings are open, which is also why
-  `InputCalibrationProjection::calibrate_enabled` carries no settings-open term. Calibration then
-  opens from exactly one seam, `EditorController::Impl::openInputCalibrationAfterSettings()` at
-  `onAudioDeviceSettingsTeardownComplete()` (the first moment the device has settled), for either of
-  its two reasons: the request, or an input route the window *changed* that is still uncalibrated.
-  Cancel and Escape restore the route byte-exact, so neither can trigger the second. The
-  signal-chain panel carries no calibrate control at all; its disabled message names this window
-  instead.
 - **The editor controller is the only settings consumer.**
   `EditorController::Impl::restoreAudioDeviceState()` / `persistAudioDeviceState()`
   (rock-hero-editor/core/src/controller/editor_controller.cpp:1966–1991) restore and persist the

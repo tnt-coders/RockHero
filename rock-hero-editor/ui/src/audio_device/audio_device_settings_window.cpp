@@ -273,10 +273,9 @@ public:
         AudioDeviceSettingsView::ApplyingCallback applying_callback,
         AudioDeviceSettingsView::CloseCallback close_callback,
         AudioDeviceSettingsView::GameAudioSettingsState game_settings,
-        AudioDeviceSettingsView::GameAudioSettingsChangedCallback on_game_settings_changed,
-        core::InputCalibrationRequestedCallback on_calibration_requested)
+        AudioDeviceSettingsView::GameAudioSettingsChangedCallback on_game_settings_changed)
         : m_settings(audio_devices)
-        , m_controller(m_settings, std::move(dispatcher), std::move(on_calibration_requested))
+        , m_controller(m_settings, std::move(dispatcher))
         , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
         m_controller.attachView(m_view);
@@ -308,14 +307,6 @@ public:
         m_view.restoreOriginalGameAudioSettings();
     }
 
-    // Hands the editor's current calibration facts to the controller, which folds them into the
-    // view state the status line and the Calibrate button render from.
-    void setInputCalibration(
-        core::InputCalibrationStatus status, std::optional<double> gain_db, bool calibrate_enabled)
-    {
-        m_controller.onInputCalibrationChanged(status, gain_db, calibrate_enabled);
-    }
-
 private:
     // Shared backend that owns one staged route edit.
     common::audio::AudioDeviceSettings m_settings;
@@ -338,11 +329,10 @@ private:
 } // namespace
 
 // Launches the audio settings window centered on the editor window that owns the launcher.
-AudioDeviceSettingsWindow::Opened AudioDeviceSettingsWindow::show(
+std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
     Dispatcher dispatcher, ClosedCallback closed_callback, GameAudioSettings game_settings,
-    GameAudioSettingsChangedCallback on_game_settings_changed,
-    core::InputCalibrationRequestedCallback on_calibration_requested)
+    GameAudioSettingsChangedCallback on_game_settings_changed)
 {
     // getTopLevelComponent() walks the parent chain and returns the anchor itself when it has no
     // parent, so the centering target is never null.
@@ -368,8 +358,7 @@ AudioDeviceSettingsWindow::Opened AudioDeviceSettingsWindow::show(
             .use_game_settings = game_settings.use_game_settings,
             .source_state = game_settings.source_state,
         },
-        std::move(on_game_settings_changed),
-        std::move(on_calibration_requested));
+        std::move(on_game_settings_changed));
     const int content_height = content->preferredContentHeight();
 
     // The window owns the content once installed, so this raw pointer stays valid for every
@@ -379,23 +368,7 @@ AudioDeviceSettingsWindow::Opened AudioDeviceSettingsWindow::show(
     window->setBypassCloseToggleRestore(
         [content_ptr] { content_ptr->restoreOriginalGameAudioSettings(); });
     window->showModal();
-
-    // The sink is guarded by the window, not the content: the caller holds both and releases them
-    // together, and a push that arrives after the window is gone is simply dropped.
-    const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> sink_window{window.get()};
-    return Opened{
-        .window = std::unique_ptr<juce::DocumentWindow>{std::move(window)},
-        .set_input_calibration = [sink_window, content_ptr](
-                                     core::InputCalibrationStatus status,
-                                     std::optional<double>
-                                         gain_db,
-                                     bool calibrate_enabled) {
-            if (sink_window.getComponent() != nullptr)
-            {
-                content_ptr->setInputCalibration(status, gain_db, calibrate_enabled);
-            }
-        },
-    };
+    return std::unique_ptr<juce::DocumentWindow>{std::move(window)};
 }
 
 } // namespace rock_hero::editor::ui

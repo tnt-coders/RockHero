@@ -80,6 +80,7 @@ struct ScopedTempDirectory
             .display_type_override = "",
             .stable_id = "",
         });
+    document.output_gain = Gain{-3.5};
     return document;
 }
 
@@ -151,21 +152,12 @@ TEST_CASE("Tone file round-trips document records and plugin state", "[audio][to
     CHECK(payload->document.chain[1].tracktion_state_ref == "state/plugin-2.tracktion-plugin");
     CHECK(payload->document.chain[1].id == "plugin-b");
 
+    CHECK(payload->document.output_gain.db == Catch::Approx(-3.5));
+
     CHECK(payload->plugin_states[0].getProperty("testMarker").toString() == "amp");
     CHECK(payload->plugin_states[1].getProperty("testMarker").toString() == "cab");
     // The shared read path strips the live item id exactly like sidecar reads do.
     CHECK_FALSE(payload->plugin_states[0].hasProperty(tracktion::IDs::id));
-}
-
-// A tone is its chain and its plugin state, and a level is a gain plugin inside that chain, so the
-// document has no level key of its own. The in-package tone and the .tone file share this one
-// document shape, so checking the writer's JSON covers both.
-TEST_CASE("Tone document carries no level key", "[audio][tone-file]")
-{
-    const std::string json_text = documentJsonText(makeTestDocument());
-
-    CHECK(json_text.find("outputGainDb") == std::string::npos);
-    CHECK(json_text.find("chain") != std::string::npos);
 }
 
 TEST_CASE("Tone file write strips automation curves and tempo remap flags", "[audio][tone-file]")

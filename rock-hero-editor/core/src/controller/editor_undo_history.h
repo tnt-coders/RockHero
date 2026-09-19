@@ -89,7 +89,7 @@ struct [[nodiscard]] EditorEditContext
     /*! \brief Audio boundary used by plugin-chain and plugin-state edits. */
     common::audio::IPluginHost& plugin_host;
 
-    /*! \brief Live-rig boundary used by whole-chain snapshot edits. */
+    /*! \brief Live-rig boundary used by output-gain edits. */
     common::audio::ILiveRig& live_rig;
 
     /*! \brief Tone parameter automation boundary used by tone-automation curve edits. */
@@ -104,6 +104,9 @@ struct [[nodiscard]] EditorEditContext
     */
     const std::unordered_map<std::string, common::audio::ToneAutomationBinding>&
         tone_plugin_bindings;
+
+    /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
+    double& output_gain_db;
 
     /*!
     \brief Tone Designer document state updated by document-replace edits.

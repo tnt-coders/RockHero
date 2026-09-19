@@ -279,6 +279,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         clearActiveArrangementBestEffort("open live-rig failure teardown");
         m_session.reset();
         m_signal_chain.clear();
+        m_output_gain_db = 0.0;
         if (state->clear_last_open_project_on_failure)
         {
             recordSettingsResultBestEffort(
@@ -463,6 +464,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         clearActiveArrangementBestEffort("import live-rig failure teardown");
         m_session.reset();
         m_signal_chain.clear();
+        m_output_gain_db = 0.0;
         resetGridSession(g_default_tempo_grid_note_value);
         m_timeline_zoom_pixels_per_second = 0.0;
         clearSelection();
@@ -579,6 +581,8 @@ void EditorController::Impl::startLiveRigLoadStage(
 
                 m_signal_chain.replaceSnapshot(
                     common::audio::PluginChainSnapshot{.plugins = rig_result->plugins});
+                m_output_gain_db = rig_result->output_gain.db;
+                m_output_gain_preview_before.reset();
                 // Load-fresh plugin identities key the arrangement's musical automation; merge
                 // them, then rebuild the derived playback curves the sidecars no longer carry.
                 mergeToneChainIdentities(rig_result->tone_chains);
@@ -881,6 +885,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         clearActiveArrangementBestEffort("close empty project");
         m_session.reset();
         m_signal_chain.clear();
+        m_output_gain_db = 0.0;
         m_project_file.clear();
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
@@ -902,6 +907,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     clearActiveArrangementBestEffort("close project");
     m_session.reset();
     m_signal_chain.clear();
+    m_output_gain_db = 0.0;
 
     auto closed = closeExistingProject(m_project);
     if (!closed.has_value())
@@ -1114,6 +1120,8 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
 
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = snapshot->plugins});
+    m_output_gain_db = snapshot->output_gain.db;
+    m_output_gain_preview_before.reset();
     return {};
 }
 
@@ -1641,6 +1649,8 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
         // A project session now owns the rig and the history; the designer document is over.
         leaveToneDesigner("project_session_committed");
         m_signal_chain.clear();
+        m_output_gain_db = 0.0;
+        m_output_gain_preview_before.reset();
         m_plugin_catalog.hide();
         // Chart selection keys are chart-local; the one commit seam every
         // open/import/restore/arrangement-switch passes through clears them before a different

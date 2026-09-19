@@ -435,7 +435,7 @@ public:
     /*!
     \brief Switches which preloaded tone is audible and bound to the signal-chain panel.
     \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
-    \return The now-audible tone's chain, or a typed failure.
+    \return The now-audible tone's chain and output gain, or a typed failure.
     */
     [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> setAudibleTone(
         const std::string& tone_document_ref) override;
@@ -475,6 +475,12 @@ public:
     \return Current input gain, or the default when no structural gain plugin exists.
     */
     [[nodiscard]] Gain inputGain() const override;
+
+    /*!
+    \brief Reads the audible tone's authored output level.
+    \return The audible tone's level, or the default when no tone is loaded.
+    */
+    [[nodiscard]] Gain outputGain() const override;
 
     /*!
     \brief Reads the monitor level applied after the whole rig.
@@ -522,6 +528,13 @@ public:
     */
     [[nodiscard]] std::expected<void, LiveInputError> setCalibrationInputMonitoringEnabled(
         bool enabled) override;
+
+    /*!
+    \brief Sets the audible tone's authored output level.
+    \param gain Desired level for the audible tone; clamped to the accepted range.
+    \return Empty success, or a typed failure when no tone is loaded.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
 
     /*!
     \brief Sets the monitor level applied after the whole rig.

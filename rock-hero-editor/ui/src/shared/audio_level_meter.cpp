@@ -175,11 +175,9 @@ void drawVerticalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
 } // namespace
 
 // Stores the drawing mode and avoids keyboard focus in compact control strips.
-AudioLevelMeter::AudioLevelMeter(
-    AudioLevelMeterOrientation orientation, juce::String label, AudioLevelMeterOpenEdge open_edge)
+AudioLevelMeter::AudioLevelMeter(AudioLevelMeterOrientation orientation, juce::String label)
     : m_orientation(orientation)
     , m_label(std::move(label))
-    , m_open_edge(open_edge)
 {
     setWantsKeyboardFocus(false);
     setInterceptsMouseClicks(false, false);
@@ -248,21 +246,8 @@ void AudioLevelMeter::paint(juce::Graphics& g)
 
     g.setColour(g_meter_background);
     g.fillRect(area);
-
-    // The frame is drawn edge by edge rather than as one rect so a single side can be left open:
-    // the top and bottom always run the full width (as drawRect does, corners included), and each
-    // vertical border is skipped when it is the shared one.
     g.setColour(g_meter_border);
-    g.fillRect(area.getX(), area.getY(), area.getWidth(), 1);
-    g.fillRect(area.getX(), area.getBottom() - 1, area.getWidth(), 1);
-    if (m_open_edge != AudioLevelMeterOpenEdge::Left)
-    {
-        g.fillRect(area.getX(), area.getY(), 1, area.getHeight());
-    }
-    if (m_open_edge != AudioLevelMeterOpenEdge::Right)
-    {
-        g.fillRect(area.getRight() - 1, area.getY(), 1, area.getHeight());
-    }
+    g.drawRect(area);
 
     const auto inner = area.reduced(2);
     if (inner.isEmpty())

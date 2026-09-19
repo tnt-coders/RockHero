@@ -308,8 +308,8 @@ common::audio::Gain GameplaySession::backingVolume() const
 
 // The monitor gain's single owner is the live rig's post-rack monitor stage; the session only
 // forwards so the game has one mixing surface (21-Q3: three volumes, each with exactly one backend
-// owner). Deliberately not a tone's own level, which is a gain plugin inside that tone's chain:
-// those balance the song's tones against each other, and the player's mix must not overwrite them.
+// owner). Deliberately not the rig's output gain, which is the charter's per-tone level: that one
+// balances the song's tones against each other, and the player's mix must not overwrite it.
 std::expected<void, common::audio::LiveRigError> GameplaySession::setMonitorVolume(
     common::audio::Gain gain)
 {

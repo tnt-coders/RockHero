@@ -9,19 +9,13 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
 # The three layers
 
 - **UI** (`rock-hero-editor/ui/src/signal_chain/`): `SignalChainPanel` is a thin host whose only
-  member is `SignalChainView` — the real renderer, laid out as **meter, chain, meter**: two meters
-  of one shared width (`g_gain_meter_width`), each bound to exactly the height of the dark chain
-  surface and flush against its left and right edges, with the tone-file button strip in a header
-  that spans the panel's whole width and a scrolling strip of `PluginTileView` (one per plugin) and
-  `InsertSlotView` (one per fixed visual block, the "+" cells and drop targets) between them. The
-  meters carry no captions: each names itself through `setTitle` (they take no mouse hits, so a
-  tooltip would never show), and each leaves its chain-facing frame edge undrawn
-  (`AudioLevelMeterOpenEdge`) so the signal line reads as running through it. No control outside
-  the chain edits a tone: a tone's level is a gain plugin inside its chain, and the panel carries no
-  non-chain button at all — while it is disabled for want of input calibration it is a message and
-  nothing else, and that message names the audio-device settings window, where calibration lives.
-  Everything the user does becomes a `SignalChainView::Listener` intent. The plugin browser is a separate `PluginBrowserWindow` that
-  renders controller-derived catalog state and never scans or mutates anything itself.
+  member is `SignalChainView` — the real renderer, owning the meters, the output-gain slider,
+  the tone-file button strip, and a scrolling strip of `PluginTileView` (one per plugin) and
+  `InsertSlotView` (one per fixed visual block, the "+" cells and drop targets). Everything the
+  user does becomes a `SignalChainView::Listener` intent — including the deliberate split of
+  `onOutputGainPreviewChanged` (drag) vs `onOutputGainChanged` (release). The plugin browser is a
+  separate `PluginBrowserWindow` that renders controller-derived catalog state and never scans or
+  mutates anything itself.
 - **Editor core** (`rock-hero-editor/core/src/signal_chain/`): two workflow objects hold all
   policy state. `SignalChainWorkflow` owns the plugin list the UI renders plus pending-insert
   bookkeeping; it never calls audio ports — backend truth arrives only via
@@ -37,8 +31,8 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
   **tone rack** (`src/tracktion/multi_tone_rack.cpp`) — one parallel branch per tone, summed,
   with click-free smoothed switching. The editor always edits exactly one branch: the audible
   (selected) tone's chain. Hidden structural plugins (`LiveRigGainPlugin` for the input and monitor
-  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility, meters)
-  are excluded from the user-visible `chain_index`.
+  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility and its
+  authored level, meters) are excluded from the user-visible `chain_index`.
 
 # Flow: inserting a plugin
 

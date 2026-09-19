@@ -40,9 +40,9 @@ chord is inert (ruled 2026-09-14): "the cursor" never means the rolling playhead
 transport plays, marker SELECTION and every marker EDIT are unavailable — for every kind here, for
 automation points, and through the pointer as much as the keyboard: the availability table refuses
 each verb (`editor_action_availability.cpp`) and the tone strip will not even start a boundary drag
-or an `Alt` insert. The tone designer is deliberately outside the rule: the plugin chain and plugin
-parameters stay live mid-play, which is the point of the live rig, and renaming a tone DOCUMENT is
-not a marker edit.
+or an `Alt` insert. The tone designer is deliberately outside the rule: the plugin chain, plugin
+parameters and the output gain stay live mid-play, which is the point of the live rig, and renaming
+a tone DOCUMENT is not a marker edit.
 
 And four rules ride along with it:
 

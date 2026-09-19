@@ -12,13 +12,8 @@ std::string inputCalibrationDisabledMessageFor(InputCalibrationStatus status)
             return "Live input disabled: no audio input device selected.";
         }
         case InputCalibrationStatus::MissingCalibration:
-        case InputCalibrationStatus::CalibrationRouteMismatch:
         {
-            // One message for both: the route in front of the user needs calibrating either way,
-            // and only the settings window, where calibration is reached, draws the distinction.
-            // The panel is a message and nothing else, so the message names where that window is.
-            return "Live input disabled: input calibration required. Calibrate the input in Audio "
-                   "Device Settings.";
+            return "Live input disabled: input calibration required.";
         }
         case InputCalibrationStatus::Calibrated:
         {

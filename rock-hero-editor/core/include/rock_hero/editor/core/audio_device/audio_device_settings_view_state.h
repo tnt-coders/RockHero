@@ -6,7 +6,6 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <string>
 #include <vector>
 
@@ -95,20 +94,6 @@ struct AudioDeviceSettingsViewState
 
     /*! \brief Current settings error text, or empty when no error is active. */
     std::string error_message{};
-
-    /*!
-    \brief Calibration status of the selected input route, named on the window's status line.
-
-    The same status the signal-chain panel carries, pushed in through
-    \ref IAudioDeviceSettingsController::onInputCalibrationChanged.
-    */
-    InputCalibrationStatus input_calibration_status{InputCalibrationStatus::NoActiveInputDevice};
-
-    /*! \brief Gain of the calibration held for that route, absent when none is held. */
-    std::optional<double> input_calibration_gain_db{};
-
-    /*! \brief True when the window's Calibrate Input button may hand off to calibration. */
-    bool calibrate_enabled{false};
 };
 
 } // namespace rock_hero::editor::core

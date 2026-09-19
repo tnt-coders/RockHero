@@ -26,9 +26,10 @@ extending it:
 
 `live_rig_gain_plugin.h` is the same hidden-plugin idea applied to the rig's input and monitor gain
 stages: a private `tracktion::Plugin` that cannot be moved or added to racks, applying a
-smoothed `common::audio::Gain`. A tone's own level is NOT one of these and not a structural stage
-at all — it is a gain plugin inside that tone's chain, so a switch carries it because the chain
-does. Hidden structural plugins like these are excluded from the user-visible `chain_index`.
+smoothed `common::audio::Gain`. A tone's own authored level is NOT one of these — it lives on that
+tone's `ToneBranchGainPlugin`, so a switch carries it. Hidden structural plugins like these are
+excluded from the
+user-visible `chain_index`.
 
 # Plugin hygiene and undo capture
 

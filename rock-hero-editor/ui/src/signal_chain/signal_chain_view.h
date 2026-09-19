@@ -84,6 +84,21 @@ public:
         */
         virtual void onOpenPluginPressed(std::string instance_id) = 0;
 
+        /*! \brief Called when the user requests input calibration. */
+        virtual void onInputCalibrationPressed() = 0;
+
+        /*!
+        \brief Called when the user previews output gain during a slider drag.
+        \param gain_db New output gain in decibels.
+        */
+        virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+
+        /*!
+        \brief Called when the user commits the output gain slider value.
+        \param gain_db New output gain in decibels.
+        */
+        virtual void onOutputGainChanged(double gain_db) = 0;
+
         /*! \brief Called when the user starts a fresh untitled Tone Designer document. */
         virtual void onNewTonePressed() = 0;
 
@@ -173,9 +188,9 @@ public:
     void setToneDesignerState(const core::ToneDesignerViewState& state);
 
     /*!
-    \brief Applies the live rig's end-to-end meter levels.
-    \param input_level Level entering the chain, after input calibration.
-    \param output_level Level leaving the chain.
+    \brief Applies live-rig post-fader meter levels.
+    \param input_level Level after the input gain fader.
+    \param output_level Level after the output gain fader.
     */
     void setMeterLevels(
         common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level);
@@ -248,8 +263,11 @@ private:
     // Tone Designer document state; while active it owns the header title and the file strip.
     core::ToneDesignerViewState m_tone_designer{};
 
-    // Raw or calibrated input peak meter, flush against the left edge of the chain surface.
+    // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
     AudioLevelMeter m_input_meter;
+
+    // Button that opens the input calibration workflow.
+    juce::TextButton m_input_calibrate_button;
 
     // Tone Designer file commands, visible only while the designer owns the live rig.
     juce::TextButton m_tone_new_button;
@@ -262,7 +280,23 @@ private:
     juce::TextButton m_tone_import_button;
     juce::TextButton m_tone_export_button;
 
-    // Peak meter for the chain's output, mirroring the input meter on the right edge.
+    // Slider look-and-feel that keeps the default textbox while compacting the track.
+    std::unique_ptr<juce::LookAndFeel> m_output_gain_slider_look_and_feel;
+
+    // Output gain slider positioned within the right-side output gain group.
+    juce::Slider m_output_gain_slider;
+
+    // The application-wide tooltip window (created on first use, shared with every other holder),
+    // without which the slider's tooltip would be set but never painted: the main window holds no
+    // other. SharedResourcePointer rather than an owned instance is JUCE's documented fix for the
+    // duplicate-tooltip artifact, since two live TooltipWindows each register a global mouse
+    // listener and paint overlaid tips.
+    juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
+
+    // True while JUCE is issuing drag-scoped output gain value changes.
+    bool m_output_gain_dragging{false};
+
+    // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;
 
     // Scrollable viewport that keeps long plugin chains reachable in a compact view.

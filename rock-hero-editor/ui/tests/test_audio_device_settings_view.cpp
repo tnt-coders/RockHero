@@ -6,7 +6,6 @@
 #include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <string>
-#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -70,24 +69,10 @@ public:
         ++ok_call_count;
     }
 
-    void onCalibrateInputRequested() override
-    {
-        ++calibrate_call_count;
-    }
-
     void onUseGameAudioSettingsChanged(bool enabled) override
     {
         uses_game_audio_settings = enabled;
         ++use_game_audio_settings_change_count;
-    }
-
-    void onInputCalibrationChanged(
-        core::InputCalibrationStatus status, std::optional<double> gain_db,
-        bool calibrate_enabled) override
-    {
-        pushed_calibration_status = status;
-        pushed_calibration_gain_db = gain_db;
-        pushed_calibrate_enabled = calibrate_enabled;
     }
 
     void onCancelRequested() override
@@ -105,15 +90,9 @@ public:
     int selected_buffer_size_id{};
     int control_panel_call_count{};
     int ok_call_count{};
-    int calibrate_call_count{};
     int cancel_call_count{};
     bool uses_game_audio_settings{};
     int use_game_audio_settings_change_count{};
-    core::InputCalibrationStatus pushed_calibration_status{
-        core::InputCalibrationStatus::NoActiveInputDevice
-    };
-    std::optional<double> pushed_calibration_gain_db{};
-    bool pushed_calibrate_enabled{};
 };
 
 [[nodiscard]] core::AudioDeviceSettingsViewState splitDeviceState()
@@ -594,68 +573,6 @@ TEST_CASE(
         CHECK(requested.value());
     }
     CHECK_FALSE(input_device.isEnabled());
-}
-
-// The window hosts input calibration, so it says where the selected route stands. The status line
-// carries no control: it names the state and, where the state is unfinished, what happens next.
-TEST_CASE(
-    "AudioDeviceSettingsView names the selected route's calibration", "[ui][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceSettingsController controller;
-    AudioDeviceSettingsView view{controller};
-
-    const auto status_text =
-        [&view](core::InputCalibrationStatus status, std::optional<double> gain_db) {
-            core::AudioDeviceSettingsViewState state = splitDeviceState();
-            state.input_calibration_status = status;
-            state.input_calibration_gain_db = gain_db;
-            view.setState(state);
-            return findRequiredDirectChild<juce::Label>(view, "audio_settings_input_calibration")
-                .getText();
-        };
-
-    CHECK(
-        status_text(core::InputCalibrationStatus::Calibrated, -6.0) ==
-        "Input calibration: -6.0 dB");
-    CHECK(
-        status_text(core::InputCalibrationStatus::MissingCalibration, std::nullopt) ==
-        "Not calibrated - calibration opens when you close this window");
-    CHECK(
-        status_text(core::InputCalibrationStatus::CalibrationRouteMismatch, std::nullopt) ==
-        "Not calibrated for this device - calibration opens when you close this window");
-    CHECK(
-        status_text(core::InputCalibrationStatus::NoActiveInputDevice, std::nullopt) ==
-        "Unavailable");
-    CHECK(status_text(core::InputCalibrationStatus::Unavailable, std::nullopt) == "Unavailable");
-}
-
-// The hand-off button follows the controller's own availability answer and emits its intent.
-TEST_CASE("AudioDeviceSettingsView offers the calibration hand-off", "[ui][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceSettingsController controller;
-    AudioDeviceSettingsView view{controller};
-
-    core::AudioDeviceSettingsViewState state = splitDeviceState();
-    view.setState(state);
-    const auto& calibrate_button =
-        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_calibrate_button");
-    const auto& control_panel_button =
-        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_control_panel_button");
-
-    CHECK(calibrate_button.isVisible());
-    CHECK_FALSE(calibrate_button.isEnabled());
-    // The utility cluster reads left to right: the driver's own panel, then the hand-off.
-    CHECK(calibrate_button.getX() > control_panel_button.getX());
-    CHECK(calibrate_button.getHeight() == control_panel_button.getHeight());
-
-    state.calibrate_enabled = true;
-    view.setState(state);
-
-    CHECK(calibrate_button.isEnabled());
-    clickTextButton(view, "audio_settings_calibrate_button");
-    CHECK(controller.calibrate_call_count == 1);
 }
 
 } // namespace rock_hero::editor::ui

@@ -22,24 +22,6 @@ enum class AudioLevelMeterOrientation : std::uint8_t
     Vertical,
 };
 
-/*!
-\brief Frame edge an AudioLevelMeter leaves undrawn.
-
-A meter set flush against another surface shares that border with it, and drawing it reads as a wall
-between the two. Leaving the shared edge open lets whatever the meter abuts carry straight through.
-*/
-enum class AudioLevelMeterOpenEdge : std::uint8_t
-{
-    /*! \brief Draws the full frame; the default for a meter that stands on its own. */
-    None,
-
-    /*! \brief Leaves the left border undrawn. */
-    Left,
-
-    /*! \brief Leaves the right border undrawn. */
-    Right,
-};
-
 /*! \brief Lightweight peak meter with a clipping indicator. */
 class AudioLevelMeter final : public juce::Component
 {
@@ -48,11 +30,8 @@ public:
     \brief Creates a peak meter with the requested orientation and optional label.
     \param orientation Fill direction for the meter.
     \param label Optional label drawn inside horizontal meters.
-    \param open_edge Frame edge to leave undrawn where the meter sits flush against another surface.
     */
-    explicit AudioLevelMeter(
-        AudioLevelMeterOrientation orientation, juce::String label = {},
-        AudioLevelMeterOpenEdge open_edge = AudioLevelMeterOpenEdge::None);
+    explicit AudioLevelMeter(AudioLevelMeterOrientation orientation, juce::String label = {});
 
     /*!
     \brief Applies the latest meter level.
@@ -78,9 +57,6 @@ private:
 
     // Optional compact label, currently used by the transport-bar master meter.
     juce::String m_label;
-
-    // Frame edge left undrawn so an abutting surface reads as continuing through the meter.
-    AudioLevelMeterOpenEdge m_open_edge;
 
     // Most recent peak value.
     common::audio::AudioMeterLevel m_level{};

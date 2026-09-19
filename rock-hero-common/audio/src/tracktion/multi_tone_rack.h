@@ -106,9 +106,9 @@ fast path for creating a new (empty) tone; branches with persisted plugins still
 /*!
 \brief Makes exactly one branch audible and silences the others.
 
-Audibility moves through each branch plugin's per-sample smoother, so switching is click-free. A
-tone's own level is a gain plugin inside its chain, upstream of this stage, so nothing outside the
-rack has to restore a level on a switch. This is the direct selection-driven switch path; while a
+Audibility moves through each branch plugin's per-sample smoother, so switching is click-free. Each
+branch keeps its own authored level, which the same smoother carries, so nothing outside the rack
+has to restore a level on a switch. This is the direct selection-driven switch path; while a
 schedule is baked the audio thread drives the same gains from the curves instead, and nothing
 calls this.
 
