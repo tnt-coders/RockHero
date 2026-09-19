@@ -7367,6 +7367,103 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         CHECK(fretted->sustain == Fraction{1});
     }
 
+    SECTION("an open mark never rings across unmarked material to a later marked run")
+    {
+        // WHAT BOUNDS THE PHRASE, the other half of the section above: that one pins how far the
+        // lift reaches, this one pins where it STOPS. A phrase is the MARKED RUN — consecutive
+        // marked figures chained by grip seams — so it ends at the first figure carrying no mark,
+        // exactly as a figure's own tail ends at the first onset past its marks. Material after
+        // the marked run never asked to ring, at either scope. Read instead as "only real silence
+        // ends the asking", a song with no bar-long rest anywhere is ONE phrase end to end, and a
+        // drone struck in the first bar rings toward a mark stated dozens of bars later.
+        //
+        // That song in miniature, all one voice and no rest anywhere: bar one is a marked run —
+        // an open drone struck with a fretted mark, the fretted line then moving on every beat, so
+        // the drone is under the lift and its OWN figure ends at beat two. Bars two and three chug
+        // UNMARKED on other strings, opened by a downbeat that moves the grip off the fretted
+        // string, and touch the drone's string nowhere. Bar four moves the grip back and opens a
+        // second marked run with an open drone of its own. Quarter notes throughout, so no onset
+        // gap comes near the audibility horizon and there is no horizon seam anywhere to end a
+        // phrase the old way.
+        GpScore score = makeLinearScore(5, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .let_ring = true, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 3, 0),
+                     letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 3, 0)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 7, 0),
+                     noteBeat(quarter, 7, 1),
+                     noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 7, 1)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 7, 1),
+                     noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 7, 1)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 5, .fret = 0, .let_ring = true, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 3, 0),
+                     letRingBeat(quarter, 5, 0),
+                     letRingBeat(quarter, 3, 0)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(quarter, 7, 1),
+                     noteBeat(quarter, 9, 2),
+                     noteBeat(quarter, 7, 1),
+                     noteBeat(quarter, 9, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const common::core::ChartNote* const drone = noteOnChartString(chart.notes, 6);
+        REQUIRE(drone != nullptr);
+        // FOUR. The run's last mark is bar one's beat four, and the first onset the voice states
+        // after it is bar two's downbeat. ONE is the reading without the lift at all — the drone's
+        // own figure closed at the beat-two grip seam. TWELVE is the unbounded-phrase reading:
+        // carried toward bar four's marks, stopped only when its own string is restruck there.
+        CHECK(drone->sustain == Fraction{4});
+        // The fretted mark struck with it is unmoved, which is the discrimination the lift makes:
+        // the hand left its stop on the next beat, so it rings its one beat to its figure's answer.
+        const common::core::ChartNote* const fretted = noteOnChartString(chart.notes, 1);
+        REQUIRE(fretted != nullptr);
+        CHECK(fretted->sustain == Fraction{1});
+        // And the second run answers its own drone normally — last mark at bar four's beat four,
+        // first onset after it at bar five's downbeat. Four beats, the same shape the first run
+        // gives, which is what ending the earlier phrase rather than truncating it means.
+        const auto second_drone =
+            std::ranges::find_if(chart.notes, [](const common::core::ChartNote& note) {
+                return note.string == 6 && note.position.measure == 4;
+            });
+        REQUIRE(second_drone != chart.notes.end());
+        CHECK(second_drone->sustain == Fraction{4});
+    }
+
     SECTION("a natural harmonic on a held-open string seams: node 12 is not the open string")
     {
         // THE NODE GRIP, read by this law through the same statement reader the span machine uses:

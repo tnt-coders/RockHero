@@ -139,7 +139,8 @@ can never be divided — with no retreat mechanism in the law, that invariant is
 than satisfied. An onset stating a different stop on a gripped string is the **grip seam**: it
 closes the figure and founds the next AT ITSELF. The only other seam is TIME — an onset lying
 strictly past the audibility horizon of the figure's most recent member, which ends the phrase
-outright where a grip seam continues it. The figure's whole job for the tails is grouping the
+outright where a grip seam continues it (a phrase being a run of consecutive MARKED figures: a
+figure carrying no mark ends it too). The figure's whole job for the tails is grouping the
 MARKS — which let-ring stack a mark belongs to, and therefore where that stack's marked run ends.
 One correction to that grouping, **the fragment donation**: a figure closed while holding too few
 notes to ever FOUND a span — fewer than three, no two co-struck, the span machine's own founding

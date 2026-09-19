@@ -106,8 +106,11 @@ implementation before writing any custom duration rule.
   - **THE OPEN STRING'S LIFT.** A figure ends where the HAND stops asking, and an open string is not
     held by the hand: nothing about a grip moving away stops a string no finger is on. So a grip
     seam is no answer to an open mark — its ring runs to the PHRASE's anchor instead, the phrase
-    being the chain the seams already draw (figures joined by GRIP seams are one asking continued
-    under a moving hand; only a HORIZON seam ends it). Capped by the phrase's own last mark, by the
+    being the MARKED RUN at chain scope: consecutive marked figures joined by GRIP seams are one
+    asking continued under a moving hand, and it ends at a HORIZON seam or at the first figure that
+    carries no mark — material past the marked run never asked, the tail rule's own bound (amended
+    2026-09-19: bounded by silence alone, a song with no bar-long rest was one phrase, and an open
+    drone rang toward a mark stated 36 bars later). Capped by the phrase's own last mark, by the
     same one rule asked at the wider scope. Lengthen-only; what still stops an open ring is a DIRECT
     CONTRADICTION on its own string, which is the same-string clamp and needs no code of its own.
     Deliberately the open string alone — a natural harmonic's ring is hand-free by the same physics,

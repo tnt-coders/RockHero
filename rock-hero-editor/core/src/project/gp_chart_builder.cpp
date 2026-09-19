@@ -1910,13 +1910,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 {
     // One figure is its member notes, nothing more: no seam is stored, because no tail reads one.
     std::vector<std::vector<std::size_t>> figures;
-    // THE PHRASE each figure belongs to, and it is the chain the seams already draw rather than a
-    // second grouping: figures joined by GRIP seams are one asking continued under a moving hand,
-    // and only real silence — a HORIZON seam — ends the asking (THE OPEN STRING'S LIFT).
-    // Index-parallel to `figures`, and the donation below never moves a note across a horizon
-    // seam, so it cannot move one between phrases either.
-    std::vector<std::size_t> phrase_of;
-    std::size_t phrases = 0;
+    // Whether each figure was opened by a HORIZON seam (or opens its voice) rather than a GRIP
+    // seam — the one fact the phrases below need from the walk. Index-parallel to `figures`.
+    std::vector<bool> opened_by_silence;
 
     std::map<std::size_t, std::vector<std::size_t>> voices;
     for (std::size_t index = 0; index < built.size(); ++index)
@@ -1976,10 +1972,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
                 audibilityHorizonFrom(grid, built[figures[*current].back()].global_beat) < onset;
             if (!current.has_value() || expired || contradicts(slot, onset))
             {
-                // A GRIP seam continues the phrase and a HORIZON seam ends it, which is the whole
-                // of the phrase rule: the hand moved, or the asking expired.
-                const bool same_phrase = current.has_value() && !expired;
-                phrase_of.push_back(same_phrase ? phrase_of[*current] : phrases++);
+                // The hand moved, or the asking expired: only the second can end a phrase here.
+                opened_by_silence.push_back(!current.has_value() || expired);
                 figures.emplace_back();
                 current = figures.size() - 1;
                 grip.clear();
@@ -2102,35 +2096,58 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         return std::nullopt;
     };
 
-    // THE PHRASE'S OWN END, one per phrase: the same question asked over every mark the whole
-    // chain carries. A phrase with no live mark asks nothing and stays absent.
-    std::vector<std::optional<Fraction>> phrase_last_marked(phrases);
-    std::vector<std::size_t> phrase_voice(phrases, 0);
+    // THE PHRASE each marked figure belongs to: the MARKED RUN at chain scope. Consecutive marked
+    // figures joined by GRIP seams are one asking continued under a moving hand, and the asking
+    // ends where the figure's own does — at real silence (a HORIZON seam) or at a figure carrying
+    // no mark, because material past the marked run never asked (the TAIL rule above). Without the
+    // second bound a song with no bar-long silence is ONE phrase, and an open drone rings toward
+    // a mark stated dozens of bars later. Drawn after the donation, which settles membership; a
+    // figure donated whole states nothing, so it neither continues a run nor breaks one.
+    std::vector<std::optional<Fraction>> figure_last_marked(figures.size());
+    std::vector<std::optional<std::size_t>> phrase_of(figures.size());
+    std::vector<Fraction> phrase_last_marked;
+    std::vector<std::size_t> phrase_voice;
+    std::optional<std::size_t> run;
     for (std::size_t figure = 0; figure < figures.size(); ++figure)
     {
-        const std::size_t phrase = phrase_of[figure];
-        for (const std::size_t index : figures[figure])
+        if (opened_by_silence[figure])
+        {
+            run.reset();
+        }
+        const std::vector<std::size_t>& members = figures[figure];
+        if (members.empty())
+        {
+            continue;
+        }
+        std::optional<Fraction>& last_marked = figure_last_marked[figure];
+        for (const std::size_t index : members)
         {
             const BuiltNote& entry = built[index];
-            if (!entry.let_ring)
+            if (entry.let_ring)
             {
-                continue;
+                last_marked = std::max(last_marked.value_or(entry.global_beat), entry.global_beat);
             }
-            // Bound to a local so the presence test and the read are provably the same object.
-            std::optional<Fraction>& marked = phrase_last_marked[phrase];
-            marked = std::max(marked.value_or(entry.global_beat), entry.global_beat);
-            phrase_voice[phrase] = entry.voice;
         }
-    }
-    std::vector<std::optional<Fraction>> phrase_ends(phrases);
-    for (std::size_t phrase = 0; phrase < phrases; ++phrase)
-    {
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<Fraction>& marked = phrase_last_marked[phrase];
-        if (marked.has_value())
+        if (!last_marked.has_value())
         {
-            phrase_ends[phrase] = scope_end(*marked, phrase_voice[phrase]);
+            run.reset();
+            continue;
         }
+        if (!run.has_value())
+        {
+            run = phrase_last_marked.size();
+            phrase_last_marked.push_back(*last_marked);
+            phrase_voice.push_back(built[members.front()].voice);
+        }
+        const std::size_t phrase = *run;
+        phrase_last_marked[phrase] = std::max(phrase_last_marked[phrase], *last_marked);
+        phrase_of[figure] = phrase;
+    }
+    // THE PHRASE'S OWN END: the same question asked over every mark the run carries.
+    std::vector<std::optional<Fraction>> phrase_ends(phrase_last_marked.size());
+    for (std::size_t phrase = 0; phrase < phrase_ends.size(); ++phrase)
+    {
+        phrase_ends[phrase] = scope_end(phrase_last_marked[phrase], phrase_voice[phrase]);
     }
 
     std::vector<std::optional<Fraction>> ends(built.size());
@@ -2138,21 +2155,19 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     {
         const std::vector<std::size_t>& members = figures[figure];
         // The figure's marked anchor and written reach; a figure with no live mark asks nothing.
-        std::optional<Fraction> last_marked;
+        const std::optional<Fraction>& last_marked = figure_last_marked[figure];
+        if (!last_marked.has_value())
+        {
+            continue;
+        }
         Fraction written_reach{};
         for (const std::size_t index : members)
         {
             const BuiltNote& entry = built[index];
-            if (!entry.let_ring)
+            if (entry.let_ring)
             {
-                continue;
+                written_reach = std::max(written_reach, entry.global_beat + entry.note.sustain);
             }
-            last_marked = std::max(last_marked.value_or(entry.global_beat), entry.global_beat);
-            written_reach = std::max(written_reach, entry.global_beat + entry.note.sustain);
-        }
-        if (!last_marked.has_value())
-        {
-            continue;
         }
         // THE FIGURE'S END (\ref scope_end asked of the figure): the first onset the figure's own
         // voice states after its last mark, capped at that mark's audibility horizon — the ring
@@ -2181,8 +2196,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // the scope that answers it or by nothing coherent at all. Capping instead from each
         // ring's own onset holds every open drone to a single bar while its fretted stackmates
         // ring on to the figure's answer, and stops open rings within one stack raggedly from each
-        // other. What bounds the phrase itself is the HORIZON seam, which is why a chain of
-        // continued asking cannot run away: real silence ends it and starts a new phrase.
+        // other. What bounds the phrase itself is the end of its marked run — real silence, or the
+        // first figure that carries no mark — which is why a chain of continued asking cannot run
+        // away.
         //
         // LENGTHEN-ONLY, like every other arm of this law: the lift can only carry an open ring
         // PAST its figure's end, never pull one back, so a phrase that answers sooner than the
@@ -2191,7 +2207,10 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         // Deliberately the open string alone. A natural harmonic's ring is hand-free by the same
         // physics, but the lift is scoped to open notes and a harmonic's marked ring is rare
         // enough to be worth sighting before it is lifted too.
-        const std::optional<Fraction>& phrase_end = phrase_ends[phrase_of[figure]];
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<std::size_t>& phrase = phrase_of[figure];
+        const std::optional<Fraction> phrase_end =
+            phrase.has_value() ? phrase_ends[*phrase] : std::nullopt;
         for (const std::size_t index : members)
         {
             const BuiltNote& entry = built[index];

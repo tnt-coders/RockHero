@@ -40,11 +40,14 @@ Still open:
 
 ## Open fixes carried
 
-- **#271 — open strings ring far too long.** Sighted 2026-09-18 and judged NOT right: in Chop Suey
-  an open G struck at 6:4 rings 49 beats, about 12 bars. The cause is the let-ring phrase cap, not
-  texture, and it follows from the law signed as **#186**, which makes open strings immune to
-  clipping until the whole let-ring phrase ends. Fixing it therefore AMENDS A SIGNED LAW rather
-  than repairing code that failed its spec. Size it after reading how the cap is expressed.
+- **#271 — open strings ring far too long. FIXED 2026-09-19, awaiting a re-sighting.** In Chop
+  Suey an open G struck at 6:4 rang 49 beats. #186's lift was right and the PHRASE under it was
+  not: bounded by bar-long silence alone, a song with no such rest was one phrase, so the open G
+  rang toward a let-ring mark 36 bars later. A phrase is now a run of consecutive MARKED figures;
+  the note stores 1 beat. The corpus moves with it (arpeggio spans 1535 → 1399, since fewer
+  runaway open rings fold into span onsets), and the census's signed derivation rows were ALREADY
+  stale at the commit before — `trigger-4-only flips` fails its enforced check at 94 against a
+  pinned 106 without this change — so those rows need re-signing either way.
 - **The section insert resolves its position when the prompt is ACCEPTED, not when the key is
   pressed**, so a section added while the transport rolls lands where the playhead drifted to.
   Written up with the fix spelled out at the end of `docs/tracking/backlog.md`. The tone marker does
