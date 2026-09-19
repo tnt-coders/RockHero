@@ -2,14 +2,14 @@
 
 ## 1. Status
 
-**TABLED (user, 2026-09-05), MERGED 2026-09-15.** This plan is the union of the former plan 60
-(FHP derivation) and plan 61 (span-marker redesign), plus the two hand rows the keyboard-focus-rows
-plan had queued as its steps 4b and 4c. It stays parked behind gate G60-RULINGS until after the
-task-list cleanup and the editor-functionality push (low-hanging fruit → keybinds + minimum
-required editing → bend authoring). The user wants a LAW-BY-LAW discussion session before signing
-60-Q1; do not treat any Q as signable in passing. The former plan 60 was authored 2026-09-05
-against `master @ 0d1b7009`; the merge was made against `master @ 26d57204`. Re-verify the
-inventory in §6 against the code before execution.
+**MERGED 2026-09-15; IN G0 SCOPE by user ruling 2026-09-19.** This plan is the union of the
+former plan 60 (FHP derivation) and plan 61 (span-marker redesign), plus the two hand rows the
+keyboard-focus-rows plan had queued as its steps 4b and 4c. It still sits behind gate G60-RULINGS:
+the user wants a LAW-BY-LAW discussion session before signing 60-Q1, so do not treat any Q as
+signable in passing. But it is no longer a post-editor-functionality pass; FHPs and span markers
+are part of minimum required editing. The former plan 60 was authored 2026-09-05 against
+`master @ 0d1b7009`; the merge was made against `master @ 26d57204`. Re-verify the inventory in
+§6 against the code before execution.
 
 Why one plan (user, 2026-09-15): the fret-hand position and the span were being planned, and were
 about to be built, as two objects with two keyboard rows, two selection kinds, two chords and two

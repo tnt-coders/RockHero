@@ -59,11 +59,13 @@ whether minting belongs inside the retone at all.
 
 ## The larger queue behind all this
 
-`#252` **G0** is the umbrella: minimum editing functionality, meaning author a full tab except FHPs
-and span markers. Under it, unstarted: `#259` **G7** tuning, capo and cent-offset dialog; `#260`
-**G8** copy, paste, transpose and select-all; `#261`–`#264` **G9** the bend display anchor, the
-keyframe ruling bundle, W9-F, and bend authoring itself; `#265` **G10** tempo map and time-signature
-authoring, which gates the New-chart entry point.
+`#252` **G0** is the umbrella: minimum editing functionality, meaning author a full tab INCLUDING
+FHPs / span markers (plan 60's hand marker) and harmonic-display follow-ups **#2** and **#3**. The
+handoff note briefly narrowed this too far; the 2026-09-19 ruling restores those pieces to G0.
+Under it, unstarted: `#259` **G7** tuning, capo and cent-offset dialog; `#260` **G8** copy, paste,
+transpose and select-all; `#261`–`#264` **G9** the bend display anchor, the keyframe ruling bundle,
+W9-F, and bend authoring itself; `#265` **G10** tempo map and time-signature authoring, which gates
+the New-chart entry point.
 
 ## Not covered here
 
