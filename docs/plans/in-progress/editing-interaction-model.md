@@ -301,8 +301,9 @@ Verified against the vendored JUCE source — everything needed ships in
   runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
   (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
-  span model); Alt+arrows move the selection (Left/Right by grid step, or one 1/960-beat fine
-  step under Ctrl+Alt — the uniform fine tier, off-grid unification 2026-07-18 evening — with
+  span model); Alt+arrows move the selection (Left/Right by one placement-quantum step — a grid
+  step while snap is on, a 1/3840 tick while it is off; the grid-snap switch replaced the
+  Ctrl+Alt fine tier — with
   Up/Down across strings; refused, never clamped, at the neck edge or an occupied slot; a caret
   sitting on the single moved note rides along). Plain arrows move the armed caret over the
   union stop set — grid lines plus this string's notes, so off-grid notes are reachable stops —

@@ -132,8 +132,9 @@ unenforced rulings, and a set of defects on supported material.
   `highway_renderer.cpp`). An authored, supported fact the 3D preview does not state. Rule: build
   the mark, or record the divergence deliberately — see D4.
 - **Defects on supported material**, each a release blocker under corollary 1 unless D5 rules
-  otherwise: open strings ringing ~49 beats under the let-ring phrase cap (task #271 — fixing it
-  AMENDS signed law #186); the all-palm-muted chord repeat box dropping other marks (#267);
+  otherwise: open strings ringing ~49 beats under the let-ring phrase cap (task #271 — FIXED
+  2026-09-19 by bounding the phrase at its marked run; awaiting a re-sighting, and the census's
+  signed derivation rows need re-signing); the all-palm-muted chord repeat box dropping other marks (#267);
   pick-slide turnaround easing (#268); chord bend/vibrato direction per onset group (#274); the
   section insert resolving its position on prompt ACCEPT rather than key press
   (`docs/tracking/backlog.md`); **undo not resyncing the audible tone** (`marker-verb-grammar.md`,
@@ -210,8 +211,8 @@ Plan 40 Phase 9 and plan 52 (task G8), behind G52-RANGE-EDIT.
 - Materialized context at the range start where the signed rules require it — FHPs and tone.
 - "Paste arms the marker" is a working answer awaiting ratification at the gate.
 - Plan 52 consumes plan 47 Phases 2–3 (the ruler-drag time selection). The keyboard half of the
-  grid-locked `TimeSelection` already shipped, so only the pointer half of 47 is pulled in; the
-  audible LOOP is not release scope (D3).
+  grid-locked `TimeSelection` already shipped, so the pointer half of 47 is pulled in — and with
+  it **plan 47 Phase 4, the audible loop region** the selection feeds (in scope by D3).
 
 Exit: a full song can be charted and revised without repeated one-object reconstruction.
 
@@ -230,7 +231,8 @@ Exit: a full song can be charted and revised without repeated one-object reconst
   default or the override (D7).
 - Sighting passes: keyboard rows, marker rows (#301 P10's three feel questions, #270's batch
   remainder, task #298 the marker grammar end to end), the release keyframe and slide margin work
-  marked UNSIGHTED in the walkthrough, hand markers, bends, New Chart.
+  marked UNSIGHTED in the walkthrough, hand markers, bends, New Chart, the loop region, and the
+  keybind dialog's in-action review (plan 46 Phase 3, by D3).
 - User documentation for the authoring workflow. `editing-interaction-model.md` defers the
   user-facing keybind docs "while the grammar is still being tuned" — this is where that ends.
 - Doc consolidation: `keymap-matrix.md` dissolves into `editing-interaction-model.md` when plan 53
@@ -257,6 +259,11 @@ Create a release-candidate chart from scratch using only the editor. It must inc
 The release is blocked by any supported chart fact in that chart that cannot be edited again after
 reopen, or that either surface states wrongly.
 
+**Optional, decided here: pointer drag-move (D2).** Once the acceptance chart exists the user
+rules whether drag-move ships in the first release or becomes the first post-release item. It
+blocks nothing above. If it goes in, it shares edge auto-scroll and the drag threshold with plan
+47's ruler-drag time selection (Phase 5), so build the two against one seam.
+
 ## Decisions for the user
 
 Open calls this plan cannot make. Each has a recommendation; none is settled until signed.
@@ -268,17 +275,31 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   compatibility: the removed-spelling rows in `chart_document.cpp` exist to fail loudly and are
   deleted once the corpus is re-imported, and the artificial / tapped harmonic refusal is
   forward-looking, because those forms are planned. Plan 10 is marked Deferred in place and sits first in the
-  roadmap's Stage 7, so it is the first thing picked up after this release. Still open: how
-  much of 43 is in — recommended Phases 1, 2 and 4 (fields, workflow,
-  dialog); the art codec (3) if album art is a supported field; the export gate (5) out.
-- **D2 — Pointer drag-move** (`docs/plans/todo/tab-pointer-drag-editing.md`). The keyboard moves
-  everything already. Recommendation: out of the bar; it authors no new fact.
-- **D3 — Surfaces the plan is silent on.** Recommendation: all out, stated so they stop dangling —
-  the plugin-chain keyboard model (plan 53 Phase 5; tone design, not a chart fact, and it leaves
-  `Enter` on a tone region meaning "retone" for the release), the audible loop region (plan 47
-  Phase 4), automation-lane point multi-select and marquee (plan 53 Phase 6), playback count-in
-  (plan 59), editor theme presets (plan 45), the keybind dialog's in-action review (plan 46 Phase
-  3 — code-complete, needs only the user's review and is cheap to close).
+  roadmap's Stage 7, so it is the first thing picked up after this release. **RULED 2026-09-19
+  (user), the other half:** exported packages must carry COMPLETE metadata, so the first
+  release ships with **export disabled altogether**, and export is re-enabled when plan 43 lands
+  in full (the new fields, the art codec and the export readiness gate together). In the release:
+  plan 43 Phases 2 and 4 narrowed to the four fields the format already carries (title, artist,
+  album, year), plus switching the export action off. Out until plan 43 lands: Phases 1, 3
+  and 5, and with them 43-Q1..Q5. Save, Save As and reopen are untouched — they are the release
+  bar's round trip.
+- **D2 — Pointer drag-move** (`docs/plans/todo/tab-pointer-drag-editing.md`). **RULED 2026-09-19
+  (user): not in the bar, not out either — it sits at the END of the plan as an optional item (see
+  Phase 7), and the user decides whether it ships in the first release once the editor is taking
+  its final shape.** Sized the same day: a medium build with no chart law, format or derivation
+  in it. The move verb already replays a run from the keys it started on as one plan and one undo
+  entry, and the lane already reports Down / Drag / Up, so the controller half is small; the cost
+  is the pointer half — the drag threshold, live preview, edge auto-scroll, Esc cancel, and the
+  sighting rounds a pointer gesture takes. No grab zone competes: heads are the lane's only
+  targets and tail-drag resize is dropped. The todo file was rewritten against the code the same
+  day.
+- **D3 — Surfaces the plan was silent on. RULED 2026-09-19 (user).** OUT: the plugin-chain keyboard
+  model (plan 53 Phase 5; tone design, not a chart fact, and it leaves `Enter` on a tone region
+  meaning "retone" for the release), automation-lane point multi-select and marquee (plan 53
+  Phase 6), playback count-in (plan 59), editor theme presets (plan 45). IN: **the audible loop
+  region** (plan 47 Phase 4) — it joins Phase 5 beside the ruler-drag time selection that feeds
+  it — and **the keybind dialog's in-action review** (plan 46 Phase 3; code-complete, needs only
+  the user's review), which joins Phase 6's sighting passes.
 - **D4 — The claimed stop's missing 3D face.** Build a mark, or record a deliberate divergence. The
   surfaces-must-not-diverge rule argues for building it; rule it with the G60 session since the hand
   marker work touches the same stop.
