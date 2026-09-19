@@ -799,6 +799,12 @@ public:
         audio_device_settings_close_count += 1;
     }
 
+    /*! \brief Counts calibration requests raised by the audio-device settings window. */
+    void onAudioDeviceSettingsCalibrationRequested() override
+    {
+        audio_device_settings_calibration_request_count += 1;
+    }
+
     /*! \brief Counts audio-device settings teardown-complete notifications. */
     void onAudioDeviceSettingsTeardownComplete() override
     {
@@ -1282,6 +1288,9 @@ public:
 
     /*! \brief Number of audio-device settings close notifications received. */
     int audio_device_settings_close_count{0};
+
+    /*! \brief Number of calibration requests raised by the audio-device settings window. */
+    int audio_device_settings_calibration_request_count{0};
 
     /*! \brief Number of audio-device settings teardown-complete notifications received. */
     int audio_device_settings_teardown_complete_count{0};

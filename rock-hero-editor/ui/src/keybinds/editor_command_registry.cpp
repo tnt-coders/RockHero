@@ -589,11 +589,6 @@ constexpr int g_add_lane_key = 'a';
     add(EditorCommandId::OpenFileMenu, "Open File Menu", "Menu", {chord('f', alt)});
     add(EditorCommandId::OpenEditMenu, "Open Edit Menu", "Menu", {chord('e', alt)});
     add(EditorCommandId::OpenViewMenu, "Open View Menu", "Menu", {chord('v', alt)});
-    add(EditorCommandId::OpenAudioMenu, "Open Audio Menu", "Menu", {chord('a', alt)});
-
-    // The menu's only way into input calibration. No default chord: it is a rare setup step, and
-    // the panel's own in-place button is the surface a charter meets it through.
-    add(EditorCommandId::CalibrateInput, "Calibrate Input...", "Audio", {});
 
     return registry;
 }

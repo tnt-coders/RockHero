@@ -75,6 +75,11 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
         m_transport.pause();
     }
 
+    // Sampled before the window can stage anything, so the teardown comparison below can tell a
+    // close that settled on a new input route from one that left the route where it found it. A
+    // calibrate request from a previous window that never reached teardown dies here.
+    m_input_identity_at_settings_open = m_audio_devices.currentInputDeviceIdentity();
+    m_calibration_requested_by_settings = false;
     m_live_input_monitor.openAudioDeviceSettings();
     refreshAudioDeviceFailurePrompt();
     updateView();
@@ -92,13 +97,54 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
     updateView();
 }
 
+// Records the settings window's Calibrate Input press. It cannot open the prompt itself -- the
+// shared workflow refuses one while audio-device settings are open -- and it deliberately does not
+// try: the teardown seam below is the one place calibration opens after that window, so a press and
+// a newly uncalibrated route arriving at the same close cannot open it twice. The press may land
+// before or after onAudioDeviceSettingsClosed(); either order records the same flag.
+void EditorController::Impl::onAudioDeviceSettingsCalibrationRequested()
+{
+    m_calibration_requested_by_settings = true;
+}
+
 // Runs after the settings window object is fully torn down: any staged-edit rollback (including
 // the native-close cancel backstop) has settled the device synchronously by now, so this is the
-// first trustworthy moment to evaluate whether the editor ended up without an open device.
+// first trustworthy moment to evaluate whether the editor ended up without an open device -- and,
+// for the same reason, the one seam that opens input calibration after that window.
 void EditorController::Impl::onAudioDeviceSettingsTeardownComplete()
 {
+    openInputCalibrationAfterSettings();
     refreshAudioDeviceFailurePrompt();
     updateView();
+}
+
+// The one seam that opens calibration after the audio-device settings window, for both of its
+// reasons: the user asked for it there, or the window left the input on a route it CHANGED that
+// still needs calibrating. Only a changed route qualifies for the second -- Cancel and Escape
+// restore the previous device byte-exact, and an OK that staged nothing leaves it alone, so neither
+// can nag about a state the user did not create. Both answers are consumed here, so a press on a
+// route that also changed opens the prompt once.
+void EditorController::Impl::openInputCalibrationAfterSettings()
+{
+    const std::optional<common::audio::InputDeviceIdentity> identity =
+        m_audio_devices.currentInputDeviceIdentity();
+    const std::optional<common::audio::InputDeviceIdentity> previous_identity =
+        std::exchange(m_input_identity_at_settings_open, std::nullopt);
+    const bool requested = std::exchange(m_calibration_requested_by_settings, false);
+    if (!identity.has_value())
+    {
+        return;
+    }
+
+    const bool route_changed =
+        !previous_identity.has_value() ||
+        !common::audio::samePhysicalInputRoute(*previous_identity, *identity);
+    if (!requested && !(route_changed && !m_live_input_monitor.calibrationMatchesCurrentRoute()))
+    {
+        return;
+    }
+
+    onInputCalibrationRequested();
 }
 
 // Applies the user's answer to the audio-device failure overlay. Retry re-applies the active

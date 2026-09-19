@@ -71,7 +71,12 @@ constexpr int g_master_meter_min_width{196};
 // File/Edit/... menu titles still have room on the smallest supported window width.
 constexpr int g_audio_device_menu_button_min_width{180};
 constexpr int g_audio_device_menu_button_max_width{520};
-constexpr int g_signal_chain_panel_min_height{160};
+// Floor set by the meter's own tick gate: the vertical ladder's five rungs need 18 px between
+// centres (audio_level_meter.cpp), so the meter's inner height must reach 99 px. The meters run
+// exactly the chain surface, which at 172 is 106 px even with the 8 px horizontal scrollbar
+// showing -- 100 px of inner height, just clear of the gate. Below that the ladder starts dropping
+// rungs.
+constexpr int g_signal_chain_panel_min_height{172};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 
@@ -674,6 +679,8 @@ void EditorView::setState(const core::EditorViewState& state)
     {
         updateWindowTitle();
     }
+
+    pushInputCalibrationToAudioDeviceSettings();
 
     menuItemsChanged();
     // Command enablement derives from the same state push; refreshing here keeps the mapping
@@ -1413,7 +1420,7 @@ void EditorView::showActionsWindow()
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File", "Edit", "View", "Audio"};
+    return {"File", "Edit", "View"};
 }
 
 // Builds menus using only controller-derived state.
@@ -1474,13 +1481,6 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
                 m_state.tab_minimum_displayed_strings == count);
         }
         menu.addSubMenu("Tablature Strings", strings_menu, has_chart);
-        return menu;
-    }
-
-    if (top_level_menu_index == 3 && menu_name == "Audio")
-    {
-        juce::PopupMenu menu;
-        addEditorCommandItem(menu, m_command_manager, EditorCommandId::CalibrateInput);
         return menu;
     }
 
@@ -1583,13 +1583,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setActive(m_state.signal_chain.tone_export_enabled);
             break;
         }
-        case EditorCommandId::CalibrateInput:
-        {
-            // Exactly the flag the signal-chain panel's in-place button follows, so the menu and
-            // the panel can never disagree about when calibration can run.
-            info.setActive(m_state.signal_chain.input_calibrate_enabled);
-            break;
-        }
         case EditorCommandId::Undo:
         {
             info.shortName = editCommandText("Undo", m_state.undo_label);
@@ -1640,7 +1633,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
-        case EditorCommandId::OpenAudioMenu:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:
@@ -1879,11 +1871,6 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::CalibrateInput:
-        {
-            onInputCalibrationPressed();
-            return true;
-        }
         case EditorCommandId::Undo:
         {
             if (m_state.undo_enabled)
@@ -2010,9 +1997,8 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
-        case EditorCommandId::OpenAudioMenu:
         {
-            // Ids are contiguous in getMenuBarNames' order (File, Edit, View, Audio), which the
+            // Ids are contiguous in getMenuBarNames' order (File, Edit, View), which the
             // view-state test locks, so the bar index is the offset from the first.
             m_menu_bar.showMenu(info.commandID - static_cast<int>(EditorCommandId::OpenFileMenu));
             return true;
@@ -3181,7 +3167,7 @@ void EditorView::showAudioDeviceSettingsWindow()
     }
 
     m_audio_device_settings_window_reset_pending = false;
-    m_audio_device_settings_window = AudioDeviceSettingsWindow::show(
+    AudioDeviceSettingsWindow::Opened opened = AudioDeviceSettingsWindow::show(
         m_audio_devices,
         m_audio_device_button,
         [safe_this](std::function<void()> operation, std::function<void()> after_cleared) {
@@ -3225,7 +3211,32 @@ void EditorView::showAudioDeviceSettingsWindow()
             // A torn-down view has no editor to switch, so there is no failure to report to the
             // closing dialog.
             return {};
+        },
+        [safe_this] {
+            // Recording only: the controller answers this from its teardown seam, the one place
+            // calibration opens after this window.
+            if (auto* view = safe_this.getComponent())
+            {
+                view->m_controller.onAudioDeviceSettingsCalibrationRequested();
+            }
         });
+
+    m_audio_device_settings_window = std::move(opened.window);
+    m_audio_device_settings_calibration_sink = std::move(opened.set_input_calibration);
+    pushInputCalibrationToAudioDeviceSettings();
+}
+
+// Feeds the open settings window the editor's current calibration facts. Called on every state
+// push, which is what keeps its status line live while the user stages a different input device.
+void EditorView::pushInputCalibrationToAudioDeviceSettings()
+{
+    if (m_audio_device_settings_calibration_sink)
+    {
+        m_audio_device_settings_calibration_sink(
+            m_state.signal_chain.input_calibration_status,
+            m_state.signal_chain.input_calibration_gain_db,
+            m_state.signal_chain.input_calibrate_enabled);
+    }
 }
 
 // Clears the owner-held settings window after JUCE and view callbacks have unwound. Destroying
@@ -3239,6 +3250,7 @@ void EditorView::scheduleAudioDeviceSettingsWindowReset()
         if (auto* view = safe_this.getComponent())
         {
             view->m_audio_device_settings_window.reset();
+            view->m_audio_device_settings_calibration_sink = {};
             view->m_audio_device_settings_window_reset_pending = false;
             view->m_controller.onAudioDeviceSettingsTeardownComplete();
         }
@@ -3390,16 +3402,6 @@ void EditorView::onPluginDisplayTypeOverrideChanged(
 void EditorView::onOpenPluginPressed(std::string instance_id)
 {
     m_controller.onOpenPluginRequested(std::move(instance_id));
-}
-
-// Opens input calibration through the controller when the command is available.
-void EditorView::onInputCalibrationPressed()
-{
-    if (!m_state.signal_chain.input_calibrate_enabled)
-    {
-        return;
-    }
-    m_controller.onInputCalibrationRequested();
 }
 
 // Routes a tone-region selection intent to the controller.

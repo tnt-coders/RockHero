@@ -84,9 +84,6 @@ public:
         */
         virtual void onOpenPluginPressed(std::string instance_id) = 0;
 
-        /*! \brief Called when the user requests input calibration. */
-        virtual void onInputCalibrationPressed() = 0;
-
         /*! \brief Called when the user starts a fresh untitled Tone Designer document. */
         virtual void onNewTonePressed() = 0;
 
@@ -251,12 +248,8 @@ private:
     // Tone Designer document state; while active it owns the header title and the file strip.
     core::ToneDesignerViewState m_tone_designer{};
 
-    // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
+    // Raw or calibrated input peak meter, flush against the left edge of the chain surface.
     AudioLevelMeter m_input_meter;
-
-    // Offers calibration in place while the panel is disabled for want of it; the audio menu's
-    // command is the other way in. Hidden whenever the chain itself is showing.
-    juce::TextButton m_input_calibrate_button;
 
     // Tone Designer file commands, visible only while the designer owns the live rig.
     juce::TextButton m_tone_new_button;
@@ -269,7 +262,7 @@ private:
     juce::TextButton m_tone_import_button;
     juce::TextButton m_tone_export_button;
 
-    // Peak meter for the chain's output, mirroring the input meter on the right side.
+    // Peak meter for the chain's output, mirroring the input meter on the right edge.
     AudioLevelMeter m_output_meter;
 
     // Scrollable viewport that keeps long plugin chains reachable in a compact view.

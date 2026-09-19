@@ -1408,6 +1408,11 @@ void EditorController::onAudioDeviceSettingsClosed()
     m_impl->onAudioDeviceSettingsClosed();
 }
 
+void EditorController::onAudioDeviceSettingsCalibrationRequested()
+{
+    m_impl->onAudioDeviceSettingsCalibrationRequested();
+}
+
 void EditorController::onAudioDeviceSettingsTeardownComplete()
 {
     m_impl->onAudioDeviceSettingsTeardownComplete();
@@ -2666,6 +2671,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
         .plugins = m_signal_chain.plugins(),
         .input_calibration_status = input_calibration.status,
+        .input_calibration_gain_db = input_calibration.calibration_gain_db,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,
         .tone_import_enabled =

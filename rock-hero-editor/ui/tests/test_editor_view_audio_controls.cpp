@@ -6,9 +6,9 @@
 namespace rock_hero::editor::ui
 {
 
-// Verifies the disabled panel offers calibration in place: the button shows only where it is the
-// way out, and pressing it emits the controller intent.
-TEST_CASE("Uncalibrated signal chain offers calibration in place", "[ui][editor-view]")
+// Verifies the disabled panel is a message and nothing else: the way out is named in the text, not
+// offered as a control the panel would have to gate.
+TEST_CASE("Uncalibrated signal chain names where calibration lives", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -17,56 +17,16 @@ TEST_CASE("Uncalibrated signal chain offers calibration in place", "[ui][editor-
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1280, 800);
 
-    auto& calibrate_button =
-        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-
-    // A working chain is not a place to offer calibration, so the button stays out of it.
-    view.setState(core::EditorViewState{});
-    CHECK_FALSE(calibrate_button.isVisible());
-
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .input_calibrate_enabled = true,
-                .disabled_message = "Live input disabled: input calibration required.",
+                .disabled_message = "Live input disabled: input calibration required. Calibrate "
+                                    "the input in Audio Device Settings.",
             },
         });
 
-    CHECK(calibrate_button.isVisible());
-    calibrate_button.onClick();
-
-    CHECK(controller.input_calibration_request_count == 1);
-}
-
-// Verifies the Audio menu reaches the same calibration intent, and follows the same availability
-// flag the panel's in-place button does.
-TEST_CASE("Audio menu opens input calibration", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    const int calibrate_command = toJuceCommandId(EditorCommandId::CalibrateInput);
-    const juce::StringArray menu_names = view.getMenuBarNames();
-    REQUIRE(menu_names.contains("Audio"));
-
-    view.setState(core::EditorViewState{});
-    CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(3, "Audio"), calibrate_command).isEnabled);
-    view.commandManager().invokeDirectly(calibrate_command, false);
+    CHECK(findDescendant(view, "input_calibrate_button") == nullptr);
     CHECK(controller.input_calibration_request_count == 0);
-
-    view.setState(
-        core::EditorViewState{
-            .signal_chain = core::SignalChainViewState{
-                .input_calibrate_enabled = true,
-            },
-        });
-
-    CHECK(requiredMenuItem(view.getMenuForIndex(3, "Audio"), calibrate_command).isEnabled);
-    view.commandManager().invokeDirectly(calibrate_command, false);
-    CHECK(controller.input_calibration_request_count == 1);
 }
 
 // Verifies the calibration popup starts with target, status, and documentation controls.

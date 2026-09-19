@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 #include <rock_hero/editor/core/audio_device/audio_device_settings_controller.h>
 #include <string>
@@ -676,6 +677,108 @@ TEST_CASE(
     // The unavailability also reaches the view state so the button can gray out with its tooltip.
     CHECK(view.last_state.control_panel_supported);
     CHECK(view.last_state.staged_device_error.has_value());
+}
+
+// Calibrate Input runs OK's own finishing operation, closes the window, and raises the calibration
+// request exactly once. It never opens calibration itself: the host owns the one seam that does.
+TEST_CASE(
+    "AudioDeviceSettingsController raises the calibration request once",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    FakeAudioDeviceSettingsView view;
+    int calibration_request_count{0};
+    AudioDeviceSettingsController controller{settings, {}, [&calibration_request_count] {
+                                                 ++calibration_request_count;
+                                             }};
+    controller.attachView(view);
+    controller.onInputCalibrationChanged(
+        InputCalibrationStatus::MissingCalibration, std::nullopt, true);
+
+    controller.onCalibrateInputRequested();
+
+    CHECK(settings.apply_call_count == 1);
+    CHECK(view.close_call_count == 1);
+    CHECK(calibration_request_count == 1);
+}
+
+// A refused route raises nothing: the apply failed, so the window stays with no request standing.
+TEST_CASE(
+    "AudioDeviceSettingsController keeps the window on a failed calibrate press",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.next_apply_error = common::audio::AudioDeviceSettingsError{
+        common::audio::AudioDeviceSettingsErrorCode::ApplyFailed,
+        "Could not open Output B",
+    };
+    int calibration_request_count{0};
+    AudioDeviceSettingsController controller{settings, {}, [&calibration_request_count] {
+                                                 ++calibration_request_count;
+                                             }};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+    controller.onInputCalibrationChanged(
+        InputCalibrationStatus::MissingCalibration, std::nullopt, true);
+
+    controller.onCalibrateInputRequested();
+
+    CHECK(settings.apply_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    CHECK(calibration_request_count == 0);
+    CHECK(view.last_state.error_message == "Could not open Output B");
+}
+
+// Calibrating applies the staged route first, so an unselectable route grays the button out exactly
+// as it grays OK out, and the intent is refused rather than forwarded.
+TEST_CASE(
+    "AudioDeviceSettingsController gates the calibrate press", "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.current_state.selected_audio_system_id = 0;
+    int calibration_request_count{0};
+    AudioDeviceSettingsController controller{settings, {}, [&calibration_request_count] {
+                                                 ++calibration_request_count;
+                                             }};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onInputCalibrationChanged(
+        InputCalibrationStatus::MissingCalibration, std::nullopt, true);
+    CHECK_FALSE(view.last_state.calibrate_enabled);
+
+    controller.onCalibrateInputRequested();
+
+    CHECK(settings.apply_call_count == 0);
+    CHECK(view.close_call_count == 0);
+    CHECK(calibration_request_count == 0);
+}
+
+// The editor pushes calibration facts in; the window renders them without asking the settings
+// backend, which knows only the route and nothing about app-local calibration.
+TEST_CASE(
+    "AudioDeviceSettingsController carries pushed calibration facts",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    CHECK(view.last_state.input_calibration_status == InputCalibrationStatus::NoActiveInputDevice);
+    CHECK_FALSE(view.last_state.input_calibration_gain_db.has_value());
+
+    controller.onInputCalibrationChanged(InputCalibrationStatus::Calibrated, -6.0, true);
+
+    CHECK(view.last_state.input_calibration_status == InputCalibrationStatus::Calibrated);
+    // Bound once and guarded by name: a REQUIRE is invisible to the optional-access analysis.
+    const std::optional<double>& pushed_gain_db = view.last_state.input_calibration_gain_db;
+    REQUIRE(pushed_gain_db.has_value());
+    if (pushed_gain_db.has_value())
+    {
+        CHECK_THAT(*pushed_gain_db, Catch::Matchers::WithinULP(-6.0, 0));
+    }
+    CHECK(view.last_state.calibrate_enabled);
 }
 
 } // namespace rock_hero::editor::core

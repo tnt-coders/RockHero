@@ -6,6 +6,7 @@
 #pragma once
 
 #include "audio_device/audio_device_failure_overlay.h"
+#include "audio_device/audio_device_settings_window.h"
 #include "busy/busy_overlay.h"
 #include "main_window/menu_bar_button.h"
 #include "main_window/menu_look_and_feel.h"
@@ -384,6 +385,9 @@ private:
     // Opens the audio-device settings window.
     void showAudioDeviceSettingsWindow();
 
+    // Pushes the current input-route calibration into the open settings window, if one is open.
+    void pushInputCalibrationToAudioDeviceSettings();
+
     // Defers settings-window destruction until the current close callback stack unwinds.
     void scheduleAudioDeviceSettingsWindowReset();
 
@@ -425,9 +429,6 @@ private:
 
     // SignalChainView::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;
-
-    // SignalChainView::Listener implementation.
-    void onInputCalibrationPressed() override;
 
     // SignalChainView::Listener implementation.
     void onNewTonePressed() override;
@@ -713,6 +714,11 @@ private:
 
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;
+
+    // Pushes input-route calibration into that window on every state change, so its status line and
+    // Calibrate button stay live while the user stages a different device. Held only while the
+    // window is, and released with it.
+    AudioDeviceSettingsWindow::InputCalibrationSink m_audio_device_settings_calibration_sink;
 
     // Optional top-level 3D preview window (plan 44); created on first toggle, then kept and
     // shown/hidden (its render surface rebuilds per open).

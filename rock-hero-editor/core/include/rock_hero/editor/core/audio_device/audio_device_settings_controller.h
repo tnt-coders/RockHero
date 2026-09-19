@@ -30,6 +30,16 @@ the editor uses to present its busy overlay before running blocking device-manag
 using AudioDeviceSettingsDispatcher =
     std::function<void(std::function<void()> work, std::function<void()> after_cleared)>;
 
+/*!
+\brief Callable the controller invokes when a Calibrate Input press has applied its route.
+
+It records a request, not an opening: the host answers it from its own seam once the window has
+torn down, so this may fire before or after the close and the order does not matter. Empty in
+compositions that host the window without a calibration flow, which makes the Calibrate press an
+ordinary apply-and-close.
+*/
+using InputCalibrationRequestedCallback = std::function<void()>;
+
 /*! \brief Headless editor workflow controller for one audio-device settings window. */
 class AudioDeviceSettingsController final : public IAudioDeviceSettingsController,
                                             private common::audio::IAudioDeviceSettings::Listener
@@ -41,10 +51,13 @@ public:
     \param dispatcher Optional hook used by OK, commit, and Cancel to run device-manager
            operations behind a host paint fence. When empty, the operations run synchronously
            inside the matching intent handler.
+    \param on_calibration_requested Optional hook invoked when a Calibrate Input press has applied
+           its route, so the host can answer the request outside this window's lifetime.
     */
     explicit AudioDeviceSettingsController(
         common::audio::IAudioDeviceSettings& settings,
-        AudioDeviceSettingsDispatcher dispatcher = {});
+        AudioDeviceSettingsDispatcher dispatcher = {},
+        InputCalibrationRequestedCallback on_calibration_requested = {});
 
     /*! \brief Cancels an unfinished settings edit before detaching from the backend. */
     ~AudioDeviceSettingsController() override;
@@ -77,7 +90,11 @@ public:
     void onBufferSizeSelected(int choice_id) override;
     void onControlPanelRequested() override;
     void onOkRequested() override;
+    void onCalibrateInputRequested() override;
     void onUseGameAudioSettingsChanged(bool enabled) override;
+    void onInputCalibrationChanged(
+        InputCalibrationStatus status, std::optional<double> gain_db,
+        bool calibrate_enabled) override;
     void onCancelRequested() override;
 
 private:
@@ -86,14 +103,21 @@ private:
     // Pushes freshly derived view state to the attached view, if any.
     void updateView();
 
-    // Requests the attached view close after marking the edit complete.
-    void finishAndClose();
+    // Requests the attached view close after marking the edit complete, raising the calibration
+    // request first when the closing gesture asked for one.
+    void finishAndClose(bool calibration_requested);
+
+    // The operation OK commits with, which Calibrate Input reuses verbatim: the staged editor route
+    // is applied, or the already-open game route committed, depending on which source is active.
+    [[nodiscard]] std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()>
+    finishingOperation();
 
     // Runs a finishing settings operation that may block on device work (apply, commit, cancel):
     // fenced behind the dispatcher when one is supplied, synchronous otherwise. Closes the window
     // on success; restores editing with the diagnostic rendered on failure.
     void runFinishingOperation(
-        std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation);
+        std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation,
+        bool calibration_requested = false);
 
     // Shared settings backend that owns staging policy and hardware-side apply behavior.
     common::audio::IAudioDeviceSettings& m_settings;
@@ -101,6 +125,16 @@ private:
     // Optional dispatcher used by OK, commit, and Cancel to run device-manager operations behind
     // a host paint fence.
     AudioDeviceSettingsDispatcher m_dispatcher;
+
+    // Optional hook raising the calibration request a Calibrate Input press stands for.
+    InputCalibrationRequestedCallback m_on_calibration_requested;
+
+    // Calibration facts pushed in by the editor controller, rendered on the window's status line.
+    InputCalibrationStatus m_input_calibration_status{InputCalibrationStatus::NoActiveInputDevice};
+    std::optional<double> m_input_calibration_gain_db{};
+
+    // True when calibration may run for the selected input route; gates the Calibrate Input button.
+    bool m_calibrate_enabled{false};
 
     // Non-owning view binding installed by attachView().
     IAudioDeviceSettingsView* m_view{};

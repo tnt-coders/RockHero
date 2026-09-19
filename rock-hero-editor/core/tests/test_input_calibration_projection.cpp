@@ -33,6 +33,13 @@ constexpr common::audio::LiveInputMonitoringContext g_ready{
     .live_input_ready = true, .arrangement_loaded = true
 };
 
+// The missing-calibration message, spelled once here; test_input_calibration_text.cpp is where its
+// wording is locked.
+constexpr const char* g_missing_calibration_message{
+    "Live input disabled: input calibration required. Calibrate the input in Audio Device "
+    "Settings."
+};
+
 } // namespace
 
 // Each monitoring reason projects to a fixed signal-chain status. This pins the enum mapping the
@@ -69,7 +76,7 @@ TEST_CASE(
          .expected_status = InputCalibrationStatus::MissingCalibration},
         {.reason = common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
          .backend_available = true,
-         .expected_status = InputCalibrationStatus::MissingCalibration},
+         .expected_status = InputCalibrationStatus::CalibrationRouteMismatch},
         {.reason = common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable,
          .backend_available = true,
          .expected_status = InputCalibrationStatus::Unavailable},
@@ -131,7 +138,14 @@ TEST_CASE(
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK_FALSE(projection.live_input_audition_available);
     CHECK_FALSE(projection.audio_device_settings_enabled);
-    CHECK_FALSE(projection.calibrate_enabled);
+    // Calibration is reached FROM the settings window, so the flag its button follows stays true
+    // while that window is open; the hand-off is what keeps the two windows exclusive.
+    CHECK(projection.calibrate_enabled);
+    REQUIRE(projection.calibration_gain_db.has_value());
+    if (projection.calibration_gain_db.has_value())
+    {
+        CHECK_THAT(*projection.calibration_gain_db, Catch::Matchers::WithinULP(5.0, 0));
+    }
 }
 
 // A visible prompt carries the matching stored gain and the disabled message for the route.
@@ -153,13 +167,82 @@ TEST_CASE(
     REQUIRE(projection.prompt.has_value());
     if (projection.prompt.has_value())
     {
-        CHECK(projection.prompt->message == "Live input disabled: input calibration required.");
+        CHECK(projection.prompt->message == g_missing_calibration_message);
         CHECK_THAT(
             projection.prompt->input_gain_db,
             Catch::Matchers::WithinULP(common::audio::defaultGainDb(), 0));
     }
     CHECK(projection.status == InputCalibrationStatus::MissingCalibration);
     CHECK_FALSE(projection.audio_device_settings_enabled);
+}
+
+// The settings window's status line needs a finer answer than "not calibrated": it separates the
+// route that was never calibrated from the route whose held calibration belongs elsewhere. Both
+// still reach the panel as the same message, which is why only the status tells them apart.
+TEST_CASE(
+    "Input calibration projection tells the two uncalibrated routes apart",
+    "[core][input-calibration]")
+{
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    common::audio::testing::FakeLiveInput live_input;
+    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, devices, store};
+
+    SECTION("no input route reports no active device and no gain")
+    {
+        static_cast<void>(monitor.refresh(g_ready));
+        const InputCalibrationProjection projection =
+            makeInputCalibrationProjection(monitor, g_ready);
+
+        CHECK(projection.status == InputCalibrationStatus::NoActiveInputDevice);
+        CHECK_FALSE(projection.calibration_gain_db.has_value());
+    }
+
+    SECTION("a route with no stored calibration reports missing calibration")
+    {
+        devices.current_input_identity = identity;
+        static_cast<void>(monitor.refresh(g_ready));
+        const InputCalibrationProjection projection =
+            makeInputCalibrationProjection(monitor, g_ready);
+
+        CHECK(projection.status == InputCalibrationStatus::MissingCalibration);
+        CHECK_FALSE(projection.calibration_gain_db.has_value());
+    }
+
+    SECTION("a matching stored calibration reports its gain")
+    {
+        devices.current_input_identity = identity;
+        REQUIRE(store.saveInputCalibration(calibrationFor(identity, -6.0)).has_value());
+        static_cast<void>(monitor.refresh(g_ready));
+        const InputCalibrationProjection projection =
+            makeInputCalibrationProjection(monitor, g_ready);
+
+        CHECK(projection.status == InputCalibrationStatus::Calibrated);
+        REQUIRE(projection.calibration_gain_db.has_value());
+        if (projection.calibration_gain_db.has_value())
+        {
+            CHECK_THAT(*projection.calibration_gain_db, Catch::Matchers::WithinULP(-6.0, 0));
+        }
+    }
+
+    SECTION("a calibration held for another route reports the mismatch")
+    {
+        devices.current_input_identity = identity;
+        REQUIRE(store.saveInputCalibration(calibrationFor(identity, -6.0)).has_value());
+        static_cast<void>(monitor.refresh(g_ready));
+
+        // The route moves without a refresh, so the held calibration is still the previous one:
+        // exactly the transient the settings window shows while a new device is staged.
+        devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
+        const InputCalibrationProjection projection =
+            makeInputCalibrationProjection(monitor, g_ready);
+
+        CHECK(projection.status == InputCalibrationStatus::CalibrationRouteMismatch);
+        CHECK_FALSE(projection.calibration_gain_db.has_value());
+        // The panel cannot tell the two apart, and should not: the way out is the same.
+        CHECK(projection.disabled_message == g_missing_calibration_message);
+    }
 }
 
 } // namespace rock_hero::editor::core

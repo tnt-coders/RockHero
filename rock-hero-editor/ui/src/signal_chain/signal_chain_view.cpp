@@ -29,13 +29,11 @@ constexpr double g_signal_preview_animation_start_speed{1.0};
 constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr std::size_t g_signal_path_min_block_count{common::audio::g_max_signal_chain_plugins};
 
-// The panel is meter, chain, meter: the two end groups are the same thing on opposite sides, so
-// they are one width. Sized to hold the caption above a centered meter column.
-constexpr int g_meter_group_width{48};
+// The panel is meter, chain, meter with nothing between them: both meters are the same width, run
+// exactly the height of the dark chain surface, and sit flush against its edges so the signal line
+// reads as running into them. The captions are gone with the gutters -- a meter at each end of a
+// signal path names itself.
 constexpr int g_gain_meter_width{28};
-constexpr int g_gain_meter_vertical_inset{2};
-constexpr int g_calibrate_button_height{26};
-constexpr int g_calibrate_button_width{160};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
@@ -90,22 +88,33 @@ constexpr int g_signal_path_node_gap{34};
     return bounds;
 }
 
-// Centers a meter column inside one end group, insetting it vertically. Both end groups pass the
-// same-height rect, so the two meters share their top and bottom baselines by construction.
-[[nodiscard]] juce::Rectangle<int> meterBounds(juce::Rectangle<int> group_area)
+// The header band, spanning the panel's whole width now that no caption column flanks it.
+[[nodiscard]] juce::Rectangle<int> headerArea(juce::Rectangle<int> panel_bounds)
 {
-    return group_area.withSizeKeepingCentre(g_gain_meter_width, group_area.getHeight())
-        .reduced(0, g_gain_meter_vertical_inset);
+    return panel_bounds.reduced(g_panel_inset).removeFromTop(g_header_height);
 }
 
-// The disabled panel's action row, taken off the bottom of the chain area. resized() places the
-// calibration button in it and paint() keeps the disabled message above it, both from this one
-// answer, so the text can never be centred over the button.
-[[nodiscard]] juce::Rectangle<int> disabledActionRow(juce::Rectangle<int> chain_area)
+// The band below the header, split into the two flush meter columns and the chain surface between
+// them. One answer shared by paint() and resized(), so the surface the disabled message draws on is
+// exactly the surface the meters are measured against.
+struct ChainBand
 {
-    auto row =
-        chain_area.removeFromBottom(std::min(g_calibrate_button_height, chain_area.getHeight()));
-    return row.withWidth(std::min(g_calibrate_button_width, row.getWidth()));
+    juce::Rectangle<int> input_meter{};
+    juce::Rectangle<int> surface{};
+    juce::Rectangle<int> output_meter{};
+};
+
+[[nodiscard]] ChainBand chainBand(juce::Rectangle<int> panel_bounds)
+{
+    auto area = panel_bounds.reduced(g_panel_inset);
+    area.removeFromTop(g_header_height + g_panel_inset);
+    const auto input_meter = area.removeFromLeft(std::min(g_gain_meter_width, area.getWidth()));
+    const auto output_meter = area.removeFromRight(std::min(g_gain_meter_width, area.getWidth()));
+    return ChainBand{
+        .input_meter = input_meter,
+        .surface = area,
+        .output_meter = output_meter,
+    };
 }
 
 } // namespace
@@ -144,6 +153,19 @@ public:
         // The line runs in segments between the fixed cell centres, breaking at each one so the
         // slot affordances (the "+" insert button and the marker dot) sit on the dark surface
         // rather than under the bright line.
+        //
+        // The rule at the edges: a break is drawn only where it falls strictly inside the visible
+        // span, so the line always arrives at BOTH visible edges of the viewport, at every scroll
+        // position. The meters are flush against this surface, and a break straddling an edge would
+        // leave the junction with the meter detached. The visible span is this component's position
+        // inside the viewport's content holder, so it tracks scrolling with no state of its own.
+        const juce::Component* const holder = getParentComponent();
+        const float visible_left =
+            holder != nullptr ? static_cast<float>(-getX()) : static_cast<float>(bounds.getX());
+        const float visible_right = holder != nullptr
+                                        ? static_cast<float>(-getX() + holder->getWidth())
+                                        : static_cast<float>(bounds.getRight());
+
         auto segment_start = static_cast<float>(bounds.getX());
         const auto draw_segment = [&g, path_y](float from_x, float to_x) {
             if (to_x > from_x)
@@ -157,8 +179,15 @@ public:
             const float centre_x =
                 static_cast<float>(blockCellBounds(path_area, index, block_count).getCentreX());
             const float half_gap = static_cast<float>(g_signal_path_node_gap) / 2.0f;
-            draw_segment(segment_start, centre_x - half_gap);
-            segment_start = std::max(segment_start, centre_x + half_gap);
+            const float break_start = centre_x - half_gap;
+            const float break_end = centre_x + half_gap;
+            if (break_start <= visible_left || break_end >= visible_right)
+            {
+                continue;
+            }
+
+            draw_segment(segment_start, break_start);
+            segment_start = std::max(segment_start, break_end);
         }
         draw_segment(segment_start, static_cast<float>(bounds.getRight()));
 
@@ -179,24 +208,20 @@ private:
 // Creates the signal-chain controls and routes user intents through the owner.
 SignalChainView::SignalChainView(Listener& listener)
     : m_listener(listener)
-    , m_input_meter(AudioLevelMeterOrientation::Vertical)
-    , m_output_meter(AudioLevelMeterOrientation::Vertical)
+    // Each meter's chain-facing border is left open so the signal line reads as running through it
+    // rather than stopping at a wall; the captions the two groups used to carry are gone with them.
+    , m_input_meter(AudioLevelMeterOrientation::Vertical, {}, AudioLevelMeterOpenEdge::Right)
+    , m_output_meter(AudioLevelMeterOrientation::Vertical, {}, AudioLevelMeterOpenEdge::Left)
     , m_chain_content(std::make_unique<SignalPathContent>())
     , m_block_layout(g_signal_path_min_block_count)
 {
     setComponentID("signal_chain_view");
 
     m_input_meter.setComponentID("input_meter");
+    // The name the captions used to carry. Meters take no mouse hits, so a tooltip would never
+    // show; the accessible title is what a screen reader and the accessibility inspector read.
+    m_input_meter.setTitle("Input level");
     addAndMakeVisible(m_input_meter);
-
-    // Shown only where it is the answer: beside the message saying the chain is disabled for want
-    // of calibration (addChildComponent, not addAndMakeVisible).
-    m_input_calibrate_button.setComponentID("input_calibrate_button");
-    m_input_calibrate_button.setButtonText("Calibrate Input...");
-    m_input_calibrate_button.setWantsKeyboardFocus(false);
-    m_input_calibrate_button.setMouseClickGrabsKeyboardFocus(false);
-    m_input_calibrate_button.onClick = [this] { m_listener.onInputCalibrationPressed(); };
-    addChildComponent(m_input_calibrate_button);
 
     // The designer file strip stays hidden until setToneDesignerState reports the designer
     // active, so project mode keeps its plain header (addChildComponent, not addAndMakeVisible).
@@ -231,6 +256,7 @@ SignalChainView::SignalChainView(Listener& listener)
     });
 
     m_output_meter.setComponentID("output_meter");
+    m_output_meter.setTitle("Output level");
     addAndMakeVisible(m_output_meter);
 
     m_chain_viewport.setComponentID("signal_chain_viewport");
@@ -310,10 +336,8 @@ void SignalChainView::applyState()
     // the header in designer mode and these flags are false there.
     m_tone_import_button.setVisible(m_state.tone_import_enabled);
     m_tone_export_button.setVisible(m_state.tone_export_enabled);
-    // Calibration is offered in place exactly where it is the way out: the panel is disabled and
-    // the user may run it. The audio menu's command reaches it from anywhere.
-    m_input_calibrate_button.setVisible(
-        !m_state.disabled_message.empty() && m_state.input_calibrate_enabled);
+    // The disabled panel is a message and nothing else; paint() fills the surface behind it so the
+    // panel keeps its shape, and the message itself names where calibration lives.
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
@@ -329,7 +353,7 @@ void SignalChainView::setMeterLevels(
     m_output_meter.setLevel(output_level);
 }
 
-// Draws the meter captions, the header title, and the empty-chain or disabled placeholder.
+// Draws the header title and, while the panel is disabled, the surface its message sits on.
 void SignalChainView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
@@ -337,24 +361,8 @@ void SignalChainView::paint(juce::Graphics& g)
     g.setColour(g_panel_border);
     g.drawRect(bounds);
 
-    auto area = bounds.reduced(g_panel_inset);
-
-    // Both captions name a meter and nothing else: the rig's level entering the chain and its
-    // level leaving it. Neither group carries a control, so neither name can lie about scope.
-    const auto input_label_area =
-        area.removeFromLeft(g_meter_group_width).removeFromTop(g_header_height);
-    g.setColour(juce::Colours::white);
-    g.setFont(juce::FontOptions{12.0f});
-    g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
-
-    const auto output_label_area =
-        area.removeFromRight(g_meter_group_width).removeFromTop(g_header_height);
-    g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
-
-    // Center header with title.
-    area.removeFromLeft(g_panel_inset);
-    area.removeFromRight(g_panel_inset);
-    auto header = area.removeFromTop(g_header_height);
+    // The header spans the panel's whole width: no caption column flanks it any more.
+    const auto header = headerArea(bounds);
 
     g.setColour(editorTheme().panel_header);
     g.fillRect(header);
@@ -370,49 +378,35 @@ void SignalChainView::paint(juce::Graphics& g)
                                    : juce::String{"Signal Chain - "} + juce::String{m_tone_name});
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
-    area.removeFromTop(g_panel_inset);
-    const auto chain_area = area;
-    if (!m_state.disabled_message.empty())
+    if (m_state.disabled_message.empty())
     {
-        const auto message_area =
-            area.withBottom(std::max(area.getY(), disabledActionRow(area).getY() - g_panel_inset));
-        g.setColour(juce::Colours::lightgrey);
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(
-            m_state.disabled_message, message_area, juce::Justification::centredLeft, 2);
         return;
     }
 
-    if (m_state.plugins.empty())
-    {
-        g.setColour(juce::Colours::lightgrey);
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText("No plugins loaded", chain_area, juce::Justification::centred, 1);
-        return;
-    }
+    // The viewport is hidden while the panel is disabled, so the surface it normally paints is
+    // filled here instead: the panel keeps its shape between the two states, and the message reads
+    // against the same dark ground the chain does. Its height comes from the viewport, the same
+    // answer the meters are bound to, so the three still line up with the chain hidden.
+    const auto surface = chainBand(bounds).surface.withHeight(
+        std::max(0, m_chain_viewport.getMaximumVisibleHeight()));
+    g.setColour(g_path_background);
+    g.fillRect(surface);
+    g.setColour(juce::Colours::lightgrey);
+    g.setFont(juce::FontOptions{14.0f});
+    g.drawFittedText(
+        m_state.disabled_message,
+        surface.reduced(g_signal_path_padding, 0),
+        juce::Justification::centredLeft,
+        2);
 }
 
-// Keeps the two meters on the sides and plugin tiles in the center.
+// Keeps the two meters flush against the chain surface and plugin tiles in the center.
 void SignalChainView::resized()
 {
-    auto area = getLocalBounds().reduced(g_panel_inset);
-
-    // The two end groups take the same width off opposite edges below the same header band, so
-    // their meters run the panel's whole free height between one pair of baselines.
-    auto input_group_area = area.removeFromLeft(g_meter_group_width);
-    input_group_area.removeFromTop(g_header_height);
-    m_input_meter.setBounds(meterBounds(input_group_area));
-
-    auto output_group_area = area.removeFromRight(g_meter_group_width);
-    output_group_area.removeFromTop(g_header_height);
-    m_output_meter.setBounds(meterBounds(output_group_area));
-
-    // Leave a gap between the meters and the center content.
-    area.removeFromLeft(g_panel_inset);
-    area.removeFromRight(g_panel_inset);
+    const auto bounds = getLocalBounds();
 
     // The designer file strip sits right-aligned in the same header band paint() titles.
-    auto header = area.removeFromTop(g_header_height);
+    auto header = headerArea(bounds);
     auto strip = header.reduced(0, 3);
     constexpr int tone_button_gap = 6;
     const auto place_tone_button = [&strip](juce::TextButton& button, int width) {
@@ -433,12 +427,21 @@ void SignalChainView::resized()
     place_project_button(m_tone_export_button, 100);
     place_project_button(m_tone_import_button, 100);
 
-    area.removeFromTop(g_panel_inset);
-    m_chain_viewport.setBounds(area);
-    m_input_calibrate_button.setBounds(disabledActionRow(area));
-    const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
-    const int content_width = chainContentWidth(m_block_layout.blockCount(), area.getWidth());
-    m_chain_content->setSize(content_width, content_height);
+    const ChainBand band = chainBand(bounds);
+    m_chain_viewport.setBounds(band.surface);
+
+    // Two passes, in this order: the content width decides whether the horizontal scrollbar shows,
+    // and only with that settled does the viewport know how tall its visible surface is. That
+    // surface -- not the viewport rect -- is the height the content and both meters take, so the
+    // scrollbar strip can never make a meter overhang the chain.
+    const int content_width =
+        chainContentWidth(m_block_layout.blockCount(), band.surface.getWidth());
+    m_chain_content->setSize(content_width, m_chain_content->getHeight());
+    const int surface_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
+    m_chain_content->setSize(content_width, surface_height);
+
+    m_input_meter.setBounds(band.input_meter.withHeight(surface_height));
+    m_output_meter.setBounds(band.output_meter.withHeight(surface_height));
     layoutSignalPathContent(TileLayoutMotion::Immediate);
 }
 

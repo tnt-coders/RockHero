@@ -711,6 +711,9 @@ public:
     /*! \brief Handles the audio-device settings window closing. */
     void onAudioDeviceSettingsClosed() override;
 
+    /*! \brief Records the settings window's request to calibrate the input. */
+    void onAudioDeviceSettingsCalibrationRequested() override;
+
     /*! \brief Handles the audio-device settings window's asynchronous teardown completing. */
     void onAudioDeviceSettingsTeardownComplete() override;
 

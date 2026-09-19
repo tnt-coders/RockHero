@@ -242,8 +242,15 @@ private:
     juce::ComboBox m_sample_rate_combo;
     juce::Label m_buffer_size_label;
     juce::ComboBox m_buffer_size_combo;
+
+    // Control-free status line under the input row, naming the selected route's calibration. The
+    // window hosts input calibration, so it says where that route stands before the user leaves.
+    juce::Label m_input_calibration_label;
     juce::Label m_error_label;
     juce::TextButton m_control_panel_button;
+
+    // Applies the staged route, closes the window, and hands off to calibration.
+    juce::TextButton m_calibrate_button;
     juce::TextButton m_ok_button;
     juce::TextButton m_cancel_button;
 };

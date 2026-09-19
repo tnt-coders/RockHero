@@ -1127,3 +1127,20 @@ written down.
   states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
   such sources), which is also why it was left out of the ruling's own change rather than folded in
   unmeasured.
+
+## Found while moving calibration into the audio-device settings window (2026-09-18)
+
+- **The settings window's error label spells its own colour.** `m_error_label` sets
+  `juce::Label::textColourId` to `juce::Colours::lightsalmon` directly
+  (`rock-hero-editor/ui/src/audio_device/audio_device_settings_view.cpp`, `configureControls`),
+  which is the one colour in that view outside `EditorTheme`. Pre-existing, untouched by the
+  calibration move; the new status line beside it takes `muted_text` / `primary_text` from the theme
+  as everything else does. Fold it into the theme (an `error_text` role) when that file is next
+  opened.
+
+- **`SignalChainViewState::input_calibration_status` has no reader in the panel.** The panel renders
+  `disabled_message`, which the projection already derives from that status, so the status field
+  itself is read only by the audio-device settings push and by core tests. It is the natural home
+  for the calibration facts the editor publishes (its gain sibling was added beside it for the
+  settings window), but the struct is named for the panel. Either rename the group or move the three
+  calibration fields to `EditorViewState` when that state is next restructured.

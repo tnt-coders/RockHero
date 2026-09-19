@@ -8,8 +8,8 @@ deferred — a third-party gain plugin serves as the balance tool until it exist
 A tone's level is part of its signal chain and nothing else. The editor carries no per-tone level
 as a control outside the chain: the charter balances tones with a gain plugin inserted into the
 chain like any other, at any position. The signal-chain panel is **meter, chain, meter** — both
-meters global, both full height — and input calibration is reached from the Audio menu, or from
-the panel's own "not calibrated" state.
+meters global, both exactly the height of the chain surface and flush against it — and input
+calibration is reached from the audio-device settings window that chooses the route it belongs to.
 
 Why this and not the alternatives argued the same day:
 
@@ -57,21 +57,73 @@ the panel stopped lying a phase earlier.
   `output_gain_controls_enabled` on `SignalChainViewState`, `m_output_gain_db` and its preview
   latch, `EditorEditContext::output_gain_db`, the readers in `tone_designer_handlers.cpp`, and the
   fader-follow compare in `syncAudibleTone` — a switch carries no level.
-- The Calibrate button under the input meter, and `test_editor_controller_output_gain.cpp`.
+- The Calibrate button under the input meter, and `test_editor_controller_output_gain.cpp`. (The
+  calibrate button that briefly replaced it inside the disabled state went the same day — see the
+  amendments below.)
 
 **Kept:** both meters, now sharing top and bottom baselines and running the panel's whole free
-height; the "Input" and "Output" captions, both now true; the input stage and the post-rack monitor
-stage untouched.
+height; the input stage and the post-rack monitor stage untouched.
 
-**Layout.** Input group = caption + meter; chain row; Output group = caption + meter. Both end
-groups take one width, `g_meter_group_width` (48 px), off opposite edges below the same header
-band, so their meters share one pair of baselines by construction. The 20 px value box (under the
-24 px target floor) went with the sliders.
+**Layout.** The 20 px value box (under the 24 px target floor) went with the sliders.
 
-**Calibration** is reached two ways, both following the one `input_calibrate_enabled` flag: the
-Audio menu's **Calibrate Input...** command (`EditorCommandId::CalibrateInput`, `0x1C01`, no
-default chord; the menu bar gained an Audio menu and `Alt+A` with it), and a button inside the
-panel's disabled state, shown only where calibration is what would fix it.
+## Phase 1 amendments — the flush panel and calibration's real home (2026-09-18)
+
+Sighting the meter-only panel the same day settled four things, each of which deleted more than it
+added.
+
+**1. Calibration lives in the audio-device settings window.** The Audio menu, its `Alt+A` command
+(`0x1B04`) and the **Calibrate Input...** command (`0x1C01`) are gone, as is the panel's own
+calibrate button and the disabled-state action row it sat in; the menu bar is back to File / Edit /
+View. Calibration is a property of the input *route*, and the window that chooses the route is
+where it belongs:
+
+- A control-free status line sits directly under the Input channel row, indented to the control
+  column: `Input calibration: -6.0 dB` in muted text when the route is calibrated, and in primary
+  text otherwise — `Not calibrated - calibration opens when you close this window`, `Not calibrated
+  for this device - ...` where a calibration is held for another route, or `Unavailable`.
+- **Calibrate Input...** joins the bottom-left utility cluster beside Control Panel. It applies the
+  staged route through OK's own path and closes the window; the press itself only *records* a
+  request, because `InputCalibrationWorkflow` refuses a calibration prompt while audio-device
+  settings are open. A failed apply reports exactly as OK's does and the window stays with nothing
+  requested.
+- That is also why `InputCalibrationProjection::calibrate_enabled` dropped its `!settings_open`
+  term: the button would otherwise be permanently disabled in its new home, and the deferred
+  request — not a flag — is what keeps the two windows exclusive.
+- **Calibration opens from exactly one seam after that window**:
+  `openInputCalibrationAfterSettings()`, called from `onAudioDeviceSettingsTeardownComplete()` — the
+  first moment the device has settled (a native close runs its cancel backstop one message hop after
+  the close callback). It opens the prompt when the user **asked** for it, or when the window left
+  the input on a route it **changed** that still needs calibrating, and consumes both answers, so a
+  press on a route that also changed opens the prompt once. Comparing the route against the one
+  sampled at open is what makes Cancel and Escape silent: they restore the device byte-exact, so
+  nothing changed and there is nothing to nag about. The request is one-shot and is dropped when the
+  window next opens, so one that never reached teardown cannot survive into the next window.
+- The panel is a message and nothing else. `inputCalibrationDisabledMessageFor` names the way out
+  ("... Calibrate the input in Audio Device Settings."), and the one place that needed a finer
+  answer got it from the existing status enum: `InputCalibrationStatus` gained
+  `CalibrationRouteMismatch`, the distinction `InputCalibrationWorkflow::evaluateMonitoring` already
+  draws, so the settings window can say "not calibrated for this device" while the panel keeps one
+  message for both.
+
+**2. The panel is caption-free and flush.** The "Input" and "Output" captions and the
+`g_meter_group_width` groups that held them are gone; the header spans the panel's whole width, each
+meter names itself through `setTitle` (meters take no mouse hits, so a tooltip would never show),
+and both meters are bound to the viewport's `getMaximumVisibleHeight()` — the dark chain *surface*,
+not the viewport rect, so the 8 px horizontal scrollbar strip can never make a meter overhang.
+`AudioLevelMeter` gained one flag, `AudioLevelMeterOpenEdge`, so each meter leaves its chain-facing
+border undrawn and the signal line reads as running through it. Default is a closed frame, so every
+other meter is unchanged.
+
+**3. The signal line reaches both visible edges.** `SignalPathContent::paint()` breaks the line at
+each cell centre for the "+" affordance; a break straddling a visible edge left the junction with
+the meter detached. The rule now: a break is drawn only where it falls strictly inside the visible
+span, which the painter reads from its own position inside the viewport's content holder — no state,
+and correct at every scroll position.
+
+**4. The panel's floor is the meter's tick gate.** `g_signal_chain_panel_min_height` 160 → 172: the
+vertical ladder's five rungs need 18 px between centres, so the meter's inner height must reach 99,
+and 172 leaves 100 even with the scrollbar showing. The never-visible "No plugins loaded"
+placeholder went too — the surface paints over it and the eight "+" cells already say it.
 
 ## Phase 2 — the Gain block (deferred)
 

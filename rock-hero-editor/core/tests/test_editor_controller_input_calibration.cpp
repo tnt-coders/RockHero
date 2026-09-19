@@ -9,6 +9,13 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// The missing-calibration message, spelled once here; test_input_calibration_text.cpp is where its
+// wording is locked.
+constexpr const char* g_missing_calibration_message{
+    "Live input disabled: input calibration required. Calibrate the input in Audio Device "
+    "Settings."
+};
+
 // Reads calibration through the app's audio-config store and returns the optional payload.
 [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
     const common::audio::testing::InMemoryAudioConfigStore& store,
@@ -143,9 +150,7 @@ TEST_CASE(
     CHECK(
         gated_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        gated_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(gated_state->signal_chain.disabled_message == g_missing_calibration_message);
 
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
@@ -482,6 +487,130 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
     CHECK(settings_closed_state->audio_device_settings_enabled);
 }
 
+// Calibration opens from one seam after the settings window, for its two reasons: the user pressed
+// Calibrate Input there, or the window left the input on a route it CHANGED that still needs
+// calibrating. A close that leaves the route where it found it changed nothing to nag about.
+TEST_CASE("Audio settings close opens calibration from one seam", "[core][editor-controller]")
+{
+    const common::audio::InputDeviceIdentity first_identity = makeInputDeviceIdentity();
+    const common::audio::InputDeviceIdentity second_identity =
+        makeInputDeviceIdentity("ASIO", "Interface B");
+    common::audio::testing::InMemoryAudioConfigStore store;
+    requireSaveInputCalibration(
+        store,
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = first_identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = first_identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    // The close handler re-selects calibration for whatever route the window settled on, so the
+    // teardown decision below reads an already-accurate match either way.
+    const auto close_settings = [&controller] {
+        controller.onAudioDeviceSettingsClosed();
+        controller.onAudioDeviceSettingsTeardownComplete();
+    };
+    const auto prompt_present = [&view] {
+        const auto* const state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        return state != nullptr && state->input_calibration_prompt.has_value();
+    };
+
+    SECTION("a new uncalibrated route opens the prompt")
+    {
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        audio_devices.current_input_identity = second_identity;
+        close_settings();
+
+        CHECK(prompt_present());
+    }
+
+    SECTION("a new calibrated route does not")
+    {
+        requireSaveInputCalibration(
+            store,
+            common::audio::InputCalibrationState{
+                .calibration_gain = common::audio::Gain{-2.0},
+                .input_device_identity = second_identity,
+            });
+
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        audio_devices.current_input_identity = second_identity;
+        close_settings();
+
+        CHECK_FALSE(prompt_present());
+    }
+
+    SECTION("a cancel that restores the route does not, even uncalibrated")
+    {
+        // Cancel restores the device byte-exact, so the route at close is the route at open. Start
+        // uncalibrated to show the nag is keyed on the change, not on the calibration state.
+        audio_devices.current_input_identity = second_identity;
+        audio_devices.notifyChanged();
+
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        close_settings();
+
+        CHECK_FALSE(prompt_present());
+    }
+
+    SECTION("a Calibrate Input press opens the prompt even on a calibrated route it did not change")
+    {
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        controller.onAudioDeviceSettingsCalibrationRequested();
+        close_settings();
+
+        CHECK(prompt_present());
+    }
+
+    SECTION("a Calibrate Input press is one-shot: the next close is silent")
+    {
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        controller.onAudioDeviceSettingsCalibrationRequested();
+        close_settings();
+        REQUIRE(prompt_present());
+        controller.onInputCalibrationDismissed();
+
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        close_settings();
+
+        CHECK_FALSE(prompt_present());
+    }
+
+    SECTION("a press that never reaches teardown dies when the window reopens")
+    {
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        controller.onAudioDeviceSettingsCalibrationRequested();
+        // Closed, then the window is reopened before its teardown ever lands.
+        controller.onAudioDeviceSettingsClosed();
+
+        REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+        close_settings();
+
+        CHECK_FALSE(prompt_present());
+    }
+}
+
 // Verifies settings close does not treat JUCE's temporary closed route as a device change.
 TEST_CASE("Audio settings close waits for settled input route", "[core][editor-controller]")
 {
@@ -810,9 +939,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(final_state->signal_chain.disabled_message == g_missing_calibration_message);
 }
 
 // Verifies a saved calibration for the new physical route is applied after a route switch.
@@ -1121,9 +1248,7 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(final_state->signal_chain.disabled_message == g_missing_calibration_message);
 }
 
 // Verifies that dismissing manual recalibration restores the previous matching calibration.
@@ -1474,12 +1599,11 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = g_missing_calibration_message,
+                                             .prompt_present = false,
+                                         });
 
     // Begin the arc; the trace is captured from the prompt-open request onward.
     live_input.calls.clear();
@@ -1487,12 +1611,11 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = true,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = g_missing_calibration_message,
+                                             .prompt_present = true,
+                                         });
 
     REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
     REQUIRE(controller.onInputCalibrationSucceeded(7.5).has_value());
@@ -1647,12 +1770,11 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     // derived status stays MissingCalibration (the calibration-match check precedes the backend
     // check), so the route-unavailable failure surfaces as the calibration-required message.
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = g_missing_calibration_message,
+                                             .prompt_present = false,
+                                         });
 }
 
 // Pins the measurement-start rollback at arm site 2: the gain reset fails, so the captured route is
@@ -2044,12 +2166,11 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
     CHECK(live_input.calls == trace);
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = g_missing_calibration_message,
+                                             .prompt_present = false,
+                                         });
 }
 
 // Pins the gate's audio-device-settings-open branch: a configuration change while the settings

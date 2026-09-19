@@ -9,8 +9,11 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
 #include <rock_hero/editor/core/audio/game_audio_source_error.h>
 #include <rock_hero/editor/core/audio/game_audio_source_state.h>
+#include <rock_hero/editor/core/audio_device/audio_device_settings_controller.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 
 namespace juce
 {
@@ -62,6 +65,26 @@ public:
     using ClosedCallback = std::function<void()>;
 
     /*!
+    \brief Pushes the editor's current input-route calibration facts into an open window.
+
+    See \ref core::IAudioDeviceSettingsController::onInputCalibrationChanged for why they are pushed
+    rather than derived here, and on what cadence.
+    */
+    using InputCalibrationSink = std::function<void(
+        core::InputCalibrationStatus status, std::optional<double> gain_db,
+        bool calibrate_enabled)>;
+
+    /*! \brief An opened settings window together with the handle that feeds it calibration. */
+    struct Opened final
+    {
+        /*! \brief The opened window; the caller owns it and clears it from the close callback. */
+        std::unique_ptr<juce::DocumentWindow> window;
+
+        /*! \brief Pushes calibration facts into that window; valid for as long as the window is. */
+        InputCalibrationSink set_input_calibration;
+    };
+
+    /*!
     \brief Called when the "use game audio settings" toggle changes.
 
     Receives the requested toggle value plus the dialog's applying presentation (empty on the
@@ -84,13 +107,17 @@ public:
     \param closed_callback Called when the window reaches a final close path.
     \param game_settings Resolved "use game audio settings" toggle/availability state at open.
     \param on_game_settings_changed Called when the user changes the toggle inside the window.
-    \return The opened window. The caller owns it and should clear it from the close callback.
+    \param on_calibration_requested Called when a Calibrate Input press has applied its route, so
+           the host can answer the request outside this window's lifetime.
+    \return The opened window plus its calibration sink. The caller owns the window and should
+            clear it from the close callback.
     */
-    [[nodiscard]] static std::unique_ptr<juce::DocumentWindow> show(
+    [[nodiscard]] static Opened show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
         Dispatcher dispatcher = {}, ClosedCallback closed_callback = {},
         GameAudioSettings game_settings = {},
-        GameAudioSettingsChangedCallback on_game_settings_changed = {});
+        GameAudioSettingsChangedCallback on_game_settings_changed = {},
+        core::InputCalibrationRequestedCallback on_calibration_requested = {});
 
 private:
     AudioDeviceSettingsWindow() = default;

@@ -564,7 +564,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
     [[nodiscard]] bool onAudioDeviceSettingsOpenRequested();
     void onAudioDeviceSettingsClosed();
+    void onAudioDeviceSettingsCalibrationRequested();
     void onAudioDeviceSettingsTeardownComplete();
+    void openInputCalibrationAfterSettings();
     void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
@@ -929,6 +931,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // without an open audio device and no other flow owns the situation. Cleared when a device
     // opens, when the settings window takes over, or when the user answers the overlay.
     std::optional<AudioDeviceFailurePrompt> m_audio_device_failure_prompt{};
+
+    // Input route in force when the audio-device settings window opened, sampled by
+    // onAudioDeviceSettingsOpenRequested() and compared once the window has torn down. A close that
+    // leaves the route unchanged (Cancel, Escape, or an OK that staged nothing) changed nothing, so
+    // it never opens calibration; a close that lands on a different, uncalibrated route does.
+    std::optional<common::audio::InputDeviceIdentity> m_input_identity_at_settings_open{};
+
+    // One-shot: the settings window's Calibrate Input button was pressed. Answered and cleared by
+    // the teardown seam, and cleared again whenever the window opens, so a request that never
+    // reached teardown cannot survive into the next window.
+    bool m_calibration_requested_by_settings{false};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

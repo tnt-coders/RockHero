@@ -21,6 +21,14 @@ struct InputCalibrationProjection
     /*! \brief Calibration status shown by the signal-chain panel. */
     InputCalibrationStatus status{InputCalibrationStatus::NoActiveInputDevice};
 
+    /*!
+    \brief Gain of the calibration held for the current route, absent when none is held.
+
+    The audio-device settings window names it on its status line, and the calibration prompt opens
+    on it, falling back to the neutral default where no calibration is held.
+    */
+    std::optional<double> calibration_gain_db{};
+
     /*! \brief True when the user may open the calibration prompt. */
     bool calibrate_enabled{false};
 
