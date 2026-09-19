@@ -22,6 +22,11 @@ namespace
 using common::core::GridPosition;
 using common::core::SongSection;
 
+constexpr const char* g_first_region_id = "10101010-1111-4111-8111-111111111111";
+constexpr const char* g_second_region_id = "20202020-2222-4222-8222-222222222222";
+constexpr const char* g_first_tone_ref = "tone-clean";
+constexpr const char* g_second_tone_ref = "tone-drive";
+
 [[nodiscard]] GridPosition downbeat(int measure)
 {
     return GridPosition{.measure = measure, .beat = 1};
@@ -64,6 +69,24 @@ using common::core::SongSection;
     return sections;
 }
 
+// Two tone regions with the same starts as the marker tempo changes, so the tone row can prove the
+// cursor and the selected holder differ exactly as the section row does.
+[[nodiscard]] std::vector<common::core::ToneRegion> makeMarkerToneRegions()
+{
+    return {
+        common::core::ToneRegion{
+            .id = g_first_region_id,
+            .start = downbeat(1),
+            .tone_document_ref = g_first_tone_ref,
+        },
+        common::core::ToneRegion{
+            .id = g_second_region_id,
+            .start = downbeat(5),
+            .tone_document_ref = g_second_tone_ref,
+        },
+    };
+}
+
 // Owns the fakes and a controller with the six-string chart loaded over the marker tempo map.
 struct MarkerRowEditor
 {
@@ -80,7 +103,9 @@ struct MarkerRowEditor
     };
     FakeEditorView view;
 
-    explicit MarkerRowEditor(std::vector<SongSection> sections = makeMarkerSections())
+    explicit MarkerRowEditor(
+        std::vector<SongSection> sections = makeMarkerSections(),
+        std::vector<common::core::ToneRegion> tone_regions = {})
     {
         controller.attachView(view);
         const bool loaded = loadChartArrangement(
@@ -89,7 +114,8 @@ struct MarkerRowEditor
             audio,
             std::move(sections),
             makeTestChart(),
-            makeMarkerTempoMap());
+            makeMarkerTempoMap(),
+            std::move(tone_regions));
         REQUIRE(loaded);
     }
 
@@ -147,6 +173,14 @@ struct MarkerRowEditor
             return std::nullopt;
         }
         return static_cast<std::size_t>(std::distance(sections.begin(), found));
+    }
+
+    // The id of the published tone region drawn selected, or an empty string.
+    [[nodiscard]] std::string selectedToneRegionId() const
+    {
+        const std::vector<ToneRegionViewState>& regions = state().tone_track.regions;
+        const auto found = std::ranges::find_if(regions, &ToneRegionViewState::selected);
+        return found == regions.end() ? std::string{} : found->id;
     }
 };
 
@@ -622,6 +656,40 @@ TEST_CASE("EditorController jumps by the walk's own row rules", "[core][marker-r
         editor.jump(FocusRowJump::Tempo);
         CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
         CHECK(editor.transport.position().seconds == Catch::Approx(12.0));
+    }
+}
+
+// A marker chord typed while keyboard focus is already on that marker's own row still authors at
+// the cursor column: the selected holder chip is only the row focus, not the chord's target.
+TEST_CASE("Marker-row chords author at the cursor, not the holder", "[core][marker-rows]")
+{
+    SECTION("the section row inserts at a free cursor measure")
+    {
+        MarkerRowEditor editor;
+        editor.armAtMeasure(4);
+        editor.jump(FocusRowJump::Section);
+        REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
+        REQUIRE(editor.transport.position().seconds == Catch::Approx(6.0));
+
+        const SectionChordTarget target = editor.state().section_chord_target;
+        const auto* const insert = std::get_if<InsertSectionTarget>(&target);
+        REQUIRE(insert != nullptr);
+        CHECK(insert->downbeat == downbeat(4));
+    }
+
+    SECTION("the tone row splits at a cursor inside the selected region")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), makeMarkerToneRegions()};
+        editor.armAtMeasure(6);
+        editor.jump(FocusRowJump::Tone);
+        REQUIRE(editor.selectedToneRegionId() == g_second_region_id);
+        REQUIRE(editor.transport.position().seconds == Catch::Approx(10.0));
+
+        const ToneChordTarget target = editor.state().tone_chord_target;
+        const auto* const split = std::get_if<SplitToneRegionTarget>(&target);
+        REQUIRE(split != nullptr);
+        CHECK(split->position == downbeat(6));
+        CHECK(split->containing_tone_document_ref == g_second_tone_ref);
     }
 }
 

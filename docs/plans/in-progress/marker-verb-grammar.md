@@ -30,7 +30,9 @@ selected, so each restate verb selects its target after the commit.
 
 The selection is never consulted. A marker selected elsewhere does not redirect the chord, and a
 selected marker at the cursor is restated because it stands at the cursor, not because it is
-selected. The selection has its own verbs, below.
+selected. Standing on a marker's own row does not change that rule: the row's selected holder is
+only keyboard focus, while the chord still acts at the cursor. The selection has its own verbs,
+below.
 
 "The cursor" is the armed caret, else the paused cursor: its trusted column, else the nearest
 placement-grid slot, which is exactly where an arrow press would arm. While the transport plays the

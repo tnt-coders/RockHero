@@ -8,20 +8,14 @@ acting on it — every claim below was true on the date above and nothing keeps 
 
 ## Do this first
 
-**Settle the P10 ruling (#301).** It is a decision, not code, and it gates the work behind it.
+**P10 (#301) is settled.** On a marker's own row, the chord stays positional: it restates a marker
+exactly at the cursor and inserts or splits where there is none. The selected holder chip is row
+focus only, not the authoring target. `Enter` still restates the selection, so `Enter` and the
+marker chord intentionally diverge on the row.
 
-The caret can now walk onto a SECTION row above the top string and a TONE row below string 1.
-Standing between markers on such a row, the governing marker is already selected, so the marker
-chord takes rule 1 of the grammar and RESTATES that marker instead of inserting where the caret
-stands. On the section row that means `Ctrl+M` can never add a section while you are on the row.
-
-The proposal on the table: **on a marker's OWN row the chord goes POSITIONAL** — restate a marker
-at the caret, insert where there is none. It differs from today in exactly one cell, standing
-between markers, because standing ON a marker already selects it. For the tone row it yields
-boundary restates and mid-region splits, which is what `Ctrl+T` already does off the row.
-
-The consequence to accept or reject: `Enter` and the chord would then diverge on the row, `Enter`
-restating what you are IN and the chord acting WHERE you are.
+Regression coverage lives in `test_editor_controller_marker_rows.cpp`: the section row inserts at
+a free cursor measure even while the earlier section is selected, and the tone row splits at the
+cursor inside the selected region.
 
 Full statement of the law, and why it is shaped this way, is in
 [marker-verb-grammar.md](marker-verb-grammar.md).
@@ -40,7 +34,7 @@ Still open:
 
 | Item | What |
 |---|---|
-| **#301 P10** | The caret's section and tone rows. Carries the ruling above plus three things to watch: whether the pinned chip shows its SELECTED state as you walk, how the sparse section row feels at a fine grid, and whether the tone row retoning what you hear at each boundary reads as helpful or as noise. |
+| **#301 P10** | Settled: row chords stay positional. Still sight the three feel questions: whether the pinned chip shows its SELECTED state as you walk, how the sparse section row feels at a fine grid, and whether the tone row retoning what you hear at each boundary reads as helpful or as noise. |
 | **#270** | The 2026-09-02 batch remainder: the same-fret settle, the pinned tone chips, and #112's chip-yield ruling. The legend display form is already ruled and signed. |
 
 ## Open fixes carried
