@@ -84,8 +84,7 @@ struct ActionConditions
 
     Marker selection and every marker edit — sections, tempo anchors, time signatures, tone regions,
     automation points — are refused while this is set. The tone designer is deliberately outside it:
-    the plugin chain, plugin parameters and the output gain stay live, which is the point of the
-    live rig.
+    the plugin chain and plugin parameters stay live, which is the point of the live rig.
     */
     bool transport_playing{false};
 

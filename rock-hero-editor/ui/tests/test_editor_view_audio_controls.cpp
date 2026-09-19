@@ -1,17 +1,61 @@
+#include "keybinds/editor_command_registry.h"
+
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
 {
 
-// Verifies that pressing the input calibration button emits a controller intent.
-TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]")
+// Verifies the disabled panel offers calibration in place: the button shows only where it is the
+// way out, and pressing it emits the controller intent.
+TEST_CASE("Uncalibrated signal chain offers calibration in place", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
     const FakeTransport transport;
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+
+    // A working chain is not a place to offer calibration, so the button stays out of it.
+    view.setState(core::EditorViewState{});
+    CHECK_FALSE(calibrate_button.isVisible());
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .input_calibrate_enabled = true,
+                .disabled_message = "Live input disabled: input calibration required.",
+            },
+        });
+
+    CHECK(calibrate_button.isVisible());
+    calibrate_button.onClick();
+
+    CHECK(controller.input_calibration_request_count == 1);
+}
+
+// Verifies the Audio menu reaches the same calibration intent, and follows the same availability
+// flag the panel's in-place button does.
+TEST_CASE("Audio menu opens input calibration", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    const int calibrate_command = toJuceCommandId(EditorCommandId::CalibrateInput);
+    const juce::StringArray menu_names = view.getMenuBarNames();
+    REQUIRE(menu_names.contains("Audio"));
+
+    view.setState(core::EditorViewState{});
+    CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(3, "Audio"), calibrate_command).isEnabled);
+    view.commandManager().invokeDirectly(calibrate_command, false);
+    CHECK(controller.input_calibration_request_count == 0);
 
     view.setState(
         core::EditorViewState{
@@ -20,10 +64,8 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
             },
         });
 
-    auto& calibrate_button =
-        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    calibrate_button.onClick();
-
+    CHECK(requiredMenuItem(view.getMenuForIndex(3, "Audio"), calibrate_command).isEnabled);
+    view.commandManager().invokeDirectly(calibrate_command, false);
     CHECK(controller.input_calibration_request_count == 1);
 }
 
@@ -161,81 +203,6 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     CHECK(slider.isEnabled());
     CHECK(apply_button.isEnabled());
     CHECK(status.getText() == "Manual calibration saved. Gain set to 3.5 dB.");
-}
-
-// Verifies that moving the output gain slider emits a controller intent.
-TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    view.setState(
-        core::EditorViewState{
-            .signal_chain = core::SignalChainViewState{
-                .output_gain_controls_enabled = true,
-            },
-        });
-
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
-    output_slider.setValue(-6.0, juce::sendNotificationSync);
-
-    CHECK(controller.output_gain_change_count == 1);
-    CHECK(controller.output_gain_preview_change_count == 0);
-    // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
-    // the rounded-zero test above).
-    REQUIRE(controller.last_output_gain_db.has_value());
-    if (controller.last_output_gain_db.has_value())
-    {
-        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
-    }
-}
-
-// Verifies that output gain drag changes preview continuously and commits once on release.
-TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    view.setState(
-        core::EditorViewState{
-            .signal_chain = core::SignalChainViewState{
-                .output_gain_controls_enabled = true,
-            },
-        });
-
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
-    REQUIRE(static_cast<bool>(output_slider.onDragStart));
-    REQUIRE(static_cast<bool>(output_slider.onDragEnd));
-
-    output_slider.onDragStart();
-    output_slider.setValue(-3.0, juce::sendNotificationSync);
-    output_slider.setValue(-6.0, juce::sendNotificationSync);
-
-    CHECK(controller.output_gain_preview_change_count == 2);
-    CHECK(controller.output_gain_change_count == 0);
-    // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
-    // the rounded-zero test above).
-    REQUIRE(controller.last_output_gain_preview_db.has_value());
-    if (controller.last_output_gain_preview_db.has_value())
-    {
-        CHECK_THAT(*controller.last_output_gain_preview_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
-    }
-
-    output_slider.onDragEnd();
-
-    CHECK(controller.output_gain_preview_change_count == 2);
-    CHECK(controller.output_gain_change_count == 1);
-    REQUIRE(controller.last_output_gain_db.has_value());
-    if (controller.last_output_gain_db.has_value())
-    {
-        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
-    }
 }
 
 } // namespace rock_hero::editor::ui

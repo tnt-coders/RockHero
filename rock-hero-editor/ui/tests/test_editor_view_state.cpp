@@ -173,10 +173,11 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
 
     CHECK(menu_bar.isVisible());
     const juce::StringArray menu_names = view.getMenuBarNames();
-    REQUIRE(menu_names.size() == 3);
+    REQUIRE(menu_names.size() == 4);
     CHECK(menu_names[0] == "File");
     CHECK(menu_names[1] == "Edit");
     CHECK(menu_names[2] == "View");
+    CHECK(menu_names[3] == "Audio");
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command).isEnabled);
@@ -582,6 +583,8 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::OpenFileMenu, .value = 0x1B01, .chords = {chord('f', alt)}},
         {.id = EditorCommandId::OpenEditMenu, .value = 0x1B02, .chords = {chord('e', alt)}},
         {.id = EditorCommandId::OpenViewMenu, .value = 0x1B03, .chords = {chord('v', alt)}},
+        {.id = EditorCommandId::OpenAudioMenu, .value = 0x1B04, .chords = {chord('a', alt)}},
+        {.id = EditorCommandId::CalibrateInput, .value = 0x1C01, .chords = {}},
     };
 
     const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();

@@ -16,8 +16,8 @@ namespace rock_hero::common::audio
 \brief Project-owned boundary for the coarse product mix: master and backing volumes.
 
 Exactly three user-facing volumes exist and each has one owner: the edit-wide master gain and
-the backing-track gain live here; the player-monitor gain is ILiveRig::outputGain /
-setOutputGain and is deliberately NOT duplicated on this port. The backing gain is a
+the backing-track gain live here; the player-monitor gain is ILiveRig::monitorGain /
+setMonitorGain and is deliberately NOT duplicated on this port. The backing gain is a
 track-level stage that composes with (never overwrites) the per-clip normalization gain the
 song loader applies. All methods are message-thread operations, like the rest of the engine
 ports; changes are parameter moves only and never rebuild the playback graph.

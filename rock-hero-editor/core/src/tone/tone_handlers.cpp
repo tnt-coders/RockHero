@@ -382,21 +382,11 @@ void EditorController::Impl::syncAudibleTone()
     }
 
     // The panel binds to the audible tone, so the rig's answer is handed to it whole; replacing is
-    // itself idempotent, so an answer the panel already renders costs it nothing.
-    const double switched_gain_db = switched->output_gain.db;
+    // itself idempotent, so an answer the panel already renders costs it nothing. The chain IS the
+    // answer: a switch carries no level of its own, because a tone's level is a gain plugin inside
+    // that chain.
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
-
-    // The fader is a separate fact, and the only one that is PREVIEWED ahead of a committed value,
-    // so it moves only when the rig answers with a gain the editor is not already showing —
-    // otherwise a mid-drag preview would lose the value its undo entry is measured from. Exact
-    // comparison via the three-way operator keeps -Wfloat-equal builds clean, exactly as the
-    // fader's own change detection does; the stored value is compared, not approximated.
-    if (std::is_neq(switched_gain_db <=> m_output_gain_db))
-    {
-        m_output_gain_db = switched_gain_db;
-        m_output_gain_preview_before.reset();
-    }
 }
 
 void EditorController::Impl::onToneRegionSelected(std::string region_id)

@@ -770,26 +770,6 @@ public:
     }
 
     /*!
-    \brief Records output gain preview intents emitted by the signal-chain panel.
-    \param gain_db Output gain preview selected by the view.
-    */
-    void onOutputGainPreviewChanged(double gain_db) override
-    {
-        last_output_gain_preview_db = gain_db;
-        output_gain_preview_change_count += 1;
-    }
-
-    /*!
-    \brief Records output gain commit intents emitted by the signal-chain panel.
-    \param gain_db Output gain selected by the view.
-    */
-    void onOutputGainChanged(double gain_db) override
-    {
-        last_output_gain_db = gain_db;
-        output_gain_change_count += 1;
-    }
-
-    /*!
     \brief Records audio-device change scheduling and stores the supplied completion callback.
     \param change_audio_device Callback that performs the audio-device mutation.
     \param after_busy_cleared Callback to invoke after the busy overlay clears.
@@ -1246,12 +1226,6 @@ public:
     /*! \brief Last input calibration gain value emitted by the calibration popup. */
     std::optional<double> last_input_calibration_gain_db{};
 
-    /*! \brief Last output gain value emitted by the signal-chain panel. */
-    std::optional<double> last_output_gain_db{};
-
-    /*! \brief Last output gain preview value emitted by the signal-chain panel. */
-    std::optional<double> last_output_gain_preview_db{};
-
     /*! \brief Last value requested through onUseGameAudioSettingsChangeRequested(). */
     std::optional<bool> last_use_game_audio_settings{};
 
@@ -1293,12 +1267,6 @@ public:
 
     /*! \brief Number of input calibration dismissed intents received. */
     int input_calibration_dismiss_count{0};
-
-    /*! \brief Number of output gain change intents received. */
-    int output_gain_change_count{0};
-
-    /*! \brief Number of output gain preview intents received. */
-    int output_gain_preview_change_count{0};
 
     /*! \brief Last audio-device change callback handed to onAudioDeviceChangeRequested(). */
     std::function<void()> last_audio_device_change{};

@@ -1014,18 +1014,6 @@ public:
     virtual void onInputCalibrationDismissed() = 0;
 
     /*!
-    \brief Handles a preview-only output gain change while the user is dragging the slider.
-    \param gain_db Desired output gain in decibels.
-    */
-    virtual void onOutputGainPreviewChanged(double gain_db) = 0;
-
-    /*!
-    \brief Handles a committed change to the output gain slider.
-    \param gain_db Desired output gain in decibels.
-    */
-    virtual void onOutputGainChanged(double gain_db) = 0;
-
-    /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
 
     The supplied work callable runs after the busy overlay paints, so the user sees a static

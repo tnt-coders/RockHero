@@ -72,9 +72,6 @@ struct LiveRigLoadOperation
         // Display names precomputed once so progress messages stay stable across resume points.
         std::vector<std::string> display_names;
 
-        // Output gain from the parsed tone document, applied when this tone becomes audible.
-        Gain output_gain;
-
         // Plugins restored so far, held free-floating until the rack assembles them.
         std::vector<tracktion::Plugin::Ptr> loaded_plugins;
     };
@@ -132,9 +129,6 @@ struct ToneChainReplaceOperation
     // finalize step refuses ONCE with the complete list (same policy as LiveRigLoadOperation).
     std::vector<std::string> missing_plugin_names;
 
-    // Output gain the replacement chain should carry.
-    Gain output_gain;
-
     // Retained panel layout to install for the replaced chain (empty vectors for memento
     // restores — the editor's undo entry owns and reapplies the authoritative layout).
     std::vector<std::size_t> block_indices;
@@ -177,8 +171,8 @@ private:
 
     // Stable IDs for structural live-rig plugins around the external plugin chain. These are
     // hidden from PluginChainEntry snapshots and from the removable plugin rows in the editor.
-    // The stage after the rack is the player's MONITOR level, not any tone's: a tone's authored
-    // level rides its own ToneBranchGainPlugin so a switch carries it.
+    // The stage after the rack is the player's MONITOR level, not any tone's: a tone's own level
+    // is a gain plugin inside that tone's chain, so a switch carries it.
     tracktion::EditItemID m_input_gain_plugin_id;
     tracktion::EditItemID m_input_meter_plugin_id;
     tracktion::EditItemID m_monitor_gain_plugin_id;
@@ -292,7 +286,7 @@ private:
     };
     std::vector<BranchDisplayMetadata> m_branch_display_metadata;
 
-    // Builds the audible tone's chain-and-gain result for load completion and audible switches.
+    // Builds the audible tone's chain result for load completion and audible switches.
     [[nodiscard]] LiveRigLoadResult audibleToneResult() const;
 
     // Returns the branch the audible tone plays through, or null when no rig is loaded.
@@ -306,11 +300,8 @@ private:
     // Returns the audible tone's branch index within the rack, when a rig is loaded.
     [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;
 
-    // Returns the branch gain plugin carrying the audible tone's level, or null without a rig.
-    [[nodiscard]] ToneBranchGainPlugin* audibleBranchGain() const;
-
     // Records the given loaded tone as audible, switching the branch gains onto it unless a baked
-    // schedule owns them. Writes no level: each tone's level rides its own branch.
+    // schedule owns them.
     [[nodiscard]] std::expected<void, LiveRigError> applyAudibleTone(
         const std::string& tone_document_ref);
 
@@ -368,10 +359,10 @@ private:
 
     // Swaps the audible branch's user chain for already-instantiated replacement plugins: remove
     // old, insert new, monitor reroute with rollback, window/parameter hygiene for the outgoing
-    // chain, then gain + retained-layout bookkeeping. Shared by the async tone-file replace and
-    // the synchronous undo-memento restore.
+    // chain, then retained-layout bookkeeping. Shared by the async tone-file replace and the
+    // synchronous undo-memento restore.
     [[nodiscard]] std::expected<void, LiveRigError> swapAudibleChainPlugins(
-        const std::vector<tracktion::Plugin::Ptr>& replacements, Gain output_gain,
+        const std::vector<tracktion::Plugin::Ptr>& replacements,
         const std::vector<std::size_t>& block_indices,
         const std::vector<std::string>& display_type_overrides);
 

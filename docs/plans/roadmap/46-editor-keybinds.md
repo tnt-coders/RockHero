@@ -712,6 +712,8 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Menu      | Open File Menu        | Alt+F                | access-key convention; added 2026-09-12  |
 | Menu      | Open Edit Menu        | Alt+E                | added 2026-09-12                         |
 | Menu      | Open View Menu        | Alt+V                | added 2026-09-12                         |
+| Menu      | Open Audio Menu       | Alt+A                | added 2026-09-18                         |
+| Audio     | Calibrate Input...    | (none)               | menu-only; added 2026-09-18              |
 
 Tier B — reservations for future registration (non-binding; settled when
 docs/plans/roadmap/40-chart-editing.md and docs/plans/roadmap/41-tempo-map-authoring.md register the commands):

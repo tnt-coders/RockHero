@@ -9,13 +9,16 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
 # The three layers
 
 - **UI** (`rock-hero-editor/ui/src/signal_chain/`): `SignalChainPanel` is a thin host whose only
-  member is `SignalChainView` — the real renderer, owning the meters, the output-gain slider,
-  the tone-file button strip, and a scrolling strip of `PluginTileView` (one per plugin) and
-  `InsertSlotView` (one per fixed visual block, the "+" cells and drop targets). Everything the
-  user does becomes a `SignalChainView::Listener` intent — including the deliberate split of
-  `onOutputGainPreviewChanged` (drag) vs `onOutputGainChanged` (release). The plugin browser is a
-  separate `PluginBrowserWindow` that renders controller-derived catalog state and never scans or
-  mutates anything itself.
+  member is `SignalChainView` — the real renderer, laid out as **meter, chain, meter**: an Input
+  group and an Output group of one shared width (`g_meter_group_width`), each a caption over a
+  meter and nothing else, with the tone-file button strip in the header and a scrolling strip of
+  `PluginTileView` (one per plugin) and `InsertSlotView` (one per fixed visual block, the "+" cells
+  and drop targets) between them. No control outside the chain edits a tone: a tone's level is a
+  gain plugin inside its chain. The panel's one non-chain button appears only while the panel is
+  disabled for want of input calibration, and opens calibration in place; the Audio menu's
+  `CalibrateInput` command reaches the same intent from anywhere. Everything the user does becomes
+  a `SignalChainView::Listener` intent. The plugin browser is a separate `PluginBrowserWindow` that
+  renders controller-derived catalog state and never scans or mutates anything itself.
 - **Editor core** (`rock-hero-editor/core/src/signal_chain/`): two workflow objects hold all
   policy state. `SignalChainWorkflow` owns the plugin list the UI renders plus pending-insert
   bookkeeping; it never calls audio ports — backend truth arrives only via
@@ -31,8 +34,8 @@ Tracktion-backed engine — and is the richest worked example of the codebase's 
   **tone rack** (`src/tracktion/multi_tone_rack.cpp`) — one parallel branch per tone, summed,
   with click-free smoothed switching. The editor always edits exactly one branch: the audible
   (selected) tone's chain. Hidden structural plugins (`LiveRigGainPlugin` for the input and monitor
-  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility and its
-  authored level, meters) are excluded from the user-visible `chain_index`.
+  gain stages, `ToneBranchGainPlugin` terminating each branch with that tone's audibility, meters)
+  are excluded from the user-visible `chain_index`.
 
 # Flow: inserting a plugin
 

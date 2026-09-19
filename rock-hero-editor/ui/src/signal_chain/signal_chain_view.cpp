@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
-#include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <utility>
 
@@ -29,17 +28,14 @@ constexpr int g_signal_preview_animation_ms{250};
 constexpr double g_signal_preview_animation_start_speed{1.0};
 constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr std::size_t g_signal_path_min_block_count{common::audio::g_max_signal_chain_plugins};
-constexpr int g_output_gain_width{72};
-constexpr int g_gain_slider_width{32};
+
+// The panel is meter, chain, meter: the two end groups are the same thing on opposite sides, so
+// they are one width. Sized to hold the caption above a centered meter column.
+constexpr int g_meter_group_width{48};
 constexpr int g_gain_meter_width{28};
-constexpr int g_gain_meter_gap{2};
 constexpr int g_gain_meter_vertical_inset{2};
-constexpr int g_gain_value_height{20};
-constexpr int g_input_control_width{72};
 constexpr int g_calibrate_button_height{26};
-constexpr int g_output_gain_visual_width{
-    g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width
-};
+constexpr int g_calibrate_button_width{160};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
@@ -94,38 +90,23 @@ constexpr int g_signal_path_node_gap{34};
     return bounds;
 }
 
-// Keeps JUCE's normal editable slider textbox while shifting only the vertical track left enough
-// to sit as a compact pair beside the output meter.
-class OutputGainSliderLookAndFeel final : public juce::LookAndFeel_V4
+// Centers a meter column inside one end group, insetting it vertically. Both end groups pass the
+// same-height rect, so the two meters share their top and bottom baselines by construction.
+[[nodiscard]] juce::Rectangle<int> meterBounds(juce::Rectangle<int> group_area)
 {
-public:
-    // Reuses the stock drawing while aligning the track with the meter column and the textbox
-    // with the bottom control row.
-    juce::Slider::SliderLayout getSliderLayout(juce::Slider& slider) override
-    {
-        auto layout = juce::LookAndFeel_V4::getSliderLayout(slider);
-        if (slider.getSliderStyle() == juce::Slider::LinearVertical &&
-            slider.getTextBoxPosition() == juce::Slider::TextBoxBelow &&
-            slider.getWidth() >= g_output_gain_visual_width)
-        {
-            layout.sliderBounds.setX((slider.getWidth() - g_output_gain_visual_width) / 2);
-            layout.sliderBounds.setWidth(g_gain_slider_width);
+    return group_area.withSizeKeepingCentre(g_gain_meter_width, group_area.getHeight())
+        .reduced(0, g_gain_meter_vertical_inset);
+}
 
-            const int thumb_radius = getSliderThumbRadius(slider);
-            const int meter_top = g_gain_meter_vertical_inset;
-            const int meter_height = slider.getHeight() - g_calibrate_button_height -
-                                     g_panel_inset - (g_gain_meter_vertical_inset * 2);
-            layout.sliderBounds.setY(meter_top + thumb_radius);
-            layout.sliderBounds.setHeight(std::max(1, meter_height - (thumb_radius * 2)));
-
-            const int text_box_y = slider.getHeight() - g_calibrate_button_height +
-                                   ((g_calibrate_button_height - g_gain_value_height) / 2);
-            layout.textBoxBounds.setY(std::max(0, text_box_y));
-        }
-
-        return layout;
-    }
-};
+// The disabled panel's action row, taken off the bottom of the chain area. resized() places the
+// calibration button in it and paint() keeps the disabled message above it, both from this one
+// answer, so the text can never be centred over the button.
+[[nodiscard]] juce::Rectangle<int> disabledActionRow(juce::Rectangle<int> chain_area)
+{
+    auto row =
+        chain_area.removeFromBottom(std::min(g_calibrate_button_height, chain_area.getHeight()));
+    return row.withWidth(std::min(g_calibrate_button_width, row.getWidth()));
+}
 
 } // namespace
 
@@ -195,29 +176,10 @@ private:
     std::size_t m_block_count{};
 };
 
-namespace
-{
-
-// Configures a vertical gain slider with the shared gain range and dB suffix.
-void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
-{
-    slider.setComponentID(component_id);
-    slider.setSliderStyle(juce::Slider::LinearVertical);
-    slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
-    slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
-    slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
-    slider.setTextBoxStyle(
-        juce::Slider::TextBoxBelow, false, g_output_gain_width, g_gain_value_height);
-    slider.setTextValueSuffix(" dB");
-}
-
-} // namespace
-
 // Creates the signal-chain controls and routes user intents through the owner.
 SignalChainView::SignalChainView(Listener& listener)
     : m_listener(listener)
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
-    , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
     , m_chain_content(std::make_unique<SignalPathContent>())
     , m_block_layout(g_signal_path_min_block_count)
@@ -226,12 +188,15 @@ SignalChainView::SignalChainView(Listener& listener)
 
     m_input_meter.setComponentID("input_meter");
     addAndMakeVisible(m_input_meter);
+
+    // Shown only where it is the answer: beside the message saying the chain is disabled for want
+    // of calibration (addChildComponent, not addAndMakeVisible).
     m_input_calibrate_button.setComponentID("input_calibrate_button");
-    m_input_calibrate_button.setButtonText("Calibrate");
+    m_input_calibrate_button.setButtonText("Calibrate Input...");
     m_input_calibrate_button.setWantsKeyboardFocus(false);
     m_input_calibrate_button.setMouseClickGrabsKeyboardFocus(false);
     m_input_calibrate_button.onClick = [this] { m_listener.onInputCalibrationPressed(); };
-    addAndMakeVisible(m_input_calibrate_button);
+    addChildComponent(m_input_calibrate_button);
 
     // The designer file strip stays hidden until setToneDesignerState reports the designer
     // active, so project mode keeps its plain header (addChildComponent, not addAndMakeVisible).
@@ -265,32 +230,7 @@ SignalChainView::SignalChainView(Listener& listener)
         m_listener.onExportTonePressed();
     });
 
-    configureGainSlider(m_output_gain_slider, "output_gain_slider");
-    // Moving this control edits the chart, so it says what it writes rather than leaving the
-    // charter to find out by saving.
-    m_output_gain_slider.setTooltip(
-        "This tone's output level, saved with the tone. Use it to match loudness between tones.");
-    m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
-    m_output_gain_slider.onDragStart = [this] { m_output_gain_dragging = true; };
-    m_output_gain_slider.onValueChange = [this] {
-        const double gain_db = m_output_gain_slider.getValue();
-        if (m_output_gain_dragging)
-        {
-            m_listener.onOutputGainPreviewChanged(gain_db);
-            return;
-        }
-
-        m_listener.onOutputGainChanged(gain_db);
-    };
-    m_output_gain_slider.onDragEnd = [this] {
-        m_output_gain_dragging = false;
-        m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
-    };
-    addAndMakeVisible(m_output_gain_slider);
-    m_output_meter.setComponentID("output_gain_meter");
-    // The meter is visually inside the slider component's textbox-width footprint. Let it
-    // consume pointer hits so meter clicks do not pass through as slider adjustments.
-    m_output_meter.setInterceptsMouseClicks(true, false);
+    m_output_meter.setComponentID("output_meter");
     addAndMakeVisible(m_output_meter);
 
     m_chain_viewport.setComponentID("signal_chain_viewport");
@@ -304,7 +244,7 @@ SignalChainView::SignalChainView(Listener& listener)
     applyState();
 }
 
-// Detaches the custom slider look-and-feel before owned children are destroyed.
+// Cancels tile animations and detaches the viewport before owned children are destroyed.
 SignalChainView::~SignalChainView()
 {
     auto& animator = juce::Desktop::getInstance().getAnimator();
@@ -317,7 +257,6 @@ SignalChainView::~SignalChainView()
     }
 
     m_chain_viewport.setViewedComponent(nullptr, false);
-    m_output_gain_slider.setLookAndFeel(nullptr);
 }
 
 // Stores the render state and updates controls whose enabledness is derived outside the view.
@@ -371,9 +310,10 @@ void SignalChainView::applyState()
     // the header in designer mode and these flags are false there.
     m_tone_import_button.setVisible(m_state.tone_import_enabled);
     m_tone_export_button.setVisible(m_state.tone_export_enabled);
-    m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
-    m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
-    m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
+    // Calibration is offered in place exactly where it is the way out: the panel is disabled and
+    // the user may run it. The audio menu's command reaches it from anywhere.
+    m_input_calibrate_button.setVisible(
+        !m_state.disabled_message.empty() && m_state.input_calibrate_enabled);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
@@ -389,7 +329,7 @@ void SignalChainView::setMeterLevels(
     m_output_meter.setLevel(output_level);
 }
 
-// Draws a compact plugin-chain view with gain labels and an empty-chain placeholder.
+// Draws the meter captions, the header title, and the empty-chain or disabled placeholder.
 void SignalChainView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
@@ -399,19 +339,17 @@ void SignalChainView::paint(juce::Graphics& g)
 
     auto area = bounds.reduced(g_panel_inset);
 
-    // Input label above the left meter.
+    // Both captions name a meter and nothing else: the rig's level entering the chain and its
+    // level leaving it. Neither group carries a control, so neither name can lie about scope.
     const auto input_label_area =
-        area.removeFromLeft(g_input_control_width).removeFromTop(g_header_height);
+        area.removeFromLeft(g_meter_group_width).removeFromTop(g_header_height);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
 
-    // The per-tone authored level, above the slider and post-fader meter group it labels. Named
-    // for what the control writes rather than for where the stage sits: this is the tone's own
-    // level, stored in the chart, not the player's listening volume.
     const auto output_label_area =
-        area.removeFromRight(g_output_gain_width).removeFromTop(g_header_height);
-    g.drawFittedText("Level", output_label_area, juce::Justification::centred, 1);
+        area.removeFromRight(g_meter_group_width).removeFromTop(g_header_height);
+    g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
 
     // Center header with title.
     area.removeFromLeft(g_panel_inset);
@@ -436,9 +374,12 @@ void SignalChainView::paint(juce::Graphics& g)
     const auto chain_area = area;
     if (!m_state.disabled_message.empty())
     {
+        const auto message_area =
+            area.withBottom(std::max(area.getY(), disabledActionRow(area).getY() - g_panel_inset));
         g.setColour(juce::Colours::lightgrey);
         g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(m_state.disabled_message, area, juce::Justification::centredLeft, 2);
+        g.drawFittedText(
+            m_state.disabled_message, message_area, juce::Justification::centredLeft, 2);
         return;
     }
 
@@ -451,37 +392,22 @@ void SignalChainView::paint(juce::Graphics& g)
     }
 }
 
-// Keeps gain sliders on the sides and plugin tiles in the center.
+// Keeps the two meters on the sides and plugin tiles in the center.
 void SignalChainView::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
 
-    // Input meter on the left, with calibration command anchored below it.
-    auto input_control_area = area.removeFromLeft(g_input_control_width);
-    input_control_area.removeFromTop(g_header_height);
-    auto calibrate_area = input_control_area.removeFromBottom(
-        std::min(g_calibrate_button_height, input_control_area.getHeight()));
-    input_control_area.removeFromBottom(std::min(g_panel_inset, input_control_area.getHeight()));
-    auto input_meter_area = input_control_area.withSizeKeepingCentre(
-        g_gain_meter_width, input_control_area.getHeight());
-    m_input_meter.setBounds(input_meter_area.reduced(0, g_gain_meter_vertical_inset));
-    m_input_calibrate_button.setBounds(calibrate_area);
+    // The two end groups take the same width off opposite edges below the same header band, so
+    // their meters run the panel's whole free height between one pair of baselines.
+    auto input_group_area = area.removeFromLeft(g_meter_group_width);
+    input_group_area.removeFromTop(g_header_height);
+    m_input_meter.setBounds(meterBounds(input_group_area));
 
-    // Output gain flows into its post-fader meter, with one centered readout below the pair.
-    auto output_control_area = area.removeFromRight(g_output_gain_width);
-    output_control_area.removeFromTop(g_header_height);
-    auto output_slider_area = output_control_area.withSizeKeepingCentre(
-        g_output_gain_width, output_control_area.getHeight());
-    auto output_meter_area = output_slider_area.withTrimmedBottom(
-        std::min(g_calibrate_button_height + g_panel_inset, output_slider_area.getHeight()));
-    output_meter_area.setX(
-        output_slider_area.getX() + ((g_output_gain_width - g_output_gain_visual_width) / 2) +
-        g_gain_slider_width + g_gain_meter_gap);
-    output_meter_area.setWidth(g_gain_meter_width);
-    m_output_gain_slider.setBounds(output_slider_area);
-    m_output_meter.setBounds(output_meter_area.reduced(0, g_gain_meter_vertical_inset));
+    auto output_group_area = area.removeFromRight(g_meter_group_width);
+    output_group_area.removeFromTop(g_header_height);
+    m_output_meter.setBounds(meterBounds(output_group_area));
 
-    // Leave a gap between the sliders and the center content.
+    // Leave a gap between the meters and the center content.
     area.removeFromLeft(g_panel_inset);
     area.removeFromRight(g_panel_inset);
 
@@ -509,6 +435,7 @@ void SignalChainView::resized()
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
+    m_input_calibrate_button.setBounds(disabledActionRow(area));
     const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
     const int content_width = chainContentWidth(m_block_layout.blockCount(), area.getWidth());
     m_chain_content->setSize(content_width, content_height);

@@ -467,21 +467,6 @@ public:
         }};
     }
 
-    // The audible tone's authored level is charter-owned and never touched in gameplay.
-    [[nodiscard]] common::audio::Gain outputGain() const override
-    {
-        return {};
-    }
-
-    // The session never authors a tone's level; fail loudly if it ever writes one.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
-        common::audio::Gain /*gain*/) override
-    {
-        return std::unexpected{common::audio::LiveRigError{
-            common::audio::LiveRigErrorCode::InvalidRequest, "tone level write not expected"
-        }};
-    }
-
     // Returns the stored monitor gain (the session's monitor volume forwards here).
     [[nodiscard]] common::audio::Gain monitorGain() const override
     {
@@ -907,7 +892,7 @@ TEST_CASE("Gameplay session close releases and ignores stale completions", "[cor
 }
 
 // Verifies the three mix volumes round-trip to their single backend owners: master and backing
-// through the mix boundary, monitor through the live rig's output gain (21-Q3: global in v1).
+// through the mix boundary, monitor through the live rig's post-rack stage (21-Q3: global in v1).
 TEST_CASE("Gameplay session forwards mix volumes to their owners", "[core][session]")
 {
     SessionHarness harness;
@@ -920,8 +905,8 @@ TEST_CASE("Gameplay session forwards mix volumes to their owners", "[core][sessi
     CHECK(harness.mix_controls.backing_gain.db == Catch::Approx(-6.0));
     CHECK(harness.session.backingVolume().db == Catch::Approx(-6.0));
 
-    // The monitor volume reaches the rig's post-rack monitor stage, never a tone's authored level:
-    // the levels the charter set balance the song's tones and are not the player's to move.
+    // The monitor volume reaches the rig's post-rack monitor stage, never a tone's own level: the
+    // levels the charter set are gain plugins inside the chains and are not the player's to move.
     REQUIRE(harness.session.setMonitorVolume(common::audio::Gain{-9.0}).has_value());
     CHECK(harness.live_rig.monitor_gain.db == Catch::Approx(-9.0));
     CHECK(harness.session.monitorVolume().db == Catch::Approx(-9.0));
@@ -1127,7 +1112,6 @@ TEST_CASE(
     harness.live_rig.completeSuccessfully(
         common::audio::LiveRigLoadResult{
             .plugins = {},
-            .output_gain = {},
             .tone_chains = {
                 common::audio::LoadedToneChainIdentities{
                     .tone_document_ref = "tones/x/tone.json",

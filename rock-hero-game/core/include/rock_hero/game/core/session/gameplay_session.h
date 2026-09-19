@@ -223,7 +223,7 @@ public:
 
     /*!
     \brief Reads the player-monitor volume.
-    \return Current monitor gain, which is the live rig's output gain.
+    \return Current monitor gain, which is the live rig's post-rack monitor stage.
     */
     [[nodiscard]] common::audio::Gain monitorVolume() const;
 

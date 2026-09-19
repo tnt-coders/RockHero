@@ -20,9 +20,9 @@ plan 53 Phase 1b):
 
 - New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
   blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx
-  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus. Blocks
-  are historical hints only — the registry row owns the display category (CancelDismiss,
-  0x1708, lists under Selection).
+  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom, 0x1Bxx menus, 0x1Cxx
+  audio. Blocks are historical hints only — the registry row owns the display category
+  (CancelDismiss, 0x1708, lists under Selection).
 - One command per (chord, verb) pair: precision/reach tiers (`Ctrl` variants) are separate
   commands, so every binding is individually rebindable. The interaction grammar's modifier
   algebra survives as the *shape of the default map*, not as an enforced restriction.
@@ -493,6 +493,19 @@ enum class EditorCommandId : std::uint16_t
 
     /*! \brief Open the View menu (`Alt+V`). */
     OpenViewMenu = 0x1B03,
+
+    /*! \brief Open the Audio menu (`Alt+A`). */
+    OpenAudioMenu = 0x1B04,
+
+    /*!
+    \brief Audio > Calibrate Input... (no default chord).
+
+    The way in from the menu bar; the signal-chain panel offers the same command in place while it
+    is disabled for want of calibration. It carries no default chord, so gating it by the panel's
+    own `input_calibrate_enabled` costs no alert sound and says plainly when calibration cannot
+    run — no input device, or the audio-settings window already open.
+    */
+    CalibrateInput = 0x1C01,
 };
 
 /*!

@@ -16,7 +16,7 @@ Make tones authorable and portable independent of any project:
    its existing "No Project Loaded" message for now — this plan activates the signal chain panel,
    not a new fullscreen designer layout.
 2. **Standalone tone files (`.tone`)** — a portable single-file container carrying exactly one
-   rig (plugin chain + full plugin state + output gain), no automation, no identity. The designer
+   rig (plugin chain + full plugin state), no automation, no identity. The designer
    opens/saves them as documents; a project imports/exports them as copies.
 
 ## Non-goals
@@ -154,8 +154,7 @@ exploration passes (session/engine lifecycle, tone persistence, undo/dirty/UI).
   (`engine_live_input.cpp:139-221`, `Engine::setLiveInputMonitoringEnabled` `:351`).
 - "Signal chain disabled with no project" is therefore **editor-side gating only**, three layers:
   every signal-chain handler early-returns on `!hasLoadedArrangement()`
-  (`rock-hero-editor/core/src/signal_chain/signal_chain_handlers.cpp:255,268,288,319,536,635,677,700,724`;
-  output gain `:137`), the monitoring context sets
+  (`rock-hero-editor/core/src/signal_chain/signal_chain_handlers.cpp`), the monitoring context sets
   `arrangement_loaded = m_project_audio_ready && hasLoadedArrangement()`
   (`input_calibration_handlers.cpp:19-22` → `LiveInputMonitoringDisabledReason::SessionNotReady`),
   and `SignalChainViewState`'s enable flags default false
@@ -179,8 +178,9 @@ exploration passes (session/engine lifecycle, tone persistence, undo/dirty/UI).
 
 **Tone persistence (the payload the file carries):**
 
-- `audio::ToneDocument` = `{ chain: vector<PluginRecord>, output_gain }`
-  (`rock-hero-common/audio/src/live_rig/tone_document.h:63-70`); `PluginRecord` carries `id`,
+- `audio::ToneDocument` = `{ chain: vector<PluginRecord> }` — a tone IS its chain plus its plugin
+  state, and a level is a gain plugin inside that chain
+  (`rock-hero-common/audio/src/live_rig/tone_document.h`); `PluginRecord` carries `id`,
   `identity`, `tracktion_state_ref`, editor-opaque `block_index` / `display_type_override`, and
   the durable `stable_id` automation key (`:25-60`). On-disk layout per tone:
   `tones/<uuid>/tone.json` + `state/plugin-N.tracktion-plugin` XML sidecars
@@ -322,18 +322,18 @@ adapter units.
 - **Export** — `exportAudibleTone(path) -> std::expected<void, ToneFileError>`: message-thread
   capture of the audible branch only (flush → copy → `stripAutomationCurves`/
   `stripTempoRemapFlag`, the exact `captureActiveRig` per-plugin recipe at
-  `engine_live_rig.cpp:729-769`, minus the all-branches walk and the workspace write), plus the
-  branch's output gain, serialized through Phase 1's writer. No song directory involved.
+  `engine_live_rig.cpp`, minus the all-branches walk and the workspace write), serialized through
+  Phase 1's writer. No song directory involved.
 - **Replace** — `replaceAudibleToneFromFile(path, completion)`: read + validate via Phase 1
   (nothing mutated on failure), then rebuild the audible branch's user chain from the payload
   through the existing cooperative per-plugin loader (async choreography idiom 3;
-  `executePluginStep` machinery), applying the document's output gain and placement fields.
+  `executePluginStep` machinery), applying the document's placement fields.
   Missing plugins follow the loader's collect-all-then-refuse policy verbatim
   (`LiveRigErrorCode::MissingPlugins` shape) — and the refusal must leave the **previous chain
   intact**: resolve/validate every plugin candidate *before* removing the old branch contents.
 - **Chain-state memento** — `captureAudibleToneState()` /
   `restoreAudibleToneState(state, completion)`: an opaque whole-branch snapshot (per-plugin
-  `PluginInstanceState` blobs + records + output gain) for the editor's undo edits, built on the
+  `PluginInstanceState` blobs + records) for the editor's undo edits, built on the
   existing per-plugin capture/restore surfaces (`capturePluginState`, `setPluginState`,
   `recreatePluginStatePreservingId`). Restoring recreates the prior chain with prior instance
   ids where the machinery preserves them.

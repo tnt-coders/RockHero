@@ -23,7 +23,7 @@ timing architecture from day one, not bolted on later" — this plan is that day
   (docs/plans/roadmap/24-scoring-star-power-failure.md consumes the offset contract defined here).
 - Instrument profiles, cloud sync, cross-user settings, or per-product settings beyond audio.
 - Moving editor workflow state (last-open project, cursors, grid, zoom) out of `EditorSettings`;
-  it stays editor-only by design. Output gain and tone-document state stay Tracktion-managed.
+  it stays editor-only by design. Tone-document state stays Tracktion-managed.
 
 ## Constraints
 

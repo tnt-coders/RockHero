@@ -100,12 +100,6 @@ public:
     void onInputCalibrationPressed() override
     {}
 
-    void onOutputGainPreviewChanged(double /*gain_db*/) override
-    {}
-
-    void onOutputGainChanged(double /*gain_db*/) override
-    {}
-
     void onNewTonePressed() override
     {
         new_tone_press_count += 1;
@@ -191,31 +185,6 @@ void dropPluginOnTarget(
 
 } // namespace
 
-// Verifies that input calibration and output gain controls exist and are disabled by default.
-TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    auto& calibrate_button =
-        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
-
-    CHECK_FALSE(calibrate_button.isEnabled());
-    CHECK_FALSE(output_slider.isEnabled());
-    CHECK(output_slider.isDoubleClickReturnEnabled());
-    CHECK(output_slider.getTextBoxPosition() == juce::Slider::TextBoxBelow);
-    CHECK(output_slider.isTextBoxEditable());
-    CHECK(output_slider.getTextBoxWidth() == 72);
-    CHECK(output_slider.getTextBoxHeight() == 20);
-    CHECK(std::is_eq(output_slider.getMinimum() <=> common::audio::minimumGainDb()));
-    CHECK(std::is_eq(output_slider.getMaximum() <=> common::audio::maximumGainDb()));
-    CHECK(std::is_eq(output_slider.getDoubleClickReturnValue() <=> common::audio::defaultGainDb()));
-}
-
 // Verifies the global and live-rig meter widgets are present in the composed editor view.
 TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 {
@@ -227,7 +196,7 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_meter");
 
     CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
     CHECK(input_meter.level() == common::audio::AudioMeterLevel{});
@@ -281,7 +250,9 @@ TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][
     CHECK_FALSE(save_button.isVisible());
 }
 
-TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
+// The two meters are the same reading on opposite ends of one chain, so they must be readable
+// against each other: one pair of baselines, one height, and the panel's whole free height.
+TEST_CASE("Signal chain meters share their baselines", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -291,19 +262,22 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& calibrate_button =
-        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
-    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    const auto& panel = findRequiredDescendant<juce::Component>(view, "signal_chain_view");
+    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_meter");
 
-    CHECK(input_meter.getBottom() <= calibrate_button.getY());
-    CHECK(output_meter.getHeight() == input_meter.getHeight());
     CHECK(output_meter.getY() == input_meter.getY());
-    CHECK(output_slider.getBottom() == calibrate_button.getBottom());
-    CHECK(output_meter.getX() > output_slider.getX());
-    CHECK(output_meter.getRight() <= output_slider.getRight());
-    CHECK(output_meter.getX() - output_slider.getX() <= (output_slider.getWidth() / 2) + 4);
+    CHECK(output_meter.getBottom() == input_meter.getBottom());
+    CHECK(output_meter.getWidth() == input_meter.getWidth());
+    CHECK(input_meter.getX() < output_meter.getX());
+
+    // The chain row sits between them, and both run past its top and bottom: a meter cut short by
+    // a control that is no longer there would show as a height well under the panel's.
+    const auto& viewport = findRequiredDescendant<juce::Component>(view, "signal_chain_viewport");
+    CHECK(input_meter.getHeight() > viewport.getHeight());
+    CHECK(input_meter.getRight() < viewport.getX());
+    CHECK(output_meter.getX() > viewport.getRight());
+    CHECK(input_meter.getBottom() < panel.getHeight());
 }
 
 // Verifies EditorView samples the optional meter port and forwards the values to meter widgets.
@@ -325,7 +299,7 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 
     auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_meter");
 
     CHECK(meter_source.snapshot_read_count >= 1);
     CHECK(master_meter.level() == meter_source.snapshot.master_output);
@@ -333,8 +307,9 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
     CHECK(output_meter.level() == meter_source.snapshot.live_rig_output);
 }
 
-// Verifies that signal-chain controls follow their independent view-state gates.
-TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
+// A calibrated route that is merely between projects disables the chain without offering
+// calibration: the button belongs to the state calibration would actually fix.
+TEST_CASE("Signal-chain calibration button follows both gates", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -342,22 +317,34 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
 
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .input_calibrate_enabled = true,
-                .output_gain_controls_enabled = true,
-                .output_gain = common::audio::Gain{-24.0},
             },
         });
+    CHECK_FALSE(calibrate_button.isVisible());
 
-    CHECK(calibrate_button.isEnabled());
-    CHECK(output_slider.isEnabled());
-    CHECK(std::is_eq(output_slider.getValue() <=> -24.0));
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .input_calibrate_enabled = false,
+                .disabled_message = "Live input disabled: no audio input device selected.",
+            },
+        });
+    CHECK_FALSE(calibrate_button.isVisible());
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .input_calibrate_enabled = true,
+                .disabled_message = "Live input disabled: input calibration required.",
+            },
+        });
+    CHECK(calibrate_button.isVisible());
 }
 
 // Verifies signal-chain buttons cannot steal focus from editor-level keyboard shortcuts.

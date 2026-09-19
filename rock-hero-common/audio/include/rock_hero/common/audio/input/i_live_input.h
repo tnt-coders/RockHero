@@ -17,7 +17,7 @@ namespace rock_hero::common::audio
 \brief Project-owned live guitar input boundary.
 
 All methods are message-thread operations. The port separates user-local input calibration from
-authored tone-chain state so the live rig can persist output gain without persisting input gain.
+authored tone-chain state so the live rig can persist a tone's chain without persisting input gain.
 
 \note Dry-tap contract (plan 21 Phase 5 / plan 22 Phase 1): note detection taps the RAW input
 signal BEFORE the tone rack — the audio thread copies pre-effects samples into a lock-free ring

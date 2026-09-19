@@ -62,13 +62,16 @@ struct ToneDesignerHarness
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
-        audioPorts(transport, audio, plugin_host, live_rig),
-        defaultControllerServices(),
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -77,11 +80,15 @@ struct ToneDesignerHarness
 
     ToneDesignerHarness()
     {
-        // The designer's resting rig is empty; the fake's default one-plugin result would
-        // misrepresent the empty-refs load contract.
-        live_rig.next_load_result.plugins.clear();
+        // A calibrated route and the fake's default one-plugin chain stand in for a charter with a
+        // guitar plugged in and a block already in the untitled document: a chain is what these
+        // tests edit to dirty it, since nothing outside the chain edits a tone any more.
+        audio_devices.current_input_identity = makeInputDeviceIdentity();
         controller.attachView(view);
         controller.restoreLastOpenProject();
+        controller.onInputCalibrationRequested();
+        REQUIRE(controller.onInputCalibrationManuallySet(0.0).has_value());
+        controller.onInputCalibrationDismissed();
     }
 
     // Reads the latest pushed view state, failing the test when none exists.
@@ -92,10 +99,12 @@ struct ToneDesignerHarness
         return *latest;
     }
 
-    // Dirties the designer document through a committed, undoable output-gain edit.
-    void dirtyDocument(double gain_db)
+    // Dirties the designer document through a committed, undoable chain edit. The block the
+    // loaded plugin moves to is the caller's handle on making two edits distinct.
+    void dirtyDocument(std::size_t block_index)
     {
-        controller.onOutputGainChanged(gain_db);
+        controller.onSignalChainPlacementChanged(
+            {PluginBlockAssignment{.instance_id = "loaded-instance", .block_index = block_index}});
     }
 };
 
@@ -149,7 +158,6 @@ TEST_CASE("Startup without a project enters a clean tone designer", "[core][edit
     CHECK(state.tone_designer.document_name == "Untitled");
     CHECK_FALSE(state.tone_designer.dirty);
     CHECK_FALSE(state.tone_designer.has_destination);
-    CHECK(state.signal_chain.output_gain_controls_enabled);
 }
 
 // Closing a project falls back to a fresh clean designer document.
@@ -176,7 +184,7 @@ TEST_CASE("Closing a project lands in a clean tone designer", "[core][editor-con
 TEST_CASE("Tone designer save-as cleans and associates the document", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     CHECK(harness.state().tone_designer.dirty);
 
     harness.controller.onSaveToneAsRequested(std::filesystem::path{"leads/Crunch.tone"});
@@ -200,13 +208,13 @@ TEST_CASE("Tone designer save-as cleans and associates the document", "[core][ed
 TEST_CASE("Tone designer save requires an association", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
 
     harness.controller.onSaveToneRequested();
     CHECK(harness.live_rig.export_call_count == 0);
 
     harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
-    harness.dirtyDocument(-6.0);
+    harness.dirtyDocument(4);
     harness.controller.onSaveToneRequested();
 
     CHECK(harness.live_rig.export_call_count == 2);
@@ -224,7 +232,7 @@ TEST_CASE("Tone designer save requires an association", "[core][editor-controlle
 TEST_CASE("Tone designer save pushes no undo entry", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     const bool undo_before_save = harness.state().undo_enabled;
 
     harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
@@ -267,7 +275,7 @@ TEST_CASE("Tone designer open replaces the document undoably", "[core][editor-co
 TEST_CASE("Undo across a tone open lands clean on the saved file", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
     REQUIRE_FALSE(harness.state().tone_designer.dirty);
 
@@ -341,7 +349,7 @@ TEST_CASE("Tone designer new resets to untitled undoably", "[core][editor-contro
 TEST_CASE("Dirty tone designer defers project open until discarded", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     harness.project_services.next_song =
         makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
 
@@ -366,9 +374,9 @@ TEST_CASE("Dirty tone designer defers project open until discarded", "[core][edi
 TEST_CASE("Dirty tone designer saves before replaying a project open", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
-    harness.dirtyDocument(-6.0);
+    harness.dirtyDocument(4);
     REQUIRE(harness.state().tone_designer.dirty);
     harness.project_services.next_song =
         makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
@@ -388,7 +396,7 @@ TEST_CASE("Dirty tone designer saves before replaying a project open", "[core][e
 TEST_CASE("Untitled dirty designer replays after the Save As chooser", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
     harness.project_services.next_song =
         makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
 
@@ -418,7 +426,7 @@ TEST_CASE("Untitled dirty designer replays after the Save As chooser", "[core][e
 TEST_CASE("Cancelling the tone Save As chooser keeps the designer", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
 
     harness.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     REQUIRE(harness.state().unsaved_changes_prompt.has_value());
@@ -439,7 +447,7 @@ TEST_CASE("Cancelling the tone Save As chooser keeps the designer", "[core][edit
 TEST_CASE("Tone designer prompt cancel keeps the dirty document", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
 
     harness.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     REQUIRE(harness.state().unsaved_changes_prompt.has_value());
@@ -597,7 +605,7 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
 TEST_CASE("Dirty tone designer defers opening another tone file", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.dirtyDocument(-3.0);
+    harness.dirtyDocument(3);
 
     harness.controller.onOpenToneFileRequested(std::filesystem::path{"B.tone"});
 

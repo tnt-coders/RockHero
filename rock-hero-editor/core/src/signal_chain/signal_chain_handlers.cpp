@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <compare>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -110,91 +109,6 @@ void EditorController::Impl::cancelActiveScanToken()
         m_plugin_scan_cancel->cancel();
         m_plugin_scan_cancel.reset();
     }
-}
-
-// Pushes a net-changed output-gain command into product-level history.
-void EditorController::Impl::pushOutputGainUndoEntry(
-    common::audio::Gain before_gain, common::audio::Gain after_gain)
-{
-    if (before_gain == after_gain)
-    {
-        return;
-    }
-
-    RH_LOG_INFO(
-        "editor.controller",
-        "Completed output gain edit before_db={} after_db={}",
-        before_gain.db,
-        after_gain.db);
-    auto edit = std::make_unique<OutputGainEdit>();
-    edit->before_gain = before_gain;
-    edit->after_gain = after_gain;
-    pushUndoEntry(std::move(edit));
-}
-
-// Applies output gain previews immediately, but records only committed values in undo history.
-void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainChangeIntent intent)
-{
-    // Project mode additionally requires the project's audio to be ready; the designer's resting
-    // rig is ready the moment it stands up.
-    const bool project_chain_ready = m_project_audio_ready && hasLoadedArrangement();
-    if ((!project_chain_ready && !m_tone_designer.active) || isBusy() || m_session_faulted)
-    {
-        return;
-    }
-
-    const bool is_commit = intent == OutputGainChangeIntent::Commit;
-    if (is_commit)
-    {
-        if (!m_output_gain_preview_before.has_value())
-        {
-            flushPendingPluginEdits("plugin_edit.output_gain_commit");
-        }
-    }
-    else if (!m_output_gain_preview_before.has_value())
-    {
-        flushPendingPluginEdits("plugin_edit.output_gain_preview");
-        m_output_gain_preview_before = common::audio::Gain{m_output_gain_db};
-    }
-
-    const common::audio::Gain before_gain =
-        m_output_gain_preview_before.value_or(common::audio::Gain{m_output_gain_db});
-    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
-    // Exact inequality via is_neq keeps -Wfloat-equal builds clean; change detection on the
-    // stored fader value is deliberately exact, not tolerance-based.
-    const bool needs_live_update = std::is_neq(gain.db <=> m_output_gain_db);
-
-    if (!needs_live_update)
-    {
-        if (is_commit && m_output_gain_preview_before.has_value())
-        {
-            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
-            m_output_gain_preview_before.reset();
-            updateView();
-        }
-        return;
-    }
-
-    const auto result = m_live_rig.setOutputGain(gain);
-    if (!result.has_value())
-    {
-        reportError(std::string{"Could not set output gain: "} + result.error().message);
-        if (is_commit && m_output_gain_preview_before.has_value())
-        {
-            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
-        }
-        m_output_gain_preview_before.reset();
-        updateView();
-        return;
-    }
-
-    m_output_gain_db = gain.db;
-    if (is_commit)
-    {
-        pushOutputGainUndoEntry(before_gain, gain);
-        m_output_gain_preview_before.reset();
-    }
-    updateView();
 }
 
 // Settles any host-observed plugin edit before a controller action runs.
@@ -754,18 +668,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
     {
         reportError(std::string{"Could not open plugin: "} + result.error().message);
     }
-}
-
-// Applies a live output gain preview without adding an undo entry until the final commit arrives.
-void EditorController::Impl::onOutputGainPreviewChanged(double gain_db)
-{
-    applyOutputGainChange(gain_db, OutputGainChangeIntent::Preview);
-}
-
-// Applies a clamped output gain to the live rig and records the committed value in undo history.
-void EditorController::Impl::onOutputGainChanged(double gain_db)
-{
-    applyOutputGainChange(gain_db, OutputGainChangeIntent::Commit);
 }
 
 } // namespace rock_hero::editor::core

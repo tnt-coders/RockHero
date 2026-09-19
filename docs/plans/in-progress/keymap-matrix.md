@@ -71,7 +71,7 @@
 > five kinds and their chords are the *Markers* table below: `Ctrl+T` and `Ctrl+M` are live, the
 > other three are RESERVED for the plans that build their objects (six until 2026-09-15, when the
 > fret-hand position and the span became ONE hand marker on `Ctrl+H`). `Alt`+letter is the platform's
-> menu-access plane and nothing else: `Alt+F` / `Alt+E` / `Alt+V` open the menus. `Alt` alone
+> menu-access plane and nothing else: `Alt+F` / `Alt+E` / `Alt+V` / `Alt+A` open the menus. `Alt` alone
 > stays the ring reveal and `Alt`+digit stays the slide-out. Five rival families — `Shift`+letter,
 > the `Ctrl` plane without menu access, a leader key, a ruler caret, and a structure mode — were
 > each built at full strength and lost on a fact, not a taste; the `Alt`+letter authoring plane
@@ -275,8 +275,8 @@ the chord is inert while the transport plays and with no song — the playing ha
 the wider rule: **while the transport plays, marker selection and every marker edit are
 unavailable** (ruled 2026-09-14), pointer gestures included, for every kind in this table and for
 automation
-points. The tone designer is outside it: the plugin chain, plugin parameters and the output gain
-stay live mid-play, and renaming a tone document is not a marker edit. The selection is never read
+points. The tone designer is outside it: the plugin chain and plugin parameters stay live
+mid-play, and renaming a tone document is not a marker edit. The selection is never read
 and never written: a marker selected elsewhere does not redirect the chord, and the chord itself
 never selects. The selection has its own verbs — `Enter` restates it and `Ctrl+R` renames it where
 its kind has a name. The keyboard's route onto an existing marker is the focus-row walk, `Tab`,
@@ -394,7 +394,8 @@ chip scrolling in.
 | `Ctrl+T` | the same marker grammar as `Ctrl+M`, on the tone's own grain, at the **cursor**: standing EXACTLY on a region's start, the picker reopens to repoint that region — at any other catalog tone (only its own is left out, since that would change nothing; a NEIGHBOUR's tone merges the two regions, because a boundary with no change across it is no boundary) or at a **new tone** minted on the spot, which is always offered so the restate never dies silently; anywhere inside a region, it splits it into a new one (choosing the next region's tone there pulls that tone back to the cursor). A selected region elsewhere changes nothing; `Enter` repoints the selection and `Ctrl+R` renames its tone | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21; restate 2026-09-12; select-at-boundary 2026-09-13; merge instead of refuse 2026-09-13; author at the cursor 2026-09-14, replacing the form where a SELECTED region won, the caret alone decided, and a caret on a start merely SELECTED it) |
 | `Ctrl+M` | add a **song section** at the MEASURE the cursor is in, snapped to that measure's downbeat, which is the only place a section can start; a prompt takes the name, carrying the downbeat captured at the press. Where a section already stands there, RESTATE it: the rename prompt. The selection is not read, and the cursor is the armed caret, else the paused cursor, read from the TICK so a cursor paused just before a barline still names the measure it is IN | Live (`0x1402`, "Insert or Rename Section"). **Signed 2026-09-12** under the marker grammar; held by `Shift`+`Insert` for one day before that; press-time capture 2026-09-13; author at the cursor 2026-09-14, replacing the form where a selected section won, the armed caret alone decided, and an occupied downbeat merely SELECTED |
 | `Ctrl+B` · `Ctrl+/` · `Ctrl+H` | tempo anchor · meter · hand marker (position and span, one object since 2026-09-15), each inserted at the cursor, or restated where one already stands there — see *Markers* | **RESERVED** (plan 41; plan 41 phase 6; plan 60 gate G60-RULINGS) |
-| `Alt+F` · `Alt+E` · `Alt+V` | open the File / Edit / View menu — the platform's own menu-access convention, implemented here because JUCE's menu bar has no mnemonic handling of its own. One command per menu-bar title, in the bar's order; registering them also stops the system beep an unhandled `Alt`+letter makes on Windows. `Alt` alone is still the ring reveal, so the reveal flashes for the chord's length, as it does under `Alt`+digit. Holding `Alt` underlines the access letter in each menu title, the platform's own hint, hidden until `Alt` is down | Live (`0x1B01`-`0x1B03`, Menu; 2026-09-12) |
+| `Alt+F` · `Alt+E` · `Alt+V` · `Alt+A` | open the File / Edit / View / Audio menu — the platform's own menu-access convention, implemented here because JUCE's menu bar has no mnemonic handling of its own. One command per menu-bar title, in the bar's order; registering them also stops the system beep an unhandled `Alt`+letter makes on Windows. `Alt` alone is still the ring reveal, so the reveal flashes for the chord's length, as it does under `Alt`+digit. Holding `Alt` underlines the access letter in each menu title, the platform's own hint, hidden until `Alt` is down | Live (`0x1B01`-`0x1B04`, Menu; 2026-09-12, Audio added 2026-09-18) |
+| *(no default chord)* | **Calibrate Input...**, the Audio menu's only item. A rare setup step, so it claims no chord; the signal-chain panel offers the same command in place while it is disabled for want of calibration, and both follow one availability flag | Live (`0x1C01`, Audio; 2026-09-18, with the meter-only signal-chain panel) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |

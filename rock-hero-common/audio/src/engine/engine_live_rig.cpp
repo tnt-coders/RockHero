@@ -454,12 +454,6 @@ std::optional<std::size_t> Engine::Impl::audibleBranchIndex() const
     return toneBranchIndex(m_audible_tone_ref);
 }
 
-ToneBranchGainPlugin* Engine::Impl::audibleBranchGain() const
-{
-    const ToneRackBranch* const branch = audibleToneBranch();
-    return branch != nullptr ? branch->branch_gain : nullptr;
-}
-
 std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
     const std::string& tone_document_ref)
 {
@@ -543,8 +537,6 @@ LiveRigLoadResult Engine::Impl::audibleToneResult() const
                 metadata.display_type_overrides[plugin_index];
         }
     }
-    result.output_gain =
-        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return result;
 }
 
@@ -585,34 +577,6 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
         return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
     }
     m_impl->endPluginUndoCaptureDeferral();
-    return {};
-}
-
-// Reads the audible tone's authored level off its own branch, the one place it is stored.
-Gain Engine::outputGain() const
-{
-    const ToneBranchGainPlugin* const branch_gain = m_impl->audibleBranchGain();
-    return branch_gain != nullptr ? branch_gain->outputGain() : Gain{defaultGainDb()};
-}
-
-// Sets the audible tone's authored level on its own branch, which is what carries that level
-// through every later switch — including one the audio thread makes from a baked schedule.
-std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
-{
-    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
-    {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
-    }
-
-    ToneBranchGainPlugin* const branch_gain = m_impl->audibleBranchGain();
-    if (branch_gain == nullptr)
-    {
-        return std::unexpected{
-            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to set the level on"}
-        };
-    }
-
-    branch_gain->setOutputGain(gain);
     return {};
 }
 
@@ -692,7 +656,6 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     m_impl->stopTransportAndReleaseContext();
 
     LiveRigSnapshot snapshot;
-    snapshot.output_gain = outputGain();
 
     // Every loaded branch persists to its own document: any branch can drift from its file (undo
     // restores plugin state by instance id, plugin windows stay open across audibility switches),
@@ -845,11 +808,6 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             ++captured_plugin_index;
         }
 
-        // Every branch carries its own level, audible or not, so there is one place to read it
-        // from and no audible/other split to keep honest.
-        document.output_gain = branch.branch_gain != nullptr ? branch.branch_gain->outputGain()
-                                                             : Gain{defaultGainDb()};
-
         const std::filesystem::path tone_document_path =
             request.song_directory / branch.tone_document_ref;
         if (auto write_result = writeToneDocument(tone_document_path, document);
@@ -922,14 +880,14 @@ std::expected<void, LiveRigError> Engine::addEmptyToneBranch(const std::string& 
     return {};
 }
 
-// Writes a fresh empty tone document (empty chain, unity gain) and returns its package-relative
-// reference. Eager persistence lets a subsequent loadLiveRig, which fails on a missing document,
-// pick the new reference up as its own passthrough branch.
+// Writes a fresh empty tone document (empty chain) and returns its package-relative reference.
+// Eager persistence lets a subsequent loadLiveRig, which fails on a missing document, pick the new
+// reference up as its own passthrough branch.
 std::expected<std::string, LiveRigError> Engine::mintEmptyTone(
     const std::filesystem::path& song_directory)
 {
     const std::filesystem::path relative_path = generatedToneDocumentPath();
-    const ToneDocument document{.chain = {}, .output_gain = Gain{defaultGainDb()}};
+    const ToneDocument document{.chain = {}};
     if (auto written = writeToneDocument(song_directory / relative_path, document);
         !written.has_value())
     {
@@ -966,7 +924,6 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
                 .tone_document_ref = std::string{g_placeholder_tone_ref},
                 .chain = {},
                 .display_names = {},
-                .output_gain = Gain{defaultGainDb()},
                 .loaded_plugins = {},
             });
     }
@@ -1020,7 +977,6 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
                 .tone_document_ref = tone_ref,
                 .chain = std::move(document->chain),
                 .display_names = {},
-                .output_gain = document->output_gain,
                 .loaded_plugins = {},
             };
             tone_load.display_names.reserve(tone_load.chain.size());
@@ -1182,13 +1138,6 @@ void Engine::Impl::finalizeLiveRigLoad()
     for (std::size_t branch_index = 0; branch_index < m_load_op->tones.size(); ++branch_index)
     {
         const LiveRigLoadOperation::ToneLoad& tone = m_load_op->tones[branch_index];
-        // Branches are built in tone order, so each document's authored level lands on the branch
-        // that plays it — the only place that level is kept from here on.
-        ToneBranchGainPlugin* const branch_gain = m_tone_rack->branches[branch_index].branch_gain;
-        if (branch_gain != nullptr)
-        {
-            branch_gain->setOutputGain(tone.output_gain);
-        }
         BranchDisplayMetadata metadata;
         metadata.block_indices.reserve(tone.chain.size());
         metadata.display_type_overrides.reserve(tone.chain.size());
@@ -1544,8 +1493,6 @@ std::expected<void, LiveRigError> Engine::exportAudibleTone(const ToneFileExport
         ++chain_index;
     }
 
-    document.output_gain =
-        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return writeToneFile(request.tone_file_path, document, plugin_states);
 }
 
@@ -1595,8 +1542,6 @@ std::expected<AudibleToneState, LiveRigError> Engine::captureAudibleToneState()
         state.plugin_states.push_back(std::move(*plugin_state));
     }
 
-    state.output_gain =
-        branch->branch_gain != nullptr ? branch->branch_gain->outputGain() : Gain{defaultGainDb()};
     return state;
 }
 
@@ -1659,7 +1604,6 @@ void Engine::replaceAudibleToneFromFile(
         operation->block_indices.push_back(record.block_index);
         operation->display_type_overrides.push_back(record.display_type_override);
     }
-    operation->output_gain = payload->document.output_gain;
     operation->progress_callback = std::move(request.progress_callback);
     operation->yield_callback = std::move(request.yield_callback);
     operation->on_result = std::move(completion);
@@ -1745,7 +1689,7 @@ std::expected<LiveRigLoadResult, LiveRigError> Engine::restoreAudibleToneState(
 
     // The editor's undo entry owns the authoritative panel layout and reapplies it after this
     // returns; the engine keeps only size-consistent defaults.
-    if (auto swapped = m_impl->swapAudibleChainPlugins(restored_plugins, state.output_gain, {}, {});
+    if (auto swapped = m_impl->swapAudibleChainPlugins(restored_plugins, {}, {});
         !swapped.has_value())
     {
         return std::unexpected{std::move(swapped.error())};
@@ -1902,10 +1846,7 @@ void Engine::Impl::finalizeToneChainReplace()
     }
 
     auto swapped = swapAudibleChainPlugins(
-        m_replace_op->created,
-        m_replace_op->output_gain,
-        m_replace_op->block_indices,
-        m_replace_op->display_type_overrides);
+        m_replace_op->created, m_replace_op->block_indices, m_replace_op->display_type_overrides);
     if (!swapped.has_value())
     {
         abortToneChainReplace(std::move(swapped.error()));
@@ -1920,9 +1861,9 @@ void Engine::Impl::finalizeToneChainReplace()
 }
 
 // Swaps the audible branch's user chain for already-instantiated replacements, with rollback,
-// outgoing-chain hygiene, and gain/layout bookkeeping.
+// outgoing-chain hygiene, and layout bookkeeping.
 std::expected<void, LiveRigError> Engine::Impl::swapAudibleChainPlugins(
-    const std::vector<tracktion::Plugin::Ptr>& replacements, Gain output_gain,
+    const std::vector<tracktion::Plugin::Ptr>& replacements,
     const std::vector<std::size_t>& block_indices,
     const std::vector<std::string>& display_type_overrides)
 {
@@ -2019,12 +1960,7 @@ std::expected<void, LiveRigError> Engine::Impl::swapAudibleChainPlugins(
         }
     }
 
-    // The replacement chain's level and retained panel layout become the audible branch's truth.
-    if (ToneBranchGainPlugin* const branch_gain = m_tone_rack->branches[*branch_index].branch_gain;
-        branch_gain != nullptr)
-    {
-        branch_gain->setOutputGain(output_gain);
-    }
+    // The replacement chain's retained panel layout becomes the audible branch's truth.
     if (*branch_index < m_branch_display_metadata.size())
     {
         BranchDisplayMetadata& metadata = m_branch_display_metadata[*branch_index];

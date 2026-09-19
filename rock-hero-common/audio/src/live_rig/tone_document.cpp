@@ -29,7 +29,6 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr const char* g_format_version_key{"formatVersion"};
 constexpr const char* g_slots_key{"slots"};
 constexpr const char* g_slot_chain_key{"chain"};
-constexpr const char* g_slot_output_gain_db_key{"outputGainDb"};
 
 constexpr const char* g_plugin_id_key{"id"};
 constexpr const char* g_plugin_identity_key{"identity"};
@@ -226,7 +225,6 @@ constexpr const char* g_identity_tracktion_hint_key{"tracktionIdentifierHint"};
             {"name", core::Json::makeString("Default")},
             {g_slot_chain_key, chain},
             {"automation", core::Json::makeArray()},
-            {g_slot_output_gain_db_key, juce::var{document.output_gain.db}},
         }));
 
     juce::var tone_clips = core::Json::makeArray();
@@ -343,11 +341,6 @@ constexpr const char* g_identity_tracktion_hint_key{"tracktionIdentifierHint"};
                 .stable_id = core::Json::readOptionalString(plugin_json, g_plugin_stable_id_key),
             });
     }
-
-    // The output gain is optional and defaults to 0.0 dB when absent.
-    document.output_gain = clampGain(
-        Gain{core::Json::readOptionalDouble(
-            default_slot_json, g_slot_output_gain_db_key, defaultGainDb())});
 
     return document;
 }

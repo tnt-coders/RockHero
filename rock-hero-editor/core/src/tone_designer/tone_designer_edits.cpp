@@ -44,8 +44,6 @@ namespace
             visual_state.instance_id, visual_state.display_type_override);
     }
 
-    // The engine applied the gain; refresh the controller-owned mirror the view reads.
-    context.output_gain_db = target.chain_state.output_gain.db;
     return {};
 }
 

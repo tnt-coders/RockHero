@@ -6,7 +6,6 @@
 #pragma once
 
 #include <cstdint>
-#include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 #include <string>
 #include <vector>
@@ -54,12 +53,6 @@ struct SignalChainViewState
     /*! \brief Message shown when live guitar audition is disabled. */
     std::string disabled_message{};
 
-    /*! \brief Enables or disables the output gain control. */
-    bool output_gain_controls_enabled{false};
-
-    /*! \brief Current output gain after the signal chain. */
-    common::audio::Gain output_gain{};
-
     /*! \brief Enables the project-mode Import Tone command (copies a tone file's rig in). */
     bool tone_import_enabled{false};
 
@@ -69,9 +62,9 @@ struct SignalChainViewState
     /*!
     \brief Compares two signal-chain view states by their stored values.
 
-    Safely defaulted: the one float travels inside \ref common::audio::Gain, whose hand-written
-    std::is_eq comparison keeps -Wfloat-equal quiet — so a new field here is compared
-    automatically instead of depending on a hand-maintained member list.
+    Safely defaulted: no member is a floating-point type, so nothing here trips -Wfloat-equal and a
+    new field is compared automatically instead of depending on a hand-maintained member list. A
+    future floating-point field must travel inside a type carrying its own std::is_eq comparison.
 
     \param lhs Left-hand signal-chain view state.
     \param rhs Right-hand signal-chain view state.

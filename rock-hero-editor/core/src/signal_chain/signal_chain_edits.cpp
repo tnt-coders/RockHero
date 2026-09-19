@@ -4,7 +4,6 @@
 #include "tone/tone_automation_edits.h"
 
 #include <algorithm>
-#include <format>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
@@ -404,28 +403,6 @@ void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& con
     return {};
 }
 
-// Applies an output-gain edit in one direction through the live-rig boundary.
-[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyOutputGainEdit(
-    const OutputGainEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
-{
-    const common::audio::Gain gain =
-        direction == EditorUndoDirection::Undo ? edit.before_gain : edit.after_gain;
-    const common::audio::Gain opposite_gain =
-        direction == EditorUndoDirection::Undo ? edit.after_gain : edit.before_gain;
-    if (gain == opposite_gain)
-    {
-        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
-    }
-
-    if (const auto applied = context.live_rig.setOutputGain(gain); !applied.has_value())
-    {
-        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
-    }
-
-    context.output_gain_db = gain.db;
-    return {};
-}
-
 } // namespace
 
 std::expected<void, EditorUndoFailureCode> PluginInsertEdit::undo(EditorEditContext& context) const
@@ -541,22 +518,6 @@ std::string PluginStateEdit::label() const
         text += slotSuffix(*chain_index);
     }
     return text;
-}
-
-std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
-{
-    return applyOutputGainEdit(*this, EditorUndoDirection::Undo, context);
-}
-
-std::expected<void, EditorUndoFailureCode> OutputGainEdit::redo(EditorEditContext& context) const
-{
-    return applyOutputGainEdit(*this, EditorUndoDirection::Redo, context);
-}
-
-std::string OutputGainEdit::label() const
-{
-    // Report the value the gain became, so history reads "Set Output Gain to -6 dB".
-    return "Set Output Gain to " + std::format("{}", after_gain.db) + " dB";
 }
 
 } // namespace rock_hero::editor::core

@@ -1413,7 +1413,7 @@ void EditorView::showActionsWindow()
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File", "Edit", "View"};
+    return {"File", "Edit", "View", "Audio"};
 }
 
 // Builds menus using only controller-derived state.
@@ -1474,6 +1474,13 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
                 m_state.tab_minimum_displayed_strings == count);
         }
         menu.addSubMenu("Tablature Strings", strings_menu, has_chart);
+        return menu;
+    }
+
+    if (top_level_menu_index == 3 && menu_name == "Audio")
+    {
+        juce::PopupMenu menu;
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::CalibrateInput);
         return menu;
     }
 
@@ -1576,6 +1583,13 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setActive(m_state.signal_chain.tone_export_enabled);
             break;
         }
+        case EditorCommandId::CalibrateInput:
+        {
+            // Exactly the flag the signal-chain panel's in-place button follows, so the menu and
+            // the panel can never disagree about when calibration can run.
+            info.setActive(m_state.signal_chain.input_calibrate_enabled);
+            break;
+        }
         case EditorCommandId::Undo:
         {
             info.shortName = editCommandText("Undo", m_state.undo_label);
@@ -1626,6 +1640,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
+        case EditorCommandId::OpenAudioMenu:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:
@@ -1864,6 +1879,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
+        case EditorCommandId::CalibrateInput:
+        {
+            onInputCalibrationPressed();
+            return true;
+        }
         case EditorCommandId::Undo:
         {
             if (m_state.undo_enabled)
@@ -1990,9 +2010,10 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::OpenFileMenu:
         case EditorCommandId::OpenEditMenu:
         case EditorCommandId::OpenViewMenu:
+        case EditorCommandId::OpenAudioMenu:
         {
-            // Indices follow getMenuBarNames' order (File, Edit, View), which the view-state test
-            // locks.
+            // Ids are contiguous in getMenuBarNames' order (File, Edit, View, Audio), which the
+            // view-state test locks, so the bar index is the offset from the first.
             m_menu_bar.showMenu(info.commandID - static_cast<int>(EditorCommandId::OpenFileMenu));
             return true;
         }
@@ -3381,17 +3402,6 @@ void EditorView::onInputCalibrationPressed()
     m_controller.onInputCalibrationRequested();
 }
 
-// Forwards live output gain preview changes while the slider is being dragged.
-void EditorView::onOutputGainPreviewChanged(double gain_db)
-{
-    if (!m_state.signal_chain.output_gain_controls_enabled)
-    {
-        return;
-    }
-    m_controller.onOutputGainPreviewChanged(gain_db);
-}
-
-// Forwards committed output gain slider changes to the controller when controls are enabled.
 // Routes a tone-region selection intent to the controller.
 void EditorView::onToneRegionSelected(std::string region_id)
 {
@@ -3724,15 +3734,6 @@ void EditorView::onToneRenamePromptRequested(
         [this, ref = std::move(tone_document_ref)](const juce::String& name) {
             m_controller.onToneRenameRequested(ref, name.toStdString());
         });
-}
-
-void EditorView::onOutputGainChanged(double gain_db)
-{
-    if (!m_state.signal_chain.output_gain_controls_enabled)
-    {
-        return;
-    }
-    m_controller.onOutputGainChanged(gain_db);
 }
 
 // Forwards browser rescan intent to the workflow controller.

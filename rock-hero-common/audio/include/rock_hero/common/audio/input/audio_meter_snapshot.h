@@ -63,7 +63,7 @@ struct AudioMeterSnapshot
     /*! \brief Live rig level after the input gain fader and before user plugins. */
     AudioMeterLevel live_rig_input;
 
-    /*! \brief Live rig level after user plugins and the output gain fader. */
+    /*! \brief Live rig level after user plugins and the post-rack monitor stage. */
     AudioMeterLevel live_rig_output;
 
     /*! \brief Final mixed output level after backing track and live rig are summed. */

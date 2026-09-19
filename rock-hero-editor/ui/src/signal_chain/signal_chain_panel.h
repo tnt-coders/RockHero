@@ -67,9 +67,9 @@ public:
     void setToneDesignerState(const core::ToneDesignerViewState& state);
 
     /*!
-    \brief Applies live-rig post-fader meter levels.
-    \param input_level Level after the input gain fader.
-    \param output_level Level after the output gain fader.
+    \brief Applies the live rig's end-to-end meter levels.
+    \param input_level Level entering the chain, after input calibration.
+    \param output_level Level leaving the chain.
     */
     void setMeterLevels(
         common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level);
