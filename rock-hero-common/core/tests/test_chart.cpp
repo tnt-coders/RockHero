@@ -678,10 +678,12 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
     SECTION("a node at or behind the stop is refused")
     {
         // A node lies on the speaking length: nothing vibrates at or behind the stop, so the
-        // comparison is strict — a node AT the stop is the stop.
+        // comparison is strict — a node AT the stop is the stop. Probed through a pinch, the one
+        // harmonic still allowed over a pressed stop while the artificial form is disabled.
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note_at(3)};
+        chart.notes[0].attack = NoteAttack::Pinch;
         chart.notes[0].harmonic_node = 3.0;
         CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
 
@@ -689,6 +691,41 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
 
         chart.notes[0].harmonic_node = 3.2;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+    }
+
+    SECTION("artificial and tapped harmonics are refused for now")
+    {
+        // Only the natural and the pinch are supported: a node over a pressed stop under a
+        // fretting-hand attack, and a node under the tap attack, are refused by name so no chart
+        // can hold either until the forms are deliberately reopened. The reading code that would
+        // draw them stays behind this one rule.
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.notes = {note_at(5)};
+        chart.notes[0].harmonic_node = 17.0;
+        const auto artificial = validateChartRules(chart, tempo_map);
+        REQUIRE_FALSE(artificial.has_value());
+        CHECK(artificial.error().code == ChartErrorCode::InvalidNote);
+        CHECK(artificial.error().message.find("not supported yet") != std::string::npos);
+
+        chart.notes[0].attack = NoteAttack::Tap;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        // The tap is refused even over the open string, where it presses nothing: the attack is
+        // the disabled form, not the stop.
+        chart.notes[0].fret = 0;
+        chart.notes[0].harmonic_node = 12.0;
+        const auto tapped = validateChartRules(chart, tempo_map);
+        REQUIRE_FALSE(tapped.has_value());
+        CHECK(tapped.error().message.find("not supported yet") != std::string::npos);
+
+        // The controls: the same records without the disabled element are legal.
+        chart.notes[0].attack = NoteAttack::Pick;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+        chart.notes[0].fret = 5;
+        chart.notes[0].harmonic_node = 17.0;
+        chart.notes[0].attack = NoteAttack::Pinch;
         CHECK(validateChartRules(chart, tempo_map).has_value());
     }
 
@@ -714,8 +751,9 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
     {
         // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard
         // cannot be past the last fret — which is also what keeps the derived hand window inside
-        // g_max_fret. A pinch's thumb grazes over the body, and a tapped node belongs to the
-        // picking hand, so both escape the bound (only the universal 48 limit applies to them).
+        // g_max_fret. A pinch's thumb grazes over the body, so it escapes the bound (only the
+        // universal 48 limit applies to it). The tapped node would escape it the same way, but the
+        // tapped form is refused outright while it is disabled, so it cannot be probed here.
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note_at(0)};
@@ -727,9 +765,6 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 
         chart.notes[0].harmonic_node = static_cast<double>(g_max_fret) + 1.0;
         chart.notes[0].attack = NoteAttack::Pinch;
-        CHECK(validateChartRules(chart, tempo_map).has_value());
-
-        chart.notes[0].attack = NoteAttack::Tap;
         CHECK(validateChartRules(chart, tempo_map).has_value());
     }
 
@@ -2112,9 +2147,12 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         tap.attack = NoteAttack::Tap;
         CHECK_FALSE(validate({tap}).has_value());
 
-        // The open-string tap harmonic strikes the node itself, so a node satisfies the rule.
+        // The open-string tap harmonic would strike the node itself and satisfy this rule, but the
+        // tapped harmonic is a disabled form, so it is refused by the later rule instead.
         tap.harmonic_node = 12.0;
-        CHECK(validate({tap}).has_value());
+        const auto tapped = validate({tap});
+        REQUIRE_FALSE(tapped.has_value());
+        CHECK(tapped.error().message.find("not supported yet") != std::string::npos);
 
         left_tap.fret = 5;
         CHECK(validate({left_tap}).has_value());
@@ -2151,8 +2189,11 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({both_bend}).has_value());
 
         // A dead harmonic is LEGAL: the node is positional there, saying where the hand is rather
-        // than what rings, which is the same reading that lets a dead note keep its fret.
-        ChartNote muted_harmonic = dead;
+        // than what rings, which is the same reading that lets a dead note keep its fret. Probed
+        // over the open string, since a node over a pressed stop is the disabled artificial form
+        // whatever the deadening says.
+        ChartNote muted_harmonic = make_note(1, 1, 0);
+        muted_harmonic.dead = true;
         muted_harmonic.harmonic_node = 17.0;
         CHECK(validate({muted_harmonic}).has_value());
         // And it stays DEAD through normalization rather than being un-deadened into a sounding
@@ -2223,8 +2264,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         palm_tail.sustain = Fraction{1};
         CHECK(validate({palm_tail}).has_value());
 
-        // A dead tap harmonic still sheds the tremolo the damping finger cannot hold — and that
-        // is the ONLY repair it takes: the shed never drags the ring away with it.
+        // A dead tap harmonic is reduced to the plain note at its stop (the tapped form is
+        // disabled) — and that is the ONLY repair it takes: the shed never drags the ring away with
+        // it.
         ChartNote dead_tap_harmonic = make_note(1, 1, 5);
         dead_tap_harmonic.dead = true;
         dead_tap_harmonic.attack = NoteAttack::Tap;
@@ -2233,7 +2275,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         dead_tap_harmonic.sustain = Fraction{1};
         CHECK(
             normalizeChartNote(dead_tap_harmonic, ChartTuning{}) ==
-            std::vector<ChartRepair>{ChartRepair::TapHarmonicTremolo});
+            std::vector<ChartRepair>{ChartRepair::DisabledHarmonic});
         CHECK(dead_tap_harmonic.sustain == Fraction{1});
     }
 
@@ -2281,17 +2323,30 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")
     {
+        // While the tapped form is disabled the normalizer reduces the whole harmonic to the plain
+        // note at its stop before the tremolo exclusion can be asked: a picked note may be tremolo
+        // picked, so the tremolo survives and the record is legal again. The exclusion itself
+        // (the damping finger leaves the string, so nothing holds the node) waits behind the door.
         ChartNote tap_harmonic = make_note(1, 1, 5);
         tap_harmonic.attack = NoteAttack::Tap;
         tap_harmonic.harmonic_node = 17.0;
         tap_harmonic.tremolo = true;
         CHECK_FALSE(validate({tap_harmonic}).has_value());
+        CHECK(
+            normalizeChartNote(tap_harmonic, ChartTuning{}) ==
+            std::vector<ChartRepair>{ChartRepair::DisabledHarmonic});
+        CHECK(tap_harmonic.attack == NoteAttack::Pick);
+        CHECK_FALSE(tap_harmonic.harmonic_node.has_value());
+        CHECK(tap_harmonic.tremolo);
+        CHECK(validate({tap_harmonic}).has_value());
 
-        // The artificial-harmonic family keeps a finger on the node, so re-picking works.
-        ChartNote artificial = make_note(1, 1, 5);
-        artificial.harmonic_node = 17.0;
-        artificial.tremolo = true;
-        CHECK(validate({artificial}).has_value());
+        // A harmonic the picking hand damps over a pressed stop keeps the fretting finger on its
+        // stop, so re-picking works; the pinch is that family's one enabled member.
+        ChartNote pinch = make_note(1, 1, 5);
+        pinch.attack = NoteAttack::Pinch;
+        pinch.harmonic_node = 17.0;
+        pinch.tremolo = true;
+        CHECK(validate({pinch}).has_value());
     }
 
     SECTION("a fret-hand harmonic cannot slide, bend, or vibrato; one over a stop can")
@@ -2318,8 +2373,10 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({oscillating}).has_value());
 
         // A harmonic over a real stop is the picking-hand-damped family: the fretting hand is
-        // pressing, so bending it is ordinary work.
+        // pressing, so bending it is ordinary work. The pinch is that family's one enabled member
+        // while the artificial form is disabled.
         ChartNote fretted = make_note(1, 1, 5);
+        fretted.attack = NoteAttack::Pinch;
         fretted.harmonic_node = 17.0;
         fretted.sustain = Fraction{1};
         fretted.bend = 1.0;
@@ -3538,6 +3595,10 @@ TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "
 // to agree about it — the rules, the derivation and the document — and every one of them reads the
 // pressed stop out of `fret` (\ref physicalStopFret). A planted finger is a third fact this record
 // cannot carry, and the saved-form fixpoint is what says so.
+//
+// The form is DISABLED for now: the rules refuse it by name, so the validation sections below pin
+// the refusal, while the derivation and document sections keep pinning the settled record and the
+// display it earns — the code that draws it stays in place behind the one refusing rule.
 TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -3573,14 +3634,18 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
     };
     const Chart chart = make_chart({struck_member(), tapped_harmonic()});
 
-    SECTION("both facts coexist, and the node is judged against the note's own fret")
+    SECTION("the form is refused for now, after the node is judged against the note's own fret")
     {
-        CHECK(validateChartRules(chart, tempo_map).has_value());
+        // Tapped and artificial harmonics are DISABLED: the rules refuse the record outright so no
+        // chart can hold one until the forms are reopened. The refusal names the cause.
+        const auto disabled = validateChartRules(chart, tempo_map);
+        REQUIRE_FALSE(disabled.has_value());
+        CHECK(disabled.error().message.find("not supported yet") != std::string::npos);
 
-        // The rule binds — a node lies on the speaking length, so it cannot sit at or behind the
-        // stop — and the stop it binds against is this note's fret. Both arms move with that fret,
-        // which is what makes them a discrimination rather than a restatement: a node level with
-        // the pressed 5 is refused, and one between the pressed stop and the tapped point is legal.
+        // The node rule still binds FIRST — a node lies on the speaking length, so it cannot sit at
+        // or behind the stop — and the stop it binds against is this note's fret. A node level with
+        // the pressed 5 is refused for that reason before the disable rule is reached, which keeps
+        // the two refusals a discrimination rather than one blanket answer.
         ChartNote behind = tapped_harmonic();
         behind.harmonic_node = 5.0;
         const auto refused = validateChartRules(make_chart({behind}), tempo_map);
@@ -3589,7 +3654,9 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
 
         ChartNote inside = tapped_harmonic();
         inside.harmonic_node = 10.0;
-        CHECK(validateChartRules(make_chart({inside}), tempo_map).has_value());
+        const auto inside_refused = validateChartRules(make_chart({inside}), tempo_map);
+        REQUIRE_FALSE(inside_refused.has_value());
+        CHECK(inside_refused.error().message.find("not supported yet") != std::string::npos);
 
         // And the OPEN string's stop is the capo, which is the other half of the same reading: a
         // natural harmonic states fret 0, so what the node is measured from is whatever stops the
@@ -3622,6 +3689,8 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         ChartNote planted = tapped_harmonic();
         planted.held = 3;
         CHECK_FALSE(savedChartNote(planted).held.has_value());
+        // The saved-form fixpoint is asked before the normal-form check that refuses the disabled
+        // form, so the held stop is what this refusal names.
         const auto refused = validateChartRules(make_chart({planted}), tempo_map);
         REQUIRE_FALSE(refused.has_value());
         CHECK(refused.error().message.find("held") != std::string::npos);

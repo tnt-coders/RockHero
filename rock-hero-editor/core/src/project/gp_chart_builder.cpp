@@ -3127,6 +3127,11 @@ void resolveSlideOutExits(
             // the editor's harmonic verb reads too. An empty candidate list is a label that names
             // NOTHING (the integer frets with no harmonic near them: 1, 11, 13, ...); with a
             // charter to ask, the verb offers the list, and import takes the nearest of it.
+            //
+            // Artificial and tapped harmonics import as the record they are, and the chart
+            // normalization this build ends with reduces each to a plain note at its pressed stop
+            // and reports it (ChartRepair::DisabledHarmonic), because those two forms are not
+            // supported yet; nothing here restates that rule.
             const bool fretted_harmonic =
                 source.harmonic_type == "Pinch" || source.harmonic_type == "Semi" ||
                 source.harmonic_type == "Artificial" || source.harmonic_type == "Tap";

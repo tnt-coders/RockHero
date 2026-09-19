@@ -157,10 +157,10 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
 {
     // String 1 carries a resolvable descending pair (released 7 over fret 5, tail reaching the
     // onset, so plain H claims a connection that reads as a pull-off); string 2 the open string
-    // with no node — the verb's sole matrix-grounds refusal; string 3 a fret-0 tap harmonic whose
-    // strike point the tap verb re-hands; string 4 a stopped pinch whose node survives as the
-    // tapped-harmonic gesture; string 5 an open-string pinch whose bridge-side graze can never
-    // become a strike point.
+    // with no node — the verb's sole matrix-grounds refusal; string 3 a natural harmonic whose node
+    // is a strike point the left hand can take; string 4 a stopped pinch, which the verb refuses
+    // because the result would be the disabled artificial form; string 5 an open-string pinch whose
+    // bridge-side graze can never become a strike point.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
@@ -213,7 +213,6 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .keyframes = {},
         },
     };
-    chart.notes[2].attack = common::core::NoteAttack::Tap;
     chart.notes[2].harmonic_node = 12.0;
     chart.notes[3].attack = common::core::NoteAttack::Pinch;
     chart.notes[3].harmonic_node = 17.0;
@@ -267,7 +266,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         CHECK(note(1).attack == common::core::NoteAttack::Pick);
     }
 
-    SECTION("it re-hands a tap harmonic's strike point into the left-hand form")
+    SECTION("it takes a natural harmonic's node as the strike point and keeps it")
     {
         click(controller, 40.0f, 140.0f);
 
@@ -281,17 +280,20 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         }
     }
 
-    SECTION("it keeps a stopped pinch's node as the tapped-harmonic gesture")
+    SECTION("it refuses a stopped pinch, whose node would become the disabled artificial form")
     {
+        // A left-hand tap under a node over a PRESSED stop is an artificial harmonic, which the
+        // chart does not accept for now, so the plan gate refuses the conversion and the pinch
+        // stands.
         click(controller, 40.0f, 100.0f);
 
         controller.onChartLeftTapRequested();
-        const common::core::ChartNote& tapped = note(3);
-        CHECK(tapped.attack == common::core::NoteAttack::LeftTap);
-        REQUIRE(tapped.harmonic_node.has_value());
-        if (tapped.harmonic_node.has_value())
+        const common::core::ChartNote& kept = note(3);
+        CHECK(kept.attack == common::core::NoteAttack::Pinch);
+        REQUIRE(kept.harmonic_node.has_value());
+        if (kept.harmonic_node.has_value())
         {
-            CHECK(*tapped.harmonic_node == Catch::Approx(17.0));
+            CHECK(*kept.harmonic_node == Catch::Approx(17.0));
         }
     }
 

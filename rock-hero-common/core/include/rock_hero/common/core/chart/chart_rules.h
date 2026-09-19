@@ -182,6 +182,15 @@ enum class ChartRepair : std::uint8_t
     DeadNoteModulation,
     /*! \brief A dead note's pinch harmonic became a plain pick: a damped string cannot squeal. */
     DeadPinch,
+    /*!
+    \brief An artificial or tapped harmonic became a plain note at its pressed stop.
+
+    Only the natural and the pinch are supported for now: a node over a pressed stop under any other
+    attack, and a node under the tap attack, are reduced to the fundamental they divide so no chart
+    can hold either form while its display is unsettled. The code that would derive and draw them
+    stays in place behind this one repair (\c harmonic-display-followups.md).
+    */
+    DisabledHarmonic,
     /*! \brief Tremolo left a tap harmonic: the damping finger leaves, so nothing holds the node. */
     TapHarmonicTremolo,
     /*! \brief A bend, vibrato, or slide left a fret-hand harmonic: a touch presses nothing. */

@@ -1851,24 +1851,24 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         }
     }
 
-    SECTION("a tapped harmonic keeps its stop and becomes the Tap attack")
+    SECTION("tapped and artificial harmonics land as ordinary notes while the forms are disabled")
     {
-        // The natural path would erase the stop (fret := capo) and read the label against the
-        // wrong string. A tap harmonic is a harmonic over a real stop, like a pinch — but its
-        // damping finger lands ON the neck, so the node anchors displays.
-        const common::core::ChartNote note = import_note(
-            GpNote{.string = 1, .fret = 5, .harmonic_type = "Tap", .harmonic_fret = 12.0});
-        CHECK(note.attack == common::core::NoteAttack::Tap);
-        CHECK(note.fret == 5);
-        REQUIRE(note.harmonic_node.has_value());
-        if (note.harmonic_node.has_value())
+        // The builder writes the record each form is — a tapped harmonic `{pressed fret, Tap,
+        // node}`, an artificial one the same record under the fretting-hand attack — and the chart
+        // normalization the build ends with reduces both to a plain note at the pressed stop
+        // (ChartRepair::DisabledHarmonic), because the forms are not supported yet. The stop is
+        // kept, the onset becomes the pick that sounds it, and nothing is planted.
+        for (const char* const harmonic_type : {"Tap", "Artificial"})
         {
-            CHECK(*note.harmonic_node == Catch::Approx(17.0));
+            const common::core::ChartNote note = import_note(
+                GpNote{
+                    .string = 1, .fret = 5, .harmonic_type = harmonic_type, .harmonic_fret = 12.0
+                });
+            CHECK(note.attack == common::core::NoteAttack::Pick);
+            CHECK(note.fret == 5);
+            CHECK_FALSE(note.harmonic_node.has_value());
+            CHECK_FALSE(note.held.has_value());
         }
-        // And no planted finger beside it: the stop the string speaks from is the note's own fret,
-        // so there is nothing left for the held field to say.
-        CHECK_FALSE(note.held.has_value());
-        CHECK(common::core::nodeIsOnNeck(note.attack));
     }
 
     SECTION("feedback harmonics drop the harmonic loudly, never corrupt the note")

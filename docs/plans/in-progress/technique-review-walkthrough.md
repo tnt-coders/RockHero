@@ -355,7 +355,11 @@ Keep this list and the session task list in step.
     its own and adopt the same "offer every change" law when it does.
   - **Scope: natural and pinch only.** The artificial and tap families were carved out the same day
     into `docs/plans/todo/artificial-harmonic-authoring.md`: a node measured from a PRESSED stop
-    needs a verb that does not rewrite the fret, which is a different act from this one.
+    needs a verb that does not rewrite the fret, which is a different act from this one. **Since
+    2026-09-18 (late) both families are DISABLED in the chart itself**: validation refuses a node
+    over a pressed stop under any attack but the pinch, and a node under the tap attack, so no
+    verb, import or file can produce one (`chart_rules.cpp`; `harmonic-display-followups.md` has
+    the parked display items and the reopening recipe).
   - **Two retype defects fixed with it.** `planRetypeFrets` now REFUSES the sounding stop of a
     fret-hand harmonic (the derived-held refusal's shape, so the pending box paints red), and a
     retype under any other node moves the node with its stop — a node is `stop + offset` on a

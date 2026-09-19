@@ -7,6 +7,20 @@ is the USER's ruling unless it is marked **OPEN** or **WATCH**; nothing here is 
 states the ruling, what the code does TODAY (verified against the tree at `19a4c475`, with
 file:line), what changes, and what to verify.
 
+**Artificial and tapped harmonics are DISABLED for now (2026-09-18, late).** Natural and pinch
+harmonics sight well; the two forms every item below except 2 and 9 concerns do not, and the user
+chose a stable point over a half-settled display. One validation rule in `chart_rules.cpp` refuses a
+node over a pressed stop (other than a pinch) and a node under the tap attack, so no chart can hold
+either form: the document reader hard-errors, every editor plan is refused at its finalize gate, and
+the GP importer lands GP "Artificial" and "Tap" harmonics in its unsupported branch (the note survives
+as an ordinary note, counted). The display code that would draw them — the standing satellite, the
+bracket-shows-the-fret rule, the highway's stop→node footprint, the `held` principle beneath a
+picking-hand stop — stays in place behind that rule, because it IS the settled design and re-deriving
+it would cost more than keeping it. Reopening = delete the rule and its importer guard, regenerate the
+showcase fixture with its artificial/tapped measures, then resume items 1, 3, 5, 6, 7 and 8 below,
+which are PARKED. Items **2** (the satellite ground) and **9** (the two-chord figure) do not depend on
+the disabled forms and stay live.
+
 ## Why
 
 The five commits that shipped the pressed-stop harmonic — `e9d6d640..19a4c475` — settled what the
@@ -474,17 +488,22 @@ expecting zero.
 
 ## Order of work (proposed)
 
-1. **8 and 4** — the two span-law defects, which are one change to the claim/hand-table seam. Small,
-   and they must land before anything sights a span over a harmonic.
-2. **9** — the chord-identity seam, on its own. It is the only item here that moves the corpus,
+While artificial and tapped harmonics are disabled (see the status note at the top), only items 9,
+4 and 2 are live — none of them needs a harmonic; the rest resume in the order below once the forms
+are reopened.
+
+1. **9** — the chord-identity seam, on its own. It is the only item here that moves the corpus,
    so it lands alone and is censused alone; tangling it with the founding rule would leave
-   neither delta readable.
-3. **1, then 3** — the founding rule, once the law session has picked (a)/(b)/(c). Item 3 is item
-   1's acceptance case on the fixture.
-4. **2** — the satellite ground.
-5. **5** — the highway's picking-hand cue at the node.
-6. **6** — after the authoring discussion.
-7. **7** stays a watch item and is not scheduled.
+   neither delta readable. LIVE.
+2. **4** — the plain tap whose planted finger is pulled off to the same fret is one span. LIVE; it
+   shares the claim/hand-table seam with item 8, which waits for the tapped harmonic to return.
+3. **2** — the satellite ground. LIVE (a satellite also stands under a plain tap's held stop).
+4. **8** — the tapped harmonic's stale finger in the hand table. PARKED.
+5. **1, then 3** — the founding rule, once the law session has picked (a)/(b)/(c). Item 3 is item
+   1's acceptance case on the fixture. PARKED.
+6. **5** — the highway's picking-hand cue at the node. PARKED.
+7. **6** — after the authoring discussion. PARKED.
+8. **7** stays a watch item and is not scheduled.
 
 ## Verification
 

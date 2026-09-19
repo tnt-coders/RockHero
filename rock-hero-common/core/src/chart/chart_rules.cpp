@@ -163,6 +163,11 @@ std::string_view chartRepairText(const ChartRepair repair)
         {
             return "a damped string cannot squeal, so a dead pinch harmonic became a plain pick";
         }
+        case ChartRepair::DisabledHarmonic:
+        {
+            return "artificial and tapped harmonics are not supported yet, so one became a plain "
+                   "note at its pressed stop";
+        }
         case ChartRepair::TapHarmonicTremolo:
         {
             return "a tap harmonic cannot be tremolo picked, so its tremolo was dropped";
@@ -506,6 +511,28 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         note.attack = NoteAttack::Pick;
         note.harmonic_node.reset();
         fired(ChartRepair::DeadPinch);
+    }
+    // Only the natural and the pinch harmonic are supported for now. An ARTIFICIAL harmonic (a node
+    // over a pressed stop under a fretting-hand attack) and a TAPPED one (a node under the tap
+    // attack) are reduced to a plain note at the pressed stop — the fundamental the harmonic
+    // divides — so no chart can hold either form while its display is unsettled: the normal-form
+    // fixpoint in validateChartNoteAlone refuses the un-normalized record, the loader and the
+    // import shed apply this repair and report it. The code that would derive and draw the forms
+    // stays in place behind this one rule, because it IS the settled design and deleting it is what
+    // reopening would cost (docs/plans/in-progress/harmonic-display-followups.md). Pinch is
+    // excluded by harmonicOverPressedStop (its node lies off the neck); the tap arm catches the
+    // open-string tapped harmonic, whose stop is 0.
+    if (harmonicOverPressedStop(note) ||
+        (note.attack == NoteAttack::Tap && note.harmonic_node.has_value()))
+    {
+        // The tapping finger only touched the node; with the node gone the fretting hand's stop is
+        // what sounds, so the onset becomes the pick that sounds it.
+        if (note.attack == NoteAttack::Tap)
+        {
+            note.attack = NoteAttack::Pick;
+        }
+        note.harmonic_node.reset();
+        fired(ChartRepair::DisabledHarmonic);
     }
     // A tap harmonic's damping finger leaves the string, so nothing holds the node under
     // re-picking.

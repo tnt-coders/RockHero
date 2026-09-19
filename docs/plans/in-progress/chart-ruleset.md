@@ -44,6 +44,13 @@ read through `claimedStop`. Sound truth is never bent for display; nothing deriv
   over a PRESSED stop, and nothing at all under one sounded over the open string — that form is a
   natural harmonic whose node the picking hand touches, so it states no fretting-hand stop any more
   than a natural does (`harmonicOverPressedStop`, RULED 2026-09-18).
+- **Artificial and tapped harmonics are DISABLED for now** (RULED 2026-09-18, late): validation
+  refuses a node over a pressed stop under any attack but the pinch, and a node under the tap
+  attack, so no chart can hold either form — the reader hard-errors, every editor plan is refused
+  at its finalize gate, and the GP importer lands GP "Artificial"/"Tap" harmonics as ordinary notes.
+  Natural and pinch stay. The two rules above still describe the record those forms WOULD have, and
+  the code that derives and draws them stays in place behind the one refusing rule; reopening means
+  deleting that rule and resuming `harmonic-display-followups.md`'s parked items.
 - **Vibrato has two tiers and an off state** (`VibratoState{Off, Narrow, Wide}`, saved as `narrow`,
   `wide` or `off`). Ordinary guitar vibrato IS physically narrow — a fraction of a semitone of
   excursion — while wide is the deliberate exaggeration, so `narrow` is an accurate intrinsic

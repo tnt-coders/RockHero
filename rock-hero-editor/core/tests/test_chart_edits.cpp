@@ -2441,9 +2441,10 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
 
 // The three boolean techniques share ONE planner, and the reason that is safe rather than merely
 // tidy is that eligibility is asked of the per-note rule authority instead of being restated. Each
-// flag therefore inherits its own rules for free, and they are different rules: a tap harmonic
-// cannot be tremolo picked (the damping finger leaves the string, so nothing holds the node under
-// re-picking) while a dead note cannot take a shake (it modulates a pitch the note does not have).
+// flag therefore inherits its own rules for free, and they are different rules: a pinch harmonic
+// cannot be deadened (a damped string cannot squeal, so the normalizer would take the pinch with
+// the deadening) while a dead note cannot take a shake (it modulates a pitch the note does not
+// have).
 // Vibrato has its own planner now that the field is a width axis, so the second half below asks
 // THAT verb the same question: one law, two different answers - and neither is written in this
 // file or in either verb.
@@ -2452,25 +2453,26 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // A tap harmonic and a plain note, selected together.
-    chart.notes[0].attack = common::core::NoteAttack::Tap;
+    // A pinch harmonic and a plain note, selected together. (The tap harmonic, whose tremolo
+    // exclusion this half used to probe, is a disabled form; the pinch's deadening rule — a damped
+    // string cannot squeal — is the same kind of per-note refusal on an enabled one.)
+    chart.notes[0].attack = common::core::NoteAttack::Pinch;
     chart.notes[0].harmonic_node = 17.0;
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),
         keyAt({.measure = 2, .beat = 1}, 2),
     };
 
-    const auto tremolo =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Tremolo, true, "Tremolo");
-    REQUIRE(tremolo.has_value());
-    if (tremolo.has_value())
+    const auto dead = planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead");
+    REQUIRE(dead.has_value());
+    if (dead.has_value())
     {
-        // Only the plain note takes it; the tap harmonic is skipped rather than the edit refused.
-        CHECK(tremolo->inserted.size() == 1);
-        CHECK(std::ranges::all_of(tremolo->inserted, [](const common::core::ChartNote& note) {
-            return note.tremolo && !note.harmonic_node.has_value();
+        // Only the plain note takes it; the pinch is skipped rather than the edit refused.
+        CHECK(dead->inserted.size() == 1);
+        CHECK(std::ranges::all_of(dead->inserted, [](const common::core::ChartNote& note) {
+            return note.dead && !note.harmonic_node.has_value();
         }));
-        applyAndValidate(chart, tempo_map, *tremolo);
+        applyAndValidate(chart, tempo_map, *dead);
     }
 
     // Vibrato is refused by a different rule on a different note, and its verb needs no knowledge
@@ -2659,7 +2661,10 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
 {
     common::core::Chart chart = makeTestChart();
     chart.notes[0].vibrato = common::core::VibratoState::Narrow; // measure 2 / string 1
-    chart.notes[2].harmonic_node = 12.0;                         // measure 3 / string 1, fret 7
+    // Measure 3 / string 1 becomes a natural harmonic: the node over a pressed stop would be the
+    // disabled artificial form.
+    chart.notes[2].fret = 0;
+    chart.notes[2].harmonic_node = 12.0;
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),
@@ -3487,33 +3492,12 @@ TEST_CASE(
 
 // No node ever leaves with an `H` press: the claim stores no direction, so there is no attack
 // whose meaning a node could contradict. The resolver's node clauses do the work instead, which is
-// why a fret-hand harmonic skips ITSELF rather than needing a guard in the verb.
+// why a fret-hand harmonic skips ITSELF rather than needing a guard in the verb. (The case that
+// CLAIMED and kept its node — a stopped harmonic hammered above its predecessor — is the disabled
+// artificial form and cannot be exercised while it is; it returns with that form.)
 TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-
-    SECTION("a stopped harmonic above its predecessor claims and keeps its node")
-    {
-        // Fret 9 under a node at 21 is the tapped-harmonic gesture: the fretting hand presses the
-        // stop while the picking hand keeps damping the node, and the hammer clause accepts a node
-        // as something to strike.
-        common::core::Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1}),
-            makeTestNote({.measure = 1, .beat = 2}, 1, 9),
-        };
-        chart.notes[1].harmonic_node = 21.0;
-        const ChartLegatoPlan planned =
-            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
-        REQUIRE(planned.plan.has_value());
-        if (planned.plan.has_value())
-        {
-            REQUIRE(planned.plan->inserted.size() == 1);
-            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
-            CHECK(planned.plan->inserted[0].harmonic_node.has_value());
-        }
-    }
 
     SECTION("a noded note under a higher predecessor is refused, not stripped")
     {
@@ -3811,7 +3795,13 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             }
 
             // A node is the other thing a strike can land on, so the same retype leaves the attack
-            // standing: the gate is `fret > 0 || node`, not `fret > 0`.
+            // standing: the gate is `fret > 0 || node`, not `fret > 0`. Probed with the left-hand
+            // tap alone: a node under the picking-hand tap is the disabled tapped harmonic, which
+            // the plan gate refuses for that reason rather than for stranding.
+            if (attack == common::core::NoteAttack::Tap)
+            {
+                continue;
+            }
             common::core::Chart noded;
             noded.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
             noded.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, 5)};
@@ -4294,70 +4284,21 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         }
     }
 
-    SECTION("a tap's typed fret is a touch on the open string, and its planted finger goes latent")
+    SECTION("a tap's typed fret is refused while the tapped harmonic is disabled")
     {
-        // On a tap `H` authors an OPEN-STRING tapped harmonic: the tapping finger leaves the fret
-        // it landed on and touches a node of the whole string, so the label resolves against the
-        // nut exactly as an unpressed note's does. The stop the fretting hand was holding stays
-        // behind as a LATENT — a note carrying a node states no planted finger, so the saved form
-        // strips it and the claim query answers off the record's shape instead — which is the
-        // chart's standing rule that changing back restores what the charter typed.
+        // On a tap `H` would author an OPEN-STRING tapped harmonic (the tapping finger leaves the
+        // fret it landed on and touches a node of the whole string, the planted finger going
+        // latent). That form is disabled for now: the normalizer reduces it to a plain note, so the
+        // plan gate refuses the edit as one that does not survive normal form.
         common::core::Chart chart = makeSingleNoteChart(17);
         common::core::ChartNote& tap = chart.notes[0];
         tap.attack = common::core::NoteAttack::Tap;
         tap.held = 5;
-        // A second stop at the same slot, so the planted finger is a member of a grip rather than a
-        // claim that reaches nothing: an inert claim is swept in the plan gate that restores it
-        // (`sweepInertClaimedStops`), which would take the latent back for a reason that has
-        // nothing to do with the harmonic.
         chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 7));
         const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            const common::core::ChartNote* const touched =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
-            REQUIRE(touched != nullptr);
-            if (touched != nullptr)
-            {
-                CHECK(touched->fret == 0);
-                // The latent, and the two readings that keep it invisible: the document records no
-                // planted finger, and the note claims nothing at all — a harmonic over the open
-                // string presses no stop, so neither the touch's own 0 nor the finger waiting
-                // behind it is a claim.
-                CHECK(touched->held == std::optional{5});
-                CHECK_FALSE(common::core::savedChartNote(*touched).held.has_value());
-                CHECK_FALSE(common::core::claimedStop(*touched).has_value());
-                const std::optional<double>& node = touched->harmonic_node;
-                REQUIRE(node.has_value());
-                if (node.has_value())
-                {
-                    // The 8th partial's node at three eighths of the string — the octave above the
-                    // 4.98 a typed 5 names, which is what a typed 17 names on the open string.
-                    CHECK_THAT(*node, Catch::Matchers::WithinAbs(16.9804, 0.001));
-                }
-            }
-            // The latent makes the in-memory chart deliberately dirty, so the oracle is the SAVED
-            // form: the writer omits the planted finger and the reparse passes clean.
-            REQUIRE(applyChartChange(chart, *plan).has_value());
-            const auto saved =
-                common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
-            REQUIRE(saved.has_value());
-            CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
-
-            // Clearing the harmonic brings the latent back into scope: the finger presses the fret
-            // it was touching, and the stop the charter planted under it is still stated there.
-            const auto cleared = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
-            REQUIRE(cleared.has_value());
-            if (cleared.has_value())
-            {
-                applyAndValidate(chart, tempo_map, *cleared);
-                CHECK(chart.notes[0].attack == common::core::NoteAttack::Tap);
-                CHECK(chart.notes[0].fret == 17);
-                CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
-                CHECK(chart.notes[0].held == std::optional{5});
-            }
-        }
+        CHECK_FALSE(plan.has_value());
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Tap);
+        CHECK(chart.notes[0].fret == 17);
     }
 
     SECTION("the chosen partial binds every label that offers it and nothing else")
@@ -4677,20 +4618,13 @@ TEST_CASE("planRetypeFrets carries a node with the stop it is measured from", "[
         }
     };
 
-    SECTION("an artificial harmonic's pressed stop")
+    SECTION("a pinch harmonic's pressed stop")
     {
+        // The pinch is the one harmonic over a pressed stop the chart accepts while the artificial
+        // and tapped forms are disabled; the law is the same for all three, and this is where it
+        // can still be exercised.
         common::core::Chart chart = makeSingleNoteChart(5);
-        chart.notes[0].harmonic_node = 17.0;
-        retyped_to_seven(chart);
-    }
-
-    SECTION("a tapped harmonic's pressed stop, which this channel addresses like any other")
-    {
-        // The picking hand only touches the node here, so the fret this channel names is the stop
-        // the FRETTING hand presses — a real value to restate, unlike the fret-hand form whose
-        // finger presses nothing at all.
-        common::core::Chart chart = makeSingleNoteChart(5);
-        chart.notes[0].attack = common::core::NoteAttack::Tap;
+        chart.notes[0].attack = common::core::NoteAttack::Pinch;
         chart.notes[0].harmonic_node = 17.0;
         retyped_to_seven(chart);
     }
