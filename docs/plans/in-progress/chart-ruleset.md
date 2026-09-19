@@ -930,7 +930,7 @@ claims); and section marks anywhere in the let-ring law (organizational, not a h
   span-start bracket digit's polysemy (silent versus carried member, disambiguated only by the
   incoming tail) — both flagged for UI design judgment.
 - Open verbs recorded, not judged: the move gesture, the tie verb and the disconnect's unstruck-tie
-  default, the keyframe ruling bundle, and rebase.
+  default, and the keyframe ruling bundle.
 - Accepted-for-now derivation residues, each with its own trigger, live in
   `docs/tracking/watch-items.md` rather than here — the let-ring clip under a moving same-string
   melody, staggered landings opening nothing, and two-member figure noise among them.

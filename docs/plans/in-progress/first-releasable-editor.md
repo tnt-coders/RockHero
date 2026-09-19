@@ -319,8 +319,11 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
 - **D7 — Minimum-sustain-distance override. RULED 2026-09-19 (user): deferred.** The release ships
   the default. Tails now draw from the specified note duration, and the current tail display
   ruleset reads well across every chart sighted, so nothing is asking for an override.
-- **D8 — "Rebase"** is listed in `chart-ruleset.md`'s open verbs without a definition. If it means
-  re-timing a chart against an edited tempo map it is Phase 1 work; say which.
+- **D8 — "Rebase". CLOSED 2026-09-19 (user): a leftover name, no work.** Every use of the word in
+  the docs is the offset re-basing that merges, the tie join and paste already do; no user-facing
+  verb was ever meant, and the word is deleted from `chart-ruleset.md`'s open verbs. The real
+  adjacent question was ruled the same day: **the grid is TRUTH** — content holds its musical
+  position and its TIME moves when the tempo map is edited (recorded at plan 41's Q1).
 - **D9 — Does the edit position survive multi-select?** (task #272, deliberately reopened.) Shipped
   behaviour dissolves the armed slot at every multi-select and keeps time and string; the reopened
   idea is a SECOND indicator for the edit position, which is the one-rule-in-two-places shape the
