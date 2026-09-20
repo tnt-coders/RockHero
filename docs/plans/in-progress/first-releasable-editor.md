@@ -55,7 +55,7 @@ phase it blocks cannot start without it.
 
 | Gate | Where | Blocks |
 |---|---|---|
-| **G41-TS** — content policy for a beats-per-measure edit | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Phase 1 (time signatures) |
+| **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
 | **G43-METADATA** — 43-Q1..Q6 | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Phase 1 (song information) |
 | **The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G** | `technique-review-walkthrough.md` W9, `highway-note-art-state.md` Open decisions | Phase 3 |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 (Phase 0 of plan 60 is ungated) |
@@ -324,7 +324,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   verb was ever meant, and the word is deleted from `chart-ruleset.md`'s open verbs. The real
   adjacent question was ruled the same day: **the grid is TRUTH** — content holds its musical
   position and its TIME moves when the tempo map is edited (recorded at plan 41's Q1).
-- **D9 — Does the edit position survive multi-select?** (task #272, deliberately reopened.) Shipped
+- **D9 — CLOSED AS SHIPPED 2026-09-19 (user), with a watch item** (`docs/tracking/watch-items.md`,
+  "The edit position dissolves at every multi-select"): if it sights as a problem later it is
+  rethought then. The question as it stood: does the edit position survive multi-select? (task
+  #272, deliberately reopened.) Shipped
   behaviour dissolves the armed slot at every multi-select and keeps time and string; the reopened
   idea is a SECOND indicator for the edit position, which is the one-rule-in-two-places shape the
   project hunts, and an L-sized build if it flips. Recommendation: rule it closed as shipped before
@@ -393,7 +396,9 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
 
 ## Next action
 
-1. The user's pass over **Decisions** D1–D9.
+1. ~~The user's pass over **Decisions** D1–D9~~ — done 2026-09-19; every entry above carries its
+   ruling. First, finish the pull-off span defect (harmonic follow-up #9 and D4's founding rule):
+   the sighting chart is at `C:\__MAIN__\Coding\__scratch__\rockhero-pulloff-sighting\`.
 2. Land the ungated work while gates are signed: the non-modal notice channel (Phase 2), plan 60
    Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10).
 3. Schedule the three signing sessions in the order their phases arrive: G41-TS with G43, the bend

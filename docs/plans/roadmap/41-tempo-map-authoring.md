@@ -183,9 +183,9 @@ Mirror each into docs/plans/roadmap/00-roadmap.md "Decisions needed".
 - **User ruling 2026-09-19 — the grid is TRUTH.** When the tempo map is edited, content holds its
   MUSICAL position and its time moves; nothing is ever re-addressed to keep a note at the second
   it used to sound. For an anchor move this is what the stored `measure:beat` tokens already do.
-  For Q1 below it rules out any policy that re-times content by the clock, but A and B are both
-  musical-position readings (A holds the global BEAT and renumbers measures, B holds the literal
-  `measure:beat` token), so which of the two the user means is still to be confirmed.
+  For Q1 below the user rules **A — hold the global BEAT, measures renumber — PROVISIONALLY**: it
+  is to be built and then tried in the editor, and it is signed only once it feels right in use.
+  So Phase 6 may start on outcome A, and its sighting is where G41-TS actually closes.
 - **Q1 — Time-signature edit content policy (gates Phase 6).** Changing beats-per-measure
   re-buckets global beats into measures, so every downstream `measure:beat` token (anchors, chart
   notes, shapes, fhps, sections, tone regions) means something different afterward. Options:

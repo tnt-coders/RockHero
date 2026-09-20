@@ -1341,3 +1341,18 @@ section 2026-09-05.
   **Trigger:** a real imported score shows flat spellings its author did not choose. **Remedy:**
   a per-chart spelling override in the editor (the same surface the future from-scratch-authoring
   tuning entry will need), not an importer heuristic.
+
+- **The edit position dissolves at every multi-select (closed as shipped 2026-09-19).** A
+  multi-select drops the armed slot and keeps only its time and string, so typing after one needs
+  the position re-armed first — one click or one arrow press. The reopened alternative (task #272,
+  decision D9 of `docs/plans/in-progress/first-releasable-editor.md`) was a SECOND indicator that
+  keeps showing the edit position through the multi-select.
+
+  **Why it is accepted rather than built.** A second indicator for one position is one rule
+  stated in two places that must agree by hand, it sized as a large build, and nothing in the
+  release depends on it.
+
+  **Trigger:** sighting real charting shows the re-arm step being tripped over — the user selects
+  several notes, goes to type, and lands nowhere or in the wrong place. **Remedy:** rethink it from
+  the one-indicator side first (does the armed slot need to dissolve at all?) before adding a
+  second mark.
