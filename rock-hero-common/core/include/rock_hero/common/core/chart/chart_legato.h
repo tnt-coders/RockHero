@@ -166,12 +166,14 @@ a backward search per note.
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
-\brief Per note, the stop a PULL-OFF states is planted beneath it; absent where none is.
+\brief Per note, the stop its PULL-OFF lands on; absent where none is.
 
-THE HOLD-UNDER DERIVATION: you cannot pull off onto a fret unless a finger is already waiting on it,
-so a note that is pulled off FROM holds a second stop — planted beneath the one it sounds, for the
-whole of its ring — WHICHEVER hand made its onset. The chart writes that stop nowhere, because the
-notation already states it, in the pull-off itself.
+THE HOLD-UNDER DERIVATION: you cannot pull off onto a fret unless a finger is waiting on it AT THE
+RELEASE, so a note that is pulled off FROM names a second stop beneath the one it sounds, WHICHEVER
+hand made its onset. The chart writes that stop nowhere, because the notation already states it, in
+the pull-off itself. WHEN the finger arrived there is a fact no chart carries, so this table is a
+derivation and never an assertion about the source's whole ring: what it may state to a grip is
+decided by \ref gripStatement, against evidence, and by nothing else.
 
 The derivation is exactly the connection this walk has already resolved: a note's same-string
 successor claims legato, that claim resolves to \ref LegatoMotion::Pull against this very onset
@@ -295,7 +297,7 @@ precedence order:
   (\ref harmonicOverPressedStop). It outranks the plant: the pressed fret is pitch-critical and no
   other ink states it, and the SPAN says the same — the grip a harmonic over a pressed stop states
   is that pressed stop, never the finger a pull-off plants beneath it (chart_shapes.cpp, RULED
-  2026-09-18) — so the plant is printed nowhere under such a note; it is the hand window's to reach.
+  2026-09-18) — so the plant is printed nowhere under such a note.
 - THE PLANT'S FACE. Every other note here IS the fretting hand on the string, so the one second stop
   it can hold is the one a pull-off PLANTS beneath it (\ref chartPlantedStops, the hold-under law):
   that entry is its held stop here, so the note wears the plant as its own satellite on the reveal's

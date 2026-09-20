@@ -328,13 +328,24 @@ a measurement, and only the figure states what the law is supposed to do.
 
 ## The hold-under exemption
 
-The contradiction and displacement witnesses carry one exemption pair read from the wide planted
-table (`chartPlantedStops`): `plants_under` (the note striking here keeps the compared stop
-planted beneath it) and `planted_under` (the string's still-sounding finger keeps the stated stop
-planted, gated on the same `sounding_before` witness the displacement reads, so a dead source
-exempts nothing). The claim witness takes the strike arm only — no finger sounds a carried claim.
-The pair reaches the verdicts, the statement-began column and the foreign-sound floor; the grip
-column and coverage read `covers_at` bare. The character split's arithmetic counts a stated string
+A pull-off's landing stop (`chartPlantedStops`) proves a finger at the RELEASE and no earlier, so it
+states nothing by itself: a source states the fret it sounds (re-ruled 2026-09-19; the law text is
+in `chart-ruleset.md`, THE HOLD-UNDER LAW). What survives is an EXEMPTION, asked of the one
+authority `gripStatement(note, planted, down)`, which admits the landing stop only where it equals
+the stop under judgment. Every site passes the evidence it already holds: `plants_under` passes the
+stop being compared (what the string still held, the standing grip's entry, or a carried claim's
+fret), and `grip_statement_of` passes the STANDING span's own entry for the string
+(`gripped_before`: sounded, or claimed where nothing sounded it, and empty where no span stands),
+so a source above a stop the grip holds states it and never rewrites its entry, while a stroke
+that founds a span states exactly what it strikes. A span stops standing the moment a stated
+member's sound dies unrenewed (`in_force`), so a CHOKED grip member ends the exemption with the
+span — the derivation does not guess that the finger stayed. The second arm, `planted_under`,
+reads the verdict rather than re-asking: a strike's answer is recorded once, at the strike, in
+`StringHand::stated_beneath`, because the strike itself replaces the evidence it was judged
+against — gated on the same `sounding_before` witness the displacement reads, so a dead source
+exempts nothing. The claim witness takes the strike arm only — no finger sounds a carried claim.
+The pair reaches the verdicts, the statement-began column and the foreign-sound floor; a tapped
+source's derived claim is admitted at the slot read under the same proof, an authored one always. The character split's arithmetic counts a stated string
 as touched only where the strike RESTATES the span's own stop — a provable no-op before the law,
 and what keeps the ornament from reading as the statement coming apart.
 

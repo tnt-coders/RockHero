@@ -1777,17 +1777,17 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // notes, and two spellings of "where is this finger" would be free to disagree.
 //
 // The picking hand states nothing about the fretting hand, so a right-hand onset speaks only
-// through the stop it CLAIMS — the RESOLVED claim the pass derived once (`chartClaimedStops`),
-// never the stored field. An import writes no `held` at all, so the raw field would leave every
-// imported PLAIN tap contributing nothing to a grip and contradicting none, which is exactly the
-// two-hand material this cut exists for; the pull-off under the tap is where the stop is written
-// down (DERIVED HELD), and a plain tap's own fret is right-hand travel. A TAPPED HARMONIC is the
-// right-hand onset whose fret belongs to the OTHER hand: the tapping finger only touches the node,
-// so the stop the string speaks from is the fret the fretting hand presses, and the claim query
-// reads it straight off the note — or answers nothing where that string is open, such a harmonic
-// being a natural one whose node the tapping finger touches. A ring that has travelled carries the
-// finger with it, which is why the fret comes from the channel's statement at the instant asked
-// about rather than from the onset.
+// through the stop the chart itself CLAIMS under it (\ref rock_hero::common::core::claimedStop).
+// The stop a pull-off lands on beneath a tap is NOT one: it is a derivation, and it states a grip
+// only where the figure already holds it (\ref gripStatementAt), exactly as it does beneath a
+// fretting-hand source. An import writes no `held`, so an imported plain tap states a grip only
+// that way and its own fret is right-hand travel. A TAPPED HARMONIC is the right-hand onset whose
+// fret belongs to the OTHER hand: the tapping finger only touches the node, so the stop the string
+// speaks from is the fret the fretting hand presses, and the claim query reads it straight off
+// the note — or answers nothing where that string is open, such a harmonic being a natural one
+// whose node the tapping finger touches. A ring that has travelled carries the finger with it,
+// which is why the fret comes from the channel's statement at the instant asked about rather than
+// from the onset.
 //
 // The stop is the FRETTING HAND'S PLACE (\ref rock_hero::common::core::frettingStopAt, the one
 // reader the span machine's grip column answers through): a natural harmonic states its NODE and
@@ -1796,17 +1796,13 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // this finger" answering the same note differently is the defect the paragraph above names, and
 // this one shares the span machine's answer rather than restating it.
 //
-// Addressed by INDEX rather than by record, because the resolution is index-parallel to the build:
-// handing over the stream and the stops together is what makes a mismatched pair unwritable.
 [[nodiscard]] std::optional<common::core::ChartStop> statedStopAt(
-    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
-    const std::size_t index, const Fraction instant)
+    const std::vector<BuiltNote>& built, const std::size_t index, const Fraction instant)
 {
     const BuiltNote& entry = built[index];
     if (common::core::rightHandOnset(entry.note.attack))
     {
-        // Bound once so the presence test and the read are provably the same object.
-        const std::optional<int>& claimed = claimed_stops[index];
+        const std::optional<int> claimed = common::core::claimedStop(entry.note);
         if (!claimed.has_value())
         {
             return std::nullopt;
@@ -1829,14 +1825,14 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // retreat mechanism in the law, the repetition invariant is structural, not satisfied. An onset
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
 // only TIME seams besides it. The comparison judges GRIP STATEMENTS (\c gripStatementAt): a
-// pull-off source PLANTS its destination beneath the stop it sounds, so it states the plant and
-// the fret it sounds is the ornament riding above. A source over its own gripped stop and the
-// release returning to it both restate the grip and close nothing; a plant the grip never held is
-// a DIFFERENT statement, so the figure closes at the planting onset and its tails cap there — the
-// same seam the span machine breaks at, read off the same derivation (\ref chartPlantedStops),
-// with the import span-blind. The grip is figure-scoped memory. The figure's whole job for the
-// tails is grouping the MARKS — which let-ring stack a mark belongs to, and therefore where that
-// stack's marked run ends — with one correction to the grouping, the FRAGMENT DONATION below: a
+// pull-off source over the stop the figure already grips on its string states THAT stop, the fret
+// it sounds being the ornament riding above, so it and the release returning beneath it both
+// restate the grip and close nothing. A source over any other ground states the fret it sounds,
+// and the figure closes at its RELEASE — the same seam the span machine breaks at, asked of the
+// same authority, with the import span-blind. The grip is figure-scoped memory. The figure's
+// whole job for the tails is grouping the MARKS — which let-ring stack a mark belongs to, and
+// therefore where that stack's marked run ends — with one correction to the grouping, the FRAGMENT
+// DONATION below: a
 // figure closed by a GRIP contradiction while too small to ever found a span hands its
 // non-contradicting notes to the figure that closed it. Never across the horizon, which mis-groups
 // nothing.
@@ -1878,36 +1874,62 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // PER VOICE, because events must not cut rings in another voice: grammar takes the voice; only the
 // same-string clamp — physics — is cross-voice. The walk reads onsets and statements only, never a
 // ring, so it is a pure function of the written stream: no fixpoint, one forward pass per voice. A
-// note's GRIP STATEMENT (the grip-statement law): the stop its pull-off proves planted beneath it
-// where one is, else the stop it states at the asked instant. The figure walk judges statements on
-// BOTH sides of the grip, exactly as the span machine does, so the cut law seams where the spans
-// break — one law read off one derived table (\ref rock_hero::common::core::chartPlantedStops) —
-// and the import stays span-blind. The hold-under exemptions collapse into the equality: a source
-// over its own gripped stop and the release returning to it both STATE the grip, while a plant the
-// grip never held is a different statement, which is what caps a figure's tails at the new
-// statement's onset.
+// note's GRIP STATEMENT: the stop it states at the asked instant — except a pull-off source
+// arriving above the stop the figure ALREADY GRIPS on its string, which states that stop, the fret
+// it sounds being the ornament riding above it (\ref rock_hero::common::core::gripStatement, the
+// span machine's own authority, so the cut law seams where the spans break and the import stays
+// span-blind). Such a source and the release returning beneath it both restate the grip and close
+// nothing. A source over any other ground states what it sounds, so its release is an ordinary new
+// statement and the figure closes THERE, as it would were the same notes plainly picked: a pull-off
+// proves a finger at its release and at no earlier instant.
 [[nodiscard]] std::optional<common::core::ChartStop> gripStatementAt(
-    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
-    const std::vector<std::optional<int>>& planted_stops, const std::size_t index,
-    const Fraction onset)
+    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
+    const std::size_t index, const Fraction onset,
+    const std::optional<common::core::ChartStop>& gripped)
 {
-    // A plant is always a PRESSED stop (the resolver refuses a node on either side of a pull-off),
-    // so it lifts through the fretted constructor; everything else asks the one statement reader.
-    // Bound once so the presence test and the read are provably the same object.
-    const std::optional<int>& planted = planted_stops[index];
-    if (planted.has_value())
-    {
-        return common::core::frettedStop(*planted);
-    }
-    return statedStopAt(built, claimed_stops, index, onset);
+    const std::optional<common::core::ChartStop> beneath =
+        common::core::gripStatement(built[index].note, planted_stops[index], gripped);
+    return beneath.has_value() ? beneath : statedStopAt(built, index, onset);
 }
 
 //
 // Returns the figure end for every marked note, index-parallel to `built`.
 [[nodiscard]] std::vector<std::optional<Fraction>> letRingFigureEnds(
-    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& claimed_stops,
-    const std::vector<std::optional<int>>& planted_stops, const MeasureGrid& grid)
+    const std::vector<BuiltNote>& built, const std::vector<std::optional<int>>& planted_stops,
+    const MeasureGrid& grid)
 {
+    // A grip is string -> the note that last stated it, so a slid finger carries its statement
+    // forward: the stop is re-asked of that note at the instant under judgment.
+    using Grip = std::map<int, std::size_t>;
+    const auto gripped_at = [&built](const Grip& grip, const int string, const Fraction instant)
+        -> std::optional<common::core::ChartStop> {
+        const auto held = grip.find(string);
+        if (held == grip.end())
+        {
+            return std::nullopt;
+        }
+        // Never before the gripping note began: the donation asks a LATER figure's grip about an
+        // earlier note, and a note states nothing ahead of its own onset.
+        return statedStopAt(
+            built, held->second, std::max(instant, built[held->second].global_beat));
+    };
+    // Writes one note into a grip as its string's latest statement — unless it rides above the
+    // stop already gripped there (\ref gripStatementAt), which it restates WITHOUT rewriting: the
+    // entry stays the note that really states that stop, so the release beneath the ornament
+    // confirms it and nothing downstream reads the ornament as the grip.
+    const auto state_into = [&built, &planted_stops, &gripped_at](
+                                Grip& grip, const std::size_t index, const Fraction instant) {
+        const int string = built[index].note.string;
+        const bool rides_above =
+            common::core::gripStatement(
+                built[index].note, planted_stops[index], gripped_at(grip, string, instant))
+                .has_value();
+        if (!rides_above && statedStopAt(built, index, instant).has_value())
+        {
+            grip[string] = index;
+        }
+    };
+
     // One figure is its member notes, nothing more: no seam is stored, because no tail reads one.
     std::vector<std::vector<std::size_t>> figures;
     // Whether each figure was opened by a HORIZON seam (or opens its voice) rather than a GRIP
@@ -1922,7 +1944,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 
     for (const auto& [voice, indices] : voices)
     {
-        std::map<int, std::size_t> grip; // string -> the figure's latest statement on it
+        Grip grip;
         std::optional<std::size_t> current;
 
         // Whether one slot contradicts the CURRENT grip. Co-struck notes are judged against the
@@ -1931,20 +1953,11 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         const auto contradicts = [&](const std::vector<std::size_t>& slot, const Fraction onset) {
             for (const std::size_t index : slot)
             {
-                const std::optional<common::core::ChartStop> stated =
-                    gripStatementAt(built, claimed_stops, planted_stops, index, onset);
-                if (!stated.has_value())
-                {
-                    continue;
-                }
-                const auto held = grip.find(built[index].note.string);
-                if (held == grip.end())
-                {
-                    continue;
-                }
                 const std::optional<common::core::ChartStop> gripped =
-                    gripStatementAt(built, claimed_stops, planted_stops, held->second, onset);
-                if (gripped.has_value() && *gripped != *stated)
+                    gripped_at(grip, built[index].note.string, onset);
+                const std::optional<common::core::ChartStop> stated =
+                    gripStatementAt(built, planted_stops, index, onset, gripped);
+                if (stated.has_value() && gripped.has_value() && *gripped != *stated)
                 {
                     return true;
                 }
@@ -1982,10 +1995,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
             members.insert(members.end(), slot.begin(), slot.end());
             for (const std::size_t index : slot)
             {
-                if (statedStopAt(built, claimed_stops, index, onset).has_value())
-                {
-                    grip[built[index].note.string] = index;
-                }
+                state_into(grip, index, onset);
             }
         }
     }
@@ -2025,30 +2035,19 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         {
             continue;
         }
-        std::map<int, std::size_t> closer_grip;
+        Grip closer_grip;
         for (const std::size_t index : closer)
         {
-            if (statedStopAt(built, claimed_stops, index, built[index].global_beat).has_value())
-            {
-                closer_grip[built[index].note.string] = index;
-            }
+            state_into(closer_grip, index, built[index].global_beat);
         }
         std::vector<std::size_t> kept;
         for (const std::size_t index : fragment)
         {
-            const std::optional<common::core::ChartStop> stated = gripStatementAt(
-                built, claimed_stops, planted_stops, index, built[index].global_beat);
-            const auto held = closer_grip.find(built[index].note.string);
-            std::optional<common::core::ChartStop> gripped;
-            if (held != closer_grip.end())
-            {
-                gripped = gripStatementAt(
-                    built,
-                    claimed_stops,
-                    planted_stops,
-                    held->second,
-                    built[held->second].global_beat);
-            }
+            const Fraction onset = built[index].global_beat;
+            const std::optional<common::core::ChartStop> gripped =
+                gripped_at(closer_grip, built[index].note.string, onset);
+            const std::optional<common::core::ChartStop> stated =
+                gripStatementAt(built, planted_stops, index, onset, gripped);
             if (stated.has_value() && gripped.has_value() && *stated != *gripped)
             {
                 kept.push_back(index);
@@ -3665,12 +3664,10 @@ void resolveSlideOutExits(
     // Guitar Pro itself audibly rings tied let-ring notes past the written duration.
     const common::core::ChartConnections let_ring_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
-    const std::vector<std::optional<int>> let_ring_claims =
-        common::core::chartClaimedStops(let_ring_connections);
     const std::vector<std::optional<int>> let_ring_planted =
         common::core::chartPlantedStops(let_ring_connections);
     const std::vector<std::optional<Fraction>> figure_ends =
-        letRingFigureEnds(built, let_ring_claims, let_ring_planted, grid);
+        letRingFigureEnds(built, let_ring_planted, grid);
     int let_ring_marks_kept = 0;
     // What each mark's ring was BEFORE the law spoke, remembered rather than counted now,
     // because the clamp below can take an extension back whole; the report belongs to the rings

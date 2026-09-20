@@ -7863,6 +7863,100 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         CHECK(
             anyNoteContains(built->notes, "1 let-ring rings were extended to their figure's end"));
     }
+
+    SECTION("a source over ground the figure never gripped seams at its RELEASE")
+    {
+        // THE PULL-OFF LAW, read by the figure walk through the span machine's own authority
+        // (\ref rock_hero::common::core::gripStatement). A pull-off proves a finger on its landing
+        // stop AT THE RELEASE and at no earlier instant, so a source arriving on a string the
+        // figure never gripped states the fret it SOUNDS: the fret-nine mark on beat two GROWS the
+        // grip to nine, and the release to seven on beat three states a stop the grip never held —
+        // the seam, exactly where it falls were the two notes plainly picked.
+        //
+        // Measured through the GROUPING, which is the only thing a seam does: a mark on beat four
+        // lands on the far side of it, so the opening pair's stack ends with the beat-two mark and
+        // its anchor is the first onset after it, on beat three. TWO beats each. FOUR is the
+        // reading where the source states its LANDING stop — the pre-2026-09-19 law — under which
+        // the release merely confirms the grip, nothing seams, the beat-four mark joins the same
+        // stack and the anchor slides to bar two's downbeat.
+        GpBeat release = noteBeat(quarter, 7, 2);
+        release.notes.front().hopo_destination = true;
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 1, .fret = 7, .let_ring = true, .harmonic_type = ""}}),
+                     letRingBeat(quarter, 9, 2),
+                     release,
+                     letRingBeat(quarter, 11, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 3, 4)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The gesture the section is about, stated rather than assumed: with the connection
+        // unresolved the release would be a plain strike and the numbers below would be the same
+        // for the wrong reason.
+        const auto pulled = std::ranges::find_if(chart.notes, [](const common::core::ChartNote& n) {
+            return n.string == 3 && n.position.beat == 3;
+        });
+        REQUIRE(pulled != chart.notes.end());
+        CHECK(pulled->attack == common::core::NoteAttack::Legato);
+
+        const common::core::ChartNote* const first = noteOnChartString(chart.notes, 1);
+        const common::core::ChartNote* const second = noteOnChartString(chart.notes, 2);
+        REQUIRE(first != nullptr);
+        REQUIRE(second != nullptr);
+        CHECK(first->sustain == Fraction{2});
+        CHECK(second->sustain == Fraction{2});
+    }
+
+    SECTION("a source riding above the stop the figure already grips seams nothing")
+    {
+        // The surviving half, in the same shape and one string apart: the figure grips fret seven
+        // on string 3 from the downbeat, and the fret-nine source on beat two arrives ABOVE that
+        // very stop before being pulled back off onto it. So it states the seven the figure holds
+        // — the nine is the ornament riding above — and the release beneath it restates that seven
+        // rather than stating anything new.
+        //
+        // Nothing seams, so the beat-four mark is in the same stack, the figure's last mark is
+        // there, and the opening mark's anchor is the first onset after it: bar two's downbeat.
+        // FOUR beats, against the two the section above gives the same arrangement of onsets.
+        GpBeat release = noteBeat(quarter, 7, 2);
+        release.notes.front().hopo_destination = true;
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chord_beat_of(
+                         quarter,
+                         {GpNote{.string = 0, .fret = 5, .let_ring = true, .harmonic_type = ""},
+                          GpNote{.string = 2, .fret = 7, .let_ring = true, .harmonic_type = ""}}),
+                     noteBeat(quarter, 9, 2),
+                     release,
+                     letRingBeat(quarter, 11, 3)}
+                }
+            });
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(quarter, 3, 4)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const auto pulled = std::ranges::find_if(chart.notes, [](const common::core::ChartNote& n) {
+            return n.string == 3 && n.position.beat == 3;
+        });
+        REQUIRE(pulled != chart.notes.end());
+        CHECK(pulled->attack == common::core::NoteAttack::Legato);
+
+        const common::core::ChartNote* const opening = noteOnChartString(chart.notes, 1);
+        REQUIRE(opening != nullptr);
+        CHECK(opening->sustain == Fraction{4});
+    }
 }
 
 // THE HORIZON SEAM. The grip seam above is blind to TIME: silence states nothing, so a rest of any

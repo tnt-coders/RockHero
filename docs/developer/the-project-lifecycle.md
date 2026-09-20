@@ -1283,8 +1283,12 @@ neighbours.
     and the digit falls away. That answer holds wherever the release falls, because the HOLD-UNDER
     test asks the same authority: a landing rides beneath a source only where it is the stop that
     source STATES, so a pull-off from such a harmonic is a new statement and the span closes at the
-    release even when the chord around it goes on ringing. The plant stays true in the derived table
-    and is the hand window's to reach, not the bracket's to print.
+    release even when the chord around it goes on ringing. That is the general law and not a
+    harmonic exception (re-ruled 2026-09-19): a pull-off proves a finger at its RELEASE and no
+    earlier, so EVERY source states the fret it sounds and its release is a new statement — except
+    a source arriving above a stop its string is demonstrably already at, which states that stop
+    and rides (`gripStatement`). The landing stop stays in the derived table as the source's
+    reveal-only satellite; it is not the bracket's to print.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.

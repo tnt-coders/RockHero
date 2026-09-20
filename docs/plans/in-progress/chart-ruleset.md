@@ -498,38 +498,54 @@ mid-span closes the span and, unless two more stops or three carried rings are p
 nothing; and stop-identical postures deduplicate, so a node grip and a fret grip printing the same
 number are two postures because they are two grips.
 
-**THE HOLD-UNDER LAW.** You cannot pull off onto a fret unless a finger is already waiting on it. So
-a note that is pulled off FROM holds two stops: the one it sounds, and — planted beneath it for the
-whole of its ring — the one the pull-off lands on, WHICHEVER hand made the onset. The chart writes
-that second stop nowhere: the notation already states it, in the pull-off itself
-(`chartPlantedStops`). Where a figure holds a grip and a finger is added above it, the added note
-sounds a fret foreign to the grip and yet lifts nothing — the gripped stop was down before it, under
-it, and after it — so the bracket does not seam, neither when the finger arrives above the grip nor
-when the release returns to it. **The bridge asks what the source STATES** (`gripStatement`), the
-one authority the grip column asks, because a bridge is the claim that two stops are one statement
-of one hand: so a pull-off from a harmonic over a pressed stop never rides beneath it — that
-harmonic states its pressed fret, so the landing is a NEW statement and the span closes at the
-release with the pressed fret in its bracket.
+**THE HOLD-UNDER LAW** (re-ruled 2026-09-19 from the pull-off sighting chart). A pull-off proves a
+finger on its landing stop AT THE RELEASE, and proves nothing about any earlier instant: a finger
+resting on 7 while 9 is stopped changes no pitch, so whether it arrived before the 9, with it, or
+during its ring is a fact the chart does not carry. The landing stop is still derived
+(`chartPlantedStops`), but **a DERIVED stop states nothing by itself; only an AUTHORED one is the
+charter's word.** So a source states the fret it sounds, and its release is an ordinary new
+statement — the figure derives exactly as the same notes plainly picked. Two chords are two boxes;
+a bracket never prints a fret before it sounds.
 
-- **Every fret derives alike, ZERO included**: what the pull-off states beneath its source is the
-  STOP the string falls to when the finger lifts, and for a pull onto the open string that stop is
-  the open string — always waiting, no finger needed. Only a destination the chart never defines
-  derives nothing, and the TRAVELED RANGE refuses a plant through the very predicate that refuses an
-  authored held stop (`travelsThroughFret`).
-- **A strike that PLANTS a stop states THAT stop as its grip**, the fret it sounds being the
-  ornament riding above it; every other strike states the fret it sounds. So a source striking over
-  a grip that never held its plant states a DIFFERENT grip — an ordinary contradiction, the span
-  breaking at the planting strike and the successor's bracket wearing the plant — while a source
-  over its own gripped stop is a plain restatement. Every identity question in the walk reads grip
-  statements: the tie doctrine, the absorption's parts test, the whole-grip test and the touched
-  count.
-- **THE NARROW FORM (the law's own bound).** The planted stop is a seam VERDICT: it is never written
-  into the grip column by anything but the statements above, never extends a span's reach past its
-  sounding evidence, and never reaches the held FIELD's scope. The claim column and the writer's
-  residue sweep take the tap-scoped narrowing (`chartDerivedStops`), which is bit-identical to its
-  pre-law output by construction. ONE LEVEL ONLY: a chain (9p7p5) plants one stop per source. A
-  source that FOUNDS its own span still states its sounding fret into the posture — the founding
-  asymmetry, pinned by the machine's shape.
+The one thing the derivation may say is the case the law was written for: **where a STANDING span
+holds a grip and a finger is added ABOVE a stop that grip already holds**, the added note sounds a
+fret foreign to the grip and yet lifts nothing — the gripped stop was down before it, under it, and
+after it. There the source states THAT stop (`gripStatement`, the one authority, which every site
+asks with the stop under judgment), the ornament never rewrites its string's entry, and the release
+rides back onto it — so the bracket does not seam, neither when the finger arrives nor when it
+lifts. The evidence is the standing span's own entry for that string, sounded or claimed, and
+NOTHING ELSE: a lone ringing note is not a grip, so a stroke that FOUNDS a span states the frets it
+strikes however its strings were ringing a moment before (sighted 2026-09-19: a ringing 7, then 5
+struck with a 9 pulled off to 7, is a 5-9 box — the chord box and the bracket must never name
+different frets for one stroke). A trill over a held stop is the closed proof — the hammer and the
+pull entail the finger at both ends.
+
+- **Taps resolve identically.** A tapped source's derived landing stop is a CLAIM only under that
+  same proof; an authored `held` always states. Often the tap is struck BEFORE the finger it will
+  pull off to is planted, so nothing but evidence or the charter may assert it.
+- **A harmonic over a pressed stop never rides beneath**: it states its pressed fret, so a landing
+  on the finger waiting under it is a NEW statement and the span closes at the release with the
+  pressed fret in its bracket.
+- **The open string is a fret like any other** under this law: it states nothing unless the string
+  was already sounding open. The TRAVELED RANGE still refuses a derivation through the very
+  predicate that refuses an authored held stop (`travelsThroughFret`).
+- **THE FOLD survives exactly as far as the proof does**: a span dates back across a source only
+  where that source rode above an already-held stop. A source over any other ground begins nothing
+  early; the statement begins at its release.
+- **What was deleted, and why it stays deleted.** "A strike that plants a stop states that stop as
+  its grip" asserted the finger for the WHOLE of the source's ring. It drew a struck 5-5-9 as a
+  bracket 5-5-7, printed a 7 a beat before any 7 sounded, merged and backdated spans the plain
+  restrike keeps apart, and made a figure's class depend on whether its strings had ever sounded
+  earlier in the chart. The premise above ("a grip is held and a finger is added above it") never
+  licensed the generalisation to grips that never held the stop; the code had implemented the
+  generalisation.
+- **Open, and it is the authored span's to close:** a charter must be able to ASK for the stop the
+  derivation may no longer assert. Not with a per-note `held` on ordinary notes (considered and
+  set aside 2026-09-19) but with the span's own extent — an authored span extends through any note
+  that validly fits above its grip, and the held stop under such a note is derived FROM the span
+  (`first-releasable-editor.md`, Phase 4). Until that lands the one sighted cost stands: a figure
+  whose opening source is its string's first note fronts at the release rather than at the source
+  (the Torn intro, 2.5 beats later; the span itself holds whole).
 
 **CLASS — a span is an ARPEGGIO when its members sound separately, and a BOX span while every
 sounding of it is the shape whole.** The law classifies the SPAN and nothing else; which box an

@@ -408,10 +408,9 @@ change at the landing. Publication rides the push, which is what keeps that drop
        onset (a claim states where that hand is, so a claimed fret participates fully on the
        statement path).
 \param planted_stops The hold-under table (\ref chartPlantedStops): per
-       note, the stop its pull-off states is planted beneath it, whichever hand made the onset.
-       Feeds the seam verdicts and — since THE FOLD — the statement dating, never the grip
-       column or the claim column; the one column-by-column list lives at the predicate pair in
-       the walk, so this contract and that list cannot drift apart.
+       note, the stop its pull-off lands on, whichever hand made the onset. Never read bare: every
+       site asks \ref gripStatement, which admits the landing stop only where the string is
+       demonstrably already at it.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).
@@ -419,6 +418,31 @@ change at the landing. Publication rides the push, which is what keeps that drop
 [[nodiscard]] ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<std::optional<int>>& claimed_stops,
     const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map);
+
+/*!
+\brief The grip a pull-off source states beneath the fret it sounds, where it states one.
+
+THE ONE AUTHORITY for the hold-under law, shared by the span derivation and the importer's let-ring
+figure walk. A pull-off proves a finger on its landing stop AT THE RELEASE and nothing about any
+earlier instant, so a DERIVED landing stop states nothing by itself: a source states the fret it
+sounds. The one thing the derivation may say is that a finger ADDED ABOVE a stop the string is
+demonstrably already at moves nothing — there the source states that stop, the fret it sounds is
+the ornament riding above it, and the grip under it neither breaks nor is rewritten. The evidence
+is the caller's, because proof is a relation between this landing stop and the stop under judgment
+at one site, never a property of the note.
+
+Never under a harmonic played over a pressed stop (\ref harmonicOverPressedStop), which states
+that pressed stop: the node its head prints is measured from it, so it is the grip the figure
+needs, and a landing on the finger waiting beneath it is a new statement.
+
+\param note The source note.
+\param planted The stop \p note's pull-off lands on (\ref chartPlantedStops); absent where none.
+\param down The stop the string is demonstrably at where \p note speaks — what it still sounds, the
+       standing grip's entry, or a carried claim; absent where nothing is down.
+\return \p down where \p note states it as its grip; empty where \p note states the fret it sounds.
+*/
+[[nodiscard]] std::optional<ChartStop> gripStatement(
+    const ChartNote& note, const std::optional<int>& planted, const std::optional<ChartStop>& down);
 
 /*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.

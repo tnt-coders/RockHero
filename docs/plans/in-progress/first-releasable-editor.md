@@ -121,11 +121,17 @@ unenforced rulings, and a set of defects on supported material.
   saved. The open design call is placement (validator, load repair, or planner refusal).
 - **Rule the unstruck-tie default** for `Shift+L`'s split product — still a PROPOSAL in
   `technique-review-walkthrough.md` W10 and `keymap-matrix.md`.
-- **Harmonic display follow-ups #2, #4 and #9** (`harmonic-display-followups.md`). #2 is the
-  satellite background. #4 (one span across a tap pulled off to its plant) and #9 (two chords are
-  two boxes) are marked LIVE there and change span derivation for ordinary supported material — #9
-  moves the corpus census. #9 carries one open predicate to rule first. Neither may contradict
-  60-Q1..Q5, so rule them with or before the G60 session.
+- **Harmonic display follow-ups #2 and #4** (`harmonic-display-followups.md`). #2 is the satellite
+  background. #4 (one span across a tap pulled off to its plant) was NARROWED 2026-09-19 by the
+  re-ruled hold-under law and must not contradict 60-Q1..Q5, so rule it with or before the G60
+  session. **#9 (two chords are two boxes) is BUILT** — closed the same day by that law: a derived
+  pull-off landing stop states nothing to the grip unless the string is demonstrably already at
+  it (`chart-ruleset.md`, THE HOLD-UNDER LAW).
+- **The hold-under law's other half moved to Phase 4.** The derivation may no longer ASSERT a
+  finger it cannot prove, so the charter must be able to ASK for it. A note-level `held` on
+  ordinary fretting-hand notes was considered the same day and SET ASIDE in favour of the authored
+  span (see Phase 4, "an authored span swallows what validly fits"): the fact is span-level, and
+  one authored fact beats two that must agree. `held` stays legal exactly where it is today.
 - **Re-sight the harmonic verbs.** P5 was withdrawn on 2026-09-18 when `H` / `Shift+H` went back
   into active work; their keymap rows stay PROVISIONAL until a fresh sighting signs them.
 - **The claimed stop (`held`) has no 3D face** (`chart-ruleset.md`, Open; the renderer says so at
@@ -193,6 +199,27 @@ stopgap) is superseded by plan 60's own sequencing and should be closed. Design 
   closes the named gap left by the `N` rip-out (stating a fretting-hand stop where nothing sounds),
   the arpeggio-bracket posture verb's dictionary dependency, and forced chord naming if D6 wants it.
 - Phase 6 — the let-ring hand coupling.
+- **An authored span swallows what validly fits** (user direction 2026-09-19, from the hold-under
+  re-ruling; to be signed in the G60 session and built with plan 60's boundary gestures). The
+  derivation states a held stop only where it can prove one; everything past that is the
+  charter's to say, and they say it ONCE, with the span's extent — never with a second per-note
+  field. By default an authored span's edge stops where the derivation would split. An EXTEND verb
+  walks the edge outward and checks each note it meets: a note FITS where it sounds on a string
+  the grip leaves free, restates the grip's stop, or sounds ABOVE the stop the grip holds on its
+  string (never an open string or a fret-hand harmonic over a gripped stop, never through the
+  travelled range — `travelsThroughFret`). A swallowed note of the third kind has its held stop
+  DERIVED from the span — the grip's entry beneath it — so the satellite, the bracket and the
+  hand all read one authored fact. A note that does not fit refuses the extension there.
+  - Acceptance case, sighted: the Torn intro's span fronts at `3:3+1/2` since the re-ruling,
+    because the G-string 7 at `3:3` is its string's first note. Extending the authored span back
+    to `3:1` swallows it (7 above the grip's 5) and restores the front.
+  - Forcing a SPLIT where the derivation proved a held stop is the same tool run the other way:
+    author the boundary. There is deliberately no way to delete a derived held stop on the note —
+    "no finger here" would be a third state of one field.
+  - A hand-authored grip may name EITHER stop of a note that has two (the sounding fret or the
+    held one beneath it); every other note has one.
+  - Invariant to hold in the G60 session: the span decides extent and which provable stops it
+    prints; it must never become a second way to assert what `held` already asserts on a tap.
 - **Span-end margin** (`note-sustain-model.md` item #59) and the **PROVISIONAL arpeggio
   shrink-split** (`chart-span-and-selection-model.md` §5) are both met by this work; rule #59 in the
   G60 session.

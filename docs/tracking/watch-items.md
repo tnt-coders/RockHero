@@ -699,12 +699,14 @@ and it is the very number the satellite beside the head prints. One helper in
 `chart_shapes.cpp` (`gripStatement`) states that once for every statement site, so the artificial
 form now derives exactly what the tapped one always did and the two columns say one thing.
 
-The plant stays TRUE in the wide table (`chartPlantedStops`), because it is real: a finger waits on
-that fret for the whole of the source's ring. What reads it is the FRET-HAND POSITION derivation —
-the window has to reach the waiting finger — and that law is recorded in
-`docs/plans/in-progress/fhp-derivation-algorithm.md` (law 12, RULED 2026-09-18), with the standing
-note that the current generator does not satisfy it yet. The hold-under law still reads the plant
-bare, as it must: the question there is whether a finger is DOWN, and the pull-off proves it is.
+The plant stays in the wide table (`chartPlantedStops`), but what it proves was re-ruled 2026-09-19:
+a finger on that fret AT THE RELEASE, and nothing about the source's ring before it. The FRET-HAND
+POSITION derivation is meant to reach that finger — law 12 of
+`docs/plans/in-progress/fhp-derivation-algorithm.md` (RULED 2026-09-18) — but **nothing reads the
+table for it today**: the generator, the hand window and the highway carry no reference to it, so
+that law is unbuilt rather than merely unsatisfied. The hold-under law no longer reads the plant
+bare either: `gripStatement` admits it to a grip only where the string is demonstrably already at
+that stop (`docs/plans/in-progress/chart-ruleset.md`, THE HOLD-UNDER LAW).
 
 The original item, for the record:
 

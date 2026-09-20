@@ -1222,3 +1222,37 @@ against the tree on the date above.
   `chartDerivedHeldStops`; `chartHeldStops`, `ChartNote::held` and the JSON `held` key unchanged.
   About 20 files, no format change. The two files above carry BOTH senses, so rename them by hand,
   never by sweep. Pick up only when the user asks. (task #287)
+
+- **A span can derive with ZERO length (found 2026-09-19, not caused by the hold-under re-ruling).**
+  A tap with a very short ring beside a pull-off on a neighbouring figure derives a span whose
+  sustain is 0 with a sounding member in it, so `everySpanIsPositive` fails on it: two picked notes
+  struck together at 1:1, two more entering at 2:1 and 2:1+1/2, a tap on the first string at 2:1
+  with a 1/32 ring, and a legato note on that string a beat later. Giving the tap a half-beat ring
+  (what the shipped fixtures use) hides it. A span must have positive extent, so this is a bug in
+  the emit/close arithmetic, not a fixture problem: reproduce it as a failing section in
+  `test_chart_shapes.cpp`, then find which close instant lands on the front.
+
+- **Re-sign the corpus census's derivation rows (stale since before 2026-09-19).** The enforced
+  `trigger-4-only flips` row already failed on the commit before the let-ring phrase fix (94
+  against a signed 106). After the 2026-09-19 let-ring and hold-under changes the census reads
+  spans total 22455 (signed 22413), arpeggio spans 1277 (signed 1528 — now ALSO past tolerance),
+  lone re-pick spans 2794 (3084), trigger-4-only flips 80 (106), landing-opened 1191 (1158),
+  landing successors BOX 1097 (1063). Every movement is explained in those commits; what is owed
+  is the user's sighting pass over a sample and new signed figures in
+  `rock-hero-editor/core/tests/test_corpus_census.cpp`. Do it ONCE, after the carried-ring founding
+  rule is decided, because that change moves all six rows again.
+
+- **The hold-under law has no corpus coverage for DERIVED claims.** Since the re-ruling a tapped
+  source's derived claim is admitted only where a standing span already holds that stop, and on
+  the import-only corpus that admits none of them (4 before, 0 after). The behaviour rests on unit
+  fixtures alone (`test_chart_shapes.cpp`, "A pull-off states the held stop under the onset it
+  releases from" and the authored-claim section beside the hold-under family). When a real chart
+  with a tap lick over a held grip exists, add it to the local corpus and check the census's
+  derived-held row moves off zero.
+
+- **The importer restates the span machine's founding law by hand.** The let-ring fragment
+  donation in `gp_chart_builder.cpp` defines "could never found a span" as fewer than three notes
+  with no two co-struck — a second spelling of `g_span_member_threshold` /
+  `g_accumulation_member_minimum` in `chart_shapes.cpp`. It agrees today; it will silently disagree
+  the day either threshold, or what counts toward it, moves (the carried-ring founding rule is
+  exactly such a move). Share the constants, or the predicate, before that change lands.

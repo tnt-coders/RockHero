@@ -211,6 +211,12 @@ bracket, closing at the pull-off.
 
 ## 4. One span across a plain tap pulled off to its own planted fret — **RULED**
 
+> **Narrowed 2026-09-19 by the re-ruled HOLD-UNDER LAW**: taps resolve as legato does. The one span
+> holds where the planted fret was ALREADY held going into the tap (the string still sounding it)
+> or is AUTHORED on the tap; a tap that is its string's first statement derives no claim, because
+> the tap is often struck before the finger it will pull off to is planted. Re-read this item
+> against that before building it.
+
 **The ruling.** The fixture's **measure 76** — a plain two-hand tap with a planted finger, pulled
 off to that same planted fret — must derive ONE span. The grip does not change: the finger that was
 waiting under the tap is the finger the release lands on, so nothing about the hand moved and there
@@ -411,7 +417,20 @@ grip-statement law that did not take the 2026-09-18 harmonic clause. That one IS
 
 ---
 
-## 9. Two chords are two boxes — the 18:3 figure — **RULED**, with one OPEN predicate
+## 9. Two chords are two boxes — the 18:3 figure — **BUILT 2026-09-19**
+
+> **Closed by the re-ruled HOLD-UNDER LAW** (`chart-ruleset.md`), not by the narrow predicate
+> proposed below. Sighting a purpose-built chart of pull-off figures against their plain-restrike
+> controls (`C:\__MAIN__\Coding\__scratch__\rockhero-pulloff-sighting\`) showed 18:3 was one case of
+> a wider defect: a source stated its landing stop to the grip for the WHOLE of its ring, a fact no
+> chart carries. The rule now is that a DERIVED landing stop states nothing unless the string is
+> demonstrably already at it, so a source states the fret it sounds and 18:3 derives as its
+> restrike control does — two boxes, 9-9 then 7-7. The "seam underneath" this item named (hand
+> continuity and chord identity answered by one predicate) dissolved with it: nothing in the hand
+> window or the FHP derivation ever read the plant table, despite this document and five code
+> comments saying so. The three "collisions" below were re-sighted the same day — the open-chord
+> intro and the slide figure both now derive as their controls, by the user's own re-sighting — and
+> the text is kept as the record of how the old law was bounded.
 
 Opened 2026-09-18 during the walkthrough of item 1, from the user's sighting of the fixture at
 **18:3** — the legato block's second bar, a two-string dyad at 9 pulled off to 7 on both strings at
