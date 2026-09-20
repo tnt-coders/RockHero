@@ -95,14 +95,6 @@ public:
     {
         const std::string command_line =
             juce::JUCEApplicationBase::getCommandLineParameters().toStdString();
-        // SIGHTING PROTOTYPE: the old-founding comparison window runs beside the normal one.
-        if (juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_OLD_FOUNDING", "")
-                .isNotEmpty() ||
-            juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_STRICT_FOUNDING", "")
-                .isNotEmpty())
-        {
-            return true;
-        }
         return rock_hero::common::audio::Engine::isPluginScanChildProcessCommandLine(command_line);
     }
 

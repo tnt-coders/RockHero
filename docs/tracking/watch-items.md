@@ -584,6 +584,36 @@ figures are the likely case). **Remedy**: bring the concrete case to the user fo
 ruling; the candidate relaxation is a time bound on the quit arm, in which case the guard against
 resurrecting spans across silence must come from somewhere else, stated in the record.
 
+### A still-held older note joins no later bracket — trigger: a real figure whose bracket reads as understating the hand, or a passage that goes bare where it should bracket
+
+Ruled 2026-09-20 after sighting three options side by side: **a ring belongs only to the span it
+was struck in**, so every member's onset lies inside its span and the slide landing is the one way
+a member crosses a seam. A ring struck before the coverage frontier — fretted or open — founds no
+accumulation and joins no later span; an open string prints on as texture, anything else is a
+plain tail. It replaced a law that refused only hand-free rings, under which two ringing notes
+beneath a moving melody founded a fresh bracket at every melody note. The strict form won because
+it is the simplest rule that stops that, and the user sighted it as reading well.
+
+Two accepted costs, measured on the local corpus against the old law (about 83 arpeggio spans of
+22,400 gone; no box count moved):
+
+- **A bracket can understate the hand.** A chord arpeggiated across a seam gets a bracket listing
+  only the stops struck inside it, while notes struck a beat or a measure earlier ring on under
+  it. Every dropped stop was stated by an earlier span, almost always the abutting one.
+- **One fresh pick under two ringing notes founds nothing.** That figure is, in the hand, the same
+  as a pedal under a melody, so no derivation separates them; short stretches (rarely over a
+  beat) that used to bracket now go bare. A half-beat box can also appear inside an arpeggio
+  passage where the older rings were the only thing making it an arpeggio.
+
+**Trigger**: either cost reads wrong in a real chart rather than merely different. **Remedy**:
+first ask whether the authored-span verb (plan 60) is the right tool for that figure. If the
+derivation itself must change, the two alternatives are preserved side by side, switchable by
+environment variable, at commit `cb6620a0`: the old law (`ROCKHERO_SIGHT_OLD_FOUNDING`) and the
+middle option (neither variable) where an older fretted ring counts toward no founding but still
+joins, as a member, a span that fresh strikes found. Re-measure on the corpus before choosing;
+the middle option's own defect was folding a drone struck measures earlier into a quarter-beat
+chord and calling it an arpeggio.
+
 ### ~~An inert silent hold is INVISIBLE~~ — RETIRED 2026-08-27: there are no inert holds left
 
 The item was: with the `N` verb's dot deleted, a silently-held stop's only mark is the arpeggio

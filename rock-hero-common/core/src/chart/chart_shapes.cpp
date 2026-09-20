@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cstddef>
-#include <juce_core/juce_core.h>
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -40,16 +39,6 @@ constexpr std::size_t g_span_member_threshold = 2;
 // 5). It gates FOUNDING by sound alone and nothing else — growing a standing span has no minimum,
 // and a landing opens at the statement threshold above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
-
-// SIGHTING PROTOTYPE switch, read once at startup: set ROCKHERO_SIGHT_OLD_FOUNDING to any value to
-// found spans the old way (a spent fretted ring still counts). Ripped out with the losing option.
-const bool g_sight_old_founding =
-    juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_OLD_FOUNDING", "").isNotEmpty();
-
-// SIGHTING PROTOTYPE switch: set ROCKHERO_SIGHT_STRICT_FOUNDING for the strict variant — a spent
-// fretted ring is a plain tail and joins no later span, so every member's onset lies in its span.
-const bool g_sight_strict_founding =
-    juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_STRICT_FOUNDING", "").isNotEmpty();
 
 // One note's fret channel read for the law's two moments, measured from an offset inside the
 // note's own ring. The channel is an ordered run of statements — the onset, then every
@@ -245,21 +234,21 @@ struct StopClaim
 // hand-free. This is a question about the ring's TENURE and not about the grip statement: a node
 // strike still states its node (THE NODE GRIP, node != fret != open, is untouched), but the finger
 // lifts the instant the chime sounds, so a harmonic ringing on is as hand-free as an open string
-// ringing on. Stated once because A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN is
-// asked at two sites: the slot open's fold-in and the landing's survivors. Not at the displacement
-// witness — that reads the SOUND, and a hand-free ring's sound is evidence a strike can contradict
-// even though no finger holds it.
+// ringing on. Asked at the landing alone, the one seam a member crosses: a finger that slid
+// carries its stop into the landed grip, and a string no finger holds has none to carry. Not at
+// the displacement witness — that reads the SOUND, and a hand-free ring's sound is evidence a
+// strike can contradict even though no finger holds it.
 [[nodiscard]] bool handFree(const ChartStop& stop)
 {
     return stop.fret == 0;
 }
 
-// Which hand-free rings are TEXTURE — printed in the bracket of a later span they ring under —
-// and which are plain tails: the open string alone. An open string's 0 is true for as long as it
-// rings, because no hand was ever on it; a natural harmonic's node was true at the strike and
-// false a moment later, since the finger lifted, so printing it in a later bracket would claim a
-// finger the hand has long since moved: a harmonic is fretted INSTANTANEOUSLY, and the hand has
-// LEFT that position by the time the next span arrives.
+// Which rings outliving their own span are TEXTURE — printed in the bracket of a later span they
+// ring under — and which are plain tails: the open string alone. An open string's 0 is true for as
+// long as it rings, because no hand was ever on it, so printing it claims nothing about the hand.
+// Any other stop in a later bracket would claim a finger: a fretted one was announced by the span
+// that struck it, and a natural harmonic's node was true at the strike and false a moment later —
+// a harmonic is fretted INSTANTANEOUSLY, and the hand has LEFT by the time the next span arrives.
 [[nodiscard]] bool textureStop(const ChartStop& stop)
 {
     return stop == frettedStop(0);
@@ -279,22 +268,21 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // TEXTURE UNDER THE GRIP: the OPEN strings sounding through this span's open that belong to an
-    // EARLIER span and so are no part of the grip (A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT
-    // WAS STRUCK IN) — open strings alone, never a harmonic's ring, whose finger left at the strike
-    // (\ref textureStop). They found nothing, bound nothing, classify nothing and contradict
-    // nothing — every reader of the grip reads `stops` alone — but the bracket states what SOUNDS
+    // TEXTURE UNDER THE GRIP: the OPEN strings sounding through this span's open that were struck
+    // before it and so are no part of the grip (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN)
+    // — open strings alone, never a ring a finger made (\ref textureStop). They found nothing,
+    // bound nothing, classify nothing and contradict nothing — every reader of the grip reads
+    // `stops` alone — but the bracket states what SOUNDS
     // under the shape, and a drone ringing under it does: a ring entering an ESTABLISHED span
     // belongs in that span's bracket display. Published only at emit, as the union with the grip on
     // strings the grip leaves empty; a fret struck on a texture string grows the grip, and the
-    // grip's stop wins. Written at the two sites that skip a hand-free carry: the slot open's
-    // fold-in and the landing's survivors.
+    // grip's stop wins. Written at the two sites that refuse a ring: the slot open's fold-in and
+    // the landing's survivors.
     std::vector<std::optional<ChartStop>> texture;
 
-    // Which strings joined the grip as evidence of THIS span's own founding or statements —
-    // dating members. A ring carried in from ground an earlier span covered, or from behind a
-    // displacement junction, states its stop into the posture but never dates the front (the
-    // dating rule's one comparison, spent at the open).
+    // The authored claims this span carries (\ref StopClaim): stops asserted with no sound of
+    // their own. They never date the front and never bound the reach, because a claim is no
+    // evidence; they reach the published posture only at emit, on strings the grip left empty.
     std::vector<StopClaim> claims;
 
     // Where this span's opening mark draws, published to \ref ChartShape::bracket_position: the
@@ -397,10 +385,10 @@ ChartShapes deriveChartShapes(
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
 
-    // The dating rule's frontier: how far every emitted span reaches. Survives ONLY as a dating
-    // floor — the reach never reads it — and that asymmetry is the single thing separating the
-    // front from the close, on purpose: ground a statement held is ground it held, but a new
-    // figure may still be founded on rings that outlive it.
+    // THE FRONTIER: how far every emitted span reaches, and the one seam in the walk. Read twice,
+    // as one law: a span's front never dates behind it (the floor at the open), and a ring struck
+    // behind it founds nothing and joins no posture (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK
+    // IN). The reach never reads it — ground a statement held is ground it held.
     Fraction covered{};
 
     std::optional<OpenSpan> open;
@@ -675,8 +663,9 @@ ChartShapes deriveChartShapes(
             std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t survivors = 0;
             // Every string the hand table knows is classified ONCE here — grip survivor, texture,
-            // or nothing — exactly as the slot open classifies its carried rings, so the two seams
-            // cannot disagree about what a string is.
+            // or nothing. The slot open asks the same three-way question of its carried rings, and
+            // both refuse a ring by the one law (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK
+            // IN); they differ only in who crosses: here the closing span's members, there nobody.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -703,32 +692,26 @@ ChartShapes deriveChartShapes(
                     // STRICTLY past the boundary survive into the landed grip.
                     continue;
                 }
-                if (handFree(*stop))
+                if (handFree(*stop) || !open->stops[string_index].has_value())
                 {
-                    // A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, at the
-                    // landing seam: whether the closing span struck it or it was already texture
-                    // under that span, from here on it is texture — it hands nothing to the
-                    // successor and counts toward no survivor threshold. The landing law's
-                    // "established members open at two" is about fingers that slid and never
-                    // lifted; a string no finger holds did neither, and a one-string slide over a
-                    // struck drone lands into no bracket, which is an accepted consequence. A glide
+                    // A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, and the landing is the one
+                    // way a member crosses a seam: the grip itself moved, carried by fingers that
+                    // slid and never lifted. So the survivors are the closing span's own FRETTED
+                    // members and nothing else. A ring that span never held was never its member;
+                    // a string no finger holds neither slid nor stayed, whether the closing span
+                    // struck it or it was already texture there — a one-string slide over a struck
+                    // drone lands into no bracket, which is an accepted consequence. A glide
                     // coming to rest ON the open string is the hand lifting, not landing, so the
                     // skip suppressing that arrival is the same rule and not a gap. An open string
                     // still SOUNDS under the landed grip and prints there as texture for as long as
                     // it rings, whichever span struck it — a drone dropping out of the successor's
                     // bracket and back into the next slot-founded span's is the flicker this
-                    // classification exists to refuse. A harmonic's ring is a tail, its finger long
-                    // gone (\ref textureStop).
+                    // classification exists to refuse. Every other such ring is a plain tail
+                    // (\ref textureStop).
                     if (textureStop(*stop))
                     {
                         texture[string_index] = stop;
                     }
-                    continue;
-                }
-                if (!open->stops[string_index].has_value())
-                {
-                    // A fretted ring the closing span never held is not its survivor: the grip's
-                    // survivors are the closing span's own members, and only they can land.
                     continue;
                 }
                 landed[string_index] = stop;
@@ -1146,14 +1129,16 @@ ChartShapes deriveChartShapes(
         //
         // Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
         // own stops, not all — is the statement coming apart, so the chord span closes here and the
-        // partial founds the parts span through the ordinary slot open below — which takes the
-        // still-ringing members in as carried texture, dates the span at this slot (the carried
-        // onsets lie behind the coverage floor), and births it in parts. The bracket therefore
-        // covers exactly the ground that sounds in parts. A stroke on strings the span never stated
-        // is not this direction at all: it states nothing about the span's own stops coming apart,
-        // so it is the statement still assembling — growth. This direction reads the ARITHMETIC
-        // alone and never the absorption: a stroke absorbed by the parts that follow is the span
-        // FLOWING, so splitting it here would only move the fragmentation one slot earlier.
+        // parts found their own span through the ordinary slot open below, on what they STRIKE:
+        // the chord's rings were struck behind the new frontier and join nothing (A RING BELONGS
+        // ONLY TO THE SPAN IT WAS STRUCK IN), so the parts span founds once three of them ring
+        // together and dates at the first, and a partial or two alone founds none. The bracket
+        // therefore covers exactly the ground that sounds in parts. A stroke on strings the span
+        // never stated is not this direction at all: it states nothing about the span's own stops
+        // coming apart, so it is the statement still assembling — growth. This direction reads the
+        // ARITHMETIC alone and never the absorption: a stroke absorbed by the parts that follow is
+        // the span FLOWING, so splitting it here would only move the fragmentation one slot
+        // earlier.
         //
         // What continues is exactly the chug chain: a never-in-parts span restruck at
         // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
@@ -1516,22 +1501,6 @@ ChartShapes deriveChartShapes(
                     // Mid-travel states no grip and joins no posture.
                     continue;
                 }
-                // A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN. A hand-free ring
-                // whose own span has ENDED is texture: it founds no accumulation and folds into no
-                // new posture, until it is RESTRUCK — which is a statement, and joins through `own`
-                // above. Without that, open rings running to the end of their phrase grow a
-                // one-note bracket around every melody note over a ringing drone: the ring's 0 is a
-                // true claim but never evidence of a grip, and a bracket is a statement about the
-                // hand.
-                //
-                // THE WITNESS IS THE COVERAGE FRONTIER, and it is exact here rather than a proxy:
-                // a hand-free ring still sounding when any span founds is folded into it by this
-                // very loop (nothing skips a fresh one), and one struck while a span stands is a
-                // statement that grows it, so "struck before the last emitted span ended" IS "was
-                // a member of an earlier span". A ring struck AT the frontier belongs to the
-                // figure arriving there (the seam ownership), hence strict. This is what lets the
-                // open-position arpeggio — E0, then A2, then D2 — still found at the D2 on its own
-                // carried rings, dated at the E0: nothing had closed since the E0 was struck.
                 // A carry never folds in on a string this slot STATES OTHERWISE: a claim at a
                 // different stop is proof the finger left the ring, so the ring is a tail and the
                 // claim's stop is the grip's (it joins through the claims path at emit). This one
@@ -1541,17 +1510,25 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                // SIGHTING PROTOTYPE — A RING FOUNDS ONCE: a ring struck before the last span ended
-                // is spent. Hand-free it is texture; fretted it still joins what fresh strikes
-                // found, but counts toward no founding.
-                const bool spent = onset_beat[*finger] < covered;
-                if (spent && (handFree(*carried) || g_sight_strict_founding))
+                // A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN: every member's onset lies
+                // inside its span. A ring struck before the coverage frontier has its onset behind
+                // every span still to come — no front dates earlier than the frontier — so it
+                // founds no accumulation and folds into no new posture, until it is RESTRUCK,
+                // which is a statement and joins through `own` above. A bracket announces a stop
+                // once, in the span that struck it; afterwards the tail says it is still held.
+                // Without that, two rings under a moving melody found a fresh bracket at every
+                // melody note, each restating the same two rings.
+                //
+                // A ring struck AT the frontier belongs to the figure arriving there (the seam
+                // ownership), hence strict. This is what lets the open-position arpeggio — E0,
+                // then A2, then D2 — still found at the D2 on its own carried rings, dated at the
+                // E0: nothing had closed since the E0 was struck.
+                if (onset_beat[*finger] < covered)
                 {
                     // ...but an OPEN string still SOUNDS under whatever this slot founds, so it is
-                    // recorded as texture and the bracket prints it; a harmonic's ring is a plain
-                    // tail, because its finger left at the strike (\ref textureStop). Asked after
-                    // the stated-otherwise skip, so a ring this slot has already ended is never
-                    // texture.
+                    // recorded as texture and the bracket prints it; every other spent ring is a
+                    // plain tail (\ref textureStop). Asked after the stated-otherwise skip, so a
+                    // ring this slot has already ended is never texture.
                     if (textureStop(*carried))
                     {
                         texture[string_index] = *carried;
@@ -1570,10 +1547,7 @@ ChartShapes deriveChartShapes(
                 // travel beats. A string a STANDING span states is never re-read: its cap is
                 // live, and that cap is what closes the span at its member's landing (rule 10).
                 hand[string_index].covers = covers;
-                if (!spent || g_sight_old_founding)
-                {
-                    ++total;
-                }
+                ++total;
             }
             const bool opens =
                 own >= g_span_member_threshold || total >= g_accumulation_member_minimum;
@@ -1595,7 +1569,8 @@ ChartShapes deriveChartShapes(
                     // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
                     // every stated string — and the earliest member STATEMENT at or after it
                     // dates the span. Members behind the floor state their stops and date
-                    // nothing.
+                    // nothing: a tie-inherited beginning an emitted span already fronted, or a
+                    // string this slot's own foreign restrike bounds.
                     //
                     // Every dating string reads the ONE statement-began column, struck and
                     // carried alike: a member's own onset is not the question — it is only a

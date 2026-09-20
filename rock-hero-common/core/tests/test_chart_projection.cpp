@@ -825,32 +825,29 @@ TEST_CASE(
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
     }
 
-    SECTION("a close the fretting hand states nothing at leaves the two spans abutting")
+    SECTION("a close the fretting hand states nothing at owes no margin")
     {
         // A CLAIM contradicting a stated string breaks the grip at a slot the fretting hand
-        // strikes nothing at (rule 8 reads a claim exactly as it reads a strike), and the rings
-        // still going on the other two strings accumulate the successor at that same instant. The
-        // close states no grip, so there is no head to keep clear of and the replaced shape ends
-        // exactly where the successor starts — which is what keeps a tiled figure seamless.
+        // strikes nothing at (rule 8 reads a claim exactly as it reads a strike). The close states
+        // no grip, so there is no head to keep clear of and the shape ends exactly where its
+        // statement did.
         //
         // Three sounding strings rather than two, because under grip tenure a claim on a string
         // the grip does NOT state grows the span in place and splits nothing: the break has to be
-        // a contradiction, and the successor has to muster the accumulation minimum on rings
-        // alone.
+        // a contradiction. What the claim opens on the far side of that break is nothing — the
+        // rings crossing it belong to the span it broke (A RING BELONGS ONLY TO THE SPAN IT WAS
+        // STRUCK IN) — so the figure is one shape closed at the claim.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{2}),
             note(one, 2, 7, Fraction{2}),
             note(one, 3, 9, Fraction{2}),
             claim(two, 1, 17, 12),
         });
-        REQUIRE(state.shapes.size() == 2);
+        REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
-        CHECK_THAT(
-            state.shapes[1].start_seconds,
-            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
-        // A close where the picking hand alone sounds publishes no head to keep clear of, so here
-        // too the two ends are one instant: the seam the successor tiles onto is the same seam a
-        // reveal would draw to.
+        // A close where the picking hand alone sounds publishes no head to keep clear of, so the
+        // two ends are one instant: the reveal moves nothing, which is exactly what keeps it from
+        // implying a trim that never happened.
         CHECK_THAT(
             state.shapes[0].close_seconds,
             Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
@@ -1824,7 +1821,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // — and while the hold-under law read the plant bare, it counted as the span's own finger
         // lifting and wrote the 3 into a bracket drawn at the harmonic's own onset, into the very
         // satellite column the head's standing 5 paints over. Now the release states a grip the
-        // harmonic never did, so the span CLOSES there and the first one keeps the pressed 5.
+        // harmonic never did, so the span CLOSES there and keeps the pressed 5. The release opens
+        // nothing of its own: the chord's rings belong to the span it closed (A RING BELONGS ONLY
+        // TO THE SPAN IT WAS STRUCK IN), so its 3 never reaches a bracket at all.
         //
         // The digit is absent for the same reason it is absent everywhere a head stands at the
         // bracket: the harmonic's head is right there on the string, so what states the 5 is the
@@ -1841,7 +1840,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
              strike(2, 5, 5, Fraction{4}),
              pull_to(3, 4, 3, Fraction{2})});
 
-        REQUIRE(state.shapes.size() == 2);
+        REQUIRE(state.shapes.size() == 1);
         const ShapeViewState& fronted = state.shapes.front();
         // Beat 1 at 120 BPM: the span's own front, where the harmonic's head stands.
         REQUIRE(fronted.bracket_seconds.has_value());
@@ -1856,14 +1855,6 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             CHECK(pressed->stop == frettedStop(5));
             CHECK(pressed->digit == std::nullopt);
         }
-        const ShapeViewState& released = state.shapes.back();
-        const auto landed = std::ranges::find(released.strings, 4, &ShapeStringViewState::string);
-        REQUIRE(landed != released.strings.end());
-        if (landed != released.strings.end())
-        {
-            CHECK(landed->stop == frettedStop(3));
-        }
-
         const auto touched = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
             return note.string == 4 && note.harmonic_node.has_value();
         });

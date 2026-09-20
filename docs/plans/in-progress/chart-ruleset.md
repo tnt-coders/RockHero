@@ -266,43 +266,50 @@ ring proves, while an open member's `0` asserts no finger at all, only the ring 
 stores — so no member's claim can be false, and the fretted-only branch the opening test would
 otherwise need is deleted rather than argued.
 
-**A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** A HAND-FREE stop is one the
-fretting hand presses nothing for (`handFree`, `ChartStop::fret == 0`): the open string, and the
-node a natural or open-string tap harmonic touches, the finger lifting the instant the chime sounds.
-An artificial harmonic presses a fret and is hand-bound. Struck, a hand-free note is a member of the
-span standing or founded at its strike, exactly as any other. Once the span it was struck in has
-ENDED, its ring is TEXTURE: it founds no accumulation, folds into no posture, survives into no
-landing and displaces no finger — until it is RESTRUCK, which is an ordinary statement joining the
-span standing then. True is not the same as evidence of a grip, and a bracket is a statement about
-the hand.
+**A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** Every member's onset lies inside its span.
+Struck, a ring is a member of the span standing or founded at its strike, exactly as any other note.
+Once the span it was struck in has ENDED, that ring founds no accumulation, folds into no posture
+and survives into no landing — fretted, open and chimed alike — until it is RESTRUCK, which is an
+ordinary statement joining the span standing then. A BRACKET ANNOUNCES A STOP ONCE, in the span that
+struck it; from there the tail is what says the finger is still down. Still sounding is not the same
+as evidence of a grip.
 
 - **THE WITNESS is the coverage frontier** — the end of the last emitted span (`covered`) — and it
-  is exact rather than a proxy: a hand-free ring still sounding when any span founds is folded into
-  it by the very loop that asks the question, and one struck while a span stands is a statement that
-  grows it, so "struck before the last emitted span ended" IS "was a member of an earlier span".
-  Strict, because a ring struck AT the frontier belongs to the figure arriving there. This is what
-  separates the law from a literal "never carried" reading, which would strip the first open string
-  off every open-position arpeggio: E0 then A2 then D2 still founds at the D2 on its own carried
-  rings, dated at the E0, because nothing had closed since the E0 was struck. A per-string "the span
-  this ring was struck in" record was rejected because it cannot express founding — the span a fresh
-  open helps found does not exist yet when the open is struck; the frontier can.
+  is exact rather than a proxy: a ring still sounding when any span founds is folded into it by the
+  very loop that asks the question, and one struck while a span stands is a statement that grows it,
+  so "struck before the last emitted span ended" IS "was a member of an earlier span". No front
+  dates earlier than the frontier, so such an onset lies behind every span still to come. Strict,
+  because a ring struck AT the frontier belongs to the figure arriving there. This is what separates
+  the law from a literal "never carried" reading, which would strip the first open string off every
+  open-position arpeggio: E0 then A2 then D2 still founds at the D2 on its own carried rings, dated
+  at the E0, because nothing had closed since the E0 was struck. A per-string "the span this ring
+  was struck in" record was rejected because it cannot express founding — the span a fresh ring
+  helps found does not exist yet when it is struck; the frontier can.
+- **THE LANDING IS THE ONE SEAM A MEMBER CROSSES**, and it is where the HAND still decides. A
+  landing is the grip itself moving, carried by fingers that slid and never lifted, so the survivors
+  are the closing span's own FRETTED members and nothing else: a ring that span never held was never
+  its member, and a string no finger holds (`handFree`, `ChartStop::fret == 0` — the open string,
+  and the node a natural or open-string tap harmonic touches, that finger lifting the instant the
+  chime sounds) neither slid nor stayed. An artificial harmonic presses a fret and is hand-bound. The
+  consequence is accepted by name: a one-string slide over a struck drone lands into no bracket.
 - **NOT at the displacement witness.** Law A reads the SOUND: a fret or node struck on a string
   still ringing open changes what that string sounds and breaks the span, whether or not a finger
   held it — otherwise the bracket would print the new stop from a front before which the string
-  audibly rang open. A hand-free ring is no member, but its sound is still evidence.
+  audibly rang open. A spent ring is no member, but its sound is still evidence.
 - **TEXTURE IN THE BRACKET.** The two halves of a posture are the GRIP — what the walk reasons
   about, every rule reading `OpenSpan::stops` and nothing else — and the TEXTURE under it
-  (`OpenSpan::texture`, published as `ChartPosture::texture`): the hand-free rings sounding through
-  a span's open that belong to an earlier span, recorded at exactly the two sites that skip them
+  (`OpenSpan::texture`, published as `ChartPosture::texture`): the OPEN rings sounding through a
+  span's open that belong to an earlier span, recorded at exactly the two sites that refuse a ring
   (the slot open's fold-in and the landing's survivors). Disjoint from the grip by construction — a
   claim's stop and a grip's both outrank it, and a fret struck on a texture string GROWS the grip —
   so every display unions the two blindly while every rule and the census read the grip alone.
   Published apart rather than merged, because merged it was read two ways.
 - **TEXTURE IS THE OPEN STRING ALONE** (`textureStop`). An open string's 0 is true for as long as it
-  rings, because no hand was ever on it; a harmonic's node was true at the strike and false a moment
-  later, so printing it in a later bracket would claim a finger the hand has long since moved. A
-  harmonic's stale ring is a plain tail: no digit, no class, founding nothing — and still breaking a
-  span if struck over.
+  rings, because no hand was ever on it, so printing it claims nothing about the hand. Any other
+  stop in a later bracket would claim a finger: a fretted one was already announced by the span that
+  struck it, and a harmonic's node was true at the strike and false a moment later. Every such stale
+  ring is a plain tail: no digit, no class, founding nothing — and still breaking a span if struck
+  over.
 
 **THE CARRIER SOUNDS AT THE CLAIM'S SLOT.** A claim rides a right-hand onset on its own string, and
 that onset is a note that sounds there: a TAPPED HARMONIC sounds FROM its claimed stop — the
@@ -460,11 +467,13 @@ glide, and the break lands where the new grip ESTABLISHES.
   included, because nothing here asks how far a finger moved. A staggered landing whose every other
   surviving member is itself mid-glide opens nothing, and the truth stays in the sliding tails.
 - **THE LANDING CLASSIFIES EVERY STRING THE HAND TABLE KNOWS, ONCE** — grip survivor, texture, or
-  nothing — exactly as the slot open classifies its carried rings, so the two seams cannot disagree
-  about what a string is. An open string sounding strictly past the boundary is texture under the
-  successor WHICHEVER span struck it; a drone that died before the boundary is left out on both
-  paths by the same sounding test. The smallest bracket this can produce is two grip digits over a
-  ringing 0 — what the slot path already prints for a two-finger chord over a drone.
+  nothing. The slot open asks the same three-way question of its carried rings, and both refuse a
+  ring by the one law above, so the two seams cannot disagree about what a string is; they differ
+  only in who crosses — here the closing span's own fretted members, there nobody. An open string
+  sounding strictly past the boundary is texture under the successor WHICHEVER span struck it; a
+  drone that died before the boundary is left out on both paths by the same sounding test. The
+  smallest bracket this can produce is two grip digits over a ringing 0 — what the slot path
+  already prints for a two-finger chord over a drone.
 - **The landing restarts each survivor's coverage at the landed grip**, re-read from the channel, so
   a multi-leg glide's NEXT departure still caps it.
 - **Whether the new grip gets a moment of its own is a MUSICAL test, not a drawable-room one.** A

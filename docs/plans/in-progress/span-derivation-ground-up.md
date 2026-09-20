@@ -43,27 +43,31 @@ is bookkeeping about that tenure.
 7. NOTHING ELSE opens a span. Strings that merely ring on past a break are tails (ring-out
    opens nothing).
 
-   **A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** A HAND-FREE ring is one
-   the fretting hand presses nothing for — fret 0, which covers the open string and equally the
-   node a natural or open-string tap harmonic touches (`handFree`), since that finger lifts the
-   instant the chime sounds. Its ring proves nothing about where the hand is once the strike is
-   over, so it founds nothing and joins no grip: only a restrike puts it back into a statement.
-   The scope differs at the two sites that ask, and deliberately. At a LANDING seam every
-   hand-free member is skipped outright — the span the boundary closes is by definition the span
-   the ring was struck in — so it hands nothing to the successor and counts toward no survivor
-   threshold. At a SLOT OPEN the coverage frontier is the scope: a hand-free ring struck STRICTLY
-   BEFORE it belonged to an earlier span and folds into nothing, while one struck at or after it
-   is fresh evidence and folds in like any other member. The consequence is accepted by name: a
-   one-string slide over a struck drone lands into no bracket. This is a question about the
+   **A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** Every member's onset lies inside its
+   span. Once the span a ring was struck in has ended, it founds nothing and joins no grip —
+   fretted, open or chimed alike — and only a restrike puts it back into a statement. A bracket
+   announces a stop ONCE, in the span that struck it; from there the tail is what says the finger
+   is still down. At a SLOT OPEN the coverage frontier is the test: a ring struck STRICTLY BEFORE
+   it has its onset behind every span still to come and folds into nothing, while one struck at
+   or after it is fresh evidence and folds in like any other member. This is a question about the
    ring's TENURE only — a node strike still states its node into the grip it is struck in (THE
    NODE GRIP is untouched).
 
-   OF THOSE RINGS, ONLY THE OPEN STRING IS TEXTURE (`textureStop`): printed in the bracket of a
-   later span it rings under, because an open string's 0 stays true for exactly as long as it
-   sounds. A natural harmonic's node was true at the strike and false a moment after it —
-   harmonics are fretted instantaneously, and the hand has left that position by the time the
-   next span arrives — so its stale ring is a plain tail: it prints in no later bracket and
-   classifies nothing, where printing it would claim a finger the hand has long since moved.
+   THE LANDING IS THE ONE SEAM A MEMBER CROSSES, and the one place the HAND still decides. A
+   landing is the grip itself moving under fingers that slid and never lifted, so the survivors
+   are the closing span's own FRETTED members: a ring that span never held was never its member,
+   and a HAND-FREE ring — one the fretting hand presses nothing for, fret 0, covering the open
+   string and equally the node a natural or open-string tap harmonic touches (`handFree`), since
+   that finger lifts the instant the chime sounds — neither slid nor stayed. It hands nothing to
+   the successor and counts toward no survivor threshold. The consequence is accepted by name: a
+   one-string slide over a struck drone lands into no bracket.
+
+   OF THE RINGS REFUSED AT EITHER SITE, ONLY THE OPEN STRING IS TEXTURE (`textureStop`): printed
+   in the bracket of a later span it rings under, because an open string's 0 stays true for
+   exactly as long as it sounds and claims no finger. Any other stop would claim one — a fretted
+   ring's was already announced by the span that struck it, and a natural harmonic's node was true
+   at the strike and false a moment after it, harmonics being fretted instantaneously — so every
+   other stale ring is a plain tail: it prints in no later bracket and classifies nothing.
 
 ### When a span runs and ends
 

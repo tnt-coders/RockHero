@@ -131,10 +131,14 @@ member arithmetic expresses it is not, because the code admits more than one rea
 Settle this in the law session, not in the implementing commit. Whichever wins must also state the
 span's EXTENT explicitly: the ruling says "for the duration the grip is held", which is the
 harmonic's ring plus every later note holding the same grip — not the harmonic's onset alone. The
-extent the ruling wants is already reachable: `handFree` is `stop.fret == 0`
-(`rock-hero-common/core/src/chart/chart_shapes.cpp:235-238`), so a NATURAL harmonic's ring is
-hand-free — the finger lifts at the chime — while a pressed-stop harmonic's is hand-HELD, which is
-what lets its span run the ring.
+extent the ruling wants is already reachable without a new column: a span runs while every SOUNDING
+member's stored ring is continuous, so a pressed-stop harmonic founding a span of its own carries
+that span for its own ring and for every later note holding the same grip. What `handFree`
+(`stop.fret == 0`, `rock-hero-common/core/src/chart/chart_shapes.cpp:235-241`) decides is the
+LANDING alone — a string no finger holds can be no survivor there. It no longer gates the slot
+open, where A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN refuses every spent ring alike, so a
+natural and a pressed-stop harmonic are treated the same when one of them rings under a later
+figure.
 
 **What to verify that no existing figure covers: the one-string span.** Founding at one member makes
 this the FIRST span in the system whose posture is a single lane. Today founding always states at

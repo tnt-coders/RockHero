@@ -426,16 +426,18 @@ neighbours.
     it), and so does one held finger beside one string still RINGING THROUGH — gating the
     carried fold-in on a strike happening at the slot would make the same ring a member at a
     struck slot and invisible at a claim-bearing one. A LONE member of any kind opens
-    nothing. **A ring no hand holds belongs only to the span it was struck in**: an open string or
-    natural harmonic still ringing out of a span that has ENDED is
-    texture — it folds into no later posture, founds no accumulation and survives into no landing
-    — until it is restruck, which is a statement like any other. The scope differs at the two
-    sites that ask, deliberately. At a LANDING seam every hand-free member is skipped outright:
-    the span the boundary closes IS the span the ring was struck in, so it hands nothing to the
-    successor and counts toward no survivor threshold. At a SLOT OPEN the witness is the coverage
-    frontier — a hand-free ring struck at or after the last emitted span's end is fresh evidence
-    and folds in like any other member — which is what lets an open-position arpeggio still found
-    from its first open string. An OPEN string still SOUNDS under whatever founds over it, so the
+    nothing. **A ring belongs only to the span it was struck in**: every member's onset lies
+    inside its span, so a ring still sounding out of a span that has ENDED — fretted, open or
+    chimed alike — folds into no later posture, founds no accumulation and survives into no
+    landing, until it is restruck, which is a statement like any other. A bracket announces a
+    stop once, in the span that struck it; from there the tail says the finger is still down. At
+    a SLOT OPEN the witness is the coverage frontier — a ring struck at or after the last emitted
+    span's end is fresh evidence and folds in like any other member — which is what lets an
+    open-position arpeggio still found from its first open string. The LANDING is the one seam a
+    member crosses, the grip itself moving under fingers that slid, so its survivors are the
+    closing span's own FRETTED members: a string no hand holds neither slid nor stayed, hands
+    nothing to the successor and counts toward no survivor threshold. An OPEN string still SOUNDS
+    under whatever founds over it, so the
     walk records it as TEXTURE (`OpenSpan::texture`; open strings alone — a harmonic's stale ring
     is a plain tail, its finger gone at the strike) and publishes it beside the grip as
     `ChartPosture::texture`,

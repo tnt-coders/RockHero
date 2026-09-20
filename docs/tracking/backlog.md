@@ -1253,6 +1253,27 @@ against the tree on the date above.
 - **The importer restates the span machine's founding law by hand.** The let-ring fragment
   donation in `gp_chart_builder.cpp` defines "could never found a span" as fewer than three notes
   with no two co-struck — a second spelling of `g_span_member_threshold` /
-  `g_accumulation_member_minimum` in `chart_shapes.cpp`. It agrees today; it will silently disagree
-  the day either threshold, or what counts toward it, moves (the carried-ring founding rule is
-  exactly such a move). Share the constants, or the predicate, before that change lands.
+  `g_accumulation_member_minimum` in `chart_shapes.cpp`. Since the founding law became "a ring
+  belongs only to the span it was struck in" (2026-09-20) the two DISAGREE on one side: the
+  importer holds that three staggered notes always found, but a note struck before the frontier —
+  the end of the last span emitted anywhere — is refused, so such a figure can reach only two and
+  found nothing. The failure is a MISSED donation (a remnant left in its own figure), never a false
+  one. Sharing the constants no longer suffices: whether a note set can found depends on the
+  frontier, which only the walk knows, so the importer must ask the span machine.
+
+- **The span machine states "a beginning an emitted span already fronted is spent" twice.** In
+  `deriveChartShapes`, a strike clamps `stated_since` to the frontier, and the front computation
+  separately skips a member whose `stated_since` lies behind the floor. The clamp's comment argues
+  such a member dates the next span FROM the frontier; the skip makes it date NOTHING. Merging to
+  one authority changes where some spans front, so it needs a ruling and a corpus measurement.
+
+- **Three guards in the span machine can never fire.** `!hand[i].finger.has_value()` in
+  `in_force`, `span_reach` and `member_travelling`: `finger` is never cleared and every write into
+  a span's stops comes from a path that set it. Prove it with an assert run over the corpus, then
+  delete them.
+
+- **Three span tests lost the figure that discriminated them.** Under the strict founding law a
+  break followed by rings alone founds nothing, so the same-fret-versus-moved restatement over a
+  foreign ring, natural-versus-artificial harmonic at the slot open, and the abutting-spans
+  projection case now assert through equality or the close alone. Each wants a co-struck partner
+  at the breaking slot to put its original discrimination back under test.

@@ -2707,8 +2707,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // other span row is read against. The figure is what the span laws produce
                 // together: a run over one grip is ONE span however often it restrikes (rule 11
                 // and the grip-statement law), a span ends at the first genuine stored gap on a
-                // sounding member (the continuity law), a ring no hand holds belongs only to the
-                // span it was struck in, and a strike on a ringing open breaks the span it stands
+                // sounding member (the continuity law), a ring belongs only to the span it was
+                // struck in, and a strike on a ringing open breaks the span it stands
                 // in rather than growing it. An expectation copied off this rig's own output would
                 // check nothing, so the pin is a figure a reader signed and the row is left to
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
@@ -2731,8 +2731,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // only arrival trigger they meet, so each would print as a chord box without it.
                 // Far fewer than the spans that meet trigger 4 at all (section [3]), because a
                 // span some interior sounding already flipped needs no carry to do it. The carry
-                // is read as a GRIP here, so a stale open ring no hand holds is not a member to
-                // fold in and texture the bracket prints is not counted.
+                // is read as a GRIP here, so a ring struck inside a span that has since closed is
+                // not a member to fold in and texture the bracket prints is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
                 .expected = 106.0,

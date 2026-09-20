@@ -465,13 +465,12 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         }));
     }
 
-    SECTION("a carried ring crossing in over COVERED ground bounds the span it joins")
+    SECTION("a carried ring crossing in over COVERED ground joins nothing and bounds nothing")
     {
-        // THERE IS ONE KIND OF MEMBER: a ring crossing in from ground a preceding span already
-        // covered states a stop AND a reach, which knowingly overrules LAW III's
-        // classifies-never-bounds rider. The `covered` frontier is the dating floor and nothing
-        // more, which is why the front sits at the chord's own slot while the reach takes the
-        // carry's early death.
+        // A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN: the carry's onset sits inside a span
+        // already emitted, so it is no member of the chord's — it states no stop into the posture
+        // and writes none of its reach. The chord's own two strings are the whole shape, fronted
+        // at their slot and in force for their own rings.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 3, 7, Fraction{9, 4}),
             noteAt(1, Fraction{}, 4, 9, Fraction{1, 8}),
@@ -480,20 +479,15 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
-        // The chord's own span: dated at its own slot (the carry is behind the frontier and cannot
-        // back-date it), and ending a quarter beat in where the carried ring dies.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes[1].sustain == Fraction{1, 4});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
-        CHECK(
-            derived.postures[derived.shapes[1].posture].stops[2] == std::optional{frettedStop(7)});
+        CHECK_FALSE(derived.postures[derived.shapes[1].posture].stops[2].has_value());
 
-        // THE DISCRIMINATING VARIANT the sibling dating fixtures cannot supply. Both of those
-        // ("THE DATING RULE" and the dating-clamp case) end their carried ring at exactly the same
-        // instant as their struck members, so they answer the same whether the carry bounds or not
-        // and would never catch a regression here. This is the same figure at the sibling's shape
-        // with the clamped member's ring ending BEFORE the dating members' — one beat of span where
-        // the classifies-never-bounds reading says two.
+        // The control one ring apart: the same figure with the carry outliving the chord's slot by
+        // a whole beat rather than a quarter. The chord's span is the same either way, which is
+        // what "no member" means — a ring outside the shape can neither shorten nor lengthen the
+        // statement it was never part of.
         const ChartShapes discriminating = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 3, 9, Fraction{3}),
             noteAt(1, Fraction{}, 4, 11, Fraction{1, 8}),
@@ -502,7 +496,7 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         }));
         REQUIRE(discriminating.shapes.size() == 2);
         CHECK(discriminating.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(discriminating.shapes[1].sustain == Fraction{1});
+        CHECK(discriminating.shapes[1].sustain == Fraction{2});
     }
 }
 
@@ -1445,22 +1439,18 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // own stored ring instead: string 1 stopped half a beat in, which is an authored
         // detachment, so the statement ended there and this re-pick JOINS nothing.
         //
-        // THE ACCUMULATION LAW: joining nothing is not the same as stating nothing. The re-pick's
-        // own ring overlaps the strings still sounding, so members hold a shape at that instant and
-        // the opening law opens one for them — dated at the re-pick, because those onsets are
-        // covered by the span that just ended. The discrimination this section exists for is the
-        // FIRST span's length.
-        //
-        // A THIRD chord string rings through beside string 2, so the shape the re-pick joins
-        // reaches the accumulation minimum; without it the re-pick's own ring and one survivor
-        // are two members, which state nothing.
+        // And joining nothing is founding nothing: A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK
+        // IN, so the chord's rings still sounding under the re-pick belong to the span that struck
+        // them and accumulate no second shape. A THIRD chord string rings through beside string 2
+        // to say that the refusal is the reason rather than the count — three rings under the
+        // re-pick would be an accumulation twice over if any of them could still be a member.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[0].sustain = Fraction{1, 2};
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{2}));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
     }
 
     SECTION("an adjacent re-pick continues where no drawn tail could witness it")
@@ -1508,15 +1498,15 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // The control the section above needs: position is what the comparison reads, so moving the
         // finger is a contradiction the span cannot absorb — in EITHER founding (absorption admits
         // growth, never a stop the shape already states differently). Without this the section
-        // above would pass on a rule that had stopped comparing anything. What the moved finger
-        // then does is hold a shape with the strings still ringing beside it, which the opening law
-        // brackets as an accumulation — a third chord string rings through so that shape reaches
-        // the accumulation minimum.
+        // above would pass on a rule that had stopped comparing anything. The moved finger then
+        // stands alone: the chord's rings sounding beside it belong to the span it just broke (A
+        // RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so they accumulate nothing — a third
+        // chord string rings through to say that the refusal is the reason and not the count.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[2].fret = 6;
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{2}));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].sustain == Fraction{1});
     }
 
@@ -1568,15 +1558,15 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         notes[2].fret = 9;
         notes.push_back(claimAt(1, Fraction{}, 3, 5));
         const ChartShapes derived = deriveFrom(streamOf(notes));
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].sustain == Fraction{1});
         // The stop the charter authored prints inside the span it was authored in; what it does
         // not do is swallow the note that contradicts it.
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[2] == std::optional{frettedStop(5)});
-        // And the contradicting note holds a shape of its own with the chord still ringing under
-        // it, which the accumulation law brackets.
+        // And the contradicting note stands alone: the chord's rings sounding beside it belong to
+        // the span it broke, so nothing accumulates a second shape around it.
     }
 
     SECTION("a re-pick cannot OPEN a shape")
@@ -3101,8 +3091,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // travel there and the landing, behind the close, opens nothing. It has to be a
         // contradiction, because a mid-slide sounding on a string the shape does not STATE would be
         // ordinary growth. The contradicting strike then stands alone: the other glide is
-        // mid-travel and states no grip, and the two open rings are texture — A RING NO HAND HOLDS
-        // BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — so nothing founds behind the close.
+        // mid-travel and states no grip, and the two open rings are texture — A RING BELONGS ONLY
+        // TO THE SPAN IT WAS STRUCK IN — so nothing founds behind the close.
         const std::vector<ChartNote> contradicting = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{4}), {{Fraction{2}, 7}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{4}), {{Fraction{2}, 9}}),
@@ -3646,18 +3636,17 @@ TEST_CASE("The inert-claim settle judges the saved form, not the latent one", "[
 
 // THE ONE PER-STRING RECORD (N5 (a)): one record per sounded string, rather than two arrays over
 // one fact — the STOPS each string states and the REACH each member's ring covers — which would let
-// a string be in one and not the other. These pin the seam's halves: a sounded member's ring BOUNDS
-// the span whether it was struck into it or carried in, a tap's sound chains a statement it may not
-// bound, and a member's travel is seen by the span it is in.
+// a string be in one and not the other. These pin the seam's halves: a ring the span refuses as a
+// member states neither its stop nor its reach, a tap's sound chains a statement it may not bound,
+// and a member's travel is seen by the span it is in.
 TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][chart]")
 {
-    SECTION("a fold-in whose ring ends mid-span BOUNDS it, like every other sounded member")
+    SECTION("a ring struck inside an emitted span states nothing into the next and bounds nothing")
     {
-        // There is ONE KIND OF MEMBER, so the carried string's death at a quarter beat in is the
-        // grip breaking: a carry crossing covered ground states its stop AND its reach, which
-        // knowingly overrules LAW III's classifies-never-bounds rider. What keeps the consequence
-        // bounded is the import's own contradiction cut, which co-terminates let-ring rings at grip
-        // changes; the fragmentation that causes is accepted.
+        // The per-string record is written for MEMBERS, and A RING BELONGS ONLY TO THE SPAN IT WAS
+        // STRUCK IN: this carry's onset lies inside a span already emitted, so the chord's span
+        // neither takes its stop nor takes its reach. One refusal answers both columns at once,
+        // which is what having one record per string is for.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 3, 9, Fraction{9, 4}),
             noteAt(1, Fraction{}, 4, 11, Fraction{1, 8}),
@@ -3668,14 +3657,14 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        // The carry states its stop in the posture...
+        // The carry states no stop in the posture...
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& frets =
             derived.postures[derived.shapes[1].posture].stops;
-        CHECK(frets[2] == std::optional{frettedStop(9)});
-        // ...and bounds it: the statement holds for the quarter beat the carry had left, not for
-        // the struck members' three beats.
-        CHECK(derived.shapes[1].sustain == Fraction{1, 4});
+        CHECK_FALSE(frets[2].has_value());
+        // ...and writes none of the reach: the statement holds for the struck members' three
+        // beats, not for the quarter beat the carry had left.
+        CHECK(derived.shapes[1].sustain == Fraction{3});
     }
 
     SECTION("a tap carries the SOUND past the coverage, and the close still reads the coverage")
@@ -3986,12 +3975,16 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
             noteAt(3, Fraction{}, 1, 8, Fraction{2}),
         });
         const ChartShapes derived = deriveFrom(notes);
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        // The contradicting slot strikes ONE string and the shape it opens holds two, the second
-        // folded in from the ring still crossing it — the opening law's own disjunction, asked at
-        // the break like anywhere else.
+        // The split is the CLOSE: the accumulation ends at the contradicting onset. What the
+        // contradicting slot then states is one struck string, since the rings crossing it belong
+        // to the span it just broke — A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — so the
+        // opening law finds one member there and opens nothing.
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 3}});
         everySpanIsPositive(derived);
     }
 
@@ -4198,9 +4191,9 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         // No overlap, which is the whole promise: the first span's end is at or before the
         // second's start.
         CHECK(derived.shapes[0].sustain <= Fraction{2});
-        // And the carry that could not backdate is still a MEMBER: it states its stop into the
-        // grip and says nothing about how far the chord's statement reaches.
-        CHECK(memberCount(derived, 1) == 3);
+        // And the carry that could not backdate is no MEMBER either: its onset lies inside the
+        // span already emitted, so the chord's shape is the two strings it struck.
+        CHECK(memberCount(derived, 1) == 2);
         CHECK(derived.shapes[1].sustain == Fraction{2});
     }
 
@@ -4322,11 +4315,11 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
 
         // The drones found with the first melody note, and the span dates from the earlier of
         // their onsets. The second melody note states a DIFFERENT stop on the same string — a
-        // contradiction, which breaks the grip — and there the figure ENDS: A RING NO HAND HOLDS
-        // BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, so the drones ringing on out of the closed
-        // span are texture, and a lone melody note over them founds nothing. Without that rule the
-        // figure reads as three re-headed one-note brackets, and the corpus grows a chain of them
-        // under every melody over a let-ring drone whose open rings run to the end of the phrase.
+        // contradiction, which breaks the grip — and there the figure ENDS: A RING BELONGS ONLY TO
+        // THE SPAN IT WAS STRUCK IN, so the drones ringing on out of the closed span are texture,
+        // and a lone melody note over them founds nothing. Without that rule the figure reads as
+        // three re-headed one-note brackets, and the corpus grows a chain of them under every
+        // melody over a let-ring drone whose rings run to the end of the phrase.
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(
@@ -4368,8 +4361,8 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes).front());
         // The SECOND stab is a plain box: the drone is ringing on out of the span the first stab
-        // closed, and A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — it joins no
-        // later GRIP until it is restruck, so two struck stops are the whole shape and the stroke
+        // closed, and A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — it joins no later GRIP
+        // until it is restruck, so two struck stops are the whole shape and the stroke
         // says it whole. It still SOUNDS under that shape, so the published posture carries it as
         // TEXTURE beside the two-string grip — and TEXTURE CLASSIFIES: the stab's members sound
         // separately from the drone under them, so the span is published in parts and draws the
@@ -4400,18 +4393,14 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         const ChartShapes derived = deriveFrom(notes);
 
         // The first member dies at beat three, so the span it founded stops there rather than
-        // running to the far end of a texture it stopped being part of.
-        REQUIRE(derived.shapes.size() >= 2);
+        // running to the far end of a texture it stopped being part of. And the relay stops with
+        // it: A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, so the two long rings crossing the
+        // strike a measure later are that span's members and nobody else's, and the lone strike
+        // they cross states one stop and founds nothing.
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(memberCount(derived, 0) == 3);
-        // Nothing later claims the dead member's stop again.
-        for (std::size_t shape = 1; shape < derived.shapes.size(); ++shape)
-        {
-            CAPTURE(shape);
-            REQUIRE(derived.shapes[shape].posture < derived.postures.size());
-            CHECK(derived.postures[derived.shapes[shape].posture].stops[0] == std::nullopt);
-        }
         everySpanIsPositive(derived);
     }
 }
@@ -4885,44 +4874,39 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         });
     };
 
-    SECTION("A CONTRADICTION over a foreign ring splits an accumulation")
+    SECTION("A CONTRADICTION over a foreign ring closes an accumulation")
     {
-        // Fret 8 against a string still sounding fret 5: the finger moved, whatever the grown span
-        // knows. Absorption is refused and the span closes at that beat.
+        // The hold names another stop on a string still sounding fret 5: the finger moved,
+        // whatever the grown span knows. Absorption is refused and the span closes at that beat.
         const ChartShapes derived = deriveFrom(figure(8));
 
-        // Three spans — the accumulation, the piece the hold's own break opened, and the shape the
-        // contradiction founds. Absorbed, the middle piece would run on to string two's own ring
-        // end and there would be two.
-        REQUIRE(derived.shapes.size() == 3);
+        // One span — the accumulation, ended at the hold's own onset. The rings that go on past
+        // that close belong to it and to nothing after it (A RING BELONGS ONLY TO THE SPAN IT WAS
+        // STRUCK IN), so the hold states one stop over them and opens nothing, and so does the
+        // restatement a measure later.
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(derived.shapes[0].sustain == Fraction{2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        // The middle piece ends AT the contradicting onset — the walk's own close, which this law
-        // reuses and adds no path of its own to.
-        CHECK(derived.shapes[1].sustain == Fraction{2});
-        REQUIRE(derived.shapes[1].posture < derived.postures.size());
-        // And it prints the grip the hold stated, never the fret the contradiction takes.
+        // Two beats: the close falls at the hold's own onset. It publishes no head, because the
+        // fretting hand strikes nothing there.
+        CHECK_FALSE(derived.shapes[0].closing_onset.has_value());
+        REQUIRE(derived.shapes[0].posture < derived.postures.size());
+        // It prints the grip its own members struck, never the fret the contradiction takes.
         CHECK(
-            derived.postures[derived.shapes[1].posture].stops[0] == std::optional{frettedStop(12)});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
-        REQUIRE(derived.shapes[2].posture < derived.postures.size());
-        CHECK(
-            derived.postures[derived.shapes[2].posture].stops[0] == std::optional{frettedStop(8)});
+            derived.postures[derived.shapes[0].posture].stops[0] == std::optional{frettedStop(5)});
         everySpanIsPositive(derived);
     }
 
-    SECTION("A SAME-FRET restatement over a foreign ring never splits")
+    SECTION("A restatement over a foreign ring derives alike at either fret")
     {
-        // The tie doctrine, and the control the arm above needs: the string is restated where it is
-        // already sounding, so no finger moved and there is nothing to contradict. That the hold
-        // dated a move to another fret is a claim, and claims are not what this arm reads.
+        // The control the arm above needs, and what the membership law makes of it: the rings the
+        // restatement arrives over were struck inside the closed accumulation, so they are no
+        // members of anything the restatement could join OR split. Same fret or moved finger, the
+        // lone strike states one stop over spent rings and the derivation is identical — the law
+        // stated as an equality rather than as a second set of numbers.
+        derivesLike(figure(5), figure(8));
         const ChartShapes derived = deriveFrom(figure(5));
-
-        // Two spans, the restatement riding the grown one exactly as growth does.
-        REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes[1].sustain == Fraction{3});
+        REQUIRE(derived.shapes.size() == 1);
         everySpanIsPositive(derived);
     }
 
@@ -4964,12 +4948,11 @@ TEST_CASE("A foreign sounding ring contradicts a slot that restates its string",
         const ChartShapes derived = deriveFrom(notes);
 
         // The first section's picture, reached through the claim rather than the ring: the
-        // middle piece closes at the junction and the strike founds the third shape over the
-        // rings still sounding.
-        REQUIRE(derived.shapes.size() == 3);
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes[1].sustain == Fraction{2});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 2, .beat = 1});
+        // accumulation closes at the junction all the same, and the strike a measure later stands
+        // alone over rings that belong to the span the junction closed.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         everySpanIsPositive(derived);
     }
 }
@@ -5205,18 +5188,17 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
     // 7 IT SOUNDS, which is the very stop the span already holds, and the figure derives exactly
     // as the same notes plainly picked: the break falls at the RELEASE, where a stop the span
     // never held is stated for the first time.
-    SECTION("the release breaks the up-position span and founds its own")
+    SECTION("the release breaks the up-position span, and nothing founds over its rings")
     {
-        // The figure as sighted carried an OPEN sixth string beneath the 7/8 position. Since A RING
-        // NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN, that ring is texture once the
-        // up-position span breaks, so the successor has two hand-bound members — the released 5 and
-        // the 8 whose ring proves its finger never lifted — and the slot open counts them as an
-        // accumulation under the three-member minimum: no span founds. The rule this case is ABOUT
-        // is where the break falls, so the fretted-scaffold stream below carries the full
-        // assertions; this stream pins the open scaffold's consequence. Members carried straight
-        // out of a broken span ARRIVE rather than counting as established (chart-ruleset.md, THE
-        // LANDING'S TWO DOES NOT GENERALIZE): a landing's two is the same grip in motion, a break
-        // is a new statement judged fresh.
+        // The figure as sighted carried an OPEN sixth string beneath the 7/8 position; the stream
+        // below carries a fretted 3 there instead, and A RING BELONGS ONLY TO THE SPAN IT WAS
+        // STRUCK IN makes the two one case. Every ring under the release was struck inside the
+        // span the release breaks, so the released 5 stands alone there and no successor founds,
+        // whichever stop the scaffold holds. The LANDING is the one seam a member crosses — the
+        // grip itself moving, carried by fingers that slid — and a break is not a landing
+        // (chart-ruleset.md, THE LANDING'S TWO DOES NOT GENERALIZE): it is a new statement judged
+        // fresh. The rule this case is ABOUT is where the break falls, which is what the
+        // up-position frame below records.
         const ChartShapes open_scaffold = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 4, 7, Fraction{3}),
             noteAt(1, Fraction{}, 5, 8, Fraction{3}),
@@ -5239,7 +5221,7 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
             pullOffAt(3, Fraction{1, 2}, 4, 5, Fraction{1}),
         }));
 
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         // Two and a half beats to the break: the source restates the 7 the span already holds and
         // carries it, so the span runs to the RELEASE'S own onset and not to the source's.
@@ -5247,15 +5229,6 @@ TEST_CASE("A source over ground its string never held states the fret it sounds"
         // The up-position frame stays whole: no landing 5 ever reaches it.
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[3] == std::optional{frettedStop(7)});
-        CHECK(
-            derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 3, .offset = Fraction{1, 2}});
-        // The successor wears the released stop on the pulled string and carries the rings beside
-        // it.
-        CHECK(
-            derived.postures[derived.shapes[1].posture].stops[3] == std::optional{frettedStop(5)});
-        CHECK(
-            derived.postures[derived.shapes[1].posture].stops[4] == std::optional{frettedStop(8)});
         everySpanIsPositive(derived);
     }
 
@@ -5314,8 +5287,8 @@ TEST_CASE(
         derivesLike(notes, figure(0, noteAt(1, Fraction{1, 2}, 5, 0, Fraction{2})));
 
         // The numbers once, on the figure itself, so the equality above has something to mean: the
-        // whole-grip box at the stroke, then the parts figure the release founds under the ring
-        // that survives it.
+        // whole-grip box at the stroke, then the parts figure the open strings accumulate, fronted
+        // at the release that begins it.
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
@@ -5326,12 +5299,13 @@ TEST_CASE(
         CHECK(
             derived.shapes[1].position ==
             GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
-        // The statement runs out where its first member stops stating — string 2's ring end at
-        // beat 3 (the continuity law); nothing here renews it.
-        CHECK(derived.shapes[1].sustain == Fraction{3, 2});
+        // String 2's ring belongs to the box that struck it (A RING BELONGS ONLY TO THE SPAN IT
+        // WAS STRUCK IN), so the parts figure is the three open strings alone and its statement
+        // runs out where THEY stop ringing (the continuity law); nothing here renews them.
+        CHECK(derived.shapes[1].sustain == Fraction{2});
         CHECK(derived.shapes[1].sounds_in_parts);
         const std::vector<std::optional<ChartStop>>& frets = derivedStops(derived, 1);
-        CHECK(frets[1] == std::optional{frettedStop(3)});
+        CHECK_FALSE(frets[1].has_value());
         CHECK(frets[2] == std::optional{frettedStop(0)});
         CHECK(frets[3] == std::optional{frettedStop(0)});
         CHECK(frets[4] == std::optional{frettedStop(0)});
@@ -5566,10 +5540,9 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     // AT: string 3 states fret 3 on the downbeat and rings exactly into the source, which then
     // falls back to that very 3. An ORDINARY source there is a finger added above a stop the
     // string demonstrably holds, so it states the 3 and the figure never seams; the HARMONIC over
-    // a pressed stop states its PRESSED FRET whatever waits beneath it, so the same figure seams
-    // twice — once where the node's 5 displaces the 3, once where the release puts the 3 back.
-    // Over any other ground the two forms agree, which is why the discrimination has to be asked
-    // here or nowhere.
+    // a pressed stop states its PRESSED FRET whatever waits beneath it, so the same figure BREAKS
+    // at the node's own onset, where that 5 displaces the 3. Over any other ground the two forms
+    // agree, which is why the discrimination has to be asked here or nowhere.
     const auto over_its_landing = [](ChartNote sounded) {
         return streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{3}),
@@ -5594,18 +5567,24 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         everySpanIsPositive(derived);
     }
 
-    SECTION("the harmonic over the same ground states its pressed fret and seams twice")
+    SECTION("the harmonic over the same ground states its pressed fret and breaks the grip")
     {
         ChartNote touched = noteAt(2, Fraction{}, 3, 5, Fraction{1});
         touched.harmonic_node = 17.0;
         const ChartShapes derived = deriveFrom(over_its_landing(std::move(touched)));
 
-        REQUIRE(derived.shapes.size() == 3);
+        // One beat instead of the ordinary source's three: the pressed 5 contradicts the 3 the
+        // grip states, so the span closes at the harmonic's own onset. What the harmonic states
+        // there is a single stop over rings that belong to the span it just broke (A RING BELONGS
+        // ONLY TO THE SPAN IT WAS STRUCK IN), so nothing founds at it — nor at the release that
+        // puts the 3 back, which stands just as alone.
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 2}});
         CHECK(derivedStops(derived, 0)[2] == std::optional{frettedStop(3)});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(5)});
-        CHECK(derived.shapes[2].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derivedStops(derived, 2)[2] == std::optional{frettedStop(3)});
         everySpanIsPositive(derived);
     }
 
@@ -5626,20 +5605,17 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     };
     // What the law yields once both arms ask the grip statement: the span founded at the harmonic's
     // onset keeps the PRESSED 5 on its string and CLOSES at the release's own onset (the close's
-    // event arm), and the release founds its own span there — taking the two chord strings in as
-    // the rings they still are, and stating its 3 on the string it landed on.
-    const auto splitsAtTheRelease = [](const std::vector<ChartNote>& notes) {
+    // event arm). The release states its 3 alone there — the two chord strings ringing under it
+    // were struck inside the span it closed, and A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN
+    // — so nothing opens after it, and the pressed 5 stands as the last thing the grip said.
+    const auto closesAtTheRelease = [](const std::vector<ChartNote>& notes) {
         const ChartShapes derived = deriveFrom(notes);
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(5)});
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        // One beat from beat 1 at 4/4: the release's onset, which is also where span 1 opens.
+        // One beat from beat 1 at 4/4: the release's own onset.
         CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK(derived.shapes[0].closing_onset == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derivedStops(derived, 1)[3] == std::optional{frettedStop(3)});
-        CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(5)});
-        CHECK(derivedStops(derived, 1)[4] == std::optional{frettedStop(5)});
         everySpanIsPositive(derived);
     };
 
@@ -5647,12 +5623,12 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     {
         ChartNote inner = noteAt(1, Fraction{}, 4, 5, Fraction{1});
         inner.harmonic_node = 17.0;
-        splitsAtTheRelease(co_struck(std::move(inner)));
+        closesAtTheRelease(co_struck(std::move(inner)));
     }
 
-    SECTION("the co-struck tapped twin derives the same two spans")
+    SECTION("the co-struck tapped twin derives the same one span")
     {
-        // The tapped form already split here before the ruling, by a different road — a tapped
+        // The tapped form already broke here before the ruling, by a different road — a tapped
         // harmonic reaches the span as a CLAIM, and the claim witness broke on the release — so
         // this section is what pins the two forms AGREEING. One figure, one answer, whichever hand
         // sounds the string.
@@ -5664,7 +5640,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         // artificial form is immune because its own strike refreshes the string.
         ChartNote tapped = tapAt(1, Fraction{}, 4, 5, Fraction{1});
         tapped.harmonic_node = 17.0;
-        splitsAtTheRelease(co_struck(std::move(tapped)));
+        closesAtTheRelease(co_struck(std::move(tapped)));
     }
 
     SECTION("a plain tap's release onto its own planted finger still rides")
@@ -5739,11 +5715,13 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 2, .beat = 2}});
-        // The twelfth-partial chord founds its own span wearing its nodes and the fretted 3 the
-        // ring proves held. The open strings still ringing from the figure it closed are no part
-        // of that GRIP — A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN — but they
-        // SOUND under it, so the published posture carries them as TEXTURE beside the grip and the
-        // bracket prints them: included in the bracket's display, founding nothing.
+        // The twelfth-partial chord founds its own span wearing its three nodes and nothing else.
+        // Every ring still sounding from the figure it closed — the fretted 3 as much as the open
+        // strings — belongs to that closed span, since A RING BELONGS ONLY TO THE SPAN IT WAS
+        // STRUCK IN, so none of them is part of this GRIP. The OPEN ones still SOUND under it, so
+        // the published posture carries those as TEXTURE beside the grip and the bracket prints
+        // them: included in the bracket's display, founding nothing. The fretted ring is a plain
+        // tail — its stop was announced by the span that struck it.
         CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 2});
         const std::vector<std::optional<ChartStop>>& twelfth =
             derived.postures[derived.shapes[1].posture].stops;
@@ -5751,7 +5729,8 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             derived.postures[derived.shapes[1].posture].texture;
         CHECK_FALSE(twelfth[0].has_value());
         CHECK(under_twelfth[0] == std::optional{frettedStop(0)});
-        CHECK(twelfth[1] == std::optional{frettedStop(3)});
+        CHECK_FALSE(twelfth[1].has_value());
+        CHECK_FALSE(under_twelfth[1].has_value());
         CHECK_FALSE(twelfth[2].has_value());
         CHECK(under_twelfth[2] == std::optional{frettedStop(0)});
         CHECK(twelfth[3] == std::optional{nodeStop(12.0)});
@@ -5783,10 +5762,12 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         CHECK(
             derived.shapes[4].position ==
             GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
-        CHECK(derived.shapes[4].sustain == Fraction{3, 2});
+        // The stroke's own fretted 3 belongs to the stroke's box, so the parts span the release
+        // fronts is the open strings alone and runs for as long as THEY ring.
+        CHECK(derived.shapes[4].sustain == Fraction{2});
         const std::vector<std::optional<ChartStop>>& figure =
             derived.postures[derived.shapes[4].posture].stops;
-        CHECK(figure[1] == std::optional{frettedStop(3)});
+        CHECK_FALSE(figure[1].has_value());
         CHECK(figure[2] == std::optional{frettedStop(0)});
         CHECK(figure[3] == std::optional{frettedStop(0)});
         CHECK(figure[4] == std::optional{frettedStop(0)});
@@ -5796,7 +5777,10 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
     SECTION("node 5 and fret 5 are two grips, never one")
     {
         // A grip holding a pressed 5 on string 3, then a natural at the FIFTH-fret node on that
-        // string: the same printed number, a different place, so the grip breaks.
+        // string: the same printed number, a different place, so the grip breaks. The BREAK is the
+        // whole proof — read as fret 5 the node restates the stop and the span rides through it —
+        // and the node itself founds nothing, because the rings it arrives over belong to the span
+        // it closed (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN).
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{7, 2}),
@@ -5804,20 +5788,22 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             harmonicAt(3, Fraction{}, 3, 5.0, Fraction{1}),
         }));
 
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[2] == std::optional{frettedStop(5)});
-        CHECK(derived.postures[derived.shapes[1].posture].stops[2] == std::optional{nodeStop(5.0)});
         everySpanIsPositive(derived);
     }
 
     SECTION("a node touch is not the open string it shares a fret number with")
     {
         // The grip holds string 4 OPEN; a natural at node 12 on that string is a finger arriving
-        // on a string that had none, and the grip breaks at it.
+        // on a string that had none, and the grip breaks at it. The BREAK is the whole proof —
+        // read as the open string the node restates what the grip holds and the span rides — and
+        // the node founds nothing over rings that belong to the span it closed.
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{7, 2}),
@@ -5825,12 +5811,11 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             harmonicAt(3, Fraction{}, 4, 12.0, Fraction{1}),
         }));
 
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 3}});
-        CHECK(
-            derived.postures[derived.shapes[1].posture].stops[3] == std::optional{nodeStop(12.0)});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         everySpanIsPositive(derived);
     }
 
@@ -5923,23 +5908,27 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
     }
 }
 
-// A RING NO HAND HOLDS BELONGS ONLY TO THE SPAN IT WAS STRUCK IN. A hand-free stop — the open
-// string, the node a natural harmonic touches — presses nothing, so its ring proves nothing about
-// where the hand is: struck, it is a member of the span standing or founded at its strike like any
-// other note, but once that span has ended the ring is texture. It founds no accumulation, folds
-// into no posture and survives into no landing, until it is RESTRUCK. The witness is the coverage
-// frontier: a hand-free ring struck at or after it was struck under no span that has since closed,
-// which is what keeps an open-position arpeggio founding from its first open string. Without it,
-// open rings running to the end of their phrase give every melody note over a ringing drone a
-// one-note bracket.
-TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[core][chart]")
+// A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN: every member's onset lies inside its span.
+// Struck, a ring is a member of the span standing or founded at its strike like any other note;
+// once that span has ended the ring founds no accumulation and folds into no later posture, open
+// or fretted or chimed alike, until it is RESTRUCK. The witness is the coverage frontier: a ring
+// struck at or after it was struck under no span that has since closed, which is what keeps an
+// open-position arpeggio founding from its first open string. A bracket announces a stop once, in
+// the span that struck it; without that, rings running to the end of their phrase give every
+// melody note over them a one-note bracket of its own, restating the same rings each time.
+//
+// What the hand still decides is TEXTURE and the LANDING. A refused ring PRINTS in the later
+// bracket only where it is the open string (\c textureStop), whose 0 claims no finger; every other
+// spent ring is a plain tail. And at the landing — the one seam a member crosses, the grip itself
+// moving under fingers that slid — a string no finger holds (\c handFree) can be no survivor.
+TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
 {
     SECTION("an open-position arpeggio still founds from its first open string")
     {
         // E0, then A2, then D2, each ringing on: the E0 was struck under no span and none has
         // closed since, so at the D2 it is a fresh ring and the three accumulate — dated at the
         // E0, with the 0 in the posture. The fretted control derives the identical shape, which
-        // is the rule being inert where nothing is hand-free.
+        // is the frontier reading TENURE and never the stop.
         const ChartShapes open_first = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 6, 0, Fraction{4}),
             noteAt(2, Fraction{}, 5, 2, Fraction{3}),
@@ -6062,15 +6051,16 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         everySpanIsPositive(control);
     }
 
-    SECTION("texture: a stale hand-free ring prints in the bracket and founds nothing")
+    SECTION("texture: a stale open ring prints in the bracket and founds nothing")
     {
         // A chord with a drone struck under it is one span; its fretted rings quit and the drone
-        // rings on. A staggered figure then accumulates on THREE hand-bound rings — the drone is no
-        // part of that count — and the span it founds prints the drone as TEXTURE: the bracket
-        // states what sounds under the shape, included in that span's bracket display. The drone
-        // dies before the figure's members do and ends nothing, and a fret struck on its string
-        // grows the grip, whose stop outranks the texture. The control has one hand-bound ring
-        // fewer: with the drone counting for nothing, no span founds. A chord STRUCK over the drone
+        // rings on. A staggered figure then accumulates on THREE FRESH rings — the drone, struck
+        // inside the span that has since closed, is no part of that count — and the span it founds
+        // prints the drone as TEXTURE: the bracket states what sounds under the shape, included in
+        // that span's bracket display. The drone dies before the figure's members do and ends
+        // nothing, and a fret struck on its string grows the grip, whose stop outranks the texture.
+        // The control has one fresh ring fewer: with the drone counting for nothing, no span
+        // founds. A chord STRUCK over the drone
         // is the other arm — a statement, a box by its own stroke — and TEXTURE CLASSIFIES it:
         // published in parts, so the bracket that prints the 0 draws.
         const auto figure = [](const bool third_member, const Fraction drone_ring) {
@@ -6107,15 +6097,14 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         const ChartShapes replaced = deriveFrom(streamOf(std::move(grown)));
         // A fret struck on the texture string DISPLACES the open sound there (Law A reads the
         // sound, member or not — the user's sighted harmonic chord over ringing opens): the
-        // figure's span breaks at the strike, and the successor's grip holds the 3 with no
-        // texture left on that string. Growing the standing span instead would print the new stop
-        // from a front before which the string audibly rang open.
-        REQUIRE(replaced.shapes.size() == 3);
+        // figure's span breaks at the strike. Growing the standing span instead would print the
+        // new stop from a front before which the string audibly rang open. What the strike founds
+        // is nothing: it states one stop, and every ring it states it over belongs to the span it
+        // just broke.
+        REQUIRE(replaced.shapes.size() == 2);
         CHECK(
             replaced.shapes[1].closing_onset ==
             std::optional{GridPosition{.measure = 2, .beat = 1}});
-        CHECK(derivedStops(replaced, 2)[5] == std::optional{frettedStop(3)});
-        CHECK_FALSE(derivedTexture(replaced, 2)[5].has_value());
         everySpanIsPositive(replaced);
 
         // The chord over the drone: struck whole at beat three while the drone rings on from the
@@ -6176,7 +6165,7 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
 
     SECTION("texture: a natural harmonic ringing in is a plain tail; a landing carries an open")
     {
-        // The same figure with the drone a natural harmonic: hand-free by the same physics, so it
+        // The same figure with the drone a natural harmonic: a spent ring like any other, so it
         // founds nothing — and unlike the open string it is NOT texture either. Its node was true
         // at the strike and false a moment later, because the finger lifted; printing it in this
         // later bracket would claim a finger the hand has long since moved. The figure that
@@ -6237,12 +6226,15 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         everySpanIsPositive(over_fretted);
     }
 
-    SECTION("a natural harmonic's ring is hand-free too; an artificial harmonic's is a held finger")
+    SECTION("a spent ring founds nothing, a finger holding it or not")
     {
-        // A node touch presses nothing, so a natural harmonic struck in one span is texture after
-        // it breaks — the two fretted notes it would have made a third member for found nothing.
-        // An artificial harmonic PRESSES its fret under the damped node, so the same ring carried
-        // across the break is a finger the hand still holds and the three accumulate.
+        // The refusal at the slot open reads TENURE and never the hand: a ring struck inside a
+        // span that has since closed is no member of anything later, whether its stop is a node
+        // the finger left at the chime or a fret the finger never lifted from. A natural harmonic
+        // and an artificial that PRESSES its fret under the damped node therefore derive the same
+        // one span — each states its own stop in the chord that struck it, and neither is a third
+        // member for the two notes that follow. Where the hand still decides is the LANDING, the
+        // one seam a member crosses: there a string no finger holds can be no survivor.
         const auto figure = [](ChartNote sixth) {
             return streamOf({
                 std::move(sixth),
@@ -6258,15 +6250,108 @@ TEST_CASE("A ring no hand holds belongs only to the span it was struck in", "[co
         CHECK(
             natural.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 2}});
+        CHECK(derivedStops(natural, 0)[5] == std::optional{nodeStop(12.0)});
 
         ChartNote artificial = noteAt(1, Fraction{}, 6, 3, Fraction{4});
         artificial.harmonic_node = 15.0;
         const ChartShapes pressed = deriveFrom(figure(artificial));
-        REQUIRE(pressed.shapes.size() == 2);
-        CHECK(pressed.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(derivedStops(pressed, 1)[5] == std::optional{frettedStop(3)});
+        REQUIRE(pressed.shapes.size() == 1);
+        CHECK(pressed.shapes[0].closing_onset == natural.shapes[0].closing_onset);
+        CHECK(pressed.shapes[0].sustain == natural.shapes[0].sustain);
+        CHECK(derivedStops(pressed, 0)[5] == std::optional{frettedStop(3)});
         everySpanIsPositive(natural);
         everySpanIsPositive(pressed);
+    }
+}
+
+// THE FRETTED HABITAT of the same law — the corpus population it was generalized for. Pedal tones
+// and let-ring arpeggios put FRETTED rings under a moving line exactly as drones do, and a bracket
+// announces a stop ONCE, in the span that struck it: afterwards the tail is what says the finger is
+// still down. Each section is one shape the generalization changes.
+TEST_CASE("Fretted rings under a moving line found nothing after their span", "[core][chart]")
+{
+    SECTION("two fretted pedals under a melody found once, at the accumulation")
+    {
+        // Two let-ring pedals on the bass strings, then a melody moving above them. The pedals and
+        // the first melody note accumulate into one shape, dated at the earlier pedal; the melody's
+        // next note contradicts its own string and closes it. Every later melody note then stands
+        // ALONE over the pedals, because their onsets lie inside the span that has closed — one
+        // bracket for the figure, not one per melody note restating the same two pedals.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 6, 3, Fraction{8}),
+            noteAt(1, Fraction{1, 2}, 5, 5, Fraction{15, 2}),
+            noteAt(2, Fraction{}, 1, 7, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+            noteAt(4, Fraction{}, 1, 10, Fraction{1}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(memberCount(derived, 0) == 3);
+        const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
+        CHECK(grip[5] == std::optional{frettedStop(3)});
+        CHECK(grip[4] == std::optional{frettedStop(5)});
+        CHECK(grip[0] == std::optional{frettedStop(7)});
+        // A fretted pedal is a plain tail where a drone would print: texture is the open string
+        // alone, and these strings were never open.
+        CHECK_FALSE(derivedTexture(derived, 0)[5].has_value());
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("an arpeggio picked on through a voice move re-founds from its three FRESH picks")
+    {
+        // The other half of the same law, and the reason it is not a ban on second brackets: a
+        // let-ring arpeggio whose top voice moves is still being PICKED, so the figure rebuilds
+        // itself. The moved note closes the first shape and is the first fresh ring of the next;
+        // the re-picks of the two lower voices join it as they arrive, and the third one musters
+        // the accumulation. The successor fronts at the MOVED NOTE, the earliest onset no emitted
+        // span covers, and its grip is the three stops those picks state.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 3, 9, Fraction{3}),
+            noteAt(1, Fraction{1, 2}, 2, 7, Fraction{2}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 6, Fraction{2}),
+            noteAt(3, Fraction{1, 2}, 2, 7, Fraction{3, 2}),
+            noteAt(4, Fraction{}, 3, 9, Fraction{1}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
+        CHECK(memberCount(derived, 1) == 3);
+        const std::vector<std::optional<ChartStop>>& refounded = derivedStops(derived, 1);
+        CHECK(refounded[0] == std::optional{frettedStop(6)});
+        CHECK(refounded[1] == std::optional{frettedStop(7)});
+        CHECK(refounded[2] == std::optional{frettedStop(9)});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a box struck over an older fretted ring does not list it")
+    {
+        // The membership arm asked of a whole-grip stroke: a fretted note struck in an earlier
+        // span rings on under a chord struck later, and the chord's bracket states the two stops
+        // its own stroke said. The ring is no member, and being fretted it is no texture either —
+        // so the bracket neither counts it nor prints it, and the stroke stays a BOX.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 4, 7, Fraction{4}),
+            noteAt(1, Fraction{}, 5, 5, Fraction{1}),
+            noteAt(3, Fraction{}, 1, 3, Fraction{2}),
+            noteAt(3, Fraction{}, 2, 5, Fraction{2}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(memberCount(derived, 1) == 2);
+        CHECK_FALSE(derivedStops(derived, 1)[3].has_value());
+        CHECK_FALSE(derivedTexture(derived, 1)[3].has_value());
+        CHECK_FALSE(derived.shapes[1].sounds_in_parts);
+        everySpanIsPositive(derived);
     }
 }
 

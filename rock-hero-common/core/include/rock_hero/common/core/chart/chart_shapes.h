@@ -27,8 +27,8 @@ slots empty, and two postures compare by their grip and their texture together.
 
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
 pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
-fretting hand is holding under it (\ref deriveChartShapes). A ring no hand holds never joins the
-grip: an open string still sounding out of an earlier span is at most the TEXTURE beside it. A
+fretting hand is holding under it (\ref deriveChartShapes). A ring struck before the span never
+joins its grip: an open string still sounding under it is at most the TEXTURE beside it. A
 stop carries no provenance here on purpose: the posture is what the hand holds, and where a given
 stop came from is the SPAN's question (\ref ChartShape::silent_member), so two spans holding an
 identical grip over an identical texture stay one deduplicated posture however each was learned —
@@ -50,15 +50,15 @@ struct ChartPosture
     \brief THE TEXTURE under the grip: OPEN strings sounding through the span that belong to an
     earlier span; nullopt where none does, and always nullopt where \ref stops holds the string.
 
-    A ring no hand holds belongs only to the span it was struck in, so an open string or natural
-    harmonic ringing on out of a closed span founds nothing and bounds nothing — but an open string
-    SOUNDS under whatever founds over it, and the bracket states what sounds under the shape, which
-    also classifies the span an arpeggio. Open strings ALONE: an open string's 0 is true for as long
-    as it rings, since no hand was ever on it, while a natural harmonic's node was true at the
-    strike and false a moment later — the finger lifted — so its ring is a plain tail here and
-    prints in no later bracket. Published beside the grip rather than merged into it so that a
-    display can union the two and a rule can read the grip alone, with neither having to guess which
-    is which.
+    A ring belongs only to the span it was struck in, so a note ringing on out of a closed span
+    founds nothing and bounds nothing — but an open string SOUNDS under whatever founds over it,
+    and the bracket states what sounds under the shape, which also classifies the span an arpeggio.
+    Open strings ALONE: an open string's 0 is true for as long as it rings, since no hand was ever
+    on it, while any other stop in a later bracket would claim a finger — a fretted one was
+    announced by the span that struck it, and a natural harmonic's finger lifted at the strike — so
+    those rings are plain tails here and print in no later bracket. Published beside the grip
+    rather than merged into it so that a display can union the two and a rule can read the grip
+    alone, with neither having to guess which is which.
     */
     std::vector<std::optional<ChartStop>> texture;
 
