@@ -1482,7 +1482,20 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 const std::optional<std::size_t>& finger = hand[string_index].finger;
-                if (!finger.has_value() || !(slot.beat < hand[string_index].sounds))
+                if (!finger.has_value())
+                {
+                    continue;
+                }
+                // MEMBERSHIP READS THE REACH COLUMN, never the sound (\ref StringHand): a ring the
+                // FRETTING hand is no longer making crosses no slot, whatever the other hand is
+                // sounding over it. A tap ringing on past the fretted note beneath it keeps
+                // `sounds` alive while `covers` is spent, and a member folded in on that evidence
+                // closes the span at or before its own front — zero or negative extent. Read
+                // through \ref coverage_at for the reason the write below uses it (a landing the
+                // walk passed caps the reach), and bound once so the gate and the write are
+                // provably one instant.
+                const Fraction covers = coverage_at(string_index, slot.beat);
+                if (!(slot.beat < covers))
                 {
                     continue;
                 }
@@ -1541,7 +1554,7 @@ ChartShapes deriveChartShapes(
                 // landing, which is the span the sighted slide figure emitted over its own
                 // travel beats. A string a STANDING span states is never re-read: its cap is
                 // live, and that cap is what closes the span at its member's landing (rule 10).
-                hand[string_index].covers = coverage_at(string_index, slot.beat);
+                hand[string_index].covers = covers;
                 ++total;
             }
             const bool opens =

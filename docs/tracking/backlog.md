@@ -1223,14 +1223,14 @@ against the tree on the date above.
   About 20 files, no format change. The two files above carry BOTH senses, so rename them by hand,
   never by sweep. Pick up only when the user asks. (task #287)
 
-- **A span can derive with ZERO length (found 2026-09-19, not caused by the hold-under re-ruling).**
-  A tap with a very short ring beside a pull-off on a neighbouring figure derives a span whose
-  sustain is 0 with a sounding member in it, so `everySpanIsPositive` fails on it: two picked notes
-  struck together at 1:1, two more entering at 2:1 and 2:1+1/2, a tap on the first string at 2:1
-  with a 1/32 ring, and a legato note on that string a beat later. Giving the tap a half-beat ring
-  (what the shipped fixtures use) hides it. A span must have positive extent, so this is a bug in
-  the emit/close arithmetic, not a fixture problem: reproduce it as a failing section in
-  `test_chart_shapes.cpp`, then find which close instant lands on the front.
+- **`StringHand::sounds` serves two masters through two helpers.** The zero-length-span bug fixed
+  2026-09-20 was the slot-open fold-in reading `sounds` (which a tap writes) where the struct's own
+  doc assigns membership to `covers`. `sounds_at` has the same shape of mismatch — its comment says
+  "still AUDIBLY sounds the fretting hand's finger" while it tests a column the OTHER hand also
+  writes. There it is arguably right (it is the displacement witness, which the doc assigns to
+  `sounds`, end-inclusively), but one field answering two questions through differently named
+  helpers is what let the fold-in pick the wrong one. Worth a look when the carried-ring founding
+  rule reworks that loop: can the two questions be made impossible to confuse at the type level?
 
 - **Re-sign the corpus census's derivation rows (stale since before 2026-09-19).** The enforced
   `trigger-4-only flips` row already failed on the commit before the let-ring phrase fix (94

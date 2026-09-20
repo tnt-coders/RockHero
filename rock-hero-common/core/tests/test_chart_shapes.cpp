@@ -671,6 +671,44 @@ TEST_CASE("Chart shape derivation never lets a tap write a span's extent", "[cor
     }
 }
 
+// THE THIRD WAY A TAP CAN WRITE AN EXTENT, and the one the family above does not see: not by
+// bounding a span it is in, but by putting a string INTO one whose fretting ring is already over.
+// The fold-in that carries a still-ringing string into a founding span is MEMBERSHIP, so it reads
+// the reach column (`covers`, the fretting hand's own) and never `sounds`, which a tap writes. Read
+// off `sounds`, the two disagree between the fretting ring's end and the tap's, and a span founded
+// in that window takes in a member whose reach ends AT OR BEFORE the span's own front: the reach is
+// the minimum of its members' coverage, so the front and the close land on one instant — a
+// ZERO-LENGTH span with a sounding member in it (negative, where another string dates the front
+// later), holding a grip (fret 5 here) that stopped sounding a beat earlier. [D2] says a span with
+// a sounding member is strictly positive, so that state is illegal on its face.
+TEST_CASE("A tap's ring never makes a dead string a member", "[core][chart]")
+{
+    // Two picked notes a beat long, then a tap on the first string over a second pair entering
+    // half a beat apart. The tap's ring carries string 1's `sounds` to beat 3 while its fretting
+    // ring ended at beat 2, so at the string-3 note on beat 2.5 string 1 is "still sounding" and
+    // yet no member: its fret 5 has been dead for half a beat.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{1}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+        tapAt(2, Fraction{}, 1, 12, Fraction{1}),
+        noteAt(2, Fraction{}, 2, 9, Fraction{1}),
+        noteAt(2, Fraction{1, 2}, 3, 9, Fraction{1}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+    everySpanIsPositive(derived);
+
+    // ONE span, the opening pair's own. Without string 1's dead carry the beat-2 figure has a
+    // struck member and one carried ring between them — two, short of the accumulation minimum —
+    // so it founds nothing, exactly as any two notes under a tap found nothing.
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().sustain == Fraction{1});
+    CHECK_FALSE(derived.shapes.front().silent_member);
+    CHECK(derivedStops(derived, 0)[0] == std::optional{frettedStop(5)});
+    CHECK(derivedStops(derived, 0)[1] == std::optional{frettedStop(7)});
+    CHECK(memberCount(derived, 0) == 2);
+}
+
 // The other half of the same law, and the half that decides WHICH ONSETS the chain is continuous
 // through (F2): the adjacency set is every SOUNDING onset, whichever hand made it. The warrant is
 // what happens to the member's tail at a tap — the tap ends it underneath, with no hand lifting
