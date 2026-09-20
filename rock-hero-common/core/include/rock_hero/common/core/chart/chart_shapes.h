@@ -445,6 +445,24 @@ needs, and a landing on the finger waiting beneath it is a new statement.
     const ChartNote& note, const std::optional<int>& planted, const std::optional<ChartStop>& down);
 
 /*!
+\brief Whether this many stops are enough to found a span.
+
+THE ONE AUTHORITY for the founding law's arithmetic, shared by the span derivation and the
+importer's let-ring fragment donation: stops stated at one instant are a grip at two, and sound
+alone founds a span only once three members ring together.
+
+It counts and nothing else. Which stops count is each caller's question — the derivation counts
+what a slot states and what still rings from inside the frontier; the importer, which runs before
+any ring is decided, counts a figure's largest stroke and its whole membership, and so asks only
+whether the figure could EVER found a span.
+
+\param stated_together Stops stated at one instant.
+\param sounding_together Every member sounding at that instant, \p stated_together included.
+\return True when either count reaches its threshold.
+*/
+[[nodiscard]] bool foundsSpan(std::size_t stated_together, std::size_t sounding_together);
+
+/*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.
 
 The second half of the same derivation, and here beside the first for that reason: \ref

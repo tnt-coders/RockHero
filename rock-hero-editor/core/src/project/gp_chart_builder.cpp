@@ -2003,11 +2003,23 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     // THE FRAGMENT DONATION: a figure closed while holding too few notes to ever FOUND a span is
     // not a statement — it is the GRIP seam mis-grouping a remnant with the next figure's opening
     // notes. Each of its notes that does not contradict the closing figure's own grip joins that
-    // figure; the rest stay. Bounded by the span machine's own founding law rather than any new
-    // constant: donatable means fewer than three notes with no two co-struck — the exact population
-    // that could never open a span of its own. A real figure never donates, which is what keeps a
-    // repetition undividable and a closing confirmation with its own stack. Left to right, so a
-    // donation can carry a still-too-small figure's question to the next seam.
+    // figure; the rest stay. Bounded by the span machine's own founding law, asked of its one
+    // authority (\ref common::core::foundsSpan) rather than restated: this walk runs before any
+    // ring is decided — the figures are what decide them — so it cannot ask whether a figure DID
+    // found a span, only whether it EVER could, which is its largest stroke and its whole
+    // membership put to that law. A real figure never donates, which is what keeps a repetition
+    // undividable and a closing confirmation with its own stack. Left to right, so a donation can
+    // carry a still-too-small figure's question to the next seam.
+    const auto largest_stroke = [&built](const std::vector<std::size_t>& figure) {
+        // Counted by onset rather than by adjacency: a donation appends out of onset order.
+        std::map<Fraction, std::size_t> strokes;
+        std::size_t largest = 0;
+        for (const std::size_t index : figure)
+        {
+            largest = std::max(largest, ++strokes[built[index].global_beat]);
+        }
+        return largest;
+    };
     for (std::size_t at = 0; at + 1 < figures.size(); ++at)
     {
         std::vector<std::size_t>& fragment = figures[at];
@@ -2017,10 +2029,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
         {
             continue; // a voice's last figure was closed by nothing and donates to nothing
         }
-        const bool statement = fragment.size() >= 3 ||
-                               (fragment.size() == 2 &&
-                                built[fragment[0]].global_beat == built[fragment[1]].global_beat);
-        if (statement)
+        if (common::core::foundsSpan(largest_stroke(fragment), fragment.size()))
         {
             continue;
         }

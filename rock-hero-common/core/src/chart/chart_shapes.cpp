@@ -344,6 +344,12 @@ std::optional<ChartStop> gripStatement(
     return down;
 }
 
+bool foundsSpan(const std::size_t stated_together, const std::size_t sounding_together)
+{
+    return stated_together >= g_span_member_threshold ||
+           sounding_together >= g_accumulation_member_minimum;
+}
+
 ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<std::optional<int>>& claimed_stops,
     const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map)
@@ -1549,9 +1555,7 @@ ChartShapes deriveChartShapes(
                 hand[string_index].covers = covers;
                 ++total;
             }
-            const bool opens =
-                own >= g_span_member_threshold || total >= g_accumulation_member_minimum;
-            if (opens)
+            if (foundsSpan(own, total))
             {
                 // A whole-grip stroke standing alone is a span BOUNDARY (the absorption rule):
                 // the box it founds says the posture was struck whole HERE, so it fronts at its
