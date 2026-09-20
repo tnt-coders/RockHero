@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <juce_core/juce_core.h>
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -39,6 +40,16 @@ constexpr std::size_t g_span_member_threshold = 2;
 // 5). It gates FOUNDING by sound alone and nothing else — growing a standing span has no minimum,
 // and a landing opens at the statement threshold above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
+
+// SIGHTING PROTOTYPE switch, read once at startup: set ROCKHERO_SIGHT_OLD_FOUNDING to any value to
+// found spans the old way (a spent fretted ring still counts). Ripped out with the losing option.
+const bool g_sight_old_founding =
+    juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_OLD_FOUNDING", "").isNotEmpty();
+
+// SIGHTING PROTOTYPE switch: set ROCKHERO_SIGHT_STRICT_FOUNDING for the strict variant — a spent
+// fretted ring is a plain tail and joins no later span, so every member's onset lies in its span.
+const bool g_sight_strict_founding =
+    juce::SystemStats::getEnvironmentVariable("ROCKHERO_SIGHT_STRICT_FOUNDING", "").isNotEmpty();
 
 // One note's fret channel read for the law's two moments, measured from an offset inside the
 // note's own ring. The channel is an ordered run of statements — the onset, then every
@@ -1530,7 +1541,11 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                if (handFree(*carried) && onset_beat[*finger] < covered)
+                // SIGHTING PROTOTYPE — A RING FOUNDS ONCE: a ring struck before the last span ended
+                // is spent. Hand-free it is texture; fretted it still joins what fresh strikes
+                // found, but counts toward no founding.
+                const bool spent = onset_beat[*finger] < covered;
+                if (spent && (handFree(*carried) || g_sight_strict_founding))
                 {
                     // ...but an OPEN string still SOUNDS under whatever this slot founds, so it is
                     // recorded as texture and the bracket prints it; a harmonic's ring is a plain
@@ -1555,7 +1570,10 @@ ChartShapes deriveChartShapes(
                 // travel beats. A string a STANDING span states is never re-read: its cap is
                 // live, and that cap is what closes the span at its member's landing (rule 10).
                 hand[string_index].covers = covers;
-                ++total;
+                if (!spent || g_sight_old_founding)
+                {
+                    ++total;
+                }
             }
             const bool opens =
                 own >= g_span_member_threshold || total >= g_accumulation_member_minimum;
