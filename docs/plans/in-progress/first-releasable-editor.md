@@ -425,8 +425,15 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
 ## Next action
 
 1. ~~The user's pass over **Decisions** D1–D9~~ — done 2026-09-19; every entry above carries its
-   ruling. First, finish the pull-off span defect (harmonic follow-up #9 and D4's founding rule):
-   the sighting chart is at `C:\__MAIN__\Coding\__scratch__\rockhero-pulloff-sighting\`.
+   ruling. ~~The pull-off span defect~~ — built 2026-09-19 as the re-ruled hold-under law, sighted
+   and signed 2026-09-20. Two things it surfaced come first, in this order: the zero-length-span
+   bug (`docs/tracking/backlog.md`), then **the carried-ring founding rule** — a chord followed by
+   single melody notes over its still-ringing members founds a fresh bracket at every note,
+   because the ordinary founding site counts leftover FRETTED rings that the landing site already
+   refuses ("the grip's survivors are the closing span's own members"). The open-string rule
+   ("a ring no hand holds belongs only to the span it was struck in") generalised to every ring;
+   it moves all six enforced census rows, so it is prototyped, censused and sighted on its own
+   before the census is re-signed.
 2. Land the ungated work while gates are signed: the non-modal notice channel (Phase 2), plan 60
    Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10).
 3. Schedule the three signing sessions in the order their phases arrive: G41-TS with G43, the bend

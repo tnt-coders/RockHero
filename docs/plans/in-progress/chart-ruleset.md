@@ -539,6 +539,15 @@ pull entail the finger at both ends.
   earlier in the chart. The premise above ("a grip is held and a finger is added above it") never
   licensed the generalisation to grips that never held the stop; the code had implemented the
   generalisation.
+- **SIGHTED and signed by the user 2026-09-20** in the built editor, against the sighting chart
+  (`C:\__MAIN__\Coding\__scratch__\rockhero-pulloff-sighting\`): the founding stroke over a lone
+  ringing note (a 5-9 box, nothing reaching back to the ringing 7) and the ornament riding above a
+  standing grip (one span, the 7 never printed) both read right. Two residues were sighted and
+  assigned, neither to this law: the PLAIN-PICKED twin of the riding figure (5-5-5 held, 7 then 5
+  picked above it) fragments into three spans and is the authored span marker's to fix — nothing
+  derived can know the 5 stayed down; and a chord followed by single melody notes over its
+  still-ringing members reads NOISY, one bracket per melody note, which is the carried-ring
+  founding question below THE LANDING'S TWO, not a hold-under question.
 - **Open, and it is the authored span's to close:** a charter must be able to ASK for the stop the
   derivation may no longer assert. Not with a per-note `held` on ordinary notes (considered and
   set aside 2026-09-19) but with the span's own extent — an authored span extends through any note
