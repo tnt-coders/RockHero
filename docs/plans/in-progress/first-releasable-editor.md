@@ -298,12 +298,13 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   it — and **the keybind dialog's in-action review** (plan 46 Phase 3; code-complete, needs only
   the user's review), which joins Phase 6's sighting passes.
 - **D4 — The claimed stop's missing 3D face. RULED 2026-09-19 (user):** a tap's `held` gets NO
-  mark of its own on the highway. It is stated in 3D only as a member of a span it FITS INTO —
-  the bracket's posture — and never founds a span to get one. This is the same rule as a
-  pull-off's plant: a stop that sounds nothing rides a grip and never founds one. So there is no
-  3D mark to build; what remains is making the derivation obey the rule (today a claim counts
-  toward founding at `chart_shapes.cpp`'s `own += slot.claims.size()`), which rides the
-  pull-off span fix in Phase 2.
+  mark of its own on the highway. It is stated in 3D only through a span's bracket — the posture
+  it is a member of. So there is no 3D mark to build. **Refined the same day while sighting the
+  pull-off defect:** taps resolve exactly as legato does. A DERIVED landing fret — under a tapped
+  source or a picked one — states nothing, because the finger is not PROVABLY planted when the
+  source sounds; its only effect is that an ornament above a stop the grip ALREADY holds never
+  seams. An AUTHORED `held` is the charter stating the finger is there, and attaches to the span
+  as today. Built with the pull-off span fix in Phase 2.
 - **D5 — Which listed defects block. RULED 2026-09-19 (user): all of them.** #271 (open-string
   ring, fixed the same day), undo-not-resyncing the tone and the section-insert position make
   authored material play or land wrongly; #267, #268 and #274 are display defects on supported
