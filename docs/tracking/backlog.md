@@ -1232,15 +1232,6 @@ against the tree on the date above.
   helpers is what let the fold-in pick the wrong one. Worth a look when the carried-ring founding
   rule reworks that loop: can the two questions be made impossible to confuse at the type level?
 
-- **The corpus census has sections that can never read false, and rows nothing pins.** Found
-  while re-pinning on 2026-09-20 (`rock-hero-editor/core/tests/test_corpus_census.cpp`): section
-  [D6] reads zero on every row over 1380 staccato notes; `travel_covering_spans` equals
-  `travel_any_spans` exactly (652 of 652); the source-side landing attribution now agrees with the
-  derivation on all 1243 successors, so its "second opinion" no longer disagrees about anything;
-  the claim-witness arm of the gap re-picks holds one case of 1128; and the fret-hand-window rows
-  (windows placed, stops outside reach, spans crossed by a shift) carry no pinned value at all, so
-  a regression in them is invisible. For each: decide whether the row still measures something,
-  pin it if so, delete it if not.
 
 - **The hold-under law has no corpus coverage for DERIVED claims.** Since the re-ruling a tapped
   source's derived claim is admitted only where a standing span already holds that stop, and on

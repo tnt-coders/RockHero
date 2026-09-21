@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
-#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -170,19 +169,6 @@ private:
 {
     return whole <= 0 ? 0.0 : 100.0 * static_cast<double>(part) / static_cast<double>(whole);
 }
-
-// ---------------------------------------------------------------------------------------------
-// The seam between Guitar Pro's terms and the built chart: a note is identified by where it sits
-// and which string it is on, which is the pair both models agree about.
-// ---------------------------------------------------------------------------------------------
-
-struct NoteKey
-{
-    GridPosition position{};
-    int string{0};
-
-    friend std::strong_ordering operator<=>(const NoteKey& lhs, const NoteKey& rhs) = default;
-};
 
 // ---------------------------------------------------------------------------------------------
 // The measure table, in BOTH axes the census needs.
@@ -562,6 +548,15 @@ struct DerivationCounters
     long long ii_spans_end_slot_only_boxed{0};
 
     // [D3] — the continuity gates.
+    // The gap re-pick's two witness arms are NEARLY DISJOINT BY CONSTRUCTION, which is what makes
+    // the claim arm read as a rounding error rather than as an empty corpus. A gap re-pick is
+    // always an INTERIOR slot — a re-pick sitting on the span's own end is where the reach ran
+    // out, and a reach that ran out is not a gap the span survived — and an interior slot only
+    // exists because the continuity law found a member still sounding there, which is exactly a
+    // SOUND witness. A claim witness is the opposite instant: almost every one sits on a span's
+    // end, where nothing is left ringing. The claim arm is therefore reported, never pinned; it
+    // is not a population this corpus lacks so much as one the two definitions leave barely any
+    // room for.
     long long ii_gap_repicks{0};
     long long ii_gap_repicks_sound{0};
     long long ii_gap_repicks_claim{0};
@@ -591,12 +586,19 @@ struct DerivationCounters
     long long travel_landings_crowded{0};
 
     // [D2] — the landing split. `zero_length_spans` is the split's headline population (empty but
-    // for the span a hand alone states), `travel_covering_spans` is the span whose extent reaches
-    // the grip its members are travelling to, and `travel_landings_absorbed` is review F9's
-    // population: a landing the SOURCE side says should re-open, with no successor span standing
-    // at that instant.
+    // for the span a hand alone states), and `travel_landings_absorbed` is review F9's population:
+    // a landing the SOURCE side says should re-open, with no successor span standing at that
+    // instant.
+    //
+    // `travel_short_of_landing_spans` is the amendment's promise read as an INVARIANT rather than
+    // as a share. A span's extent is the minimum of its members' coverage, and a travelling
+    // member's coverage is already capped at its own arrival (`coverage_at` in chart_shapes.cpp),
+    // so the extent can never run PAST the earliest landing and a "covering" share could only
+    // ever read 100% or less. What remains to measure is the shortfall — an extent stopping at the
+    // departure instead of reaching the grip its members move to — and the amendment promises
+    // there is none.
     long long zero_length_spans{0};
-    long long travel_covering_spans{0};
+    long long travel_short_of_landing_spans{0};
     long long travel_landings_absorbed{0};
 
     // A landing the span it belongs to never REACHED: some other statement closed the travelling
@@ -659,10 +661,17 @@ struct DerivationCounters
     // window covering that span's start ([fret, fret + width - 1]). Open strings are excluded: a 0
     // is a voicing member no finger holds.
     //
-    // REPORTED, NEVER ENFORCED. The two derivations are independent by design and this is the
-    // instrument that says whether they agree; making it a rule would give one of them authority
-    // over the other, which is exactly the merge the two stories refuse.
-    long long fhp_checked_spans{0};
+    // PINNED WHERE IT STANDS, NEVER RULED TO ZERO. The two derivations are independent by design
+    // and this is the instrument that says whether they agree; ruling the disagreement to zero
+    // would give one of them authority over the other, which is exactly the merge the two stories
+    // refuse. Holding the count at its signed figure says something weaker and true: either
+    // derivation moving the disagreement is a finding a reader has to see.
+    //
+    // `fhp_unwindowed_spans` is the instrument's own PRECONDITION rather than a convergence
+    // figure: a span no window stands before cannot be compared at all, and the generator anchors
+    // its first window on the first figure, so the promise is zero. Counting the comparable spans
+    // instead would only restate the span total.
+    long long fhp_unwindowed_spans{0};
     long long fhp_out_of_reach_spans{0};
     long long fhp_out_of_reach_stops{0};
     Histogram fhp_reach_overshoot;
@@ -1040,11 +1049,14 @@ void countDerivation(
             }
         }
 
-        // THE FHP CONVERGENCE INVARIANT: reported, never enforced.
+        // THE FHP CONVERGENCE INVARIANT: pinned where it stands, never ruled to zero.
         if (const common::core::FretHandPosition* const window = window_covering(start);
-            window != nullptr)
+            window == nullptr)
         {
-            ++out.fhp_checked_spans;
+            ++out.fhp_unwindowed_spans;
+        }
+        else
+        {
             long long out_of_reach = 0;
             for (const std::optional<ChartStop>& stop : posture)
             {
@@ -1478,12 +1490,14 @@ void countDerivation(
         if (travels && lands.has_value())
         {
             ++out.travel_any_spans;
-            // Does the span COVER the travel it starts? The amendment's whole promise: the transit
-            // rides the predecessor, so the extent reaches the grip its members are moving to
-            // rather than stopping at the departure. Asked of the EARLIEST landing, which is the
-            // one the extent is bounded by when the landings are staggered.
+            // Does the span fall SHORT of the travel it starts? The amendment's whole promise is
+            // that it never does: the transit rides the predecessor, so the extent reaches the
+            // grip its members are moving to rather than stopping at the departure. Asked of the
+            // EARLIEST landing, which is the one the extent is bounded by when the landings are
+            // staggered.
             const std::optional<Fraction>& first_landing = earliest_landing;
-            out.travel_covering_spans += first_landing.has_value() && *first_landing <= end ? 1 : 0;
+            out.travel_short_of_landing_spans +=
+                first_landing.has_value() && end < *first_landing ? 1 : 0;
             if (staggered)
             {
                 ++out.travel_landings_staggered;
@@ -1643,10 +1657,14 @@ struct Census
     long long overfull_beats_skipped{0};
     long long denominator_changes{0};
 
-    // [D6]
+    // [D6] — a staccato ring is halved, so it is the one predecessor whose halving can take away
+    // the adjacency a successor's legato claim needs. The claim is the scarce thing, so the
+    // population is every same-string successor that makes one and the ruling's row is the share
+    // of those following a staccato note. The denominator is also the CONTROL that gives the
+    // ruling's zero its meaning: a predicate reading a claim field the model no longer stores, or
+    // a chain walk that finds no successors, empties it too and flags.
+    long long d6_legato_successors{0};
     long long d6_staccato_then_legato{0};
-    long long d6_rhythmically_adjacent{0};
-    long long d6_resolves_unjustified{0};
 
     // LAW I — the let-ring stop reasons and what the rings they produce cross.
     long long rings{0};
@@ -1727,18 +1745,9 @@ struct Census
     return contents.toString().toStdString();
 }
 
-// What one score's Guitar Pro side hands to its built charts: the [D6] successors whose legato
-// claim sits behind a halved staccato ring.
-struct ScoreWalk
-{
-    std::vector<std::set<NoteKey>> d6_successors;
-};
-
-[[nodiscard]] ScoreWalk walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
+void walkScore(const GpScore& score, const TempoMap& tempo_map, Census& census)
 {
     const MeasureTable table = makeMeasureTable(score);
-    ScoreWalk walk;
-    walk.d6_successors.resize(score.tracks.size());
 
     // Section marks on the absolute whole-note axis; a mark sits on its master bar's downbeat.
     // TWO populations, because the corpus makes them wildly different questions: every bar the
@@ -1771,11 +1780,11 @@ struct ScoreWalk
                 marks, [from, to](const Fraction& mark) { return mark > from && mark < to; });
         };
 
-    for (std::size_t track_index = 0; track_index < score.tracks.size(); ++track_index)
+    for (const GpTrack& track : score.tracks)
     {
         ChainDiagnostics diagnostics;
         const std::vector<std::vector<ChainBeat>> chains =
-            makeVoiceChains(score.tracks[track_index], table, diagnostics);
+            makeVoiceChains(track, table, diagnostics);
         census.grace_beats_skipped += diagnostics.graces;
         census.letring_marks_on_graces += diagnostics.grace_letring_marks;
         census.overfull_beats_skipped += diagnostics.overfull;
@@ -1909,36 +1918,28 @@ struct ScoreWalk
                     census.vibrato_wide += note.vibrato == common::core::VibratoState::Wide ? 1 : 0;
                     census.staccato_notes += note.staccato ? 1 : 0;
 
-                    // ---- [D6]: a staccato note whose next same-string neighbour in this voice
-                    // claims a legato connection. The halving is what can take the adjacency the
-                    // claim needs away, so the RHYTHMICALLY ADJACENT subset is the population the
-                    // ruling names.
-                    if (note.staccato)
+                    // ---- [D6]: the next note on this string in this voice, and whether it
+                    // CLAIMS a legato connection. The claim is the scarce half of the ruling's
+                    // pair, so it is the denominator and the staccato predecessor is the share
+                    // read off it — the halving is what could take the adjacency the claim needs
+                    // away, and a claim nobody makes cannot be lost. Asking it of every note
+                    // rather than of staccato notes alone is what makes the denominator a
+                    // CONTROL: it goes empty exactly when the fields or this walk stop working,
+                    // so the ruling's own row cannot read zero for a silent reason.
+                    for (std::size_t ahead = index + 1; ahead < chain.size(); ++ahead)
                     {
-                        for (std::size_t ahead = index + 1; ahead < chain.size(); ++ahead)
+                        const GpNote* const successor =
+                            noteOnString(*chain[ahead].beat, note.string);
+                        if (successor == nullptr)
                         {
-                            const GpNote* const successor =
-                                noteOnString(*chain[ahead].beat, note.string);
-                            if (successor == nullptr)
-                            {
-                                continue;
-                            }
-                            if (successor->hopo_destination || successor->left_hand_tapped)
-                            {
-                                ++census.d6_staccato_then_legato;
-                                if (chain[index].onset_whole + chain[index].duration_whole ==
-                                    chain[ahead].onset_whole)
-                                {
-                                    ++census.d6_rhythmically_adjacent;
-                                    walk.d6_successors[track_index].insert(
-                                        NoteKey{
-                                            .position = chain[ahead].position,
-                                            .string = note.string + 1,
-                                        });
-                                }
-                            }
-                            break;
+                            continue;
                         }
+                        if (claimsLegato(*successor))
+                        {
+                            ++census.d6_legato_successors;
+                            census.d6_staccato_then_legato += note.staccato ? 1 : 0;
+                        }
+                        break;
                     }
 
                     if (!note.let_ring)
@@ -2109,7 +2110,6 @@ struct ScoreWalk
             }
         }
     }
-    return walk;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2281,7 +2281,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
         census.letring_extended_rings += built->let_ring.extended;
         census.letring_marks_at_written += built->let_ring.at_written;
 
-        const ScoreWalk walk = walkScore(*score, built->tempo_map, census);
+        walkScore(*score, built->tempo_map, census);
 
         for (std::size_t track = 0; track < built->arrangements.size(); ++track)
         {
@@ -2362,25 +2362,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 chart.fret_hand_positions,
                 built->tempo_map,
                 census.derivation);
-
-            // ---- [D6]: does the halved staccato ring actually cost the successor its claim?
-            if (track < walk.d6_successors.size())
-            {
-                const std::set<NoteKey>& successors = walk.d6_successors[track];
-                for (std::size_t note = 0; note < resolutions.connections.saved_notes.size();
-                     ++note)
-                {
-                    const NoteKey key{
-                        .position = resolutions.connections.saved_notes[note].position,
-                        .string = resolutions.connections.saved_notes[note].string,
-                    };
-                    if (successors.contains(key) && resolutions.connections.legato[note] ==
-                                                        common::core::LegatoMotion::Unjustified)
-                    {
-                        ++census.d6_resolves_unjustified;
-                    }
-                }
-            }
         }
     }
 
@@ -2466,6 +2447,10 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "\n[4] [D3] CONTINUITY GATES\n";
     row("gap re-picks under witnesses", census.derivation.ii_gap_repicks);
     row("  of those, a SOUND witness", census.derivation.ii_gap_repicks_sound);
+    std::cout << "  (the CLAIM arm below is structurally tiny, not an absent corpus population: a\n"
+                 "   gap re-pick is always INTERIOR to its span, and an interior slot exists only\n"
+                 "   because a member is still sounding there — which is a SOUND witness. Claim\n"
+                 "   witnesses sit almost entirely on span ENDS, where nothing is left ringing.)\n";
     row("  of those, a CLAIM witness", census.derivation.ii_gap_repicks_claim);
     row("interior-gap spans", census.derivation.interior_gap_spans);
     row("lone re-pick slots (context)", census.derivation.ii_slots);
@@ -2489,12 +2474,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  ... whose front states a LONE record", census.derivation.strikeless_front_lone_record);
     std::cout << "  --- the dating rule's invariant (the ruled promise is ZERO) ---\n";
     row("spans starting inside a preceding span", census.derivation.overlapping_spans);
-    std::cout << "  --- THE FHP CONVERGENCE, reported and never enforced ---\n"
+    std::cout << "  --- THE FHP CONVERGENCE, pinned where it stands, never ruled to zero ---\n"
                  "  (FHP is the POSITION story, spans are the GRIP story; this says whether the\n"
                  "   two independent derivations describe one hand. Open members are excluded —\n"
                  "   a 0 is a voicing member no finger holds.)\n";
-    row("spans under a fret-hand window", census.derivation.fhp_checked_spans);
-    row("  ... holding a stop outside its reach", census.derivation.fhp_out_of_reach_spans);
+    row("spans with NO window to compare (ZERO)", census.derivation.fhp_unwindowed_spans);
+    row("spans holding a stop outside its reach", census.derivation.fhp_out_of_reach_spans);
     row("  those stops", census.derivation.fhp_out_of_reach_stops);
     std::cout << "  " << std::setw(42) << std::left << "  frets past the window's edge"
               << census.derivation.fhp_reach_overshoot.text() << "\n"
@@ -2537,7 +2522,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                  "   span under rule 11, so its start member's travel is counted once here\n"
                  "   however many times the run restrikes.)\n";
     row("spans a start member travels in", census.derivation.travel_any_spans);
-    row("  ... whose extent COVERS the travel", census.derivation.travel_covering_spans);
+    row("  ... whose extent falls SHORT (ZERO)", census.derivation.travel_short_of_landing_spans);
     row("  landings that re-open", census.derivation.travel_landings_open);
     row("  suppressed: staggered (edge c)", census.derivation.travel_landings_staggered);
     row("  suppressed: no room to state (edge b)", census.derivation.travel_landings_crowded);
@@ -2549,12 +2534,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     row("  ... with a breathing landing", census.derivation.travel_breathing_spans);
 
     std::cout << "\n[6] [D6] STACCATO -> SAME-STRING LEGATO ADJACENCY\n";
+    std::cout << "  (the claim is the scarce half, so it is the denominator AND the control: it\n"
+                 "   empties exactly when the claim fields or the chain walk stop working, which\n"
+                 "   is what keeps the ruling's own row below from reading zero for a silent\n"
+                 "   reason.)\n";
     std::cout << "  staccato marked notes                   : " << census.staccato_notes << "\n";
-    std::cout << "  followed on its string by a legato claim: " << census.d6_staccato_then_legato
+    std::cout << "  same-string successors claiming legato  : " << census.d6_legato_successors
               << "\n";
-    std::cout << "    rhythmically adjacent (halving bites) : " << census.d6_rhythmically_adjacent
-              << "\n";
-    std::cout << "    built successor resolves Unjustified  : " << census.d6_resolves_unjustified
+    std::cout << "    ... whose predecessor is STACCATO     : " << census.d6_staccato_then_legato
               << "\n";
 
     std::cout << "\n[7] LET-RING as the SOURCE states it (Guitar Pro's own playback rule)\n";
@@ -2706,6 +2693,27 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 15.0,
             },
             CrossCheck{
+                // [D6]'s DENOMINATOR, and the control that gives the row under it its meaning:
+                // same-string successors in one voice that CLAIM a legato connection. It is what
+                // says the claim fields and the chain walk are both alive — a predicate reading a
+                // field the model renamed empties this row too, which is the failure the ruling's
+                // zero could otherwise hide.
+                .label = "same-string successors claiming legato",
+                .rig = static_cast<double>(census.d6_legato_successors),
+                .expected = 7538.0,
+            },
+            CrossCheck{
+                // [D6] ITSELF: of those claims, the ones whose predecessor is STACCATO — the one
+                // note whose halved ring can take away the adjacency a claim needs. It is zero,
+                // and with the control above standing that is the SOURCE's own answer rather than
+                // a dead predicate: the transcriber never writes a hammer or pull out of a note
+                // marked detached. Exact-match, because the ruling rests on the population being
+                // empty and a single member of it would have to be looked at.
+                .label = "  ... whose predecessor is STACCATO (ZERO)",
+                .rig = static_cast<double>(census.d6_staccato_then_legato),
+                .expected = 0.0,
+            },
+            CrossCheck{
                 // EVERY span the derivation emits over the corpus, and so the denominator every
                 // other span row is read against. The figure is what the span laws produce
                 // together: a run over one grip is ONE span however often it restrikes (rule 11
@@ -2815,15 +2823,118 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
+                // THE FHP CONVERGENCE INSTRUMENT'S PRECONDITION: a span no fret-hand window
+                // stands before is a span the convergence rows cannot judge at all. The generator
+                // anchors its first window on the first figure, so every span is comparable and
+                // the shortfall is exact-zero. Pinning the comparable spans instead would only
+                // restate the span total.
+                .label = "spans with NO fret-hand window (ZERO)",
+                .rig = static_cast<double>(census.derivation.fhp_unwindowed_spans),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // THE FHP CONVERGENCE itself, held at its measured figure rather than ruled to
+                // zero. The position story and the grip story are derived independently, and this
+                // is the instrument that says whether they describe one hand; ruling the
+                // disagreement away would hand one of them authority over the other. What the pin
+                // buys is that either derivation moving the disagreement FLAGS, which is the
+                // finding a reader needs. The stop row beside it is the same population counted
+                // per STOP, since one span can hold several out-of-reach fingers.
+                .label = "spans holding a stop outside the window",
+                .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
+                .expected = 163.0,
+            },
+            CrossCheck{
+                .label = "  those out-of-reach stops",
+                .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
+                .expected = 219.0,
+            },
+            CrossCheck{
+                // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each
+                // is either a span the planned coupling would split or a window the generator
+                // should not have moved, and slide carriage is not subtracted — the figure is the
+                // refinement's whole reach. The shift row beside it counts the ARRIVALS, since
+                // one long span can be crossed more than once.
+                .label = "spans crossed by an FHP shift",
+                .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
+                .expected = 400.0,
+            },
+            CrossCheck{
+                .label = "  those interior shifts",
+                .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
+                .expected = 497.0,
+            },
+            CrossCheck{
+                // The generator's own output size, and the lone-open class inside it: a window
+                // arriving on a slot that sounds something but nothing FRETTED is a hand told to
+                // move with nothing to move for. FRETTED is the HAND's fret, so a natural
+                // harmonic counts as the finger it stands on and only the open string is unfretted.
+                .label = "fret-hand windows placed",
+                .rig = static_cast<double>(census.derivation.fhp_placements),
+                .expected = 18636.0,
+            },
+            CrossCheck{
+                .label = "  ... arriving where nothing fretted sounds",
+                .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
+                .expected = 132.0,
+            },
+            CrossCheck{
+                // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
+                // fretted ring still sounding at a window's arrival pins its finger, so a window
+                // whose reach excludes that fret describes a hand that cannot exist. Pinned as a
+                // count and not ruled to zero for the same reason as the convergence row above —
+                // the number is evidence about the generator, and it has to be free to be read.
+                .label = "windows arriving over a pinned finger",
+                .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
+                .expected = 186.0,
+            },
+            CrossCheck{
+                .label = "  those pinned rings",
+                .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
+                .expected = 232.0,
+            },
+            CrossCheck{
                 // The spans the walk opened at a LANDING that this rig's own fret-channel reading
-                // cannot stand an arrival on — the rig disagreeing with the derivation, which
-                // section [5] prints as a convergence row and this file's doctrine calls a FINDING
-                // rather than a defect in either. Reported only: with one opening cause the
-                // subtraction is readable as convergence, and nobody has signed a figure for it.
-                .label = "landings the source side cannot attribute",
+                // cannot stand an arrival on. The two readings are genuinely separate code over
+                // the same source: the walk caps a member's coverage at the arrival
+                // `statedStopFrom` reports, and this rig re-reads the keyframes itself
+                // (\ref sourceLanding) and asks whether the instant it finds is the span's own
+                // start. THE AGREEMENT IS THE PINNED EXPECTATION, exact-match: a shortfall means
+                // one of the two readings of the fret channel has moved under the other, which is
+                // the finding this second opinion exists to raise and has no acceptable band.
+                .label = "landings the source side misses (ZERO)",
                 .rig = static_cast<double>(
                     census.derivation.successor_spans - census.derivation.successor_spans_landing),
-                .expected = std::nullopt,
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // THE AMENDMENT'S PROMISE as an invariant: a travelling span's extent reaches the
+                // grip its members move to. The coverage cap makes the extent unable to run PAST
+                // the earliest landing, so the shortfall is the whole of what is left to measure
+                // and an extent stopping at the departure is the defect. Exact-match: a span that
+                // quits mid-transit states a grip the hand has already left.
+                .label = "travel spans short of the landing (ZERO)",
+                .rig = static_cast<double>(census.derivation.travel_short_of_landing_spans),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // The landing split's headline promise: a span with no extent at all. Only the
+                // span a hand ALONE states has no sounding member to be positive for, and the
+                // emit path drops the degenerate zero-tenure landing span outright, so nothing
+                // should reach the table with a zero sustain. Exact-match, for that reason.
+                .label = "zero-length spans (ZERO)",
+                .rig = static_cast<double>(census.derivation.zero_length_spans),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // THE PRICE OF NOT REMEMBERING A HAND-OFF, and the zero a ruling rests on: a
+                // landing the travelling span never REACHED, because some other statement closed
+                // it first. Every one of these would be a successor a walk-side hand-off had to
+                // carry, so the ruling that a walk needs no such state is priced by this row
+                // reading zero. Exact-match: it is the evidence, not a tolerance.
+                .label = "travel landings the span never reached (ZERO)",
+                .rig = static_cast<double>(census.derivation.travel_landings_outrun),
+                .expected = 0.0,
             },
             CrossCheck{
                 // The three stop reasons as a SHARE of every ring this walk measures, read off the
@@ -2868,6 +2979,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .label = "  of those, blind-cap stops",
                 .rig = static_cast<double>(census.marker_crossings_cap),
                 .expected = 63.0,
+            },
+            CrossCheck{
+                // THE SECTION-MARKER STOP CANDIDATE's own population, read on NAMED marks alone
+                // for the reason the straddle row is: an unnamed bar mark states no section, and
+                // a named one is all the chart can store. It is zero, so the candidate would fire
+                // on nothing the transcriber put a name on. Exact-match, like its straddle
+                // sibling — a ring bleeding past a named boundary is the thing the candidate
+                // exists to stop, and one of them is a finding rather than a tolerance.
+                .label = "crossings of NAMED marks (ZERO)",
+                .rig = static_cast<double>(census.named_marker_crossings),
+                .expected = 0.0,
             },
             CrossCheck{
                 // THE LABEL NAMES THE STATISTIC so the quantile cannot drift under the row: this
