@@ -103,18 +103,23 @@ and an arrangement in a chosen tuning.
 The verbs exist; what is missing is the editor telling the charter what it did, two
 unenforced rulings, and a set of defects on supported material.
 
-- **Build the non-modal notice channel** (task #278). This is the single prerequisite under
-  everything else in this phase. `IEditorView::showNotice` is the modal load-time notice, not this.
-  Four payloads are built and waiting on it: the legato verb's counted skip (`ChartLegatoPlan`), the
-  harmonic picker's skip reason, the locked-slide-tail refusal (40-Q5, W6), and the mixed-validity
-  count for technique and keyframe edits (`chart-span-and-selection-model.md` §9a). Until it lands,
-  `L` on an ineligible selection is a dead key.
+- **Build the refusal flash** (task #278; design record `refusal-flash.md`). This is the single
+  prerequisite under everything else in this phase. The user ruled the surface on 2026-08-28: the
+  selected elements a verb refused glow red a couple of times and stay unchanged, and the reason
+  goes to the log — NOT a status line or toast, which is the proposal it replaced and the wording
+  this entry carried until the ruling was recovered on 2026-09-21. `IEditorView::showNotice` is the
+  modal load-time notice, not this. Four reports wait on it, and only the first exists in code:
+  the legato verb's skip (`ChartLegatoPlan`, whose count-and-dominant-reason shape changes to the
+  refused notes themselves), the harmonic picker's skip, the locked-slide-tail refusal (40-Q5, W6),
+  and the mixed-validity report for technique and keyframe edits
+  (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on an ineligible selection is a
+  dead key.
 - **The slide tail lock** (W6, roadmap 40-Q5 — unsigned). Today a sustain shortened past a keyframe
   drops every fret, bend and vibrato statement beyond the new end (`clipPayloadsToSustain`, by
   design) and tells the charter nothing; only undo brings them back. Unreported loss of authored
   data on supported material is the case corollary 1 exists for. Sign 40-Q5
   — refuse below the last keyframe, or clip and report the loss — and build whichever it is. The
-  report half rides the notice channel above; the lock half had no task of its own and was nearly
+  report half rides the refusal flash above; the lock half had no task of its own and was nearly
   lost when the old W6 task was merged into #278.
 - **The tap-at-claimed-stop refusal** (task #277) — ruled invalid by construction, enforced
   nowhere: `chart_rules.cpp` never consults `chartClaimedStops`, so the state can be authored and
@@ -402,6 +407,7 @@ the only one that orders work.
 | `00-start-here.md` | Cold-open snapshot for the next session | — |
 | `technique-review-walkthrough.md` | LIVE decision queue (W5, W6, W9-D/F/G, W10 default, W13 display) | Phases 2, 3 |
 | `harmonic-display-followups.md` | Follow-ups #2, #4, #9 live; the rest parked | Phase 2 |
+| `refusal-flash.md` | Task #278's ruled direction, build shape and open questions F1–F7 | Phase 2 |
 | `highway-note-art-state.md` | 3D note-art state record; holds the bend anchor decision | Phase 3 |
 | `fhp-derivation-algorithm.md` | Evidence and the five rulings behind 60-Q1..Q5 | Phase 4 |
 | `span-derivation-ground-up.md` | The built span law; cited from `chart_shapes.cpp` | Phases 2, 4 |
@@ -431,9 +437,9 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    ring ("a note belongs to the span that contains its onset"; `chart-ruleset.md`, with the
    reopening trigger in `docs/tracking/watch-items.md`), and the corpus census re-pinned after it
    with every row made able to fail.
-2. **Current.** Land the ungated work while gates are signed: the non-modal notice channel
+2. **Current.** Land the ungated work while gates are signed: the refusal flash
    (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Three small
-   rulings sit directly behind the notice channel and are cheapest signed before it lands: 40-Q5
+   rulings sit directly behind the refusal flash and are cheapest signed before it lands: 40-Q5
    (refuse or clip-and-report), #277's placement, and the unstruck-tie default.
 3. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
    sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,

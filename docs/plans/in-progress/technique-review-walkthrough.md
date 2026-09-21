@@ -146,7 +146,7 @@ Keep this list and the session task list in step.
   shown**, because the view's only reporting seam is a modal `showThemedWarningBox` titled "Could
   not complete request", which would pop a dialog on the commonest press in charting (a phrase's
   first note) to announce that nothing had failed. `L` is silent when it applies nothing, at parity
-  with the left-tap and pick-slide toggles. **Open: the non-modal notice surface** — the per-note
+  with the left-tap and pick-slide toggles. **Open: the refusal flash (`refusal-flash.md`, ruled 2026-08-28)** — the per-note
   information the planner already computes is built and waiting for it.
 - [ ] **W6 — Tail lock + locked-tail feedback (40-Q5), SCOPED TO SLIDES ONLY.** A connection claim
   stores no direction, so shrinking its predecessor's tail drops the mark live, regrowing restores
