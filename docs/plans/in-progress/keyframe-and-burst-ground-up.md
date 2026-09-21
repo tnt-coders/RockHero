@@ -151,7 +151,33 @@ Set A can reach the same result: its rule 4 already says the end's own statement
 a truncated end, so the repair's release branch generalises to "whatever stands at the end". The
 defect argues for one rule, not for one set.
 
-**Authoring the end's bend, for Phase 3** (raised by the user 2026-09-21; a proposal, to be signed
+**The user leans to Set A, 2026-09-21**, on the one behaviour that separates the sets: lengthening
+a note that ends in a bend release, "I'd expect the bend point to stay put I think." That is Set
+A's rule 2 — the tail verb moves no statement. Not yet signed as a set.
+
+**Authoring at the end WITHOUT `Alt`** (the user, same day: needing `Alt` there "is not
+intuitive"). Under Set A the modifier can go entirely, because the only thing it disambiguates is
+a DIGIT at a ring's exact end — next note, or fall — and Set A already has an unmodified way to
+make a fall:
+
+- **A slide-out is made by the conversion the user already likes**: type the landing fret on the
+  tail, then bring the tail in onto it (rule 2's landing). No chord, and it reads as what it is —
+  a slide that ends the note. A bare digit at a ring's exact end stays what sequential entry needs
+  it to be: the next note.
+- **A bend at the end needs no modifier either**: `B` on an empty slot means nothing else, so with
+  the caret on a ring's exact end where no head stands, bare `B` can only be the ending ring's
+  final bend value. Where a head does stand on that slot, `B` is the head's (its pre-bend), and the
+  clearance law says no end statement may sit there anyway — the end bend is authored a step
+  inside and the tail brought in onto it, the same conversion.
+- What this DELETES: `Alt`+digit's one creating cell (`at_ring_end && path` in
+  `chartCaretDigitTarget`) and, since the chord is the bare digit everywhere else, plausibly the
+  ten `TypePathDigit` commands and their both-key-code registration with it. `Alt` alone stays the
+  ring reveal. It also retires the defect found the same day — `Alt`+digit cannot reach a ring
+  whose end abuts a selected head — by removing the chord rather than repairing it.
+- It reverses the 2026-09-11 ruling that made `Alt`+digit "the ONE thing `Alt` creates on this
+  lane", so it is the user's to sign. It is only available under Set A: Set B has no conversion.
+
+**Authoring the end's bend, for Phase 3** (superseded by the entry above if that is signed) (raised by the user 2026-09-21; a proposal, to be signed
 with the `B` verb). The slot where a ring ends is often the slot where the next note's head
 stands, and the keymap already has the grammar for that one ambiguous cell: a bare digit there is
 the NEXT NOTE, `Alt`+digit is the ENDING RING's fall — "the ONE thing `Alt` creates on this
