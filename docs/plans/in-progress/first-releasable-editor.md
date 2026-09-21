@@ -108,19 +108,21 @@ unenforced rulings, and a set of defects on supported material.
   selected elements a verb refused glow red a couple of times and stay unchanged, and the reason
   goes to the log — NOT a status line or toast, which is the proposal it replaced and the wording
   this entry carried until the ruling was recovered on 2026-09-21. `IEditorView::showNotice` is the
-  modal load-time notice, not this. Four reports wait on it, and only the first exists in code:
+  modal load-time notice, not this. Three reports wait on it, and only the first exists in code:
   the legato verb's skip (`ChartLegatoPlan`, whose count-and-dominant-reason shape changes to the
-  refused notes themselves), the harmonic picker's skip, the locked-slide-tail refusal (40-Q5, W6),
-  and the mixed-validity report for technique and keyframe edits
-  (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on an ineligible selection is a
-  dead key.
-- **The slide tail lock** (W6, roadmap 40-Q5 — unsigned). Today a sustain shortened past a keyframe
-  drops every fret, bend and vibrato statement beyond the new end (`clipPayloadsToSustain`, by
-  design) and tells the charter nothing; only undo brings them back. Unreported loss of authored
-  data on supported material is the case corollary 1 exists for. Sign 40-Q5
-  — refuse below the last keyframe, or clip and report the loss — and build whichever it is. The
-  report half rides the refusal flash above; the lock half had no task of its own and was nearly
-  lost when the old W6 task was merged into #278.
+  refused notes themselves), the harmonic picker's skip, and the mixed-validity report for
+  technique and keyframe edits (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on
+  an ineligible selection is a dead key.
+- **The slide tail lock** (W6, roadmap 40-Q5 — SIGNED 2026-09-21). Today a sustain shortened past
+  a keyframe drops every fret, bend and vibrato statement beyond the new end
+  (`clipPayloadsToSustain`) and tells the charter nothing; only undo brings them back. Unreported
+  loss of authored data on supported material is the case corollary 1 exists for. The lock was
+  ruled 2026-08-09 and its feedback on 2026-09-21: the ring stops at its last non-release
+  keyframe as a SILENT floor in the resize clamp, exactly as it stops at the next note's head —
+  a visible bound is not a refusal, so it takes no flash, mark or message (`refusal-flash.md`). It
+  no longer waits on #278 and can be built now. A release still rides the end, which loses
+  nothing. The lock had no task of its own and was nearly lost when the old W6 task was merged
+  into #278.
 - **The tap-at-claimed-stop refusal** (task #277) — ruled invalid by construction, enforced
   nowhere: `chart_rules.cpp` never consults `chartClaimedStops`, so the state can be authored and
   saved. The open design call is placement (validator, load repair, or planner refusal).
@@ -438,9 +440,9 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    reopening trigger in `docs/tracking/watch-items.md`), and the corpus census re-pinned after it
    with every row made able to fail.
 2. **Current.** Land the ungated work while gates are signed: the refusal flash
-   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Three small
-   rulings sit directly behind the refusal flash and are cheapest signed before it lands: 40-Q5
-   (refuse or clip-and-report), #277's placement, and the unstruck-tie default.
+   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). The slide
+   tail lock joins them, ungated since 40-Q5 was signed 2026-09-21. Two small rulings are cheapest
+   signed before Phase 2's verbs are wired: #277's placement and the unstruck-tie default.
 3. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
    sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,
    #59 and the authored-span extend law) and G52-RANGE-EDIT.

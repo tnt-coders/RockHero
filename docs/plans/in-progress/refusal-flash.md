@@ -40,6 +40,14 @@ flash fires on a real refusal only, never on an honest no-op (`ChartPlanRefusal:
 sighting ever shows charters not finding the why, the log line is the thing to surface — not a
 redesign.
 
+**A visible bound is not a refusal** (user, 2026-09-21). Resizing happens constantly, and a ring
+that runs into the next note's head, or shrinks to its last keyframe, and simply stops there is
+not an error: the charter can see what bounds it. No flash, no mark, no message. This settles
+roadmap 40-Q5 — the slide tail lock is a silent floor in the resize clamp — and it draws the
+flash's line for every verb: the flash is for a key that did nothing for a reason the screen does
+not already show. One bound is not yet visible — a keyframe that states no fret draws nothing
+(W13, a Phase 3 blocker) — and W13 closes that, not a flash.
+
 **Never said by anyone**, and not to be reconstructed as if it had been: pulse timing, the choice
 between two pulses and three, the drawn geometry (the "selection ring" was a *perhaps*), a color
 token, behaviour under key repeat, and any 3D treatment.
@@ -95,11 +103,11 @@ Follow `docs/developer/adding-an-editor-ui-view.md` Part B for the silent steps.
 |---|---|---|
 | F1 | Pulse count and timing | Sight two and three pulses at a few periods in the built editor; no number is worth guessing |
 | F2 | Drawn geometry: the selection ring turning red, or a glow around it | Sight both; the ring is the smaller build |
-| F3 | Key repeat — a refusal arriving while a flash is still running | Let the running flash finish; a held key then reads as one steady pulse train instead of a strobe |
+| F3 | Key repeat — a refusal arriving while a flash is still running | Let the running flash finish; a held key then reads as one steady pulse train instead of a strobe. Much smaller since the bound ruling: the held-key gestures (resize, move) stop silently, so what repeats is a toggle verb |
 | F4 | 2D only? | Yes. It reports on an editing verb the highway has none of, the same ground on which W6's feedback was ruled editor-only |
 | F5 | Reason to the log ONLY | Confirm. It was the user's "could probably", then an assistant rider never answered |
 | F6 | Scope of "every selection": notes and keyframes first, or markers too | Notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
-| F7 | 40-Q5 — shorten a sustain past a keyframe: refuse, or clip and report | **Refuse.** The flash gives a refusal a complete voice and gives a loss report none; refusing also deletes nothing the charter authored |
+| ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
 One unreconciled line from 2026-09-05 suggested the flash could "hint `Shift+S` as the verb they
 actually want" — on-screen text, which contradicts F5. It was never put to the user and is not part
