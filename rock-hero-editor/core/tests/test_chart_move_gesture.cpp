@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -71,6 +73,18 @@ struct MoveFixture
         return state != nullptr ? state->undo_history.labels.size() : 0;
     }
 
+    // The newest entry's label, or empty when the stack holds none: WHICH entry survived a burst,
+    // which a count alone cannot say. Assertion-free for the reason above.
+    [[nodiscard]] std::string undoTopLabel() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        if (state == nullptr || state->undo_history.labels.empty())
+        {
+            return {};
+        }
+        return state->undo_history.labels.back();
+    }
+
     // The chart as it stands, copied so a scenario can compare a later chart against it field for
     // field — which is what an undo round trip has to prove.
     [[nodiscard]] common::core::Chart currentChart() const
@@ -105,6 +119,46 @@ struct MoveFixture
 // string 3.
 constexpr float g_junction_x{80.0f};
 constexpr float g_string_3_y{140.0f};
+
+// The silent-point scenarios' own marks and frets. Both notes of the chart below start at measure 2
+// beat 1 (2.0s, x = 40), and the host's tail two beats in draws at 3.0s (x = 60).
+constexpr float g_measure_2_x{40.0f};
+constexpr float g_host_tail_x{60.0f};
+constexpr int g_victim_fret{3};
+constexpr int g_host_fret{5};
+// What the victim is retyped to where a scenario needs the first edit to be a retype rather than a
+// delete: two digits would widen under the 24-fret cap, and 9 cannot, so the entry settles in the
+// one keystroke.
+constexpr int g_retyped_fret{9};
+
+// The chart the silent-point scenarios run on. The VICTIM on string 1 takes the first edit, whose
+// undo entry everything below must leave alone. The HOST rings eight beats on string 3 sounding a
+// plain fret with no keyframes, so its whole path holds that fret — and a digit typed at it two
+// beats in plants a point that says nothing, the edit whose written diff is empty.
+[[nodiscard]] common::core::Chart makeSilentPointChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, g_victim_fret),
+        makeTestNote({.measure = 2, .beat = 1}, 3, g_host_fret, common::core::Fraction{8}),
+    };
+    return chart;
+}
+
+// Whether any note in the chart carries a point at an offset stating a fret. Found by offset rather
+// than by index, because a keyframe list is offset-ordered and a step can carry a point past its
+// neighbours.
+[[nodiscard]] bool hasPoint(
+    const common::core::Chart& chart, common::core::Fraction offset, int fret)
+{
+    return std::ranges::any_of(chart.notes, [offset, fret](const common::core::ChartNote& note) {
+        return std::ranges::any_of(
+            note.keyframes, [offset, fret](const common::core::Keyframe& point) {
+                return point.offset == offset && point.fret == fret;
+            });
+    });
+}
 
 } // namespace
 
@@ -301,6 +355,158 @@ TEST_CASE("A keyframe move gesture re-points the selection at every step", "[cor
         CHECK(stepped.notes[0].sustain == original.notes[0].sustain);
     }
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    fixture.controller.onUndoRequested();
+    CHECK(fixture.currentChart() == original);
+}
+
+// THE burst record's own law, and a data-loss regression: the record must not outlive the edit it
+// names. An edit whose WRITTEN diff is empty — a point planted or stepped at the fret already in
+// force — pushes no entry at all, and an entry-less edit moves the history position not at all, so
+// a record left naming the PREVIOUS edit's entry still passes the ownership proof. The next press
+// of a gesture then reconstructs its "pre-gesture" chart by reversing a stranger's plan, finds no
+// operand there, and retires that stranger's entry — which took a deleted note's only way back.
+TEST_CASE("A silent point edit hands the next move gesture no record", "[core][chart]")
+{
+    MoveFixture fixture;
+    REQUIRE(fixture.load(makeSilentPointChart()));
+    const common::core::Chart original = fixture.currentChart();
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    // The edit whose entry has to survive everything below.
+    click(fixture.controller, g_measure_2_x, g_string_1_y);
+    fixture.controller.onSelectionDeleteRequested();
+    REQUIRE(fixture.currentChart().notes.size() == 1);
+    REQUIRE(fixture.undoEntryCount() == entries_before + 1);
+    CHECK(fixture.undoTopLabel() == "Delete Note");
+
+    // A digit at the fret the ring already holds: the point stands in the chart as authoring state,
+    // with no entry of its own.
+    click(fixture.controller, g_host_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    // The first press steps the point and writes nothing; the second is where a stale record
+    // strikes, because it is the first press that could CONTINUE a run.
+    fixture.step(ChartStepDirection::Right);
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{3}, g_host_fret));
+    CHECK(fixture.currentChart().notes.size() == 1);
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    fixture.step(ChartStepDirection::Right);
+    const common::core::Chart moved = fixture.currentChart();
+    // The deleted note did not come back, and the entry that deleted it is still on top.
+    REQUIRE(moved.notes.size() == 1);
+    CHECK(hasPoint(moved, common::core::Fraction{4}, g_host_fret));
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+    CHECK(fixture.undoTopLabel() == "Delete Note");
+
+    // And it is still the DELETE: one Ctrl+Z brings the note back. The point goes with it, because
+    // undo replays written states and no entry ever held it.
+    fixture.controller.onUndoRequested();
+    CHECK(fixture.currentChart() == original);
+}
+
+// Not delete-specific: the victim is whatever the newest chart-notes edit was, so the same sequence
+// over a RETYPE must leave the retyped fret standing and its entry intact.
+TEST_CASE("A silent point edit leaves an earlier retype intact", "[core][chart]")
+{
+    MoveFixture fixture;
+    REQUIRE(fixture.load(makeSilentPointChart()));
+    const common::core::Chart original = fixture.currentChart();
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    click(fixture.controller, g_measure_2_x, g_string_1_y);
+    fixture.controller.onChartFretDigitTyped(g_retyped_fret);
+    const common::core::Chart retyped = fixture.currentChart();
+    REQUIRE(retyped.notes.size() == 2);
+    CHECK(retyped.notes[0].fret == g_retyped_fret);
+    REQUIRE(fixture.undoEntryCount() == entries_before + 1);
+
+    click(fixture.controller, g_host_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    fixture.step(ChartStepDirection::Right);
+    fixture.step(ChartStepDirection::Right);
+    const common::core::Chart moved = fixture.currentChart();
+    REQUIRE(moved.notes.size() == 2);
+    CHECK(moved.notes[0].fret == g_retyped_fret);
+    CHECK(moved.notes[1].keyframes.size() == 1);
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    // One undo puts the old fret back, which only an entry still describing the retype can do.
+    fixture.controller.onUndoRequested();
+    CHECK(fixture.currentChart() == original);
+}
+
+// The duration verb reaches the record through the same gesture authority, so a burst started right
+// after a silent point edit must push its OWN entry rather than reaching for the earlier one: two
+// presses are one entry beside the delete's, and the two undo in their own order.
+TEST_CASE("A sustain burst after a silent point edit keeps the earlier entry", "[core][chart]")
+{
+    MoveFixture fixture;
+    REQUIRE(fixture.load(makeSilentPointChart()));
+    const common::core::Chart original = fixture.currentChart();
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    click(fixture.controller, g_measure_2_x, g_string_1_y);
+    fixture.controller.onSelectionDeleteRequested();
+    click(fixture.controller, g_host_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    REQUIRE(fixture.undoEntryCount() == entries_before + 1);
+
+    fixture.controller.onChartSustainAdjustRequested(1);
+    fixture.controller.onChartSustainAdjustRequested(1);
+    const common::core::Chart grown = fixture.currentChart();
+    REQUIRE(grown.notes.size() == 1);
+    CHECK(grown.notes[0].sustain == common::core::Fraction{10});
+    CHECK(fixture.undoEntryCount() == entries_before + 2);
+
+    // The burst's own entry undoes the ring alone, and the delete is still a step of its own
+    // underneath it.
+    fixture.controller.onUndoRequested();
+    const common::core::Chart shrunk = fixture.currentChart();
+    REQUIRE(shrunk.notes.size() == 1);
+    CHECK(shrunk.notes[0].sustain == common::core::Fraction{8});
+    CHECK(fixture.undoEntryCount() == entries_before + 2);
+
+    fixture.controller.onUndoRequested();
+    CHECK(fixture.currentChart() == original);
+}
+
+// The technique toggle's reversal window reads the same record: a press after a silent point edit
+// must reverse the entry ITS OWN press pushed, never the edit before it.
+TEST_CASE("A technique toggle after a silent point edit reverses its own entry", "[core][chart]")
+{
+    MoveFixture fixture;
+    REQUIRE(fixture.load(makeSilentPointChart()));
+    const common::core::Chart original = fixture.currentChart();
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    click(fixture.controller, g_measure_2_x, g_string_1_y);
+    fixture.controller.onSelectionDeleteRequested();
+    click(fixture.controller, g_host_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    REQUIRE(fixture.undoEntryCount() == entries_before + 1);
+
+    // Onto the host's own head, which keeps its note in focus, so the point stands through both
+    // presses below.
+    click(fixture.controller, g_measure_2_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    const common::core::Chart muted = fixture.currentChart();
+    REQUIRE(muted.notes.size() == 1);
+    CHECK(muted.notes[0].palm_mute);
+    CHECK(fixture.undoEntryCount() == entries_before + 2);
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    const common::core::Chart reverted = fixture.currentChart();
+    REQUIRE(reverted.notes.size() == 1);
+    CHECK_FALSE(reverted.notes[0].palm_mute);
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+    CHECK(fixture.undoTopLabel() == "Delete Note");
 
     fixture.controller.onUndoRequested();
     CHECK(fixture.currentChart() == original);

@@ -421,7 +421,11 @@ rather than timed** — the next press proves the burst is still its own from th
 history position (`chartVerbWindowHolds`), so any interleaved edit, undo, or redo retires it without
 teardown discipline. It reads the shared record of what the burst pushed (`m_chart_notes_top`: the
 plan, and the position that proves it is still the top), which is also what the legato settle sweep
-folds into — and that sharing is what forces the rule **a sweep that commits anything closes the
+folds into. That record's writer is TOTAL — `applyChartEditPlan` assigns it on every path, the
+pushed entry or nothing — because an edit whose WRITTEN diff is empty (a point planted or stepped at
+the fret already in force) pushes no entry and moves the history position not at all, so a record
+left naming the previous edit's entry still passed the proof and handed the next burst a stranger's
+entry to reverse and retire. And that sharing is what forces the rule **a sweep that commits anything closes the
 window**: a fold changes the top entry's content without moving the history position, so an armed
 proof would otherwise still pass and act on a plan that no longer exists. The fret entry needs none
 of those proofs: it settles before anything that could invalidate it runs, which is the pending

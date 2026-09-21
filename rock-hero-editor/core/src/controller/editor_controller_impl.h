@@ -1133,6 +1133,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // keyframes included, because every reader reverses it against the live chart; the entry the
     // history holds is its written form (writtenChartPlan), and a dissolve that takes a point the
     // plan names retires the record with it.
+    //
+    // CREATED in applyChartEditPlan alone, and there on EVERY path through it: the entry when the
+    // history took one, and std::nullopt when it did not. (Everything else either clears it — a
+    // context change, an undo, a retire, a committing settle — or keeps it in step with an entry it
+    // replaced.) That totality is the invariant rather than a courtesy: an edit whose WRITTEN diff
+    // is empty pushes no entry and moves the position not at all, so a record left naming the
+    // PREVIOUS edit's entry would still pass the proof above and hand the next burst a stranger's
+    // entry to reverse and retire.
     struct ChartNotesTopEntry
     {
         ChartEditPlan plan{};

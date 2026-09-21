@@ -946,8 +946,16 @@ bool EditorController::Impl::applyChartEditPlan(
     // so the point stands in the chart with no entry and no record at all, and the next edit on its
     // note diffs from the written state before it. The record is what the settle sweep folds its
     // flatten into, so the edit and the claim it broke undo together, and what the technique
-    // toggle windows reverse; recorded only for an entry the history actually took — a refused
-    // push resets the history, and a record claiming to own its top would then be a false proof.
+    // toggle windows reverse.
+    //
+    // EVERY path through here assigns it, which is what makes this the record's one creator: the
+    // entry when the history took one, and nothing when it did not. A record that outlived the edit
+    // it names would hand the next burst someone else's entry — an entry-less edit moves the
+    // history position not at all, so the position proof every reader rests on would still pass,
+    // and a gesture press would reverse a stranger's plan and retire a stranger's entry. (A refused
+    // push resets the history, which is the same reason.) The accepted consequence: a run whose
+    // early steps write nothing and whose later step writes does not coalesce across that boundary,
+    // which is correct — the early steps are authoring state no entry may hold.
     ChartEditPlan written = writtenChartPlan(*plan);
     if (!written.empty() && pushUndoEntry(std::make_unique<ChartEdit>(std::move(written))))
     {
@@ -955,6 +963,10 @@ bool EditorController::Impl::applyChartEditPlan(
             .plan = std::move(*plan),
             .history_position = m_undo_history.snapshot().position,
         };
+    }
+    else
+    {
+        m_chart_notes_top.reset();
     }
     updateView();
     return true;

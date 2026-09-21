@@ -104,7 +104,12 @@ only, so re-running it on an authored edit would overwrite hand positions the ch
   commit shape is decided by where the cursor sits (`settleChart`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z
   restores the edit and the claim it broke together; with no such entry it PUSHES its own (at
-  top-of-stack a push truncates nothing); at a mid-stack resting point — reachable only through
+  top-of-stack a push truncates nothing) — and the burst has no such entry both when no chart edit
+  opened it and when the newest one WROTE NOTHING, because an edit whose written diff is empty
+  pushes no entry and therefore clears the record rather than leaving it naming the edit before it
+  (`applyChartEditPlan`, fixed 2026-09-21: left standing, that record still passed the position
+  proof, and the next gesture press reversed a stranger's plan and retired a stranger's entry);
+  at a mid-stack resting point — reachable only through
   undo — it **defers entirely**, because rewriting an entry the cursor is not on would either
   truncate a live redo branch or leave history describing a state the chart does not hold.
   Deferring is safe because nothing derived is stored: the claim simply displays as its resolution
