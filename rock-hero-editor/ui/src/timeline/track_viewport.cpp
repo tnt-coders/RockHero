@@ -745,7 +745,7 @@ void TrackViewport::applyZoomAroundCursor(double target_pixels_per_second)
         centerViewportOnTime(pivot_seconds);
     }
     const std::optional<float> pivot_x_before = contentXForTime(pivot_seconds);
-    const double view_left_before = static_cast<double>(m_viewport.getViewPositionX());
+    const auto view_left_before = static_cast<double>(m_viewport.getViewPositionX());
     const double previous_pixels_per_second = m_pixels_per_second;
     m_pixels_per_second =
         std::clamp(target_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);

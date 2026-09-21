@@ -170,7 +170,7 @@ ChartSelection& EditorController::Impl::chartSelectionMutable()
     // The emplace is the chart funnel's counterpart to setSelection: it REPLACES another kind, so
     // the selection input the audible tone reads has changed and is re-derived here. Only this
     // branch — the early return above is reached once per marquee move, and nothing changed there.
-    ChartSelection& emplaced = m_selection.emplace<ChartSelection>();
+    auto& emplaced = m_selection.emplace<ChartSelection>();
     syncAudibleTone();
     return emplaced;
 }
