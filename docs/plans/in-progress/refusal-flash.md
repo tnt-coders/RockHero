@@ -115,6 +115,14 @@ Follow `docs/developer/adding-an-editor-ui-view.md` Part B for the silent steps.
 | ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
 | ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
+**A second consumer, RULED 2026-09-21 (user): it flashes.** An `Alt` digit typed at a ring's exact
+end naming the fret already in force is a `NoChange` no-op: the release it would state says
+nothing, and the plan gate dissolves such a release in the same edit (`dissolveSilentRelease`). The
+key does nothing for a reason the screen does not show, which is the flash's own line, so the note
+flashes. It also corrects the rider above: the trigger is not `Invalid` versus `NoChange` but
+whether the screen already explains the nothing — a toggle that finds its claim already set is an
+honest no-op, this press is a refusal that happens to plan as one.
+
 One unreconciled line from 2026-09-05 suggested the flash could "hint `Shift+S` as the verb they
 actually want" — on-screen text, which contradicts F5. It was never put to the user and is not part
 of the design.

@@ -1536,6 +1536,11 @@ writer sheds it (\ref documentChart) and the load repair sheds one that arrives
 (\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.
 How long it lives in memory is the editor's own rule — no undo entry ever records one, and it
 dissolves when its note leaves focus — so nothing anywhere keeps a record of who planted what.
+The RELEASE is the one exception, because it is the one such point with no face and no handle: the
+lane draws nothing for a segment that does not travel and a release wears no head, so it cannot be
+selected, given a shake, or deleted, while it still pins the ring and blocks the legato assist.
+A silent one is therefore not authoring state at all, and the editor's plan gate removes it in the
+same edit that created it (\ref dissolveSilentRelease).
 
 \param note The note WITHOUT the point — the path the point is judged against.
 \param point The point, with every channel it would state.
@@ -1551,6 +1556,29 @@ dissolves when its note leaves focus — so nothing anywhere keeps a record of w
 \return True when any keyframe was dropped — what the normalizer reports as its repair.
 */
 bool stripSilentKeyframes(ChartNote& note);
+
+/*!
+\brief Removes the note's RELEASE when it falls toward the fret the path already holds there.
+
+The one point THE KEYFRAME COMMIT LAW cannot leave to the charter: an interior point that says
+nothing is visible authoring state — a linked head that can be selected, given a shake, or deleted
+— but a release has no face and no handle, since the lane draws no fall for a segment that does not
+travel and a release wears no head. So it cannot be reached, yet it pins the ring and blocks the
+legato assist, which is why the editor's plan gate takes it in the same edit that created it
+instead of waiting for the focus-leave sweep that clears the visible ones
+(\ref stripSilentKeyframes). Asked of the ONE authority
+(\ref keyframeSaysNothingNew), on the path without the point, so this never becomes a second
+opinion about what a point states; a release states its fret and nothing else
+(\ref stripReleaseChannels), so that verdict is its fret's alone. A scrape's terminal can never be
+removed here: a scrape's whole path is required to TRAVEL
+(\ref validateChartNoteAlone, the always-traveling rule), so its terminal's fret differs from the
+one in force before it by construction.
+
+\param note Note whose release, if it has one and it says nothing, is removed; the ring keeps its
+            length.
+\return True when the release was removed.
+*/
+bool dissolveSilentRelease(ChartNote& note);
 
 /*!
 \brief The note as a saved document records it: everything its attack cannot carry stripped.

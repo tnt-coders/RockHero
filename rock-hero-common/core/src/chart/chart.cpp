@@ -136,6 +136,20 @@ struct PathStop
     return false;
 }
 
+// Whether the note's LAST keyframe says nothing its path does not already say. THE KEYFRAME COMMIT
+// LAW is defined on the path WITHOUT the point, so the point comes off a copy before the walk reads
+// it — which is also what makes the walk account for every earlier junction rather than the onset
+// alone. Written once here because two rules ask it of the same keyframe: the landing grant, which
+// refuses to bare a point that would state nothing, and the release dissolve, which removes one
+// that already does. The note must carry at least one keyframe.
+[[nodiscard]] bool lastKeyframeSaysNothingNew(const ChartNote& note)
+{
+    assert(!note.keyframes.empty() && "the commit law needs a last keyframe to judge");
+    ChartNote without = note;
+    without.keyframes.pop_back();
+    return keyframeSaysNothingNew(without, note.keyframes.back());
+}
+
 } // namespace
 
 bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
@@ -199,14 +213,25 @@ bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
     {
         return false;
     }
-    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question, and that law is
-    // defined on the path WITHOUT the point — so the point comes off the copy the walk reads, which
-    // is also what makes the walk account for every earlier junction rather than the onset alone.
-    // With no bend and no shake left to judge (both guarded above), what it answers here is exactly
-    // whether the fret differs from the one already in force at that offset.
-    ChartNote ending = note;
-    ending.keyframes.pop_back();
-    return !keyframeSaysNothingNew(ending, last);
+    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question. With no bend and no
+    // shake left to judge (both guarded above), what it answers here is exactly whether the fret
+    // differs from the one already in force at that offset.
+    return !lastKeyframeSaysNothingNew(note);
+}
+
+bool dissolveSilentRelease(ChartNote& note)
+{
+    // A release states its fret and nothing else (stripReleaseChannels), so the commit law's
+    // verdict on it is its fret's alone: a fret the path already holds at the ring's end draws no
+    // fall and takes no head, which is what makes this point unreachable rather than authored.
+    if (releaseKeyframe(note) == nullptr || !lastKeyframeSaysNothingNew(note))
+    {
+        return false;
+    }
+    // The ring keeps its length: only the statement goes, exactly as clearing a slide-out leaves
+    // the tail simply ending.
+    note.keyframes.pop_back();
+    return true;
 }
 
 ChartNote savedChartNote(const ChartNote& note)

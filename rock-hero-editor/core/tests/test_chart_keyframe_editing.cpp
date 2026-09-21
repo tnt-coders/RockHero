@@ -1368,4 +1368,63 @@ TEST_CASE("A bare digit on a selected release retypes it", "[core][chart]")
     CHECK(retyped.notes[0].sustain == common::core::Fraction{8});
 }
 
+// A SILENT RELEASE DISSOLVES IN THE SAME EDIT THAT MADE IT. The charter's report: a fall to 6 on a
+// fret-5 ring, then a 6 typed one step before the end. The new point travels, so it stands — and it
+// leaves the release falling toward the fret the path now holds, a mark nothing draws and no head
+// reaches, which would still pin the ring. The gate takes the release rather than the point, and
+// ONE undo puts the figure back: the diff records document states, and both sides of this one are
+// statements the writer keeps.
+TEST_CASE("A point typed before a release dissolves the release it duplicates", "[core][chart]")
+{
+    common::core::Chart falling;
+    falling.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote note =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+    common::core::setSlideOut(note, 6);
+    falling.notes = {std::move(note)};
+    KeyframeFixture fixture{std::move(falling)};
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    // One beat inside the six-second end, at the fixture geometry's 20 px/s: seven beats along the
+    // ring, where the digit states a point on the path.
+    constexpr float one_beat_inside_x{110.0f};
+    click(fixture.controller, one_beat_inside_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(6);
+
+    const common::core::Chart stated = currentChart(fixture.controller);
+    REQUIRE(stated.notes.size() == 1);
+    REQUIRE(stated.notes[0].keyframes.size() == 1);
+    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{7});
+    CHECK(stated.notes[0].keyframes[0].fret == 6);
+    // The ring keeps its length; what went is the statement at its end.
+    CHECK(stated.notes[0].sustain == common::core::Fraction{8});
+    CHECK(common::core::slideOutFretOrNull(stated.notes[0]) == nullptr);
+
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
+// The same law reached by the verb that states a release directly: `Alt`+digit at the ring's exact
+// end with that very fret in force would author the one point no surface draws and no head reaches,
+// so the edit comes out as NO CHANGE — the press authors nothing rather than planting something
+// unreachable. (A press the screen does not explain; see docs/plans/in-progress/refusal-flash.md.)
+TEST_CASE("Alt at a ring's end repeating the fret in force authors nothing", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+    // The glide holds its junction's 9 from four beats in to the end, so 9 is the fret in force
+    // there and the slide-out it would name falls nowhere.
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    fixture.controller.onChartPathDigitTyped(9);
+
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+    // NoChange is not a refusal, so nothing is left armed for a second digit to widen.
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+}
+
 } // namespace rock_hero::editor::core

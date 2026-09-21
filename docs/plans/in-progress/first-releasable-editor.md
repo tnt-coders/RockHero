@@ -134,13 +134,17 @@ unenforced rulings, and a set of defects on supported material.
   under one predicate the move verb can ask the same way
   (`common::core::ringEndMayLandOnLastKeyframe`).
 - **To verify: the same hole one verb over.** `moveErasesStatement` exempts a keyframe standing
-  exactly ON the landing, so a ring truncated by a MOVE can end on a keyframe carrying a shake or
-  a bend, which becomes the release and is stripped the same way — or on one repeating the fret in
-  force, which becomes a release that says nothing. `clipPayloadsToSustain` can also turn a
-  TRAVELLING release into a silent one by erasing the junction it travelled from, and a digit typed
-  under `Alt` at a ring's exact end states a release directly, the fret in force included
-  (`chartCaretDigitTarget`). All four are answerable with the predicate above. Confirm with a test before
-  fixing; the fix is the predicate the resize now asks (`releaseWouldStripChannels`).
+  exactly ON the landing, so a ring truncated by a MOVE can still end on a keyframe carrying a
+  shake or a bend, which becomes the release and is stripped by the bare-fret law the same way.
+  That half stands: confirm with a test before fixing; the fix is the predicate the resize now asks
+  (`releaseWouldStripChannels`).
+  The three SILENT-release routes beside it are CLOSED (user ruling, 2026-09-21): a landing on a
+  keyframe repeating the fret in force, a `clipPayloadsToSustain` that turns a TRAVELLING release
+  silent by erasing the junction it travelled from, and a digit typed under `Alt` at a ring's exact
+  end naming the fret already in force (`chartCaretDigitTarget`). A release that says nothing has no
+  face and no handle — unlike an interior point, which the charter can see and reach — so the plan
+  gate dissolves it in the edit that made it (`common::core::dissolveSilentRelease`): the first two
+  now come out with no release at all, and the third is a `NoChange` no-op that authors nothing.
 - **Inserting a note can still clip a neighbour's keyframes, silently.** The one real loss path
   the W6 check turned up. `planInsertNote` has no guard and leaves the overlap to the gate's
   `normalizeSustainOverlaps`, which truncates the earlier ring and drops every statement past the

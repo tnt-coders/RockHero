@@ -195,8 +195,12 @@ a repeated position would still. None of them appears here.
 Nor does the commit law: a point that says nothing the path does not already say is planted like
 any other — authoring state the history never records (\ref writtenChartPlan) and the document
 writer sheds (\ref common::core::keyframeSaysNothingNew) — so this planner never refuses a point
-for its meaning. The scrape's still-hold — a repeated position that would stop the pick travelling —
-refuses through the fixpoint, because a scrape that rests on a fret is no scrape.
+for its meaning. The one instant where that does not hold is the ring's END, where the point IS the
+release: a release has no head to select and draws no fall toward a fret the path already holds, so
+the gate dissolves a silent one (\ref common::core::dissolveSilentRelease) and the plan comes back
+NoChange — the press authors nothing rather than planting something unreachable. The scrape's
+still-hold — a repeated position that would stop the pick travelling — refuses through the fixpoint,
+because a scrape that rests on a fret is no scrape.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -586,8 +590,9 @@ recorded steps and rejoins where it parted.
   hold there, on a ring that simply ends, may be landed on exactly, which makes it the RELEASE and
   the glide an unpitched slide-out. A keyframe also stating a bend or a shake would lose that
   statement to the release's bare-fret law, and one repeating the fret already in force would author
-  a fall toward the fret the string already holds — invisible, dissolved at the next settle, and
-  pinning the ring meanwhile. Either holds the ring above it like a fretless one: this verb shortens
+  a fall toward the fret the string already holds — invisible, and dissolved by the plan gate in the
+  same edit (\ref common::core::dissolveSilentRelease), which would take the point the charter can
+  still see with it. Either holds the ring above it like a fretless one: this verb shortens
   rings, it neither deletes statements nor writes ones nothing shows. A ring the replay takes to or
   below its floor has nowhere legal to end, so the note keeps the ring it CURRENTLY has — read from
   `chart`, not from `base`, because the value on screen is the one that holds — and rejoins the

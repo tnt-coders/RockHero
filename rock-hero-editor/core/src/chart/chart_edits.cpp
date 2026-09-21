@@ -235,6 +235,19 @@ enum class StrandedStrikeRepair : std::uint8_t
     // changed); a producer that only needs the invariant ignores them, which is why neither rule
     // is [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
+    // BETWEEN the two, because a release the truncation left saying nothing is not a point for the
+    // clearance repair to place: a silent RELEASE has no face and no handle — nothing draws a fall
+    // toward the fret the path already holds, and a release wears no head — so it cannot be reached
+    // while it still pins the ring, and the edit that created it is the edit that clears it. Taken
+    // here, a tail whose release dissolves ends exactly where the landing put it, instead of at a
+    // clearance computed for a point that no longer exists; the keyframe the dissolve exposes then
+    // reaches the repair below like any other. Nothing is lost by going first: the clearance repair
+    // can neither create a release nor silence a travelling one, since it clips no further back
+    // than the statement the release travels from.
+    for (common::core::ChartNote& note : candidate)
+    {
+        static_cast<void>(common::core::dissolveSilentRelease(note));
+    }
     common::core::normalizeKeyframeClearances(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it

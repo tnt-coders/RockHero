@@ -271,8 +271,12 @@ Three consequences worth knowing before touching this:
   like any keyframe: click it, it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
   `drawSlideLines`), a digit retypes it, Delete clears it, and one that falls toward the fret
-  already in force says nothing — authoring state that dissolves with focus and is never written
-  (`keyframeSaysNothingNew`). A point never moves because the ring did: growing the
+  already in force never EXISTS. It says nothing (`keyframeSaysNothingNew`), and unlike an interior
+  point — a linked head the charter can see, select, shake or delete, which lives until its note
+  leaves focus — a release has no face and no handle at all, so the plan gate dissolves a silent one
+  in the very edit that made it (`dissolveSilentRelease`, ruled 2026-09-21). The `Alt`+digit that
+  would state one therefore comes back as `NoChange`: the press authors nothing rather than planting
+  a mark no surface draws and no pointer can reach. A point never moves because the ring did: growing the
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
   exactly onto its last stated fret makes that fret the release — but only where the landing costs
   the point nothing and states something, which is the previous sentence's other half:

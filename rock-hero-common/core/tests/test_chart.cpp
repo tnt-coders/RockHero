@@ -1352,6 +1352,65 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
     }
 }
 
+// A SILENT RELEASE IS NOT AUTHORING STATE. An interior point that says nothing is visible — a
+// linked head the charter can select, shake or delete — but a release falling toward the fret the
+// path already holds draws no fall and wears no head, so nothing can reach it while it still pins
+// the ring. The dissolve asks the commit law's one authority about it and takes it; the ring keeps
+// its length, and a point that says something, a release that travels, and a scrape's terminal are
+// each left alone.
+TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
+{
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1};
+    note.string = 1;
+    note.fret = 5;
+    note.sustain = Fraction{2};
+
+    SECTION("a release falling toward the fret in force")
+    {
+        setSlideOut(note, 5);
+        CHECK(dissolveSilentRelease(note));
+        CHECK(note.keyframes.empty());
+        // Only the statement goes: the tail simply ends where it ended.
+        CHECK(note.sustain == Fraction{2});
+        CHECK_FALSE(dissolveSilentRelease(note));
+    }
+    SECTION("a release falling toward a fret an earlier junction reached")
+    {
+        // "The fret in force" is the PATH's answer, so a junction's fret counts exactly as the
+        // onset's own does — and the junction itself, which travels, stays.
+        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = {}}};
+        setSlideOut(note, 7);
+        CHECK(dissolveSilentRelease(note));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+    }
+    SECTION("a release that travels stays")
+    {
+        setSlideOut(note, 3);
+        CHECK_FALSE(dissolveSilentRelease(note));
+        CHECK(slideOutFretOrNull(note) != nullptr);
+    }
+    SECTION("an interior point that says nothing stays")
+    {
+        // The charter can see this one, so it lives until its note leaves focus
+        // (stripSilentKeyframes) — the whole distinction the dissolve rests on.
+        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 5, .bend = {}, .vibrato = {}}};
+        CHECK_FALSE(dissolveSilentRelease(note));
+        CHECK(note.keyframes.size() == 1);
+    }
+    SECTION("a scrape's terminal can never be taken")
+    {
+        // A scrape's whole path must TRAVEL, so its terminal states a fret the path does not hold
+        // — the gesture's required exit is unreachable by this rule by construction.
+        note.attack = NoteAttack::PickSlide;
+        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}}};
+        setSlideOut(note, 12);
+        CHECK_FALSE(dissolveSilentRelease(note));
+        CHECK(slideOutFretOrNull(note) != nullptr);
+    }
+}
+
 // Every strip arm the normalizer owns works per CHANNEL. A rule that refuses a glide has nothing
 // to say about a bend or a shake authored at the same instant, and forgetting them because they
 // shared an offset with the statement it refused would delete data no rule ever judged — which is

@@ -1287,6 +1287,107 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             }
         }
     }
+
+    SECTION("a same-fret statement on the landing dissolves instead of becoming a release")
+    {
+        // The same landing, on a point that says nothing: baring it would author a fall toward the
+        // fret the string already holds — nothing draws it, no head reaches it, and it would pin
+        // the ring — so the plan gate takes it in this very edit and the tail simply ends. The
+        // ring then ends EXACTLY on the landing, three beats out, and not at the clearance the
+        // section above keeps: the dissolve runs before the clearance repair, so no ring is
+        // shortened to make room for a statement that is gone.
+        const common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{3}, .fret = 7, .bend = {}, .vibrato = {}
+            });
+        const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const tail = shortened(*plan);
+            REQUIRE(tail != nullptr);
+            if (tail != nullptr)
+            {
+                CHECK(tail->sustain == common::core::Fraction{3});
+                CHECK(tail->keyframes.empty());
+            }
+        }
+    }
+}
+
+// The other route a truncation reaches a release by: the clip ERASES the statement the release
+// travelled from, and the release it re-attaches at the new end then falls toward the fret the
+// SURVIVING path already holds. Nothing draws that fall and no head reaches it, so the gate
+// dissolves it in the edit that made it rather than leaving the charter a ring pinned by a mark
+// they cannot see — and it dissolves BEFORE the clearance repair, so the ring ends exactly where
+// the new head put it (three halves of a beat) instead of at a clearance kept for a statement that
+// no longer exists.
+TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    // One four-beat glide from fret 5 on string 1, stating `path` along the way and falling away to
+    // `falls_toward` at its end. Every statement says something while the whole ring stands.
+    const auto figure = [](std::vector<common::core::Keyframe> path, const int falls_toward) {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote glide =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        glide.keyframes = std::move(path);
+        common::core::setSlideOut(glide, falls_toward);
+        chart.notes = {std::move(glide)};
+        return chart;
+    };
+    const auto junction = [](const common::core::Fraction offset, const int fret) {
+        return common::core::Keyframe{.offset = offset, .fret = fret, .bend = {}, .vibrato = {}};
+    };
+
+    // What the ring states before the clip, the fret it falls away toward, and the statements that
+    // survive the clip. Either way the release re-attaches onto a path that already holds its fret.
+    std::vector<common::core::Keyframe> path;
+    int falls_toward{};
+    std::vector<common::core::Keyframe> surviving;
+    SECTION("the release falls back onto the onset's own fret")
+    {
+        path = {junction(common::core::Fraction{2}, 7)};
+        falls_toward = 5;
+    }
+    SECTION("or onto a junction the clip leaves standing")
+    {
+        // The exposed statement is why the dissolve may run BEFORE the clearance repair at all: it
+        // stands STRICTLY inside the new ring — a keyframe under the dissolved release is under the
+        // ring's end, which the truncation has already pulled back to the head — so the repair has
+        // nothing to pull back, and this pins that it does not.
+        path = {junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{2}, 5)};
+        falls_toward = 7;
+        surviving = {junction(common::core::Fraction{1}, 7)};
+    }
+    const common::core::Chart chart = figure(path, falls_toward);
+    REQUIRE(common::core::slideOutFretOrNull(chart.notes.front()) != nullptr);
+
+    // A note struck on the string a beat and a half in re-strikes it, so the ring ends there: every
+    // statement past the landing is clipped and the release rides back onto what is left.
+    const auto plan = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 2, .beat = 2, .offset = {1, 2}}, 1, 3),
+        g_fixture_sustain);
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* const clipped =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1, .offset = {}}, 1);
+        REQUIRE(clipped != nullptr);
+        if (clipped != nullptr)
+        {
+            // The ring ends on the landing itself, and what is left is exactly what survived the
+            // clip: the fall is gone, and nothing else moved.
+            CHECK(clipped->sustain == common::core::Fraction{3, 2});
+            CHECK(clipped->keyframes == surviving);
+            CHECK(common::core::slideOutFretOrNull(*clipped) == nullptr);
+        }
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+    }
 }
 
 // A mixed selection is one press and one plan: the note moves its slot, and the keyframe it

@@ -643,7 +643,9 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         // already say is never written, so one that arrives is junk and goes
         // (keyframeSaysNothingNew). Here and not in the per-note normalizer, deliberately: the
         // validator mirrors that one as a fixpoint, and such a point is legal in memory — the
-        // editor's plan gate must keep accepting it.
+        // editor's plan gate must keep accepting it. It keeps accepting every INTERIOR one, which
+        // the charter can see and reach; a silent RELEASE, which they cannot, the gate dissolves
+        // on its own (dissolveSilentRelease) without any load or presentation path changing.
         if (stripSilentKeyframes(note))
         {
             record(

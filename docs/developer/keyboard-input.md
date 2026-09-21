@@ -388,7 +388,11 @@ bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. Th
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a
 meaning carries its creation; it dissolves, again with no entry, when its NOTE leaves focus
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
-and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). A charter
+and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). That lifetime is
+an INTERIOR point's, which the charter can see and reach. A silent RELEASE has no head and draws no
+fall, so it is not authoring state at all: the plan gate removes it in the edit that made it
+(`dissolveSilentRelease`), which is why an `Alt` digit at a ring's exact end naming the fret
+already in force authors nothing. A charter
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning
 second.
 A typed digit reaches every product through the SAME pending entry — the box at the slot, red where
