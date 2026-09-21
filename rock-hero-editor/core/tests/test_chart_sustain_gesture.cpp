@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -441,6 +442,211 @@ TEST_CASE("A shrink to the floor keeps a mid-hold shake through the settle", "[c
             CHECK(shake.vibrato == common::core::VibratoState::Narrow);
         }
     }
+}
+
+// The landing must also SAY something. A last keyframe repeating the fret already in force states
+// no travel, so baring it would author a fall toward the fret the string already holds: nothing
+// draws that fall, the settle's silent-point sweep dissolves the point, and until then the released
+// ring refuses to shorten any further — a floor the charter cannot see. Such a keyframe holds the
+// ring strictly above it, and "the fret already in force" is the PATH's answer, so a fret an
+// earlier junction travelled to counts exactly as the onset's own does.
+//
+// The point is TYPED rather than loaded, because a chart reaching the editor through the package
+// reader never carries one: the load repair sheds it (stripSilentKeyframes), so the digit is the
+// only route by which a shrinking ring can meet one.
+TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][chart]")
+{
+    GestureFixture fixture;
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote holding =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+    // The fret typed four beats along the tail, and how many points the tail then carries. Either
+    // way the typed value repeats the fret in force at that instant: the onset's own where nothing
+    // else states one, an earlier junction's where the ring has already travelled.
+    int typed{};
+    std::size_t points{};
+    SECTION("the onset's own fret")
+    {
+        typed = 5;
+        points = 1;
+    }
+    SECTION("the fret an earlier junction travelled to")
+    {
+        typed = 7;
+        points = 2;
+        holding.keyframes = {common::core::Keyframe{
+            .offset = common::core::Fraction{2},
+            .fret = 7,
+            .bend = {},
+            .vibrato = {},
+        }};
+    }
+    chart.notes = {std::move(holding)};
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
+
+    // Four beats in — 4.0s at the fixture geometry's 20 px/s — where a typed digit plants a point
+    // on the path, selected, and the duration verb then reaches the ring that point rides.
+    click(fixture.controller, 80.0f, 140.0f);
+    fixture.controller.onChartFretDigitTyped(typed);
+    const auto path_intact = [&fixture, points] {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        return chart_now != nullptr && chart_now->notes.size() == 1 &&
+               chart_now->notes[0].keyframes.size() == points &&
+               chart_now->notes[0].keyframes.back().offset == common::core::Fraction{4} &&
+               common::core::slideOutFretOrNull(chart_now->notes[0]) == nullptr;
+    };
+    // Asked with the production predicate, so the test cannot drift from the law it pins: the
+    // landing this floor would take is one that says nothing, and stays refused.
+    const auto landing_refused = [&fixture] {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        return chart_now != nullptr && chart_now->notes.size() == 1 &&
+               !common::core::ringEndMayLandOnLastKeyframe(chart_now->notes[0]);
+    };
+
+    fixture.step(-1);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(path_intact());
+    CHECK(landing_refused());
+
+    // 8 - 4 would land the end ON the point and bare it into a release that falls nowhere: the ring
+    // stays one step above instead, and the press moved no ring so it is not recorded.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(path_intact());
+    CHECK(landing_refused());
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(path_intact());
+
+    // The two held presses left no trace, so one grow is one visible step out from five beats.
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
+    CHECK(path_intact());
+}
+
+// The other half of the same rule: a last keyframe stating a fret the path does NOT already hold
+// travels, so baring it states a real fall and the landing is taken — here a point that turns the
+// glide back toward the onset's own fret, reached across an earlier junction.
+TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
+{
+    GestureFixture fixture;
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote turning =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
+    turning.keyframes = {
+        common::core::Keyframe{
+            .offset = common::core::Fraction{2},
+            .fret = 7,
+            .bend = {},
+            .vibrato = {},
+        },
+        common::core::Keyframe{
+            .offset = common::core::Fraction{4},
+            .fret = 5,
+            .bend = {},
+            .vibrato = {},
+        },
+    };
+    chart.notes = {std::move(turning)};
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
+
+    click(fixture.controller, 40.0f, 140.0f);
+    const auto falls_toward = [&fixture]() -> std::optional<int> {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        if (chart_now == nullptr || chart_now->notes.size() != 1)
+        {
+            return std::nullopt;
+        }
+        const int* const release = common::core::slideOutFretOrNull(chart_now->notes[0]);
+        return release != nullptr ? std::optional<int>{*release} : std::nullopt;
+    };
+
+    fixture.step(-1);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK_FALSE(falls_toward().has_value());
+
+    // 8 - 4 lands the end ON the turn: the point is the release now, and the fall from the 7 in
+    // force down to its 5 is a fall the surfaces draw.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    const std::optional<int> landed = falls_toward();
+    REQUIRE(landed.has_value());
+    if (landed.has_value())
+    {
+        CHECK(*landed == 5);
+    }
+    // A release needs its own leg, so the ring holds here.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(falls_toward().has_value());
+}
+
+// The defect end to end, by the route that authored it: a digit typed on a tail plants a point, and
+// a digit repeating the note's own fret plants one that says nothing. Shrinking onto it would have
+// made it an invisible release, after which the ring refused to shorten from the head either — the
+// charter's tail stuck on a mark nothing draws. The ring now floors one step above the point the
+// charter CAN see, from the point's selection and from the head alike; and once the point dissolves
+// at the settle, the floor falls back to the onset and the tail moves again.
+TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]")
+{
+    GestureFixture fixture;
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
+
+    // Four beats into the eight-beat ring — 4.0s at the fixture geometry's 20 px/s — and the note's
+    // own fret typed there, which states nothing the path does not already say.
+    click(fixture.controller, 80.0f, 140.0f);
+    fixture.controller.onChartFretDigitTyped(5);
+    const auto point_at = [&fixture](const common::core::Fraction offset) {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        return chart_now != nullptr && chart_now->notes.size() == 1 &&
+               chart_now->notes[0].keyframes.size() == 1 &&
+               chart_now->notes[0].keyframes[0].offset == offset;
+    };
+    REQUIRE(point_at(common::core::Fraction{4}));
+
+    // The duration verb reaches the ring the selected point rides, and it floors one step above it.
+    for (int index = 0; index < 5; ++index)
+    {
+        fixture.step(-1);
+    }
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(point_at(common::core::Fraction{4}));
+
+    // Selecting the head keeps the note in focus, so the point stands — and the floor it raises is
+    // the same one, not a lower one hidden behind a release the landing would have written.
+    click(fixture.controller, 40.0f, 140.0f);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(point_at(common::core::Fraction{4}));
+
+    // Leaving the note dissolves the point, exactly as it would have with no gesture at all. With
+    // nothing on the tail the floor is the onset again, so the ring shortens past where the point
+    // stood.
+    click(fixture.controller, 40.0f, 180.0f);
+    const common::core::Chart* const swept = chartOrNull(fixture.controller);
+    REQUIRE(swept != nullptr);
+    if (swept != nullptr)
+    {
+        REQUIRE(swept->notes.size() == 1);
+        CHECK(swept->notes[0].keyframes.empty());
+    }
+    click(fixture.controller, 40.0f, 140.0f);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{3});
 }
 
 // A keyframe sits on the tail, and this is the verb that acts on the tail: with a junction selected

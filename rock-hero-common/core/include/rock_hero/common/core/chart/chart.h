@@ -1219,6 +1219,29 @@ ring, never delete a statement.
 }
 
 /*!
+\brief Reports whether a shortening ring's end may be pulled exactly ONTO the note's last keyframe,
+making that keyframe the RELEASE.
+
+The landing's one spelling, so every verb that shortens a ring asks the same question instead of
+each restating part of it. It is allowed only where it costs the keyframe nothing and states
+something: the tail must simply END, because on a ring already released the end IS the point and the
+fall's length is the point's to change (\ref releaseKeyframe); the keyframe must state a fret and
+NOTHING else, because a release states its fret and nothing else, so a bend or a shake would be shed
+(\ref releaseWouldStripChannels); and that fret must TRAVEL from the one already in force there —
+the onset's, or an earlier junction's — because a release falling toward the fret the string already
+holds is an unpitched slide-out that draws no fall (\ref keyframeSaysNothingNew). Landing on such a
+point would author a statement nothing shows and the settle sweep later dissolves, while the ring it
+now ends at refuses to shorten any further: a floor the charter cannot see. So a keyframe that says
+nothing holds the end STRICTLY ABOVE it, exactly as a fretless one does, and the move verb — which
+drags the point itself — is the way past it.
+
+\param note Note whose ring is being shortened onto its own tail.
+
+\return True when landing on the last keyframe makes a real release and erases nothing.
+*/
+[[nodiscard]] bool ringEndMayLandOnLastKeyframe(const ChartNote& note);
+
+/*!
 \brief Leaves the release stating its fret and nothing else.
 
 A RELEASE STATES ITS FRET AND NOTHING ELSE: a bend or a shake stated at the instant the string is

@@ -570,17 +570,20 @@ recorded steps and rejoins where it parted.
   reports the bound for every step past it, and leaves the bound on the step that falls back
   inside.
 - Shrinking stops at the ring's FLOOR: the last keyframe's offset where the note carries one, the
-  onset otherwise. The ring holds STRICTLY ABOVE its floor, with one landing allowed — a last
-  keyframe that states a fret and NOTHING else, on a ring that simply ends, may be landed on
-  exactly, which makes it the RELEASE and the glide an unpitched slide-out. A keyframe also stating
-  a bend or a shake would lose that statement to the release's bare-fret law
-  (\ref common::core::releaseWouldStripChannels), so it holds the ring above it like a fretless one:
-  this verb shortens rings, it does not delete statements. A ring the replay takes to or below its
-  floor has nowhere legal to end, so the note keeps the ring it CURRENTLY has — read from `chart`,
-  not from `base`, because the value on screen is the one that holds — and rejoins the replay as
-  soon as it clears the floor again. A scrape's path is derived, so it floors at the minimum gesture
-  window instead, its path re-terminating onto the changed tail (shrink compresses the final point,
-  growth rides it out).
+  onset otherwise. The ring holds STRICTLY ABOVE its floor, with one landing allowed — the one
+  \ref common::core::ringEndMayLandOnLastKeyframe grants, where the landing makes a REAL release and
+  costs nothing: a last keyframe stating a fret, nothing else, and a fret the path does not already
+  hold there, on a ring that simply ends, may be landed on exactly, which makes it the RELEASE and
+  the glide an unpitched slide-out. A keyframe also stating a bend or a shake would lose that
+  statement to the release's bare-fret law, and one repeating the fret already in force would author
+  a fall toward the fret the string already holds — invisible, dissolved at the next settle, and
+  pinning the ring meanwhile. Either holds the ring above it like a fretless one: this verb shortens
+  rings, it neither deletes statements nor writes ones nothing shows. A ring the replay takes to or
+  below its floor has nowhere legal to end, so the note keeps the ring it CURRENTLY has — read from
+  `chart`, not from `base`, because the value on screen is the one that holds — and rejoins the
+  replay as soon as it clears the floor again. A scrape's path is derived, so it floors at the
+  minimum gesture window instead, its path re-terminating onto the changed tail (shrink compresses
+  the final point, growth rides it out).
 
 Three consequences of the step's law, all intended:
 

@@ -1250,11 +1250,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         // being clamped to some invented value, and rejoins the gesture the moment the replayed
         // ring clears the floor again. Deleting the keyframe, or dragging it (the move verb, which
         // on a release drags the end with it), is the verb for going further. The floor is
-        // INCLUSIVE where landing on it makes the point the RELEASE and costs it nothing: pulling
-        // the end exactly onto a keyframe that states a fret and nothing else, on a ring that
-        // simply ends, is how a glide becomes an unpitched slide-out. On a ring already released
-        // the floor IS the release and stays exclusive — the ribbon cannot pass its own end point,
-        // and the fall's length is the point's to change. The onset itself is never a legal end,
+        // INCLUSIVE where landing on it makes the point a REAL release and costs it nothing:
+        // pulling the end exactly onto a keyframe that states a fret, nothing else, and a fret the
+        // path does not already hold there, on a ring that simply ends, is how a glide becomes an
+        // unpitched slide-out. On a ring already released the floor IS the release and stays
+        // exclusive — the ribbon cannot pass its own end point, and the fall's length is the
+        // point's to change. The onset itself is never a legal end,
         // so the empty ring's floor stays exclusive too. A scrape's path is DERIVED and
         // re-terminates onto whatever tail it has, so it floors at the minimum gesture window
         // instead, clamped — always positive, so it never reaches the hold below.
@@ -1269,17 +1270,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         else if (!stepped.keyframes.empty())
         {
-            const common::core::Keyframe& last = stepped.keyframes.back();
-            floor = last.offset;
-            // The landing is taken only where it ERASES NOTHING: a release states its fret and
-            // nothing else, so a last keyframe also stating a bend or a shake would lose that
-            // statement to the landing, and this verb may shorten a ring but never delete a
-            // statement (moveErasesStatement's law, one verb over). Such a keyframe holds the ring
-            // strictly above it, exactly as a fretless one does, and the move verb — which drags
-            // the point itself — is the way past it.
-            floor_may_end_the_ring = common::core::releaseKeyframe(stepped) == nullptr &&
-                                     last.fret.has_value() &&
-                                     !common::core::releaseWouldStripChannels(last);
+            floor = stepped.keyframes.back().offset;
+            // Whether the landing is legal at all is the model's own question, asked here rather
+            // than restated: this verb may shorten a ring, but it may neither delete a statement
+            // nor author one nothing shows (ringEndMayLandOnLastKeyframe, the one spelling the move
+            // verb can ask the same way).
+            floor_may_end_the_ring = common::core::ringEndMayLandOnLastKeyframe(stepped);
         }
         if (floor < target || (floor_may_end_the_ring && floor == target))
         {
@@ -1313,6 +1309,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
                 common::core::clipPayloadsToSustain(stepped, target);
                 note = std::move(stepped);
             }
+        }
+        else if (floor == target && common::core::releaseKeyframe(stepped) != nullptr)
+        {
+            // A running gesture can grow a release into an ordinary pitched keyframe, then step
+            // straight back to the release it started from. That replay describes no edit relative
+            // to `base`, but the live chart still holds the grown note the candidate was seeded
+            // with; restore the replayed release so finalizePlan reports NoChange and the
+            // controller retires the grow entry instead of treating the shrink as refused.
+            note = std::move(stepped);
         }
         // A held note counts too: the ring it keeps is still what the entry writes over `base`.
         net = net + (note.sustain - start->sustain);

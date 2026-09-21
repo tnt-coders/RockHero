@@ -116,18 +116,30 @@ unenforced rulings, and a set of defects on supported material.
 - **The slide tail lock — BUILT, and closed 2026-09-21** (W6, roadmap 40-Q5). This entry said a
   shortened sustain silently dropped the keyframes past its new end; that was already untrue when
   it was written. `planAdjustSustain` floors a shrinking ring at its last keyframe (`83f2afcd`,
-  2026-09-09), the step that lands ON a keyframe stating a fret and nothing else makes it the
-  release (`83c6bc5a`), and a released ring shrinks no further — the move verb is the fall's
+  2026-09-09), the step that lands ON a keyframe stating a fret and nothing else — and a fret the
+  path does not already hold there — makes it the release (`83c6bc5a`), and a released ring shrinks
+  no further — the move verb is the fall's
   handle. Pinned end to end by "A ring lands on its last keyframe inside one gesture"
   (`test_chart_sustain_gesture.cpp`). The feedback question closed the same day: a visible bound
-  is not a refusal, so the floor is silent (`refusal-flash.md`). One defect was found and fixed
-  while closing it: the landing was also taken on a keyframe carrying a shake or a bend, which the
-  release's bare-fret law then stripped, and a mid-hold vibrato keyframe left stating nothing new
-  dissolved at the next settle. Such a keyframe now holds the ring at the nearest grid line above
-  it (user ruling, 2026-09-21).
+  is not a refusal, so the floor is silent (`refusal-flash.md`). TWO defects were found and fixed
+  while closing it, both the same shape — a landing that cost the keyframe its meaning:
+  - the landing was also taken on a keyframe carrying a shake or a bend, which the
+    release's bare-fret law then stripped, and a mid-hold vibrato keyframe left stating nothing new
+    dissolved at the next settle (fixed 2026-09-21, `c9e72dbf`);
+  - the landing was also taken on a keyframe repeating the fret already in force, which became a
+    release falling toward the fret the string already holds: nothing drew it, the settle sweep
+    dissolved it, and until then the released ring refused to shorten from the head either — the
+    charter's tail stuck on a mark nothing shows (user report, fixed 2026-09-21).
+  Both now hold the ring at the nearest grid line above the keyframe (user ruling, 2026-09-21),
+  under one predicate the move verb can ask the same way
+  (`common::core::ringEndMayLandOnLastKeyframe`).
 - **To verify: the same hole one verb over.** `moveErasesStatement` exempts a keyframe standing
   exactly ON the landing, so a ring truncated by a MOVE can end on a keyframe carrying a shake or
-  a bend, which becomes the release and is stripped the same way. Confirm with a test before
+  a bend, which becomes the release and is stripped the same way — or on one repeating the fret in
+  force, which becomes a release that says nothing. `clipPayloadsToSustain` can also turn a
+  TRAVELLING release into a silent one by erasing the junction it travelled from, and a digit typed
+  under `Alt` at a ring's exact end states a release directly, the fret in force included
+  (`chartCaretDigitTarget`). All four are answerable with the predicate above. Confirm with a test before
   fixing; the fix is the predicate the resize now asks (`releaseWouldStripChannels`).
 - **Inserting a note can still clip a neighbour's keyframes, silently.** The one real loss path
   the W6 check turned up. `planInsertNote` has no guard and leaves the overlap to the gate's

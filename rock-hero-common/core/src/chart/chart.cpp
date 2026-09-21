@@ -188,6 +188,27 @@ bool stripSilentKeyframes(ChartNote& note)
     return stripped;
 }
 
+bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
+{
+    if (note.keyframes.empty() || releaseKeyframe(note) != nullptr)
+    {
+        return false;
+    }
+    const Keyframe& last = note.keyframes.back();
+    if (!last.fret.has_value() || releaseWouldStripChannels(last))
+    {
+        return false;
+    }
+    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question, and that law is
+    // defined on the path WITHOUT the point — so the point comes off the copy the walk reads, which
+    // is also what makes the walk account for every earlier junction rather than the onset alone.
+    // With no bend and no shake left to judge (both guarded above), what it answers here is exactly
+    // whether the fret differs from the one already in force at that offset.
+    ChartNote ending = note;
+    ending.keyframes.pop_back();
+    return !keyframeSaysNothingNew(ending, last);
+}
+
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;

@@ -155,8 +155,9 @@ Keep this list and the session task list in step.
   dissolved into W10: `Shift+L`'s apply-or-clear toggle severs an existing link, so no verb or
   binding of its own is needed. **BUILT** — the floor is `planAdjustSustain`'s own lower bound
   (`83f2afcd`, `83c6bc5a`): a shrinking ring holds at its last keyframe, the step landing on a keyframe
-  that states only a fret makes it the release (one carrying a shake or a bend holds the ring
-  above it — fixed 2026-09-21), and a released ring shrinks no further. **Feedback RULED
+  that states only a fret AND a fret the path does not already hold there makes it the release (one
+  carrying a shake or a bend, or repeating the fret in force, holds the ring above it — both fixed
+  2026-09-21, `ringEndMayLandOnLastKeyframe`), and a released ring shrinks no further. **Feedback RULED
   2026-09-21 (user): none** — a visible bound is not a refusal (`refusal-flash.md`). Nothing
   remains here; tick this box at the next sighting of the gesture.
 - [x] **W7 — The legato assist and the technique toggle window.** The assist lives inside
@@ -798,7 +799,9 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   moves the RIBBON — lengthening a released ring leaves the release where it was, a pitched stop
   with the tail running on as a regular slide; shrinking a ring that simply ends exactly onto its
   last stated fret makes that fret the release (the floor is inclusive there, provided the keyframe
-  states nothing but the fret — a shake or a bend on it holds the ring above); shrinking a released
+  states nothing but the fret AND that fret TRAVELS from the one already in force — a shake or a
+  bend on it holds the ring above, and so does a fret the path already holds, whose release would
+  fall nowhere: `ringEndMayLandOnLastKeyframe`); shrinking a released
   ring holds at the release, since the ribbon cannot pass its own end point. The MOVE verb
   (`Alt+←/→`) on the release drags the ring's end with it — the slide-out lengthens or shortens —
   refused onto the last sounded fret (a fall needs its own leg) and parking on the next same-string

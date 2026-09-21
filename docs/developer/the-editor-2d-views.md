@@ -274,7 +274,13 @@ Three consequences worth knowing before touching this:
   already in force says nothing — authoring state that dissolves with focus and is never written
   (`keyframeSaysNothingNew`). A point never moves because the ring did: growing the
   ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
-  exactly onto its last stated fret makes that fret the release, and a released ring shrinks no
+  exactly onto its last stated fret makes that fret the release — but only where the landing costs
+  the point nothing and states something, which is the previous sentence's other half:
+  `ringEndMayLandOnLastKeyframe` (`chart.h`) grants the landing only on a keyframe stating a fret,
+  nothing else, and a fret the path does not already hold there, so a point carrying a shake or a
+  bend, and one repeating the fret in force, each hold the ring at the nearest grid line ABOVE them
+  instead — a shrink neither deletes a statement nor authors a fall nothing draws. And a released
+  ring shrinks no
   further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
   keyframe sits ON a head of its own string, whatever it states, and the plan gate normalizes
   every edit through that rule exactly as the load repair does (`normalizeKeyframeClearances`,

@@ -2138,6 +2138,52 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     }
 }
 
+TEST_CASE("planAdjustSustain can return a grown release to an unpitched slide", "[core][chart]")
+{
+    common::core::Chart chart = makeSteppedGlideChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt(glideOnset(), 1)};
+
+    // First gesture: shrink the pitched glide onto its last fret statement. That statement becomes
+    // the release, so the note is now an unpitched slide-out.
+    const auto release_plan =
+        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
+    REQUIRE(release_plan.has_value());
+    applyAndValidate(chart, tempo_map, *release_plan);
+    const common::core::ChartNote* released = noteAt(chart.notes, glideOnset(), 1);
+    REQUIRE(released != nullptr);
+    CHECK(released->sustain == common::core::Fraction{3});
+    REQUIRE(common::core::slideOutFretOrNull(*released) != nullptr);
+
+    const std::vector<common::core::ChartNote> base = chart.notes;
+
+    // Second gesture, first step: growing past the release turns it back into an ordinary pitched
+    // keyframe because the keyframe stays put while the ring moves on.
+    const auto grown_plan =
+        planAdjustSustain(chart, tempo_map, base, keys, {gridStep(g_quarter_grid, true)});
+    REQUIRE(grown_plan.has_value());
+    applyAndValidate(chart, tempo_map, *grown_plan);
+    const common::core::ChartNote* grown = noteAt(chart.notes, glideOnset(), 1);
+    REQUIRE(grown != nullptr);
+    CHECK(grown->sustain == common::core::Fraction{4});
+    CHECK(common::core::slideOutFretOrNull(*grown) == nullptr);
+    REQUIRE(grown->keyframes.size() == 2);
+    CHECK(grown->keyframes.back().offset == common::core::Fraction{3});
+    CHECK(grown->keyframes.back().fret == 9);
+
+    // Same second gesture, opposite step: the replay has returned to the gesture's start. That
+    // must be reported as NoChange so the controller retires the grow entry and restores the
+    // release, instead of refusing the visible shrink and leaving the grown tail stuck.
+    const auto returned = planAdjustSustain(
+        chart,
+        tempo_map,
+        base,
+        keys,
+        {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
+    REQUIRE_FALSE(returned.has_value());
+    CHECK(returned.error() == ChartPlanRefusal::NoChange);
+}
+
 // Applying a removal-and-insertion whose preconditions hold swaps in the new stream.
 TEST_CASE("applyChartChange applies a removal and insertion", "[core][chart]")
 {
