@@ -2196,7 +2196,13 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
         return false;
     };
 
-    SECTION("a glide whose last keyframe lands on the sustain end")
+    // The glide's stub is observable only where the ribbon's end is BARE, which is the release.
+    // A pitched last keyframe at the sustain end is LINKED (\ref common::core::linkedKeyframe), so
+    // a continuation head a head-width wide is painted over the tip: an inset would hide entirely
+    // beneath it, and the only white left at the last column is the head's own fret digit — a
+    // single glyph pixel, which pins nothing about the mark and answers to the platform's text
+    // rasterizer rather than to the inset.
+    SECTION("a glide whose release lands on the sustain end")
     {
         CHECK(mark_reaches(
             painted(
@@ -2206,7 +2212,9 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .string = 3,
                     .fret = 5,
                     .bend = {},
-                    .slides = {common::core::KeyframeViewState{.seconds = 9.0, .fret = 9}},
+                    .slides = {common::core::KeyframeViewState{
+                        .seconds = 9.0, .fret = 9, .release = true
+                    }},
                     .vibrato = {},
                 }),
             end_x - 1));
