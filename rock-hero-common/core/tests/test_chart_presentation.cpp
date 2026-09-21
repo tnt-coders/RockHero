@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -2024,6 +2025,52 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
     // trims to the margin, and the last rings its whole beat.
     CHECK(shown[0] == Fraction{4, 5});
     CHECK(shown[3] == Fraction{1});
+}
+
+// THE IDENTITY CONTRACT a drawn keyframe rests on: a mark is named by the STORED statement at its
+// own index, never by the offset it happens to be drawn at. The drawn notes here are built by hand
+// rather than by the rules, because no rule moves a statement today — this is what makes it legal
+// for one to, and the failure it forbids is silent: a mark keyed by its drawn offset would name a
+// keyframe the chart does not state, and every mapping back to the chart would then miss or edit
+// the wrong statement.
+TEST_CASE("A drawn keyframe is named by the stored statement at its index", "[core][chart]")
+{
+    ChartNote stored = note(at(1, 1), 1, Fraction{2});
+    stored.keyframes = {
+        Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+        Keyframe{.offset = Fraction{1}, .bend = 2.0},
+        Keyframe{.offset = Fraction{2}, .fret = 9},
+    };
+
+    SECTION("a statement drawn early still answers to the offset the chart states")
+    {
+        // The drawn note a rule carrying the ring's end statement back would leave: the same three
+        // statements, the last one shown one margin before the stored end.
+        ChartNote drawn = stored;
+        drawn.sustain = Fraction{9, 5};
+        drawn.keyframes.back().offset = drawn.sustain;
+
+        const std::span<const Keyframe> identities = keyframeIdentities(stored, drawn);
+        REQUIRE(identities.size() == stored.keyframes.size());
+        CHECK(identities[0].offset == Fraction{1, 2});
+        CHECK(identities[1].offset == Fraction{1});
+        CHECK(identities[2].offset == Fraction{2});
+    }
+
+    SECTION("a tail rules 3 and 4 emptied asks for no identity at all")
+    {
+        ChartNote emptied = stored;
+        emptied.keyframes.clear();
+        emptied.sustain = Fraction{};
+        CHECK(keyframeIdentities(stored, emptied).empty());
+    }
+
+    SECTION("the actual-ring reveal is its own identity")
+    {
+        const std::span<const Keyframe> identities = keyframeIdentities(stored, stored);
+        REQUIRE(identities.size() == stored.keyframes.size());
+        CHECK(identities[2].offset == stored.keyframes[2].offset);
+    }
 }
 
 } // namespace rock_hero::common::core

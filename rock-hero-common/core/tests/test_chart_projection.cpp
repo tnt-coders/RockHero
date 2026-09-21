@@ -340,6 +340,73 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
     CHECK(actual.notes[0].slides[0].offset == Fraction{2});
 }
 
+// A drawn keyframe's `offset` is its IDENTITY — the STORED statement's own offset, which the
+// editor keys a click, a caret and the accent ring by — while `seconds` alone says where the mark
+// is drawn. Both forms therefore report the offsets the chart states, and the fixture's note
+// carries a statement AT its ring's end (a slide-out), the one statement a presentation rule is
+// allowed to move. That the identity survives such a move is pinned where the mapping lives, over
+// a drawn note whose end statement has been moved by hand ("A drawn keyframe is named by the
+// stored statement at its index"), since no rule moves one yet.
+TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{2},
+            .keyframes =
+                {
+                    Keyframe{.offset = Fraction{1, 2}, .fret = 7},
+                    // A bend-only statement between the two stops: it draws no mark of its own, so
+                    // the identities must survive the fret channel being a SUBSET of the keyframes.
+                    Keyframe{.offset = Fraction{1}, .bend = 2.0},
+                    // At the ring's end, stating a fret: the slide-out.
+                    Keyframe{.offset = Fraction{2}, .fret = 9},
+                },
+        },
+        // A head on another string, near enough that rule 1 binds on it — a released ring still
+        // never trims, since rule 2 floors the tail at the last statement, so both forms draw the
+        // same statements at the same instants.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 2,
+            .fret = 3,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
+    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
+    REQUIRE(presented.notes.size() == 2);
+    REQUIRE(actual.notes.size() == 2);
+
+    // The two fret-stating keyframes above, in the order the chart states them.
+    const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{2}};
+    for (const NoteViewState& note : {presented.notes[0], actual.notes[0]})
+    {
+        REQUIRE(note.slides.size() == stored_offsets.size());
+        for (std::size_t index = 0; index < stored_offsets.size(); ++index)
+        {
+            CHECK(note.slides[index].offset == stored_offsets[index]);
+        }
+        // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out's chip
+        // at the ring's end a second in — where the marks ARE, which is the other half of the
+        // contract and the number both surfaces paint from.
+        CHECK(note.slides[0].seconds == Catch::Approx(0.25));
+        CHECK(note.slides[1].seconds == Catch::Approx(1.0));
+        CHECK_FALSE(note.slides[0].release);
+        CHECK(note.slides[1].release);
+    }
+}
+
 // The form contract: the two states differ in their NOTES and in nothing else. Everything a
 // surface draws besides the notes — the holds, the hand-shape spans and their arrival kinds, the
 // fret-hand placements and their approach ramps, the string count, the capo — is derived from the

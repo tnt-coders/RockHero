@@ -220,19 +220,31 @@ sequence of stops.
 */
 struct KeyframeViewState
 {
-    /*! \brief Absolute timeline position the glide reaches its target fret. */
+    /*!
+    \brief Absolute timeline position the mark is DRAWN and HIT at — the PRESENTED instant.
+
+    Where the glide reaches its target fret on screen, and the only number either surface paints
+    from or hit testing measures against. It names nothing: it is a rounded double through the
+    tempo map, and presentation is free to show a statement at an instant other than the one it
+    was authored at, so a mark's place and its identity are two facts (\ref offset).
+    */
     double seconds{0.0};
 
     /*! \brief Target fret reached at this keyframe. */
     int fret{0};
 
     /*!
-    \brief The keyframe's authored offset along the ring — its stable identity.
+    \brief The STORED keyframe's authored offset along the ring — its stable identity, and the ONLY
+    thing a key is ever built from.
 
-    Carried beside the resolved second because the second cannot name the keyframe back: it is a
-    rounded double derived through the tempo map, while the editor's selection keys a keyframe by
-    (note slot, offset) and must match the authored `Keyframe::offset` exactly — one producer for
-    chart content an editing surface has to point at.
+    Read off the stored note by the projection (\ref keyframeIdentities) rather than from the drawn
+    keyframe beside it, because the editor's selection keys a keyframe by (note slot, offset)
+    against the AUTHORED chart and must match `Keyframe::offset` exactly: a presentation rule that
+    drew a ring's end statement a margin early would otherwise hand click, caret and the accent
+    ring a name no stored keyframe answers to, each disagreeing in its own way.
+
+    So this and \ref seconds MAY DIFFER, and for the statement standing at a ring's end they are
+    expected to: this is what the mark IS, that is where it is shown.
 
     Stable under sibling edits, which an index would not be: removing an earlier keyframe shifts
     every later index and moves no offset.

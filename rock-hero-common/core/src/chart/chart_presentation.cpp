@@ -1,6 +1,7 @@
 #include "span_cover.h"
 
 #include <algorithm>
+#include <cassert>
 #include <compare>
 #include <cstddef>
 #include <functional>
@@ -11,6 +12,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -310,6 +312,21 @@ ChartPresentation presentedChartNotes(
 bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const ChartNote& presented)
 {
     return rested_from.has_value() && *rested_from < presented.sustain;
+}
+
+// The identity mapping lives here because presentation is what makes the question exist: it is the
+// only thing that can draw a statement anywhere but where the chart states it, so the rule about
+// what a drawn mark is NAMED by belongs beside the rules that move it.
+std::span<const Keyframe> keyframeIdentities(const ChartNote& stored, const ChartNote& drawn)
+{
+    // No rule here invents a keyframe, so a drawn note can never carry more than the chart states.
+    // Asserted rather than clamped: a drawn keyframe with no stored twin has no identity at all,
+    // and answering with some other keyframe's offset would key a chip to a neighbouring
+    // statement, which every mapping downstream would then edit instead.
+    assert(
+        drawn.keyframes.size() <= stored.keyframes.size() &&
+        "a drawn note carries no keyframe the chart does not state");
+    return std::span<const Keyframe>{stored.keyframes}.first(drawn.keyframes.size());
 }
 
 // The span convention IS the hold, and there is one rule: a LIVE fretting-hand member with no DRAWN

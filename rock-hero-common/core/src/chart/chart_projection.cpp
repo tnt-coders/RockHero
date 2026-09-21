@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -534,13 +535,20 @@ ChartViewState makeChartViewState(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
         view.slides.reserve(note.keyframes.size());
+        // THE STORED NOTE this drawn one shows, index-parallel by construction
+        // (\ref ChartResolutions). Two things only it can say are read off it below: whether the
+        // note releases, and what each drawn keyframe is NAMED by.
+        const ChartNote& stored = resolutions.connections.saved_notes[note_index];
         // The release is read off the STORED ring, never the drawn one: the presentation trims a
         // drawn tail back to a pitched arrival too, so "the keyframe at the drawn end" names both
         // a shift slide's arrival and a slide-out, and only the stored form tells them apart. The
         // release rides every trim, so when the stored note has one it is the drawn note's last
         // keyframe.
-        const bool releases =
-            slideOutFretOrNull(resolutions.connections.saved_notes[note_index]) != nullptr;
+        const bool releases = slideOutFretOrNull(stored) != nullptr;
+        // The stored statement behind each drawn one, asked once per note: the mark's IDENTITY is
+        // the stored keyframe's offset while its `seconds` is where presentation puts it, so the
+        // two are read from two places on purpose (\ref keyframeIdentities).
+        const std::span<const Keyframe> identities = keyframeIdentities(stored, note);
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
@@ -556,8 +564,12 @@ ChartViewState makeChartViewState(
         // still the honest answer that this channel says the string shakes.
         RingState ring = ringStateAtOnset(note);
         double shake_start_seconds = view.start_seconds;
-        for (const Keyframe& keyframe : note.keyframes)
+        // Walked by INDEX rather than by reference, because each drawn keyframe is paired with the
+        // stored statement standing at the same index (`identities` above).
+        for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
+             ++keyframe_index)
         {
+            const Keyframe& keyframe = note.keyframes[keyframe_index];
             const double keyframe_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
             const VibratoState was = ring.vibrato;
@@ -597,8 +609,11 @@ ChartViewState makeChartViewState(
                     KeyframeViewState{
                         .seconds = keyframe_seconds,
                         .fret = *fret,
-                        .offset = keyframe.offset,
-                        .release = releases && &keyframe == &note.keyframes.back(),
+                        // WHERE the mark draws is `seconds`; WHAT it is is this — the stored
+                        // statement's own offset, the one name every mapping back to the chart
+                        // uses.
+                        .offset = identities[keyframe_index].offset,
+                        .release = releases && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
         }

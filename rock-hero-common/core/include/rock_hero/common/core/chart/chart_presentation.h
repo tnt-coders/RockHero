@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -65,6 +66,33 @@ keys on the verdict itself (\ref chartHolds), never on this.
 */
 [[nodiscard]] bool hasRestingRemainder(
     const std::optional<Fraction>& rested_from, const ChartNote& presented);
+
+/*!
+\brief The STORED keyframes a drawn note's keyframes are NAMED by, index for index.
+
+A drawn keyframe's own offset is not its name. Presentation decides where a statement is SHOWN, and
+may draw the one standing at a ring's end at another instant so the columns keep their spacing,
+while the statement itself stays exactly where the charter authored it — and the editor keys a
+keyframe by (note slot, authored offset) against the stored chart. So a surface takes the instant
+it paints from the drawn keyframe (\ref KeyframeViewState::seconds) and the identity it keys from
+this (\ref KeyframeViewState::offset), and no two derivations of one keyframe's name can disagree.
+
+THE CORRESPONDENCE IS POSITIONAL, and that is the whole invariant. Rules 1 and 2 drop no keyframe —
+the presented tail always reaches the last one — rules 3 and 4 drop the payload entire with the
+tail, and the only statement presentation may MOVE is the last. So the drawn keyframe at an index
+and the stored keyframe at that index are the same statement. A rule that removed or reordered one
+keyframe of a note would break that silently, keying a drawn mark to its neighbour's offset, which
+is why nothing here derives the mapping from the offsets themselves.
+
+\param stored The note as the chart stores it (\ref ChartConnections::saved_notes).
+\param drawn The note a surface draws: the presented note, or `stored` itself where the actual ring
+             is revealed (\ref ChartNoteForm).
+
+\return The stored keyframes naming the drawn ones, as many as the drawn note carries; valid for as
+        long as `stored` is.
+*/
+[[nodiscard]] std::span<const Keyframe> keyframeIdentities(
+    const ChartNote& stored, const ChartNote& drawn);
 
 /*!
 \brief Derives what the surfaces draw from what the chart stores: one presented note per saved
