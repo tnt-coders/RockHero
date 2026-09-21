@@ -347,7 +347,12 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 
     const juce::Point<int> point = event.getPosition();
     const RulerChip* const section_chip = chipAt(m_section_row.chips, g_section_row_y, point);
-    if (event.mods.isPopupMenu())
+    // A LEFT press is never the popup gesture, whatever else is held, for the reason the chart lane
+    // and the automation lanes both state: JUCE expands popupMenuClickModifier to
+    // (rightButton | ctrl) on macOS, so isPopupMenu() alone is also true for Ctrl+left-click there,
+    // and the section menu would swallow every Ctrl-held seek on that one platform. The menu
+    // belongs to an actual right press on every platform.
+    if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
         showSectionContextMenu(section_chip, event.position);
         return;
