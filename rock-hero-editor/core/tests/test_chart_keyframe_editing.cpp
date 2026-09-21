@@ -724,6 +724,59 @@ TEST_CASE("The arrow move steps a selected keyframe's offset", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
+// THE BURST RUNS INTO THE RING'S END AND STOPS THERE, held. A point stepped ONTO the end would
+// become the release, and the run replays from its pre-gesture chart where the point is still
+// interior — so the end would never follow the next press and the drag would stick until the
+// charter re-selected. The step is refused one short of the end instead, further presses are
+// refused the same way (a refused step is never recorded, so nothing accumulates), and the opposite
+// press moves the point back inside the SAME burst.
+TEST_CASE("A held move burst stops one step short of the ring's end", "[core][chart]")
+{
+    common::core::Chart plain;
+    plain.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    plain.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
+    KeyframeFixture fixture{std::move(plain)};
+
+    // The user's report: a digit typed four beats along the tail plants a point that travels from
+    // the onset's 5, and the arrows then drag it outward.
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(6);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+    const std::size_t entries_after_typing =
+        publishedState(fixture.view).undo_history.labels.size();
+
+    // The point's offset and the ring it rides, read together so every assertion is about a record
+    // that exists — and so the ring's own length is pinned at every step.
+    const auto point = [&fixture] {
+        const common::core::Chart chart = currentChart(fixture.controller);
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].sustain == common::core::Fraction{8});
+        CHECK(common::core::slideOutFretOrNull(chart.notes[0]) == nullptr);
+        return chart.notes[0].keyframes[0].offset;
+    };
+    REQUIRE(point() == common::core::Fraction{4});
+
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(point() == common::core::Fraction{7});
+
+    // The end is eight beats out, so this press and the one after it are refused: the point holds
+    // at seven and the run keeps exactly the steps it had.
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(point() == common::core::Fraction{7});
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(point() == common::core::Fraction{7});
+
+    // Nothing accumulated, so one press back is one step back — inside the same burst, which is
+    // what a wedged run could not do.
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    CHECK(point() == common::core::Fraction{6});
+    // The whole run is still one entry beside the typed point's.
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_after_typing + 1);
+}
+
 // A mixed selection is one press and one entry: the note moves its slot and the point it carries
 // rides along at an unchanged offset, since an offset is relative to the onset it hangs from.
 TEST_CASE("The arrow move carries a selected note's own keyframe along", "[core][chart]")

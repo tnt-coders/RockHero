@@ -556,7 +556,9 @@ point never moves because the ring did: a ring shortened under its release carri
 with the end (\ref clipPayloadsToSustain), a ring lengthened past it leaves the statement where
 it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular slide
 — and a ring pulled back exactly onto its last stated fret makes that fret the release. The fall's
-own length is the release's to change: moving the release moves the ring's end with it. A glide
+own length is the release's to change: moving the release moves the ring's end with it, and no OTHER
+point becomes one by moving — an interior point lives strictly inside the ring at both ends, so the
+only verb that changes a point's kind is the one that moves the ring's end onto it. A glide
 that arrives and then stops is written the way the importer already writes every arrival: the stop
 one margin inside the end, the ring running on to where the string is next struck.
 
@@ -1230,10 +1232,12 @@ NOTHING else, because a release states its fret and nothing else, so a bend or a
 (\ref releaseWouldStripChannels); and that fret must TRAVEL from the one already in force there —
 the onset's, or an earlier junction's — because a release falling toward the fret the string already
 holds is an unpitched slide-out that draws no fall (\ref keyframeSaysNothingNew). Landing on such a
-point would author a statement nothing shows and the settle sweep later dissolves, while the ring it
-now ends at refuses to shorten any further: a floor the charter cannot see. So a keyframe that says
-nothing holds the end STRICTLY ABOVE it, exactly as a fretless one does, and the move verb — which
-drags the point itself — is the way past it.
+point would author a statement nothing shows — one the editor's plan gate dissolves in the very edit
+that made it (\ref dissolveSilentRelease), which would DELETE the point the charter can still see
+here — while the ring it now ends at refuses to shorten any further: a floor the charter cannot see.
+So a keyframe that says nothing holds the end STRICTLY ABOVE it, exactly as a fretless one does, and
+moving the point itself LEFT is the way past it — a step that never makes the point a release,
+since the move verb refuses the ring's end exactly as it refuses the onset below.
 
 \param note Note whose ring is being shortened onto its own tail.
 
@@ -1248,7 +1252,10 @@ A RELEASE STATES ITS FRET AND NOTHING ELSE: a bend or a shake stated at the inst
 let go has no ring left to sound in, so it says nothing, and a statement that says nothing is not
 kept (\ref keyframeStatesNothing). The one spelling of that law, asked wherever a fret statement
 becomes the release — stated there (\ref setSlideOut), reached by a ring shortening onto it
-(\ref clipPayloadsToSustain), stepped onto the end, or found there on load.
+(\ref clipPayloadsToSustain), or found there on load. A point STEPPED onto the end is not one of
+those places: the editor's move verb refuses that step instead, so no keyframe ever becomes the
+release by moving — it drags the ring's end when the point already IS the release, and keeps every
+other point strictly inside the ring.
 
 \param note Note whose release, if it has one, is bared.
 \return True when a channel was shed — what the normalizer reports as its repair.

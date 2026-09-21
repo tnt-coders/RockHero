@@ -214,8 +214,11 @@ enum class StrandedStrikeRepair : std::uint8_t
 // edits from what it finds. The duration gesture is the reason the base is a parameter rather than
 // read off `chart`: its plan must describe the whole gesture, so it is diffed against the stream
 // the gesture started from while the ring RULES still judge the live chart. The move gesture,
-// equally a gesture, needs no such split — it judges nothing against the live chart, so its caller
-// simply hands it the pre-gesture chart and `base` is that chart's own notes.
+// equally a gesture, needs no such split — every bound it reads is a fact about the PRE-GESTURE
+// chart that its own steps cannot change, so its caller simply hands it that chart and `base` is
+// that chart's own notes. Release-ness is the one that had to be earned: a point stepped onto the
+// ring's end would have become the release mid-run, leaving the replay reading a kind the chart no
+// longer had, so the verb refuses that step instead (planMoveSelection).
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
@@ -830,6 +833,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     // above), and past the string's next onset only as far as the same-string clamp lets a ring
     // reach, where the release parks. Read before any offset moves, because the release is
     // recognised by sitting exactly at the end.
+    //
+    // KIND IS NOT THIS VERB'S TO CHANGE: a point that already IS the release drags the end, and
+    // every other point lives STRICTLY inside the ring at both ends — the onset below (the
+    // validator's strictly-positive offsets) and the end above (the bound below). So the release a
+    // step reads off the note it was handed is still the release after it, which is what lets a
+    // held run replay from its pre-gesture chart at all.
     bool stepped_keyframe = false;
     if (beat_delta.numerator != 0)
     {
@@ -848,25 +857,44 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             // deliberately parked inside it. So the drag stops exactly where it is.
             const std::optional<common::core::Fraction> wall =
                 common::core::sustainBoundOf(chart.notes, note, tempo_map);
+            // The ring's end AFTER this step, which every INTERIOR point must stay STRICTLY below:
+            // the move verb never changes what a point IS, so a step that would reach the end is
+            // refused exactly like one that reaches the onset below or the neighbour beside. Read
+            // off the release when the release is stepping too — one uniform delta moves both, so
+            // a figure selected whole keeps its shape and the end travels with it.
+            //
+            // Without the bound the step authored a release the burst could not then drag: the
+            // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
+            // the end never followed the next press and the run stuck until re-selection. And what
+            // it left behind was a release nothing draws (a repeated fret) or one bared of its
+            // shake (stripReleaseChannels) — a point that lost its meaning to a move.
+            const common::core::Fraction end =
+                release != nullptr && std::ranges::binary_search(offsets, release->offset)
+                    ? release->offset + beat_delta
+                    : note.sustain;
             for (common::core::Keyframe& keyframe : note.keyframes)
             {
-                if (std::ranges::binary_search(offsets, keyframe.offset))
+                if (!std::ranges::binary_search(offsets, keyframe.offset))
                 {
-                    keyframe.offset = keyframe.offset + beat_delta;
-                    if (wall.has_value() && !(keyframe.offset < *wall))
-                    {
-                        return std::unexpected{ChartPlanRefusal::Invalid};
-                    }
-                    if (&keyframe == release)
-                    {
-                        note.sustain = keyframe.offset;
-                    }
-                    stepped_keyframe = true;
+                    continue;
                 }
+                keyframe.offset = keyframe.offset + beat_delta;
+                if (wall.has_value() && !(keyframe.offset < *wall))
+                {
+                    return std::unexpected{ChartPlanRefusal::Invalid};
+                }
+                // The RELEASE is the ring's end, so stepping it steps the end with it; the lower
+                // bound both kinds share is the validator's (offsets are strictly positive).
+                if (&keyframe == release)
+                {
+                    note.sustain = keyframe.offset;
+                }
+                else if (!(keyframe.offset < end))
+                {
+                    return std::unexpected{ChartPlanRefusal::Invalid};
+                }
+                stepped_keyframe = true;
             }
-            // A point stepped onto the ring's end is the release now, and a release states its
-            // fret and nothing else.
-            static_cast<void>(common::core::stripReleaseChannels(note));
         }
     }
 

@@ -254,7 +254,9 @@ bool flattenStrandedStrike(ChartNote& note)
 // was, a pitched stop now, the tail running on as a plain ring — the ribbon moved and the point
 // stayed, exactly as every other keyframe stays. Kind is position, so that is how a slide-out
 // becomes a regular slide; the release's own handle for the FALL's length is the move verb, which
-// drags the ring's end with it (planMoveSelection). A scrape's terminal rides both ways, because a
+// drags the ring's end with it (planMoveSelection) — and only for the point that IS the release,
+// since that verb keeps every other point strictly inside the ring rather than letting a step
+// change what a point is. A scrape's terminal rides both ways, because a
 // scrape rings exactly as long as the pick travels and its terminal is required at the end. What
 // a scrape's terminal still needs is a new AIM when compression makes its fret meet the fret it
 // now follows.

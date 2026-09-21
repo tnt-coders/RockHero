@@ -281,7 +281,11 @@ Three consequences worth knowing before touching this:
   bend, and one repeating the fret in force, each hold the ring at the nearest grid line ABOVE them
   instead — a shrink neither deletes a statement nor authors a fall nothing draws. And a released
   ring shrinks no
-  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it. No
+  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it, and
+  the way past the floor above is moving the point itself LEFT. Only the chip's own step moves the
+  end: every other point stays STRICTLY inside its ring, so a step that would reach the end is
+  refused exactly as one onto the onset is, and a move never turns a point into a release (user
+  ruling, 2026-09-21 — kind is not the move verb's to change). No
   keyframe sits ON a head of its own string, whatever it states, and the plan gate normalizes
   every edit through that rule exactly as the load repair does (`normalizeKeyframeClearances`,
   `finalizePlan`): a keyframe a note's MOVE lands on — a note moved onto a release — is moved back

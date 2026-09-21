@@ -952,6 +952,68 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
+    SECTION("stepped exactly onto the ring's end")
+    {
+        // KIND IS NOT THE MOVE VERB'S TO CHANGE. The end is a bound like the onset below it: a
+        // point stepped onto it would BECOME the release, which the burst could not then drag —
+        // the replay reads release-ness off the pre-gesture chart, where the point is still
+        // interior — so the step is refused and the point stays where it is.
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("stepped to the last offset strictly below the end")
+    {
+        // The bound is EXCLUSIVE and nothing else: the step before it lands where it was aimed and
+        // the ring is untouched, so the point is still a point.
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, second, common::core::Fraction{3, 4}, 0, "Move Keyframe");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& stepped = plan->inserted.front();
+            CHECK(stepped.sustain == common::core::Fraction{4});
+            REQUIRE(stepped.keyframes.size() == 2);
+            CHECK(stepped.keyframes.back().offset == common::core::Fraction{15, 4});
+            CHECK(common::core::slideOutFretOrNull(stepped) == nullptr);
+        }
+    }
+    SECTION("a point stating something else is refused onto the end the same way")
+    {
+        // The bound is about POSITION, so what the point STATES never enters it — which is exactly
+        // what keeps the two losses the old step could inflict unreachable: a same-fret point
+        // became a release falling toward the fret the string already holds (a mark nothing draws,
+        // dissolved by the gate, the visible point gone with it), and a point carrying a shake was
+        // bared of it by the release's fret-and-nothing-else law.
+        common::core::Chart one_point;
+        one_point.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        common::core::Keyframe carried{
+            .offset = common::core::Fraction{3}, .fret = 5, .bend = {}, .vibrato = {}
+        };
+        SECTION("a fret the path already holds")
+        {
+            carried.fret = 5;
+        }
+        SECTION("a fret and a shake")
+        {
+            carried.fret = 7;
+            carried.vibrato = common::core::VibratoState::Wide;
+        }
+        note.keyframes = {carried};
+        one_point.notes = {std::move(note)};
+        const auto plan = planMoveSelection(
+            one_point, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        // A refused plan is not applied, so the point keeps every statement it made.
+        REQUIRE(one_point.notes.size() == 1);
+        REQUIRE(one_point.notes.front().keyframes.size() == 1);
+        CHECK(one_point.notes.front().keyframes.front() == carried);
+    }
     SECTION("stepped inside the margin before a later onset of its own string stands there")
     {
         // The rule refuses the head, never proximity: a charter who steps a keyframe to an eighth
@@ -1085,6 +1147,30 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             chart, tempo_map, {}, release, common::core::Fraction{-2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+    SECTION("the figure selected whole keeps its shape")
+    {
+        // The end bound every interior point obeys is the end AFTER the step, because one uniform
+        // delta moves the release too: a charter who selects the junction and the release together
+        // slides the whole fall outward, where a bound read off the ring's OLD end would have
+        // refused a step that changes nothing about the figure.
+        const std::vector<ChartKeyframeKey> both{
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
+        };
+        const auto plan = planMoveSelection(
+            chart, tempo_map, {}, both, common::core::Fraction{1}, 0, "Move Selection");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& moved = plan->inserted.front();
+            CHECK(moved.sustain == common::core::Fraction{5});
+            REQUIRE(moved.keyframes.size() == 2);
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{3});
+            CHECK(moved.keyframes.back().offset == common::core::Fraction{5});
+            CHECK(common::core::slideOutFretOrNull(moved) != nullptr);
+        }
     }
 }
 

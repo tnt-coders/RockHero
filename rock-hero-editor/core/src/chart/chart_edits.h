@@ -360,21 +360,31 @@ statement, though — a landing that would clip a keyframe other than the releas
 refused whole, since the statement belongs to a note the charter did not touch and the clip leaves
 no record of it.
 
-A moved keyframe's bounds are stated NOWHERE here, because the rules already carry every one of
-them: an offset stepped to or below zero, past the ring, or onto — or across — a neighbour leaves
-the note's offsets no longer strictly ascending inside the sustain, and a stated fret stepped onto a
-later same-string onset or below the capo floor is refused just as a retyped one is
+Most of a moved keyframe's bounds are stated nowhere here, because the rules already carry them: an
+offset stepped to or below zero, past the ring, or onto — or across — a neighbour leaves the note's
+offsets no longer strictly ascending inside the sustain, and a stated fret stepped onto a later
+same-string onset or below the capo floor is refused just as a retyped one is
 (\ref common::core::validateChartNoteAlone, \ref common::core::validateChartNotes). Crossing is
 therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
 offset IS the identity, so exchanging two would leave the selection pointing at the other record.
+
+Two bounds the planner does state, both because the gate would REPAIR where this verb must refuse.
+The next strike on the string is a WALL rather than a landing, since the clearance repair would pull
+a point back to the margin line — earlier than a release the charter deliberately parked inside it.
+And an INTERIOR point stays STRICTLY BELOW the ring's end: KIND IS NOT THIS VERB'S TO CHANGE, so a
+point that already is the release drags the end with it and no other point ever becomes one. Moving
+a point LEFT remains the way past the resize floor that a point which says nothing, or one carrying
+a shake, raises under a shrinking ring (\ref common::core::ringEndMayLandOnLastKeyframe).
 
 The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so the
 caller replays its step list into a single delta (\ref chartMoveGestureDelta) and hands this planner
 the chart state the run STARTED from. Nothing here has to know that — the plan is expressed against
 the chart it is given, so a first press passes the live chart and every later one passes the
 pre-gesture chart the burst's own entry reconstructs. That is why the move needs no separate `base`
-parameter where the duration gesture does: a move judges nothing against the live chart, so the one
-chart argument serves as both the source of the objects and the stream the plan is diffed against.
+parameter where the duration gesture does: every bound a move reads is a fact about the chart it is
+handed that its own steps cannot change — release-ness included, which is what the end bound above
+buys — so the one chart argument serves as both the source of the objects and the stream the plan is
+diffed against.
 
 \param chart Chart the plan is expressed against: the live chart on a gesture's first press, the
 state the gesture started from on every later one.

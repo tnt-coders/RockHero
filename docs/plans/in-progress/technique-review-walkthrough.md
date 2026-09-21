@@ -247,11 +247,17 @@ Keep this list and the session task list in step.
     a keyframe by its offset) in one plan and one entry. `Alt+↑/↓` stays inert on a keyframe-only
     selection: a keyframe has no string, and a selected head carries its path across by
     construction. In a mixed selection the note moves and its own keyframes ride at unchanged
-    offsets, since an offset is relative to the onset it hangs from. Every bound is the rule
-    authority's, reached through the finalize gate — the onset below, the ring above, a neighbour
-    beside, a later same-string onset, the capo floor — so a step across a neighbour REFUSES rather
-    than swapping, which is the only reading a keyframe's identity allows. The step re-keys the
-    selection (`select_exactly`), because that identity IS the offset.
+    offsets, since an offset is relative to the onset it hangs from. Almost every bound is the rule
+    authority's, reached through the finalize gate — the onset below, a neighbour beside, a later
+    same-string onset, the capo floor — so a step across a neighbour REFUSES rather than swapping,
+    which is the only reading a keyframe's identity allows. The step re-keys the selection
+    (`select_exactly`), because that identity IS the offset. Two bounds the planner states itself,
+    both where the gate would REPAIR instead of refusing: the next head on the string is a WALL
+    (the clearance repair would pull the point back to the margin line), and the ring's END is
+    EXCLUSIVE for every point but the release (ruled 2026-09-21) — KIND IS NOT THIS VERB'S TO
+    CHANGE, so the release drags the end and no other point ever becomes one. Measured against the
+    end AFTER the step, so a figure selected whole slides out together; and the way past the
+    shrink floor a silent or shake-carrying point raises is still moving that point LEFT.
   - **Still open, and untouched by the above:** a DISPLAY question — a keyframe stating no fret
     draws nothing today, so no pointer can reach it — the bend display study's to answer.
 - [x] **W15 — The harmonic verbs and the node picker.** `H` states the fret-hand harmonic and
@@ -806,10 +812,14 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   (`Alt+←/→`) on the release drags the ring's end with it — the slide-out lengthens or shortens —
   refused onto the last sounded fret (a fall needs its own leg) and parking on the next same-string
   onset as any ring does. Chosen over "the release rides on extend" because the charter reads the
-  chip as a point they can grab, and every other point stays put under the tail verb. A release
-  STATES ITS FRET AND NOTHING ELSE (user, 2026-09-10): a bend or shake on the point the ring was
-  pulled onto has no ring to sound in, so it goes with that ring (`stripReleaseChannels`, one
-  spelling, asked by the writer, the resize, the move step and the load repair).
+  chip as a point they can grab, and every other point stays put under the tail verb. The converse
+  was ruled 2026-09-21: the move verb never makes any OTHER point the release, because an interior
+  point's offset must stay STRICTLY below its ring's end — so a point's KIND cannot change under a
+  move at all, which is what lets a held run replay release-ness off its pre-gesture chart. A
+  release STATES ITS FRET AND NOTHING ELSE (user, 2026-09-10): a bend or shake on the point the ring
+  was pulled onto has no ring to sound in, so it goes with that ring (`stripReleaseChannels`, one
+  spelling, asked by the writer, the resize and the load repair — no longer by the move step, whose
+  end bound makes a stepped point a release it never can).
   Consequences signed: a pitched arrival exactly at the end is
   no longer a distinct state (arrive-and-stop is written as the importer writes every arrival, one
   margin inside the end); the release may park on the onset that silences the string; the capo

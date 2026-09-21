@@ -326,7 +326,9 @@ end, so a ring shortened under it carries the release with the end and re-attach
 (\ref setSlideOut) after every statement past the new end has gone; a ring lengthened past it
 leaves the statement where it was — a pitched stop now, the one way a slide-out turns back into a
 glide (\ref releaseKeyframe). The fall's own length is the move verb's to change, which drags the
-ring's end with the release. A scrape's terminal rides in both directions, because a scrape rings
+ring's end with the release — and only with the release, since that verb keeps every other point
+strictly inside the ring rather than letting a step change what a point is. A scrape's terminal
+rides in both directions, because a scrape rings
 exactly as long as the pick travels. What a SCRAPE's terminal still needs is a new aim — when
 compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes
 over, including one this clip removes, so the path never sits still.
