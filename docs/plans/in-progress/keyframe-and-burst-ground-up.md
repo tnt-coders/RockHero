@@ -177,6 +177,23 @@ make a fall:
 - It reverses the 2026-09-11 ruling that made `Alt`+digit "the ONE thing `Alt` creates on this
   lane", so it is the user's to sign. It is only available under Set A: Set B has no conversion.
 
+**A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
+answer the rules give: the head wins and the end squishes back. The insert is legal — a digit at a
+ring's exact end is the next note — and the plan gate's clearance repair then finds a statement on
+a head of its own string and, under the one clearance rule, shortens the ring to the clearance
+with its end statement still AT the end. The bend still completes as the ring ends, a hair before
+the new head; one undo entry holds both. It is exactly what import does to the 174 abutting bends,
+which is the point of "the SAME rules". A head on another string changes nothing.
+
+One thing stands in the way and needs a ruling: today ARMING the caret on a slot where a slide-out
+ends SELECTS its chip, so a digit there retypes the fall instead of placing a head (ruled
+2026-09-11, when `Alt`+digit made falls and a fall at the slot was the rarer case). Carried over to
+end bends, a charter who ends a note with a bend release and steps right to type the next note
+would instead give the bend point a fret — a fall nobody asked for. Proposed: a bare digit at a
+ring's end slot is ALWAYS the next note, no exception for what the ring's end states; the end
+statement's chip is selected by clicking it, and the keys address it once it is. Sequential entry
+then has no trap in it, and the rule has one clause instead of two.
+
 **Authoring the end's bend, for Phase 3** (superseded by the entry above if that is signed) (raised by the user 2026-09-21; a proposal, to be signed
 with the `B` verb). The slot where a ring ends is often the slot where the next note's head
 stands, and the keymap already has the grammar for that one ambiguous cell: a bare digit there is
