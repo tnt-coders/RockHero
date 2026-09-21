@@ -45,8 +45,9 @@ that runs into the next note's head, or shrinks to its last keyframe, and simply
 not an error: the charter can see what bounds it. No flash, no mark, no message. This settles
 roadmap 40-Q5 — the slide tail lock is a silent floor in the resize clamp — and it draws the
 flash's line for every verb: the flash is for a key that did nothing for a reason the screen does
-not already show. One bound is not yet visible — a keyframe that states no fret draws nothing
-(W13, a Phase 3 blocker) — and W13 closes that, not a flash.
+not already show. Every keyframe floor is visible: a keyframe that states no fret states a bend or
+a vibrato, which the tail draws, and one that states nothing dissolves. (W13's open display
+question is a different one — such a keyframe has no HEAD for a pointer to reach.)
 
 **Never said by anyone**, and not to be reconstructed as if it had been: pulse timing, the choice
 between two pulses and three, the drawn geometry (the "selection ring" was a *perhaps*), a color
@@ -104,9 +105,9 @@ Follow `docs/developer/adding-an-editor-ui-view.md` Part B for the silent steps.
 | F1 | Pulse count and timing | Sight two and three pulses at a few periods in the built editor; no number is worth guessing |
 | F2 | Drawn geometry: the selection ring turning red, or a glow around it | Sight both; the ring is the smaller build |
 | F3 | Key repeat — a refusal arriving while a flash is still running | Let the running flash finish; a held key then reads as one steady pulse train instead of a strobe. Much smaller since the bound ruling: the held-key gestures (resize, move) stop silently, so what repeats is a toggle verb |
-| F4 | 2D only? | Yes. It reports on an editing verb the highway has none of, the same ground on which W6's feedback was ruled editor-only |
-| F5 | Reason to the log ONLY | Confirm. It was the user's "could probably", then an assistant rider never answered |
-| F6 | Scope of "every selection": notes and keyframes first, or markers too | Notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
+| ~~F4~~ | ~~2D only?~~ | RULED 2026-09-21: yes, 2D only |
+| ~~F5~~ | ~~Reason to the log ONLY~~ | RULED 2026-09-21: yes, "for now" — the log line is the thing to surface if charters cannot find the why |
+| ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
 | ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
 One unreconciled line from 2026-09-05 suggested the flash could "hint `Shift+S` as the verb they
