@@ -252,7 +252,21 @@ What else the study settled:
   always the next note" with no new clause and makes the end chip click-only — the gap the
   through-the-note proposal below closes.
 
-**Reaching a ring's end without a modifier — THROUGH THE NOTE, not through the slot** (proposal,
+**The user's lean on authoring at the end, 2026-09-21 (later the same day): `Alt`.** "`Alt`+digit
+and `Alt+B` being the authoring verb for slide outs and bends that would otherwise conflict with a
+note head ... simpler than adding selection to the end of the note tail (which comes with its own
+complexities)." Not yet signed, and nothing in the three build steps depends on it. Stated as one
+rule it is: **a key addresses what stands or starts at the slot; under `Alt` it addresses the ring
+that ENDS there.** `Alt`+digit states that ring's fall, `Alt+B` its final bend; strictly inside a
+ring `Alt` changes nothing, so a mistimed `Alt` costs nothing — the property the digit row was
+ruled to have. It needs one repair to be true: today a digit over a non-empty selection retypes
+the selection "bare or under `Alt`", so with a head selected on the slot `Alt`+digit retypes the
+head and never reaches the ring (the defect the user found). Under the rule above `Alt` takes the
+ending ring as its operand whatever is selected. The two proposals below are kept for the record
+and are set aside if this is signed.
+
+**Reaching a ring's end without a modifier — THROUGH THE NOTE, not through the slot** (set aside
+if `Alt` is signed) (proposal,
 2026-09-21, answering the user's "either ALT, or maybe SHIFT, or another method"). The ambiguity
 at a ring's end is an ambiguity of OPERAND: the ring that ends here, or the note that starts here.
 A modifier answers it per keystroke. The editor's own grammar answers it better: *a non-empty
