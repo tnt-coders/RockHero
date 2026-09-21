@@ -261,11 +261,12 @@ selection is the operand*. So make the ring's END a selectable point of its note
 already lets a keyframe key name a point that does not exist — and the slot stays what it always
 was, the place the NEXT note starts:
 
-- **Reach it** by clicking the tail's end, or from the keyboard with `End` while on a note
-  (`Home` returns to its head) — the text-editor convention, line versus document, which the keymap
-  is already half-way to: `Ctrl+Home` / `Ctrl+End` are the ruled aliases for the chart's bounds, so
-  the bare keys can take the narrower scope. `Tab`, which already walks the objects on a string
-  with the grid ignored, stops on an end only when it states something.
+- **Reach it** by clicking the tail's end. `Tab`, which already walks the objects on a string with
+  the grid ignored, stops on an end only when it states something. NO new key: `End` was proposed
+  and declined by the user the same day (it is the chart-end key), and none is needed — the
+  keyboard already authors at the end by LANDING, for a bend exactly as for a fall: state the point
+  a step inside (`B`, or a digit) and bring the tail in onto it. The channel table allows that
+  landing for a bend and for a travelling fret, and refuses it for a shake.
 - **With the end selected, nothing new is needed**: a digit states the fall and `B` the final bend
   by the selected-point rule that already retypes keyframes; Delete clears it; `Alt`+arrows drag it
   and the ring's end with it, which is what the move verb already does to a release; `V` is refused
@@ -277,6 +278,21 @@ was, the place the NEXT note starts:
 - `Shift` is not a candidate: it is the extend modifier across the whole interaction model.
 - Unverified: how "armed means the selection is what sits under the caret" reads when a head and
   the previous ring's end share a time. The clearance study reports on that.
+
+**The shift slide becomes a fact the chart PROVES, not a placement the importer invents** (the
+user, 2026-09-21; to verify against the shift-slide model before signing). Today a glide into a
+re-struck note is stored as a pitched arrival one margin BEFORE the next head, synthesized by the
+importer (`latestStatementBeforeStrike`), because a fret exactly at the end would read as the
+unpitched release. With the truth stored it is simply the fret statement AT the end, landing on
+the next head — and what tells a shift slide from a slide-out is relational and derivable: the
+statement at the end names the SAME fret the next head on that string is struck at, at the same
+instant. That is a slide into position and a pick; anything else at the end falls away. It is
+presented exactly as today, pitched and arriving one margin early, by the presentation rule that
+already spaces every tail. What it would delete: the importer's arrival placement and its
+`clearSlideOut`-then-arrive dance, and `latestStatementBeforeStrike`'s importer use. What must be
+checked first: span rule 6's emit test is calibrated to the synthesized arrival sitting exactly one
+quantum before the onset and would re-key to the derived fact; the signed shift-slide look (P8);
+and whether `Shift+L`'s split retreat, which places an arrival the same way, follows.
 
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end squishes back. The insert is legal — a digit at a
