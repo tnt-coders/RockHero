@@ -68,8 +68,9 @@ working plan is [first-releasable-editor.md](first-releasable-editor.md): a new 
 created from scratch, and every supported chart fact can be authored, edited, saved, reopened and
 played back. It is the ONE document that orders work; it names what already ships, the five decision
 gates on the path, seven phases with exits, nine decisions (D1–D9), all ruled 2026-09-19, and
-what is out of scope. **Its next action is finishing the pull-off span defect**, then the ungated builds:
-the non-modal notice channel, plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo.
+what is out of scope. The pull-off span defect and the two things it surfaced (the zero-length span, the carried-ring
+founding rule) closed 2026-09-20, so **its next action is the ungated builds**: the non-modal
+notice channel, plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo.
 
 FHPs / span markers are in scope through plan 60's hand marker, as are New Chart,
 tempo/time-signature authoring, tuning/capo/cent-offsets, bend authoring, bulk editing and harmonic

@@ -56,7 +56,7 @@ phase it blocks cannot start without it.
 | Gate | Where | Blocks |
 |---|---|---|
 | **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
-| **G43-METADATA** — 43-Q1..Q6 | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Phase 1 (song information) |
+| **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
 | **The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G** | `technique-review-walkthrough.md` W9, `highway-note-art-state.md` Open decisions | Phase 3 |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 (Phase 0 of plan 60 is ungated) |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
@@ -426,15 +426,15 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
 
 1. ~~The user's pass over **Decisions** D1–D9~~ — done 2026-09-19; every entry above carries its
    ruling. ~~The pull-off span defect~~ — built 2026-09-19 as the re-ruled hold-under law, sighted
-   and signed 2026-09-20. Two things it surfaced come first, in this order: the zero-length-span
-   bug (`docs/tracking/backlog.md`), then **the carried-ring founding rule** — a chord followed by
-   single melody notes over its still-ringing members founds a fresh bracket at every note,
-   because the ordinary founding site counts leftover FRETTED rings that the landing site already
-   refuses ("the grip's survivors are the closing span's own members"). The open-string rule
-   ("a ring no hand holds belongs only to the span it was struck in") generalised to every ring;
-   it moves all six enforced census rows, so it is prototyped, censused and sighted on its own
-   before the census is re-signed.
-2. Land the ungated work while gates are signed: the non-modal notice channel (Phase 2), plan 60
-   Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10).
-3. Schedule the three signing sessions in the order their phases arrive: G41-TS with G43, the bend
-   bundle, then G60-RULINGS (carrying #4, #9, #59 and D4) and G52-RANGE-EDIT.
+   and signed 2026-09-20. ~~The two things it surfaced~~ — both done 2026-09-20: the
+   zero-length-span bug, then **the carried-ring founding rule**, ruled as one sentence for every
+   ring ("a note belongs to the span that contains its onset"; `chart-ruleset.md`, with the
+   reopening trigger in `docs/tracking/watch-items.md`), and the corpus census re-pinned after it
+   with every row made able to fail.
+2. **Current.** Land the ungated work while gates are signed: the non-modal notice channel
+   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Three small
+   rulings sit directly behind the notice channel and are cheapest signed before it lands: 40-Q5
+   (refuse or clip-and-report), #277's placement, and the unstruck-tie default.
+3. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
+   sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,
+   #59 and the authored-span extend law) and G52-RANGE-EDIT.
