@@ -126,6 +126,28 @@ a bend (the curve's last value).
 
 About twenty-five tests pin a conversion and are retired or rewritten.
 
+**The end statement and the next head — one clearance rule** (user, 2026-09-21: a bend landing on
+the next note "would need to squish backward the same way a slide out currently does. Following
+the SAME rules"). The chart law already forbids a statement standing ON the next head on its
+string: `normalizeKeyframeClearances` pulls it back to the clearance, on load and in the plan
+gate. Today that repair has two branches — a release SHORTENS the ring to the clearance, while any
+other keyframe at the end is moved back ALONE and the ring keeps its length — so a fall and a bend
+at the same end obey different rules. Under Set B there is one: the end statement is the end, so
+the ring ends at the clearance, whatever the end states. It also means no end statement ever
+shares a slot with a head, which is the gap the user proposed as a rule; it is the existing law,
+generalised. Material imported from Guitar Pro, where notes abut by construction, reaches it
+through that repair.
+
+Measured the same day: the WRITTEN material abuts more often than not — 174 of the 288 bends still
+moving at their note's end (60%) and 463 of the corpus's 977 slide-outs (47%) end exactly on the
+next head of their own string — and the imported chart holds none of them there; every one is
+pulled back. The clearance is one minimum sustain distance (0.1 s, through the tempo map) before
+the head, or halfway along the last leg where that would crowd it. The two branches matter in
+practice: a slide-out keeps its meaning, but a bend's moving terminal is moved back alone, so it
+becomes an interior point and the curve then holds flat to a ring end it no longer reaches — a
+bend that "completes as the note ends" is silently imported as one that completes slightly early
+and holds. 174 notes in the corpus take that today. Under Set B's single rule they do not.
+
 **Authoring the end's bend, for Phase 3** (raised by the user 2026-09-21; a proposal, to be signed
 with the `B` verb). The slot where a ring ends is often the slot where the next note's head
 stands, and the keymap already has the grammar for that one ambiguous cell: a bare digit there is
