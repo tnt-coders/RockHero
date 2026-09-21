@@ -5608,7 +5608,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     // event arm). The release states its 3 alone there — the two chord strings ringing under it
     // were struck inside the span it closed, and A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN
     // — so nothing opens after it, and the pressed 5 stands as the last thing the grip said.
-    const auto closesAtTheRelease = [](const std::vector<ChartNote>& notes) {
+    const auto closes_at_the_release = [](const std::vector<ChartNote>& notes) {
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derivedStops(derived, 0)[3] == std::optional{frettedStop(5)});
@@ -5623,7 +5623,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     {
         ChartNote inner = noteAt(1, Fraction{}, 4, 5, Fraction{1});
         inner.harmonic_node = 17.0;
-        closesAtTheRelease(co_struck(std::move(inner)));
+        closes_at_the_release(co_struck(std::move(inner)));
     }
 
     SECTION("the co-struck tapped twin derives the same one span")
@@ -5640,7 +5640,7 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
         // artificial form is immune because its own strike refreshes the string.
         ChartNote tapped = tapAt(1, Fraction{}, 4, 5, Fraction{1});
         tapped.harmonic_node = 17.0;
-        closesAtTheRelease(co_struck(std::move(tapped)));
+        closes_at_the_release(co_struck(std::move(tapped)));
     }
 
     SECTION("a plain tap's release onto its own planted finger still rides")
