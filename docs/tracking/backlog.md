@@ -1232,15 +1232,15 @@ against the tree on the date above.
   helpers is what let the fold-in pick the wrong one. Worth a look when the carried-ring founding
   rule reworks that loop: can the two questions be made impossible to confuse at the type level?
 
-- **Re-sign the corpus census's derivation rows (stale since before 2026-09-19).** The enforced
-  `trigger-4-only flips` row already failed on the commit before the let-ring phrase fix (94
-  against a signed 106). After the 2026-09-19 let-ring and hold-under changes the census reads
-  spans total 22455 (signed 22413), arpeggio spans 1277 (signed 1528 — now ALSO past tolerance),
-  lone re-pick spans 2794 (3084), trigger-4-only flips 80 (106), landing-opened 1191 (1158),
-  landing successors BOX 1097 (1063). Every movement is explained in those commits; what is owed
-  is the user's sighting pass over a sample and new signed figures in
-  `rock-hero-editor/core/tests/test_corpus_census.cpp`. Do it ONCE, after the carried-ring founding
-  rule is decided, because that change moves all six rows again.
+- **The corpus census has sections that can never read false, and rows nothing pins.** Found
+  while re-pinning on 2026-09-20 (`rock-hero-editor/core/tests/test_corpus_census.cpp`): section
+  [D6] reads zero on every row over 1380 staccato notes; `travel_covering_spans` equals
+  `travel_any_spans` exactly (652 of 652); the source-side landing attribution now agrees with the
+  derivation on all 1243 successors, so its "second opinion" no longer disagrees about anything;
+  the claim-witness arm of the gap re-picks holds one case of 1128; and the fret-hand-window rows
+  (windows placed, stops outside reach, spans crossed by a shift) carry no pinned value at all, so
+  a regression in them is invisible. For each: decide whether the row still measures something,
+  pin it if so, delete it if not.
 
 - **The hold-under law has no corpus coverage for DERIVED claims.** Since the re-ruling a tapped
   source's derived claim is admitted only where a standing span already holds that stop, and on
