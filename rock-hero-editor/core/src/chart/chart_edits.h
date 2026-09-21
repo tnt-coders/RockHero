@@ -569,13 +569,18 @@ recorded steps and rejoins where it parted.
   \ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
   reports the bound for every step past it, and leaves the bound on the step that falls back
   inside.
-- Shrinking stops at the ring's FLOOR, exclusive: the last keyframe's offset where the note carries
-  one, the onset otherwise. Every note rings, and an authored keyframe lies strictly inside its
-  ring, so a replayed ring at or below the floor has nowhere legal to end: the note keeps the ring
-  it CURRENTLY has — read from `chart`, not from `base`, because the value on screen is the one
-  that holds — and rejoins the replay as soon as it clears the floor again. A scrape's path is
-  derived, so it floors at the minimum gesture window instead, its path re-terminating onto the
-  changed tail (shrink compresses the final point, growth rides it out).
+- Shrinking stops at the ring's FLOOR: the last keyframe's offset where the note carries one, the
+  onset otherwise. The ring holds STRICTLY ABOVE its floor, with one landing allowed — a last
+  keyframe that states a fret and NOTHING else, on a ring that simply ends, may be landed on
+  exactly, which makes it the RELEASE and the glide an unpitched slide-out. A keyframe also stating
+  a bend or a shake would lose that statement to the release's bare-fret law
+  (\ref common::core::releaseWouldStripChannels), so it holds the ring above it like a fretless one:
+  this verb shortens rings, it does not delete statements. A ring the replay takes to or below its
+  floor has nowhere legal to end, so the note keeps the ring it CURRENTLY has — read from `chart`,
+  not from `base`, because the value on screen is the one that holds — and rejoins the replay as
+  soon as it clears the floor again. A scrape's path is derived, so it floors at the minimum gesture
+  window instead, its path re-terminating onto the changed tail (shrink compresses the final point,
+  growth rides it out).
 
 Three consequences of the step's law, all intended:
 

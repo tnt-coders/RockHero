@@ -1201,6 +1201,24 @@ where a has_value() guard on the loop variable's own member is not otherwise cre
 }
 
 /*!
+\brief Reports whether becoming the release would shed a statement from this keyframe.
+
+WHICH channels a release cannot keep, spelled once: the strip that sheds them
+(\ref stripReleaseChannels) and every verb that must know BEFORE it hands a keyframe the ring's end
+read the same list, so the two can never disagree about what a landing costs. A duration step asks
+it to decide whether pulling the end onto its last keyframe erases anything — a verb may shorten a
+ring, never delete a statement.
+
+\param keyframe Keyframe the ring's end would reach.
+
+\return True when the keyframe states a bend or a shake, which a release cannot carry.
+*/
+[[nodiscard]] inline bool releaseWouldStripChannels(const Keyframe& keyframe) noexcept
+{
+    return keyframe.bend.has_value() || keyframe.vibrato.has_value();
+}
+
+/*!
 \brief Leaves the release stating its fret and nothing else.
 
 A RELEASE STATES ITS FRET AND NOTHING ELSE: a bend or a shake stated at the instant the string is
@@ -1215,7 +1233,7 @@ becomes the release — stated there (\ref setSlideOut), reached by a ring short
 inline bool stripReleaseChannels(ChartNote& note) noexcept
 {
     Keyframe* const release = releaseKeyframe(note);
-    if (release == nullptr || (!release->bend.has_value() && !release->vibrato.has_value()))
+    if (release == nullptr || !releaseWouldStripChannels(*release))
     {
         return false;
     }
