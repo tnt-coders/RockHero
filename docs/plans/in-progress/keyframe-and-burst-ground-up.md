@@ -195,6 +195,45 @@ and an other-string neighbour then look alike: the statement completes as the dr
 margin before the head. The stored ring is untouched, as every presentation rule leaves it. Both
 surfaces and scoring read the presented note, so the highway agrees by construction.
 
+**Storing the truth: deleting the stored clearance law** (the user, 2026-09-21; under study). If
+the presented trim carries the end's statement, the stored rule "no keyframe sits on a head of its
+own string" duplicates presentation, and the file can hold what the hands do — a slide-out or a
+bend running right to the next head — while display and scoring alone apply the spacing. The user
+wants it seriously considered even if the study finds obstacles: obstacles are then things to
+design around, not a veto. Candidates to go with it: `normalizeKeyframeClearances` and its helpers,
+its call and ordering constraints in the plan gate, the scrape wall special case, and the import
+squish — so the 174 abutting bends import exactly as written. To be established: why the law was
+introduced; how a drawn chip maps back to its stored keyframe once the end chip draws a margin
+early; the `Shift+L` join of two abutting notes when the first states something at the junction
+(two statements at one offset); and any derivation that reads a release's offset against the next
+onset.
+
+**Reaching a ring's end without a modifier — THROUGH THE NOTE, not through the slot** (proposal,
+2026-09-21, answering the user's "either ALT, or maybe SHIFT, or another method"). The ambiguity
+at a ring's end is an ambiguity of OPERAND: the ring that ends here, or the note that starts here.
+A modifier answers it per keystroke. The editor's own grammar answers it better: *a non-empty
+selection is the operand*. So make the ring's END a selectable point of its note — the key
+`(note, offset == sustain)`, whether or not anything is stated there yet; the selection model
+already lets a keyframe key name a point that does not exist — and the slot stays what it always
+was, the place the NEXT note starts:
+
+- **Reach it** by clicking the tail's end, or from the keyboard with `End` while on a note
+  (`Home` returns to its head) — the text-editor convention, line versus document, which the keymap
+  is already half-way to: `Ctrl+Home` / `Ctrl+End` are the ruled aliases for the chart's bounds, so
+  the bare keys can take the narrower scope. `Tab`, which already walks the objects on a string
+  with the grid ignored, stops on an end only when it states something.
+- **With the end selected, nothing new is needed**: a digit states the fall and `B` the final bend
+  by the selected-point rule that already retypes keyframes; Delete clears it; `Alt`+arrows drag it
+  and the ring's end with it, which is what the move verb already does to a release; `V` is refused
+  there, a shake at the end saying nothing.
+- **What it removes**: `Alt`+digit's creating cell, any `Alt+B`, the rule that arming a slot
+  selects a slide-out's chip, and the shared-slot question entirely — a slot never has to choose
+  between a head and the end beside it, which matters once the stored end may sit exactly on the
+  next head. Sequential entry is untouched: a bare digit on a slot is always a note.
+- `Shift` is not a candidate: it is the extend modifier across the whole interaction model.
+- Unverified: how "armed means the selection is what sits under the caret" reads when a head and
+  the previous ring's end share a time. The clearance study reports on that.
+
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end squishes back. The insert is legal — a digit at a
 ring's exact end is the next note — and the plan gate's clearance repair then finds a statement on
