@@ -328,7 +328,8 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
     CHECK(presented.notes[0].end_seconds == Catch::Approx(1.9));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
-    // A presented tail always reaches the last keyframe, so both forms carry every statement.
+    // A presented tail reaches every statement the note has to show — here every one stands well
+    // inside the trimmed ring — so both forms carry the same statements.
     // Both curves carry the onset point in front, which is the channel's opening value.
     CHECK(presented.notes[0].bend.size() == 2);
     CHECK(actual.notes[0].bend.size() == 2);
@@ -344,9 +345,8 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
 // editor keys a click, a caret and the accent ring by — while `seconds` alone says where the mark
 // is drawn. Both forms therefore report the offsets the chart states, and the fixture's note
 // carries a statement AT its ring's end (a slide-out), the one statement a presentation rule is
-// allowed to move. That the identity survives such a move is pinned where the mapping lives, over
-// a drawn note whose end statement has been moved by hand ("A drawn keyframe is named by the
-// stored statement at its index"), since no rule moves one yet.
+// allowed to move: the head on another string binds the drawn tail, so rule 2 carries that
+// statement one margin earlier. This is that split measured — one identity, two instants.
 TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -368,9 +368,8 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
                     Keyframe{.offset = Fraction{2}, .fret = 9},
                 },
         },
-        // A head on another string, near enough that rule 1 binds on it — a released ring still
-        // never trims, since rule 2 floors the tail at the last statement, so both forms draw the
-        // same statements at the same instants.
+        // A head on another string, exactly where the ring ends, so rule 1 binds on it and rule 2
+        // carries the ring's end statement one margin earlier in the PRESENTED form alone.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 2,
@@ -388,7 +387,9 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
 
-    // The two fret-stating keyframes above, in the order the chart states them.
+    // The two fret-stating keyframes above, in the order the chart states them — the same two names
+    // in both forms, because a name is what the CHART states and no rule here invents or drops a
+    // statement.
     const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{2}};
     for (const NoteViewState& note : {presented.notes[0], actual.notes[0]})
     {
@@ -397,13 +398,26 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
         {
             CHECK(note.slides[index].offset == stored_offsets[index]);
         }
-        // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out's chip
-        // at the ring's end a second in — where the marks ARE, which is the other half of the
-        // contract and the number both surfaces paint from.
+        // 120 BPM 4/4: the stop at half a beat draws a quarter second in, unmoved in either form —
+        // it stands strictly inside the ring, and only the END's statement travels.
         CHECK(note.slides[0].seconds == Catch::Approx(0.25));
-        CHECK(note.slides[1].seconds == Catch::Approx(1.0));
         CHECK_FALSE(note.slides[0].release);
         CHECK(note.slides[1].release);
+    }
+    // WHERE the fall's chip draws, which is the other half of the contract and the number both
+    // surfaces paint from: the presented form shows it as the drawn tail ends, one margin (a tenth
+    // of a second) before the head that binds, while the actual form shows the ring the chart
+    // stores and puts it at the ring's own end a second in.
+    CHECK(presented.notes[0].slides[1].seconds == Catch::Approx(0.9));
+    CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.0));
+    // And the chart itself is untouched: the statement stays at the ring's end where it was
+    // authored, which is what makes the identity above the same in both forms.
+    REQUIRE(arrangement.chart.has_value());
+    if (arrangement.chart.has_value())
+    {
+        const ChartNote& stored = arrangement.chart->notes.front();
+        CHECK(stored.sustain == Fraction{2});
+        CHECK(stored.keyframes.back().offset == Fraction{2});
     }
 }
 
@@ -614,12 +628,12 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
 }
 
 // The hand's approach ramps are the derivation most exposed to the swap, because a placement can
-// be slide-locked to a gesture end that PRESENTATION MOVED: a slide-out compresses back with the
-// trimmed tail, so its grid position — the ramp table's key — is one position in the presented
-// stream and another in the saved one. The table is built from the presented stream in either
-// form, so both answer with the same margin morph; read it off the drawn stream instead and the
-// actual form alone locks this placement to a four-beat unpitched glide, and the hand marker
-// visibly jumps the moment the reveal is held.
+// be slide-locked to a gesture end that PRESENTATION MOVED: rule 2 carries a slide-out's terminal
+// back with the trimmed tail, so the instant it DRAWS at is not the instant the chart states it —
+// and a placement is authored at the instant the chart states. So the ramp table keys on the
+// STORED offset, an identity, and is built from the presented stream in either form: both answer
+// with one ramp over the drawn fall. Keyed on the drawn offset instead, the lookup misses entirely
+// and this placement silently falls back to the metrical margin morph.
 TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -627,7 +641,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
         // Four beats of ring ending exactly on the next onset — on ANOTHER string — trailing off
-        // unpitched at its very end. A released ring never trims, so the terminal stays at four.
+        // unpitched at its very end, so that head binds the drawn tail and the terminal draws one
+        // margin earlier than the four beats the chart states it at.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
@@ -645,7 +660,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .keyframes = {},
         },
     };
-    // Exactly where the terminal lands, in both forms.
+    // Exactly where the chart states the terminal — which is what a placement is authored against,
+    // in either form.
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .width = 4},
     };
@@ -655,7 +671,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
-    // A released ring presents as stored, so the terminal stands at four beats in both forms.
+    // The terminal is NAMED by the four beats the chart states in both forms, and DRAWN a margin
+    // earlier in the presented one.
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
     // Each note bound once, so a count check and the access after it are provably the same object.
@@ -671,12 +688,15 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     CHECK(actual_glide.slides.back().offset == Fraction{4});
     REQUIRE(glideStopCount(presented_glide) == 1);
     REQUIRE(glideStopCount(actual_glide) == 1);
-    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(2.0));
+    // A tenth of a second of spacing before the head in the drawn form; the whole four beats in the
+    // revealed one.
+    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.9));
     CHECK(glideStopAt(actual_glide, 0).seconds == Catch::Approx(2.0));
     CHECK(glideStopAt(presented_glide, 0).unpitched);
 
-    // The placement sits where the unpitched glide ends, so the hand rides the whole four-beat
-    // fall into it — two seconds at 120 BPM — and both forms agree, because both draw it whole.
+    // The placement is authored at the instant the chart states the terminal, so the identity key
+    // still finds the ramp: the hand rides the fall from the note's onset into it — two seconds at
+    // 120 BPM — and both forms agree, because the table is one table.
     REQUIRE(presented.fret_hand_positions.size() == 1);
     CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(2.0));
     CHECK(presented.fret_hand_positions[0].unpitched_ramp);

@@ -61,6 +61,42 @@ constexpr double g_max_cent_offset{1200.0};
     });
 }
 
+// A scrape's terminal, given a new AIM where compression makes its fret meet the fret it now
+// follows: the nearest EARLIER differing fret takes over — including one the clip is about to
+// remove — so the path never sits still. Asked of the terminal already detached from the note and
+// of the keyframes the new `sustain` leaves standing. Only the POSITION channel is re-aimed; a
+// terminal stating no fret is no scrape's (the attack requires one) and is left alone.
+void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fraction sustain)
+{
+    // Bound to a local so the presence test and every read below are provably the same object.
+    std::optional<int>& aim = terminal.fret;
+    if (!aim.has_value())
+    {
+        return;
+    }
+    int surviving_fret = note.fret;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (!(keyframe.offset < sustain))
+        {
+            break;
+        }
+        surviving_fret = keyframe.fret.value_or(surviving_fret);
+    }
+    for (const Keyframe& keyframe : std::ranges::reverse_view(note.keyframes))
+    {
+        if (*aim != surviving_fret)
+        {
+            break;
+        }
+        const std::optional<int>& fret = keyframe.fret;
+        if (fret.has_value())
+        {
+            aim = fret;
+        }
+    }
+}
+
 } // namespace
 
 void dropNotePath(ChartNote& note)
@@ -248,62 +284,45 @@ bool flattenStrandedStrike(ChartNote& note)
     return true;
 }
 
-// A POINT NEVER LEAVES THE RING, AND NEVER MOVES BECAUSE THE RING DID. A release is stated AT the
-// end, so a ring shortened under it carries the release with the end (the release comes sooner —
-// there is nowhere else for it to be); a ring lengthened past it leaves the statement where it
-// was, a pitched stop now, the tail running on as a plain ring — the ribbon moved and the point
-// stayed, exactly as every other keyframe stays. Kind is position, so that is how a slide-out
-// becomes a regular slide; the release's own handle for the FALL's length is the move verb, which
-// drags the ring's end with it (planMoveSelection) — and only for the point that IS the release,
-// since that verb keeps every other point strictly inside the ring rather than letting a step
-// change what a point is. A scrape's terminal rides both ways, because a
-// scrape rings exactly as long as the pick travels and its terminal is required at the end. What
-// a scrape's terminal still needs is a new AIM when compression makes its fret meet the fret it
-// now follows.
+// A POINT NEVER LEAVES THE RING, AND NEVER MOVES BECAUSE THE RING DID — except the one whose
+// moment IS the ring's end. That statement is stated AT the end, so a ring shortened under it
+// carries it with the end (it comes sooner — there is nowhere else for it to be), WHATEVER it
+// states: a fall toward a fret, the bend curve's last value, or both. A ring lengthened past it
+// leaves the statement where it was, a pitched stop now, the tail running on as a plain ring — the
+// ribbon moved and the point stayed, exactly as every other keyframe stays. Kind is position, so
+// that is how a slide-out becomes a regular slide; the release's own handle for the FALL's length
+// is the move verb, which drags the ring's end with it (planMoveSelection) — and only for the point
+// that IS the release, since that verb keeps every other point strictly inside the ring rather than
+// letting a step change what a point is. A scrape's terminal rides both ways, because a
+// scrape rings exactly as long as the pick travels and its terminal is required at the end.
 void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
 {
     const bool shortening = sustain < note.sustain;
-    // The release detaches first — read as the fret it names, because the keyframe carrying it is
-    // about to be clipped like any statement past the new end — and re-attaches at the end the
-    // clip settles, so no keyframe ever sits past the ring and no two sit at one offset.
-    std::optional<int> ridden;
-    if (const int* const release = slideOutFretOrNull(note);
-        release != nullptr && (shortening || isScrape(note.attack)))
+    // The end's statement detaches WHOLE — the keyframe carrying it is about to be clipped like any
+    // statement past the new end — and re-attaches at the end the clip settles, so no keyframe ever
+    // sits past the ring and no two sit at one offset. A ring ending at ZERO carries nothing: an
+    // offset is strictly positive, so there is no end for a statement to stand at, and the erase
+    // below takes every keyframe with the dropped tail (dropPresentedTail).
+    std::optional<Keyframe> ridden;
+    if (const Keyframe* const end = endStatement(note);
+        end != nullptr && sustain.numerator > 0 && (shortening || isScrape(note.attack)))
     {
-        ridden = *release;
-        clearSlideOut(note);
-    }
-    // A scrape re-aims before the clip, because the fret the terminal falls back on may be one the
-    // clip is about to remove: the nearest EARLIER differing fret takes over so the path never
-    // sits still.
-    if (ridden.has_value() && isScrape(note.attack))
-    {
-        int surviving_fret = note.fret;
-        for (const Keyframe& keyframe : note.keyframes)
+        // Emplaced into a reference so the copy off the note happens before the pop and nothing
+        // below reads through the optional.
+        Keyframe& carried = ridden.emplace(*end);
+        note.keyframes.pop_back();
+        // A scrape re-aims before the clip, because the fret the terminal falls back on may be one
+        // the clip is about to remove.
+        if (isScrape(note.attack))
         {
-            if (!(keyframe.offset < sustain))
-            {
-                break;
-            }
-            surviving_fret = keyframe.fret.value_or(surviving_fret);
-        }
-        for (const Keyframe& keyframe : std::ranges::reverse_view(note.keyframes))
-        {
-            if (*ridden != surviving_fret)
-            {
-                break;
-            }
-            const std::optional<int>& fret = keyframe.fret;
-            if (fret.has_value())
-            {
-                ridden = fret;
-            }
+            reAimScrapeTerminal(note, carried, sustain);
         }
     }
 
     note.sustain = sustain;
     // The bound is inclusive for every channel: a statement standing exactly at the new end
-    // survives, whatever it states. Where that end is a head of the note's own string, the
+    // survives, whatever it states — and the end's own statement, arriving back on top of it,
+    // overlays it (setEndStatement). Where that end is a head of the note's own string, the
     // clearance repair (normalizeKeyframeClearances) moves the statement back — heads are no
     // business of a clip.
     std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
@@ -311,7 +330,7 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     });
     if (ridden.has_value())
     {
-        setSlideOut(note, *ridden);
+        setEndStatement(note, *ridden);
     }
     // An end that lands exactly on a stated fret makes that fret the release — and a release
     // states its fret and nothing else, so a shake or a bend the point carried as a stop goes with
@@ -338,6 +357,16 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
+Fraction lastStatementClearance(const ChartNote& note, const Fraction gap, const Fraction margin)
+{
+    // The last leg starts at the statement before the last keyframe — the onset when there is
+    // none — and the clearance never takes it: a real landing at a junction the margin line falls
+    // on would otherwise be overwritten by the statement moved onto it.
+    const std::size_t count = note.keyframes.size();
+    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
+    return latestStatementBeforeStrike(gap, margin, leg_start);
+}
+
 std::optional<Fraction> keyframeClearanceOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
@@ -350,16 +379,11 @@ std::optional<Fraction> keyframeClearanceOf(
     {
         return std::nullopt;
     }
-    // The last leg starts at the statement before the last keyframe — the onset when there is
-    // none — and the clearance never takes it: a real landing at a junction the margin line falls
-    // on would otherwise be overwritten by the statement moved onto it.
-    const std::size_t count = note.keyframes.size();
-    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
     // The bound IS the distance to the next strike on the string, so advancing the onset by it
     // names the head the clearance is kept before — the onset the margin protects.
     const Fraction margin = minimumSustainDistanceBeats(
         tempo_map, advanceGridPosition(tempo_map, note.position, *bound));
-    return latestStatementBeforeStrike(*bound, margin, leg_start);
+    return lastStatementClearance(note, *bound, margin);
 }
 
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.

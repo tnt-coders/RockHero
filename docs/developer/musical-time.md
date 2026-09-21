@@ -173,7 +173,9 @@ tail off what a surface **draws**.
   and introduces no threshold of its own (the reveal window is the board's, not the law's), so it
   moves no ribbon's length whatever it decides.
   THE VERDICT IS AN OFFSET — where the curtain takes over, and the ring's last always-visible
-  landmark: zero for a plain ring, the last keyframe's end for a statement that finishes, the
+  landmark: zero for a plain ring, the last DRAWN statement's end for a statement that finishes —
+  the drawn one, since rule 2 may print a ring's end statement earlier than the chart states it and
+  the curtain starts where the ink does — the
   ribbon's own end (an EMPTY remainder) for a handover. Past it the curtain owns the ribbon to the
   presented end, so a chug chain's between-strike ribbons go and so does a lone sustained note's.
   COVERAGE IS NO PART OF THE QUESTION: the law asks nothing about spans, so a chart carrying no
@@ -226,11 +228,15 @@ tail off what a surface **draws**.
   arrivals, the load repair and the editor gate ask the same questions. They read the note's ONE
   interval payload, its `keyframes` array, where each entry states any subset of the fret, bend
   and vibrato channels (`docs/plans/todo/unified-waypoint-model.md`). The presented tail always
-  reaches the last keyframe (rule 2), and nothing about what it SAYS is asked there: a stored
-  note's last keyframe is always a statement, because the keyframe commit law
+  reaches the last statement standing INSIDE the ring (rule 2), and nothing about what it SAYS is
+  asked there: a stored note's last keyframe is always a statement, because the keyframe commit law
   (`keyframeSaysNothingNew`) sheds one that is not. The one shape distinction the trim keeps is
   that a bend value and a fret are complete at the instant they are reached, while a statement
-  that leaves the string SHAKING needs a minimum window past it to be shown at all.
+  that leaves the string SHAKING needs a minimum window past it to be shown at all. A statement
+  standing exactly AT the ring's end is the end's own (`endStatement`), so it floors nothing and
+  RIDES to the presented end instead — the clearance a last statement takes before the binding
+  onset (`lastStatementClearance`, the arithmetic the stored repair shares), so every drawn tail
+  keeps the same spacing before the next head whatever it ends in.
 
 Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note (its
 own fret, its onset bend, its onset vibrato) and every later change lands on a keyframe, so "what is

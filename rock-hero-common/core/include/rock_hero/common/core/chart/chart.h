@@ -552,10 +552,14 @@ pitch falls away toward — the unpitched slide-out. It states that fret and not
 stripReleaseChannels): a bend or a shake at the instant the string is let go has no ring to sound
 in. Nothing separate stores that gesture, and
 nothing has to: its moment is the ring's end by definition. Kind is a matter of POSITION, and a
-point never moves because the ring did: a ring shortened under its release carries the release
-with the end (\ref clipPayloadsToSustain), a ring lengthened past it leaves the statement where
+point never moves because the ring did: a ring shortened under the statement standing at its end
+carries that statement with the end (\ref endStatement, \ref clipPayloadsToSustain — whatever it
+states, since its moment IS the end), a ring lengthened past it leaves the statement where
 it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular slide
-— and a ring pulled back exactly onto its last stated fret makes that fret the release. The fall's
+— and a ring pulled back exactly onto its last stated fret makes that fret the release.
+Presentation carries the end's statement the same way, to the instant the DRAWN tail ends
+(\ref presentedChartNotes rule 2), so every tail keeps the same spacing before the next head
+whatever it ends in. The fall's
 own length is the release's to change: moving the release moves the ring's end with it, and no OTHER
 point becomes one by moving — an interior point lives strictly inside the ring at both ends, so the
 only verb that changes a point's kind is the one that moves the ring's end onto it. A glide
@@ -1154,36 +1158,66 @@ so it is stated once. Two notes equal under it are the same slot, which no chart
 }
 
 /*!
-\brief The note's RELEASE: its last keyframe, when that keyframe states a fret exactly at the
-ring's end — or nullptr when the tail simply ends, or ends on a statement of another channel.
+\brief The statement standing exactly at the ring's END, whatever channels it states — or nullptr
+when the tail simply ends.
 
-A fret stated where the sound stops is a fret the hand never sounds, so the statement is where
-pressure comes off and the pitch falls away toward: the unpitched slide-out, and a scrape's
-required terminal. Read off position rather than stored as a kind, so one keyframe list carries
-every statement a ring makes and the editing verbs treat the release as the point it is.
+THE END'S OWN STATEMENT, and the one spelling of "something stands there". Offsets ascend strictly
+within the sustain (\ref validateChartNoteAlone), so at most one keyframe can sit at the end and it
+is the last: the question is one comparison, asked here rather than restated by every rule that
+moves an end. The end's statement belongs to the END — a ring resized under it carries it along
+(\ref clipPayloadsToSustain) and presentation carries it to wherever the drawn end goes
+(\ref presentedChartNotes rule 2) — so what it STATES is a separate question: a fret there is the
+release (\ref releaseKeyframe), a bend value there is the curve's last value.
 
 \param note Note whose tail is inspected.
-\return The release keyframe, or nullptr.
+\return The keyframe at the ring's end, or nullptr.
 */
-[[nodiscard]] inline const Keyframe* releaseKeyframe(const ChartNote& note) noexcept
+[[nodiscard]] inline const Keyframe* endStatement(const ChartNote& note) noexcept
 {
     if (note.keyframes.empty())
     {
         return nullptr;
     }
     const Keyframe& last = note.keyframes.back();
-    return last.offset == note.sustain && last.fret.has_value() ? &last : nullptr;
+    return last.offset == note.sustain ? &last : nullptr;
 }
 
-/*! \copydoc releaseKeyframe(const ChartNote&) */
-[[nodiscard]] inline Keyframe* releaseKeyframe(ChartNote& note) noexcept
+/*! \copydoc endStatement(const ChartNote&) */
+[[nodiscard]] inline Keyframe* endStatement(ChartNote& note) noexcept
 {
     if (note.keyframes.empty())
     {
         return nullptr;
     }
     Keyframe& last = note.keyframes.back();
-    return last.offset == note.sustain && last.fret.has_value() ? &last : nullptr;
+    return last.offset == note.sustain ? &last : nullptr;
+}
+
+/*!
+\brief The note's RELEASE: the statement at the ring's end, when that statement names a fret — or
+nullptr when the tail simply ends, or ends on a statement of another channel.
+
+A fret stated where the sound stops is a fret the hand never sounds, so the statement is where
+pressure comes off and the pitch falls away toward: the unpitched slide-out, and a scrape's
+required terminal. Read off position rather than stored as a kind, so one keyframe list carries
+every statement a ring makes and the editing verbs treat the release as the point it is. WHERE it
+stands is \ref endStatement's question and is asked there; this adds the one thing that makes it a
+release.
+
+\param note Note whose tail is inspected.
+\return The release keyframe, or nullptr.
+*/
+[[nodiscard]] inline const Keyframe* releaseKeyframe(const ChartNote& note) noexcept
+{
+    const Keyframe* const end = endStatement(note);
+    return end != nullptr && end->fret.has_value() ? end : nullptr;
+}
+
+/*! \copydoc releaseKeyframe(const ChartNote&) */
+[[nodiscard]] inline Keyframe* releaseKeyframe(ChartNote& note) noexcept
+{
+    Keyframe* const end = endStatement(note);
+    return end != nullptr && end->fret.has_value() ? end : nullptr;
 }
 
 /*!
@@ -1273,30 +1307,65 @@ inline bool stripReleaseChannels(ChartNote& note) noexcept
 }
 
 /*!
-\brief States the note's release: the keyframe at the ring's end takes `fret`, created there when
-no keyframe sits at the end yet.
+\brief States `statement` at the ring's END: overlaid onto the statement already standing there, or
+placed as a new one where the end is bare.
 
-The one writer for the slide-out, so a caller never reasons about whether the end already carries
-a bend or a shake statement (a release states its fret and nothing else, so they go — \ref
-stripReleaseChannels) or about keeping the offsets ascending (the end is past every earlier offset
-by the payload invariant). The ring must already be the length the release is meant to leave at —
-a release is stated at an END, never given one.
+The one writer for the end's own statement, so no caller reasons about whether the end is already
+occupied, about keeping the offsets ascending (the end is past every earlier offset by the payload
+invariant), or about what a release may keep. Its OFFSET never travels with it: the end's moment is
+the ring's end by definition, so this stamps `note.sustain` on it and the ring must already be the
+length the statement is meant to stand at.
+
+OVERLAID rather than replaced, because the two statements are about the same moment: the arriving
+one speaks for the channels it states and leaves the standing one's others alone, which is how a
+fret riding back onto a ring shortened exactly onto a bend point states both. What an end may then
+KEEP is the release law's (\ref stripReleaseChannels), applied here so every writer of the end gets
+the same answer.
+
+\param note Note whose ring's end takes the statement.
+\param statement What is stated there; its own `offset` is ignored.
+*/
+inline void setEndStatement(ChartNote& note, Keyframe statement)
+{
+    statement.offset = note.sustain;
+    if (Keyframe* const standing = endStatement(note); standing != nullptr)
+    {
+        if (!statement.fret.has_value())
+        {
+            statement.fret = standing->fret;
+        }
+        if (!statement.bend.has_value())
+        {
+            statement.bend = standing->bend;
+        }
+        if (!statement.vibrato.has_value())
+        {
+            statement.vibrato = standing->vibrato;
+        }
+        *standing = statement;
+    }
+    else
+    {
+        note.keyframes.push_back(statement);
+    }
+    static_cast<void>(stripReleaseChannels(note));
+}
+
+/*!
+\brief States the note's release: the statement at the ring's end takes `fret`, created there when
+the end is bare.
+
+The one writer for the slide-out, spelled over the end's own writer (\ref setEndStatement) so a
+caller never reasons about whether the end already carries a bend or a shake statement (a release
+states its fret and nothing else, so they go — \ref stripReleaseChannels). The ring must already be
+the length the release is meant to leave at — a release is stated at an END, never given one.
 
 \param note Note whose ring releases.
 \param fret Fret the release falls away toward.
 */
 inline void setSlideOut(ChartNote& note, const int fret)
 {
-    if (!note.keyframes.empty() && note.keyframes.back().offset == note.sustain)
-    {
-        note.keyframes.back().fret = fret;
-    }
-    else
-    {
-        note.keyframes.push_back(
-            Keyframe{.offset = note.sustain, .fret = fret, .bend = {}, .vibrato = {}});
-    }
-    static_cast<void>(stripReleaseChannels(note));
+    setEndStatement(note, Keyframe{.offset = {}, .fret = fret, .bend = {}, .vibrato = {}});
 }
 
 /*!

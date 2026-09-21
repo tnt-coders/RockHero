@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
@@ -391,10 +393,15 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         {
             CHECK(*falls_toward == 9);
         }
-        // A released ring never trims: the release is its last keyframe, so the tail presents
-        // exactly as stored, glide and release both.
-        CHECK(first.sustain == saved[0].sustain);
-        CHECK(first.keyframes.size() == 2);
+        // The fall is the END's own statement, so it rides to the margin before the binding onset
+        // and the drawn tail is spaced exactly as a bare one — while the junction it travels from
+        // stands where the chart states it, well clear below.
+        CHECK(first.sustain == Fraction{9, 5});
+        REQUIRE(first.keyframes.size() == 2);
+        CHECK(first.keyframes.front().offset == Fraction{1});
+        CHECK(first.keyframes.back().offset == Fraction{9, 5});
+        // The chart keeps the ring and the moment it states.
+        CHECK(saved[0].sustain == Fraction{2});
     }
 }
 
@@ -431,7 +438,10 @@ TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]
 // Rule 2: the margin yields to information and only as far as the information reaches. A point
 // that CHANGES something floors the trim past the margin; trailing points that repeat what the
 // tail already said hold nothing open and leave with the tail, clipped rather than rescaled.
-TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
+//
+// The floor is the last statement standing strictly INSIDE the ring. A statement AT the ring's end
+// is the end's own and rides with it instead, which the cases below the strip section read.
+TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two beats to the binding onset and a two-beat ring, so the ring does NOT pass the onset (that
@@ -474,14 +484,23 @@ TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
         // The trim asks nothing about what a keyframe SAYS: a stored note's last keyframe is
         // always a statement, because the keyframe commit law sheds one that is not
         // (stripSilentKeyframes) before any surface reads the note. So the trailing repeats here
-        // float the tail out to themselves as long as they stand, and the margin trim returns the
-        // moment the law has taken them — one authority on silence, not two.
+        // hold the tail open as long as they stand, and the margin trim returns the moment the law
+        // has taken them — one authority on silence, not two.
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
             Keyframe{.offset = Fraction{15, 8}, .bend = 1.0},
             Keyframe{.offset = Fraction{2}, .bend = 1.0},
         };
-        CHECK(presentedNotesOf(saved, map)[0].sustain == Fraction{2});
+        // The third repeat stands at the ring's END, so it does not floor the trim: it RIDES to the
+        // clearance its own last leg leaves, which from a leg starting at 15/8 — inside the margin
+        // — is half of what remains, 31/16. The interior repeat at 15/8 stays where it is.
+        const std::vector<ChartNote> repeating = presentedNotesOf(saved, map);
+        REQUIRE(repeating.size() == saved.size());
+        const ChartNote& floated = repeating.front();
+        CHECK(floated.sustain == Fraction{31, 16});
+        REQUIRE(floated.keyframes.size() == 3);
+        CHECK(floated.keyframes[1].offset == Fraction{15, 8});
+        CHECK(floated.keyframes[2].offset == Fraction{31, 16});
 
         CHECK(stripSilentKeyframes(saved[0]));
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
@@ -533,10 +552,12 @@ TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
     }
 }
 
-// A released ring presents exactly as stored: its release is its last keyframe, so rule 2 floors
-// the tail at the ring's end, and the stored ring already keeps the release clear of the next head
-// on its string (keyframeClearanceOf). What the trim used to compress is the load repair's
-// clearance now, and these are its worked numbers, measured on the repaired stream.
+// A released ring whose next head is on its OWN string presents exactly as stored, and that is the
+// two rules agreeing rather than presentation standing aside: the stored repair has already put the
+// release at its clearance before that head (keyframeClearanceOf), and rule 2's carry asks the very
+// same authority (lastStatementClearance) with the same head, the same margin and the same last
+// leg — so it arrives at the number the chart is already stored at and finds nothing to do. These
+// are its worked numbers, measured on the repaired stream.
 TEST_CASE("A released ring presents as stored, clear of the next head", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -545,8 +566,10 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         static_cast<void>(normalizeKeyframeClearances(saved, map));
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // Nothing left to trim: the presented ring is the stored one.
+        // Nothing left to trim, and nothing moved either: the presented ring is the stored one and
+        // every statement prints at the offset the chart states it at.
         CHECK(presented[0].sustain == saved[0].sustain);
+        CHECK(presented[0].keyframes == saved[0].keyframes);
         return saved[0];
     };
 
@@ -602,6 +625,146 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         setSlideOut(saved[0], 3);
         CHECK(repaired_and_presented(saved).sustain == Fraction{31, 16});
     }
+}
+
+// THE END'S OWN STATEMENT RIDES THE PRESENTED END (user ruling, 2026-09-21). A head on ANOTHER
+// string does not stop the stored ring, so no chart law touches it — but it does bind the DRAWN
+// tail, and a statement standing exactly at the ring's end is the END's rather than a floor under
+// it. So a tail ending in a fall or a bend keeps the spacing a bare tail keeps, and its statement
+// completes as the drawn tail ends. The stored ring is untouched throughout, as under every
+// presentation rule.
+TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // Two beats of ring against a head two beats away on ANOTHER string: the ring reaches that head
+    // without passing it, so the head binds and the margin line sits at 9/5.
+    std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{2}),
+        note(at(1, 3), 2, Fraction{1}),
+    };
+
+    SECTION("a slide-out lands one margin before the head with its fall intact")
+    {
+        saved[0].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
+        setSlideOut(saved[0], 9);
+
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Bound once rather than indexed per assertion, so every read is provably the same object.
+        const ChartNote& first = presented.front();
+        // The gap less the margin, exactly as a bare tail would take it.
+        CHECK(first.sustain == Fraction{9, 5});
+        // Still the LAST statement, and still stating its fret: the fall completes as the tail
+        // ends.
+        const int* const falls_toward = slideOutFretOrNull(first);
+        REQUIRE(falls_toward != nullptr);
+        if (falls_toward != nullptr)
+        {
+            CHECK(*falls_toward == 9);
+        }
+        // The junction the fall travels from keeps its own moment: only the end's statement moves.
+        REQUIRE(first.keyframes.size() == 2);
+        CHECK(first.keyframes.front().offset == Fraction{1});
+        CHECK(first.keyframes.back().offset == Fraction{9, 5});
+        // The chart goes on stating the fall at the ring's end, where the charter authored it.
+        CHECK(saved[0].sustain == Fraction{2});
+        CHECK(saved[0].keyframes.back().offset == Fraction{2});
+    }
+
+    SECTION("a bend-only end statement rides with its value")
+    {
+        saved[0].keyframes = {
+            Keyframe{.offset = Fraction{1}, .bend = 0.5},
+            Keyframe{.offset = Fraction{2}, .bend = 1.5},
+        };
+
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        const ChartNote& first = presented.front();
+        CHECK(first.sustain == Fraction{9, 5});
+        REQUIRE(first.keyframes.size() == 2);
+        const Keyframe& ends = first.keyframes.back();
+        CHECK(ends.offset == Fraction{9, 5});
+        // The curve still completes at the value it was authored to reach, a margin earlier: what
+        // moves is when the statement PRINTS, never what it says.
+        const std::optional<double>& reached = ends.bend;
+        REQUIRE(reached.has_value());
+        if (reached.has_value())
+        {
+            CHECK_THAT(*reached, Catch::Matchers::WithinULP(1.5, 0));
+        }
+        // It states no fret, so it is no release and nothing sheds its bend (stripReleaseChannels).
+        CHECK(!ends.fret.has_value());
+        CHECK(slideOutFretOrNull(first) == nullptr);
+    }
+
+    SECTION("a crowded last leg halves what it has left")
+    {
+        // The last interior statement stands INSIDE the margin, so a margin back would fall past
+        // it: the end's statement halves the leg's remaining distance instead — the one split that
+        // always leaves both a leg and a gap (lastStatementClearance).
+        saved[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
+        setSlideOut(saved[0], 9);
+
+        const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        const ChartNote& first = presented.front();
+        CHECK(first.sustain == Fraction{31, 16});
+        REQUIRE(first.keyframes.size() == 2);
+        CHECK(first.keyframes.front().offset == Fraction{15, 8});
+        // STRICTLY after the interior statement, however crowded: landing on it would merge two
+        // statements into one and break the index parity every drawn mark's identity rests on
+        // (keyframeIdentities).
+        CHECK(first.keyframes.front().offset < first.keyframes.back().offset);
+        CHECK(first.keyframes.back().offset == Fraction{31, 16});
+    }
+
+    SECTION("a shake's window floors an interior statement and never an end statement")
+    {
+        // Rule 2's interval clause on a plain tail: a shake stated exactly on the margin line
+        // reaches one gesture window past itself, since a tail ending on its first instant would
+        // show no shake at all.
+        saved[0].keyframes = {Keyframe{.offset = Fraction{9, 5}, .vibrato = VibratoState::Narrow}};
+        CHECK(
+            presentedNotesOf(saved, map).front().sustain ==
+            Fraction{9, 5} + g_minimum_slide_window);
+
+        // Give that same ring a fall at its end and the window stops being the question: the end's
+        // own statement decides where the tail ends, and from a leg starting ON the margin line
+        // that is half of what remains. Flooring on the window here would push the fall's chip past
+        // the margin and back against the head this trim exists to clear.
+        setSlideOut(saved[0], 9);
+        const std::vector<ChartNote> released = presentedNotesOf(saved, map);
+        REQUIRE(released.size() == saved.size());
+        const ChartNote& first = released.front();
+        CHECK(first.sustain == Fraction{19, 10});
+        REQUIRE(first.keyframes.size() == 2);
+        CHECK(first.keyframes.front().offset == Fraction{9, 5});
+        CHECK(first.keyframes.back().offset == Fraction{19, 10});
+    }
+}
+
+// Rule 4's drop and the clip's ZERO-END guard. A dropped tail ends at the onset, and offsets are
+// strictly positive: there is no end for a statement to stand at, so the end's own statement leaves
+// with the tail instead of riding to offset zero, which no chart may hold. A bend-only statement is
+// what reaches here — rule 4 spares a dead note that still travels, so a fret-stating one never
+// does (and the chart normalizer would strip the bend off a dead note; presentation holds the
+// invariant by construction rather than by that argument).
+TEST_CASE("A dropped tail leaves no statement standing at the onset", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    std::vector<ChartNote> saved = {note(at(1, 1), 1, Fraction{2})};
+    saved[0].dead = true;
+    saved[0].keyframes = {Keyframe{.offset = Fraction{2}, .bend = 1.0}};
+
+    const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
+    REQUIRE(presented.size() == saved.size());
+    const ChartNote& first = presented.front();
+    CHECK(first.sustain == Fraction{});
+    CHECK(first.keyframes.empty());
+    // The stored ring and its statement survive the rule, as rule 4's whole point is.
+    CHECK(saved[0].sustain == Fraction{2});
+    CHECK(saved[0].keyframes.size() == 1);
 }
 
 // Rule 3 is the only rule with a group verdict: every string of a chord rings from one stroke, so
@@ -728,16 +891,17 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
         note(at(1, 1), 2, Fraction{1, 2}, 7),
         note(at(1, 1, Fraction{1, 2}), 3, Fraction{1, 2}, 2),
     };
-    // A curve that keeps rising to the ring's end: its last CHANGE is the final point, so rule 2
-    // floors the trim there.
-    saved[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .bend = 2.0}};
+    // A curve rising to a point INSIDE the ring: rule 2 floors the trim there. Stated at the ring's
+    // end instead it would be the end's own statement and ride to the margin like the partner
+    // below, which is a different rule and has its own case.
+    saved[0].keyframes = {Keyframe{.offset = Fraction{3, 8}, .bend = 2.0}};
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
     // Half a beat sits exactly ON the kept-sustain bound and is dropped by rule 3's strict
     // comparison, so only the bend earns this strum its tails — and it earns them for the plain
-    // partner too.
-    CHECK(presented[0] == Fraction{1, 2});
+    // partner too. The bent string's own length is its last statement's moment.
+    CHECK(presented[0] == Fraction{3, 8});
     // The partner's own length is the margin before the next onset, not the bent string's.
     CHECK(presented[1] == Fraction{3, 10});
 }

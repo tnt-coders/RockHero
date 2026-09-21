@@ -306,9 +306,16 @@ Three consequences worth knowing before touching this:
   is refused and the point stays exactly where it is, so a release parked inside the margin is
   never pulled back by the repair. A keyframe or a head a charter deliberately places INSIDE the
   margin, short of the head, stands — the rule refuses overlap, never proximity. The presented
-  tail always reaches a note's last keyframe (presentation rule 2),
-  so a released ring is never trimmed and a release always draws where it is stored, and a
-  keyframe placed inside the margin draws the tail up to itself.
+  tail always reaches a note's last INTERIOR keyframe (presentation rule 2), so a keyframe placed
+  inside the margin draws the tail up to itself; a statement standing AT a ring's end is the end's
+  own and RIDES to the presented end instead, which is the clearance a last statement takes before
+  the onset that binds the drawn tail (`lastStatementClearance`). So a tail ending in a fall or a
+  bend is spaced before the next head exactly as a bare tail is, on ANY string — and where that
+  head is on the note's own string the stored repair has already put the statement at that very
+  clearance, so the drawn chip stands where the chart states it and only an OTHER-string head
+  makes the two differ. A drawn chip is keyed by the offset the chart states, never by the instant
+  it prints at (`KeyframeViewState::offset` against `seconds`), so click, caret and the accent ring
+  keep reaching the statement itself.
 - **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed
   at an armed caret — a head on an empty slot or at a ring's exact end, a point on the path where a
   ring covers it, a slide-out under `Alt` — wears the pending box at the slot, red where the gate
@@ -876,10 +883,12 @@ style choice.
 
 One glyph consequence follows from drawing a form no presentation rule touched, and it is
 accepted: a **dead note grows a tail** (rule 4 is a presentation rule, and the actual form has no
-rules), which reads as how long the mute is held. The keyframe heads are the same in both forms:
-the presented tail always reaches the last keyframe, and the last keyframe is always visible
-(`linkedKeyframe`), so a shift-slide's arrival draws its **linked continuation head** at the
-presented tail's tip exactly as it does inside the real ring.
+rules), which reads as how long the mute is held. The keyframe heads are the same SET in both forms:
+presentation drops no statement — the tail reaches every interior one and the end's own rides with
+the end — and the last keyframe is always visible (`linkedKeyframe`), so a shift-slide's arrival
+draws its **linked continuation head** at the presented tail's tip exactly as it does inside the
+real ring. What can differ between the forms is WHERE the end's statement prints: the reveal shows
+it at the ring's end, the presented form a margin earlier where a head binds the drawn tail.
 
 Six things about it are deliberate:
 
@@ -908,10 +917,12 @@ Six things about it are deliberate:
   the note ones and the path ones alike — all resolve against the presented projection the
   controller published (`displayedTabProjection`),
   so nothing a revealed ring reaches past its presented end can be clicked, boxed, or landed on. No
-  tail of either form is a target, and the keyframe heads are the same in both forms (the presented
-  tail always reaches the last keyframe), so the only thing the reveal adds past the presented end
-  is ribbon — which is exactly what resolving against the presented projection keeps out of reach
-  by construction rather than by a per-mark rule. `Alt`+wheel is unaffected because it
+  tail of either form is a target, and every statement is drawn in both forms (presentation drops
+  none), so the only thing the reveal adds past the presented end is ribbon — which is exactly what
+  resolving against the presented projection keeps out of reach by construction rather than by a
+  per-mark rule. A reveal shows an end statement at the ring's end while the presented form prints
+  it a margin earlier, and only the presented chip is a target — which is the right answer, since
+  the two are one statement and it is keyed by the offset the chart states either way. `Alt`+wheel is unaffected because it
   acts on the selection, not on what is under the pointer. Inside `TabView` this needs no
   enforcement: every note paint reads comes from the one pick lambda, and the only projection reads
   outside paint are the string count and whether a chart exists, which are identical in both forms.

@@ -646,8 +646,9 @@ keyframes in time order, the release last when the note has one.
 
 Every stated position the tail reaches is a stop the finger arrives at, and it wears the note's own
 head shape there — the release alone is not one, since it is where the finger leaves toward and
-the slide line draws its falls-away chip instead. The presented tail always reaches the note's
-last keyframe (\ref presentedChartNotes rule 2), so the LAST keyframe is always visible: a
+the slide line draws its falls-away chip instead. The presented tail reaches every statement the
+drawn note carries — the interior ones it floors at, and the end's own, which rides to the drawn
+end (\ref presentedChartNotes rule 2) — so the LAST keyframe is always visible: a
 shift-slide's arrival, trimmed to exactly the drawn end, draws its continuation head there with
 its fret on it, and the re-picked landing draws its own head a margin later. Being unpitched does
 not unlink a keyframe — a scrape's turnaround is one gesture continuing, and its head is what

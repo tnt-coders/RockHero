@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -54,25 +55,48 @@ void dropPresentedTail(ChartNote& note)
     return gap < ring;
 }
 
-// The furthest offset the tail still has a statement to show: its last keyframe, or zero for a
-// plain ring. A stored note's last keyframe always says something — the keyframe commit law
+// Where a RUN of statements stops having something to show: its last one's own offset, or zero for
+// an empty run. A stored note's last keyframe always says something — the keyframe commit law
 // (keyframeSaysNothingNew) sheds one that does not — so no change detection is asked here; the
 // commit law is the one authority on silence. A fret and a bend value are POINTS, complete at the
-// instant they are reached, so the tail may stop exactly there; a release is the ring's end
-// itself. A statement that leaves the string SHAKING is an interval STATE: a tail ending on it
-// would show the shake for no time at all and read as no shake, so it reaches one minimum gesture
-// window past the statement (a tail is never lengthened past its ring by it — the ring is the
-// ceiling of every rule here). A statement that ends the shake is a point again.
-[[nodiscard]] Fraction lastStatementEnd(const ChartNote& note)
+// instant they are reached, so ink may stop exactly there. A statement that leaves the string
+// SHAKING is an interval STATE: ink ending on it would show the shake for no time at all and read
+// as no shake, so it reaches one minimum gesture window past the statement (a tail is never
+// lengthened past its ring by it — the ring is the ceiling of every rule here). A statement that
+// ends the shake is a point again.
+[[nodiscard]] Fraction statementsEnd(const std::span<const Keyframe> statements)
 {
-    if (note.keyframes.empty())
+    if (statements.empty())
     {
         return Fraction{};
     }
-    const Keyframe& last = note.keyframes.back();
+    const Keyframe& last = statements.back();
     return isShaking(last.vibrato.value_or(VibratoState::Off))
                ? last.offset + g_minimum_slide_window
                : last.offset;
+}
+
+// RULE 2's FLOOR: the last statement standing strictly INSIDE the ring. The statement AT a ring's
+// end is the END's own — its moment is the end by definition — so it rides wherever the end goes
+// and can never hold the drawn tail open against the margin; that is the whole of what makes a tail
+// ending in a fall or a bend keep the same spacing before the next head as a bare one. Offsets
+// ascend strictly within the sustain, so at most one statement stands at the end and dropping it is
+// the whole of "interior" (endStatement).
+[[nodiscard]] Fraction lastInteriorStatementEnd(const ChartNote& note)
+{
+    const std::span<const Keyframe> statements{note.keyframes};
+    return statementsEnd(
+        endStatement(note) != nullptr ? statements.first(statements.size() - 1) : statements);
+}
+
+// THE TAIL LAW's landmark: the end of the note's last statement, the one AT the ring's end
+// INCLUDED — the curtain owns everything past the last always-visible ink, and an end statement is
+// ink. Asked of the note as DRAWN, because where a statement is SHOWN is presentation's answer and
+// the trim may have carried the end's own statement earlier; that is what keeps the verdict at or
+// inside the presented tail's end for every note (\ref ChartPresentation::rested_from).
+[[nodiscard]] Fraction lastStatementEnd(const ChartNote& note)
+{
+    return statementsEnd(std::span<const Keyframe>{note.keyframes});
 }
 
 // How long a note's ACTUAL ring lasts, in seconds, read through the tempo map from the onset to the
@@ -88,7 +112,8 @@ void dropPresentedTail(ChartNote& note)
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
-// tail trims to the margin, and never past the note's last statement.
+// tail trims to the margin, never past the note's last INTERIOR statement, and carries the
+// statement standing at the ring's end to wherever the drawn end lands.
 //
 // Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
 // onset the ring does not run strictly past — and the sustain is strictly positive. The tail law
@@ -101,13 +126,24 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // measure it at the wrong rate.
     const Fraction margin =
         minimumSustainDistanceBeats(tempo_map, advanceGridPosition(tempo_map, note.position, gap));
+    // Rule 2, in its two cases. A ring whose END carries a statement: that statement IS the end, so
+    // it rides to where the end goes and the tail is spaced like every other — the clearance a last
+    // statement takes before a strike (lastStatementClearance: one margin back, or halfway along
+    // its own last leg where the margin would crowd the leg's start). Asked of THAT authority and
+    // not of arithmetic spelled again here, so the end a same-string head has already squished into
+    // the stored chart (keyframeClearanceOf) is the number presentation arrives at too and finds
+    // nothing left to do. It never lands ON the last interior statement either — the split always
+    // leaves a leg — which is what keeps the drawn keyframes index-parallel to the stored ones
+    // (keyframeIdentities); the interior statement's own floor therefore never enters, and flooring
+    // on it would put the drawn end back on the head this trim exists to clear.
+    //
+    // Every other ring: the margin, yielding to the last statement standing INSIDE the ring and no
+    // further.
     const Fraction limit = gap - margin;
-    // Rule 2: the tail always reaches the last keyframe. A released ring therefore never trims —
-    // the release is its last keyframe, at the ring's end, and the stored ring already keeps it
-    // clear of the next head on its string (keyframeClearanceOf); a head on another string may
-    // sit inside it.
     const Fraction target =
-        std::max(limit.numerator < 0 ? Fraction{} : limit, lastStatementEnd(note));
+        endStatement(note) != nullptr
+            ? lastStatementClearance(note, gap, margin)
+            : std::max(limit.numerator < 0 ? Fraction{} : limit, lastInteriorStatementEnd(note));
     if (target < note.sustain)
     {
         clipPayloadsToSustain(note, target);
@@ -125,8 +161,9 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // stopped saying anything with, with no
 // vocabulary for a statement in progress. A statement that FINISHES is the split the user asked
 // for: the stated portion stays always visible, and the plain remainder joins the curtain where
-// the statement ended (lastStatementEnd — the same landmark rule 2 floors the presented tail at,
-// so the offset always lies at or inside the drawn ribbon's end).
+// the statement ended (lastStatementEnd of the DRAWN note — rule 2 floors the presented tail at
+// the last INTERIOR statement and carries an end statement to the drawn end, so the offset lies at
+// or inside the drawn ribbon's end under either case).
 //
 // A ring whose string a later strike takes over (\ref ChartConnections::hands_over) is a
 // TRANSFER of the sound — a statement with no vocabulary of its own either, but one that
@@ -159,7 +196,12 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     {
         return std::nullopt;
     }
-    return lastStatementEnd(stored);
+    // The landmark is read off the DRAWN note while the judgment above is read off the stored one,
+    // and the split is the point: whether a ring is still stating at its end is a fact about the
+    // CHART, while where its last statement is SHOWN is presentation's own answer — rule 2 may have
+    // carried the end's statement earlier than the chart states it, and the curtain starts where
+    // the ink does.
+    return lastStatementEnd(presented);
 }
 
 // Rule 3 is its one asker — the tail law keys on the finished-statement split instead — so this is
@@ -233,7 +275,8 @@ ChartPresentation presentedChartNotes(
                 }
             }
             // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (its
-            // payload is untouched, since a tail always reaches the last keyframe) but of the
+            // statements are all still there: every interior one stands strictly inside the last
+            // leg the trim keeps, and the end's own rides to the new end) but of the
             // note's ACTUAL ring, which
             // is the length the source or the charter stated and the only one that can say whether
             // a deliberate sustain was meant. That read is exact because the tail law runs LAST

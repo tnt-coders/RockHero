@@ -276,12 +276,16 @@ file and from a fresh import shows the same tails, and the model behind the spli
    reaches one minimum gesture window PAST the statement, while a statement that ENDS the shake is a
    point again (the interval before it already showed everything). The techniques that are still
    whole-note — tremolo, emphasis, muting, harmonics — cannot change mid-sustain, so they never
-   override the margin at all. The unpitched slide-out is not payload either: its end is gesture
-   geometry derived from the notated duration, not a musical event, so it trims back with the tail
-   and respects the margin. A crowding that would crush it — a non-positive target, or one at or
-   under the last *surviving* keyframe — compresses it to the smallest legal end instead (strictly
-   positive, strictly after the last keyframe) rather than keeping its full length; a keep-the-end
-   fallback would run the gesture through the next sounding onset in a crowded passage.
+   override the margin at all. What floors the trim is a statement standing strictly INSIDE the
+   ring: one standing exactly AT the ring's end — a slide-out's fall, a bend curve's last value, a
+   scrape's terminal — is the END's own statement, whose moment is the end by definition, so it
+   floors nothing and RIDES to the presented end with it. Where that end goes is the clearance every
+   unauthored statement takes before the strike ahead of it (`lastStatementClearance`): one margin
+   back, or halfway along its own last leg where the margin line would fall on or before that leg's
+   start — the one split that always leaves both a leg and a gap. So a tail ending in a fall or a
+   bend is spaced before the next head exactly as a bare tail is, and against a head on the note's
+   OWN string the chart's clearance repair has already stored that same number, so only an
+   other-string head makes the drawn and stored moments differ.
 3. **Drop short effect-free tails, per strum.** A strum that carries no sustain technique
    (bend, slide, vibrato, tremolo) on any string and no member *ringing* longer than the
    kept-sustain bound (`g_minimum_kept_sustain_seconds` in grid_arithmetic.h, which is the ONE place

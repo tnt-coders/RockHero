@@ -79,11 +79,12 @@ struct SlideRamp
 // chart. Separating it is what lets the note loop read exactly one stream.
 //
 // The keyframes walked are the PRESENTED note's, so a keyframe the trim clipped past the drawn
-// ring registers no ramp — but the RELEASE is read off the STORED ring, for the reason the note
-// loop below gives: the trim stops a drawn tail exactly on a pitched arrival too, so "the keyframe
-// at the drawn end" names both a shift slide's arrival and a slide-out, and only the stored form
-// tells them apart. It is also what keeps a hold keyframe the trim lands on falling through to the
-// margin morph instead of easing with the trail-off curve.
+// ring registers no ramp — but each ramp is FILED under its stored offset, because the key is an
+// identity the fret-hand pass looks up by the placement's authored position. The RELEASE is read
+// off the STORED ring for the reason the note loop below gives: the trim stops a drawn tail exactly
+// on a pitched arrival too, so "the keyframe at the drawn end" names both a shift slide's arrival
+// and a slide-out, and only the stored form tells them apart. It is also what keeps a hold keyframe
+// the trim lands on falling through to the margin morph instead of easing with the trail-off curve.
 //
 // `presented` and `saved` are index-parallel (\ref ChartResolutions), which is what lets one walk
 // read both.
@@ -105,12 +106,22 @@ struct SlideRamp
         // The release rides every trim, so when the stored note has one it is the drawn note's
         // last keyframe.
         const bool releases = slideOutFretOrNull(saved[index]) != nullptr;
+        // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
+        // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
+        // segment's own start. Presentation may show the end's statement earlier than the chart
+        // states it (\ref presentedChartNotes rule 2), so keying on the drawn offset would file the
+        // ramp under an instant no placement is written at.
+        const std::span<const Keyframe> identities = keyframeIdentities(saved[index], note);
 
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
         int segment_start_fret = note.fret;
-        for (const Keyframe& keyframe : note.keyframes)
+        // Walked by INDEX, because each drawn keyframe is paired with the stored statement standing
+        // at the same index (`identities` above).
+        for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
+             ++keyframe_index)
         {
+            const Keyframe& keyframe = note.keyframes[keyframe_index];
             // Only the POSITION channel makes a segment: a keyframe stating a bend or a vibrato
             // change says nothing about where the hand is, so the glide runs through it unkinked
             // and it neither starts nor ends a ramp.
@@ -129,11 +140,12 @@ struct SlideRamp
             // glide its true, shorter span. The release's segment starts where the last sounded
             // fret left off and ends where the RING does — exactly the span the rail is drawn
             // over — and is marked unpitched so the ease matches the trail-off.
-            const bool unpitched = releases && &keyframe == &note.keyframes.back();
+            const bool unpitched = releases && keyframe_index + 1 == note.keyframes.size();
             if (*fret != segment_start_fret || unpitched)
             {
                 starts.try_emplace(
-                    advanceGridPosition(tempo_map, note.position, keyframe.offset),
+                    advanceGridPosition(
+                        tempo_map, note.position, identities[keyframe_index].offset),
                     SlideRamp{.start_seconds = segment_start_seconds, .unpitched = unpitched});
             }
             segment_start_seconds =

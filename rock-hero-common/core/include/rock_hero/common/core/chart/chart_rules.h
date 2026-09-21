@@ -321,22 +321,28 @@ The consequence every shortening of a tail owes, so the payload rule "offsets li
 sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit the
 sustain when a toggle-back makes them real again.
 
-A point never leaves the ring and never moves because the ring did. The RELEASE is stated AT the
-end, so a ring shortened under it carries the release with the end and re-attaches it there
-(\ref setSlideOut) after every statement past the new end has gone; a ring lengthened past it
-leaves the statement where it was — a pitched stop now, the one way a slide-out turns back into a
-glide (\ref releaseKeyframe). The fall's own length is the move verb's to change, which drags the
-ring's end with the release — and only with the release, since that verb keeps every other point
-strictly inside the ring rather than letting a step change what a point is. A scrape's terminal
-rides in both directions, because a scrape rings
+A point never leaves the ring and never moves because the ring did — except the one whose moment IS
+the end. THE END'S OWN STATEMENT (\ref endStatement) is stated AT the end, so a ring shortened
+under it carries it with the end and re-attaches it there (\ref setEndStatement) after every
+statement past the new end has gone, WHATEVER it states: a fall toward a fret, the bend curve's
+last value, or both. A ring lengthened past it leaves the statement where it was — a pitched stop
+now, the one way a slide-out turns back into a glide (\ref releaseKeyframe). The fall's own length
+is the move verb's to change, which drags the ring's end with the release — and only with the
+release, since that verb keeps every other point strictly inside the ring rather than letting a
+step change what a point is. A scrape's terminal rides in both directions, because a scrape rings
 exactly as long as the pick travels. What a SCRAPE's terminal still needs is a new aim — when
 compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes
 over, including one this clip removes, so the path never sits still.
 
+A ring ending at ZERO carries nothing: an offset is strictly positive, so there is no end for a
+statement to stand at, and every keyframe leaves with the dropped tail (\ref presentedChartNotes
+rules 3 and 4).
+
 The bound is inclusive for every channel: a statement standing exactly at the new end survives, a
-bend point arriving there included. Where the new end is a following onset on the note's string,
-that statement now sits on the head, and the clearance repair (\ref normalizeKeyframeClearances)
-is what moves it back — this clip knows nothing about heads.
+bend point arriving there included — and the end's own statement, arriving back on top of it,
+overlays it rather than doubling the offset. Where the new end is a following onset on the note's
+string, that statement now sits on the head, and the clearance repair
+(\ref normalizeKeyframeClearances) is what moves it back — this clip knows nothing about heads.
 
 \param note Note whose ring is resized and whose payload is clipped in place.
 \param sustain The ring's new length.
@@ -368,6 +374,30 @@ placement asks the same question.
 */
 [[nodiscard]] std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
+
+/*!
+\brief Where a note's LAST statement stands when it must keep clear of a strike ahead of it: one
+margin before that strike, or halfway along its own last leg where the margin would crowd the
+leg's start.
+
+The clearance itself, with the strike handed IN — the one arithmetic every producer of it shares,
+so the number cannot differ between them. Two ask, with two different strikes: the stored repair
+asks about the next strike on the note's OWN string (\ref keyframeClearanceOf), and presentation
+asks about the onset that binds the DRAWN tail, on any string (\ref presentedChartNotes rule 2).
+The leg reading is the whole of what they would otherwise each restate: the last leg starts at the
+statement before the last one — the onset where there is none — and the clearance never takes that
+start, so the result always leaves both a leg and a gap however crowded the passage
+(\ref latestStatementBeforeStrike).
+
+\param note Note whose last statement is placed; it must carry at least one keyframe.
+\param gap Beats from the note's onset to the strike the statement is kept clear of; strictly
+       greater than the statement before the last.
+\param margin The minimum sustain distance in beats at that strike
+       (\ref minimumSustainDistanceBeats).
+
+\return The offset from the onset the last statement takes, strictly inside its own last leg.
+*/
+[[nodiscard]] Fraction lastStatementClearance(const ChartNote& note, Fraction gap, Fraction margin);
 
 /*!
 \brief Where a note's LAST keyframe stands when nothing but the next strike on its string decides
@@ -405,7 +435,8 @@ the last keyframe must lie strictly before the strike.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
-payload with the tail (\ref clipPayloadsToSustain), a release riding to the new end.
+payload with the tail (\ref clipPayloadsToSustain), the statement standing at the ring's end riding
+to the new end whatever it states — a fall, or the bend curve's last value.
 
 Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
 import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it on

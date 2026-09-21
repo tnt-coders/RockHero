@@ -1211,6 +1211,77 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
     }
 }
 
+// A NOTE'S ARRIVAL TRUNCATES ITS PREDECESSOR'S RING, AND THE STATEMENT AT THAT RING'S END RIDES
+// BACK WITH IT. The statement's moment is the end by definition, so a cut ring carries it to the
+// new end whatever it states — the bend curve's last value exactly as a slide-out's fall. Losing it
+// silently turned a bend that completes as the note ends into one that completes early and then
+// holds flat to an end it no longer reaches.
+TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto note_at = [](const GridPosition position, const Fraction sustain, const int fret) {
+        ChartNote note;
+        note.position = position;
+        note.string = 1;
+        note.fret = fret;
+        note.sustain = sustain;
+        return note;
+    };
+    // Three beats of ring on a string struck again two beats in: the truncation cuts to exact
+    // adjacency with that strike.
+    std::vector<ChartNote> notes{
+        note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
+        note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
+    };
+
+    SECTION("a bend-only end statement keeps its value at the new end")
+    {
+        notes[0].keyframes = {
+            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+            Keyframe{.offset = Fraction{3}, .bend = 0.0},
+        };
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+        REQUIRE(notes[0].keyframes.size() == 2);
+        // Bound once so every read below is provably the same object.
+        const Keyframe& ends = notes[0].keyframes[1];
+        CHECK(ends.offset == Fraction{2});
+        const std::optional<double>& reached = ends.bend;
+        REQUIRE(reached.has_value());
+        if (reached.has_value())
+        {
+            CHECK(std::is_eq(*reached <=> 0.0));
+        }
+        // It states no fret, so the carry makes no release of it.
+        CHECK(slideOutFretOrNull(notes[0]) == nullptr);
+        // The new end IS the next head of its own string, so the clearance repair then moves the
+        // statement back ALONE and the ring keeps its length — the non-release branch, untouched.
+        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+        CHECK(notes[0].keyframes[1].offset == Fraction{9, 5});
+    }
+
+    SECTION("a statement standing exactly at the new end takes the carried one's channels")
+    {
+        // The cut lands ON an interior statement, whose own moment survives it (the bound is
+        // inclusive), so the end's statement arrives on top of that one instead of doubling its
+        // offset.
+        notes[0].keyframes = {
+            Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
+            Keyframe{.offset = Fraction{3}, .fret = 9},
+        };
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        REQUIRE(notes[0].keyframes.size() == 1);
+        const Keyframe& merged = notes[0].keyframes.front();
+        CHECK(merged.offset == Fraction{2});
+        // A fret at the ring's end is the release, and a release states its fret and nothing else,
+        // so the shake it landed on goes with the ring that would have sounded it
+        // (stripReleaseChannels).
+        CHECK(merged.fret == 9);
+        CHECK(!merged.vibrato.has_value());
+    }
+}
+
 // A released ring stops clear of the next strike on its string, because its end is the release and
 // no head may cover it. The clearance is the minimum sustain distance — a tenth of a second, which
 // is a fifth of a beat at this fixture's 120 BPM — or half the gap where the gap is not longer than
@@ -2945,10 +3016,11 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // above it runs.
         CHECK(memory_resolutions.holds[0] == Fraction{});
         CHECK(memory_resolutions.holds[2] == Fraction{});
-        // The scrape holds exactly what it draws, its whole one-beat gesture: a released ring
-        // never trims. A number of its own is what says the two zeros above are the mute rather
-        // than a span that failed to cover the onset.
-        CHECK(memory_resolutions.holds[1] == Fraction{1});
+        // The scrape holds exactly what it draws: its one-beat gesture, spaced a margin before the
+        // head a beat later like every other drawn tail — its terminal is the statement at its
+        // ring's end, and rule 2 carries that with the drawn end. A number of its own is what says
+        // the two zeros above are the mute rather than a span that failed to cover the onset.
+        CHECK(memory_resolutions.holds[1] == Fraction{4, 5});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
         CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
         CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);

@@ -4822,11 +4822,12 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         CHECK(presented[0].keyframes.empty());
     }
 
-    SECTION("a scrape's terminal sits exactly at its sustain, stored and presented")
+    SECTION("a scrape's terminal sits at its sustain stored, and a margin earlier drawn")
     {
-        // The scrape's terminal is its release, and the next head is on another string, which may
-        // sit beside it: the stored ring keeps its whole half beat and the drawn ring is the
-        // stored one — the terminal IS the sustain end on both sides of the derivation.
+        // The scrape's terminal is the statement at its ring's end, so the stored ring keeps its
+        // whole half beat — nothing on another string bounds a stored ring — while the drawn one
+        // carries that terminal to a margin before the head that binds it, exactly as every other
+        // drawn tail is spaced (presentation rule 2).
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -4848,22 +4849,34 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
         const common::core::ChartNote& first = presented[0];
-        CHECK(first.sustain == Fraction{1, 2});
+        // Half a beat to the head, less the fifth of a beat a tenth of a second is at 120 BPM.
+        CHECK(first.sustain == Fraction{3, 10});
         REQUIRE(common::core::slideOutFretOrNull(first) != nullptr);
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
     }
 }
 
-// A scrape crowded by a head on ANOTHER string keeps its whole span: its terminal is its release, a
-// presented tail always reaches the last keyframe, and a head on another string may sit inside it.
-// Only the next strike on the scrape's own string bounds it (the clearance every last keyframe
-// keeps, keyframeClearanceOf). Runs in 4/4, across the spans the old squish was measured on.
-TEST_CASE("Guitar Pro import keeps a scrape crowded by another string whole", "[core][gp-import]")
+// A scrape crowded by a head on ANOTHER string keeps its whole STORED span — nothing on another
+// string bounds a stored ring — and its DRAWN gesture is spaced before that head like every other
+// tail: its terminal is the statement at the ring's end, and presentation carries such a statement
+// to the clearance a last statement takes before the onset that binds it (presentation rule 2 over
+// lastStatementClearance). Runs in 4/4, across the spans the squish was measured on.
+TEST_CASE("Guitar Pro import spaces a scrape crowded by another string", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
-    for (const Fraction& span :
-         {Fraction{1, 4}, Fraction{3, 32}, Fraction{7, 64}, Fraction{1, 16}, Fraction{1, 32}})
+    // Each notated span with the end its terminal draws at. The head stands exactly where the ring
+    // ends, so the clearance is one margin back — a fifth of a beat at 120 BPM — until the ring is
+    // shorter than the margin itself, where the terminal halves what its only leg has instead.
+    const std::vector<std::pair<Fraction, Fraction>> spans{
+        {Fraction{1, 4}, Fraction{4, 5}},
+        {Fraction{3, 32}, Fraction{7, 40}},
+        {Fraction{7, 64}, Fraction{19, 80}},
+        {Fraction{1, 16}, Fraction{1, 20}},
+        {Fraction{1, 32}, Fraction{1, 16}},
+    };
+    for (const auto& [span, drawn_end] : spans)
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -4877,7 +4890,7 @@ TEST_CASE("Guitar Pro import keeps a scrape crowded by another string whole", "[
         CHECK(chart.notes[0].sustain == ring);
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
-        CHECK(presented[0].sustain == ring);
+        CHECK(presented[0].sustain == drawn_end);
         const int* const terminal = common::core::slideOutFretOrNull(presented[0]);
         REQUIRE(terminal != nullptr);
         if (terminal != nullptr)

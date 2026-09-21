@@ -53,14 +53,17 @@ and the tail law's verdict beside it.
    tie merged across a neighbour, a cross-voice hold) still earns its group's tails under rule 3,
    but does not skip this trim — leaving it whole lets a ring-through die on a later head with no
    gap at all.
-2. **Payload floors the trim.** The tail extends to the last payload point that *changes* something
-   — a bend point differing from its predecessor, a keyframe differing from the previous fret — and
-   stops exactly there; trailing non-changing points leave with the tail (clipped in the presented
-   note, never rescaled: GP's bend curve is anchored to the notated ring). A slide-out is not
-   protected payload: its presented terminal compresses back with the tail, floored at the minimum
-   slide window and kept strictly after the last surviving keyframe. A scrape's terminal is the
-   gesture's end and compresses by the leg rule: a leg starting before the margin line ends on it;
-   one starting on or after it halves its distance to the onset.
+2. **A statement INSIDE the ring floors the trim; the statement AT its end rides with the end.**
+   The tail extends to the last payload point standing strictly inside the ring and stops exactly
+   there; trailing points leave with the tail (clipped in the presented note, never rescaled: GP's
+   bend curve is anchored to the notated ring). Silence is the keyframe commit law's to shed, never
+   the trim's to judge. A statement standing exactly at the ring's END — a slide-out's fall, a bend
+   curve's last value, a scrape's terminal — belongs to the end, so it floors nothing and is carried
+   to the presented end: the clearance every unauthored statement takes before the strike ahead of
+   it (`lastStatementClearance`), one margin back or halfway along its own last leg where the margin
+   line would fall on or before that leg's start. Every drawn tail is therefore spaced alike
+   whatever it ends in (user ruling, 2026-09-21), and against a head on the note's own string the
+   chart's clearance repair has already stored that same number.
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
    *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_seconds`, which is

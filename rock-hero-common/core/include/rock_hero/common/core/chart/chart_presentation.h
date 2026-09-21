@@ -38,7 +38,9 @@ struct ChartPresentation
     THE TAIL LAW's verdict, the curtain UNIVERSAL: it owns everything past a note's last
     always-visible landmark, whether or not a span stands over it. A present entry is a
     note-relative offset, and its three cases are STATED HERE AND NOWHERE ELSE: zero for a plain
-    ring; the end of its last statement for a ring that finishes stating and goes plain; the
+    ring; the end of its last statement AS DRAWN for a ring that finishes stating and goes plain —
+    the drawn note's, because rule 2 may show the end's own statement earlier than the chart states
+    it and the curtain starts where the ink does; the
     note's own PRESENTED end for a handed-over member, whose transfer finishes at the takeover — an
     empty remainder, so every pixel of its ribbon is stated portion. A present entry therefore
     always lies at or inside the presented tail's end, and the board draws the resting remainder —
@@ -78,7 +80,8 @@ it paints from the drawn keyframe (\ref KeyframeViewState::seconds) and the iden
 this (\ref KeyframeViewState::offset), and no two derivations of one keyframe's name can disagree.
 
 THE CORRESPONDENCE IS POSITIONAL, and that is the whole invariant. Rules 1 and 2 drop no keyframe —
-the presented tail always reaches the last one — rules 3 and 4 drop the payload entire with the
+every interior statement stands strictly inside the last leg the trim keeps, and the end's own
+statement rides to the new end — rules 3 and 4 drop the payload entire with the
 tail, and the only statement presentation may MOVE is the last. So the drawn keyframe at an index
 and the stored keyframe at that index are the same statement. A rule that removed or reordered one
 keyframe of a note would break that silently, keying a drawn mark to its neighbour's offset, which
@@ -126,15 +129,26 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    note always has. **Deliberate hold**: passing an onset — a tie merged across a neighbour, a
    cross-voice hold — is a statement, and earns the group its tails under rule 3, but it does not
    exempt the ring from this trim.
-2. **The tail always reaches the last keyframe.** The margin yields to the note's last statement
-   and no further: the tail extends to the last keyframe's offset — one \ref g_minimum_slide_window
-   past it where that statement leaves the string shaking, since a shake is an interval and a tail
-   ending on its first instant would show none of it — and stops exactly there. Nothing else is
-   asked: a stored note's last keyframe always says something, because the keyframe commit law
-   (\ref keyframeSaysNothingNew) sheds one that does not. A RELEASED ring — a slide-out, a
-   scrape's terminal — therefore never trims: the release is its last keyframe, at the ring's end,
-   and the stored ring already keeps it clear of the next head on its string
-   (\ref keyframeClearanceOf); a head on another string may sit inside it.
+2. **The tail reaches every statement it still has to show, and the END's statement rides with the
+   end.** The margin yields to the note's last INTERIOR statement — one standing strictly inside
+   the ring — and no further: the tail extends to that statement's offset, one
+   \ref g_minimum_slide_window past it where it leaves the string shaking, since a shake is an
+   interval and a tail ending on its first instant would show none of it, and stops exactly there.
+   Nothing else is asked: a stored note's last keyframe always says something, because the keyframe
+   commit law (\ref keyframeSaysNothingNew) sheds one that does not.
+
+   A statement standing exactly AT the ring's end — a slide-out's fall, a bend curve's last value, a
+   scrape's terminal — is the END's own (\ref endStatement): its moment is the end by definition, so
+   it never floors this trim and instead RIDES to the presented end
+   (\ref clipPayloadsToSustain), which is the clearance a last statement takes before the binding
+   onset (\ref lastStatementClearance: one margin back, or halfway along its own last leg where the
+   margin would crowd that leg's start). So every tail keeps the same spacing before the next head
+   whatever it ends in, and a head on ANOTHER string spaces a fall exactly as it spaces a bare tail.
+   The clearance is the one the stored chart already applies against a head on the note's OWN string
+   (\ref keyframeClearanceOf), so for that case presentation arrives at the number the chart is
+   already stored at and finds nothing to do. The STORED ring is untouched, as under every rule
+   here: the statement stays exactly where the charter authored it, and the drawn mark is keyed by
+   that authored moment rather than by where it prints (\ref keyframeIdentities).
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
    whose members carry no sustain technique, no deliberate hold, and no *actual* ring lasting LONGER
    than the kept-sustain bound (\ref g_minimum_kept_sustain_seconds, the ring measured in seconds
@@ -192,7 +206,8 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    verdict and draw its whole ring in front of the curtain that owns it.
 
    IT WRITES NO LENGTH: every landmark it marks is one the presented stream already carries —
-   the last statement's end, which rule 2 floors the presented tail at, or the presented tail's
+   the last DRAWN statement's end, which rule 2 either floors the presented tail at (an interior
+   statement) or carries the statement itself to (the end's own), or the presented tail's
    own end — so the curtain never starts past the ink. Nothing
    is ever rewritten, which is why every ribbon keeps its exact original length whatever the
    verdict says.
