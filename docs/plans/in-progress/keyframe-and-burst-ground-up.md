@@ -106,20 +106,33 @@ with `Alt`+digit at the ring's end (already built) and removed with Delete; turn
 glide into a slide-out is Delete the landing, then `Alt`+digit. The user called the shrink
 conversion out approvingly on 2026-09-21, so this is a real loss to weigh, not a free deletion.
 
-Model: `keyframes` strictly inside `(0, sustain)`, plus an end statement on the note holding an
-optional fall fret and an optional final bend — with no offset, because its moment is the end by
-definition. Storing it as a keyframe whose offset must always equal the sustain would be the
-desyncable second coordinate; under Set B every tail step would have to move it by hand. So Set B
-IS the stated-end model: a format change (the end statement returns to the note as its own key),
-which by the no-migration rule means re-importing the corpus and teaching the external converter.
+Model, IN MEMORY: `keyframes` strictly inside `(0, sustain)`, plus an end statement on the note
+holding an optional fall fret and an optional final bend — with no offset, because its moment is
+the end by definition. Held as a keyframe whose offset must always equal the sustain, every verb
+that writes a sustain would have to move it by hand, and forgetting to is exactly the accidental
+kind-change this set exists to remove.
+
+Model, ON DISK: **unchanged** (the user's question, 2026-09-21: why could the current format not
+hold a keyframe at the end stating both a bend and a fret? It can). The file already writes the
+statement at the end as the last keyframe row, and nothing in the JSON forbids that row a bend;
+only the `ReleasePayload` load repair and `stripReleaseChannels` destroy it, and both go under
+either set. So the in-memory model and the file are separate decisions: the writer emits the end
+statement as a row at `offset == sustain`, the reader takes the row at `offset == sustain` AS the
+end statement, and a shake stated there is shed as the silence it is. In a file the equality is a
+definition, not two facts to keep in step — a row is the end statement exactly when its offset is
+the sustain — so nothing can desync, and no package is re-imported and no converter is touched.
+The format spec changes by one sentence: the row at the ring's end may state a fret (the fall) and
+a bend (the curve's last value).
+
 About twenty-five tests pin a conversion and are retired or rewritten.
 
 ### Which
 
 Set B is the one that would be built from scratch: the same seven rules with three of them
 shorter, no seam, and the property six rulings in eleven days converged on — kind never changes by
-position — held by construction instead of by every verb remembering to ask. Set A keeps a gesture
-the user likes and needs no format change, and its hazard does not go away: the next verb that
+position — held by construction instead of by every verb remembering to ask. With the file format
+unchanged its whole price is behavioural: the shrink conversion. Set A keeps that gesture, and its
+hazard does not go away: the next verb that
 moves an end (paste, transpose-with-duration, a tempo-map retime, bend authoring itself) must
 remember rule 2's question or reopen this week.
 
@@ -341,6 +354,6 @@ against the new burst and closed or restated.
 2. **Next, no ruling needed beyond this document:** the burst redesign. It replaces the fix it
    follows and deletes more than it adds.
 3. **Rule Set A or Set B** once the corpus measurement of end-of-ring bends is in.
-4. Build the chosen set as one change set — under B with its format, importer, test and doc
-   halves — before Phase 3, which authors bends on this substrate. Rule 4's open halves are built
+4. Build the chosen set as one change set — under B the in-memory model, the reader and writer's
+   mapping of the end row, the tests and the docs — before Phase 3, which authors bends on this substrate. Rule 4's open halves are built
    under either.
