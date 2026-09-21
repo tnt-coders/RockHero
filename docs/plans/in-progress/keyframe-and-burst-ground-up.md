@@ -208,6 +208,50 @@ early; the `Shift+L` join of two abutting notes when the first states something 
 (two statements at one offset); and any derivation that reads a release's offset against the next
 onset.
 
+*Study result, same day.* The law's origin is four commits in one session (`de91e3d8`,
+`c01698fc`, `93f108f4`, `4414579e`) and its reason is REACHABILITY, not sound: a release on the
+next head "could be neither seen nor reached". `93f108f4` moved the clearance INTO the stored chart
+precisely so presentation could stop compressing and "a release always draws where it is stored".
+So this is a reversal of that reversal — justified by what has changed since: the end may now
+carry a bend, the user wants every tail spaced alike, and the file should say what the hands do.
+
+One real obstacle, and it is not specific to deleting the law. `KeyframeViewState::offset` is
+documented as the keyframe's stable identity and is filled from the PRESENTED keyframe; click,
+caret and the accent ring all map through it. The moment presentation moves the end's statement,
+the drawn chip and the stored keyframe have different offsets and the three mappings disagree. But
+the other-string spacing the user asked for moves the presented end statement too, so this cost is
+owed EITHER way. The fix is small and has precedent: `offset` stays the STORED identity, `seconds`
+is the presented instant (both surfaces already paint from `seconds` alone), and the projection
+reads the stored note for it as it already does for the release flag. With that paid, deleting the
+stored law is pure deletion.
+
+What else the study settled:
+
+- **Not blockers.** The `Shift+L` join refuses a slide-out predecessor and MERGES a bend at the
+  junction rather than doubling the offset. The validator never enforced the law ("normalized,
+  never refused"), so every saved package stays valid. Nothing game-side reads stored keyframes.
+  No derivation reads a release's offset against the next onset.
+- **Deleted** (~90 lines of production code, ~270 of tests): `keyframeClearanceOf`,
+  `normalizeKeyframeClearances`, `ChartRepair::CrowdedKeyframe` (sweep every switch over the
+  enum), the gate call and the between-the-two-repairs ordering argument, the scrape "strike is a
+  WALL" clause, and the import squish — 637 abutting end statements import as written.
+- **Must stay.** `latestStatementBeforeStrike` for the importer's synthesized shift arrivals (span
+  rule 6 is calibrated to it) and for the `Shift+L` split's retreat, which becomes load-bearing for
+  a new reason: left on the head, the arrival would now be the product's release by position.
+- **Presentation's change, exactly.** The trim needs "last INTERIOR statement" while the tail law's
+  rest landmark still needs "last statement, end included", so `lastStatementEnd` becomes two
+  questions. `clipPayloadsToSustain` must CARRY whatever stands at the end to the new end — today it
+  carries only a fret-stating end and ERASES a bend-only one — merging where a statement already
+  stands there, with a guard for the zero-length drop (`dropPresentedTail`), and
+  `stripReleaseChannels` goes with it.
+- **Accepted consequences for the user to confirm.** The reveal (`Alt`, a selected note, the caret
+  peek) shows the STORED form, so an end chip shifts by the margin when its note is selected —
+  which is the behaviour the user described. Old packages keep their squished ends until
+  re-imported: two spellings of one sound, both valid. And where a head shares the slot the caret
+  selects the HEAD (`chartObjectAt` searches notes first), which settles "a bare digit there is
+  always the next note" with no new clause and makes the end chip click-only — the gap the
+  through-the-note proposal below closes.
+
 **Reaching a ring's end without a modifier — THROUGH THE NOTE, not through the slot** (proposal,
 2026-09-21, answering the user's "either ALT, or maybe SHIFT, or another method"). The ambiguity
 at a ring's end is an ambiguity of OPERAND: the ring that ends here, or the note that starts here.
