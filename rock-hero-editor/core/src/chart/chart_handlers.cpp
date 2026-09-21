@@ -1290,7 +1290,7 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     const auto push_marker_row = [this, &stack](const MarkerRow row) {
         if (!markerStarts(row).empty())
         {
-            stack.push_back(MarkerFocusRow{.row = row});
+            stack.emplace_back(MarkerFocusRow{.row = row});
         }
     };
     // The ruler draws its rows top down as sections, tempo, time signature.
