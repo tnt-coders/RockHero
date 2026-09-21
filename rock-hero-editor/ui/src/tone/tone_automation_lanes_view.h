@@ -379,6 +379,15 @@ private:
             std::unique_ptr<juce::Component> content,
             std::function<juce::Rectangle<int>()> local_anchor);
 
+        // ComponentMovementWatcher declares each of these names TWICE: the pure virtual we
+        // implement, and its own ComponentListener override of the same name taking the moved
+        // component. Declaring only ours hides the listener overload in this scope, which GCC
+        // reports as -Woverloaded-virtual (Clang and MSVC both stay quiet). Naming the base's
+        // overloads brings them back into scope rather than silencing the report — nothing about
+        // the watcher's listening should be unreachable through this type.
+        using juce::ComponentMovementWatcher::componentMovedOrResized;
+        using juce::ComponentMovementWatcher::componentVisibilityChanged;
+
         void componentMovedOrResized(bool was_moved, bool was_resized) override;
         void componentPeerChanged() override;
         void componentVisibilityChanged() override;
