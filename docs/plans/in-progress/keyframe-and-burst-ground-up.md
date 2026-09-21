@@ -126,6 +126,19 @@ a bend (the curve's last value).
 
 About twenty-five tests pin a conversion and are retired or rewritten.
 
+**Authoring the end's bend, for Phase 3** (raised by the user 2026-09-21; a proposal, to be signed
+with the `B` verb). The slot where a ring ends is often the slot where the next note's head
+stands, and the keymap already has the grammar for that one ambiguous cell: a bare digit there is
+the NEXT NOTE, `Alt`+digit is the ENDING RING's fall — "the ONE thing `Alt` creates on this
+lane". The bend follows it unchanged: bare `B` on that slot addresses the head standing there (its
+onset bend, which is what a pre-bend is), and `Alt+B` states the ending ring's final bend value.
+`Alt` means "the ring that ends here" in both chords, and strictly inside a ring `Alt+B` is just
+`B`, so a mistimed `Alt` costs nothing — the property the digit row was ruled to have. `Alt+B` is
+unbound today (`Alt+F` / `Alt+E` / `Alt+V` are the menu mnemonics). Open with it: what arming the
+caret selects when a head AND the previous ring's end statement share the slot — today arming
+selects a slide-out's chip where one ends there, which was ruled before a head could be assumed
+beside it.
+
 ### Which
 
 Set B is the one that would be built from scratch: the same seven rules with three of them
