@@ -716,14 +716,14 @@ TEST_CASE(
     // makes the onset, so the claim is the only thing the fretting hand states at that slot.
     const auto claim =
         [](const GridPosition& position, const int string, const int fret, const int held) {
-            ChartNote note;
-            note.position = position;
-            note.string = string;
-            note.fret = fret;
-            note.sustain = Fraction{1, 4};
-            note.attack = NoteAttack::Tap;
-            note.held = held;
-            return note;
+            ChartNote claimed;
+            claimed.position = position;
+            claimed.string = string;
+            claimed.fret = fret;
+            claimed.sustain = Fraction{1, 4};
+            claimed.attack = NoteAttack::Tap;
+            claimed.held = held;
+            return claimed;
         };
     const auto project = [](std::vector<ChartNote> notes) {
         Chart chart;
