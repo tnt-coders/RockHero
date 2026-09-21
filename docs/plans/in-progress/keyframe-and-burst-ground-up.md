@@ -177,6 +177,24 @@ make a fall:
 - It reverses the 2026-09-11 ruling that made `Alt`+digit "the ONE thing `Alt` creates on this
   lane", so it is the user's to sign. It is only available under Set A: Set B has no conversion.
 
+**The DRAWN tail beside a head on another string** (raised by the user, 2026-09-21). The stored
+ring is the actual ring, and a head on ANOTHER string does not stop it, so nothing above applies.
+What applies is presentation: `trimToMargin` pulls a drawn tail back one minimum sustain distance
+before the binding onset on any string, so the columns keep their spacing — but its rule 2 floors
+the trim at the note's last keyframe (`lastStatementEnd`), and an end statement IS the last
+keyframe. So a bare tail tucks in before a head on the next string while the same tail ending in a
+bend, or a slide-out, draws right up to that head's column. The slide-out half exists today and is
+written down as accepted ("a head on another string may sit inside it"); end bends make it common.
+
+The user's expectation — it should compress to the normal distance — is the same one rule again:
+**whatever moves the end, other than the tail verb, carries the end's own statement with it.**
+Truncation and the clearance apply it to the stored ring; the presentation trim applies it to the
+presented copy. Rule 2 floors the trim at the last INTERIOR statement instead, and the clip the
+trim already calls carries the end statement to the presented end, where a same-string neighbour
+and an other-string neighbour then look alike: the statement completes as the drawn tail ends, one
+margin before the head. The stored ring is untouched, as every presentation rule leaves it. Both
+surfaces and scoring read the presented note, so the highway agrees by construction.
+
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end squishes back. The insert is legal — a digit at a
 ring's exact end is the next note — and the plan gate's clearance repair then finds a statement on
