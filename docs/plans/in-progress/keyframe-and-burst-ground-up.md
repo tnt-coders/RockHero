@@ -185,6 +185,16 @@ with its end statement still AT the end. The bend still completes as the ring en
 the new head; one undo entry holds both. It is exactly what import does to the 174 abutting bends,
 which is the point of "the SAME rules". A head on another string changes nothing.
 
+Weighed the same day and not recommended: REFUSING the head instead. It is shorter to say — no
+statement ever moves except under the move verb — but it is not simpler to build or to use. Import
+cannot refuse 637 abutting notes, so the squish stays in the load path and the editor would gain a
+second, different answer to the same situation, against "the SAME rules". And the charter loses
+the only easy way to write what the material mostly is: 60% of end bends abut the next note, a
+ring whose end holds a statement cannot be shortened by the tail verb, so the workaround is to
+drag the end statement back by hand — a whole grid step where the repair leaves 0.1 s, or a run of
+tick steps with snap off. The squish is also not a breach of rule 4: that rule is about LOSS, and
+a squished statement says everything it said.
+
 One thing stands in the way and needs a ruling: today ARMING the caret on a slot where a slide-out
 ends SELECTS its chip, so a digit there retypes the fall instead of placing a head (ruled
 2026-09-11, when `Alt`+digit made falls and a fall at the slot was the rarer case). Carried over to
