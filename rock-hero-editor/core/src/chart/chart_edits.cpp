@@ -1347,13 +1347,13 @@ ChartLegatoPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
 {
-    // Counted by reason so the caller can say WHY an all-skipped press did nothing; index 0 (None)
-    // stays zero and makes the dominant-reason scan below a plain maximum. Sized off the enum, so
-    // a new reason is a compile-time widening rather than a throw out of a keystroke handler.
-    std::array<int, static_cast<std::size_t>(ChartLegatoSkip::Count)> skips{};
+    // Each refused note is recorded as the walk reaches it, with the reason that walk established:
+    // the refusal flash glows those very notes, so naming them here is what keeps a consumer from
+    // re-deriving a judgement this loop already made.
+    std::vector<ChartLegatoRefusal> refused;
     if (keys.empty())
     {
-        return ChartLegatoPlan{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
+        return ChartLegatoPlan{.plan = std::nullopt, .refused = {}};
     }
 
     // Connections of the ORIGINAL stream, in the SAVED form the gate validates: the original so
@@ -1378,7 +1378,11 @@ ChartLegatoPlan planSetLegato(
         // fully described, so a connection claim would say nothing about it.
         if (!common::core::legatoClaimable(note.attack))
         {
-            ++skips.at(static_cast<std::size_t>(ChartLegatoSkip::PickingHandOnset));
+            refused.push_back(
+                ChartLegatoRefusal{
+                    .note = chartSlotKeyOf(note),
+                    .reason = ChartLegatoSkip::PickingHandOnset,
+                });
             continue;
         }
         const std::size_t predecessor_index = connections.predecessors[index];
@@ -1433,11 +1437,13 @@ ChartLegatoPlan planSetLegato(
         }
         if (resolved == common::core::LegatoMotion::Unjustified)
         {
-            ++skips.at(
-                static_cast<std::size_t>(
-                    predecessor == nullptr      ? ChartLegatoSkip::NoPredecessor
-                    : hold_was_the_only_blocker ? ChartLegatoSkip::PredecessorReleased
-                                                : ChartLegatoSkip::NoConnection));
+            refused.push_back(
+                ChartLegatoRefusal{
+                    .note = chartSlotKeyOf(note),
+                    .reason = predecessor == nullptr      ? ChartLegatoSkip::NoPredecessor
+                              : hold_was_the_only_blocker ? ChartLegatoSkip::PredecessorReleased
+                                                          : ChartLegatoSkip::NoConnection,
+                });
             continue;
         }
         // Which motion it resolved to is not recorded — that is the whole point of the model. A
@@ -1449,21 +1455,13 @@ ChartLegatoPlan planSetLegato(
         }
     }
 
-    ChartLegatoPlan outcome{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
-    for (std::size_t reason = 1; reason < skips.size(); ++reason)
-    {
-        outcome.skipped += skips.at(reason);
-        if (skips.at(reason) > skips.at(static_cast<std::size_t>(outcome.reason)))
-        {
-            outcome.reason = static_cast<ChartLegatoSkip>(reason);
-        }
-    }
+    ChartLegatoPlan outcome{.plan = std::nullopt, .refused = std::move(refused)};
     if (changed)
     {
         // The refusal kind is deliberately not forwarded: an Invalid finalize leaves the plan
         // empty exactly like an all-skipped press, so the press falls through to its clear
-        // meaning — the behavior this verb always had. The skip channel, not the plan's absence,
-        // is this planner's feedback payload.
+        // meaning — the behavior this verb always had. The refusal channel, not the plan's
+        // absence, is this planner's feedback payload.
         if (auto plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
             plan.has_value())
         {

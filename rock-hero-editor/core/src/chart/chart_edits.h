@@ -610,9 +610,6 @@ binary-search this precondition).
 /*! \brief Why an `H` press left a selected note as it found it. */
 enum class ChartLegatoSkip : std::uint8_t
 {
-    /*! \brief Nothing was skipped. */
-    None,
-
     /*! \brief The onset is the picking hand's (tap, pinch, scrape) — no connection describes it. */
     PickingHandOnset,
 
@@ -623,35 +620,38 @@ enum class ChartLegatoSkip : std::uint8_t
     PredecessorReleased,
 
     /*! \brief A predecessor that reaches, but no connection between the two stops. */
-    NoConnection,
+    NoConnection
+};
 
-    /*!
-    \brief Number of reasons, not a reason — the tally array's size.
+/*! \brief One selected note the legato verb left as it found it, and why. */
+struct ChartLegatoRefusal
+{
+    /*! \brief Slot of the refused note. */
+    ChartSlotKey note;
 
-    Structural on purpose: a new reason widens the array at compile time instead of throwing
-    `std::out_of_range` out of a keystroke handler. Keep it last.
-    */
-    Count
+    /*! \brief Why the resolver refused a claim on that note. */
+    ChartLegatoSkip reason;
 };
 
 /*!
-\brief One `H` press's outcome: the change to apply, and what the resolver refused.
+\brief One `H` press's outcome: the change to apply, and the notes the resolver refused.
 
-The skip channel exists so an all-skipped press is never a dead key. It counts only notes the
-resolver REFUSED — a note already carrying the claim the press would set is unchanged, not skipped,
+The refusal channel exists so an all-skipped press is never a dead key. It names only notes the
+resolver REFUSED — a note already carrying the claim the press would set is unchanged, not refused,
 which is what lets the caller tell "nothing left to claim, so this press means clear" from "this
 press had nothing to say".
+
+The notes themselves rather than a count, because the planner already walked them and the consumer
+is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows the very elements the
+verb turned down: returning them costs no second pass, and no count in a corner could name them.
 */
 struct [[nodiscard]] ChartLegatoPlan
 {
     /*! \brief The planned change, or empty when no selected note gained a claim. */
     std::optional<ChartEditPlan> plan;
 
-    /*! \brief How many selected notes the resolver refused a claim for. */
-    int skipped{0};
-
-    /*! \brief The reason most of those notes were refused for. */
-    ChartLegatoSkip reason{ChartLegatoSkip::None};
+    /*! \brief The selected notes the resolver refused a claim for, in the planner's walk order. */
+    std::vector<ChartLegatoRefusal> refused;
 };
 
 /*!
@@ -678,7 +678,7 @@ guard: the resolver disqualifies it outright, so its ring is never the only bloc
 \param keys Notes to set, sorted-unique in chart order.
 \param label User-visible undo label.
 
-\return The planned change plus the skip report; the plan is empty when no selected note's claim
+\return The planned change plus the refused notes; the plan is empty when no selected note's claim
         resolves, which is what makes the press mean clear.
 */
 [[nodiscard]] ChartLegatoPlan planSetLegato(

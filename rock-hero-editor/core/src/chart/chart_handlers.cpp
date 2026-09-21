@@ -3203,11 +3203,12 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartSlotKey>& 
     }
     // A press that changed nothing is SILENT, exactly like every other technique verb that applies
     // nothing: selecting a phrase's first note and pressing H is the commonest press there is, and
-    // it is not an error. `planned` still carries the count and the dominant reason — that IS the
-    // feedback payload — but the only reporting seam the view offers today is a modal "Could not
-    // complete request" box, which interrupts a keystroke to say nothing failed. The count surfaces
-    // once W5's non-modal refusal channel exists; until then the spec's counted-skip half is
-    // deferred rather than mis-routed.
+    // it is not an error. `planned.refused` still names every note the resolver turned down and why
+    // — that IS the feedback payload — but the only reporting seam the view offers today is a modal
+    // "Could not complete request" box, which interrupts a keystroke to say nothing failed. The
+    // refusals surface once the refusal flash exists
+    // (docs/plans/in-progress/refusal-flash.md); until then they are deferred rather than
+    // mis-routed.
 }
 
 // Sets the selection to the left-hand tap attack as one compound undo entry, uniform scope. The

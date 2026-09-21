@@ -3250,7 +3250,7 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
         keyAt({.measure = 1, .beat = 4}, 2),
     };
     const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
-    CHECK(planned.skipped == 0);
+    CHECK(planned.refused.empty());
     REQUIRE(planned.plan.has_value());
     if (planned.plan.has_value())
     {
@@ -3272,8 +3272,8 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
     }
 }
 
-// The resolver is the only authority on eligibility, and the skip channel reports what it refused
-// so an all-skipped press is never a dead key.
+// The resolver is the only authority on eligibility, and the refusal channel names each note it
+// refused, with that note's own reason, so an all-skipped press is never a dead key.
 TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -3291,8 +3291,9 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
     }
 
     SECTION("the earlier note sits at the same fret")
@@ -3309,8 +3310,9 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
     }
 
     SECTION("a released predecessor whose connection cannot be authored")
@@ -3328,8 +3330,9 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::PredecessorReleased);
     }
 
     SECTION("the earlier note is a fret-hand harmonic")
@@ -3346,8 +3349,9 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
     }
 
     SECTION("a picking-hand rider is skipped in both directions")
@@ -3368,8 +3372,38 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         };
         const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 2);
-        CHECK(planned.reason == ChartLegatoSkip::PickingHandOnset);
+        // Both refusals are listed, in the planner's walk order: the tap, then the scrape.
+        REQUIRE(planned.refused.size() == 2);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::PickingHandOnset);
+        CHECK(planned.refused[1].note == keyAt({.measure = 1, .beat = 3}, 2));
+        CHECK(planned.refused[1].reason == ChartLegatoSkip::PickingHandOnset);
+    }
+
+    SECTION("two notes refused for different reasons each keep their own")
+    {
+        // The reason belongs to the NOTE, not to the press: a tap riding the selection and a note
+        // first on its string are turned down for unrelated reasons, and both travel back intact.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
+            makeTestNote({.measure = 1, .beat = 2}, 1, 7),
+            // First on string 2, so nothing justifies a claim on it.
+            makeTestNote({.measure = 1, .beat = 2}, 2, 4),
+        };
+        chart.notes[1].attack = common::core::NoteAttack::Tap;
+        const std::vector<ChartSlotKey> keys{
+            keyAt({.measure = 1, .beat = 2}, 1),
+            keyAt({.measure = 1, .beat = 2}, 2),
+        };
+        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        REQUIRE(planned.refused.size() == 2);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::PickingHandOnset);
+        CHECK(planned.refused[1].note == keyAt({.measure = 1, .beat = 2}, 2));
+        CHECK(planned.refused[1].reason == ChartLegatoSkip::NoPredecessor);
     }
 }
 
@@ -3467,8 +3501,9 @@ TEST_CASE(
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::PredecessorReleased);
     }
 
     SECTION("a scrape predecessor connects to nothing, however its hold reaches")
@@ -3485,8 +3520,9 @@ TEST_CASE(
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
     }
 }
 
@@ -3514,8 +3550,9 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
     }
 
     SECTION("an open-string harmonic skips itself")
@@ -3533,7 +3570,9 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.skipped == 1);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
     }
 }
 
@@ -3565,8 +3604,10 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
         CHECK(planned.plan->inserted[0].string == 1);
         CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
     }
-    CHECK(planned.skipped == 1);
-    CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
+    // The refusal names the note that kept its pick, not just that one did.
+    REQUIRE(planned.refused.size() == 1);
+    CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 2));
+    CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
 }
 
 // A left-hand tap is a LOCAL statement, so the resolver reports its motion unconditionally — but
@@ -3585,7 +3626,9 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
-        CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
+        REQUIRE(planned.refused.size() == 1);
+        CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
+        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
     }
 
     SECTION("a tap the chart CAN justify becomes the claim")
