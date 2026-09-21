@@ -556,12 +556,38 @@ against the new burst and closed or restated.
 
 ## Order of work
 
-0. **Choose and sign a ruleset** (Set A or Set B above). Rule 3's wall is ruled in both. The
-   signed set moves into `chart-ruleset.md` so there is one place it is stated.
-1. **Now:** the stale-record fix and its regression tests (in flight). The tests outlive the fix.
-2. **Next, no ruling needed beyond this document:** the burst redesign. It replaces the fix it
-   follows and deletes more than it adds.
-3. **Rule Set A or Set B** once the corpus measurement of end-of-ring bends is in.
-4. Build the chosen set as one change set — under B the in-memory model, the reader and writer's
-   mapping of the end row, the tests and the docs — before Phase 3, which authors bends on this substrate. Rule 4's open halves are built
-   under either.
+**SIGNED by the user, 2026-09-21, and the only thing here that is:** the stored chart holds the
+TRUTH — a slide-out or a bend may end exactly on the next note's head — and a statement at a
+ring's end that meets the next head is DISPLAYED, and later scored, one minimum sustain distance
+(100 ms) earlier, so note spacing looks the same everywhere. Everything else in this document is
+still proposal; in particular how a ring's end is selected and authored is explicitly NOT settled
+and nothing below depends on it. Authoring stays exactly as it is today while these steps land.
+
+The user asked whether the store could change first and presentation follow. It cannot do so
+cleanly: with the stored clearance gone and presentation unchanged, an end statement draws ON the
+next head — unseen and unreachable, the very defect the law was added to cure. Turned round, every
+step is shippable on its own and the last one changes nothing the eye can see:
+
+1. **Identity, no behaviour change.** `KeyframeViewState::offset` becomes the STORED keyframe's
+   identity and `seconds` the presented instant. Today the two never differ, so every test stays
+   green by construction; this only makes it legal for them to differ.
+2. **Presentation carries the end's statement.** The trim floors at the last INTERIOR statement and
+   the clip carries whatever stands at the end to the presented end. Visible result: a tail ending
+   in a bend or a slide-out now tucks in before a head on ANOTHER string like any bare tail. The
+   same-string case does not change yet — the stored law has already put those ends one margin
+   early, so the trim finds nothing to do. Sight it.
+3. **Delete the stored clearance law.** `normalizeKeyframeClearances` and its helpers, the gate
+   call, the repair enumerator, the scrape wall clause and the import squish go. Presentation now
+   does for the same-string case exactly what the store did, so the acceptance test is strong and
+   cheap: **the presented corpus is identical before and after**, except the 174 end bends, which
+   change from "completes early, then holds" to "completes as the drawn tail ends" — the fix.
+   Re-import the corpus so the files hold the truth. Sight it.
+
+Deferred until after those three, each on its own: the shift slide as a derived fact (span rule 6
+and the signed look to verify first); a fret AND a bend together at the end (the strip family);
+the rest of the ruleset; how the end is selected and authored; rule 4's two open halves.
+
+Independent of all of it, and owed because a long session can lose work: the undo-burst redesign
+(section 1), starting from a failing test for the history's entry cap. It touches different files
+but shares the build, so it runs before or after these steps, not beside them.
+
