@@ -379,7 +379,7 @@ is what lets a grid-step ring split at all — unless the point says nothing the
 does not already say (`keyframeSaysNothingNew`), in which case it has no leg and the first note
 sheds it, ending on a plain tail. That segment walk has ONE caller, so there is one rule
 and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
-and the clearance repair remain the authorities for load, for import, and for the MOVE verb — the
+remains the authority for load, for import, and for the MOVE verb — the
 one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved
 note brings its own payload and there is nothing coherent to merge. Even it never DELETES a
 statement: a landing that would clip any other keyframe off the tail is refused whole.
@@ -810,9 +810,9 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    row to gray) register always-active and self-gate in `perform` — see Decoding. **No entry verb
    may land a head where a note is already ringing**: a covered slot takes a POINT, and dividing the
    ring is `Shift+L`'s split at that point (`planToggleJunctions`, its one caller). Never
-   reach for the plan gate's ring clamp from an entry gesture — the clamp and the clearance repair
-   are the load, import and MOVE authorities, and using one here would truncate the ring and clip
-   payload the two-keystroke split conserves.
+   reach for the plan gate's ring clamp from an entry gesture — the clamp is the load, import and
+   MOVE authority, and using it here would truncate the ring and clip payload the two-keystroke
+   split conserves.
 6. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
    locks ids and default chords") — it fails on any unrecorded id or default change by design, and
    its sibling default-chord-resolution test fails on any collision a new default introduces.

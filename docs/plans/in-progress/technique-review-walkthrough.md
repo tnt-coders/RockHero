@@ -252,8 +252,8 @@ Keep this list and the session task list in step.
     same-string onset, the capo floor — so a step across a neighbour REFUSES rather than swapping,
     which is the only reading a keyframe's identity allows. The step re-keys the selection
     (`select_exactly`), because that identity IS the offset. Two bounds the planner states itself,
-    both where the gate would REPAIR instead of refusing: the next head on the string is a WALL
-    (the clearance repair would pull the point back to the margin line), and the ring's END is
+    the gate does not state: the next head on the string is a WALL
+    (a step must not drag a ring's end across the strike that stops it), and the ring's END is
     EXCLUSIVE for every point but the release (ruled 2026-09-21) — KIND IS NOT THIS VERB'S TO
     CHANGE, so the release drags the end and no other point ever becomes one. Measured against the
     end AFTER the step, so a figure selected whole slides out together; and the way past the
@@ -870,7 +870,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   list — is unchanged; only which key carries it moved. **Dividing a ring is now two keystrokes**:
   the digit plants the point, `Shift+L` splits it, and `planToggleJunctions` is that verb's
   alone again — no entry gesture splits, so nothing single-press truncates a ring or clips a
-  keyframe, and the clamp and the clearance repair are the load, import and MOVE authorities. A
+  keyframe, and the clamp is the load, import and MOVE authority. A
   point that merely restates the running fret is silent authoring state, so typing the same fret on
   a tail and stopping there leaves nothing behind; a fret-stating point in an open string's tail is
   refused (`OpenStringSlide`) and shows the red box. *Superseded records of the earlier builds: a

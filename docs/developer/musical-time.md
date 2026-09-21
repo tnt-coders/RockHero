@@ -223,9 +223,10 @@ tail off what a surface **draws**.
   the length (`ChartResolutions::rested_from` to `NoteViewState::rested`), so there is ONE end per
   note and both surfaces draw to it, the verdict never moves `end_seconds`, and drawn = scored
   stays intact.
-- `clipPayloadsToSustain`, `keyframeClearanceOf`, `latestStatementBeforeStrike` — the tail
+- `clipPayloadsToSustain`, `latestStatementBeforeStrike` — the tail
   helpers the rules are built from, shared with the Guitar Pro importer so its synthesized
-  arrivals, the load repair and the editor gate ask the same questions. They read the note's ONE
+  arrivals, the `Shift+L` split's matching retreat and the presentation trim ask the same
+  question. They read the note's ONE
   interval payload, its `keyframes` array, where each entry states any subset of the fret, bend
   and vibrato channels (`docs/plans/todo/unified-waypoint-model.md`). The presented tail always
   reaches the last statement standing INSIDE the ring (rule 2), and nothing about what it SAYS is
@@ -234,9 +235,11 @@ tail off what a surface **draws**.
   that a bend value and a fret are complete at the instant they are reached, while a statement
   that leaves the string SHAKING needs a minimum window past it to be shown at all. A statement
   standing exactly AT the ring's end is the end's own (`endStatement`), so it floors nothing and
-  RIDES to the presented end instead — the clearance a last statement takes before the binding
-  onset (`lastStatementClearance`, the arithmetic the stored repair shares), so every drawn tail
-  keeps the same spacing before the next head whatever it ends in.
+  RIDES to the presented end instead — one minimum sustain distance before the binding onset, or
+  halfway along its own last leg where that margin would crowd the leg's start — so every drawn
+  tail keeps the same spacing before the next head whatever it ends in. That trim is the ONLY
+  place the spacing lives: the stored chart may end a fall or a bend exactly on the next head of
+  its own string, because the store holds what the hands did (user ruling, 2026-09-21).
 
 Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note (its
 own fret, its onset bend, its onset vibrato) and every later change lands on a keyframe, so "what is

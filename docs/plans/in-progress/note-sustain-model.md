@@ -59,11 +59,12 @@ and the tail law's verdict beside it.
    bend curve is anchored to the notated ring). Silence is the keyframe commit law's to shed, never
    the trim's to judge. A statement standing exactly at the ring's END — a slide-out's fall, a bend
    curve's last value, a scrape's terminal — belongs to the end, so it floors nothing and is carried
-   to the presented end: the clearance every unauthored statement takes before the strike ahead of
-   it (`lastStatementClearance`), one margin back or halfway along its own last leg where the margin
-   line would fall on or before that leg's start. Every drawn tail is therefore spaced alike
-   whatever it ends in (user ruling, 2026-09-21), and against a head on the note's own string the
-   chart's clearance repair has already stored that same number.
+   to the presented end: one margin back from the strike ahead of it, or halfway along its own last
+   leg where the margin line would fall on or before that leg's start
+   (`latestStatementBeforeStrike`). Every drawn tail is therefore spaced alike whatever it ends in
+   (user ruling, 2026-09-21), and this trim is the ONLY place that spacing lives — the stored chart
+   may end a fall or a bend exactly ON the next head of its own string, because the store holds
+   what the hands did (same ruling; the stored clearance repair was deleted for it).
 3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
    *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_seconds`, which is

@@ -941,10 +941,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
     SECTION("stepped onto a later onset of its own string")
     {
-        // The next strike on the string is a WALL for the verb: no keyframe sits on a head of its
-        // own string, and a step that would land there is refused so the point stays where it is
-        // — never handed to the gate's clearance repair, which would pull it back to the margin
-        // line, earlier than a point deliberately parked inside the margin.
+        // The next strike on the string is a WALL for the verb: a step that would land on or past
+        // it is refused, so the point stays exactly where it is rather than being dragged across a
+        // head that stops the ring it rides.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
@@ -1016,7 +1015,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
     SECTION("stepped inside the margin before a later onset of its own string stands there")
     {
-        // The rule refuses the head, never proximity: a charter who steps a keyframe to an eighth
+        // The wall is the head itself, never proximity: a charter who steps a keyframe to an eighth
         // before the next head gets exactly that, and the ring below still reaches the head.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
@@ -1086,9 +1085,8 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
     SECTION("outward stops where it is at the next head on its string")
     {
         // The next strike is a WALL for the verb: a step onto or past the head is refused, so the
-        // release stays exactly where it is — never handed to the gate's clearance repair, which
-        // would pull a release deliberately parked inside the margin back to the margin line. A
-        // shorter step lands where it was aimed, inside the margin included.
+        // release stays exactly where it is rather than dragging the ring's end across the strike
+        // that stops it. A shorter step lands where it was aimed, close to the head included.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const auto onto = planMoveSelection(
@@ -1111,34 +1109,28 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
         }
     }
-    SECTION("a note moved back onto the release rides the release back")
+    SECTION("a note moved back onto the release leaves the ring alone")
     {
-        // The note's head lands where the release stood, so the release keeps its clearance from
-        // the new head — the fall shortens by the margin, exactly as a note moved into a plain
-        // ring truncates it. A step that stops short of the release leaves the ring alone.
+        // The note's head lands exactly where the release stood, and that is legal: the ring ends
+        // on the new head with its fall completing there, which is what the store says the hands
+        // did. So the glide is not in the plan at all — nothing about it changed — exactly as when
+        // the step stops short of it.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const std::vector<ChartSlotKey> landing{keyAt({.measure = 3, .beat = 2}, 1)};
-        const auto onto = planMoveSelection(
-            repicked, tempo_map, landing, {}, common::core::Fraction{-1}, 0, "Move Note");
-        REQUIRE(onto.has_value());
-        if (onto.has_value())
+        for (const common::core::Fraction step :
+             {common::core::Fraction{-1}, common::core::Fraction{-1, 2}})
         {
-            const auto glide =
-                std::ranges::find(onto->inserted, glideOnset(), &common::core::ChartNote::position);
-            REQUIRE(glide != onto->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{19, 5});
-            CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
-        }
-        const auto short_of = planMoveSelection(
-            repicked, tempo_map, landing, {}, common::core::Fraction{-1, 2}, 0, "Move Note");
-        REQUIRE(short_of.has_value());
-        if (short_of.has_value())
-        {
-            CHECK(
-                std::ranges::find(
-                    short_of->inserted, glideOnset(), &common::core::ChartNote::position) ==
-                short_of->inserted.end());
+            const auto plan =
+                planMoveSelection(repicked, tempo_map, landing, {}, step, 0, "Move Note");
+            REQUIRE(plan.has_value());
+            if (plan.has_value())
+            {
+                CHECK(
+                    std::ranges::find(
+                        plan->inserted, glideOnset(), &common::core::ChartNote::position) ==
+                    plan->inserted.end());
+            }
         }
     }
     SECTION("onto the last sounded fret is refused")
@@ -1217,9 +1209,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 
-    SECTION("a release past the landing rides back to its clearance")
+    SECTION("a release past the landing rides back onto the landing itself")
     {
-        // The release IS the ring's end, so it moves because the end did — no statement is lost.
+        // The release IS the ring's end, so it moves because the end did — no statement is lost —
+        // and it lands exactly on the new head, three beats out, which is where the store says the
+        // fall completes. Nothing spaces it: the drawn tail is presentation's to place.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}
@@ -1232,7 +1226,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{14, 5});
+                CHECK(tail->sustain == common::core::Fraction{3});
+                REQUIRE(tail->keyframes.size() == 1);
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
                 const int* const falls_toward = common::core::slideOutFretOrNull(*tail);
                 REQUIRE(falls_toward != nullptr);
                 if (falls_toward != nullptr)
@@ -1264,10 +1260,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         }
     }
 
-    SECTION("a statement exactly on the landing is moved back, not erased")
+    SECTION("a statement exactly on the landing stands there, not erased")
     {
-        // The clip's bound is inclusive, so it survives; standing on the new head is what the
-        // clearance repair then moves it back from, the ring going with it.
+        // The clip's bound is inclusive, so it survives — and standing on the new head is legal, so
+        // it stays: the truncated ring ends on the landing with the statement, now its release,
+        // falling away toward fret 9 there.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
@@ -1280,9 +1277,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{14, 5});
+                CHECK(tail->sustain == common::core::Fraction{3});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{14, 5});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
                 CHECK(tail->keyframes.front().fret == 9);
             }
         }
@@ -1292,10 +1289,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     {
         // The same landing, on a point that says nothing: baring it would author a fall toward the
         // fret the string already holds — nothing draws it, no head reaches it, and it would pin
-        // the ring — so the plan gate takes it in this very edit and the tail simply ends. The
-        // ring then ends EXACTLY on the landing, three beats out, and not at the clearance the
-        // section above keeps: the dissolve runs before the clearance repair, so no ring is
-        // shortened to make room for a statement that is gone.
+        // the ring — so the plan gate takes it in this very edit and the tail simply ends. The ring
+        // still ends exactly on the landing, three beats out, but with nothing stated there, which
+        // is what separates this from the section above.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{3}, .fret = 7, .bend = {}, .vibrato = {}
@@ -1319,9 +1315,8 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
 // travelled from, and the release it re-attaches at the new end then falls toward the fret the
 // SURVIVING path already holds. Nothing draws that fall and no head reaches it, so the gate
 // dissolves it in the edit that made it rather than leaving the charter a ring pinned by a mark
-// they cannot see — and it dissolves BEFORE the clearance repair, so the ring ends exactly where
-// the new head put it (three halves of a beat) instead of at a clearance kept for a statement that
-// no longer exists.
+// they cannot see, so the ring ends exactly where the new head put it (three halves of a beat)
+// with nothing stated there.
 TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -1353,10 +1348,9 @@ TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core
     }
     SECTION("or onto a junction the clip leaves standing")
     {
-        // The exposed statement is why the dissolve may run BEFORE the clearance repair at all: it
-        // stands STRICTLY inside the new ring — a keyframe under the dissolved release is under the
-        // ring's end, which the truncation has already pulled back to the head — so the repair has
-        // nothing to pull back, and this pins that it does not.
+        // The exposed statement stands STRICTLY inside the new ring — a keyframe under the
+        // dissolved release is under the ring's end, which the truncation has already pulled back
+        // to the head — so the dissolve leaves an ordinary interior point behind it.
         path = {junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{2}, 5)};
         falls_toward = 7;
         surviving = {junction(common::core::Fraction{1}, 7)};
@@ -3219,19 +3213,28 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
         }
     }
 
-    SECTION("growth stops where it is at the next head on its string")
+    SECTION("growth clamps at the next head on its string with its terminal on it")
     {
-        // The terminal rides the end and no keyframe sits on a head of its own string, so the
-        // next strike is a WALL for a scrape's growth, as it is for the move verb: a step that
-        // reaches it leaves the ring where it is instead of handing the terminal to the gate's
-        // clearance repair. A shorter step still lands inside the margin.
+        // A scrape's growth is clamped by the ONE bound on a ring (40-Q2-B) like any other note's,
+        // with no clause of its own: a step that reaches the next strike ends the gesture exactly
+        // there and the terminal, which rides the end, lands on the head. That is what the store
+        // says the pick did; the drawn chip is spaced before the head by presentation.
         common::core::Chart walled = chart;
         walled.notes.push_back(makeTestNote({.measure = 3, .beat = 2, .offset = {1, 2}}, 1, 5));
         std::ranges::sort(walled.notes, common::core::chartNoteOrderLess);
         const auto onto = planAdjustSustain(
             walled, tempo_map, walled.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
-        REQUIRE_FALSE(onto.has_value());
-        CHECK(onto.error() == ChartPlanRefusal::NoChange);
+        REQUIRE(onto.has_value());
+        if (onto.has_value())
+        {
+            const common::core::ChartNote* walled_scrape =
+                noteAt(onto->inserted, {.measure = 3, .beat = 1}, 1);
+            REQUIRE(walled_scrape != nullptr);
+            CHECK(walled_scrape->sustain == common::core::Fraction{3, 2});
+            REQUIRE(walled_scrape->keyframes.size() == 2);
+            CHECK(walled_scrape->keyframes.back().offset == common::core::Fraction{3, 2});
+            CHECK(common::core::slideOutFretOrNull(*walled_scrape) != nullptr);
+        }
         const auto inside = planAdjustSustain(
             walled, tempo_map, walled.notes, keys, {gridStep(g_sixteenth_grid, true)});
         REQUIRE(inside.has_value());
@@ -3337,12 +3340,10 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     }
 }
 
-// A note inserted inside a scrape's ring would cut the scrape short onto its own onset, and a
-// scrape's terminal is a release standing at the ring's end — so the terminal would sit on the new
-// head, which no edit may do. The insert is refused rather than leaving a chip no one can reach.
 // A note placed on a scrape's path re-strikes the string, so the scrape ends there like any ring
-// (40-Q2-B) — and its terminal, which the truncation carried onto the new head, keeps its clearance
-// from it exactly as a loaded chart's would. One normalization for every producer, not a refusal.
+// (40-Q2-B) — and its terminal, which rides the end, lands on the new head, where the store says
+// the pick stopped. One normalization for every producer, not a refusal; the spacing that keeps the
+// chip reachable is presentation's, so the drawn gesture still ends one margin short.
 TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[core][chart]")
 {
     common::core::Chart chart;
@@ -3363,10 +3364,12 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
             common::core::GridPosition{.measure = 1, .beat = 1},
             &common::core::ChartNote::position);
         REQUIRE(scrape != plan->inserted.end());
-        // Half a beat to the new head, less the margin: the terminal re-aims onto the fret it
-        // still travels toward.
-        CHECK(scrape->sustain == common::core::Fraction{3, 10});
+        // Half a beat to the new head, exactly: the terminal rides onto it and re-aims onto the
+        // fret it still travels toward.
+        CHECK(scrape->sustain == common::core::Fraction{1, 2});
         CHECK(common::core::isScrape(scrape->attack));
+        REQUIRE_FALSE(scrape->keyframes.empty());
+        CHECK(scrape->keyframes.back().offset == common::core::Fraction{1, 2});
         const int* const terminal = common::core::slideOutFretOrNull(*scrape);
         REQUIRE(terminal != nullptr);
         if (terminal != nullptr)
@@ -4292,8 +4295,8 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
 }
 
 // WHERE the origin's arrival lands is the shared clearance authority's answer
-// (\ref latestStatementBeforeStrike), the one every other producer asks — the importer's
-// synthesized arrivals and the load and plan-gate repairs. The split walk states no rule of its
+// (\ref latestStatementBeforeStrike), the one the importer's synthesized arrivals and the
+// presentation trim ask too. The split walk states no rule of its
 // own, so a crowded leg has no case here to refuse: the authority halves the leg instead, which
 // always leaves both a leg and a gap. A margin subtracted by hand in the walk did have such a
 // case, and it reached the user as `Shift+L` silently doing nothing on the commonest split there

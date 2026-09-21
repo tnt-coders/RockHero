@@ -279,13 +279,14 @@ file and from a fresh import shows the same tails, and the model behind the spli
    override the margin at all. What floors the trim is a statement standing strictly INSIDE the
    ring: one standing exactly AT the ring's end — a slide-out's fall, a bend curve's last value, a
    scrape's terminal — is the END's own statement, whose moment is the end by definition, so it
-   floors nothing and RIDES to the presented end with it. Where that end goes is the clearance every
-   unauthored statement takes before the strike ahead of it (`lastStatementClearance`): one margin
-   back, or halfway along its own last leg where the margin line would fall on or before that leg's
-   start — the one split that always leaves both a leg and a gap. So a tail ending in a fall or a
-   bend is spaced before the next head exactly as a bare tail is, and against a head on the note's
-   OWN string the chart's clearance repair has already stored that same number, so only an
-   other-string head makes the drawn and stored moments differ.
+   floors nothing and RIDES to the presented end with it. Where that end goes is one margin back
+   from the binding onset, or halfway along its own last leg where the margin line would fall on or
+   before that leg's start — the one split that always leaves both a leg and a gap
+   (`latestStatementBeforeStrike`). So a tail ending in a fall or a bend is spaced before the next
+   head exactly as a bare tail is, on any string. This trim is the ONLY place that spacing lives:
+   the stored chart may end a fall or a bend exactly ON the next head of its own string, because
+   the store holds what the hands did (user ruling, 2026-09-21), so the drawn and stored moments
+   differ by a margin wherever any head binds the tail.
 3. **Drop short effect-free tails, per strum.** A strum that carries no sustain technique
    (bend, slide, vibrato, tremolo) on any string and no member *ringing* longer than the
    kept-sustain bound (`g_minimum_kept_sustain_seconds` in grid_arithmetic.h, which is the ONE place

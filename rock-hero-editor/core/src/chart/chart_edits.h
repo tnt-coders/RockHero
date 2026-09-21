@@ -372,10 +372,11 @@ same-string onset or below the capo floor is refused just as a retyped one is
 therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
 offset IS the identity, so exchanging two would leave the selection pointing at the other record.
 
-Two bounds the planner does state, both because the gate would REPAIR where this verb must refuse.
-The next strike on the string is a WALL rather than a landing, since the clearance repair would pull
-a point back to the margin line — earlier than a release the charter deliberately parked inside it.
-And an INTERIOR point stays STRICTLY BELOW the ring's end: KIND IS NOT THIS VERB'S TO CHANGE, so a
+Two bounds the planner does state, because the rules carry neither. The next strike on the string is
+a WALL rather than a landing: it bites only on the RELEASE, whose step moves the ring's END, and a
+ring may not be dragged across the strike that stops it — for every interior point the end bound
+below already implies it, since a stored ring never passes its own bound. And an INTERIOR point
+stays STRICTLY BELOW the ring's end: KIND IS NOT THIS VERB'S TO CHANGE, so a
 point that already is the release drags the end with it and no other point ever becomes one. Moving
 a point LEFT remains the way past the resize floor that a point which says nothing, or one carrying
 a shake, raises under a shrinking ring (\ref common::core::ringEndMayLandOnLastKeyframe).
@@ -1102,16 +1103,14 @@ be authoring state the origin never meant, standing on the tail's tip until the 
 note dissolved it. So the split of a silent point leaves a plain tail, and the join that made the
 point round-trips to the document the join read.
 
-**Where the arrival lands, and why it is not the split instant.** No keyframe sits on a later onset
-of its own string (\ref common::core::keyframeClearanceOf): the head states those coordinates
-itself, and the second copy is the desyncable encoding the format exists to make unrepresentable —
-and a fret left AT the product's end would be its release by position, which the gate's clearance
-repair would then shorten the ring under. A glide into a re-picked landing therefore arrives BEFORE
-it — the format's own shift-slide shape, and the importer's policy rule 13 for exactly this figure —
-while the origin's RING still runs to the new head, because a re-strike is what stops a ring. The
-retreat costs nothing visible: the presentation trim ends the drawn tail at that same margin
-regardless. Without it this verb could never produce a legal chart at all, since every split would
-store the landing's coordinates twice.
+**Where the arrival lands, and why it is not the split instant.** A fret left AT the product's end
+would be its RELEASE by position — an unpitched fall away from the string, not the pitched arrival
+the charter split at — and it would store the new head's coordinates a second time, the desyncable
+encoding the format exists to make unrepresentable. A glide into a re-picked landing therefore
+arrives BEFORE it — the format's own shift-slide shape, and the importer's policy rule 13 for
+exactly this figure — while the origin's RING still runs to the new head, because a re-strike is
+what stops a ring. The retreat costs nothing visible: the presentation trim ends the drawn tail at
+that same margin regardless.
 
 WHERE it lands is \ref common::core::latestStatementBeforeStrike, the shared authority every other
 producer of an unauthored statement asks — the minimum sustain distance before the new head, or
@@ -1169,8 +1168,9 @@ Which note is the predecessor is \ref common::core::chartConnections' rule, walk
 stream rather than restated: the last note on the string that SOUNDED.
 
 **The arrival RETURNS.** A split retreats the origin's arrival off the new head by
-\ref common::core::latestStatementBeforeStrike, because no keyframe may sit on a head of its own
-string. The join asks that same authority backward: where the predecessor's last keyframe states
+\ref common::core::latestStatementBeforeStrike, so the arrival stays a pitched stop rather than
+becoming the origin's release. The join asks that same authority backward: where the predecessor's
+last keyframe states
 the head's own fret AND stands exactly where the retreat would have put it, it moves back onto the
 junction — an arrival that retreated only because a head stood there belongs at the junction once
 the head is gone. That, and nothing else, is what makes split-then-join byte-exact.

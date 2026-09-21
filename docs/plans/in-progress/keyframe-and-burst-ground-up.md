@@ -231,10 +231,11 @@ What else the study settled:
   junction rather than doubling the offset. The validator never enforced the law ("normalized,
   never refused"), so every saved package stays valid. Nothing game-side reads stored keyframes.
   No derivation reads a release's offset against the next onset.
-- **Deleted** (~90 lines of production code, ~270 of tests): `keyframeClearanceOf`,
-  `normalizeKeyframeClearances`, `ChartRepair::CrowdedKeyframe` (sweep every switch over the
-  enum), the gate call and the between-the-two-repairs ordering argument, the scrape "strike is a
-  WALL" clause, and the import squish — 637 abutting end statements import as written.
+- **Deleted** (done 2026-09-21; see step 3 below for the measured counts): `keyframeClearanceOf`,
+  `normalizeKeyframeClearances`, `ChartRepair::CrowdedKeyframe` (one switch over the enum, in
+  `chartRepairText`), the gate call and the between-the-two-repairs ordering argument, the scrape
+  "strike is a WALL" clause, and the import squish — 583 abutting end statements in the imported
+  corpus now stand as written.
 - **Must stay.** `latestStatementBeforeStrike` for the importer's synthesized shift arrivals (span
   rule 6 is calibrated to it) and for the `Shift+L` split's retreat, which becomes load-bearing for
   a new reason: left on the head, the arrival would now be the product's release by position.
@@ -309,12 +310,14 @@ quantum before the onset and would re-key to the derived fact; the signed shift-
 and whether `Shift+L`'s split retreat, which places an arrival the same way, follows.
 
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
-answer the rules give: the head wins and the end squishes back. The insert is legal — a digit at a
-ring's exact end is the next note — and the plan gate's clearance repair then finds a statement on
-a head of its own string and, under the one clearance rule, shortens the ring to the clearance
-with its end statement still AT the end. The bend still completes as the ring ends, a hair before
-the new head; one undo entry holds both. It is exactly what import does to the 174 abutting bends,
-which is the point of "the SAME rules". A head on another string changes nothing.
+answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
+a ring's exact end is the next note — and the plan gate's ring clamp shortens the ring to the
+landing with its end statement still AT the end, ON the new head. The bend still completes as the
+ring ends; one undo entry holds both, and the DRAWN bend point then prints one margin before the
+head like every other tail's. *Restated 2026-09-21 once step 3 landed: the clearance repair this
+paragraph originally invoked is gone, so the squish is the truncation's alone and the spacing is
+presentation's.* It is exactly what import does to an abutting bend, which is the point of "the
+SAME rules". A head on another string changes nothing.
 
 Weighed the same day and not recommended: REFUSING the head instead. It is shorter to say — no
 statement ever moves except under the move verb — but it is not simpler to build or to use. Import
@@ -590,11 +593,33 @@ step is shippable on its own and the last one changes nothing the eye can see:
    in a bend or a slide-out now tucks in before a head on ANOTHER string like any bare tail. The
    same-string case does not change yet — the stored law has already put those ends one margin
    early, so the trim finds nothing to do. Sight it.
-3. **Delete the stored clearance law.** `normalizeKeyframeClearances` and its helpers, the gate
-   call, the repair enumerator, the scrape wall clause and the import squish go. Presentation now
-   does for the same-string case exactly what the store did, so the acceptance test is strong and
-   cheap: **the presented corpus is identical before and after**, except the 174 end bends, which
-   change from "completes early, then holds" to "completes as the drawn tail ends" — the fix.
+3. **Delete the stored clearance law.** **DONE 2026-09-21.** `normalizeKeyframeClearances`,
+   `keyframeClearanceOf`, `ChartRepair::CrowdedKeyframe` and its message, the `normalizeChart`
+   report block, the plan-gate call in `finalizePlan` (with the between-the-two-repairs ordering
+   argument), the importer call in `clampSameStringOverlaps`, and `planAdjustSustain`'s scrape
+   "strike is a WALL" clause are gone: 289 lines of production code deleted against 127 re-added,
+   almost all of them comments and header docs restated, and 294 test lines deleted against 275
+   re-added (one whole `test_chart.cpp` case, 141 lines, retired outright; one 93-line acceptance
+   case added). `lastStatementClearance` moved into `chart_presentation.cpp` as a file-local:
+   presentation is its only caller and its only authority now.
+
+   *The corpus acceptance measurement, the same day.* 113 corpus packages, 245 866 imported notes,
+   presented streams dumped from a build at `0ee88bd3` and from the deletion and diffed note for
+   note: **0 differing notes.** The deletion is presentation-neutral everywhere, which is stronger
+   than this step predicted. The 174-bend defect was therefore a STORED defect only — step 2's
+   carry had already fixed the drawn form, and what this step fixes is the file: a bend-only end
+   statement abutting a same-string head is now stored AT the end (completing as the ring ends)
+   instead of moved back alone to become an interior point the curve then holds flat past.
+
+   *What moved in the store.* 583 end statements now sit exactly on the next head of their own
+   string where `0ee88bd3` stored none there: 471 non-scrape falls, 59 scrape terminals, 53
+   bend-only ends. That is fewer than the 637 abutting statements measured above because the two
+   numbers count different populations: 637 was measured on the WRITTEN Guitar Pro material (463 of
+   977 slide-outs, 174 of 288 still-moving end bends), while 583 is the IMPORTED chart after every
+   builder pass. The imported chart holds 1213 fret-stating ends (more than the source's 977 —
+   trail-off synthesis and pick-slide terminals add their own) but only 69 bend-only ends in the
+   whole corpus, abutting or not: the silent-point shed, the payload trim against the ACTUAL ring,
+   tie merging and the shift-arrival retreat each turn a written end bend into something else.
    Re-import the corpus so the files hold the truth. Sight it.
 
 Deferred until after those three, each on its own: the shift slide as a derived fact (span rule 6

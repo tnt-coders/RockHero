@@ -111,6 +111,25 @@ void dropPresentedTail(ChartNote& note)
     return end - onset;
 }
 
+// WHERE A NOTE'S LAST STATEMENT IS DRAWN when it must keep clear of the strike ahead of it: one
+// margin before that strike, or halfway along its own last leg where the margin would crowd the
+// leg's start. Presentation's alone — the stored chart keeps whatever the hands did, an end
+// statement sitting exactly on the next head included — so the spacing lives here, at its one
+// caller, rather than in the rule authority.
+//
+// The leg reading is the whole of what makes the split safe: the last leg starts at the statement
+// before the last one — the onset where there is none — and the clearance never takes that start,
+// so the result always leaves both a leg and a gap however crowded the passage
+// (latestStatementBeforeStrike). `note` must carry at least one keyframe, and `gap` — the beats to
+// the strike — must lie strictly past the statement before the last.
+[[nodiscard]] Fraction lastStatementClearance(
+    const ChartNote& note, const Fraction gap, const Fraction margin)
+{
+    const std::size_t count = note.keyframes.size();
+    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
+    return latestStatementBeforeStrike(gap, margin, leg_start);
+}
+
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
 // tail trims to the margin, never past the note's last INTERIOR statement, and carries the
 // statement standing at the ring's end to wherever the drawn end lands.
@@ -129,10 +148,10 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // Rule 2, in its two cases. A ring whose END carries a statement: that statement IS the end, so
     // it rides to where the end goes and the tail is spaced like every other — the clearance a last
     // statement takes before a strike (lastStatementClearance: one margin back, or halfway along
-    // its own last leg where the margin would crowd the leg's start). Asked of THAT authority and
-    // not of arithmetic spelled again here, so the end a same-string head has already squished into
-    // the stored chart (keyframeClearanceOf) is the number presentation arrives at too and finds
-    // nothing left to do. It never lands ON the last interior statement either — the split always
+    // its own last leg where the margin would crowd the leg's start). This is the ONE place that
+    // spacing is applied: the stored chart holds the truth — a fall or a bend may end exactly on
+    // the next head of its own string — and display alone moves the mark back so it can be seen and
+    // reached. It never lands ON the last interior statement either — the split always
     // leaves a leg — which is what keeps the drawn keyframes index-parallel to the stored ones
     // (keyframeIdentities); the interior statement's own floor therefore never enters, and flooring
     // on it would put the drawn end back on the head this trim exists to clear.

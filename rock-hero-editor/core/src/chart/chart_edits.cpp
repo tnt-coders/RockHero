@@ -162,7 +162,7 @@ struct KeyedSplit
 //
 // Two statements survive the clip and are therefore no reason to refuse: the RELEASE, which IS the
 // ring's end and rides back to the new one, and a statement standing exactly ON the landing, which
-// the inclusive bound keeps and the clearance repair then moves back off the head.
+// the inclusive bound keeps where it stands.
 [[nodiscard]] bool moveErasesStatement(
     const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& unmoved,
     const std::vector<common::core::ChartNote>& landings)
@@ -225,30 +225,21 @@ enum class StrandedStrikeRepair : std::uint8_t
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
-    // The two rules a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
-    // stops the ring, and no keyframe sits on a head of its own string. So a note inserted into a
-    // ring truncates it, and a release the truncation carried onto the new head rides back to its
-    // clearance — while a keyframe placed INSIDE the margin, short of the head, is the charter's
-    // deliberate act and stands. The verbs that STEP a point or grow a scrape's ring treat the
-    // head as a wall and refuse a step that reaches it, so this repair never pulls a deliberately
-    // close point back. The repaired indices are the load path's business (it names what it
-    // changed); a producer that only needs the invariant ignores them, which is why neither rule
-    // is [[nodiscard]].
+    // The one rule a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
+    // stops the ring, so a note inserted into a ring truncates it and the statement at that ring's
+    // end rides back with the end — onto the new head itself, which is where the store says the
+    // hands left it; the spacing the mark needs to be seen is presentation's. The repaired indices
+    // are the load path's business (it names what it changed); a producer that only needs the
+    // invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    // BETWEEN the two, because a release the truncation left saying nothing is not a point for the
-    // clearance repair to place: a silent RELEASE has no face and no handle — nothing draws a fall
-    // toward the fret the path already holds, and a release wears no head — so it cannot be reached
-    // while it still pins the ring, and the edit that created it is the edit that clears it. Taken
-    // here, a tail whose release dissolves ends exactly where the landing put it, instead of at a
-    // clearance computed for a point that no longer exists; the keyframe the dissolve exposes then
-    // reaches the repair below like any other. Nothing is lost by going first: the clearance repair
-    // can neither create a release nor silence a travelling one, since it clips no further back
-    // than the statement the release travels from.
+    // After the truncation, whose clip is what can leave a release saying nothing, and before the
+    // validator: a silent RELEASE has no face and no handle — nothing draws a fall toward the fret
+    // the path already holds, and a release wears no head — so it cannot be reached while it still
+    // pins the ring, and the edit that created it is the edit that clears it.
     for (common::core::ChartNote& note : candidate)
     {
         static_cast<void>(common::core::dissolveSilentRelease(note));
     }
-    common::core::normalizeKeyframeClearances(candidate, tempo_map);
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
@@ -484,12 +475,11 @@ struct AddressedStop
             if (re_picked && !(keyframe.offset < end))
             {
                 // The arrival of a glide into a RE-PICKED head stands clear of it — the format's
-                // own shift-slide shape (`ChartNote::keyframes`, the importer's policy rule 13),
-                // and the clearance a repaired statement takes (`keyframeClearanceOf`). Left ON
-                // the head it would be the product's release by position, and the gate's clearance
-                // repair would then shorten the ring under it into a slide-out; retreated, the
-                // arrival ends the gesture's INFORMATION early while the ring below still runs to
-                // the head. A keyframe consumed this way is the next head's own statement too:
+                // own shift-slide shape (`ChartNote::keyframes`, the importer's policy rule 13).
+                // Left ON the head it would be the product's release by position, an unpitched fall
+                // where the charter split at a pitched arrival; retreated, the arrival ends the
+                // gesture's INFORMATION early while the ring below still runs to the head. A
+                // keyframe consumed this way is the next head's own statement too:
                 // `ringStateAt` at the cut reads it, which is what makes a cut AT a keyframe hand
                 // that keyframe over as the head.
                 //
@@ -865,9 +855,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             }
             const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
             // The next strike on the string is a WALL for a stepped point, not a landing: a step
-            // onto or past it is refused here rather than left to the gate, whose clearance
-            // repair would pull the point back to the margin — earlier than a release the charter
-            // deliberately parked inside it. So the drag stops exactly where it is.
+            // onto or past it is refused, so the drag stops exactly where it is rather than
+            // dragging a ring's end across a head that stops it.
             const std::optional<common::core::Fraction> wall =
                 common::core::sustainBoundOf(chart.notes, note, tempo_map);
             // The ring's end AFTER this step, which every INTERIOR point must stay STRICTLY below:
@@ -1331,25 +1320,18 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             // `start` is already at most the bound.
             const std::optional<common::core::Fraction> bound =
                 common::core::sustainBoundOf(chart.notes, note, tempo_map);
-            const bool at_strike = bound.has_value() && !(target < *bound);
-            // A SCRAPE's terminal rides its end, and no keyframe sits on the next head of its
-            // string: for a scrape the strike is a WALL, exactly as it is for the move verb, and
-            // a step that reaches it leaves the ring where it is — held, like a note at its floor
-            // — rather than handing the terminal to the gate's clearance repair, which would pull
-            // a deliberately close terminal back to the margin.
-            if (!(at_strike && common::core::isScrape(stepped.attack)))
+            if (bound.has_value() && !(target < *bound))
             {
-                if (at_strike)
-                {
-                    target = *bound;
-                }
-                // The one way a ring changes length once it carries a payload: a pitched note's
-                // keyframes all lie above its floor, so nothing clips there — the resize leaves a
-                // release behind a lengthening ring as the pitched stop it has become, and
-                // re-aims a scrape's compressed path.
-                common::core::clipPayloadsToSustain(stepped, target);
-                note = std::move(stepped);
+                target = *bound;
             }
+            // The one way a ring changes length once it carries a payload: a pitched note's
+            // keyframes all lie above its floor, so nothing clips there — the resize leaves a
+            // release behind a lengthening ring as the pitched stop it has become, and re-aims a
+            // scrape's compressed path. A scrape needs no clause of its own: its terminal rides
+            // the end, so a gesture grown onto the next head ends exactly there with its terminal
+            // on it, which is what the store holds and what presentation then spaces.
+            common::core::clipPayloadsToSustain(stepped, target);
+            note = std::move(stepped);
         }
         else if (floor == target && common::core::releaseKeyframe(stepped) != nullptr)
         {

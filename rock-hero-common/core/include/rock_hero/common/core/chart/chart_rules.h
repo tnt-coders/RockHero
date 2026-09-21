@@ -201,11 +201,6 @@ enum class ChartRepair : std::uint8_t
     StrandedStrike,
     /*! \brief A tail ringing across the next onset on its own string was truncated (40-Q2-B). */
     OverlappingTail,
-    /*!
-    \brief A keyframe standing on the next onset of its string was moved back to its clearance
-    (\ref normalizeKeyframeClearances) — the ring's end riding with it where it was the release.
-    */
-    CrowdedKeyframe,
     /*! \brief A fret, slide position, or hand window past the last fret clamped onto the board. */
     FretPastBoard,
     /*! \brief A slide position or hand window on or below the capo was lifted above it. */
@@ -341,8 +336,9 @@ rules 3 and 4).
 The bound is inclusive for every channel: a statement standing exactly at the new end survives, a
 bend point arriving there included — and the end's own statement, arriving back on top of it,
 overlays it rather than doubling the offset. Where the new end is a following onset on the note's
-string, that statement now sits on the head, and the clearance repair
-(\ref normalizeKeyframeClearances) is what moves it back — this clip knows nothing about heads.
+string, that statement STANDS on the head, which is the truth the store holds: the spacing a mark
+needs to be seen and reached is presentation's (\ref presentedChartNotes rule 2), and this clip
+knows nothing about heads.
 
 \param note Note whose ring is resized and whose payload is clipped in place.
 \param sustain The ring's new length.
@@ -376,61 +372,6 @@ placement asks the same question.
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
-\brief Where a note's LAST statement stands when it must keep clear of a strike ahead of it: one
-margin before that strike, or halfway along its own last leg where the margin would crowd the
-leg's start.
-
-The clearance itself, with the strike handed IN — the one arithmetic every producer of it shares,
-so the number cannot differ between them. Two ask, with two different strikes: the stored repair
-asks about the next strike on the note's OWN string (\ref keyframeClearanceOf), and presentation
-asks about the onset that binds the DRAWN tail, on any string (\ref presentedChartNotes rule 2).
-The leg reading is the whole of what they would otherwise each restate: the last leg starts at the
-statement before the last one — the onset where there is none — and the clearance never takes that
-start, so the result always leaves both a leg and a gap however crowded the passage
-(\ref latestStatementBeforeStrike).
-
-\param note Note whose last statement is placed; it must carry at least one keyframe.
-\param gap Beats from the note's onset to the strike the statement is kept clear of; strictly
-       greater than the statement before the last.
-\param margin The minimum sustain distance in beats at that strike
-       (\ref minimumSustainDistanceBeats).
-
-\return The offset from the onset the last statement takes, strictly inside its own last leg.
-*/
-[[nodiscard]] Fraction lastStatementClearance(const ChartNote& note, Fraction gap, Fraction margin);
-
-/*!
-\brief Where a note's LAST keyframe stands when nothing but the next strike on its string decides
-its place: the clearance a synthesized or repaired statement keeps before that head.
-
-NO KEYFRAME SITS ON A HEAD OF ITS OWN STRING, whatever it states. A keyframe is a mark with a
-handle, and a statement printed on the following head could be neither seen nor reached — a fret
-there would also store the landing's coordinates a second time. A statement nobody placed by hand
-— an importer's synthesized arrival, or one a truncation carried onto the head — takes this
-clearance, the one a shift glide's arrival keeps before its landing
-(\ref latestStatementBeforeStrike at the head it stands before): the minimum sustain distance, or
-halfway from the statement before the last keyframe where that margin line falls on or before it,
-so no repair ever takes an earlier statement. A charter's own placement INSIDE that margin is
-deliberate and stands: the rule refuses the head, not the margin. Only the last keyframe is
-asked, because the ones before it stand earlier still. A head on another string may sit inside
-the clearance. Stated once because every producer asks it: the load repair and the editor's plan
-gate move a keyframe found on the head (\ref normalizeKeyframeClearances), and the importer
-places its synthesized arrivals here.
-
-Asked of a ring already inside its bound (\ref normalizeSustainOverlaps first): the statement before
-the last keyframe must lie strictly before the strike.
-
-\param notes Note stream sorted by (position, string).
-\param note Note whose last keyframe is bounded; need not be a member of `notes`.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-
-\return The clearance as an offset from the note's onset, or nullopt when the note has no keyframe
-        or nothing later strikes its string.
-*/
-[[nodiscard]] std::optional<Fraction> keyframeClearanceOf(
-    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
-
-/*!
 \brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
@@ -450,29 +391,6 @@ load path can name the notes it changed; a producer that only needs the invarian
 \return Indices of the notes whose tails were truncated, ascending; empty when none were.
 */
 std::vector<std::size_t> normalizeSustainOverlaps(
-    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
-
-/*!
-\brief Moves every last keyframe standing ON the next head of its string back to its
-\ref keyframeClearanceOf; reports which.
-
-The head alone triggers it — a keyframe a charter placed inside the margin is deliberate and
-stands. The release rides back with the ring's end (\ref clipPayloadsToSustain), since it IS the
-end; any other statement moves on its own and the ring keeps its length, so a glide into a
-re-picked head still reaches the head while its arrival stands clear of it. Runs after \ref
-normalizeSustainOverlaps, whose truncation is what carries a statement onto the head in the first
-place. The same producers ask it, for the same reason: \ref normalizeChart on every load and
-import (reporting each move as \ref ChartRepair::CrowdedKeyframe), the importer on its built
-stream, and the plan gate — so an edit that lands a keyframe on a head is normalized exactly as a
-loaded chart is, and one that changes nothing else diffs to nothing.
-
-\param notes Note stream to normalize in place, sorted by (position, string), rings inside their
-             bounds.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-
-\return Indices of the notes whose last keyframe moved, ascending; empty when none did.
-*/
-std::vector<std::size_t> normalizeKeyframeClearances(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
@@ -578,9 +496,8 @@ The technique matrix splits cleanly in two: most rules read one note (which tech
 what range each field may hold, where a node may lie relative to its stop) and the ordering reads
 a note's NEIGHBOURS. This is the first half, and \ref validateChartNotes calls it per note before
 applying the second — so a rule written here is enforced by every consumer at once. What a note's
-neighbours make of its ring and its keyframes — the same-string bound, and the head no keyframe
-may sit on — is NORMALIZED, never refused: every producer runs \ref normalizeSustainOverlaps and
-\ref normalizeKeyframeClearances before it validates, exactly as it runs the per-note normalizer.
+neighbours make of its ring — the same-string bound — is NORMALIZED, never refused: every producer
+runs \ref normalizeSustainOverlaps before it validates, exactly as it runs the per-note normalizer.
 
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some

@@ -1729,22 +1729,20 @@ struct BuiltNote
 }
 
 // The stored stream's final shape, settled once every synthesis that can lengthen a ring is done.
-// The two rules a note cannot obey alone, asked of the one authority in core rather than restated
+// The one rule a note cannot obey alone, asked of the one authority in core rather than restated
 // here (which is why the notes travel out and back — that authority speaks about a note stream,
 // not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
-// crosses the next onset on its own string; and no keyframe sits on that head — a trail-off
-// authored on a tiled ring ends on the next head, and its release rides back to its clearance
-// here, before the passes that read the stream's picture (the hand's exit, the shape spans).
+// crosses the next onset on its own string. A trail-off or an end bend authored on a tiled ring
+// then ends EXACTLY on that head, which is what the material says the hands did; the spacing the
+// mark needs to be seen is presentation's, applied to the drawn copy alone.
 //
-// Between the two, the payload is trimmed to the ring — ONCE, and for every note. Only one
-// producer ever writes past the ring: an imported bend, whose points Guitar Pro states as
-// percentages of the NOTATED duration, so the curve outruns the ring of any note an ornament
-// stole from. Every other payload is placed inside a ring the pass that placed it lengthened to
-// fit, and the clamp trims what it shortens. Trimming inside the bend's own mapping instead would
-// quietly lose a let-ring note's bend destination: the ring it is cut against is the stolen one,
-// and the let-ring pass then hands the ring back with the curve already gone. The trim comes
-// BEFORE the clearance because the clearance reads the last keyframe inside the ring: a point
-// still standing past the ring is the trim's to drop, not a statement to move back.
+// After it, the payload is trimmed to the ring — ONCE, and for every note. Only one producer ever
+// writes past the ring: an imported bend, whose points Guitar Pro states as percentages of the
+// NOTATED duration, so the curve outruns the ring of any note an ornament stole from. Every other
+// payload is placed inside a ring the pass that placed it lengthened to fit, and the clamp trims
+// what it shortens. Trimming inside the bend's own mapping instead would quietly lose a let-ring
+// note's bend destination: the ring it is cut against is the stolen one, and the let-ring pass then
+// hands the ring back with the curve already gone.
 void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     std::vector<ChartNote> stored = storedNotes(built);
@@ -1753,7 +1751,6 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     {
         common::core::clipPayloadsToSustain(note, note.sustain);
     }
-    common::core::normalizeKeyframeClearances(stored, tempo_map);
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         built[index].note = std::move(stored[index]);
@@ -3499,27 +3496,30 @@ void resolveSlideOutExits(
             }
 
             // Shift: an ordinary pitched keyframe glides to the re-picked landing's fret and
-            // ARRIVES at the clearance every synthesized statement keeps before the next head on
-            // its string (policy rule 13, `keyframeClearanceOf`): the minimum-sustain-distance
-            // margin before the landing's onset, or halfway from the chain's last statement where
-            // the margin line falls on or before it. The landing keeps its own onset and head.
-            // Guitar Pro states no arrival time, so the offset is synthesized here.
+            // ARRIVES one margin before the next head on its string (policy rule 13,
+            // `latestStatementBeforeStrike`): the minimum-sustain-distance margin before the
+            // landing's onset, or halfway from the chain's last statement where the margin line
+            // falls on or before it. The arrival stands BEFORE the head rather than on it because a
+            // fret exactly at a ring's end is the release — an unpitched fall, not the pitched
+            // arrival a shift slide is. The landing keeps its own onset and head. Guitar Pro states
+            // no arrival time, so the offset is synthesized here.
             //
             // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
             // from: the arrival is the gesture's end now, so the release goes first — a ring
             // ending in a release would otherwise carry it to the arrival's own instant. The leg
             // is measured from the last keyframe as it stands, silent or not: a hold pin's
             // meaning arrives with this very arrival, so nothing is judged silent here, and a
-            // trailing repeat the tie merge folded in is shed at the end of the build, where the
-            // load repair then settles the arrival at its clearance.
+            // trailing repeat the tie merge folded in is shed at the end of the build, which leaves
+            // the arrival exactly where it was placed — it already stands strictly inside the leg.
             common::core::clearSlideOut(note);
-            // The clearance belongs to the LANDING's onset — the head the arrival stands before —
+            // The margin belongs to the LANDING's onset — the head the arrival stands before —
             // which is the note's own onset advanced by the gap to it.
             const Fraction margin = common::core::minimumSustainDistanceBeats(
                 tempo_map, common::core::advanceGridPosition(tempo_map, note.position, gap));
-            // A folded point standing on the landing crowds it — a tied curve's final point at
-            // the ring's end — so it moves back to its own clearance first, exactly as the load
-            // repair would move it, and the arrival then has a leg to follow it.
+            // A folded point standing ON the landing — a tied curve's final point at the ring's
+            // end — leaves the arrival no leg to follow it, so it moves back one margin by the
+            // same authority first. This is the shift figure's own need, not a general law: an end
+            // statement is otherwise free to sit exactly on the next head.
             if (!note.keyframes.empty() && !(note.keyframes.back().offset < gap))
             {
                 const std::size_t count = note.keyframes.size();

@@ -224,14 +224,15 @@ no leg and the first note sheds it, ending on a plain tail. That segment walk ha
 exactly one caller, so there is one rule and one place it lives. **The same chord JOINS a selected
 HEAD back onto its predecessor's path**, written as this walk's exact inverse — the retreated
 arrival returns to the junction — so split and join round-trip byte for byte. NOTHING SINGLE-PRESS TRUNCATES A
-RING OR CLIPS A KEYFRAME. The ring clamp and the clearance repair still
-exist — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
+RING OR CLIPS A KEYFRAME. The ring clamp still
+exists — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
 editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
 payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its
-release back to the new end; it never DELETES a statement, so a landing that would clip any other
-keyframe off that tail is refused whole (`planMoveSelection`) — the statement belongs to a note the
-charter never touched, and the clip would leave no record of it. A keyframe standing exactly ON the
-landing survives the clip and is moved back by the clearance repair, so that landing is allowed.
+end's own statement back to the new end — onto the landing itself, which is where the chart then
+says the fall or the bend completes; it never DELETES a statement, so a landing that would clip any
+other keyframe off that tail is refused whole (`planMoveSelection`) — the statement belongs to a
+note the charter never touched, and the clip would leave no record of it. A keyframe standing
+exactly ON the landing survives the clip and stands there, so that landing is allowed.
 
 Three consequences worth knowing before touching this:
 
@@ -289,31 +290,26 @@ Three consequences worth knowing before touching this:
   the way past the floor above is moving the point itself LEFT. Only the chip's own step moves the
   end: every other point stays STRICTLY inside its ring, so a step that would reach the end is
   refused exactly as one onto the onset is, and a move never turns a point into a release (user
-  ruling, 2026-09-21 — kind is not the move verb's to change). No
-  keyframe sits ON a head of its own string, whatever it states, and the plan gate normalizes
-  every edit through that rule exactly as the load repair does (`normalizeKeyframeClearances`,
-  `finalizePlan`): a keyframe a note's MOVE lands on — a note moved onto a release — is moved back
-  to the clearance every repaired or synthesized statement keeps (`keyframeClearanceOf`): the
-  minimum sustain distance before the head, or halfway from the statement before it where that
-  margin line falls on or before that statement. The MOVE is the one editing gesture that reaches
-  this rule, and the one that may CLIP payload doing it — deliberately, since a moved note brings
-  its own payload and there is nothing coherent to merge. No entry gesture reaches it: a digit on a
+  ruling, 2026-09-21 — kind is not the move verb's to change). A STATEMENT AT A RING'S END MAY SIT
+  EXACTLY ON THE NEXT HEAD OF ITS OWN STRING (user ruling, 2026-09-21): the chart holds the truth,
+  and nothing stored spaces it — a note moved onto a release truncates that ring to the landing and
+  the release rides onto it. The MOVE is the one editing gesture that truncates, and the one that
+  may CLIP payload doing it — deliberately, since a moved note brings its own payload and there is
+  nothing coherent to merge. No entry gesture truncates: a digit on a
   covered slot states a POINT and never a head, and `Shift+L`'s disconnect makes an existing point
-  the new head, carrying every later one onto the new note, so neither lands a head on a statement.
-  The verbs that step a point
-  (`Alt+←/→` on a chip) or grow a scrape's ring treat the next head on the string as a WALL
-  instead: a step that would reach it
-  is refused and the point stays exactly where it is, so a release parked inside the margin is
-  never pulled back by the repair. A keyframe or a head a charter deliberately places INSIDE the
-  margin, short of the head, stands — the rule refuses overlap, never proximity. The presented
+  the new head, carrying every later one onto the new note. The verbs that step a point
+  (`Alt+←/→` on a chip) treat the next head on the string as a WALL: a step that would reach it
+  is refused and the point stays exactly where it is, rather than dragging a ring's end across the
+  strike that stops it. The presented
   tail always reaches a note's last INTERIOR keyframe (presentation rule 2), so a keyframe placed
   inside the margin draws the tail up to itself; a statement standing AT a ring's end is the end's
-  own and RIDES to the presented end instead, which is the clearance a last statement takes before
-  the onset that binds the drawn tail (`lastStatementClearance`). So a tail ending in a fall or a
-  bend is spaced before the next head exactly as a bare tail is, on ANY string — and where that
-  head is on the note's own string the stored repair has already put the statement at that very
-  clearance, so the drawn chip stands where the chart states it and only an OTHER-string head
-  makes the two differ. A drawn chip is keyed by the offset the chart states, never by the instant
+  own and RIDES to the presented end instead, one minimum sustain distance before the onset that
+  binds the drawn tail, or halfway along its own last leg where that margin would crowd the leg's
+  start. So a tail ending in a fall or a
+  bend is spaced before the next head exactly as a bare tail is, on ANY string — and that trim is
+  now the ONLY place the spacing lives, so a same-string head moves the drawn chip by the same
+  margin an other-string head does while the chart goes on stating the moment the charter authored.
+  A drawn chip is keyed by the offset the chart states, never by the instant
   it prints at (`KeyframeViewState::offset` against `seconds`), so click, caret and the accent ring
   keep reaching the statement itself.
 - **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed

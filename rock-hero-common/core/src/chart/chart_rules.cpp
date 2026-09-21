@@ -226,11 +226,6 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a re-strike stops the ring, so a tail was truncated at the next onset on its "
                    "string";
         }
-        case ChartRepair::CrowdedKeyframe:
-        {
-            return "a keyframe stood on the next onset of its string and was moved back to its "
-                   "clearance";
-        }
         case ChartRepair::FretPastBoard:
         {
             return "a position past the last fret was clamped onto the board";
@@ -322,9 +317,10 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     note.sustain = sustain;
     // The bound is inclusive for every channel: a statement standing exactly at the new end
     // survives, whatever it states — and the end's own statement, arriving back on top of it,
-    // overlays it (setEndStatement). Where that end is a head of the note's own string, the
-    // clearance repair (normalizeKeyframeClearances) moves the statement back — heads are no
-    // business of a clip.
+    // overlays it (setEndStatement). Where that end is a head of the note's own string the
+    // statement STANDS on it, which is what the store says the hands did; the spacing a mark needs
+    // to be seen and reached is presentation's (presentedChartNotes rule 2). Heads are no business
+    // of a clip.
     std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
         return note.sustain < keyframe.offset;
     });
@@ -357,35 +353,6 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
-Fraction lastStatementClearance(const ChartNote& note, const Fraction gap, const Fraction margin)
-{
-    // The last leg starts at the statement before the last keyframe — the onset when there is
-    // none — and the clearance never takes it: a real landing at a junction the margin line falls
-    // on would otherwise be overwritten by the statement moved onto it.
-    const std::size_t count = note.keyframes.size();
-    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
-    return latestStatementBeforeStrike(gap, margin, leg_start);
-}
-
-std::optional<Fraction> keyframeClearanceOf(
-    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
-{
-    if (note.keyframes.empty())
-    {
-        return std::nullopt;
-    }
-    const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
-    if (!bound.has_value())
-    {
-        return std::nullopt;
-    }
-    // The bound IS the distance to the next strike on the string, so advancing the onset by it
-    // names the head the clearance is kept before — the onset the margin protects.
-    const Fraction margin = minimumSustainDistanceBeats(
-        tempo_map, advanceGridPosition(tempo_map, note.position, *bound));
-    return lastStatementClearance(note, *bound, margin);
-}
-
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
 std::vector<std::size_t> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
@@ -403,41 +370,6 @@ std::vector<std::size_t> normalizeSustainOverlaps(
         truncated.push_back(index);
     }
     return truncated;
-}
-
-// Only a keyframe ON the head moves — one inside the margin is a charter's deliberate placement
-// and stands. The release IS the ring's end, so it moves by resizing the ring
-// (clipPayloadsToSustain re-attaches it at the new end); any other statement moves alone and the
-// ring keeps its length. Only the last keyframe can reach the head: every other one stands
-// strictly before it.
-std::vector<std::size_t> normalizeKeyframeClearances(
-    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
-{
-    std::vector<std::size_t> moved;
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        ChartNote& note = notes[index];
-        const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
-        if (note.keyframes.empty() || !bound.has_value() || note.keyframes.back().offset < *bound)
-        {
-            continue;
-        }
-        const std::optional<Fraction> clearance = keyframeClearanceOf(notes, note, tempo_map);
-        if (!clearance.has_value())
-        {
-            continue;
-        }
-        if (releaseKeyframe(note) != nullptr)
-        {
-            clipPayloadsToSustain(note, *clearance);
-        }
-        else
-        {
-            note.keyframes.back().offset = *clearance;
-        }
-        moved.push_back(index);
-    }
-    return moved;
 }
 
 std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
@@ -686,17 +618,6 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::OverlappingTail,
-                .where = positionText(chart.notes[index].position) + " string " +
-                         std::to_string(chart.notes[index].string),
-            });
-    }
-    // The other rule a note cannot obey alone: no keyframe sits on a head of its own string. After
-    // the truncation, which is what carries a statement onto the head.
-    for (const std::size_t index : normalizeKeyframeClearances(chart.notes, tempo_map))
-    {
-        conversions.push_back(
-            ChartConversion{
-                .repair = ChartRepair::CrowdedKeyframe,
                 .where = positionText(chart.notes[index].position) + " string " +
                          std::to_string(chart.notes[index].string),
             });
@@ -1013,9 +934,8 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        // What a note's neighbours make of its ring and its keyframes — the same-string bound, and
-        // the head no keyframe may sit on — is normalized, never refused: every producer runs
-        // normalizeSustainOverlaps and normalizeKeyframeClearances before it validates.
+        // What a note's neighbours make of its ring — the same-string bound — is normalized, never
+        // refused: every producer runs normalizeSustainOverlaps before it validates.
         previous_note = &note;
     }
 

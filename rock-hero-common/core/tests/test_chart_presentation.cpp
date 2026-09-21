@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -11,6 +12,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -552,35 +554,33 @@ TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]
     }
 }
 
-// A released ring whose next head is on its OWN string presents exactly as stored, and that is the
-// two rules agreeing rather than presentation standing aside: the stored repair has already put the
-// release at its clearance before that head (keyframeClearanceOf), and rule 2's carry asks the very
-// same authority (lastStatementClearance) with the same head, the same margin and the same last
-// leg — so it arrives at the number the chart is already stored at and finds nothing to do. These
-// are its worked numbers, measured on the repaired stream.
-TEST_CASE("A released ring presents as stored, clear of the next head", "[core][chart]")
+// A released ring may END EXACTLY ON the next head of its OWN string — the store holds what the
+// hands did (user ruling, 2026-09-21) — and PRESENTATION is the only thing that spaces it. So the
+// stored ring survives the load path untouched and the drawn one ends where the store used to be
+// squished to: rule 2's carry, asked with that head, that margin and that last leg. These are its
+// worked numbers on the same shapes the stored repair was pinned on.
+TEST_CASE("A released ring abuts the next head and presents one clearance early", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
-    const auto repaired_and_presented = [&map](std::vector<ChartNote> saved) {
+    const auto stored_and_presented = [&map](std::vector<ChartNote> saved) {
+        const std::vector<ChartNote> before = saved;
+        // The ring already ends at its bound, so the one rule a note cannot obey alone has nothing
+        // to do: the abutting end statement stays exactly where it was authored.
         static_cast<void>(normalizeSustainOverlaps(saved, map));
-        static_cast<void>(normalizeKeyframeClearances(saved, map));
+        CHECK(saved == before);
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // Nothing left to trim, and nothing moved either: the presented ring is the stored one and
-        // every statement prints at the offset the chart states it at.
-        CHECK(presented[0].sustain == saved[0].sustain);
-        CHECK(presented[0].keyframes == saved[0].keyframes);
-        return saved[0];
+        return presented[0];
     };
 
-    SECTION("a slide-out with no room for the margin ends halfway to the next head")
+    SECTION("a slide-out with no room for the margin draws halfway to the next head")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 5}),
             note(at(1, 1, Fraction{1, 5}), 1, Fraction{1}),
         };
         setSlideOut(saved[0], 8);
-        const ChartNote first = repaired_and_presented(saved);
+        const ChartNote first = stored_and_presented(saved);
         CHECK(first.sustain == Fraction{1, 10});
         const int* const falls_toward = slideOutFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
@@ -590,7 +590,7 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         }
     }
 
-    SECTION("a fall whose margin line lands on its last stop ends halfway past it")
+    SECTION("a fall whose margin line lands on its last stop draws halfway past it")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
@@ -598,12 +598,12 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         };
         saved[0].keyframes = {Keyframe{.offset = Fraction{3, 10}, .fret = 7}};
         setSlideOut(saved[0], 9);
-        const ChartNote first = repaired_and_presented(saved);
+        const ChartNote first = stored_and_presented(saved);
         CHECK(first.sustain == Fraction{2, 5});
         CHECK(first.keyframes.size() == 2);
     }
 
-    SECTION("a scrape whose leg starts before the margin line ends on it")
+    SECTION("a scrape whose leg starts before the margin line draws on it")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}, 12),
@@ -611,7 +611,7 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         };
         saved[0].attack = NoteAttack::PickSlide;
         setSlideOut(saved[0], 3);
-        CHECK(repaired_and_presented(saved).sustain == Fraction{9, 5});
+        CHECK(stored_and_presented(saved).sustain == Fraction{9, 5});
     }
 
     SECTION("a scrape whose leg starts inside the margin halves its distance to the next head")
@@ -623,8 +623,102 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         saved[0].attack = NoteAttack::PickSlide;
         saved[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
         setSlideOut(saved[0], 3);
-        CHECK(repaired_and_presented(saved).sustain == Fraction{31, 16});
+        CHECK(stored_and_presented(saved).sustain == Fraction{31, 16});
     }
+}
+
+// THE ACCEPTANCE PROPERTY of deleting the stored clearance law (user ruling, 2026-09-21): the
+// stored chart HOLDS THE TRUTH — a slide-out or a bend may end exactly on the next note's head, on
+// its own string — and presentation ALONE spaces it, to the very offset the stored repair used to
+// squish the note to. So the load path is a no-op on all three shapes the repair was written for,
+// and the drawn stream is what the store used to be.
+//
+// The third case is the 174-bend fix the deletion buys. A bend-only end statement abutting a
+// same-string head used to be moved back ALONE while the ring kept its length, which turned "the
+// curve completes as the note ends" into "the curve completes early and then holds flat to an end
+// it no longer reaches". Now the statement rides the drawn end: still last, still stating its
+// value, completing exactly as the drawn tail does.
+TEST_CASE("The store holds an abutting end statement and presentation spaces it", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // Three ringing notes at one onset, each on its own string, each two beats long and each
+    // re-struck on its own string exactly two beats later — so every ring abuts its next head and
+    // every drawn tail is bound by that same onset, two beats out with a fifth-of-a-beat margin.
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote falls = note(at(1, 1), 1, Fraction{2});
+    setSlideOut(falls, 9);
+    ChartNote bends = note(at(1, 1), 2, Fraction{2});
+    bends.keyframes = {
+        Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+        Keyframe{.offset = Fraction{2}, .bend = 0.0},
+    };
+    // The crowded shape: the last INTERIOR stop stands inside the margin, so a margin back would
+    // fall past it and the drawn end halves the last leg instead.
+    ChartNote crowded = note(at(1, 1), 3, Fraction{2});
+    crowded.keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
+    setSlideOut(crowded, 9);
+    chart.notes = {
+        std::move(falls),
+        std::move(bends),
+        std::move(crowded),
+        note(at(1, 3), 1, Fraction{1}, 7),
+        note(at(1, 3), 2, Fraction{1}, 7),
+        note(at(1, 3), 3, Fraction{1}, 7),
+    };
+
+    const std::vector<ChartNote> authored = chart.notes;
+    // THE STORE IS UNTOUCHED: nothing in the load path moves an end statement off a head, and the
+    // chart it produces is the chart it was handed.
+    CHECK(normalizeChart(chart, map).empty());
+    CHECK(chart.notes == authored);
+    REQUIRE(validateChartRules(chart, map).has_value());
+    for (std::size_t index = 0; index < 3; ++index)
+    {
+        const ChartNote& stored = chart.notes[index];
+        REQUIRE_FALSE(stored.keyframes.empty());
+        CHECK(stored.keyframes.back().offset == stored.sustain);
+        CHECK(stored.sustain == Fraction{2});
+    }
+
+    // THE DRAWN STREAM is where the store used to be squished to: one margin back for a leg that
+    // has room (9/5), half the remaining leg for the crowded one (15/8 + 1/16 = 31/16).
+    const std::vector<ChartNote> presented = presentedNotesOf(chart.notes, map);
+    REQUIRE(presented.size() == chart.notes.size());
+
+    const ChartNote& drawn_fall = presented[0];
+    CHECK(drawn_fall.sustain == Fraction{9, 5});
+    REQUIRE(drawn_fall.keyframes.size() == 1);
+    CHECK(drawn_fall.keyframes.front().offset == Fraction{9, 5});
+    const int* const falls_toward = slideOutFretOrNull(drawn_fall);
+    REQUIRE(falls_toward != nullptr);
+    if (falls_toward != nullptr)
+    {
+        CHECK(*falls_toward == 9);
+    }
+
+    const ChartNote& drawn_bend = presented[1];
+    CHECK(drawn_bend.sustain == Fraction{9, 5});
+    REQUIRE(drawn_bend.keyframes.size() == 2);
+    CHECK(drawn_bend.keyframes.front().offset == Fraction{1, 2});
+    // LAST, at the drawn end, with its value intact — the curve completes as the tail does instead
+    // of completing early and holding flat.
+    const Keyframe& completes = drawn_bend.keyframes.back();
+    CHECK(completes.offset == Fraction{9, 5});
+    CHECK_FALSE(completes.fret.has_value());
+    const std::optional<double>& reached = completes.bend;
+    REQUIRE(reached.has_value());
+    if (reached.has_value())
+    {
+        CHECK_THAT(*reached, Catch::Matchers::WithinULP(0.0, 0));
+    }
+
+    const ChartNote& drawn_crowded = presented[2];
+    CHECK(drawn_crowded.sustain == Fraction{31, 16});
+    REQUIRE(drawn_crowded.keyframes.size() == 2);
+    CHECK(drawn_crowded.keyframes.front().offset == Fraction{15, 8});
+    CHECK(drawn_crowded.keyframes.back().offset == Fraction{31, 16});
+    CHECK(slideOutFretOrNull(drawn_crowded) != nullptr);
 }
 
 // THE END'S OWN STATEMENT RIDES THE PRESENTED END (user ruling, 2026-09-21). A head on ANOTHER

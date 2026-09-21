@@ -630,8 +630,8 @@ whole amendment, not a note stacked on top of them.
    place; the same chord on a selected HEAD runs it backward, joining the head onto its
    predecessor's path as the split's exact inverse (2026-09-12). Because the digit alone plants a silent point, typing the same fret on a tail and stopping
    there leaves nothing behind: the split is the two keystrokes together.
-   **NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME.** The ring clamp and the clearance
-   repair still exist — for load, for import, and for the MOVE verb, which is the one editing
+   **NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME.** The ring clamp
+   still exists — for load, for import, and for the MOVE verb, which is the one editing
    gesture that re-strikes by truncation and can clip payload, deliberately, since a moved note
    brings its own payload and there is nothing coherent to merge. Even it never DELETES a statement:
    a landing that would clip any other keyframe off the tail is refused whole.

@@ -389,8 +389,8 @@ format-side decisions) and the design docs — a fresh session needs no other co
   ring's exact end (the next note), a POINT on the path where a ring covers the slot; `Alt`+digit
   differs only at a ring's exact end, where it authors the slide-out. Dividing a ring is two
   keystrokes — the digit plants the point, `Shift+L` disconnects it — so nothing single-press
-  truncates a ring or clips a keyframe, and the clamp and the clearance repair remain the load,
-  import and MOVE authorities. Everything above about Alt+click/Alt+drag on this lane is retired
+  truncates a ring or clips a keyframe, and the clamp remains the load,
+  import and MOVE authority. Everything above about Alt+click/Alt+drag on this lane is retired
   with it, as are the Phase 5 scope note's "Alt+click pencil placement", the Phase 4 record's
   "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test line
   "insert-with-truncation restored by ONE undo" — the 40-Q2-B normalization itself still governs

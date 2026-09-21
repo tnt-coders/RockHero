@@ -1254,11 +1254,30 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         }
         // It states no fret, so the carry makes no release of it.
         CHECK(slideOutFretOrNull(notes[0]) == nullptr);
-        // The new end IS the next head of its own string, so the clearance repair then moves the
-        // statement back ALONE and the ring keeps its length — the non-release branch, untouched.
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
+        // The new end IS the next head of its own string, and the statement STAYS THERE: the store
+        // holds what the hands did, and nothing in it spaces a mark (user ruling, 2026-09-21). The
+        // truncation is its own fixpoint.
+        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
         CHECK(notes[0].sustain == Fraction{2});
-        CHECK(notes[0].keyframes[1].offset == Fraction{9, 5});
+        CHECK(notes[0].keyframes[1].offset == Fraction{2});
+    }
+
+    SECTION("a stated fret carried onto the head is the release there and stays on it")
+    {
+        // A fret at the ring's end IS the release (releaseKeyframe reads position), so a ring cut
+        // back onto its own arrival falls away toward it — on the head itself, which is where the
+        // material says the fall completes.
+        notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
+        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(notes[0].sustain == Fraction{2});
+        REQUIRE(notes[0].keyframes.size() == 1);
+        CHECK(notes[0].keyframes.front().offset == Fraction{2});
+        const int* const release = slideOutFretOrNull(notes[0]);
+        REQUIRE(release != nullptr);
+        if (release != nullptr)
+        {
+            CHECK(*release == 7);
+        }
     }
 
     SECTION("a statement standing exactly at the new end takes the carried one's channels")
@@ -1279,147 +1298,6 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // (stripReleaseChannels).
         CHECK(merged.fret == 9);
         CHECK(!merged.vibrato.has_value());
-    }
-}
-
-// A released ring stops clear of the next strike on its string, because its end is the release and
-// no head may cover it. The clearance is the minimum sustain distance — a tenth of a second, which
-// is a fifth of a beat at this fixture's 120 BPM — or half the gap where the gap is not longer than
-// that. A plain ring still reaches the strike exactly.
-// No keyframe crowds a head of its own string, whatever it states: the last keyframe stands at its
-// clearance at the latest. The release IS the ring's end, so it moves by the ring shortening
-// under it; any other statement moves alone and the ring keeps its length.
-TEST_CASE("A last keyframe stands clear of the next strike on its string", "[core][chart]")
-{
-    const TempoMap tempo_map = makeTempoMap();
-    const auto note_at = [](const GridPosition position, const Fraction sustain, const int fret) {
-        ChartNote note;
-        note.position = position;
-        note.string = 1;
-        note.fret = fret;
-        note.sustain = sustain;
-        return note;
-    };
-    const auto released = [&note_at](const Fraction sustain) {
-        ChartNote note = note_at(GridPosition{.measure = 1, .beat = 1}, sustain, 5);
-        setSlideOut(note, 3);
-        return note;
-    };
-
-    SECTION("a release keeps the minimum sustain distance")
-    {
-        std::vector<ChartNote> notes{
-            released(Fraction{2}),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        // The ring itself is inside its bound: the truncation has nothing to do.
-        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{9, 5});
-        const int* const release = slideOutFretOrNull(notes[0]);
-        REQUIRE(release != nullptr);
-        if (release != nullptr)
-        {
-            CHECK(*release == 3);
-        }
-        // The clipped ring is its own fixpoint.
-        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
-    }
-    SECTION("or half the gap where the gap is not longer than that")
-    {
-        std::vector<ChartNote> notes{
-            released(Fraction{1, 8}),
-            note_at(
-                GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}}, Fraction{1}, 7),
-        };
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{1, 16});
-        CHECK(slideOutFretOrNull(notes[0]) != nullptr);
-    }
-    SECTION("never taking the statement before it")
-    {
-        // The margin line at 9/5 falls before the stop at 15/8, so the release halves the leg's
-        // distance to the strike instead: 15/8 + 1/16 = 31/16, the stop kept.
-        std::vector<ChartNote> notes{
-            released(Fraction{2}),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        notes[0].keyframes.insert(
-            notes[0].keyframes.begin(), Keyframe{.offset = Fraction{15, 8}, .fret = 7});
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{31, 16});
-        REQUIRE(notes[0].keyframes.size() == 2);
-        CHECK(notes[0].keyframes[0].fret == 7);
-        CHECK(slideOutFretOrNull(notes[0]) != nullptr);
-    }
-    SECTION("a keyframe placed inside the margin, short of the head, stands")
-    {
-        // The rule refuses the head, never proximity: a charter who wants the arrival an eighth
-        // before the re-picked head gets exactly that, and the ring still reaches the head (the
-        // adjacency a legato claim reads).
-        std::vector<ChartNote> notes{
-            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{2}, 5),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        notes[0].keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
-        CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
-        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
-        CHECK(notes[0].sustain == Fraction{2});
-        REQUIRE(notes[0].keyframes.size() == 1);
-        CHECK(notes[0].keyframes[0].offset == Fraction{15, 8});
-    }
-    SECTION("a stated fret the truncation carries onto the head is the release there")
-    {
-        // A fret at the ring's end IS the release (releaseKeyframe reads position), so a ring cut
-        // back onto its own arrival falls away toward it, and the clearance then shortens the
-        // ring under the release.
-        std::vector<ChartNote> notes{
-            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{9, 5});
-        const int* const release = slideOutFretOrNull(notes[0]);
-        REQUIRE(release != nullptr);
-        if (release != nullptr)
-        {
-            CHECK(*release == 7);
-        }
-    }
-    SECTION("a bend curve's final point is bound like any other statement")
-    {
-        // An imported bend-release ends on the ring's end, which is the next head: the point
-        // keeps its value and moves to the clearance.
-        std::vector<ChartNote> notes{
-            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{2}, 5),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        notes[0].keyframes = {
-            Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
-            Keyframe{.offset = Fraction{2}, .bend = 0.0},
-        };
-        CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{2});
-        REQUIRE(notes[0].keyframes.size() == 2);
-        CHECK(notes[0].keyframes[1].offset == Fraction{9, 5});
-        const std::optional<double>& moved_bend = notes[0].keyframes[1].bend;
-        REQUIRE(moved_bend.has_value());
-        if (moved_bend.has_value())
-        {
-            CHECK(std::is_eq(*moved_bend <=> 0.0));
-        }
-    }
-    SECTION("a plain ring still reaches the strike exactly")
-    {
-        std::vector<ChartNote> notes{
-            note_at(GridPosition{.measure = 1, .beat = 1}, Fraction{3}, 5),
-            note_at(GridPosition{.measure = 1, .beat = 3}, Fraction{1}, 7),
-        };
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{2});
-        CHECK(normalizeKeyframeClearances(notes, tempo_map).empty());
     }
 }
 
@@ -2114,24 +1992,25 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE_FALSE(negative_result.has_value());
     CHECK(negative_result.error().code == ChartErrorCode::InvalidNotePayload);
 
-    // A keyframe sitting on a later onset of its string is NORMALIZED, never refused: the load
-    // repair moves it back to its clearance (normalizeKeyframeClearances), so the validator, which
-    // every producer runs after that repair, accepts the chart as it stands. The ring here runs
-    // PAST the landing, so the truncation carries the statement to the ring's end, where a stated
-    // fret IS the release; the clearance then shortens the ring under it to one margin short of
-    // the landing — 2/15, the third-beat gap less the margin.
+    // A keyframe sitting exactly on a later onset of its string is LEGAL and nothing moves it: the
+    // store holds what the hands did, and the spacing a mark needs to be seen belongs to
+    // presentation alone (user ruling, 2026-09-21). The ring here runs PAST the landing, so the one
+    // rule a note cannot obey alone truncates it to exact adjacency — the third-beat gap, 1/3 — and
+    // carries the statement to that end, where a stated fret IS the release. That is the whole of
+    // what the load path reports.
     Chart keyframe_on_onset = makeFullChart();
     keyframe_on_onset.notes[5].sustain = Fraction{1, 2};
     keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
     CHECK(validateChartRules(keyframe_on_onset, tempo_map).has_value());
     const std::vector<ChartConversion> moved = normalizeChart(keyframe_on_onset, tempo_map);
-    REQUIRE(moved.size() == 2);
+    REQUIRE(moved.size() == 1);
     CHECK(moved[0].repair == ChartRepair::OverlappingTail);
-    CHECK(moved[1].repair == ChartRepair::CrowdedKeyframe);
-    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{2, 15});
+    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 3});
     REQUIRE(keyframe_on_onset.notes[5].keyframes.size() == 1);
-    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{2, 15});
+    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 3});
     CHECK(slideOutFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
+    // And the normalized chart is its own fixpoint: a second pass reports nothing.
+    CHECK(normalizeChart(keyframe_on_onset, tempo_map).empty());
 
     // Spans and postures are derived from the notes, so there is no out-of-range index or
     // mis-sized array left for a structural refusal to catch.
@@ -3254,10 +3133,9 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     setSlideOut(stationary_terminal.notes[scrape], 5);
     expect_stilled(stationary_terminal);
 
-    // No keyframe sits on a head of its own string, and a scrape's terminal is no exception: it is
-    // the release, whose chip a head there would cover, so a terminal on the next onset is refused
-    // (the load repair moves one back to its clearance first). An interior turnaround on a later
-    // onset is rejected the same way.
+    // A scrape's terminal may stand exactly on the next head of its string, like any other end
+    // statement: the store holds where the pick actually stopped, and presentation alone spaces the
+    // chip before the head. So nothing here is refused and nothing is moved.
     Chart terminal_on_onset;
     terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     terminal_on_onset.notes = {
@@ -3279,28 +3157,27 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .keyframes = {},
         },
     };
-    // A terminal on the next head is normalized like every keyframe on a head: the scrape's ring
-    // shortens under it to the clearance, and the chart then validates.
+    // The ring is already inside its bound, so the load path finds nothing at all to repair and the
+    // terminal stays exactly on the head the charter ran it to.
     CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
-    const std::vector<ChartConversion> terminal_moved =
-        normalizeChart(terminal_on_onset, tempo_map);
-    REQUIRE(terminal_moved.size() == 1);
-    CHECK(terminal_moved.front().repair == ChartRepair::CrowdedKeyframe);
-    CHECK(terminal_on_onset.notes[0].sustain == Fraction{3, 10});
+    CHECK(normalizeChart(terminal_on_onset, tempo_map).empty());
+    CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 2});
+    REQUIRE(terminal_on_onset.notes[0].keyframes.size() == 1);
+    CHECK(terminal_on_onset.notes[0].keyframes.front().offset == Fraction{1, 2});
     CHECK(slideOutFretOrNull(terminal_on_onset.notes[0]) != nullptr);
 
-    // An interior stop on the head with the ring running past it: the truncation makes that stop
-    // the terminal (a fret at the ring's end is the release) and the clearance shortens under it.
+    // An interior stop on the head with the ring running PAST it: the truncation cuts to exact
+    // adjacency and makes that stop the terminal (a fret at the ring's end is the release), on the
+    // head, with nothing else to report.
     Chart interior_on_onset = terminal_on_onset;
     interior_on_onset.notes[0].sustain = Fraction{1};
     interior_on_onset.notes[0].keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 4}};
     setSlideOut(interior_on_onset.notes[0], 9);
     const std::vector<ChartConversion> interior_moved =
         normalizeChart(interior_on_onset, tempo_map);
-    REQUIRE(interior_moved.size() == 2);
-    CHECK(interior_moved[0].repair == ChartRepair::OverlappingTail);
-    CHECK(interior_moved[1].repair == ChartRepair::CrowdedKeyframe);
-    CHECK(interior_on_onset.notes[0].sustain == Fraction{3, 10});
+    REQUIRE(interior_moved.size() == 1);
+    CHECK(interior_moved.front().repair == ChartRepair::OverlappingTail);
+    CHECK(interior_on_onset.notes[0].sustain == Fraction{1, 2});
     CHECK(validateChartRules(interior_on_onset, tempo_map).has_value());
 }
 

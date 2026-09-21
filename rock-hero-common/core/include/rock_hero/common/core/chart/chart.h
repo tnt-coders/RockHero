@@ -566,16 +566,13 @@ only verb that changes a point's kind is the one that moves the ring's end onto 
 that arrives and then stops is written the way the importer already writes every arrival: the stop
 one margin inside the end, the ring running on to where the string is next struck.
 
-No keyframe sits on a later onset of its own string, whatever it states — a fret there would store
-the landing's coordinates a second time, the desyncable encoding, and any mark there could be
-neither seen nor reached under the head. A statement nobody placed by hand takes the clearance
-instead (\ref keyframeClearanceOf): the minimum sustain distance before the next strike on its
-string, or halfway from the statement before it where the margin line falls on or before that
-statement. So an imported glide into a real note ends a margin before its landing, and a keyframe
-a truncation carries onto the head is moved back on load (\ref normalizeKeyframeClearances), the
-release with the ring's end riding under it, exactly as the editor's plan gate moves one an edit
-lands there. A charter's own placement INSIDE the margin is deliberate and stands: the rule
-refuses the head, never the margin.
+A KEYFRAME MAY SIT EXACTLY ON A LATER ONSET OF ITS OWN STRING: the stored chart holds the truth,
+and a slide-out or a bend that completes as the next note is struck is what the hands did (user
+ruling, 2026-09-21). Nothing in the store spaces it. The spacing a mark needs to be seen and
+reached is presentation's, applied to the DRAWN copy alone: a statement at the ring's end rides to
+one minimum sustain distance before the onset that binds the drawn tail, or halfway along its own
+last leg where that margin would crowd the leg's start (\ref presentedChartNotes rule 2). Both
+surfaces and scoring read the presented note, so they agree by construction.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal

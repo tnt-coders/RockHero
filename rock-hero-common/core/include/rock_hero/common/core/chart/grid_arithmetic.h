@@ -74,15 +74,19 @@ makes a tempo change inside the margin exact and the answer never shorter than t
 \brief The latest offset a gesture-ending statement may stand at before the next strike on its
 string.
 
-A statement nobody placed by hand — a shift glide's synthesized arrival, a release or a bend
-curve's final point that a truncation carried onto the head — keeps clear of the head that follows
-it by the minimum sustain distance, so the two marks never print on top of each other and the one
-before the head stays reachable. The gesture's last LEG starts at `leg_start`, and no statement
-before it may be taken: where the margin line falls on or before that start, the statement halves
-the leg's distance to the strike instead, the one split that always leaves both a leg and a gap
-however crowded the passage. One answer for every producer (\ref keyframeClearanceOf), so an
-imported arrival and a repaired keyframe cannot disagree about where a statement lands before a
-head. A charter's own placement inside the margin is not this function's business: it stands.
+A statement that must stand clear of the head after it keeps the minimum sustain distance from it,
+so the two marks never print on top of each other and the one before the head stays reachable. The
+gesture's last LEG starts at `leg_start`, and no statement before it may be taken: where the margin
+line falls on or before that start, the statement halves the leg's distance to the strike instead,
+the one split that always leaves both a leg and a gap however crowded the passage.
+
+One answer for all three askers, so they cannot disagree about where a statement lands before a
+head: the DRAWN place of any statement standing at a ring's end (\ref presentedChartNotes rule 2),
+the importer's synthesized shift-glide arrival, and the `Shift+L` split's matching retreat. The
+first is display alone — the stored chart holds the truth, an end statement sitting exactly on the
+next head included — while the other two are stored, because a fret at a ring's end is the release
+and a shift glide's arrival is a pitched stop. A charter's own placement inside the margin is not
+this function's business: it stands.
 
 \param gap Beats from the note's onset to the next strike on its string; strictly positive.
 \param margin The minimum sustain distance in beats at the strike this clearance is kept before
