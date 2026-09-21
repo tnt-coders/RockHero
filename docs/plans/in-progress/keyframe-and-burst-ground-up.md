@@ -283,9 +283,29 @@ Written before the user's statement that a bend must probably stand at a ring's 
 what breaks "a release is bare", and the ruleset section above works through the consequence: the
 choice is no longer "positional versus a stated release" in the abstract but Set A versus Set B,
 and the stored model follows from the set. The inventory above still applies — it is the list of
-what Set B deletes and what Set A generalises. Whether end-of-ring bends occur in real material,
-and how the importer treats them today, is being measured against the Guitar Pro corpus; the
-result belongs here.
+what Set B deletes and what Set A generalises.
+
+**Measured 2026-09-21 against the local Guitar Pro corpus (115 files, all read; 1960 bent notes).**
+The user's belief holds, and the need is common:
+
+| | bent notes | share |
+|---|---|---|
+| final value reached early, then held | 1129 | 57.6% |
+| a point at the very end that only restates the plateau (silent, correctly stripped) | 528 | 26.9% |
+| **a bend still MOVING at the very end** — 181 releases, 122 rises, across 26 files | **303** | **15.5%** |
+| bent notes that also slide out | 9 | 0.5% |
+| both — a moving end bend AND a slide-out | 0 | 0% |
+
+The curve holds flat past its last statement, so a bend that completes exactly as the ring ends
+can only be written as a statement AT the end; the bend study says as much ("a zero statement
+creates the release ramp"). Today a bend-ONLY keyframe at the end is already legal, round-trips,
+is imported from Guitar Pro without clamping, and both surfaces draw it. What today's model cannot
+hold is a fret AND a bend at the end: the bend is destroyed at load (`ReleasePayload`), by
+`setSlideOut` and after every clip, and the importer's slide-out path takes that loss on purpose.
+No note in the corpus needs both — so that collision is a hole in the model, not yet in the data.
+
+One side effect to carry into either set: the presentation trim never trims past a note's last
+keyframe, so an end-of-ring bend pins the DRAWN tail to the full stored ring.
 
 ## 3. Why silent points stay in the document
 
