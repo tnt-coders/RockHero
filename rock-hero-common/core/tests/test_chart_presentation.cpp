@@ -17,8 +17,9 @@ namespace rock_hero::common::core
 namespace
 {
 
-// A plain 4/4 map at 120 BPM with room for the handful of measures these fixtures use. In 4/4 the
-// margin is a quarter beat (1/16 of a whole note). The kept-sustain bound is a DURATION,
+// A plain 4/4 map at 120 BPM with room for the handful of measures these fixtures use. The margin
+// is a DURATION (`g_minimum_sustain_distance_seconds`), so at this tempo it is a fifth of a beat;
+// the meter never enters it. The kept-sustain bound is a DURATION too,
 // `g_minimum_kept_sustain_seconds` — stated there and nowhere else, since it is headed for a
 // user-tunable option — and at this tempo a half-beat ring lasts exactly that long, so the many
 // half-beat fixtures below sit ON the bound and present no tail. The cases say where each ring
@@ -29,16 +30,18 @@ namespace
     return TempoMap::defaultMap(TimeDuration{60.0});
 }
 
-// Measures 1-2 are 4/4, measure 3 onward is 6/8. The margin is whole-note-referenced, so the meter
-// change doubles it: a quarter beat in 4/4, half a beat in 6/8. That is what makes a 6/8 trim a
-// different number, not a different rule.
+// Measures 1-2 are 4/4, measure 3 onward is 6/8, at one quarter note per second throughout (23
+// quarters to the terminal anchor). The margin is a duration, so the meter change does not scale
+// it — it changes how long a BEAT is: a quarter-note beat lasts a second and takes a tenth of one
+// as its margin, an eighth-note beat lasts half a second and takes a fifth of one. Same tenth of a
+// second, same rule, two beat counts.
 [[nodiscard]] TempoMap meterChangeMap()
 {
     return TempoMap{
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
          TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8}},
         {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-         BeatAnchor{.measure = 8, .beat = 1, .seconds = 24.0}},
+         BeatAnchor{.measure = 8, .beat = 1, .seconds = 23.0}},
     };
 }
 
@@ -202,9 +205,10 @@ struct SpanFigure
 } // namespace
 
 // Rule 1: a tail reaching its next binding onset ends one minimum sustain distance before it, and
-// the margin is read at the note's OWN measure — so the same 3-beat ring against a 3-beat gap
-// keeps a quarter beat clear in 4/4 and half a beat clear in 6/8.
-TEST_CASE("Rule 1 trims a tail to the margin at its own meter", "[core][chart]")
+// the margin is the same tenth of a second wherever it is taken — so the same 3-beat ring against
+// a 3-beat gap keeps a tenth of a quarter-note beat clear in 4/4 and a fifth of an eighth-note
+// beat clear in 6/8, which is the same stretch of time.
+TEST_CASE("Rule 1 trims a tail to the margin at its own tempo", "[core][chart]")
 {
     const TempoMap map = meterChangeMap();
     const std::vector<ChartNote> saved = {
@@ -216,12 +220,12 @@ TEST_CASE("Rule 1 trims a tail to the margin at its own meter", "[core][chart]")
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
-    // 4/4: two beats to the next onset, less the quarter-beat margin.
-    CHECK(presented[0] == Fraction{7, 4});
+    // 4/4 at one second per beat: two beats to the next onset, less a tenth of a beat.
+    CHECK(presented[0] == Fraction{19, 10});
     // Six beats of clearance, so nothing trims.
     CHECK(presented[1] == Fraction{1});
-    // 6/8: three eighth-note beats to the next onset, less the half-beat margin.
-    CHECK(presented[2] == Fraction{5, 2});
+    // 6/8 at half a second per beat: three beats to the next onset, less a fifth of a beat.
+    CHECK(presented[2] == Fraction{14, 5});
     // Nothing binds the last onset, so it presents whole.
     CHECK(presented[3] == Fraction{2});
 
@@ -251,12 +255,12 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
         // The ring passes the onset a beat in, then stops an eighth beat short of the one two
-        // beats in — well inside the quarter-beat margin — so that onset binds it and trims to
-        // 7/4. Under such an exemption it would present its whole 15/8 and die on that head.
-        CHECK(presented[0] == Fraction{7, 4});
+        // beats in — inside the margin — so that onset binds it and trims to 9/5. Under such an
+        // exemption it would present its whole 15/8 and die on that head.
+        CHECK(presented[0] == Fraction{9, 5});
         CHECK(presented[0] != Fraction{15, 8});
         // The onset it passed still trims against the onset after it, exactly as any tail does.
-        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[1] == Fraction{4, 5});
         CHECK(presented[2] == Fraction{1});
     }
 
@@ -273,8 +277,8 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
         // Reaching an onset is not passing it, so the two-beat ring binds on the onset two beats
         // in. This is the common let-ring collision rather than a corner case: a notated ring
         // ends on a musical boundary and the next note starts from one.
-        CHECK(presented[0] == Fraction{7, 4});
-        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[0] == Fraction{9, 5});
+        CHECK(presented[1] == Fraction{4, 5});
         CHECK(presented[2] == Fraction{1});
     }
 
@@ -291,7 +295,7 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
         // The whole-bar ring passes both later onsets and nothing lies beyond its end, so nothing
         // binds it — the same answer a last note gets.
         CHECK(presented[0] == Fraction{4});
-        CHECK(presented[1] == Fraction{3, 4});
+        CHECK(presented[1] == Fraction{4, 5});
         CHECK(presented[2] == Fraction{1});
     }
 
@@ -310,10 +314,10 @@ TEST_CASE("Rule 1 binds on the first onset a ring does not pass", "[core][chart]
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // Half a beat to the next onset, less the quarter-beat margin.
-        CHECK(presented[0] == Fraction{1, 4});
-        // Binding on the onset a whole beat away instead would have left 3/4.
-        CHECK(presented[0] != Fraction{3, 4});
+        // Half a beat to the next onset, less the margin.
+        CHECK(presented[0] == Fraction{3, 10});
+        // Binding on the onset a whole beat away instead would have left 4/5.
+        CHECK(presented[0] != Fraction{4, 5});
     }
 }
 
@@ -324,7 +328,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     // Two beats of ring over an onset one beat in and another two beats in: the ring passes the
-    // first and binds on the second, whose margin line sits at 7/4.
+    // first and binds on the second, whose margin line sits at 9/5.
     std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{2}),
         note(at(1, 2), 2, Fraction{1}),
@@ -340,7 +344,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // The margin alone would stop at 7/4; the second point still says something new at 15/8,
+        // The margin alone would stop at 9/5; the second point still says something new at 15/8,
         // so the tail runs to it and stops exactly there.
         CHECK(presented[0].sustain == Fraction{15, 8});
         // Both statements lie inside the kept ring, so the clip takes neither — a ring-through
@@ -354,16 +358,16 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         // carrying a shift-slide whose arrival keyframe the importer synthesizes at
         // `gap - margin`. The ring passes the neighbour and binds on the landing it reaches, and
         // the trim stops exactly on that arrival — which is the instant the arrival was placed
-        // for. Presented whole, the tail ran a quarter beat past its own arrival and died on the
-        // landing head with no gap at all.
+        // for. Presented whole, the tail ran a margin past its own arrival and died on the landing
+        // head with no gap at all.
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{1}, .fret = 5},
-            Keyframe{.offset = Fraction{7, 4}, .fret = 2},
+            Keyframe{.offset = Fraction{9, 5}, .fret = 2},
         };
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
+        CHECK(presented[0].sustain == Fraction{9, 5});
         // The pin keyframe restates the onset fret and so says nothing new, but it still lies
         // inside the kept ring, so the clip keeps it.
         CHECK(presented[0].keyframes.size() == 2);
@@ -411,12 +415,12 @@ TEST_CASE("A trimmed ring-through still earns its group's tails", "[core][chart]
     REQUIRE(presented.size() == saved.size());
     // The ring passes the onset a quarter beat in and then binds on the onset half a beat in,
     // trimming to that onset's margin — the exemption would have presented the whole half beat.
-    CHECK(presented[0] == Fraction{1, 4});
+    CHECK(presented[0] == Fraction{3, 10});
     CHECK(presented[0] != Fraction{1, 2});
     // Its partner rings the same length and passes the same onset, so neither member earns by its
     // own ring and the passed onset is the only thing that can earn this strum a tail. Without that
     // earning input both members would present nothing.
-    CHECK(presented[1] == Fraction{1, 4});
+    CHECK(presented[1] == Fraction{3, 10});
     // The onset the ring passed is its own group and earns its own tail by running longer than the
     // bound; it passes the onset after it with nothing beyond to bind it.
     CHECK(presented[2] == Fraction{1});
@@ -481,7 +485,7 @@ TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
         CHECK(stripSilentKeyframes(saved[0]));
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
+        CHECK(presented[0].sustain == Fraction{9, 5});
         REQUIRE(presented[0].keyframes.size() == 1);
         CHECK(presented[0].keyframes.front().offset == Fraction{1, 2});
     }
@@ -492,13 +496,13 @@ TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
         // instant they are reached, so the tail may stop exactly there; a shake is an interval
         // STATE, and a tail ending on its first instant would show it for no time at all and read
         // as no shake. So the tail reaches one minimum slide window past the statement.
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Narrow}};
+        saved[0].keyframes = {Keyframe{.offset = Fraction{9, 5}, .vibrato = VibratoState::Narrow}};
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // Stated exactly ON the margin line, so a point-shaped floor would leave the trim at 7/4;
+        // Stated exactly ON the margin line, so a point-shaped floor would leave the trim at 9/5;
         // the interval's extent is the whole of the difference.
-        CHECK(presented[0].sustain == Fraction{7, 4} + g_minimum_slide_window);
+        CHECK(presented[0].sustain == Fraction{9, 5} + g_minimum_slide_window);
     }
 
     SECTION("a shake starting inside the margin still never reaches past the ring")
@@ -520,11 +524,11 @@ TEST_CASE("Rule 2 floors the trim on the last keyframe", "[core][chart]")
         // stopping exactly on the end — which is what makes the extra window above a property of
         // statements that leave the string shaking rather than of the vibrato channel.
         saved[0].vibrato = VibratoState::Narrow;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{7, 4}, .vibrato = VibratoState::Off}};
+        saved[0].keyframes = {Keyframe{.offset = Fraction{9, 5}, .vibrato = VibratoState::Off}};
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0].sustain == Fraction{7, 4});
+        CHECK(presented[0].sustain == Fraction{9, 5});
     }
 }
 
@@ -548,12 +552,12 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
     SECTION("a slide-out with no room for the margin ends halfway to the next head")
     {
         std::vector<ChartNote> saved = {
-            note(at(1, 1), 1, Fraction{1, 4}),
-            note(at(1, 1, Fraction{1, 4}), 1, Fraction{1}),
+            note(at(1, 1), 1, Fraction{1, 5}),
+            note(at(1, 1, Fraction{1, 5}), 1, Fraction{1}),
         };
         setSlideOut(saved[0], 8);
         const ChartNote first = repaired_and_presented(saved);
-        CHECK(first.sustain == Fraction{1, 8});
+        CHECK(first.sustain == Fraction{1, 10});
         const int* const falls_toward = slideOutFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
         if (falls_toward != nullptr)
@@ -568,10 +572,10 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
             note(at(1, 1), 1, Fraction{1, 2}),
             note(at(1, 1, Fraction{1, 2}), 1, Fraction{1}),
         };
-        saved[0].keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 7}};
+        saved[0].keyframes = {Keyframe{.offset = Fraction{3, 10}, .fret = 7}};
         setSlideOut(saved[0], 9);
         const ChartNote first = repaired_and_presented(saved);
-        CHECK(first.sustain == Fraction{3, 8});
+        CHECK(first.sustain == Fraction{2, 5});
         CHECK(first.keyframes.size() == 2);
     }
 
@@ -583,7 +587,7 @@ TEST_CASE("A released ring presents as stored, clear of the next head", "[core][
         };
         saved[0].attack = NoteAttack::PickSlide;
         setSlideOut(saved[0], 3);
-        CHECK(repaired_and_presented(saved).sustain == Fraction{7, 4});
+        CHECK(repaired_and_presented(saved).sustain == Fraction{9, 5});
     }
 
     SECTION("a scrape whose leg starts inside the margin halves its distance to the next head")
@@ -734,7 +738,7 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
     // partner too.
     CHECK(presented[0] == Fraction{1, 2});
     // The partner's own length is the margin before the next onset, not the bent string's.
-    CHECK(presented[1] == Fraction{1, 4});
+    CHECK(presented[1] == Fraction{3, 10});
 }
 
 // Rule 4 (E25) reads the note as the earlier rules leave it: a dead string rings nothing, so a
@@ -774,7 +778,7 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
 {
     const TempoMap map = fourFourMap();
 
-    SECTION("a tie-merged chord trimmed at a changed onset presents 7/4")
+    SECTION("a tie-merged chord trimmed at a changed onset presents 9/5")
     {
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}),
@@ -785,25 +789,24 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0] == Fraction{7, 4});
-        CHECK(presented[1] == Fraction{7, 4});
+        CHECK(presented[0] == Fraction{9, 5});
+        CHECK(presented[1] == Fraction{9, 5});
     }
 
-    SECTION("a predecessor bound by a grace's sounding onset presents 5/8")
+    SECTION("a predecessor bound by a grace's sounding onset presents 27/40")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{7, 8}),
             note(at(1, 1, Fraction{7, 8}), 2, Fraction{1, 8}, 7),
             note(at(1, 2), 2, Fraction{1}, 8),
         };
-        // Vibrato only earns the group's tail (rule 3); it changes no payload offset, so the 5/8 is
-        // rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the quarter-beat
-        // margin.
+        // Vibrato only earns the group's tail (rule 3); it changes no payload offset, so the 27/40
+        // is rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the margin.
         saved[0].vibrato = VibratoState::Narrow;
 
         const std::vector<Fraction> presented = presentedSustains(saved, map);
         REQUIRE(presented.size() == saved.size());
-        CHECK(presented[0] == Fraction{5, 8});
+        CHECK(presented[0] == Fraction{27, 40});
         // The ornament's own lead-length tail does not survive: its principal an eighth later binds
         // it, and the margin is wider than the gap.
         CHECK(presented[1] == Fraction{});
@@ -824,9 +827,9 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
         // A full beat runs strictly past the ornament's sounding onset at 7/8, so that onset does
         // not bind it; the principal a beat in does, and the trim is that onset's margin. Binding
         // on the SOUNDING position is what the model buys: reading a separately notated beat
-        // instead would trim this ring to 5/8, the answer the section above pins.
-        CHECK(presented[0] == Fraction{3, 4});
-        CHECK(presented[0] != Fraction{5, 8});
+        // instead would trim this ring to 27/40, the answer the section above pins.
+        CHECK(presented[0] == Fraction{4, 5});
+        CHECK(presented[0] != Fraction{27, 40});
     }
 }
 
@@ -1195,11 +1198,11 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         CHECK(rests[0] == std::optional{Fraction{}});
         // The 2D-facing length is untouched by any of it: rule 1's margin trim against the filler
         // a measure on, and nothing else.
-        CHECK(shown[0] == Fraction{15, 4});
-        // THE HOLD DECISION, and the two candidate answers sit strictly apart: the presented 15/4
+        CHECK(shown[0] == Fraction{19, 5});
+        // THE HOLD DECISION, and the two candidate answers sit strictly apart: the presented 19/5
         // is what a lone resting note holds, NOT the stored four beats a resting-keyed floor would
-        // hand it — which would pin the head a quarter beat into the filler's own margin.
-        CHECK(holds[0] == Fraction{15, 4});
+        // hand it — which would pin the head a margin into the filler's own margin.
+        CHECK(holds[0] == Fraction{19, 5});
         CHECK(holds[0] != Fraction{4});
         // And the covered member beside them still reaches its span: the tenure floor is keyed on
         // coverage, not gone. Its own ring is one beat and the span reaches four.
@@ -1223,8 +1226,8 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         REQUIRE(rests.size() == 2);
         // Rule 1 binds the source at its successor's head, a margin short; the landmark is that
         // very end.
-        CHECK(presented[0].sustain == Fraction{7, 4});
-        CHECK(rests[0] == std::optional{Fraction{7, 4}});
+        CHECK(presented[0].sustain == Fraction{9, 5});
+        CHECK(rests[0] == std::optional{Fraction{9, 5}});
         CHECK_FALSE(hasRestingRemainder(rests[0], presented[0]));
     }
 }
@@ -1560,16 +1563,16 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         REQUIRE(death.size() == 3);
         // The handover keeps the ring, and rule 1 then binds it at the successor's own head — the
         // ordinary trim, applied to the ring the chart states. Its statement finishes THERE, at
-        // the takeover, so it rests from its ribbon's own end: the whole 7/4 is stated portion and
+        // the takeover, so it rests from its ribbon's own end: the whole 9/5 is stated portion and
         // the curtain owns none of it.
-        CHECK(junction[0] == Fraction{7, 4});
-        CHECK(junction_rests[0] == std::optional{Fraction{7, 4}});
+        CHECK(junction[0] == Fraction{9, 5});
+        CHECK(junction_rests[0] == std::optional{Fraction{9, 5}});
         // The natural death states nothing of its own, so the board rests it from the head. The
         // verdict empties no tail, which is at its sharpest here: the released ring presents the
-        // very same rules-1-to-4 trim as the handover — 7/4, rule 1's margin short of the
+        // very same rules-1-to-4 trim as the handover — 9/5, rule 1's margin short of the
         // successor's head — and the whole of what the claim buys is the landmark.
         CHECK(death_rests[0] == std::optional{Fraction{}});
-        CHECK(death[0] == Fraction{7, 4});
+        CHECK(death[0] == Fraction{9, 5});
         CHECK(death[0] == junction[0]);
         // The partner rests from its head either way, so neither answer above is the law simply
         // doing nothing.
@@ -1665,12 +1668,12 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     REQUIRE(shown.size() == 2);
     CHECK(hidden[0]);
     // The verdict empties no tail: hidden means the board rests it, and the value is the
-    // rules-1-to-4 form — 15/4, a quarter beat short of the closing statement's head.
-    CHECK(shown[0] == Fraction{15, 4});
-    // The span's reach from its onset: four beats. NOT the 15/4 the margin trim leaves standing on
+    // rules-1-to-4 form — 19/5, one margin short of the closing statement's head.
+    CHECK(shown[0] == Fraction{19, 5});
+    // The span's reach from its onset: four beats. NOT the 19/5 the margin trim leaves standing on
     // the ribbon, which is the whole of what the extension must not pick up.
     CHECK(holds[0] == Fraction{4});
-    CHECK(holds[0] != Fraction{15, 4});
+    CHECK(holds[0] != Fraction{19, 5});
     // The closing statement stands exactly at the seam its span reaches, so it is covered there
     // too; its plain ring rests like everything else, and the reach behind it adds nothing, so its
     // hold is its own stored ring.
@@ -1766,13 +1769,13 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         // standing LATER gets these same three verdicts, so a covered and an uncovered fixture
         // would be one fixture.
         CHECK(rests[0] == std::optional{Fraction{}});
-        CHECK(rests[1] == std::optional{Fraction{1, 4}});
+        CHECK(rests[1] == std::optional{Fraction{3, 10}});
         CHECK(rests[2] == std::optional{Fraction{}});
         // Rested, never shortened: the partner presents its notated two beats, and the handover's
         // ribbon is bound at the takeover by rule 1 — the margin short of the release's head —
         // which is exactly where its landmark sits.
         CHECK(shown[0] == Fraction{2});
-        CHECK(shown[1] == Fraction{1, 4});
+        CHECK(shown[1] == Fraction{3, 10});
     }
 
     SECTION("the partner's hold follows its verdict: pinned to the span's reach")
@@ -1810,7 +1813,7 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(shaking, map);
         REQUIRE(rests.size() == 5);
         CHECK(rests[0] == std::optional{Fraction{}});
-        CHECK(rests[1] == std::optional{Fraction{1, 4}});
+        CHECK(rests[1] == std::optional{Fraction{3, 10}});
     }
 }
 
@@ -1878,9 +1881,9 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
             CHECK(figure.presented[index].sustain == bare[index]);
         }
         // That form concretely: each strike but the last binds on the next one a beat away and
-        // trims to the quarter-beat margin, while the last has nothing in front of it and rings
-        // its whole beat. This is the rhythm the ribbons do not duplicate at distance.
-        CHECK(bare[0] == Fraction{3, 4});
+        // trims to the margin, while the last has nothing in front of it and rings its whole beat.
+        // This is the rhythm the ribbons do not duplicate at distance.
+        CHECK(bare[0] == Fraction{4, 5});
         CHECK(bare[4] == Fraction{1});
     }
 
@@ -2019,7 +2022,7 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
     }
     // The verdict empties no tail, so each step but the last binds on the next head a beat away and
     // trims to the margin, and the last rings its whole beat.
-    CHECK(shown[0] == Fraction{3, 4});
+    CHECK(shown[0] == Fraction{4, 5});
     CHECK(shown[3] == Fraction{1});
 }
 

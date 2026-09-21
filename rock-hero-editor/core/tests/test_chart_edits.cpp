@@ -55,7 +55,7 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 
 [[nodiscard]] ChartSustainStep tickStep(bool grow)
 {
-    return ChartSustainStep{.note_value = g_tick_quantum_note_value, .grow = grow};
+    return ChartSustainStep{.note_value = common::core::g_tick_quantum_note_value, .grow = grow};
 }
 
 // A valid scrape: fret 9 start, one turnaround keyframe, and the required slide-out terminal
@@ -1065,7 +1065,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             const auto glide =
                 std::ranges::find(onto->inserted, glideOnset(), &common::core::ChartNote::position);
             REQUIRE(glide != onto->inserted.end());
-            CHECK(glide->sustain == common::core::Fraction{15, 4});
+            CHECK(glide->sustain == common::core::Fraction{19, 5});
             CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
         }
         const auto short_of = planMoveSelection(
@@ -1146,7 +1146,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{11, 4});
+                CHECK(tail->sustain == common::core::Fraction{14, 5});
                 const int* const falls_toward = common::core::slideOutFretOrNull(*tail);
                 REQUIRE(falls_toward != nullptr);
                 if (falls_toward != nullptr)
@@ -1194,9 +1194,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             REQUIRE(tail != nullptr);
             if (tail != nullptr)
             {
-                CHECK(tail->sustain == common::core::Fraction{11, 4});
+                CHECK(tail->sustain == common::core::Fraction{14, 5});
                 REQUIRE(tail->keyframes.size() == 1);
-                CHECK(tail->keyframes.front().offset == common::core::Fraction{11, 4});
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{14, 5});
                 CHECK(tail->keyframes.front().fret == 9);
             }
         }
@@ -3130,9 +3130,9 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
             common::core::GridPosition{.measure = 1, .beat = 1},
             &common::core::ChartNote::position);
         REQUIRE(scrape != plan->inserted.end());
-        // Half a beat to the new head, less the quarter-beat margin: the terminal re-aims onto
-        // the fret it still travels toward.
-        CHECK(scrape->sustain == common::core::Fraction{1, 4});
+        // Half a beat to the new head, less the margin: the terminal re-aims onto the fret it
+        // still travels toward.
+        CHECK(scrape->sustain == common::core::Fraction{3, 10});
         CHECK(common::core::isScrape(scrape->attack));
         const int* const terminal = common::core::slideOutFretOrNull(*scrape);
         REQUIRE(terminal != nullptr);
@@ -3923,12 +3923,11 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     CHECK(origin.sustain == common::core::Fraction{2});
     CHECK(origin.attack == common::core::NoteAttack::Pick);
     REQUIRE(origin.keyframes.size() == 1);
-    // The arrival retreats by the glide-into-a-landing margin (a quarter beat in 4/4): a
-    // fret-stating keyframe may not sit on a later onset of its own string, because the head
-    // states those coordinates itself. The RING below still runs to that head.
-    CHECK(
-        origin.keyframes[0].offset ==
-        common::core::Fraction{2} - common::core::minimumSustainDistanceBeats(4));
+    // The arrival retreats by the glide-into-a-landing margin — a tenth of a second, which is a
+    // fifth of a beat at the fixture's 120 BPM: a fret-stating keyframe may not sit on a later
+    // onset of its own string, because the head states those coordinates itself. The RING below
+    // still runs to that head.
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{2} - common::core::Fraction{1, 5});
     CHECK(origin.keyframes[0].fret == 9);
 
     const common::core::ChartNote& product = chart.notes[1];
@@ -4032,7 +4031,8 @@ TEST_CASE("planToggleJunctions lands the origin's arrival at the clearance", "[c
         common::core::Chart chart = makeGlideChart();
         // A leg exactly as long as the margin: retreating by the margin would put the arrival AT
         // the origin's own onset, where no keyframe may sit. The authority halves it instead.
-        const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(4);
+        // The margin is a tenth of a second, a fifth of a beat at the fixture's 120 BPM.
+        const common::core::Fraction margin{1, 5};
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(), common::core::Keyframe{.offset = margin, .fret = 8});
         const auto plan = splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, margin)});
@@ -4049,20 +4049,20 @@ TEST_CASE("planToggleJunctions lands the origin's arrival at the clearance", "[c
         CHECK(origin.sustain == margin);
         REQUIRE(origin.keyframes.size() == 1);
         CHECK(origin.keyframes[0].fret == 8);
-        CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 8});
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 10});
         // The junction hands its own fret to the new head, and the remainder rides on.
         const common::core::ChartNote& split = chart.notes[1];
         CHECK(split.fret == 8);
         CHECK(split.position.offset == margin);
-        CHECK(split.sustain == common::core::Fraction{15, 4});
+        CHECK(split.sustain == common::core::Fraction{19, 5});
     }
 
     SECTION("a junction crowding the statement before it")
     {
         common::core::Chart chart = makeGlideChart();
         // The other crowded shape: the last leg starts at a statement an eighth of a beat back,
-        // inside the 4/4 margin, so the halving is measured from THAT statement rather than from
-        // the onset — no repair may ever take an earlier statement's place.
+        // inside the margin, so the halving is measured from THAT statement rather than from the
+        // onset — no repair may ever take an earlier statement's place.
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(),
             common::core::Keyframe{.offset = common::core::Fraction{15, 8}, .fret = 8});
@@ -4840,9 +4840,7 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     CHECK(common::core::slideOutFretOrNull(second) == nullptr);
     // Its own arrival retreats by the same margin before the head that follows it.
     REQUIRE(second.keyframes.size() == 1);
-    CHECK(
-        second.keyframes[0].offset ==
-        common::core::Fraction{1} - common::core::minimumSustainDistanceBeats(4));
+    CHECK(second.keyframes[0].offset == common::core::Fraction{1} - common::core::Fraction{1, 5});
     CHECK(second.keyframes[0].fret == 11);
 
     // The third opens at the second junction, where the shake still stands and the bend has not
@@ -4964,8 +4962,8 @@ TEST_CASE("planToggleJunctions joins an equal-fret head as a silent point", "[co
 // THE ROUND TRIP, and the reason the join is written as the split's inverse rather than as a
 // second law: splitting a gesture and joining the product back restores the chart field for field.
 // The arrival the split retreated off the new head RETURNS to the junction, asked of the same
-// clearance authority backward — without that return the round trip would quietly lose a quarter
-// beat of travel on every pass.
+// clearance authority backward — without that return the round trip would quietly lose one margin
+// of travel on every pass.
 TEST_CASE("planToggleJunctions makes split then join a byte-exact round trip", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -4985,7 +4983,7 @@ TEST_CASE("planToggleJunctions makes split then join a byte-exact round trip", "
     REQUIRE(chart.notes[0].keyframes.size() == 1);
     CHECK(
         chart.notes[0].keyframes[0].offset ==
-        common::core::Fraction{2} - common::core::minimumSustainDistanceBeats(4));
+        common::core::Fraction{2} - common::core::Fraction{1, 5});
 
     const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 3}, 1)});
     REQUIRE(joined.has_value());

@@ -33,13 +33,17 @@ Exact arithmetic *on* the grid lives in one header, and it is the shared authori
 projections, the editor's duration verb, the Guitar Pro import trims, the connection resolver and
 the validation gate all resolve through — so a spacing rule cannot mean two things:
 
-- `g_minimum_sustain_distance_whole_note` (1/16 of a whole note) and
-  `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
-  before the next event, expressed in signature beats so it scales with the meter.
+- `g_minimum_sustain_distance_seconds` (a tenth of a second), with
+  `marginBefore(tempo_map, onset)` and `minimumSustainDistanceBeats(tempo_map, onset)` — the one
+  settled gap every element keeps before the next event. It is a **duration**, so both take the
+  onset being PROTECTED, walk back through the tempo map's own time axis (a tempo change inside
+  the margin is therefore exact) and floor onto the chart's tick lattice, which keeps the answer
+  from ever falling short of the duration. It must stay below the kept-sustain bound below, so
+  every tail that earns one keeps some ink; a `static_assert` says so.
 - `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 3 drops a short
-  effect-free tail against, and the one quantity here that is a **duration** rather than a note
-  value. Rule 3 reads each note's actual ring in seconds through the tempo map, from onset time to
-  ring-end time, and only a ring running *longer* than the bound earns a *drawn* tail. **The value
+  effect-free tail against, a **duration** for the same reason. Rule 3 reads each note's actual
+  ring in seconds through the tempo map, from onset time to ring-end time, and only a ring running
+  *longer* than the bound earns a *drawn* tail. **The value
   itself is stated only at that constant** — it is headed for a user-tunable option, so read it
   there and never repeat it. Time is the reference because the player experiences the highway in
   time: a note-value bound draws tails too often in a fast song and too rarely in a slow one, so the
@@ -48,7 +52,7 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   between anchors, so the verdict can only change *at* an anchor and never inside a run. It bounds
   only what is drawn: the legato hold test reads the stored ring and asks strict adjacency, so
   nothing about a missing tail is inferred.
-- `g_minimum_slide_window` (1/8 **beat**, not a whole-note reference like the two above) — the
+- `g_minimum_slide_window` (1/8 **beat**, neither a duration nor a whole-note reference) — the
   smallest span a glide, slide-out, or scrape leg may occupy. A zero-length gesture has nowhere to
   travel, so import synthesis, the presentation trim's slide-out compression, and the editor's
   scrape defaults all floor on this one window.

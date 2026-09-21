@@ -553,10 +553,10 @@ TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-co
 
     controller.onGridNoteValueChangeRequested(common::core::Fraction{});
     controller.onGridNoteValueChangeRequested(
-        common::core::Fraction{1, g_tick_quantum_denominator + 1});
+        common::core::Fraction{1, common::core::g_tick_quantum_denominator + 1});
     // Walkable, but nobody's grid: typing the tick into the box would put the whole song's worth
     // of tick lines through the line walk on every scroll.
-    controller.onGridNoteValueChangeRequested(g_tick_quantum_note_value);
+    controller.onGridNoteValueChangeRequested(common::core::g_tick_quantum_note_value);
     controller.onGridNoteValueChangeRequested(
         common::core::Fraction{1, g_max_tempo_grid_note_value_term + 1});
 

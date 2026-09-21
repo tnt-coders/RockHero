@@ -172,8 +172,8 @@ struct ChartShape
     The last instant an EVENT stated this span — its final strum, or the slot whose holds opened or
     grew it — capped at the musical close, and zero on a span no event ever stated. Rule 12a's
     display trim floors on it, because a span's furniture may not retreat behind its own last
-    statement: at anything faster than a sixteenth the closing onset crowds inside the margin, and a
-    box trimmed blindly would stop before the strum it is drawn over.
+    statement: in a fast enough passage the closing onset crowds inside the margin, and a box
+    trimmed blindly would stop before the strum it is drawn over.
 
     Published rather than re-derived beside the trim, for the reason every other span fact here is:
     answering it means knowing WHICH SLOTS this statement covers, and this walk is the only thing

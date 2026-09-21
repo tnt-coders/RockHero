@@ -1490,8 +1490,11 @@ void countDerivation(
             }
             else
             {
+                // The margin is kept before the LANDING, so it is read there: `lands` counts beats
+                // from the grid origin, exactly as `index.onset` does.
                 const Fraction margin = common::core::minimumSustainDistanceBeats(
-                    tempo_map.timeSignatureAt(shape.position.measure).denominator);
+                    tempo_map,
+                    common::core::advanceGridPosition(tempo_map, GridPosition{}, *lands));
                 long long resting = 0;
                 for (const std::size_t member : struck_at_start)
                 {

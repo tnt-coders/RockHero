@@ -317,7 +317,7 @@ TEST_CASE("Visible tempo grid falls back to the default for invalid values", "[c
     CHECK(
         visibleTempoGridLines(
             map,
-            common::core::Fraction{1, g_tick_quantum_denominator + 1},
+            common::core::Fraction{1, common::core::g_tick_quantum_denominator + 1},
             g_one_measure_window,
             g_one_measure_width,
             0,
@@ -409,11 +409,11 @@ TEST_CASE("Tempo grid note-value validity bounds the supported grids", "[core][t
     CHECK(isValidTempoGridNoteValue(common::core::Fraction{128, 1}));
     // The tick must pass, or the geometry layer's fallback would silently swap the placement
     // quantum for the default grid the moment snap goes off.
-    CHECK(isValidTempoGridNoteValue(g_tick_quantum_note_value));
+    CHECK(isValidTempoGridNoteValue(common::core::g_tick_quantum_note_value));
 
     CHECK_FALSE(isValidTempoGridNoteValue(common::core::Fraction{}));
-    CHECK_FALSE(
-        isValidTempoGridNoteValue(common::core::Fraction{1, g_tick_quantum_denominator + 1}));
+    CHECK_FALSE(isValidTempoGridNoteValue(
+        common::core::Fraction{1, common::core::g_tick_quantum_denominator + 1}));
     CHECK_FALSE(isValidTempoGridNoteValue(common::core::Fraction{600000000, 1}));
 }
 
@@ -430,8 +430,8 @@ TEST_CASE("Selectable grid note values stop short of the tick", "[core][tempo-gr
         common::core::Fraction{1, g_max_tempo_grid_note_value_term}));
 
     // Walkable but not pickable: the whole band the placement quantum needs and the grid does not.
-    CHECK(isValidTempoGridNoteValue(g_tick_quantum_note_value));
-    CHECK_FALSE(isSelectableTempoGridNoteValue(g_tick_quantum_note_value));
+    CHECK(isValidTempoGridNoteValue(common::core::g_tick_quantum_note_value));
+    CHECK_FALSE(isSelectableTempoGridNoteValue(common::core::g_tick_quantum_note_value));
     CHECK(
         isValidTempoGridNoteValue(common::core::Fraction{1, g_max_tempo_grid_note_value_term + 1}));
     CHECK_FALSE(isSelectableTempoGridNoteValue(
@@ -448,9 +448,9 @@ TEST_CASE("Placement quantum follows grid snap", "[core][tempo-grid]")
 {
     constexpr common::core::Fraction eighth{1, 8};
     CHECK(placementQuantumNoteValue(eighth, true) == eighth);
-    CHECK(placementQuantumNoteValue(eighth, false) == g_tick_quantum_note_value);
+    CHECK(placementQuantumNoteValue(eighth, false) == common::core::g_tick_quantum_note_value);
     // 1/3840 of a whole note is the MIDI PPQ tick: 1/960 of a quarter note.
-    CHECK(g_tick_quantum_note_value == common::core::Fraction{1, 3840});
+    CHECK(common::core::g_tick_quantum_note_value == common::core::Fraction{1, 3840});
 }
 
 // Verifies the grid keeps one musical duration across a denominator change: a quarter-note grid
@@ -560,7 +560,11 @@ TEST_CASE("Timeline cursor placement snaps to the quantum it is given", "[core][
     // The tick lattice keeps the click essentially where it landed: 1.4 s is an exact multiple of
     // the 1/960-beat step at this tempo, so it survives the snap unchanged.
     const auto tick_position = timelineCursorPlacementTime(
-        map, g_tick_quantum_note_value, g_one_measure_window, g_one_measure_width, 140.0f);
+        map,
+        common::core::g_tick_quantum_note_value,
+        g_one_measure_window,
+        g_one_measure_width,
+        140.0f);
     REQUIRE(tick_position.has_value());
     if (tick_position.has_value())
     {

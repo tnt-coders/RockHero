@@ -13,39 +13,62 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief The minimum sustain distance, as a fraction of a whole note.
+\brief Denominator of the chart's tick lattice: the finest position any chart may store.
 
-The one settled spacing every DRAWN element keeps before a following event: sustain tails, slide
-glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin.
-1/16 whole note; a 1/32 margin closes the gap too tightly to read on screen.
-
-It binds presentation, plus ONE derivation question founded on it deliberately: a never-restruck
-landed span is emitted only where its tenure STRICTLY EXCEEDS this distance at the closing head's
-measure — the same notated quantum that makes two marks distinguishable is what makes a landed
-grip statable, referenced as a note value and never a pixel. The editor's duration verb does NOT
-clamp to it: growth stops at exact adjacency with the next onset on the note's own string
-(\ref sustainBoundOf), because a stored ring has no reason to stop short of anything, and a ring
-trimmed by this margin would leave the editor's reveal nothing to show.
+1/3840 of a whole note is 1/960 of a quarter note — the standard MIDI PPQ tick, far finer than
+audible resolution and still an exact rational. 3840 rather than 4096 because triplet grids need
+the factor of 3, so straight, triplet, and quintuplet subdivisions all land on the lattice.
 */
-inline constexpr Fraction g_minimum_sustain_distance_whole_note{1, 16};
+inline constexpr int g_tick_quantum_denominator = 3840;
 
 /*!
-\brief Returns the minimum sustain distance in signature beats.
+\brief The tick lattice as a note value: the lattice every stored position lands on.
 
-A whole note is `signature_denominator` beats, so the margin scales with the meter: a quarter
-of a beat in x/4, half a beat in x/8.
-
-\param signature_denominator Note value that represents one beat (the signature's denominator).
-\return The margin as an exact beat fraction.
+A note value like any other, so the measure-anchored lattice arithmetic walks it unchanged. It is
+never a grid the user selects or the editor draws — only a lattice positions land on: the editor's
+placement quantum falls back to it while grid snap is off, and the margin walk floors onto it
+(\ref marginBefore).
 */
-[[nodiscard]] constexpr Fraction minimumSustainDistanceBeats(
-    const int signature_denominator) noexcept
-{
-    return Fraction{
-        signature_denominator * g_minimum_sustain_distance_whole_note.numerator,
-        g_minimum_sustain_distance_whole_note.denominator
-    };
-}
+inline constexpr Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominator};
+
+/*!
+\brief The minimum sustain distance: the seconds every DRAWN element keeps before a following
+event.
+
+The one settled spacing sustain tails, slide glide ends, chord/arpeggio shape spans, and the
+hand-window morph ramps all trim to, and the clearance a synthesized glide arrival takes before the
+head that follows it.
+
+A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
+is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
+a barely visible gap at 200. A tenth of a second reads the same at every tempo, and the meter never
+enters — seconds do not care about the signature's denominator.
+
+It binds presentation, plus ONE derivation question founded on it deliberately: a never-restruck
+landed span is emitted only where its tenure STRICTLY EXCEEDS this distance at the closing head —
+the same quantum that makes two marks distinguishable is what makes a landed grip statable,
+referenced as a duration and never a pixel. The editor's duration verb does NOT clamp to it: growth
+stops at exact adjacency with the next onset on the note's own string (\ref sustainBoundOf),
+because a stored ring has no reason to stop short of anything, and a ring trimmed by this margin
+would leave the editor's reveal nothing to show.
+*/
+inline constexpr double g_minimum_sustain_distance_seconds{0.1};
+
+/*!
+\brief Returns the minimum sustain distance in signature beats at the onset it protects.
+
+The margin is the stretch of \ref g_minimum_sustain_distance_seconds immediately BEFORE an onset,
+so how many BEATS it spans is a question about the tempo there and not about the meter: it is
+measured back through the tempo map and floored onto the tick lattice (\ref marginBefore), which
+makes a tempo change inside the margin exact and the answer never shorter than the duration.
+
+\param tempo_map Tempo map supplying the time axis and the beat grid.
+\param onset The onset being PROTECTED — the head the margin is kept before, never the position of
+       the ring, span or gesture that keeps it.
+\return The margin as an exact beat fraction; zero where the onset is the grid origin.
+*/
+[[nodiscard]] Fraction minimumSustainDistanceBeats(
+    const TempoMap& tempo_map, const GridPosition& onset);
 
 /*!
 \brief The latest offset a gesture-ending statement may stand at before the next strike on its
@@ -62,7 +85,8 @@ imported arrival and a repaired keyframe cannot disagree about where a statement
 head. A charter's own placement inside the margin is not this function's business: it stands.
 
 \param gap Beats from the note's onset to the next strike on its string; strictly positive.
-\param margin The minimum sustain distance in beats at the note (\ref minimumSustainDistanceBeats).
+\param margin The minimum sustain distance in beats at the strike this clearance is kept before
+       (\ref minimumSustainDistanceBeats).
 \param leg_start Offset the gesture's last leg starts from — the onset (zero) or its last earlier
        statement; strictly before `gap`.
 \return The latest offset from the onset, in beats, strictly between `leg_start` and `gap`.
@@ -94,6 +118,10 @@ and points here rather than repeating a figure that would then be wrong in one o
 */
 inline constexpr double g_minimum_kept_sustain_seconds{0.25};
 
+// The margin taken off a tail must leave the shortest tail that EARNS one some ink: a margin at or
+// past the bound would trim every earned tail to nothing.
+static_assert(g_minimum_sustain_distance_seconds < g_minimum_kept_sustain_seconds);
+
 /*!
 \brief The depth of the 3D board's sliding tail-reveal window, as a fraction of a whole note.
 
@@ -101,17 +129,20 @@ The execution form's one display constant: a tail the tail law hides draws only 
 WINDOW rising this deep from the hit line — fully lit at the line, fading to nothing at the window's
 outer edge, so the ink continuously materializes as it scrolls in. A window, never a whole-tail
 fade. Resolved at each note's own meter and tempo, referenced as a note value and never a pixel, so
-the window rides tempo exactly as every other distance in this family does. The 2D lane never reads
-it: the lane draws the execution form always. THE TUNABLE the reveal's feel is sighted against — the
-initializer below is the one statement of its value, and no prose restates it.
+a window in a fast song is the shorter wall-clock rise a fast song reads as. Deliberately NOT the
+duration the minimum sustain distance became: a reveal is a MUSICAL lead-in the scrolling board
+carries the ink through, not a gap between two marks that has to stay readable at any tempo. The 2D
+lane never reads it: the lane draws the execution form always. THE TUNABLE the reveal's feel is
+sighted against — the initializer below is the one statement of its value, and no prose restates
+it.
 */
 inline constexpr Fraction g_tail_reveal_lead_whole_note{1, 4};
 
 /*!
 \brief Returns the reveal lead in signature beats.
 
-A whole note is `signature_denominator` beats, so the lead scales with the meter exactly as
-\ref minimumSustainDistanceBeats does.
+A whole note is `signature_denominator` beats, so the lead scales with the meter: a quarter of a
+whole note is one beat in x/4, two in x/8.
 
 \param signature_denominator Note value that represents one beat (the signature's denominator).
 \return The lead as an exact beat fraction.
@@ -226,18 +257,27 @@ with a zero offset. Positions past the terminal anchor keep extending — signat
     const TempoMap& tempo_map, GridPosition position, Fraction beats);
 
 /*!
-\brief The grid position one minimum-sustain-distance margin before a position, at its meter.
+\brief The grid position one minimum-sustain-distance margin before an onset.
 
-The shared arrival rule: where the fretting hand begins its morph toward a placement at
-`position` when no glide carries it there, and where the picking hand's light begins its rise
-toward an onset there. Both ramps read this one function rather than composing the margin
-themselves, so they cannot drift apart. Clamped at the grid origin like \ref advanceGridPosition.
+THE ONE AUTHORITY on where the margin begins, and the only place the margin is a length at all: the
+stretch of \ref g_minimum_sustain_distance_seconds immediately before `onset`, resolved through the
+tempo map's own time axis so a tempo anchor inside the margin is honoured exactly, then FLOORED
+onto the chart's tick lattice (\ref g_tick_quantum_note_value) — floored, because a margin rounded
+the other way would be shorter than the duration it names. \ref minimumSustainDistanceBeats is this
+position measured back in beats, and every trim, clearance and ramp reads one of the two rather
+than composing a margin of its own.
 
-\param tempo_map Tempo map supplying the meter at `position` and the beat axis.
-\param position Valid grid position the margin is measured back from.
-\return The position one margin earlier.
+Its readers: where the fretting hand begins its morph toward a placement at `onset` when no glide
+carries it there, where the picking hand's light begins its rise toward an onset there, and every
+drawn element that must stay clear of the head that follows it. Clamped at the grid origin like
+\ref advanceGridPosition, so an onset standing closer to the chart's start than the margin yields
+the origin itself.
+
+\param tempo_map Tempo map supplying the time axis and the beat grid.
+\param onset Valid grid position the margin is measured back from.
+\return The tick line one margin or more before the onset.
 */
-[[nodiscard]] GridPosition marginBefore(const TempoMap& tempo_map, GridPosition position);
+[[nodiscard]] GridPosition marginBefore(const TempoMap& tempo_map, GridPosition onset);
 
 /*!
 \brief Measures the signed exact beat distance from one grid position to another.

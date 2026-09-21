@@ -1422,7 +1422,7 @@ void EditorController::Impl::landOnRow(
                     marker.row,
                     markerHolderIndex(
                         markerStarts(marker.row),
-                        pausedCursorPosition(g_tick_quantum_note_value))));
+                        pausedCursorPosition(common::core::g_tick_quantum_note_value))));
             },
             [&](const AddLaneFocusRow&) {
                 dissolveChartCaretInPlace();
@@ -1583,7 +1583,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
         moveCursorIntoSelectedMarker();
         if (const std::optional<common::core::GridPosition> start = adjacentPosition(
                 markerStarts(selected->row),
-                pausedCursorPosition(g_tick_quantum_note_value),
+                pausedCursorPosition(common::core::g_tick_quantum_note_value),
                 action.later);
             start.has_value())
         {

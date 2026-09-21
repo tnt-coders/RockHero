@@ -32,9 +32,9 @@ is bookkeeping about that tenure.
    STRICTLY EXCEEDED the notated-distinguishability quantum. The comparison is strict rather
    than inclusive because the importer synthesizes every glide-into-restrike arrival exactly one
    quantum before the replacing onset, so the equality case IS the suppressed population. The
-   quantum is the sixteenth-note distance the presentation margins already use, read at the
-   CLOSING onset's measure — one notated constant deliberately shared with presentation and
-   referenced as a note value, never a pixel. A never-stated landed span at or under the quantum
+   quantum is the minimum sustain distance the presentation margins already use, read at the
+   CLOSING onset — one constant deliberately shared with presentation and referenced as a
+   duration, never a pixel. A never-stated landed span at or under the quantum
    states nothing and is dropped, so the chord name never flickers for a sliver. A
    held-but-never-restruck landed span IS emitted — item 5 means a restrike is not REQUIRED,
    never that tenure is waived. "Held through the slide" is END-INCLUSIVE at the landing

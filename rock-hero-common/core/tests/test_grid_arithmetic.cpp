@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
@@ -25,7 +26,116 @@ namespace
     };
 }
 
+// A 4/4 map running at one steady tempo across five measures, so the margin walk has nothing but
+// the rate to read. Sixteen beats separate the two anchors.
+[[nodiscard]] TempoMap steadyMap(const double quarter_note_bpm)
+{
+    return TempoMap{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+         BeatAnchor{.measure = 5, .beat = 1, .seconds = 16.0 * 60.0 / quarter_note_bpm}},
+    };
+}
+
+// Seconds between two grid positions, the quantity the margin is stated in.
+[[nodiscard]] double secondsBetween(
+    const TempoMap& tempo_map, const GridPosition& from, const GridPosition& to)
+{
+    return tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, to)) -
+           tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, from));
+}
+
 } // namespace
+
+// THE MARGIN IS A DURATION: the same tenth of a second at any tempo, which is the whole point of
+// the law — the gap a player and a charter read on screen must not shrink because the song is
+// fast. The beat counts differ (a tenth of a second is a tenth of a beat at 60 BPM and a third of
+// one at 200), the seconds do not.
+TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[core][chart]")
+{
+    const GridPosition onset{.measure = 3, .beat = 2, .offset = {}};
+
+    const TempoMap slow = steadyMap(60.0);
+    const TempoMap fast = steadyMap(200.0);
+    CHECK(minimumSustainDistanceBeats(slow, onset) == Fraction{1, 10});
+    CHECK(minimumSustainDistanceBeats(fast, onset) == Fraction{1, 3});
+
+    // Measured back through each map, both land on the one duration — within a tick, the lattice
+    // the answer is floored onto.
+    const double slow_tick_seconds = 60.0 / 60.0 * 4.0 / g_tick_quantum_denominator;
+    const double fast_tick_seconds = 60.0 / 200.0 * 4.0 / g_tick_quantum_denominator;
+    CHECK(
+        secondsBetween(slow, marginBefore(slow, onset), onset) ==
+        Catch::Approx(g_minimum_sustain_distance_seconds).margin(slow_tick_seconds));
+    CHECK(
+        secondsBetween(fast, marginBefore(fast, onset), onset) ==
+        Catch::Approx(g_minimum_sustain_distance_seconds).margin(fast_tick_seconds));
+}
+
+// A tempo anchor standing INSIDE the margin is honoured exactly, because the walk leaves the beat
+// axis for the map's time axis and comes back rather than scaling one local rate. Measure 1 runs
+// at 60 BPM, then the beat into measure 2 is pinned twenty times faster: the tenth of a second
+// before the downbeat therefore reaches back over the anchor and most of the way through the
+// preceding beat, which a single-rate margin could never produce.
+TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[core][chart]")
+{
+    const TempoMap map{
+        {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+         BeatAnchor{.measure = 1, .beat = 4, .seconds = 3.0},
+         BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.05},
+         BeatAnchor{.measure = 5, .beat = 1, .seconds = 7.0}},
+    };
+    const GridPosition onset{.measure = 2, .beat = 1, .offset = {}};
+
+    // 0.05 s of the margin is spent on the fast beat and 0.05 s at one second per beat, so the
+    // margin starts 19/20 of a beat into measure 1 beat 3 — on the tick lattice exactly.
+    CHECK(
+        marginBefore(map, onset) ==
+        GridPosition{.measure = 1, .beat = 3, .offset = Fraction{19, 20}});
+    CHECK(minimumSustainDistanceBeats(map, onset) == Fraction{21, 20});
+    CHECK(
+        secondsBetween(map, marginBefore(map, onset), onset) ==
+        Catch::Approx(g_minimum_sustain_distance_seconds));
+}
+
+// The margin always lands ON the chart's tick lattice and is never SHORTER than the duration: the
+// walk floors, so a tempo whose margin falls between two ticks gives the extra sliver away rather
+// than taking it. 137 BPM is deliberately a rate no tick divides.
+TEST_CASE("The minimum sustain distance lands on the tick lattice", "[core][chart]")
+{
+    const TempoMap map = steadyMap(137.0);
+    const std::vector<GridPosition> onsets{
+        GridPosition{.measure = 2, .beat = 1, .offset = {}},
+        GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 3}},
+        GridPosition{.measure = 4, .beat = 4, .offset = Fraction{7, 16}},
+    };
+
+    // A 4/4 beat is a quarter of a whole note, so it holds a quarter of the ticks and an offset on
+    // the lattice reduces to a denominator dividing that count.
+    constexpr int ticks_per_beat = g_tick_quantum_denominator / 4;
+    for (const GridPosition& onset : onsets)
+    {
+        const GridPosition start = marginBefore(map, onset);
+        CHECK(ticks_per_beat % start.offset.denominator == 0);
+        CHECK(secondsBetween(map, start, onset) >= g_minimum_sustain_distance_seconds);
+    }
+}
+
+// An onset standing closer to the chart's start than the margin has nowhere to reach back to, so
+// the walk clamps at the grid origin exactly as advanceGridPosition does and the margin is simply
+// what room there was.
+TEST_CASE("The minimum sustain distance clamps at the chart's start", "[core][chart]")
+{
+    const TempoMap map = steadyMap(60.0);
+
+    CHECK(marginBefore(map, GridPosition{}) == GridPosition{});
+    CHECK(minimumSustainDistanceBeats(map, GridPosition{}) == Fraction{});
+
+    const GridPosition early{.measure = 1, .beat = 1, .offset = Fraction{1, 20}};
+    CHECK(marginBefore(map, early) == GridPosition{});
+    CHECK(minimumSustainDistanceBeats(map, early) == Fraction{1, 20});
+}
 
 // Advancement inside one beat accumulates the offset exactly; crossing the beat carries.
 TEST_CASE("Grid advancement carries offsets across beats", "[core][chart]")

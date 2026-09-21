@@ -1212,9 +1212,9 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 }
 
 // A released ring stops clear of the next strike on its string, because its end is the release and
-// no head may cover it. The clearance is the minimum sustain distance — a quarter beat in 4/4 — or
-// half the gap where the gap is not longer than that. A plain ring still reaches the strike
-// exactly.
+// no head may cover it. The clearance is the minimum sustain distance — a tenth of a second, which
+// is a fifth of a beat at this fixture's 120 BPM — or half the gap where the gap is not longer than
+// that. A plain ring still reaches the strike exactly.
 // No keyframe crowds a head of its own string, whatever it states: the last keyframe stands at its
 // clearance at the latest. The release IS the ring's end, so it moves by the ring shortening
 // under it; any other statement moves alone and the ring keeps its length.
@@ -1244,7 +1244,7 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
         // The ring itself is inside its bound: the truncation has nothing to do.
         CHECK(normalizeSustainOverlaps(notes, tempo_map).empty());
         CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{7, 4});
+        CHECK(notes[0].sustain == Fraction{9, 5});
         const int* const release = slideOutFretOrNull(notes[0]);
         REQUIRE(release != nullptr);
         if (release != nullptr)
@@ -1267,7 +1267,7 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
     }
     SECTION("never taking the statement before it")
     {
-        // The margin line at 7/4 falls before the stop at 15/8, so the release halves the leg's
+        // The margin line at 9/5 falls before the stop at 15/8, so the release halves the leg's
         // distance to the strike instead: 15/8 + 1/16 = 31/16, the stop kept.
         std::vector<ChartNote> notes{
             released(Fraction{2}),
@@ -1309,7 +1309,7 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
         notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
         CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
-        CHECK(notes[0].sustain == Fraction{7, 4});
+        CHECK(notes[0].sustain == Fraction{9, 5});
         const int* const release = slideOutFretOrNull(notes[0]);
         REQUIRE(release != nullptr);
         if (release != nullptr)
@@ -1332,7 +1332,7 @@ TEST_CASE("A last keyframe stands clear of the next strike on its string", "[cor
         CHECK(normalizeKeyframeClearances(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{2});
         REQUIRE(notes[0].keyframes.size() == 2);
-        CHECK(notes[0].keyframes[1].offset == Fraction{7, 4});
+        CHECK(notes[0].keyframes[1].offset == Fraction{9, 5});
         const std::optional<double>& moved_bend = notes[0].keyframes[1].bend;
         REQUIRE(moved_bend.has_value());
         if (moved_bend.has_value())
@@ -1989,7 +1989,7 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     // every producer runs after that repair, accepts the chart as it stands. The ring here runs
     // PAST the landing, so the truncation carries the statement to the ring's end, where a stated
     // fret IS the release; the clearance then shortens the ring under it to one margin short of
-    // the landing — a twelfth, the third-beat gap less the quarter-beat margin.
+    // the landing — 2/15, the third-beat gap less the margin.
     Chart keyframe_on_onset = makeFullChart();
     keyframe_on_onset.notes[5].sustain = Fraction{1, 2};
     keyframe_on_onset.notes[5].keyframes = {Keyframe{.offset = Fraction{1, 3}, .fret = 5}};
@@ -1998,9 +1998,9 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE(moved.size() == 2);
     CHECK(moved[0].repair == ChartRepair::OverlappingTail);
     CHECK(moved[1].repair == ChartRepair::CrowdedKeyframe);
-    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 12});
+    CHECK(keyframe_on_onset.notes[5].sustain == Fraction{2, 15});
     REQUIRE(keyframe_on_onset.notes[5].keyframes.size() == 1);
-    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 12});
+    CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{2, 15});
     CHECK(slideOutFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
 
     // Spans and postures are derived from the notes, so there is no out-of-range index or
@@ -3155,7 +3155,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
         normalizeChart(terminal_on_onset, tempo_map);
     REQUIRE(terminal_moved.size() == 1);
     CHECK(terminal_moved.front().repair == ChartRepair::CrowdedKeyframe);
-    CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 4});
+    CHECK(terminal_on_onset.notes[0].sustain == Fraction{3, 10});
     CHECK(slideOutFretOrNull(terminal_on_onset.notes[0]) != nullptr);
 
     // An interior stop on the head with the ring running past it: the truncation makes that stop
@@ -3169,7 +3169,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     REQUIRE(interior_moved.size() == 2);
     CHECK(interior_moved[0].repair == ChartRepair::OverlappingTail);
     CHECK(interior_moved[1].repair == ChartRepair::CrowdedKeyframe);
-    CHECK(interior_on_onset.notes[0].sustain == Fraction{1, 4});
+    CHECK(interior_on_onset.notes[0].sustain == Fraction{3, 10});
     CHECK(validateChartRules(interior_on_onset, tempo_map).has_value());
 }
 

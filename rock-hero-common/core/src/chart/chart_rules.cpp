@@ -353,10 +353,11 @@ std::optional<Fraction> keyframeClearanceOf(
     // on would otherwise be overwritten by the statement moved onto it.
     const std::size_t count = note.keyframes.size();
     const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
-    return latestStatementBeforeStrike(
-        *bound,
-        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(note.position.measure).denominator),
-        leg_start);
+    // The bound IS the distance to the next strike on the string, so advancing the onset by it
+    // names the head the clearance is kept before — the onset the margin protects.
+    const Fraction margin = minimumSustainDistanceBeats(
+        tempo_map, advanceGridPosition(tempo_map, note.position, *bound));
+    return latestStatementBeforeStrike(*bound, margin, leg_start);
 }
 
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.

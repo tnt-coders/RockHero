@@ -32,9 +32,8 @@ namespace
 //   distance from and is exactly what keeps a landing successor tiled onto its predecessor;
 //
 //   the LAST STATEMENT (\ref ChartShape::stated_extent) floors the trim, because furniture may not
-//   retreat behind the strum it is drawn over. At anything faster than a sixteenth the closing
-//   onset crowds inside the margin, and a box trimmed blindly would stop short of its own last
-//   head;
+//   retreat behind the strum it is drawn over. In a fast enough passage the closing onset crowds
+//   inside the margin, and a box trimmed blindly would stop short of its own last head;
 //
 //   PROTECTED ADJACENCY, where even that leaves nothing: a statement made at an instant is drawn
 //   however crowded, so it falls back to the musical close itself — exact adjacency, mirroring the
@@ -50,10 +49,9 @@ namespace
     {
         return shape.sustain;
     }
-    // The margin at the CLOSING ONSET's own measure: it is that head's spacing that is being kept,
-    // and a meter change between the span's front and its close would otherwise take the wrong one.
-    const Fraction margin =
-        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(closing->measure).denominator);
+    // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a tempo
+    // change between the span's front and its close would otherwise measure it at the wrong rate.
+    const Fraction margin = minimumSustainDistanceBeats(tempo_map, *closing);
     const Fraction limit = beatDistance(tempo_map, shape.position, *closing) - margin;
     const Fraction trimmed = std::max(std::min(shape.sustain, limit), shape.stated_extent);
     return Fraction{} < trimmed ? trimmed : shape.sustain;
@@ -618,8 +616,8 @@ ChartViewState makeChartViewState(
 
     // Every placement gets an eased approach ramp: a slide-matched placement ramps over its glide
     // segment so a drawn hand travels with the note, any other placement morphs over the shared
-    // minimum-sustain-distance margin at the arrival's meter, and crowded transitions shorten
-    // against the previous arrival rather than overlapping it. The synthetic pre-first nut window
+    // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
+    // the previous arrival rather than overlapping it. The synthetic pre-first nut window
     // counts as arriving at the chart origin.
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)

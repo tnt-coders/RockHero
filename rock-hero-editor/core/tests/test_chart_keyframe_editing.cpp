@@ -505,11 +505,12 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     CHECK(severed.notes[0].sustain == common::core::Fraction{4});
     // The origin keeps the keyframe it travels to: the leg the user split at is real travel, and
     // the junction is now an equal-fret handover to the new head. The arrival lands the
-    // glide-into-a-landing margin before that head (a quarter beat in 4/4) — a fret-stating
-    // keyframe may not sit on a later onset of its own string — while the RING still runs to it.
+    // glide-into-a-landing margin before that head (a fifth of a beat at the fixture's 120 BPM) —
+    // a fret-stating keyframe may not sit on a later onset of its own string — while the RING
+    // still runs to it.
     REQUIRE(severed.notes[0].keyframes.size() == 1);
     CHECK(severed.notes[0].keyframes[0].fret == 9);
-    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{15, 4});
+    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{19, 5});
 
     CHECK(
         severed.notes[1].position ==

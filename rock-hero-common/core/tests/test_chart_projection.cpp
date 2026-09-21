@@ -92,7 +92,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{3, 4}, .fret = 8}},
+            .keyframes = {Keyframe{.offset = Fraction{4, 5}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -179,11 +179,11 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // continuation head at the tail's tip while the landing draws its own head a margin later.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
-    CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
+    CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.8 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
     CHECK_FALSE(shift_slider.slides[0].release);
     CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
-    CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
+    CHECK(shift_slider.end_seconds == Catch::Approx(12.8 * beat));
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
@@ -323,9 +323,9 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
 
-    // 120 BPM 4/4: a beat is half a second and the margin is a quarter of one, so the presented
-    // tail stops at 3.75 beats and the ring runs the full four.
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.875));
+    // 120 BPM 4/4: a beat is half a second and the margin is a tenth of one, so the presented
+    // tail stops at 3.8 beats and the ring runs the full four.
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.9));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
     // A presented tail always reaches the last keyframe, so both forms carry every statement.
@@ -699,7 +699,8 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
-    // 120 BPM 4/4 throughout: a beat is half a second and the margin is a quarter beat.
+    // 120 BPM 4/4 throughout: a beat is half a second and the margin is a tenth of one, a fifth of
+    // a beat.
     const auto note =
         [](const GridPosition& position, const int string, const int fret, const Fraction sustain) {
             return ChartNote{
@@ -739,7 +740,7 @@ TEST_CASE(
     SECTION("the margin comes off the closing head")
     {
         // Two strums merging into one span, closed by a lone note an eighth after the second. The
-        // statement runs to that note at beat 1.5 (0.75s) and the rails stop a quarter beat short.
+        // statement runs to that note at beat 1.5 (0.75s) and the rails stop one margin short.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{1}),
             note(one, 2, 7, Fraction{1}),
@@ -753,9 +754,9 @@ TEST_CASE(
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
-        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.625));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.65));
         // The close is that lone note's own onset — beat 1.5, which is where both the statement's
-        // reach and the closing event land — so the drawn extent stops one quarter beat inside it.
+        // reach and the closing event land — so the drawn extent stops one margin inside it.
         CHECK(state.shapes[0].close_seconds == Catch::Approx(0.75));
     }
 
@@ -935,7 +936,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
         });
     chart.fret_hand_positions = {
-        // Ordinary move: the margin morph (a quarter beat in 4/4).
+        // Ordinary move: the margin morph (a fifth of a beat at 120 BPM).
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
         // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
         // so the morph shortens against it.
@@ -960,7 +961,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     REQUIRE(state.fret_hand_positions.size() == 4);
 
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
 
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
@@ -998,11 +999,11 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // Exactly on the fixture's shift-slide arrival (4:1 + 3/4), which is where the trim stops the
+    // Exactly on the fixture's shift-slide arrival (4:1 + 4/5), which is where the trim stops the
     // drawn tail because the re-picked landing sits one margin later.
     chart.fret_hand_positions.push_back(
         FretHandPosition{
-            .position = GridPosition{.measure = 4, .beat = 1, .offset = Fraction{3, 4}},
+            .position = GridPosition{.measure = 4, .beat = 1, .offset = Fraction{4, 5}},
             .fret = 8,
             .width = 4,
         });
@@ -1010,10 +1011,10 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The glide segment runs from the onset (12 beats) to the arrival (12.75 beats), and the hand
+    // The glide segment runs from the onset (12 beats) to the arrival (12.8 beats), and the hand
     // travels with the pitched rail.
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(12.75 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.75 * beat));
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(12.8 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.8 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
@@ -1055,7 +1056,7 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     REQUIRE(state.fret_hand_positions.size() == 2);
 
     // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
     // The real glide that follows still rides its own one-beat segment.
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));

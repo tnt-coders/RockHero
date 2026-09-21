@@ -541,8 +541,8 @@ ChartShapes deriveChartShapes(
         const std::optional<GridPosition> head =
             close_beat.has_value() && !(reach < *close_beat) ? closing_onset : std::nullopt;
         // RULE 6's emit test for the one onset-less span: a landing span is emitted if an event
-        // ever stated it, or its tenure STRICTLY EXCEEDS the distinguishability quantum at the
-        // closing head's measure. The importer synthesizes every glide-into-restrike arrival
+        // ever stated it, or its tenure STRICTLY EXCEEDS the distinguishability quantum kept before
+        // the closing head. The importer synthesizes every glide-into-restrike arrival
         // exactly one quantum before the replacing onset, so the equality case IS the ratified
         // suppressed population — strict is the whole ruling. A close with no sounding head has
         // no flicker to prevent, so only the degenerate zero-tenure span drops there; a
@@ -550,10 +550,8 @@ ChartShapes deriveChartShapes(
         if (open->landing_opened && !open->last_stated_beat.has_value() && close_beat.has_value())
         {
             const Fraction tenure = end - open->front_beat;
-            const Fraction quantum = head.has_value()
-                                         ? minimumSustainDistanceBeats(
-                                               tempo_map.timeSignatureAt(head->measure).denominator)
-                                         : Fraction{};
+            const Fraction quantum =
+                head.has_value() ? minimumSustainDistanceBeats(tempo_map, *head) : Fraction{};
             if (!(quantum < tenure))
             {
                 open.reset();

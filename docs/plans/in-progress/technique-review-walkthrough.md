@@ -1054,9 +1054,9 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
     ring does not run longer than the kept-sustain bound — the shared
     `g_minimum_kept_sustain_seconds` (`grid_arithmetic.h`), a duration read through the tempo map,
     so the drop rule and the inference can never disagree. (2) A held tail is trimmed/clamped to end
-    exactly the minimum-sustain-distance margin (`g_minimum_sustain_distance_whole_note`,
-    meter-scaled) before the next same-string onset, so "ring end reaches (next onset − margin)" IS
-    the maximum representable hold.
+    exactly the minimum-sustain-distance margin (`g_minimum_sustain_distance_seconds`, a duration
+    read through the tempo map) before the next same-string onset, so "ring end reaches (next
+    onset − margin)" IS the maximum representable hold.
   - **The inference.** Onset gap strictly under the bound: tails may have been legitimately dropped,
     so derivability stays fret-only. Gap at or past the bound: a held-through predecessor
     necessarily carries a ring reaching the margin, so a ring ending short of it proves the string

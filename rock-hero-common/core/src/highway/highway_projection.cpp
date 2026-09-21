@@ -56,7 +56,7 @@ HighwayViewState makeHighwayViewState(
     const std::vector<NoteViewState>& notes = state.chart.notes;
 
     // Per-note tap light-rise durations: the right-hand light rises over the fret-hand
-    // placements' own arrival margin (\ref marginBefore) at the onset's meter; zero for
+    // placements' own arrival margin (\ref marginBefore) before the onset; zero for
     // fretting-hand notes. The scene's notes pair one-to-one with the chart's, and a note's
     // position survives the saved-form transform, so the grid position comes straight from the
     // chart. Feeds makeHighwayTapOnsets.

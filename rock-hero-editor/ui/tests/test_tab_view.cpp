@@ -982,7 +982,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         arrangement, tempo_map, common::core::ChartNoteForm::Actual);
     // The fixture is only worth rendering if the derivation really did trim it.
     REQUIRE(presented.notes.size() == 2);
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.875));
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.9));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(1.0));
 
     TabView view{};
@@ -1093,7 +1093,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     // The fixture is only worth rendering if the derivation really owed a margin here.
     REQUIRE(presented.shapes.size() == 1);
     CHECK(presented.shapes[0].start_seconds == Catch::Approx(0.0));
-    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.625));
+    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.65));
     CHECK(presented.shapes[0].close_seconds == Catch::Approx(0.75));
 
     TabView view{};
@@ -1221,9 +1221,9 @@ TEST_CASE("TabView peeks a clipped quarter-note tail from anywhere along it", "[
         common::core::makeChartViewState(arrangement, tempo_map);
     const common::core::ChartViewState actual = common::core::makeChartViewState(
         arrangement, tempo_map, common::core::ChartNoteForm::Actual);
-    // The fixture is only the repro if the derivation really clipped a sixteenth off a quarter.
+    // The fixture is only the repro if the derivation really clipped a margin off a quarter.
     REQUIRE(presented.notes.size() == 2);
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.375));
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.4));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(0.5));
 
     TabView view{};

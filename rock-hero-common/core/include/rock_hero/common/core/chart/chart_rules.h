@@ -376,7 +376,7 @@ handle, and a statement printed on the following head could be neither seen nor 
 there would also store the landing's coordinates a second time. A statement nobody placed by hand
 — an importer's synthesized arrival, or one a truncation carried onto the head — takes this
 clearance, the one a shift glide's arrival keeps before its landing
-(\ref latestStatementBeforeStrike at the note's own measure): the minimum sustain distance, or
+(\ref latestStatementBeforeStrike at the head it stands before): the minimum sustain distance, or
 halfway from the statement before the last keyframe where that margin line falls on or before it,
 so no repair ever takes an earlier statement. A charter's own placement INSIDE that margin is
 deliberate and stands: the rule refuses the head, not the margin. Only the last keyframe is

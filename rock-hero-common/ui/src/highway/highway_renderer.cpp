@@ -768,8 +768,8 @@ constexpr double g_inlay_double_string_spacings = 1.5;
 
 // Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
 // per-ramp slice cap. Density follows the larger of duration and lateral travel: a slow glide
-// needs samples in time, while a sixteenth-margin morph across several frets covers most of its
-// travel in a handful of milliseconds and facets badly under time-only slicing.
+// needs samples in time, while a margin-length morph across several frets covers most of its
+// travel in a fraction of a second and facets badly under time-only slicing.
 constexpr double g_window_slice_seconds = 0.0125;
 constexpr double g_window_slices_per_line = 16.0;
 constexpr int g_window_slice_cap = 160;

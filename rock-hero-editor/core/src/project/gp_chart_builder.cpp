@@ -179,17 +179,6 @@ struct MeasureGrid
     return globalBeatAtWhole(grid, wholeAtGlobalBeat(grid, beat) + bar_whole);
 }
 
-// The minimum-sustain-distance margin at a position's measure — the ONE statement of the
-// margin-per-note rule the importer's span close and synthesized glide windows derive from (the
-// presentation rules ask common/core for the same constant on the read side). Note
-// positions always index the grid: collectEvents clamps bar indexes into it and
-// gridPositionForGlobalBeat looks measures up from it, so no defensive clamp is needed here.
-[[nodiscard]] Fraction sustainMarginAt(const MeasureGrid& grid, const GridPosition& position)
-{
-    const auto measure_index = static_cast<std::size_t>(position.measure - 1);
-    return common::core::minimumSustainDistanceBeats(grid.denominator[measure_index]);
-}
-
 // Shrinks a per-slot ornament lead so `count` slots fit strictly inside the available gap: when
 // the full leads spill over, each slot takes the gap halved and split across the slots
 // (gap / 2N). A non-positive gap stays non-positive, which every caller reads as "no room —
@@ -2693,7 +2682,8 @@ void upsertPlacement(
 // judge it: a slide-in into a held landing keeps its hold like any notated slide.
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid, std::vector<std::string>& notes, const int capo)
+    const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
+    std::vector<std::string>& notes, const int capo)
 {
     int unplaceable = 0;
     // Applied after the loop so every start fret derives from the pristine natural track — a
@@ -2748,7 +2738,7 @@ void resolveSlideIns(
         // The scoop window (see the function comment); an existing chain keyframe keeps the
         // payload ascending by gliding through half its own offset instead.
         Fraction window = note.sustain * Fraction{1, 4};
-        const Fraction margin = sustainMarginAt(grid, note.position);
+        const Fraction margin = common::core::minimumSustainDistanceBeats(tempo_map, note.position);
         if (margin < window)
         {
             window = margin;
@@ -3523,7 +3513,10 @@ void resolveSlideOutExits(
             // trailing repeat the tie merge folded in is shed at the end of the build, where the
             // load repair then settles the arrival at its clearance.
             common::core::clearSlideOut(note);
-            const Fraction margin = sustainMarginAt(grid, note.position);
+            // The clearance belongs to the LANDING's onset — the head the arrival stands before —
+            // which is the note's own onset advanced by the gap to it.
+            const Fraction margin = common::core::minimumSustainDistanceBeats(
+                tempo_map, common::core::advanceGridPosition(tempo_map, note.position, gap));
             // A folded point standing on the landing crowds it — a tied curve's final point at
             // the ring's end — so it moves back to its own clearance first, exactly as the load
             // repair would move it, and the arrival then has a leg to follow it.
@@ -3645,7 +3638,7 @@ void resolveSlideOutExits(
     // unpitched slide.
     chart.fret_hand_positions =
         generateFretHandPositions(built, tempo_map, phrase_boundary_beats, chart.tuning.capo);
-    resolveSlideIns(built, chart.fret_hand_positions, grid, notes, chart.tuning.capo);
+    resolveSlideIns(built, chart.fret_hand_positions, grid, tempo_map, notes, chart.tuning.capo);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(

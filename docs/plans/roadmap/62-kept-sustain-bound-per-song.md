@@ -27,7 +27,7 @@ judged against that one note value; nothing about how a tail is drawn, rested or
   for MOST songs", `7bbe403b`).
 - **No tempo-derived bound.** A time-based threshold was designed and rejected for now (§11).
 - **No per-section, per-region or per-note value.** One value per song, by ruling (§7 decision 2).
-- **No change to the minimum sustain distance** (`g_minimum_sustain_distance_whole_note`), the
+- **No change to the minimum sustain distance** (`g_minimum_sustain_distance_seconds`), the
   reveal lead, or any other presentation constant. Each is its own question.
 - **No new tail rule.** Rule 3 of `presentedChartNotes` reads a value instead of a constant; its
   comparison and its group verdict are untouched.

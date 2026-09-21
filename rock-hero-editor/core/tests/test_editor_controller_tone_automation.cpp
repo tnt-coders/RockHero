@@ -1058,8 +1058,8 @@ TEST_CASE(
     // tracks the placement seam rather than a hand-computed fraction.
     const common::core::GridPosition coarse_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
-    const common::core::GridPosition tick_slot =
-        nearestTempoGridPosition(tempo_map, g_tick_quantum_note_value, *placement_time);
+    const common::core::GridPosition tick_slot = nearestTempoGridPosition(
+        tempo_map, common::core::g_tick_quantum_note_value, *placement_time);
     CHECK(coarse_slot == gridAt(2, 1));
     CHECK(tick_slot != coarse_slot);
 

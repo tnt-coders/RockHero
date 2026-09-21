@@ -94,8 +94,11 @@ void dropPresentedTail(ChartNote& note)
 // and never resizes one, so no span-scoped rule ever hands a length to these rules.
 void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
+    // The margin belongs to the BINDING ONSET, not to the ringing note: it is that head's spacing
+    // being kept, and the margin is a duration, so a tempo change between the two would otherwise
+    // measure it at the wrong rate.
     const Fraction margin =
-        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(note.position.measure).denominator);
+        minimumSustainDistanceBeats(tempo_map, advanceGridPosition(tempo_map, note.position, gap));
     const Fraction limit = gap - margin;
     // Rule 2: the tail always reaches the last keyframe. A released ring therefore never trims —
     // the release is its last keyframe, at the ring's end, and the stored ring already keeps it

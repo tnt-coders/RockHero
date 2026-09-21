@@ -15,8 +15,9 @@ may want the player to see.
 The shipped rule is time based and signed on sighting: an effect-free ring must last longer than
 the kept-sustain bound, a duration of 250 ms (`g_minimum_kept_sustain_seconds`), to earn a drawn
 tail. The previous baseline was note-value based, `> 1/8`, which looked good for many songs but not
-all. The minimum sustain distance stays a sixteenth of a whole note, also signed on sighting. Both
-carry watch items in `docs/tracking/watch-items.md`; Plan 62 is kept only as the first item's
+all. The minimum sustain distance is a duration too, 100 ms
+(`g_minimum_sustain_distance_seconds`), held below the bound so every earned tail keeps some ink.
+The bound carries a watch item in `docs/tracking/watch-items.md`; Plan 62 is kept only as its
 remedy.
 
 ## Principles
@@ -138,21 +139,13 @@ The minimum sustain distance is a different rule from tail earning. Tail earning
 ring deserves a visible tail at all. Minimum sustain distance is ink spacing: how much gap a drawn
 tail, slide end, span, or hand-window ramp keeps before the following mark.
 
-Do not change both rules at once. First sight the global real-time tail threshold. If fast charts
-still look crowded after fewer tails earn display, then sight a real-time floor for the margin.
+The margin IS time-aware now, and the shape this plan proposed — a note-value baseline with a
+millisecond floor under it — was not what shipped. The margin is simply 100 ms, measured back from
+the onset being protected through the tempo map and floored onto the chart's tick lattice, so it is
+exact across a tempo anchor and never shorter than the duration. No note-value ladder and no two
+quantities to reconcile.
 
-If the margin does become time-aware, the clean form is:
-
-```text
-effective margin = max(current note-value margin, smallest allowed grid value >= N milliseconds)
-```
-
-Use the smallest grid value at least the target, not the closest grid value. A minimum readable gap
-must not round down below the target. The current `1/16` whole-note margin remains the musical
-baseline; the millisecond floor only prevents very fast tempos from making that gap visually too
-small.
-
-This should remain a spacing rule. It should not become another way to decide whether a tail exists.
+This remains a spacing rule. It should not become another way to decide whether a tail exists.
 
 ## Reveal Lead
 
@@ -190,8 +183,7 @@ badge.
    than song-level configuration.
 5. Add `ForceShown` only after the base threshold is chosen, because the override's need depends on
    which automatic rule wins.
-6. Sight a millisecond floor for minimum sustain distance only if visible tails still crowd fast
-   charts after step 1.
+6. The minimum sustain distance is already a duration; nothing is left to sight for it here.
 
 ## Current Lean
 

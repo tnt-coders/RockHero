@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -115,6 +116,48 @@ struct MeasureLattice
     return Fraction{position.beat - 1} + position.offset;
 }
 
+// How far past a tick line a count may sit and still be taken as ON it. The seconds round trip
+// behind marginBefore is exact to a part in about 1e15, so a margin that lands squarely on a tick
+// can come back a hair under it; flooring that raw would give a whole tick away. The window is six
+// orders of magnitude above the round trip's own error and six below one tick, so it can only ever
+// recover a line the arithmetic meant to hit.
+constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
+
+// The tick line at or before a fractional global-beat position: the chart's own lattice, floored so
+// a distance measured back to it is never SHORTER than the one that produced the position. Ticks
+// divide a beat exactly at every meter the package format allows (3840 is a multiple of every
+// power-of-two denominator), so flooring inside the beat lands on the same lattice the
+// measure-anchored walk reads; a degenerate signature leaves the whole beat, its own nearest line.
+// Positions at or before the grid origin clamp to it, the earliest position the grid can name.
+[[nodiscard]] GridPosition tickPositionAtOrBefore(
+    const TempoMap& tempo_map, const double global_beat_position)
+{
+    if (global_beat_position <= 0.0)
+    {
+        return GridPosition{};
+    }
+    const double whole_beats = std::floor(global_beat_position);
+    const auto [measure, beat] =
+        tempo_map.beatAtGlobalIndex(static_cast<std::int64_t>(whole_beats));
+    const GridPosition on_beat = GridPosition{.measure = measure, .beat = beat, .offset = {}};
+    const int denominator = tempo_map.timeSignatureAt(measure).denominator;
+    if (denominator <= 0)
+    {
+        return on_beat;
+    }
+    // Ticks from the beat, floored. One tick is denominator/g_tick_quantum_denominator beats, so
+    // the count never passes the ticks in a beat and the product below stays inside int; a count
+    // that reaches the full beat carries onto the next beat through the advance.
+    const double ticks_per_beat =
+        static_cast<double>(g_tick_quantum_denominator) / static_cast<double>(denominator);
+    const auto ticks = static_cast<std::int64_t>(std::floor(
+        ((global_beat_position - whole_beats) * ticks_per_beat) + g_tick_floor_tolerance_ticks));
+    return advanceGridPosition(
+        tempo_map,
+        on_beat,
+        Fraction{static_cast<int>(ticks) * denominator, g_tick_quantum_denominator});
+}
+
 // The grid position of a measure's line at an index, or the next measure's downbeat when the index
 // reaches past the measure's last line — the restart that keeps every downbeat on the lattice.
 [[nodiscard]] GridPosition linePosition(MeasureLattice lattice, int measure, std::int64_t index)
@@ -150,12 +193,19 @@ GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition positio
     return GridPosition{.measure = measure, .beat = beat, .offset = offset};
 }
 
-GridPosition marginBefore(const TempoMap& tempo_map, const GridPosition position)
+// The margin is a stretch of SECONDS, so the walk leaves the beat axis for the map's time axis and
+// comes back: every tempo anchor between the two instants is part of the round trip, which is what
+// makes a margin spanning a tempo change exact rather than an average. The std::min is the map's
+// own clamping behaviour outside the authored anchor range showing through — an onset past the
+// terminal anchor resolves to a time the inverse cannot place any earlier — and keeps the
+// postcondition every reader relies on: the result never stands later than the onset.
+GridPosition marginBefore(const TempoMap& tempo_map, const GridPosition onset)
 {
-    const TimeSignatureChange signature = tempo_map.timeSignatureAt(position.measure);
-    const Fraction margin = minimumSustainDistanceBeats(signature.denominator);
-    return advanceGridPosition(
-        tempo_map, position, Fraction{-margin.numerator, margin.denominator});
+    const double onset_beat_position = globalBeatPosition(tempo_map, onset);
+    const double margin_beat_position = tempo_map.beatPositionAtSeconds(
+        tempo_map.secondsAtGlobalBeatPosition(onset_beat_position) -
+        g_minimum_sustain_distance_seconds);
+    return tickPositionAtOrBefore(tempo_map, std::min(margin_beat_position, onset_beat_position));
 }
 
 // The global beat axis makes the whole-beat part a plain index difference; song-scale indexes fit
@@ -165,6 +215,13 @@ Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition
     const std::int64_t index_delta = tempo_map.globalBeatIndex(to.measure, to.beat) -
                                      tempo_map.globalBeatIndex(from.measure, from.beat);
     return Fraction{static_cast<int>(index_delta)} + (to.offset - from.offset);
+}
+
+// The margin in beats is nothing but the margin's own start measured back to the onset: one
+// authority for where it begins, and no second answer for how long it is.
+Fraction minimumSustainDistanceBeats(const TempoMap& tempo_map, const GridPosition& onset)
+{
+    return beatDistance(tempo_map, marginBefore(tempo_map, onset), onset);
 }
 
 // A zero sustain ends at the onset; everything else is beat advancement.

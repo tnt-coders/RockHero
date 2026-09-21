@@ -225,9 +225,9 @@ struct HighwayTapOnsetViewState
     \brief Duration of the light's rise ending at \ref seconds.
 
     Derived at projection time with the fret-hand placements' own arrival rule rather than a
-    fixed wall-clock rise: the minimum-sustain-distance margin at the onset's meter, shortened
-    when the previous tap onset's release crowds closer than the margin so envelopes never reach
-    backward through an earlier hold.
+    rise of its own: the minimum-sustain-distance margin before the onset, shortened when the
+    previous tap onset's release crowds closer than the margin so envelopes never reach backward
+    through an earlier hold.
     */
     double ramp_seconds{0.0};
 
@@ -590,7 +590,7 @@ end.
 
 Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
 rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance
-margin at the note's meter, resolved to seconds — zero for non-tap notes), the onset takes the
+margin before the note, in seconds — zero for non-tap notes), the onset takes the
 widest member's, and crowding clamps the rise so it never reaches backward past the previous
 tap onset's release.
 

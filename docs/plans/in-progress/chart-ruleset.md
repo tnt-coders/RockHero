@@ -829,9 +829,10 @@ and too rarely in a slow one, so the same written value earns a tail below a cro
 drops it above. The meter never enters — seconds do not care about the denominator — and the tempo
 map is piecewise constant between anchors, so the verdict can only change AT an anchor and never
 inside a run. A song-scoped note value derived from the dominant tempo is refused with cause: it
-would be wrong for a slow intro under a fast body. What did NOT move with it, each on purpose: the
-minimum sustain distance is ink spacing rather than an earning threshold and the two answer
-different questions; the 2D lane has no tail-length threshold of its own and simply follows;
+would be wrong for a slow intro under a fast body. The minimum sustain distance is a duration for
+the same reasons, though it answers a different question — ink spacing rather than earning — and it
+is deliberately held BELOW this bound so every tail that earns one keeps some ink. What did NOT
+move: the 2D lane has no tail-length threshold of its own and simply follows;
 the board rests the new tails like any other plain tail; and the legato hold test still reads the
 STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on or a pull-off.
 

@@ -849,7 +849,7 @@ The three inputs answer three different questions, which is why all of them exis
   keeps the whole ribbon standing), so authoring has to function identically anywhere in the ring.
   Including the *drawn* stretch costs nothing, because the drawn part re-draws identically in either
   form; what you see is the clipped end growing into view, which is the thing you were asking about.
-  That is what makes a quarter-note tail clipped a sixteenth by the next onset answer from anywhere
+  That is what makes a quarter-note tail clipped a margin by the next onset answer from anywhere
   along it rather than only from the sliver past its ink. And it is a third DISJUNCT of the rule
   above rather than a mechanism of its own — the same `drawn_note` pick in `TabView::paint`, which
   every overlay reads too, so nothing can trace a head the lane did not draw.

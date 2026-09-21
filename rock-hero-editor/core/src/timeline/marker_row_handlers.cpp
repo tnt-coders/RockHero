@@ -191,7 +191,8 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
         return;
     }
     const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
-    if (markerHolderIndex(starts, pausedCursorPosition(g_tick_quantum_note_value)) != *index)
+    if (markerHolderIndex(starts, pausedCursorPosition(common::core::g_tick_quantum_note_value)) !=
+        *index)
     {
         moveCursorTo(starts[*index]);
     }
@@ -209,7 +210,7 @@ std::optional<common::core::GridPosition> EditorController::Impl::keyboardPositi
     {
         return range->focus;
     }
-    return pausedCursorPosition(g_tick_quantum_note_value);
+    return pausedCursorPosition(common::core::g_tick_quantum_note_value);
 }
 
 // keyboardPosition's seconds-space sibling, for the rules that resolve in seconds — the tone

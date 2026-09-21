@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -18,23 +19,6 @@ namespace rock_hero::editor::core
 
 /*! \brief Inclusive upper bound for the terms of a grid note value a user may select. */
 inline constexpr int g_max_tempo_grid_note_value_term = 128;
-
-/*!
-\brief Denominator of the tick lattice: the finest note value any editor verb places on.
-
-1/3840 of a whole note is 1/960 of a quarter note — the standard MIDI PPQ tick, far finer than
-audible resolution and still an exact rational. 3840 rather than 4096 because triplet grids need
-the factor of 3, so straight, triplet, and quintuplet subdivisions all land on the lattice.
-*/
-inline constexpr int g_tick_quantum_denominator = 3840;
-
-/*!
-\brief The tick lattice as a note value: what placement quantizes to while grid snap is off.
-
-A note value like any other, so the measure-anchored lattice arithmetic walks it unchanged. It is
-never a grid the user selects or the editor draws — only a lattice positions land on.
-*/
-inline constexpr common::core::Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominator};
 
 /*!
 \brief The editor's default grid note value: the sixteenth-note grid.
@@ -51,10 +35,10 @@ inline constexpr common::core::Fraction g_default_tempo_grid_note_value{1, 16};
 The grid's authoritative unit is a note value expressed as a fraction of a whole note (1/8 means
 eighth notes in every meter). A usable lattice is a positive fraction whose numerator falls in
 [1, g_max_tempo_grid_note_value_term] — past that the walk's integer step arithmetic stops being
-worth trusting — and whose denominator falls in [1, g_tick_quantum_denominator], the finest lattice
-any verb places on. The default-constructed Fraction value of 0/1 is invalid, so every owner of a
-grid note value must initialize it explicitly; the editor default is
-g_default_tempo_grid_note_value.
+worth trusting — and whose denominator falls in [1, `common::core::g_tick_quantum_denominator`],
+the chart's own lattice and the finest any verb places on. The default-constructed Fraction value
+of 0/1 is invalid, so every owner of a grid note value must initialize it explicitly; the editor
+default is g_default_tempo_grid_note_value.
 
 This is deliberately NOT the question the grid box asks, which is why there are two predicates and
 not one bound doing double duty. "Can the walk walk this" must admit the tick, because the
@@ -68,7 +52,8 @@ placement quantum becomes exactly that note value while grid snap is off
 [[nodiscard]] constexpr bool isValidTempoGridNoteValue(common::core::Fraction note_value) noexcept
 {
     return note_value.numerator >= 1 && note_value.numerator <= g_max_tempo_grid_note_value_term &&
-           note_value.denominator >= 1 && note_value.denominator <= g_tick_quantum_denominator;
+           note_value.denominator >= 1 &&
+           note_value.denominator <= common::core::g_tick_quantum_denominator;
 }
 
 /*!
@@ -98,8 +83,9 @@ fails here.
 The editor has exactly one answer to "what lattice does a position land on", and this is it —
 note insert, note move, the sustain gesture's steps, marker placement, tone-region endpoints, and
 every seek or caret click read it, with no per-verb opt-out. With snap on that is the session's
-own grid; with snap off it is the tick lattice, which is why turning snap off loses no precision:
-one step is one tick, so no separate fine-precision modifier tier is needed.
+own grid; with snap off it is the chart's own tick lattice
+(`common::core::g_tick_quantum_note_value`), which is why turning snap off loses no precision: one
+step is one tick, so no separate fine-precision modifier tier is needed.
 
 It is a POSITION rule and only a position rule. A verb needing a musical DURATION default — a
 placed note's ring is the standing case — keeps reading the grid note value, because that is the
@@ -113,7 +99,7 @@ ask whether the number is a place on the timeline or a length.
 [[nodiscard]] constexpr common::core::Fraction placementQuantumNoteValue(
     common::core::Fraction grid_note_value, bool grid_snap) noexcept
 {
-    return grid_snap ? grid_note_value : g_tick_quantum_note_value;
+    return grid_snap ? grid_note_value : common::core::g_tick_quantum_note_value;
 }
 
 /*! \brief Musical rank of a tempo-grid line, ordered weakest to strongest. */

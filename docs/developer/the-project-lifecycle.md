@@ -228,9 +228,11 @@ file and from a fresh import shows the same tails, and the model behind the spli
 `docs/plans/in-progress/note-sustain-model.md`.
 
 1. **Trim to the minimum sustain distance.** A note's drawn tail ends at least the
-   minimum-sustain-distance margin — 1/16 of a whole note, the shared constant in
-   `grid_arithmetic.h`; a 1/32 margin closes the gap too tightly to read on screen — before the next
-   binding onset, which is the first later note at a different grid position on *any* string. The
+   minimum-sustain-distance margin — a tenth of a second, the shared constant in
+   `grid_arithmetic.h`, measured back from the onset being protected through the tempo map and
+   floored onto the chart's tick lattice, so slow and fast songs keep the same visible gap —
+   before the next binding onset, which is the first later note at a different grid position on
+   *any* string. The
    margin bounds sustain *tails* only, never note onsets: a run of 32nds imports every onset as
    notated, with tails trimmed toward zero and then dropped by the rule below, so dense passages
    render as plain heads. Notes sharing a position — chord members — never bind each other. The
@@ -1065,8 +1067,8 @@ neighbours.
     head it never reached, and a close at a slot of HELD FINGERS publishes no head at all, so the
     replaced shape ends exactly where its successor starts; the **last statement**
     (`ChartShape::stated_extent`), which floors the trim, because rails may not retreat behind the
-    strum they are drawn over and at anything faster than a sixteenth the closing onset crowds
-    inside the margin; and **protected adjacency**, where even that leaves nothing — a statement
+    strum they are drawn over and in a fast enough passage the closing onset crowds inside the
+    margin; and **protected adjacency**, where even that leaves nothing — a statement
     made at an instant is drawn however crowded, so it falls back to the musical close itself, the
     same protection a crowded sustain keeps.
 
@@ -1453,10 +1455,9 @@ clamped and then drawn like any other):
     one split that always leaves some gap however tight the crowding. That second case is the
     sanctioned exception rather than a violation: the gesture is *literally defined* inside the
     margin, which is exactly when the spacing rule steps aside.
-    In 4/4 (`d` = 1/4 beat): a leg starting at the onset with 3/8 of a beat of room ends at 1/8,
-    keeping the full 1/4 gap; with 1/4 of a beat of room — a 1/16 whole note against a 1/16
-    whole-note margin — it halves into a 1/8 leg and a 1/8 gap, a 1/32 whole note each; with 1/8
-    of a beat it halves again to 1/16 and 1/16.
+    At 120 BPM (`d` = 1/5 beat): a leg starting at the onset with 3/8 of a beat of room ends at
+    7/40, keeping the full 1/5 gap; with 1/5 of a beat of room — exactly the margin — it halves
+    into a 1/10 leg and a 1/10 gap; with 1/10 of a beat it halves again to 1/20 and 1/20.
     **No compression floor, deliberately.** Both cases land strictly after the leg's start by
     construction, so the payload stays ascending without one, and a floor here could only buy leg
     length by spending the very spacing the rule protects — the old floor did exactly that, forcing

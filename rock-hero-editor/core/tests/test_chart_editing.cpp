@@ -556,7 +556,7 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     const common::core::GridPosition grid_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *clicked);
     const common::core::GridPosition tick_slot =
-        nearestTempoGridPosition(tempo_map, g_tick_quantum_note_value, *clicked);
+        nearestTempoGridPosition(tempo_map, common::core::g_tick_quantum_note_value, *clicked);
     REQUIRE(grid_slot != tick_slot);
 
     // Snap on: the click arms on the grid line and the typed head lands there, ringing one grid

@@ -397,8 +397,8 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
-    // margin (1/16 whole note — a quarter beat in 4/4).
-    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    // margin (a tenth of a second — a fifth of a beat at 120 BPM).
+    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
@@ -1313,10 +1313,10 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(light.path[0].unpitched);
     CHECK(light.path[1].unpitched);
     CHECK(light.path[2].unpitched);
-    // The FHP on the keyframe's grid position ramps by the quarter-beat margin morph (0.125s at
-    // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
+    // The FHP on the keyframe's grid position ramps by the margin morph — a tenth of a second at
+    // any tempo — not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
-    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
+    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.1));
 }
 
 namespace

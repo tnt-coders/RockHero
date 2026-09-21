@@ -890,7 +890,7 @@ struct FhpViewState
     about a surface, so it is derived once here: a placement landing exactly on a slide keyframe —
     pitched glide or unpitched trail-off end alike — ramps over that glide's own segment so a
     drawn hand travels with the drawn rail, and every other placement morphs over the
-    minimum-sustain-distance margin at its meter (shortened when placements crowd closer than the
+    minimum-sustain-distance margin before it (shortened when placements crowd closer than the
     ramp). The board's hand window animates it; the lane's static marker draws the arrival alone.
     */
     double ramp_seconds{0.0};

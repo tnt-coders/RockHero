@@ -259,24 +259,30 @@ than a speed change. **Remedy:** retune the constant inside the 200 to 300 ms ba
 no single value serves every song, the per-song override of the seconds value that
 docs/plans/roadmap/62-kept-sustain-bound-per-song.md is kept to describe.
 
-### The minimum sustain distance stays a note value while the bound became a duration — trigger: a tail's gap to the next head reads too tight in a fast song or too wide in a slow one
+### ~~The minimum sustain distance stays a note value while the bound became a duration~~ — RETIRED 2026-09-20: it is a duration now
 
-The margin every drawn element keeps before the next event is `g_minimum_sustain_distance_whole_note`,
-a sixteenth of a whole note, so it lasts 75 ms at 200 BPM and 250 ms at 60. Sighted acceptable
-beside the duration bound and left alone. Making it a duration is not the one-line change the bound
-was: the margin is written into stored data (the importer places every synthesized glide arrival
-one margin before the replacing onset, the editor's split verb lands a stored arrival on it) and it
-founds the landed-span emit test in `chart_shapes.cpp`, so a duration would have to become an exact
-fraction through a grid ladder (the smallest plain note value lasting at least the target at the
-binding onset's tempo) and would move the census span rows. The 3D board's tail-reveal lead
-(`g_tail_reveal_lead_whole_note`) is the third member of this family and may be right as a note
-value: a slow song's board has more room to materialize ink in.
+The item was: the margin every drawn element keeps before the next event was a sixteenth of a whole
+note, lasting 75 ms at 200 BPM and 250 ms at 60, so tails ended visibly early in slow songs and
+crowded in fast ones.
 
-**Trigger:** a fast song's tails crowd the next head, or a slow song's tails end visibly early, at
-real sighting; or the reveal reads too abrupt or too lazy at a tempo extreme. **Remedy:** the grid
-ladder above, sighted at about 100 ms, in its own commit with the census re-signed; the reveal lead
-by its own sighting, never in the same change. Design notes in
-docs/plans/todo/sustain-tail-display-policy.md.
+It is `g_minimum_sustain_distance_seconds`, a tenth of a second, held below the kept-sustain bound
+by a `static_assert` so every earned tail keeps ink. The remedy this item proposed — a grid ladder
+picking the smallest plain note value at least the target — was not taken: `marginBefore` walks
+back from the onset being PROTECTED through the tempo map's own time axis and floors onto the
+chart's 1/3840-whole-note tick lattice, so the answer is tick-exact, honours a tempo anchor inside
+the margin, and is never shorter than the duration. `minimumSustainDistanceBeats` is that position
+measured back in beats, which leaves one authority where the ladder would have left two.
+
+### The 3D board's tail-reveal lead stays a note value — trigger: the reveal reads too abrupt or too lazy at a tempo extreme
+
+`g_tail_reveal_lead_whole_note`, a quarter of a whole note, is the last member of the spacing family
+still expressed as a note value, and deliberately: a reveal is a MUSICAL lead-in the scrolling board
+carries the ink through rather than a gap between two marks that must stay readable at any tempo, so
+a slow song's board having more room to materialize ink in may be right.
+
+**Trigger:** the reveal reads too abrupt in a fast song or too lazy in a slow one at real sighting.
+**Remedy:** sight the lead on its own, never in the same change as another member of the family.
+Design notes in docs/plans/todo/sustain-tail-display-policy.md.
 
 ### `ChartStop`'s ordering is partial by type and total only by validation — trigger: the node refusal relaxes, or a new `ChartStop` producer appears
 

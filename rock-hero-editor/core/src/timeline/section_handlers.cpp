@@ -41,7 +41,7 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
 SectionChordTarget EditorController::Impl::sectionChordTarget() const
 {
     const std::optional<common::core::GridPosition> position =
-        cursorPosition(g_tick_quantum_note_value);
+        cursorPosition(common::core::g_tick_quantum_note_value);
     if (!position.has_value())
     {
         return {};

@@ -436,11 +436,6 @@ struct AddressedStop
             return std::unexpected{ChartPlanRefusal::Invalid};
         }
     }
-    // The glide-into-a-landing margin, read at the note's own measure exactly as the presentation
-    // trim reads it (`trimToMargin`), so the stored arrival lands where the drawn tail would have
-    // been trimmed to anyway.
-    const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
-        tempo_map.timeSignatureAt(note.position.measure).denominator);
     common::core::Fraction start{0, 1};
     for (std::size_t index = 0; index <= instants.size(); ++index)
     {
@@ -489,6 +484,13 @@ struct AddressedStop
                 // out-of-order payload — a silent no-op for the user. The authority halves the
                 // last leg instead, which always leaves both a leg and a gap however crowded the
                 // passage, so this walk has no crowded case of its own to refuse.
+                //
+                // The margin is read at the HEAD this product hands over to — the cut itself —
+                // exactly as the presentation trim reads it (`trimToMargin`), so the stored arrival
+                // lands where the drawn tail would have been trimmed to anyway. It is a duration,
+                // so every cut of a multi-instant split asks for its own.
+                const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
+                    tempo_map, common::core::advanceGridPosition(tempo_map, note.position, end));
                 rebased.offset = common::core::latestStatementBeforeStrike(
                     end - start,
                     margin,
@@ -559,8 +561,10 @@ struct AddressedStop
 
     const common::core::Fraction gap =
         common::core::beatDistance(tempo_map, predecessor.position, head.position);
-    const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
-        tempo_map.timeSignatureAt(predecessor.position.measure).denominator);
+    // The margin belongs to the HEAD being folded in — the strike the arrival retreated from —
+    // which is what makes this the exact inverse of the split's own reading.
+    const common::core::Fraction margin =
+        common::core::minimumSustainDistanceBeats(tempo_map, head.position);
     if (!predecessor.keyframes.empty())
     {
         common::core::Keyframe& arrival = predecessor.keyframes.back();

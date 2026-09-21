@@ -90,8 +90,9 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
 1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position, on any string — that the ring does not *pass*, passing meaning running *strictly
    past* it. The presented tail ends at least one minimum sustain distance (\ref
-   minimumSustainDistanceBeats at the note's own measure) before that onset, so no tail crowds the
-   next head. A ring ending exactly *on* an onset passes nothing and binds there, which is the
+   minimumSustainDistanceBeats, a tenth of a second read at the binding onset) before that onset,
+   so no tail crowds the next head. A ring ending exactly *on* an onset passes nothing and binds
+   there, which is the
    common let-ring collision rather than a corner case: a notated ring ends on a musical boundary
    and the next note starts from one. A ring that no later onset binds presents whole, as a last
    note always has. **Deliberate hold**: passing an onset — a tie merged across a neighbour, a
