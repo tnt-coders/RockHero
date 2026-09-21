@@ -464,7 +464,10 @@ std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
     const std::string& tone_document_ref)
 {
     const std::optional<std::size_t> branch_index = toneBranchIndex(tone_document_ref);
-    if (!branch_index.has_value())
+    // The rack is asked beside the index, the spelling every other branch lookup here uses:
+    // toneBranchIndex already answers empty without a rack, but that contract is a callee's and
+    // the optional-access analysis cannot see through it.
+    if (!m_tone_rack.has_value() || !branch_index.has_value())
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::InvalidToneDocument,
@@ -2020,8 +2023,12 @@ std::expected<void, LiveRigError> Engine::Impl::swapAudibleChainPlugins(
     }
 
     // The replacement chain's level and retained panel layout become the audible branch's truth.
-    if (ToneBranchGainPlugin* const branch_gain = m_tone_rack->branches[*branch_index].branch_gain;
-        branch_gain != nullptr)
+    // The rack is asked again rather than carried from the guard above: the rerouting call between
+    // them takes this object, so nothing proves the rack outlived it — and the analysis, rightly,
+    // will not carry the guard across an opaque call that could have torn it down.
+    ToneBranchGainPlugin* const branch_gain =
+        m_tone_rack.has_value() ? m_tone_rack->branches[*branch_index].branch_gain : nullptr;
+    if (branch_gain != nullptr)
     {
         branch_gain->setOutputGain(output_gain);
     }
