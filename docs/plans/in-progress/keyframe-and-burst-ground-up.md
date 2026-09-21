@@ -15,59 +15,123 @@ The six defects have two roots, not six, and a third thing that looked like a ro
 
 1. **The undo burst proves ownership with a number that is not an identity.** Root of the
    data-loss bug. Redesign recommended; no format change; do it first.
-2. **The release is a keyframe by POSITION, so a point changes kind when the ring's end moves.**
-   Root of five of the six. The ruleset below closes it as rules; whether the MODEL should also
-   change to a stated release turns on one fact about bends, to verify before Phase 3. A model
-   change is the user's to rule — it reverses a signed 2026-09-09 decision.
+2. **The release is a keyframe by POSITION, so a statement changes meaning when the ring's end
+   reaches or leaves it.** Root of five of the six. Two complete rulesets are offered below: Set A
+   keeps that and makes every verb ask about it; Set B gives the end its own statement so nothing
+   converts. B is recommended and is the user's to rule — it changes a behaviour the user likes
+   and reverses the signed 2026-09-09 model decision.
 3. **Silent points living in the chart document is NOT a root.** The obvious simplification —
    hold a just-typed point in the controller, like the pending fret entry — does not work, and
    the reason is worth recording so it is not tried again.
 
 ## The ruleset
 
-The user asked, mid-review, whether a SIMPLE ruleset exists to build from. It does; it was never
-written in one place, which is part of why each defect was met with a local rule. Seven rules, and
-the first three carry the rest. Rule 3's wall was RULED by the user on 2026-09-21 after weighing
-three alternatives (recorded below the rules); everything else restates rulings already made.
+The user asked for the CLEAN ruleset to redesign from, said a bend must probably be placeable
+exactly at a ring's end (Guitar Pro is believed to allow it; being measured), and opened the door
+to changing behaviour where that buys a simpler coherent set. So this section offers two complete
+rulesets. Both satisfy everything ruled so far except where marked; they differ in ONE decision,
+and that decision also picks the stored model. The first draft of this section had a single
+seven-rule set whose rule 1 said "nothing but a bare fret may stand at the end"; the bend
+requirement breaks that rule, and looking at why produced both sets below.
 
-A note RINGS from its onset to its END. STATEMENTS are made at moments along the ring — a fret, a
-bend, a shake, any combination — one per moment, in order.
+Shared vocabulary. A note RINGS from its onset to its END. STATEMENTS are made at moments along
+the ring, one per moment, in order, each speaking on one or more CHANNELS: the FRET path (glides
+between stated stops), the BEND curve, the SHAKE (a state that holds until the next statement).
 
-1. **Shape.** A statement sits strictly inside the ring, or exactly AT its end. The statement at
-   the end is the RELEASE: an unpitched fall, which can only be a bare fret that TRAVELS — no
-   bend, no shake, and not the fret the string already holds. Nothing else may stand at the end.
-2. **The tail verb moves the END, never a statement.** So statements are its walls. It stops at
-   the next note's head and at the ring's last statement — landing ON that statement only if it
-   qualifies as a release (rule 1), which is how a glide becomes a slide-out. For the same reason
-   a released ring cannot shrink, and growing one leaves the release where it stood, now an
-   ordinary pitched statement inside a longer ring.
-3. **The move verb moves what is SELECTED, never anything else.** So the end is its wall: a moved
-   statement stops one step short of it, as it stops short of the onset and of its neighbours.
-   The one selected thing that IS the end is the release, and moving it moves the end. Selecting
-   several statements moves them as one figure.
-4. **No verb deletes a statement it was not aimed at.** A verb may stop, or refuse; it may not
-   leave a statement cut off or saying less. When another note's arrival cuts a ring short, a
-   statement in the way refuses the arrival; the release alone rides back to the new end, because
-   it is the end's own statement and cutting it off would delete it.
-5. **A statement that says nothing new is authoring state.** Visible and fully editable while its
-   note is in focus; never saved, never in undo, gone when focus leaves. A release cannot be one
-   (rule 1), so a release that an edit leaves saying nothing is removed by that same edit.
-6. **A held run is a pure function of where it started and its net steps.** Every run inverts
-   inside itself, step for step; nothing depends on the path taken to a position.
-7. **A wall the charter can see is silent.** The refusal flash is for a key that did nothing for a
-   reason the screen does not show.
+What a statement MEANS at the very end is a fact about the channels, not a rule about releases —
+the earlier "a release is bare" rule was this, over-stated:
 
-Who owns what, in one line: **the end is the tail verb's and the release's; statements are the
-move verb's; deleting is Delete's.** The asymmetry that prompted the question — bringing the tail
-IN converts a slide to a slide-out, moving the landing OUT does not — is rule 2 and rule 3 each
-doing their one job: becoming the release is something that happens to the END.
+| Channel | Inside the ring | Exactly at the end |
+|---|---|---|
+| fret | a pitched stop the path arrives at | the FALL: an unpitched slide-out toward it, if it travels; nothing if it repeats the fret in force |
+| bend | a value the curve passes through | the curve's LAST value — meaningful, it sets the final slope |
+| shake | the state from here on | nothing: there is no ring left to shake |
 
-One seam is accepted rather than hidden: the release follows the end when the move verb or a
-truncation moves it, and stays behind when the tail verb grows past it. The first is rule 4 (it
-would otherwise be deleted), the second is rule 2 (the tail verb moves no statement), ruled
-2026-09-10 after being re-opened as a toss-up.
+### Set A — position gives meaning (today's behaviour, generalised)
 
-**Set aside, with the reasons, so they are not re-proposed:**
+1. **Shape.** Statements stand at moments in (onset, end], in order. The statement AT the end means
+   what the table says.
+2. **The tail verb moves the END, never a statement.** Statements are its walls: it stops at the
+   next head and at the ring's last statement. It may land ON that statement only if every channel
+   the statement speaks on still speaks at the end — so never onto a shake, never onto a fret that
+   would stop travelling. Landing on a travelling fret is how a glide becomes a slide-out; a ring
+   whose end holds a statement cannot shrink; growing one leaves the statement behind, now inside.
+3. **The move verb moves what is SELECTED, never anything else.** The end is its wall, like the
+   onset and the neighbours. The statement at the end IS the end, so moving it moves the end.
+4. **No verb makes a statement say less, or deletes one it was not aimed at.** A note arriving on a
+   ring is refused by any statement it would cut or silence; the end's own statement rides back to
+   the new end.
+5. **A statement that says nothing new is authoring state** while its note is in focus — and only
+   where it can be SEEN. One nothing draws is removed by the edit that made it.
+6. **A held run is a pure function of its start and its net steps.**
+7. **A wall the charter can see is silent.** The flash is for an unexplained nothing.
+
+Its accepted seam: the end's statement follows the end under the move verb and a truncation, and
+stays behind under the tail verb's grow (ruled 2026-09-10 as a toss-up). Its standing hazard: a
+statement CHANGES MEANING when the end reaches or leaves it, so every verb that moves an end or a
+statement has to ask rule 2's question. Most of this week's defects were a verb that did not.
+
+Model: the keyframe vector as it is, with `stripReleaseChannels` and the `ReleasePayload` repair
+DELETED (a bend at the end is kept; a shake there is ordinary silence), the landing test
+generalised to the channel table, and truncation reduced to "refuse, or carry the end's statement".
+No format change beyond permitting a bend on the end keyframe.
+
+### Set B — kind never changes
+
+The one decision: **the end has its own statement, and it belongs to the end.** It is not a
+keyframe that happens to stand there.
+
+1. **Shape.** POINTS stand strictly inside the ring, in order. The END may carry an END STATEMENT:
+   a fall toward a fret that travels, a final bend value, or both.
+2. **The tail verb moves the END, and the end statement goes with it.** Points are its walls: it
+   stops one step short of the last point, and at the next head.
+3. **The move verb moves the selected POINTS, never anything else.** Its walls are the onset, the
+   neighbours and the end. (Selecting the fall's chip and stepping it IS the tail verb: the chip is
+   the end's handle.)
+4. **No verb makes a statement say less, or deletes one it was not aimed at.** A note arriving on a
+   ring is refused by any point it would cut; the end statement rides back with the end.
+5. **A point that says nothing new is authoring state** while its note is in focus. An end
+   statement that says nothing is removed by the edit that made it.
+6. **A held run is a pure function of its start and its net steps.**
+7. **A wall the charter can see is silent.**
+
+Nothing converts, so there is no landing test, no seam, no "released ring cannot shrink" (it can:
+the fall gets shorter, which is what a charter would expect), no grow-leaves-it-behind branch and
+no grown-release-steps-back branch. A scrape's terminal already rides its end in both directions
+as a special case; under Set B that is simply the rule.
+
+What it costs in behaviour: **shrinking a glide onto its landing no longer turns it into a
+slide-out, and growing past a slide-out no longer turns it back.** The end statement is authored
+with `Alt`+digit at the ring's end (already built) and removed with Delete; turning an existing
+glide into a slide-out is Delete the landing, then `Alt`+digit. The user called the shrink
+conversion out approvingly on 2026-09-21, so this is a real loss to weigh, not a free deletion.
+
+Model: `keyframes` strictly inside `(0, sustain)`, plus an end statement on the note holding an
+optional fall fret and an optional final bend — with no offset, because its moment is the end by
+definition. Storing it as a keyframe whose offset must always equal the sustain would be the
+desyncable second coordinate; under Set B every tail step would have to move it by hand. So Set B
+IS the stated-end model: a format change (the end statement returns to the note as its own key),
+which by the no-migration rule means re-importing the corpus and teaching the external converter.
+About twenty-five tests pin a conversion and are retired or rewritten.
+
+### Which
+
+Set B is the one that would be built from scratch: the same seven rules with three of them
+shorter, no seam, and the property six rulings in eleven days converged on — kind never changes by
+position — held by construction instead of by every verb remembering to ask. Set A keeps a gesture
+the user likes and needs no format change, and its hazard does not go away: the next verb that
+moves an end (paste, transpose-with-duration, a tempo-map retime, bend authoring itself) must
+remember rule 2's question or reopen this week.
+
+Recommendation: **Set B**, on the strength of the long-term bar the user set for this review — with
+the shrink conversion's loss stated plainly as the price, and the user's to refuse. If the
+conversion is worth more than the simplification, Set A is coherent and cheaper today.
+
+Either set settles who owns what in one line: **the end is the tail verb's; points are the move
+verb's; deleting is Delete's.**
+
+**The move verb at the end — set aside, with reasons, so they are not re-proposed** (the wall was
+ruled by the user on 2026-09-21 and both sets keep it):
 
 | Shape | A statement moved onto the end… | Why not |
 |---|---|---|
@@ -75,10 +139,10 @@ would otherwise be deleted), the second is rule 2 (the tail verb moves no statem
 | Push | pushes the end one step ahead of itself | moving a slide's landing changes the note's DURATION, which the legato hold test and the drawn tail read; with snap off the pushed tail is a one-tick sliver. The small upgrade if the wall proves obstructive in the hand |
 | Ripple | carries every later statement and the end | a head move moves ONE object whose statements ride with it; statements are siblings, each pinned to its own musical moment. The useful half already exists: select the figure and it moves whole |
 
-What is open against these rules today: rule 4's truncation half — a statement with a shake or a
-bend standing exactly ON the landing is kept by the inclusive clip and then bared, with no refusal
-and no test — and inserting a note, which truncates with no guard at all where the move verb has
-`moveErasesStatement`.
+What is open against rule 4 under EITHER set, and gets built whichever is chosen: a note INSERT
+truncates with no guard at all where the move verb has `moveErasesStatement`; and a statement
+standing exactly ON a truncation landing is kept by the inclusive clip and then bared, with no
+refusal and no test (Set B closes this one by construction — no point can stand at the end).
 
 ## 1. The undo burst
 
@@ -213,34 +277,15 @@ external converter, not writing a reader for the old form. About twenty-five tes
 kind-change and are rewritten rather than re-spelled. `file-formats.md`, the 2D-views guide and
 the walkthrough's W10 / W13 entries are restated.
 
-### One fact to establish before ruling
+### Where this section now stands
 
-Phase 3 builds bend authoring on this substrate. A bend that ramps to the END of a ring needs a
-statement at the end. Today one offset holds one keyframe, and a fret at the end is the release and
-sheds its bend — so a note that bends to its end AND falls away appears to be unwritable. Under a
-stated release the two are separate data and both fit. If that reading is right it is an
-expressiveness argument, not only a tidiness one, and it moves the decision ahead of Phase 3. It has
-not been verified against the bend model and must be before this section is signed.
-
-### Recommendation
-
-**Narrower since the wall was ruled.** The ruleset above is most simply SAID positionally — "the
-statement at the end is the release" — and under it rule 2's two conversions cost the positional
-model nothing. With every route to the end guarded by a rule (the landing test, the wall, the
-truncation refusal, the same-edit removal), the strip family stops being reachable from the editor
-at all. What a stated release still buys is the deleted detach / re-attach dance and
-skip-the-release exclusions, rule 4's truncation hole closed by construction rather than by a
-guard — and the bend question above, which now decides it: rule 1 says nothing but a release may
-stand at the end, and if a bend must, rule 1 cannot hold in a model with one statement per moment.
-
-So: verify the bend fact first. If a bend needs the end, take the stated release, decided before
-Phase 3 begins and built after the burst redesign. If it does not, the positional model stands, the
-rules above are its guards, and the remaining work is rule 4's two open halves.
-
-The stated release is the larger change and the only one here that touches the format, which is
-why it is the user's call and not folded into a fix. Either way rule 4's open halves get built:
-under the positional model, a truncation landing refuses through `releaseWouldStripChannels` and
-the insert verb asks `moveErasesStatement`.
+Written before the user's statement that a bend must probably stand at a ring's end. That need is
+what breaks "a release is bare", and the ruleset section above works through the consequence: the
+choice is no longer "positional versus a stated release" in the abstract but Set A versus Set B,
+and the stored model follows from the set. The inventory above still applies — it is the list of
+what Set B deletes and what Set A generalises. Whether end-of-ring bends occur in real material,
+and how the importer treats them today, is being measured against the Guitar Pro corpus; the
+result belongs here.
 
 ## 3. Why silent points stay in the document
 
@@ -270,12 +315,12 @@ against the new burst and closed or restated.
 
 ## Order of work
 
-0. **Sign the ruleset.** Rule 3's wall is ruled; the seven as a set are not yet. Everything below
-   is built to them, and they move into `chart-ruleset.md` once signed so there is one place they
-   are stated.
+0. **Choose and sign a ruleset** (Set A or Set B above). Rule 3's wall is ruled in both. The
+   signed set moves into `chart-ruleset.md` so there is one place it is stated.
 1. **Now:** the stale-record fix and its regression tests (in flight). The tests outlive the fix.
 2. **Next, no ruling needed beyond this document:** the burst redesign. It replaces the fix it
    follows and deletes more than it adds.
-3. **Verify** the bend-at-the-end fact, then **rule** the release model.
-4. If ruled in: the stated release, as one change set with its format, importer, test and doc
-   halves, before Phase 3. If ruled out: the truncation-landing refusal alone.
+3. **Rule Set A or Set B** once the corpus measurement of end-of-ring bends is in.
+4. Build the chosen set as one change set — under B with its format, importer, test and doc
+   halves — before Phase 3, which authors bends on this substrate. Rule 4's open halves are built
+   under either.
