@@ -113,16 +113,22 @@ unenforced rulings, and a set of defects on supported material.
   refused notes themselves), the harmonic picker's skip, and the mixed-validity report for
   technique and keyframe edits (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on
   an ineligible selection is a dead key.
-- **The slide tail lock** (W6, roadmap 40-Q5 — SIGNED 2026-09-21). Today a sustain shortened past
-  a keyframe drops every fret, bend and vibrato statement beyond the new end
-  (`clipPayloadsToSustain`) and tells the charter nothing; only undo brings them back. Unreported
-  loss of authored data on supported material is the case corollary 1 exists for. The lock was
-  ruled 2026-08-09 and its feedback on 2026-09-21: the ring stops at its last non-release
-  keyframe as a SILENT floor in the resize clamp, exactly as it stops at the next note's head —
-  a visible bound is not a refusal, so it takes no flash, mark or message (`refusal-flash.md`). It
-  no longer waits on #278 and can be built now. A release still rides the end, which loses
-  nothing. The lock had no task of its own and was nearly lost when the old W6 task was merged
-  into #278.
+- **The slide tail lock — BUILT, and closed 2026-09-21** (W6, roadmap 40-Q5). This entry said a
+  shortened sustain silently dropped the keyframes past its new end; that was already untrue when
+  it was written. `planAdjustSustain` floors a shrinking ring at its last keyframe (`83f2afcd`,
+  2026-09-09), the step that lands ON a fret keyframe makes it the release (`83c6bc5a`), and a
+  released ring shrinks no further — the move verb is the fall's handle. Pinned end to end by "A
+  ring holds at its last keyframe inside one gesture" (`test_chart_sustain_gesture.cpp`). The
+  feedback question closed the same day: a visible bound is not a refusal, so the floor is silent
+  (`refusal-flash.md`).
+- **Inserting a note can still clip a neighbour's keyframes, silently.** The one real loss path
+  the W6 check turned up. `planInsertNote` has no guard and leaves the overlap to the gate's
+  `normalizeSustainOverlaps`, which truncates the earlier ring and drops every statement past the
+  new end (pinned as today's behaviour in `test_chart_edits.cpp`, the insert-truncation case, where
+  a bend at offset 3/2 is lost). The move verb already refuses exactly this through
+  `moveErasesStatement`; insert is the asymmetry. Corollary 1's case. The shape to rule: insert
+  asks the move verb's own guard and refuses — a refusal the screen does not explain, so it
+  flashes the neighbour it would have clipped.
 - **The tap-at-claimed-stop refusal** (task #277) — ruled invalid by construction, enforced
   nowhere: `chart_rules.cpp` never consults `chartClaimedStops`, so the state can be authored and
   saved. The open design call is placement (validator, load repair, or planner refusal).
@@ -440,8 +446,7 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    reopening trigger in `docs/tracking/watch-items.md`), and the corpus census re-pinned after it
    with every row made able to fail.
 2. **Current.** Land the ungated work while gates are signed: the refusal flash
-   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). The slide
-   tail lock joins them, ungated since 40-Q5 was signed 2026-09-21. Two small rulings are cheapest
+   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
    signed before Phase 2's verbs are wired: #277's placement and the unstruck-tie default.
 3. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
    sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,

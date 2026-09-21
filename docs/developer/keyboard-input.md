@@ -430,9 +430,10 @@ row: it is a statement no toggle may withdraw, so it keeps its own stating verb
 The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
 take a keyframe the drop emptied — all SILENT when they apply nothing, because the view's only
-reporting seam is a modal error box and "nothing to do" is not an error — legato counts its skips
-and their dominant reason
-in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
+reporting seam is a modal error box and "nothing to do" is not an error — legato returns each
+refused note with its own reason
+in `ChartLegatoPlan::refused` for the refusal flash
+(`docs/plans/in-progress/refusal-flash.md`), and shows nothing until then),
 `onChartLeftTapRequested`,
 `onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
 because a junction has exactly two states and the press moves each selected one to the other. A

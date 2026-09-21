@@ -204,10 +204,14 @@ rewrite of one note rather than a plan spanning two arrays, and `ChartEditPlan::
 single statement of what "backwards" means.
 
 One of the thirteen returns more than a plan: `planSetLegato` answers `ChartLegatoPlan{plan,
-skipped, reason}`, because the notes it turned down and why are things the planner already knew, so
-carrying them costs no second pass and no separate predicate to keep in step. (Nothing displays them
-yet — the editor has no non-modal notice channel — and that is the point of the shape: the payload
-waits in the planner's return rather than being recomputed when the channel arrives.) Recurring:
+refused}`, where `refused` lists each turned-down note's slot with its own reason
+(`ChartLegatoRefusal`), because which notes it turned down and why are things the planner already
+knew, so carrying them costs no second pass and no separate predicate to keep in step. The consumer
+is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows those very elements;
+nothing displays them yet, and that is the point of the shape — the payload waits in the planner's
+return rather than being recomputed when the surface arrives. A count plus a dominant reason would
+not survive that wait: the flash needs identities, so the planner returns them and the count is the
+list's size. Recurring:
 `planLanePointAtCaret` → `plantLanePoint` (`tone_handlers.cpp`), and the game's
 `library_scan_plan.h` (a pure planner that diffs the cached index and returns a deterministic action
 list, no IO). Reach for it when a mutation needs undo, a truthful preview, or side-effect-free

@@ -43,7 +43,8 @@ redesign.
 **A visible bound is not a refusal** (user, 2026-09-21). Resizing happens constantly, and a ring
 that runs into the next note's head, or shrinks to its last keyframe, and simply stops there is
 not an error: the charter can see what bounds it. No flash, no mark, no message. This settles
-roadmap 40-Q5 — the slide tail lock is a silent floor in the resize clamp — and it draws the
+roadmap 40-Q5 — the slide tail lock is a silent floor in the resize clamp, and was already built
+(`planAdjustSustain`, `83f2afcd`) — and it draws the
 flash's line for every verb: the flash is for a key that did nothing for a reason the screen does
 not already show. Every keyframe floor is visible: a keyframe that states no fret states a bend or
 a vibrato, which the tail draws, and one that states nothing dissolves. (W13's open display
@@ -93,8 +94,12 @@ Settled by the ruling and the code as it stands; small enough to build in one pa
    retires itself. Red is `EditorTheme`'s existing `invalid` role — the role W3's pending entry
    already uses for "this will not apply". The driver must respect the VBlank-runs-before-paint
    ordering that has frozen memoised values before.
-5. **The log.** Verify what the editor has before building on it; if there is no user-reachable
-   log, that is a finding to bring back, not a thing to invent quietly.
+5. **The log.** Verified 2026-09-21: the editor has a durable one — the Quill-backed
+   `RH_LOG_*` facade (`rock_hero/common/core/shared/logger.h`), rotating at
+   `%APPDATA%/Rock Hero/Rock Hero Editor.log` — and NO way to open it from the app: the menu bar
+   is File / Edit / View, and the path reaches a charter only inside the load-repair notice. So
+   under F5 the reason is developer-visible until an "Open Log" entry exists. That entry is small
+   and is the user's to call.
 
 Follow `docs/developer/adding-an-editor-ui-view.md` Part B for the silent steps.
 

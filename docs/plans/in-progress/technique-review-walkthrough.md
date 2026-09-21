@@ -153,9 +153,11 @@ Keep this list and the session task list in step.
   it inside the burst, and the settle sweep flattens what is left as one folded batch — nothing to
   lock and nothing to break. Slides keep both, because keyframes are real data. The break verb is
   dissolved into W10: `Shift+L`'s apply-or-clear toggle severs an existing link, so no verb or
-  binding of its own is needed. **Feedback RULED 2026-09-21 (user): none.** The ring stops at its
-  last non-release keyframe as a silent floor, like the next note's head — a visible bound is not
-  a refusal (`refusal-flash.md`). Unblocked; what remains is building the floor.
+  binding of its own is needed. **BUILT** — the floor is `planAdjustSustain`'s own lower bound
+  (`83f2afcd`, `83c6bc5a`): a shrinking ring holds at its last keyframe, the step landing on a fret
+  keyframe makes it the release, and a released ring shrinks no further. **Feedback RULED
+  2026-09-21 (user): none** — a visible bound is not a refusal (`refusal-flash.md`). Nothing
+  remains here; tick this box at the next sighting of the gesture.
 - [x] **W7 — The legato assist and the technique toggle window.** The assist lives inside
   `planSetLegato`: when the hold test is the only blocker, the plan grows the predecessor's tail to
   the margin point and re-asks `resolveLegato` under the grown tail — the same only-blocker test,
