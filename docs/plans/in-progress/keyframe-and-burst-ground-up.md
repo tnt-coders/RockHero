@@ -146,7 +146,10 @@ the head, or halfway along the last leg where that would crowd it. The two branc
 practice: a slide-out keeps its meaning, but a bend's moving terminal is moved back alone, so it
 becomes an interior point and the curve then holds flat to a ring end it no longer reaches — a
 bend that "completes as the note ends" is silently imported as one that completes slightly early
-and holds. 174 notes in the corpus take that today. Under Set B's single rule they do not.
+and holds. 174 notes in the corpus take that today. Under Set B's single rule they do not — and
+Set A can reach the same result: its rule 4 already says the end's own statement rides back with
+a truncated end, so the repair's release branch generalises to "whatever stands at the end". The
+defect argues for one rule, not for one set.
 
 **Authoring the end's bend, for Phase 3** (raised by the user 2026-09-21; a proposal, to be signed
 with the `B` verb). The slot where a ring ends is often the slot where the next note's head
