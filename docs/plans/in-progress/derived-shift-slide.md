@@ -239,9 +239,9 @@ folds it with the head's own demand, which restores rule 9 exactly. What does no
 hull-exact reshape for a shift slide: at the arrival's instant a chord partner's ring has just
 ended, so nothing pins an edge and the window translates at the four-fret width. Reading the
 relation inside `coverageEventsOf` was tried and reverted: there the landing head itself counts as
-the planted finger, and the reshape collapses to a one-fret window. One coupling is open and
-accepted: an FHP authored at the arrival resolves to the STORED instant while the drawn rail
-arrives one margin earlier, so the hand marker lands a margin after the rail completes.
+the planted finger, and the reshape collapses to a one-fret window. The window now COMPLETES with
+the rail: a matched ramp carries the drawn segment's own end, so an FHP authored at the arrival
+resolves to the instant the rail arrives at rather than the stored one a margin later.
 
 ## Order
 

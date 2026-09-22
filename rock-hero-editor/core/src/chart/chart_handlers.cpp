@@ -1545,9 +1545,10 @@ void EditorController::Impl::armMarkerInPlace(const int string_count)
 // Left/Right from the passive marker — a marker row included — arm in place on the remembered row
 // without stepping, except under a time selection, which they leave past its edge in their
 // direction; while armed they step the union stop set on the caret's row, or jump measures under
-// the reach modifier (the Guitar Pro jump). Every move re-derives the selection from what sits
-// under the caret. Inert while playing: arming requires a paused transport (armed ⟹ paused is
-// structural).
+// the reach modifier (the Guitar Pro jump). A move re-derives the selection from what sits under
+// the caret; a step that stays on its slot names the object the walk reached instead, which is how
+// a ring's end statement sharing a head's instant is reachable and leavable. Inert while playing:
+// arming requires a paused transport (armed ⟹ paused is structural).
 void EditorController::Impl::performActionImpl(const EditorAction::StepChartCaret& action)
 {
     const ChartStepDirection direction = action.direction;
@@ -1614,6 +1615,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         }
     }
     common::core::GridPosition stepped;
+    // The object a step lands ON, carried only when the step does not MOVE: the slot it stays on
+    // holds the head too, so re-deriving would take the head every time (chartObjectAt) and the
+    // caret could never reach the ring's end statement beside it.
+    std::optional<ChartSelectionKey> stepped_object;
     if (measure)
     {
         // The Guitar Pro measure jump, shared with the time-selection extend so the two never
@@ -1634,9 +1639,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
                 nextRowObjectStop(caret, sign > 0, false);
             object_stop.has_value())
         {
-            // The SLOT is what an arrow step takes from the walk: an arrow lands on a slot and lets
-            // it answer what stands there, which is what keeps a bare digit at a ring's end slot
-            // the next note.
+            // A step that MOVES takes the SLOT from the walk: it lands there and lets the slot
+            // answer what stands on it, which is what keeps a bare digit at a ring's end slot the
+            // next note.
             const common::core::GridPosition position = object_stop->position;
             const bool grid_advanced =
                 sign > 0 ? caret.position < stepped : stepped < caret.position;
@@ -1644,6 +1649,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
             if (!grid_advanced || object_nearer)
             {
                 stepped = position;
+                if (position == caret.position)
+                {
+                    stepped_object = object_stop->object;
+                }
             }
         }
     }
@@ -1653,12 +1662,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     // meets it first and a caret arriving from the left meets the head first. A measure jump is not
     // traversal — it is a big move by definition — so it lands on the stop every note has.
     // armChartCaret drops a Held request the destination cannot draw, so this needs no second test
-    // of its own.
+    // of its own. A step landing on the walk's own object takes the stop every object has, exactly
+    // as the object walk does (StepToRowObject).
     landOnRow(
         prepareLandingRow(tab->stringCount()),
         stepped,
-        !measure && sign < 0 ? common::core::ChartStopChannel::Held
-                             : common::core::ChartStopChannel::Sounding);
+        !measure && sign < 0 && !stepped_object.has_value()
+            ? common::core::ChartStopChannel::Held
+            : common::core::ChartStopChannel::Sounding,
+        stepped_object);
     updateView();
 }
 

@@ -285,8 +285,9 @@ Four consequences worth knowing before touching this:
   statement ALREADY stands on that end, `Insert` SELECTS it rather than doubling it, and the keys
   address it from there.
   Its slide-out chip is a selection citizen
-  like any keyframe: click it, or step onto it with `Shift+Tab` from the slot — the walk stops on
-  the end statement before the head that shares its instant — and it wears
+  like any keyframe: click it, or step onto it from the head sharing its instant — the walk stops on
+  the end statement before that head, so `Shift+Tab` reaches it and so does a plain `←`, which stays
+  on the slot and names the statement rather than re-deriving the head there — and it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
   `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
   force says nothing (`keyframeSaysNothingNew`) and is treated like every other silent point: it

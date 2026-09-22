@@ -716,10 +716,11 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     CHECK(glideStopAt(presented_glide, 0).unpitched);
 
     // The placement is authored at the instant the chart states the terminal, so the identity key
-    // still finds the ramp: the hand rides the slide-out from the note's onset into it — two
-    // seconds at 120 BPM — and both forms agree, because the table is one table.
+    // still finds the ramp: the hand rides the slide-out from the note's onset to where the
+    // terminal is DRAWN, and both forms agree, because the table is one table.
     REQUIRE(presented.fret_hand_positions.size() == 1);
-    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(2.0));
+    CHECK(presented.fret_hand_positions[0].seconds == Catch::Approx(1.9));
+    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(1.9));
     CHECK(presented.fret_hand_positions[0].unpitched_ramp);
     CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
 }
@@ -1120,13 +1121,72 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The glide segment starts at the onset (12 beats) and the window arrives where the placement
-    // is authored (13 beats), so the ramp spans the whole beat and stays PITCHED — which is the one
-    // thing this case is about. That the window lands one margin AFTER the drawn rail's own arrival
-    // is the open coupling recorded in `docs/plans/in-progress/derived-shift-slide.md`: a placement
-    // has never been presentation-adjusted, and the arrival it is authored against has just moved.
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
+    // The window completes WITH THE RAIL: the glide segment starts at the onset (12 beats) and ends
+    // where the arrival is DRAWN, one margin before the 13 beats the chart states it at, so the
+    // ramp spans that drawn segment. It stays PITCHED, which is the other thing this case is about.
+    REQUIRE(state.notes.size() == 7);
+    const NoteViewState& shift = state.notes[5];
+    REQUIRE(shift.slides.size() == 1);
+    const KeyframeViewState& arrival = shift.slides.back();
+    CHECK(arrival.seconds == Catch::Approx(12.8 * beat));
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(arrival.seconds));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.8 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+}
+
+// Two rings can end on ONE head from two strings, and the ramp table is keyed by instant alone: the
+// placement standing there is the hand LANDING, so the pitched arrival outranks the slide-out
+// leaving beside it whichever note the walk reaches first.
+TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart_ptr = chartOrNull(arrangement);
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
+    chart.notes = {
+        // String 1 trails off unpitched onto the shared instant, and comes FIRST in slot order, so
+        // it is the note whose ramp the table would keep under a first-in-order rule.
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
+        },
+        // String 2 shift-slides into its own re-picked landing at that same instant.
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 2,
+            .fret = 3,
+            .sustain = Fraction{1},
+            .bend = {},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2},
+            .string = 2,
+            .fret = 7,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 2}, .fret = 7, .width = 4},
+    };
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.fret_hand_positions.size() == 1);
+
+    // The arrival's own drawn segment: from the onset (4 beats) to the drawn arrival, one margin
+    // before the 5 beats both rings end at.
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.8 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.8 * beat));
+    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
 }
 
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
@@ -1169,7 +1229,9 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
     CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
-    // The real glide that follows still rides its own one-beat segment.
+    // The real glide that follows still rides its own one-beat segment, and an INTERIOR arrival is
+    // drawn exactly where the chart states it, so the window completes there.
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(8.0 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }

@@ -69,19 +69,18 @@ namespace
     return Fraction{} < trimmed ? trimmed : shape.sustain;
 }
 
-// Where a fret-hand placement's approach ramp begins when the placement lands exactly on a glide
-// arrival, keyed by the keyframe's advanced grid position. A placement sitting on a keyframe ties
-// its ramp to that glide's own segment, so a drawn hand travels with the drawn rail instead of on
-// an unrelated metrical margin. UNPITCHED slide-out ends are recorded too, and carry their family
-// so the hand eases with the same curve the rail uses. Chord slides record identical values under
-// one key.
+// The DRAWN segment a fret-hand placement's approach rides when the placement lands exactly on a
+// glide arrival, keyed by the keyframe's advanced grid position. Both ends are the drawn ones —
+// presentation may show a ring's end a margin before the chart states it — so the hand travels with
+// the rail instead of on an unrelated metrical margin, easing with the rail's own family.
 struct SlideRamp
 {
     double start_seconds{0.0};
+    double end_seconds{0.0};
     bool unpitched{false};
 };
 
-// Walks every glide in a note stream once and records where each arrival's segment begins.
+// Walks every glide in a note stream once and records the drawn segment each arrival rides.
 //
 // A pass of its own rather than a table filled inside the note loop below, because the ramps are
 // the PRESENTED stream's answer whichever form that loop projects (chart_projection.h): when the
@@ -118,7 +117,7 @@ struct SlideRamp
         const bool slides_out = noteSlidesOut(connections, index);
         // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
         // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
-        // segment's own start. Presentation may show the end's statement earlier than the chart
+        // segment itself. Presentation may show the end's statement earlier than the chart
         // states it (\ref presentedChartNotes rule 2), so keying on the drawn offset would file the
         // ramp under an instant no placement is written at.
         const std::span<const Keyframe> identities = keyframeIdentities(saved[index], note);
@@ -148,18 +147,35 @@ struct SlideRamp
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span. The slide-out's segment starts where the last sounded
-            // fret left off and ends where the RING does — exactly the span the rail is drawn
+            // fret left off and ends where the DRAWN ring does — exactly the span the rail is drawn
             // over — and is marked unpitched so the ease matches the slide-out.
             const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
+            const double keyframe_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
             if (*fret != segment_start_fret || unpitched)
             {
-                starts.try_emplace(
-                    advanceGridPosition(
-                        tempo_map, note.position, identities[keyframe_index].offset),
-                    SlideRamp{.start_seconds = segment_start_seconds, .unpitched = unpitched});
+                const SlideRamp ramp{
+                    .start_seconds = segment_start_seconds,
+                    .end_seconds = keyframe_seconds,
+                    .unpitched = unpitched,
+                };
+                // A PITCHED ramp outranks an unpitched one at a shared key: a slide-out on one
+                // string and a shift slide's arrival on another can end on the same head, and the
+                // placement standing there is the hand LANDING. The key names no string, so the tie
+                // is settled here rather than by which note the walk happened to reach first.
+                SlideRamp& filed =
+                    starts
+                        .try_emplace(
+                            advanceGridPosition(
+                                tempo_map, note.position, identities[keyframe_index].offset),
+                            ramp)
+                        .first->second;
+                if (filed.unpitched && !unpitched)
+                {
+                    filed = ramp;
+                }
             }
-            segment_start_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
+            segment_start_seconds = keyframe_seconds;
             segment_start_fret = *fret;
         }
     }
@@ -661,14 +677,18 @@ ChartViewState makeChartViewState(
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
-        const double arrival_seconds =
+        double arrival_seconds =
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
         if (const auto slide = slide_ramp_starts.find(fhp.position);
             slide != slide_ramp_starts.end())
         {
+            // BOTH ends come from the drawn segment: a ring's end statement is drawn a margin
+            // before the chart states it, and a hand that completed at the stored instant finished
+            // after the rail it rides and eased slower to get there.
             ramp_start_seconds = slide->second.start_seconds;
+            arrival_seconds = slide->second.end_seconds;
             unpitched_ramp = slide->second.unpitched;
         }
         else
@@ -679,10 +699,12 @@ ChartViewState makeChartViewState(
         const double previous_arrival_seconds = state.fret_hand_positions.empty()
                                                     ? tempo_map.secondsAtBeat(1, 1)
                                                     : state.fret_hand_positions.back().seconds;
-        ramp_start_seconds = std::clamp(
-            ramp_start_seconds,
-            std::min(previous_arrival_seconds, arrival_seconds),
-            arrival_seconds);
+        // Every consumer binary-searches this stream by `seconds`, so a drawn arrival never
+        // precedes the one before it: a placement crowded closer than the margin would otherwise
+        // sort behind its predecessor once the drawn instant pulled it back.
+        arrival_seconds = std::max(arrival_seconds, previous_arrival_seconds);
+        ramp_start_seconds =
+            std::clamp(ramp_start_seconds, previous_arrival_seconds, arrival_seconds);
         state.fret_hand_positions.push_back(
             FhpViewState{
                 .seconds = arrival_seconds,

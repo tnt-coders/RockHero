@@ -580,6 +580,12 @@ verb keeps note scope. A measure jump is
 not traversal and always lands on the stop every note has, and the channel is worth only what the
 drawn picture still says, asked again at the moment it is spent.
 
+A SECOND pair shares one slot where a ring's END statement stands on the next head's instant. There
+a step that does not MOVE names the object the object walk reached instead of letting the slot
+answer — `←` from the head selects the statement, `→` from the statement takes the head back, and
+the press after either leaves the slot — while a step that MOVES still lands on the slot alone,
+which is what keeps a digit at a ring's end slot the next note.
+
 Which notes wear that second mark is now exactly the RIGHT-HAND ONSETS, because the DEFAULT gives
 every one of them a held stop even where the chart states none (user ruling 2026-09-02) — a TAPPED
 HARMONIC wearing its own pressed fret there instead, its claim, where the channel is read-only

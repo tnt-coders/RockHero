@@ -898,7 +898,11 @@ struct ShapeViewState
 /*! \brief One fret-hand placement resolved to a timeline second, with its eased approach. */
 struct FhpViewState
 {
-    /*! \brief Absolute position the hand arrives at this placement. */
+    /*!
+    \brief Absolute position the hand arrives at this placement — the DRAWN arrival where a slide's
+    ramp carries it, which presentation may place a margin before the instant the chart states.
+    Placements ascend by this, the order every consumer binary-searches.
+    */
     double seconds{0.0};
 
     /*! \brief Lowest fret under the index finger. */

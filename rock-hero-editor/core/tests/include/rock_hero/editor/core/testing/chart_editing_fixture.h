@@ -72,6 +72,22 @@ namespace rock_hero::editor::core
     return chart;
 }
 
+// The glide's ring ending EXACTLY on the next head of its own string — one instant carrying two
+// objects. With `stated` the end names a fret the next head is not struck at, which is a slide-out
+// that abuts; without it the ring simply stops there and nothing stands at the instant but the
+// head.
+[[nodiscard]] inline common::core::Chart makeAbuttingStringChart(const bool stated)
+{
+    common::core::Chart chart = makeGlideChart();
+    if (stated)
+    {
+        chart.notes[0].keyframes.push_back(
+            common::core::Keyframe{.offset = common::core::Fraction{8}, .fret = 12});
+    }
+    chart.notes.push_back(makeTestNote({.measure = 4, .beat = 1}, 3, 3));
+    return chart;
+}
+
 // 20-second window across a 400x240 six-lane band: 20 px/s, 40px lanes, 25px heads.
 // Note anchors: measure 2 = (40, 220) on string 1 and (40, 180) on string 2; measure 3 = (80,
 // 220) with a one-second tail to x = 100.

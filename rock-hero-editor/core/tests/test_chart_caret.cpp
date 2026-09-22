@@ -867,4 +867,82 @@ TEST_CASE("EditorController steps out of a time selection past its edge", "[core
     CHECK(caret->seconds == Catch::Approx(3.5));
 }
 
+// WHERE A RING'S END STATEMENT SHARES A HEAD'S INSTANT two objects stand on one slot, and a plain
+// arrow names which of them it lands on rather than letting the slot re-derive — which would take
+// the head every time and trap the caret there. A step that MOVES still lands on the slot alone.
+TEST_CASE("EditorController steps the caret onto an abutting slide-out", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(
+        controller, project_services, audio, {}, makeAbuttingStringChart(true)));
+
+    // The glide's own head (2.0s on string 3), reached by arming in place at the cursor and
+    // walking up: nothing stands at its instant but itself, so Left simply takes the grid step.
+    controller.onTimelineSeekRequested(common::core::TimePosition{2.0});
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 3);
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(1.5));
+    CHECK(state->chart_edit.selected_notes.empty());
+
+    // The shared instant (6.0s): the ring's end statement and the head that takes the string back.
+    // Arming there selects the head.
+    controller.onTimelineSeekRequested(common::core::TimePosition{6.0});
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    // Left selects the statement beside it without moving the caret, and Right reaches the head
+    // again.
+    const std::vector<ChartKeyframeRef> statement{
+        ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+    };
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.selected_keyframes == statement);
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(state->chart_edit.selected_keyframes.empty());
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    // A second Left leaves the slot for the grid line before it, the statement having been the
+    // stop the first press took.
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(state->chart_edit.selected_keyframes == statement);
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(5.5));
+    CHECK(state->chart_edit.selected_keyframes.empty());
+    CHECK(state->chart_edit.selected_notes.empty());
+}
+
 } // namespace rock_hero::editor::core

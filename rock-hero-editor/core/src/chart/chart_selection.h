@@ -140,11 +140,11 @@ using ChartSelectionKey = std::variant<ChartNoteKey, ChartKeyframeKey>;
 
 The caret addresses a (position, string) slot, and its invariant is that the selection is exactly
 what sits under it. A note sits on its own slot. A keyframe sits on the slot its offset reaches
-along its note's ring, on that note's string — and the chart's own laws make that slot exclusive
-of any sounding onset: a keyframe lies strictly inside its ring, and a ring may reach but never
-pass the next onset of its string (\ref common::core::sustainBoundOf). One address names one
-object, which is what lets every caret path — arming, stepping, clicking, riding a move — treat
-the two kinds through this one function instead of asking which kind it holds.
+along its note's ring, on that note's string — and a ring's END statement may share that slot with
+the next head, since a ring may reach the next onset of its string
+(\ref common::core::sustainBoundOf). Which of the two a caret stands on is then the landing's own
+answer — the object walk and the arrow step that stays on its slot both name the object they
+reached — while this one function takes every caret path from the object back to its slot.
 
 \param tempo_map Tempo map the keyframe's offset is advanced through.
 \param key Selected object.
