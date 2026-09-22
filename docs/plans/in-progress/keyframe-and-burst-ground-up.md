@@ -364,6 +364,49 @@ into a pre-bent same-string head, and a rising fall abutting a pre-bent head, at
 height and just above the text floor — falsified by any partially covered digit, any chip crossing
 the neighbouring envelope, or any mark changing band as `Alt` goes down.
 
+**Reaching the end from the keyboard** (the user, 2026-09-21: the caret is nearly always on the
+head, clicking the previous note is not acceptable, all authoring must be possible from the
+keyboard; proposed `Ctrl+Alt` as a quasimode that hides the head. Second ui-design-expert pass,
+six options costed). The facts first: the object walk (`Tab` / `Shift+Tab`,
+`nextRowObjectStop`) carries POSITIONS, not objects, and its comparison is strictly directional,
+so at a shared instant it can name only one object and the caret re-derives the head
+(`chartObjectAt` searches notes first) — the end statement there is click-only today, a code
+fact. Every verb but `Alt`+digit is SELECTION-addressed (digit retype, `B`, Delete, `V`,
+`Alt`+arrows, the tail resize on the selection's note — which already reaches a ring through a
+selected keyframe), so the whole keyboard gap is SELECTING the end; fix that and nine verbs follow.
+Two things make it cheap: the caret peek's reveal is ends-included, so a caret at the shared slot
+already reveals the previous ring running into the head; and a selected keyframe already wears the
+accent ring on its chip.
+
+Recommended, **G1: the walk carries KEYS, and at a shared instant the end statement is stepped
+before the head** — the literal reading of "the instant belongs to the head", one step below it.
+`Shift+Tab` from the head selects the previous ring's end; a second press leaves for the previous
+object. About forty lines (the walk's return type and a key-landing arm), no new binding, no new
+modifier meaning, no new mark, and it deletes the "arming a slot selects a slide-out's chip"
+clause. `Alt`+digit and `Alt+B` remain for CREATION only — an end that states nothing is not yet
+an object — with the one-cell repair that `Alt` bypasses the retype operand there. G2 is G1 plus
+an empty end as a selectable point, which retires `Alt` from the digit row altogether (the
+"through the note" idea's complexities stand).
+
+Set aside, with reasons: **B** (`Alt` overrides the selection for every verb) breaches the
+uniform-scope law — "scope is always the selection, never the verb, with no exception anywhere in
+the map" — and would need that law amended in writing, not bypassed; **C** (`Ctrl+Alt` hiding the
+head) keys a fourth meaning on no operation and makes the reveal say LESS than the working view,
+the failure already rejected for the end chips — quiet the head if de-emphasis is ever wanted,
+never remove it; **D** (a dedicated bare key) has no mnemonic, bare letters being the technique
+plane; **E** (suppress the reveal for the authored note) draws the chip a margin from where
+`Alt`+arrows would move it. Precedent decides one thing: Sibelius cycles an object's attachments
+by `Tab`, MuseScore reaches a grace note sharing the instant by its walk, Guitar Pro edits the
+slide-out from the note — the convention is walk order, which is G.
+
+Found on the way and owed a backlog entry: JUCE's Windows peer strips `Ctrl` from AltGr, so on a
+German, Polish or Brazilian layout AltGr+7 (the charter's `{`) already fires `TypePathDigit7`, and
+the composed-character filter does not catch it. `Ctrl+Alt` itself is free and not
+AltGr-ambiguous.
+
+Taste, the user's: (i) at the shared instant does `Shift+Tab` stop on the end BEFORE the head
+(time order) or after it (heads first, attachments second, Sibelius's way); (ii) G1 or G2.
+
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
 a ring's exact end is the next note — and the plan gate's ring clamp shortens the ring to the
