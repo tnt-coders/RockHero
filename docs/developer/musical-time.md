@@ -226,10 +226,11 @@ tail off what a surface **draws**.
   the length (`ChartResolutions::rested_from` to `NoteViewState::rested`), so there is ONE end per
   note and both surfaces draw to it, the verdict never moves `end_seconds`, and drawn = scored
   stays intact.
-- `clipPayloadsToSustain`, `latestStatementBeforeStrike` — the tail
-  helpers the rules are built from, shared with the Guitar Pro importer so its synthesized
-  arrivals, the `Shift+L` split's matching retreat and the presentation trim ask the same
-  question. They read the note's ONE
+- `clipPayloadsToSustain` — the tail helper the rules are built from, shared with the Guitar Pro
+  importer so a grown or clamped ring carries its end's statement the same way everywhere. Where a
+  statement at a ring's end is DRAWN is presentation's alone (`lastStatementClearance`, file-local
+  in `chart_presentation.cpp`): the importer's shift arrival and the `Shift+L` split both state
+  theirs ON the next head now, so neither asks for a clearance. It reads the note's ONE
   interval payload, its `keyframes` array, where each entry states any subset of the fret, bend
   and vibrato channels (`docs/plans/todo/unified-waypoint-model.md`). The presented tail always
   reaches the last statement standing INSIDE the ring (rule 2), and nothing about what it SAYS is

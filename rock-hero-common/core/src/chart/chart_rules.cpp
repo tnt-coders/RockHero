@@ -251,9 +251,9 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a pull-off already states the stop under its onset, so the stored held fret "
                    "was dropped";
         }
-        case ChartRepair::ReleasePayload:
+        case ChartRepair::EndStatementShake:
         {
-            return "a bend or shake stated where the string is let go sounds nothing and was "
+            return "a shake stated where the string is let go had no ring to shake in and was "
                    "dropped";
         }
         case ChartRepair::SilentKeyframe:
@@ -328,10 +328,10 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     {
         setEndStatement(note, *ridden);
     }
-    // An end that lands exactly on a stated fret makes that fret the release — and a release
-    // states its fret and nothing else, so a shake or a bend the point carried as a stop goes with
-    // the ring that would have sounded it.
-    static_cast<void>(stripReleaseChannels(note));
+    // Whatever stands at the end leaves no SHAKE: a state stated where the ring stops has no ring
+    // left to shake in. Its BEND stays, the curve's last value shaping the final leg — the channel
+    // table decides, and it asks nothing about the gesture the fret beside it proves.
+    static_cast<void>(shedEndStatementShake(note));
 }
 
 // The one walk that answers "when is this string struck again", which the truncation below, the
@@ -531,11 +531,12 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         dropNotePath(note);
         fired(ChartRepair::OpenStringSlide);
     }
-    // A release states its fret and nothing else: the string is let go there, so a bend or a
-    // shake stated at that instant has no ring to sound in.
-    if (stripReleaseChannels(note))
+    // AN END STATEMENT LEAVES NO SHAKE: the string is let go there, so a state stated at that
+    // instant has no ring to sound in. The bend stays, being the curve's last value, which shapes
+    // the final leg into the end whether that end falls away or arrives into the next head.
+    if (shedEndStatementShake(note))
     {
-        fired(ChartRepair::ReleasePayload);
+        fired(ChartRepair::EndStatementShake);
     }
 
     // 4. A strike from nowhere needs somewhere to land.
@@ -552,7 +553,8 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    sounds like, with its path cleared. The editor's scrape verb asks no question of its own
     //    here: it builds the path and lets the fixpoint judge it, so a held segment skips the note
     //    the same way.
-    if (isScrape(note.attack) && slideOutFretOrNull(note) != nullptr && !pickSlidePathTravels(note))
+    if (isScrape(note.attack) && endStatedFretOrNull(note) != nullptr &&
+        !pickSlidePathTravels(note))
     {
         note.attack = NoteAttack::Pick;
         dropNotePath(note);
@@ -898,7 +900,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     {
         // Presence is the whole rule: a release IS the keyframe at the ring's end, so one that
         // exists sits exactly at the sustain and there is no second coordinate to disagree with.
-        if (slideOutFretOrNull(note) == nullptr)
+        if (endStatedFretOrNull(note) == nullptr)
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidPickSlide,

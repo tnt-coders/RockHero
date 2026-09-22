@@ -61,7 +61,8 @@ and the tail law's verdict beside it.
    curve's last value, a scrape's terminal — belongs to the end, so it floors nothing and is carried
    to the presented end: one margin back from the strike ahead of it, or halfway along its own last
    leg where the margin line would fall on or before that leg's start
-   (`latestStatementBeforeStrike`). Every drawn tail is therefore spaced alike whatever it ends in
+   (`lastStatementClearance`, presentation's own file-local). Every drawn tail is therefore spaced
+   alike whatever it ends in
    (user ruling, 2026-09-21), and this trim is the ONLY place that spacing lives — the stored chart
    may end a fall or a bend exactly ON the next head of its own string, because the store holds
    what the hands did (same ruling; the stored clearance repair was deleted for it).

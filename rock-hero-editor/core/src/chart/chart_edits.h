@@ -626,8 +626,9 @@ IS recorded, and the member rejoins where it parted.
   \ref common::core::ringEndMayLandOnLastKeyframe grants, where the landing makes a REAL release and
   costs nothing: a last keyframe stating a fret, nothing else, and a fret the path does not already
   hold there, on a ring that simply ends, may be landed on exactly, which makes it the RELEASE and
-  the glide an unpitched slide-out. A keyframe also stating a bend or a shake would lose that
-  statement to the release's bare-fret law, and one repeating the fret already in force would author
+  the glide an unpitched slide-out. A BEND beside that fret costs the landing nothing and rides to
+  the end as the curve's last value; a keyframe also stating a SHAKE would lose it, having no ring
+  left to shake in, and one repeating the fret already in force would author
   a fall toward the fret the string already holds — invisible, and dissolved by the plan gate in the
   same edit (\ref common::core::dissolveSilentRelease), which would take the point the charter can
   still see with it. Either holds the ring above it like a fretless one: this verb shortens
@@ -1133,30 +1134,32 @@ The split-tail law applied at a keyframe instead of at a bare tail point (W10's 
 note's path ENDS at the keyframe and a new head takes the remainder. The origin keeps the keyframe —
 its travel really does arrive there, and dropping it would delete the leg the split was made at — so
 the junction is an equal-fret handover, which is exactly the shape W10's ruling 2 names ("the
-handed-over keyframe fret equalling the new head's"). A point that says nothing the origin's path
-does not already say (\ref common::core::keyframeSaysNothingNew) — one typed at the note's own
-fret, or the one a join of equal frets leaves — has no leg, and the origin sheds it: kept, it would
-be authoring state the origin never meant, standing on the tail's tip until the caret leaving the
-note dissolved it. So the split of a silent point leaves a plain tail, and the join that made the
-point round-trips to the document the join read.
+handed-over keyframe fret equalling the new head's").
 
-**Where the arrival lands, and why it is not the split instant.** A fret left AT the product's end
-would be its RELEASE by position — an unpitched fall away from the string, not the pitched arrival
-the charter split at — and it would store the new head's coordinates a second time, the desyncable
-encoding the format exists to make unrepresentable. A glide into a re-picked landing therefore
-arrives BEFORE it — the format's own shift-slide shape, and the importer's policy rule 13 for
-exactly this figure — while the origin's RING still runs to the new head, because a re-strike is
-what stops a ring. The retreat costs nothing visible: the presentation trim ends the drawn tail at
-that same margin regardless.
+**The arrival stands AT the split instant** — on the new head itself, which is what the store says
+the hands did. Nothing marks it as the pitched arrival the charter split at, and nothing has to: the
+chart PROVES it, the end statement naming the very stop the next product is struck at, at the same
+instant (\ref common::core::arrivesIntoNextHead). The origin's RING runs to that head, because a
+re-strike is what stops a ring, and the DRAWN arrival is spaced one minimum sustain distance before
+it by the presentation rule that spaces every tail — exactly where the trim would have put it
+anyway. So there is no retreat to compute, no crowded-leg case to repair, and no clearance authority
+in the walk at all: a grid-step ring cut at the session's default 1/16 grid — the commonest split
+there is — needs nothing said about it.
 
-WHERE it lands is \ref common::core::latestStatementBeforeStrike, the shared authority every other
-producer of an unauthored statement asks — the minimum sustain distance before the new head, or
-halfway from the last leg's start where that margin line falls on or before it. The walk states no
-clearance rule of its own, so a leg shorter than the margin is not a case this verb can refuse: the
-authority always leaves both a leg and a gap. It cost a bug to learn — a margin subtracted by hand
-put the arrival on or behind the origin's onset whenever the product was shorter than the margin,
-and the gate then refused the whole split as an out-of-order payload, so `Shift+L` silently did
-nothing on the commonest split there is: a grid-step ring cut at the session's default 1/16 grid.
+What the product's end may KEEP is the channel table's, asked of the one authority
+(\ref common::core::shedEndStatementShake): a SHAKE stated at the cut has no ring left to shake in
+and goes, which loses nothing, since the shake at that instant is the NEXT product's onset state; a
+BEND stays, the curve's last value completing as the product's ring does.
+
+An arrival that says nothing the origin's path already says — one typed at the note's own fret, or
+the one a join of equal frets leaves — is KEPT, unlike a silent FALL: it wears a linked head at the
+presented end, so it is the ordinary visible authoring state the keyframe commit law leaves to the
+charter (\ref common::core::dissolveSilentRelease). That is also what leaves the join below an exact
+inverse with nothing to restore.
+
+A SCRAPE is refused outright: it is one gesture of the picking hand end to end, so it has no
+junction to sever, every product but the first would be a fretting-hand note the charter never
+wrote, and the join refuses a scrape on either side, so such a product could never be joined back.
 
 Every selected keyframe on a note splits it, in offset order, so a chain selected at two junctions
 becomes three notes: the uniform-scope law, one level inside the note.
@@ -1184,12 +1187,13 @@ today's resolver an equal-fret claim resolves to `Unjustified`, so the settle sw
 `Pick` and the split product reads as struck until that amendment lands. The default is a
 PROPOSAL, not a ruling; nothing here is written as if it were one.
 
-Split refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"):
+Split refusals, the first two from W10's ruling 2 ("technique verbs split only at stated frets"):
 
 - A keyframe stating no FRET is refused. A head must sit on a stated fret, and the fret between
   stating points is interpolated travel — rounding it was killed explicitly as invented data.
 - A keyframe at the ring's END is refused: there is no remainder for a new head to take, and the
   note already stops there.
+- A SCRAPE is refused, for the reason stated above: one picking-hand gesture has no junction.
 
 # THE JOIN
 
@@ -1204,20 +1208,21 @@ are facts about a STRIKE, and the join is the statement that no strike happens t
 Which note is the predecessor is \ref common::core::chartConnections' rule, walked over the output
 stream rather than restated: the last note on the string that SOUNDED.
 
-**The arrival RETURNS.** A split retreats the origin's arrival off the new head by
-\ref common::core::latestStatementBeforeStrike, so the arrival stays a pitched stop rather than
-becoming the origin's release. The join asks that same authority backward: where the predecessor's
-last keyframe states
-the head's own fret AND stands exactly where the retreat would have put it, it moves back onto the
-junction — an arrival that retreated only because a head stood there belongs at the junction once
-the head is gone. That, and nothing else, is what makes split-then-join byte-exact.
+**The arrival needs no return.** The split leaves its product's arrival AT the cut, so the statement
+is already standing at the junction when the join reaches it and the merge takes it over — no "did
+this point retreat?" equality test, and no spelling-based distinction between a retreated arrival
+and a charter's own point at the clearance. That is the whole of what makes split-then-join
+byte-exact.
 
 Join refusals, each because the handover it would author is not one the format can state:
 
 - No predecessor on the string at all — there is no path for the point to join.
 - A scrape predecessor: its travel is the PICK's position, so no fretting finger arrives anywhere.
-- A predecessor with a slide-out: a trail-off's tail is authored geometry, not slack to spend —
-  the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato).
+- A predecessor whose end FALLS: a trail-off's tail is authored geometry, not slack to spend —
+  the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato). A
+  predecessor whose end ARRIVES into this very head is the opposite case and IS joinable: the
+  finger is already on the stop the head takes, so the relation is asked of the pair the join
+  holds rather than of position (\ref common::core::arrivesIntoNextHead).
 - A fret-hand harmonic predecessor: a touch holds nothing to hand over.
 - A scraping head: a scrape is no struck note whose ring a path could continue.
 - A head carrying a harmonic node: a point states frets and channels, never a node.

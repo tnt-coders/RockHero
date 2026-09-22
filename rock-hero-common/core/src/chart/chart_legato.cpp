@@ -39,7 +39,11 @@ LegatoMotion resolveLegato(
     {
         return LegatoMotion::Unjustified;
     }
-    const int released = releasedFret(*predecessor);
+    // Where the finger ENDS, which the arrival changes: a fall names a fret the hand never
+    // reaches, while an arrival is a stop it glides onto and holds. This caller HOLDS the pair, so
+    // it asks the relation directly rather than taking a resolved vector it has no index into.
+    const int released =
+        releasedFret(*predecessor, arrivesIntoNextHead(*predecessor, note, tempo_map));
     if (released > note.fret && !note.harmonic_node.has_value())
     {
         return LegatoMotion::Pull;
@@ -49,6 +53,50 @@ LegatoMotion resolveLegato(
         return LegatoMotion::Hammer;
     }
     return LegatoMotion::Unjustified;
+}
+
+bool arrivesIntoNextHead(
+    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
+{
+    // (3) A scrape on either side, first, because it is the cheapest and disqualifies outright: a
+    // scrape's travel is the pick's, its terminal is required at its end, and nothing glides into
+    // its onset.
+    if (isScrape(predecessor.attack) || isScrape(successor.attack))
+    {
+        return false;
+    }
+    // (4) A next head the PICKING hand stops the string for is not arrived into — a fretting hand
+    // sliding into a fret a different hand then stops is not one gesture. A tapped harmonic passes
+    // here by construction: the predicate is already false for it, because the fretting hand holds
+    // the stop its node rides.
+    if (pickingHandStopsString(successor.attack, successor.harmonic_node))
+    {
+        return false;
+    }
+    // (1) The end must NAME A FRET. Bound once so the presence test and the read below are provably
+    // the same object.
+    const Keyframe* const end = endFretStatement(predecessor);
+    if (end == nullptr)
+    {
+        return false;
+    }
+    const std::optional<int>& stated = end->fret;
+    if (!stated.has_value())
+    {
+        return false;
+    }
+    // (2) EXACT ADJACENCY: the ring ends precisely where the next head starts. A glide finishing
+    // early states a fall, and a ring running past the head is bounded by the same-string clamp
+    // before any pair exists.
+    if (sustainEndPosition(tempo_map, predecessor) != successor.position)
+    {
+        return false;
+    }
+    // (5) The fret named IS the stop the next head is struck at, node-aware — one query for both
+    // sides, so a harmonic node and the fret beneath it can never read as the same place
+    // (frettingStopAt). `ChartStop`'s defaulted `==` compares an `std::optional<double>` node, a
+    // float compare made inside a standard library header, which coding-conventions names safe.
+    return frettingStopAt(predecessor, *stated) == frettingStopAt(successor, successor.fret);
 }
 
 ChartConnections chartConnections(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
@@ -71,6 +119,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     connections.legato.reserve(notes.size());
     connections.predecessors.reserve(notes.size());
     connections.hands_over.assign(notes.size(), false);
+    connections.arrives_into.assign(notes.size(), false);
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
@@ -82,6 +131,15 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
                                                  ? nullptr
                                                  : &connections.saved_notes[predecessor_index];
+        // THE SHIFT SLIDE, marked from the SUCCESSOR onto its predecessor because the relation is
+        // about the pair (\ref arrivesIntoNextHead). Resolved BEFORE the claim below, which reads
+        // the predecessor's released fret and therefore this very answer — asked here once and
+        // through the predicate there, one producer either way.
+        if (predecessor != nullptr)
+        {
+            connections.arrives_into[predecessor_index] =
+                arrivesIntoNextHead(*predecessor, note, tempo_map);
+        }
         // Only a note that actually CLAIMS a connection is resolved here. A plain pick's entry
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets
         // display code read this entry alone for the whole legatoClaimable family. The `H` toggle
@@ -299,7 +357,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // PLANT'S FACE); the claim column never sees it (\ref chartPlantedStops).
     resolutions.planted_stops = chartPlantedStops(resolutions.connections);
     ChartShapes derived = deriveChartShapes(
-        saved_notes, resolutions.claimed_stops, resolutions.planted_stops, tempo_map);
+        resolutions.connections, resolutions.claimed_stops, resolutions.planted_stops, tempo_map);
     // THE COMPLETE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures the claims
     // above just produced. It therefore runs AFTER the derivation and feeds nothing that runs
@@ -388,7 +446,7 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     // one would only hand back the frets it started with.
     const ChartConnections connections = chartConnections(notes, tempo_map);
     const ChartShapes derived = deriveChartShapes(
-        notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
     // Clearing a field leaves every index in place, so each repair is applied as the scan finds it.
     for (std::size_t index = 0; index < notes.size(); ++index)
     {

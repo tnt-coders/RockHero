@@ -457,7 +457,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         const common::core::ChartNote& carrier = note(3);
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
         CHECK(carrier.sustain == common::core::Fraction{1});
-        const int* const terminal = common::core::slideOutFretOrNull(carrier);
+        const int* const terminal = common::core::endStatedFretOrNull(carrier);
         REQUIRE(terminal != nullptr);
         if (terminal != nullptr)
         {

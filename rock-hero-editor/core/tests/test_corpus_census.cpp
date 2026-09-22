@@ -717,12 +717,16 @@ struct SourceLanding
     Fraction statement_end{};
 };
 
-[[nodiscard]] std::optional<SourceLanding> sourceLanding(const ChartNote& note)
+[[nodiscard]] std::optional<SourceLanding> sourceLanding(
+    const ChartNote& note, const bool arrives_into_next_head)
 {
-    // The release states where the hand LEAVES toward as the sound stops, which is the one fret
+    // The FALL states where the hand LEAVES toward as the sound stops, which is the one fret
     // statement that is no grip at all: it is skipped in both passes below, so a trail-off never
-    // reads as a landing and never ends one.
-    const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+    // reads as a landing and never ends one. An ARRIVAL is a landing like any other — the finger
+    // comes to rest on the stop the next head takes — so the RESOLVED relation is what this skips
+    // by (\ref common::core::arrivesIntoNextHead), never position alone.
+    const common::core::Keyframe* const release =
+        common::core::releaseKeyframe(note, arrives_into_next_head);
     // The first stop the channel comes to rest on after leaving the note's own.
     std::optional<Fraction> arrival;
     int landed = note.fret;
@@ -880,8 +884,8 @@ struct StreamIndex
 // instrument that re-derives its subject stops being able to disagree with it.
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
-    const std::vector<ChartShape>& shapes, const std::vector<ChartPosture>& postures,
-    const std::vector<bool>& arrivals,
+    const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
     const std::vector<common::core::FretHandPosition>& hand_positions, const TempoMap& tempo_map,
     DerivationCounters& out)
 {
@@ -1159,7 +1163,8 @@ void countDerivation(
                 {
                     continue;
                 }
-                const std::optional<SourceLanding> landed = sourceLanding(saved[ringing]);
+                const std::optional<SourceLanding> landed =
+                    sourceLanding(saved[ringing], arrives_into[ringing]);
                 if (!landed.has_value())
                 {
                     continue;
@@ -1473,7 +1478,8 @@ void countDerivation(
         bool travels = false;
         for (const std::size_t member : struck_at_start)
         {
-            const std::optional<SourceLanding> landed = sourceLanding(saved[member]);
+            const std::optional<SourceLanding> landed =
+                sourceLanding(saved[member], arrives_into[member]);
             if (!landed.has_value())
             {
                 continue;
@@ -1512,7 +1518,8 @@ void countDerivation(
                 long long resting = 0;
                 for (const std::size_t member : struck_at_start)
                 {
-                    const std::optional<SourceLanding> landed = sourceLanding(saved[member]);
+                    const std::optional<SourceLanding> landed =
+                        sourceLanding(saved[member], arrives_into[member]);
                     const Fraction ends =
                         index.onset[member] +
                         (landed.has_value() ? landed->statement_end : saved[member].sustain);
@@ -1543,9 +1550,11 @@ void countDerivation(
         for (const std::size_t member : struck_at_start)
         {
             const ChartNote& note = saved[member];
-            // The release is where pressure comes OFF, not a stop the string sounds, so the
-            // travel this measures is read from the statements before it.
-            const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+            // The FALL is where pressure comes OFF, not a stop the string sounds, so the travel
+            // this measures is read from the statements before it. An ARRIVAL is a stop, so the
+            // resolved relation is what this skips by.
+            const common::core::Keyframe* const release =
+                common::core::releaseKeyframe(note, arrives_into[member]);
             std::optional<Fraction> landing;
             bool differs = false;
             for (const common::core::Keyframe& keyframe : note.keyframes)
@@ -2356,6 +2365,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             countDerivation(
                 resolutions.connections.saved_notes,
                 resolutions.presented_notes,
+                resolutions.connections.arrives_into,
                 resolutions.shapes,
                 resolutions.postures,
                 arrivals,
@@ -2720,12 +2730,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // and the grip-statement law), a span ends at the first genuine stored gap on a
                 // sounding member (the continuity law), a ring belongs only to the span it was
                 // struck in, and a strike on a ringing open breaks the span it stands
-                // in rather than growing it. An expectation copied off this rig's own output would
+                // in rather than growing it. THE EXACT END OF A TAIL NEVER FOUNDS A SPAN: where a
+                // tail's end lands on the same instant as an onset, only the onset is a member of
+                // the span that results. An expectation copied off this rig's own output would
                 // check nothing, so the pin is a figure a reader signed and the row is left to
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22398.0,
+                .expected = 22386.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2735,7 +2747,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // is the spans a bracket has something to draw over.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1164.0,
+                .expected = 1154.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2758,18 +2770,21 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2778.0,
+                .expected = 2769.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
                 // onset-less open the grip-tenure law admits. ONE cause only (rule 7): a member
                 // that merely rings on past a break is a tail and opens nothing, and an open
                 // string no hand holds counts toward no landed grip, so what stands here is chord
-                // slides arriving at the grip they travel to. The SOURCE-side reading in section
+                // slides arriving at the grip they travel to. THE EXACT END OF A TAIL NEVER FOUNDS
+                // A SPAN, so a glide whose arrival stands on the head it slides into hands nothing
+                // over and opens nothing: only a ring running STRICTLY PAST its landing does. The
+                // SOURCE-side reading in section
                 // [5] attributes the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1243.0,
+                .expected = 988.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
@@ -2781,7 +2796,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // overwhelmingly BOX, which is what this row says in numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 1149.0,
+                .expected = 904.0,
             },
             CrossCheck{
                 // DERIVED HELD's residue: `normalizeChart` clears every stored held stop a
@@ -2842,12 +2857,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // per STOP, since one span can hold several out-of-reach fingers.
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
-                .expected = 163.0,
+                .expected = 159.0,
             },
             CrossCheck{
                 .label = "  those out-of-reach stops",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
-                .expected = 219.0,
+                .expected = 211.0,
             },
             CrossCheck{
                 // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each

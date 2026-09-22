@@ -633,9 +633,10 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
 > The tie/slide-link half is built as the SPLIT'S EXACT INVERSE under one immediate undo entry: at
 > every selected junction the press moves it to its other state — a selected keyframe becomes a
 > head, a selected head becomes a point on its same-string predecessor's path — and both halves run
-> in one press. Split-then-join restores the chart byte for byte, because the arrival the split
-> retreated off the new head returns to the junction through the same clearance authority run
-> backward.
+> in one press. Split-then-join restores the chart byte for byte. *Restated 2026-09-22, when the
+> shift slide became a fact the chart proves:* the arrival now STANDS at the cut, on the new head
+> itself, so there is nothing to retreat and nothing to return — the join's merge takes over the
+> statement already standing at the junction.
 >
 > **The tie needed nothing built.** Joining an equal-fret head leaves a point that says nothing the
 > path does not already say, so the commit law sheds it from the history entry and the writer sheds
@@ -710,15 +711,16 @@ amendment at the top of this section). Three things the build settled or exposed
   settle sweep flattens it to a pick and the product reads as STRUCK until `LegatoMotion` gains
   `Continuation` (it holds `Unjustified`, `Hammer`, `Pull` today). Nothing was written as if the
   default were ruled.
-- **The arrival cannot sit where the split does, and that is the format's own law.** A fret-stating
-  keyframe may never sit on a later sounding onset of its own string, so the origin's arrival
-  retreats by the minimum-sustain-distance margin — the shift-slide shape the importer's policy rule
-  13 already synthesizes for exactly this figure, and where the presentation trim ends the drawn
-  tail anyway. Without it the verb could never produce a legal chart at all. The margin is a
-  consequence of the signed format rule rather than a new ruling, but it MOVES an authored instant,
-  so it wants a sighting.
-- **A junction with no room for that retreat is refused, never clamped** (one within a margin of the
-  onset or of the statement before it).
+- **The arrival STANDS where the split does** *(restated 2026-09-22; the retreat below is
+  retired)*. The origin's arrival sits AT the cut, on the new head itself, and what tells it from
+  the product's own fall is the RELATION rather than its place: it names the very stop the new head
+  is struck at, at the same instant (`arrivesIntoNextHead`). Presentation spaces the DRAWN arrival
+  one margin before that head, as it spaces every tail, so the look is unchanged and no authored
+  instant moves, which retires the sighting concern this bullet carried.
+  — *Superseded:* "a fret-stating keyframe may never sit on a later sounding onset of its own
+    string, so the origin's arrival retreats by the minimum-sustain-distance margin". The stored
+    clearance law went on 2026-09-21 (`keyframe-and-burst-ground-up.md` step 3) and the retreat with
+    it, so there is no crowded case left to refuse either.
 
 **RULED — the split head's attack:**
 
@@ -824,13 +826,15 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   was ruled 2026-09-21: the move verb never makes any OTHER point the release, because an interior
   point's offset must stay STRICTLY below its ring's end — so a point's KIND cannot change under a
   move at all, which is what lets a held run replay release-ness off its pre-gesture chart. A
-  release STATES ITS FRET AND NOTHING ELSE (user, 2026-09-10): a bend or shake on the point the ring
-  was pulled onto has no ring to sound in, so it goes with that ring (`stripReleaseChannels`, one
-  spelling, asked by the writer, the resize and the load repair — no longer by the move step, whose
-  end bound makes a stepped point a release it never can).
-  Consequences signed: a pitched arrival exactly at the end is
-  no longer a distinct state (arrive-and-stop is written as the importer writes every arrival, one
-  margin inside the end); the release may park on the onset that silences the string; the capo
+  AN END STATEMENT LEAVES NO SHAKE (user, 2026-09-10, narrowed by the 2026-09-21 amendment): a shake
+  on the point the ring was pulled onto has no ring to sound in, so it goes with that ring
+  (`shedEndStatementShake`, one spelling, asked by the writer, the resize and the load repair — no
+  longer by the move step, whose end bound makes a stepped point a release it never can). A BEND
+  there STAYS, being the curve's last value.
+  Consequences signed, and one of them RETIRED 2026-09-22: a pitched arrival exactly at the end WAS
+  ruled "no longer a distinct state", with arrive-and-stop written one margin inside the end; the
+  derived shift slide reverses that — the arrival stands AT the end and the chart proves it
+  (`arrivesIntoNextHead`); the release may park on the onset that silences the string; the capo
   floor lifts a release rather than stripping it; saved projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
   through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
   law — and an `Alt`+digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The

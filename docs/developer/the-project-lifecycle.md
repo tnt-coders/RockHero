@@ -282,7 +282,8 @@ file and from a fresh import shows the same tails, and the model behind the spli
    floors nothing and RIDES to the presented end with it. Where that end goes is one margin back
    from the binding onset, or halfway along its own last leg where the margin line would fall on or
    before that leg's start — the one split that always leaves both a leg and a gap
-   (`latestStatementBeforeStrike`). So a tail ending in a fall or a bend is spaced before the next
+   (`lastStatementClearance`, presentation's own file-local now that it has no other asker). So a
+   tail ending in a fall, a bend or a shift slide's arrival is spaced before the next
    head exactly as a bare tail is, on any string. This trim is the ONLY place that spacing lives:
    the stored chart may end a fall or a bend exactly ON the next head of its own string, because
    the store holds what the hands did (user ruling, 2026-09-21), so the drawn and stored moments
@@ -1345,16 +1346,19 @@ neighbours.
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):
 
-13. **A shift slide re-picks its landing.** The origin carries an ordinary pitched keyframe
-    that glides to the landing's fret and ARRIVES the minimum-sustain-distance margin before the
-    landing's onset; Guitar Pro states no arrival time, so that offset is synthesized. Where the
-    margin leaves no room at all — the arrival would not fall strictly before the landing — the
-    gesture degrades to an unpitched trail-off, as it does when the landing is an open string. The
-    string itself rings on
+13. **A shift slide re-picks its landing, and the chart PROVES it.** The origin states the
+    landing's fret AT its ring's end, exactly ON that landing's onset, and nothing marks the
+    statement as an arrival: an end statement naming the same stop the next head on its string is
+    struck at, at the same instant, IS a glide into position and a pick (`arrivesIntoNextHead`,
+    five clauses). Guitar Pro states no arrival time and none is synthesized — the arrival's instant
+    is the head's own, which is what the hands did. The gesture degrades to an unpitched trail-off
+    when the landing is an open string or no landing note exists at all. The string itself rings on
     until the landing re-picks it — the clamp is what ends it there — and the drawn tail comes
-    back to the arrival through rules 1 and 2. The target note keeps its own onset and head. The
-    projections render a glide-end keyframe (one at exactly the sustain end) without the linked
-    continuation glyph; the re-picked landing's own head renders after it. Unpitched slide-outs
+    back one margin through rules 1 and 2, which is where the arrival is SHOWN. The target note
+    keeps its own onset and head. The projections render the arrival with its linked continuation
+    glyph at the drawn tail's tip — the release flag is false because the relation says so, never
+    because of where the statement sits — and the re-picked landing's own head renders a margin
+    after it. Unpitched slide-outs
     are the RELEASE keyframe — the keyframe at the ring's end stating the gestured fret; no
     landing note exists, so there is nothing to desync from — though the drawn gesture compresses
     back to the margin like any tail (rule 2), the release riding the trimmed end. The gestured fret defaults to four frets out in

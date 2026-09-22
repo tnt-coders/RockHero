@@ -204,27 +204,33 @@ bool stripSilentKeyframes(ChartNote& note)
 
 bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
 {
-    if (note.keyframes.empty() || releaseKeyframe(note) != nullptr)
+    // The ring must simply END: where a statement already stands there, the end IS that point and
+    // its own length is the point's to change. Asked of the end's own statement whatever it states,
+    // which is what makes "the tail simply ends" one comparison rather than a list of channels.
+    if (note.keyframes.empty() || endStatement(note) != nullptr)
     {
         return false;
     }
     const Keyframe& last = note.keyframes.back();
-    if (!last.fret.has_value() || releaseWouldStripChannels(last))
+    if (!last.fret.has_value() || endStatementWouldShedShake(last))
     {
         return false;
     }
-    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question. With no bend and no
-    // shake left to judge (both guarded above), what it answers here is exactly whether the fret
-    // differs from the one already in force at that offset.
+    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question. With no shake left to
+    // judge (guarded above) and a bend beside the fret saying nothing about position, what it
+    // answers here is exactly whether the fret differs from the one already in force at that
+    // offset.
     return !lastKeyframeSaysNothingNew(note);
 }
 
-bool dissolveSilentRelease(ChartNote& note)
+bool dissolveSilentRelease(ChartNote& note, const bool arrives_into_next_head)
 {
-    // A release states its fret and nothing else (stripReleaseChannels), so the commit law's
-    // verdict on it is its fret's alone: a fret the path already holds at the ring's end draws no
-    // fall and takes no head, which is what makes this point unreachable rather than authored.
-    if (releaseKeyframe(note) == nullptr || !lastKeyframeSaysNothingNew(note))
+    // The commit law's verdict on a FALL is its fret's alone: a fret the path already holds at the
+    // ring's end draws no fall and takes no head, which is what makes this point unreachable rather
+    // than authored. An ARRIVAL is not this rule's business at all — it wears a linked head at the
+    // presented end, so a silent one is ordinary visible authoring state.
+    if (releaseKeyframe(note, arrives_into_next_head) == nullptr ||
+        !lastKeyframeSaysNothingNew(note))
     {
         return false;
     }

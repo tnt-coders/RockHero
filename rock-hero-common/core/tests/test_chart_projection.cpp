@@ -81,18 +81,19 @@ namespace
             .bend = {},
             .keyframes = {},
         },
-        // Shift-slide pair, written the way every pitched arrival is: the stop sits one margin
-        // INSIDE the ring — never at its end, where a fret would read as the release — and the
-        // ring runs on to the re-picked landing on the same string. The presented trim then stops
-        // the tail exactly on that arrival, so the projected segment must not be linked (the
-        // target's own head renders there) while staying pitched, which only the STORED ring says.
+        // Shift-slide pair, written the way the store holds it: the stop sits exactly AT the ring's
+        // end, ON the re-picked landing's own onset, and what tells that statement from a fall is
+        // the RELATION — it names the very stop the next head is struck at, at the same instant
+        // (arrivesIntoNextHead). The presented trim then carries it one margin back, so the drawn
+        // segment is LINKED — the arrival's own head at the tail's tip, the landing's head a margin
+        // later — and only the resolved relation says the release flag is false.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .keyframes = {Keyframe{.offset = Fraction{4, 5}, .fret = 8}},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -172,11 +173,12 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(sliding.slides[0].release);
     CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
 
-    // The shift glide arrives the minimum sustain distance before the re-picked fret-8 landing,
-    // where the presented trim stops the tail. The arrival is NOT the release — the stored ring
-    // runs on past it, which is the one fact that tells a shift-slide arrival at the drawn end
-    // from a slide-out — so it is LINKED: the last keyframe is always visible, and it draws its
-    // continuation head at the tail's tip while the landing draws its own head a margin later.
+    // The shift glide STATES its arrival on the landing and is DRAWN the minimum sustain distance
+    // before it, where the presented trim stops the tail. The arrival is NOT the release, and the
+    // only thing that says so is the resolved relation: the fret it names is the stop the next head
+    // is struck at, at the same instant. So it is LINKED — the last keyframe is always visible, and
+    // it draws its continuation head at the tail's tip while the landing draws its own head a
+    // margin later.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.8 * beat));
@@ -184,6 +186,19 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(shift_slider.slides[0].release);
     CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.8 * beat));
+    // WHERE it draws is `seconds`; WHAT it is is `offset`, the STORED statement's own instant — the
+    // ring's end, a whole beat in, which is the one name every mapping back to the chart uses.
+    CHECK(shift_slider.slides[0].offset == Fraction{1});
+    // The ACTUAL form draws the same statement where the chart states it, on the head, and reads it
+    // as an arrival there too.
+    const ChartViewState actual =
+        makeChartViewState(makeArrangementWithChart(), tempo_map, ChartNoteForm::Actual);
+    REQUIRE(actual.notes.size() == state.notes.size());
+    const NoteViewState& actual_shift = actual.notes[5];
+    REQUIRE(actual_shift.slides.size() == 1);
+    CHECK(actual_shift.slides[0].seconds == Catch::Approx(13.0 * beat));
+    CHECK(actual_shift.slides[0].offset == Fraction{1});
+    CHECK_FALSE(actual_shift.slides[0].release);
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
@@ -1086,11 +1101,12 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // Exactly on the fixture's shift-slide arrival (4:1 + 4/5), which is where the trim stops the
-    // drawn tail because the re-picked landing sits one margin later.
+    // Exactly on the fixture's shift-slide arrival, which the store places at the ring's END — the
+    // landing's own onset — while the trim stops the DRAWN tail one margin earlier. A placement is
+    // authored against the chart, so it is the stored instant a ramp is filed under.
     chart.fret_hand_positions.push_back(
         FretHandPosition{
-            .position = GridPosition{.measure = 4, .beat = 1, .offset = Fraction{4, 5}},
+            .position = GridPosition{.measure = 4, .beat = 2},
             .fret = 8,
             .width = 4,
         });
@@ -1098,10 +1114,12 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The glide segment runs from the onset (12 beats) to the arrival (12.8 beats), and the hand
-    // travels with the pitched rail.
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(12.8 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.8 * beat));
+    // The glide segment starts at the onset (12 beats) and the window arrives where the placement
+    // is authored (13 beats), so the ramp spans the whole beat and stays PITCHED — which is the one
+    // thing this case is about. That the window lands one margin AFTER the drawn rail's own arrival
+    // is the open coupling recorded in `docs/plans/in-progress/derived-shift-slide.md`: a placement
+    // has never been presentation-adjusted, and the arrival it is authored against has just moved.
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 

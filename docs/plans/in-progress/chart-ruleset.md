@@ -266,6 +266,11 @@ ring proves, while an open member's `0` asserts no finger at all, only the ring 
 stores — so no member's claim can be false, and the fretted-only branch the opening test would
 otherwise need is deleted rather than argued.
 
+**THE EXACT END OF A TAIL NEVER FOUNDS A SPAN** (user, 2026-09-22): where a tail's end lands on the
+same instant as an onset, only the ONSET is a member of the span that results — so a glide whose
+arrival stands on the head it slides into hands nothing over, and only a ring running STRICTLY PAST
+its landing opens a landed grip.
+
 **A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** Every member's onset lies inside its span.
 Struck, a ring is a member of the span standing or founded at its strike, exactly as any other note.
 Once the span it was struck in has ENDED, that ring founds no accumulation, folds into no posture
@@ -478,10 +483,13 @@ glide, and the break lands where the new grip ESTABLISHES.
   a multi-leg glide's NEXT departure still caps it.
 - **Whether the new grip gets a moment of its own is a MUSICAL test, not a drawable-room one.** A
   landed span is EMITTED if an event ever stated it, or if its TENURE STRICTLY EXCEEDS the
-  notated-distinguishability quantum read at the CLOSING onset's own measure. The importer
-  synthesizes every glide-into-restrike arrival exactly one quantum before the replacing onset, so
-  the equality case IS the suppressed population and strict is the whole ruling; the strike's own
-  full box states the new chord instead. A held-but-never-restruck landed span IS emitted.
+  notated-distinguishability quantum read at the CLOSING onset's own measure, so a chord name never
+  flickers for a sliver; the strike's own full box states the new chord instead. A
+  held-but-never-restruck landed span IS emitted. *Restated 2026-09-22:* a SHIFT SLIDE reaches this
+  test never. Its arrival stands at the ring's own END (`arrivesIntoNextHead`), and a landing hands
+  the grip over only where the ring runs STRICTLY PAST it, so no successor is opened and the
+  strictness governs a charter's own crowded landing. The consequence the user ruled on: a ring held
+  through a shift-slide landing does not cross the seam into the chord that replaces it.
 
 **THE NODE GRIP — a grip statement is a PLACE, not a fret number.** A grip statement is a place on
 the fret axis: a fret pressed, the open string, or a node touched (`ChartStop`, the `(fret, node)`

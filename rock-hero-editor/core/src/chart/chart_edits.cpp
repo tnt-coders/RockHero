@@ -160,9 +160,11 @@ struct KeyedSplit
 // gate would settle on as the distance to the NEAREST landing that strikes its string
 // (sustainBoundOf, exactly as the truncation does).
 //
-// Two statements survive the clip and are therefore no reason to refuse: the RELEASE, which IS the
-// ring's end and rides back to the new one, and a statement standing exactly ON the landing, which
-// the inclusive bound keeps where it stands.
+// Two statements survive the clip and are therefore no reason to refuse: the END's own fret
+// statement, whose moment IS the ring's end so it rides back to the new one — a fall and a shift
+// slide's arrival alike, which is why the question here is note-local and asks nothing of the
+// relation — and a statement standing exactly ON the landing, which the inclusive bound keeps where
+// it stands.
 [[nodiscard]] bool moveErasesStatement(
     const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& unmoved,
     const std::vector<common::core::ChartNote>& landings)
@@ -176,10 +178,10 @@ struct KeyedSplit
         }
         // Bound to a plain value so the presence test and every read are provably one object.
         const common::core::Fraction landing = *bound;
-        const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+        const common::core::Keyframe* const end = common::core::endFretStatement(note);
         return std::ranges::any_of(
-            note.keyframes, [landing, release](const common::core::Keyframe& keyframe) {
-                return landing < keyframe.offset && &keyframe != release;
+            note.keyframes, [landing, end](const common::core::Keyframe& keyframe) {
+                return landing < keyframe.offset && &keyframe != end;
             });
     });
 }
@@ -236,9 +238,17 @@ enum class StrandedStrikeRepair : std::uint8_t
     // validator: a silent RELEASE has no face and no handle — nothing draws a fall toward the fret
     // the path already holds, and a release wears no head — so it cannot be reached while it still
     // pins the ring, and the edit that created it is the edit that clears it.
-    for (common::core::ChartNote& note : candidate)
+    //
+    // A FALL is what this takes, never an arrival: a glide that lands on the stop the next head is
+    // struck at wears a linked head at the presented end, so a silent one is ordinary visible
+    // authoring state. The relation is resolved once for the whole candidate here
+    // (\ref common::core::ChartConnections::arrives_into) rather than asked per note.
+    const common::core::ChartConnections settled =
+        common::core::chartConnections(candidate, tempo_map);
+    for (std::size_t index = 0; index < candidate.size(); ++index)
     {
-        static_cast<void>(common::core::dissolveSilentRelease(note));
+        static_cast<void>(
+            common::core::dissolveSilentRelease(candidate[index], settled.arrives_into[index]));
     }
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
@@ -436,6 +446,13 @@ struct AddressedStop
     const std::vector<common::core::Fraction>& instants,
     std::vector<common::core::ChartNote>& products)
 {
+    // A SCRAPE is one gesture of the picking hand end to end, so it has no junction to sever: every
+    // product but the first would be a fretting-hand note the charter never wrote, and the JOIN
+    // refuses a scrape on either side, so such a product could never be joined back.
+    if (common::core::isScrape(note.attack))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
     for (const common::core::Fraction& instant : instants)
     {
         if (!(common::core::Fraction{0, 1} < instant) || !(instant < note.sustain))
@@ -472,52 +489,20 @@ struct AddressedStop
             }
             common::core::Keyframe rebased = keyframe;
             rebased.offset = keyframe.offset - start;
-            if (re_picked && !(keyframe.offset < end))
-            {
-                // The arrival of a glide into a RE-PICKED head stands clear of it — the format's
-                // own shift-slide shape (`ChartNote::keyframes`, the importer's policy rule 13).
-                // Left ON the head it would be the product's release by position, an unpitched fall
-                // where the charter split at a pitched arrival; retreated, the arrival ends the
-                // gesture's INFORMATION early while the ring below still runs to the head. A
-                // keyframe consumed this way is the next head's own statement too:
-                // `ringStateAt` at the cut reads it, which is what makes a cut AT a keyframe hand
-                // that keyframe over as the head.
-                //
-                // WHERE it lands is the shared authority's answer, never a margin subtracted here:
-                // a product shorter than the margin (a grid-step ring cut at the default 1/16
-                // grid, the commonest split there is) would retreat the arrival onto or behind the
-                // product's own onset, and the plan gate would then refuse the whole split as an
-                // out-of-order payload — a silent no-op for the user. The authority halves the
-                // last leg instead, which always leaves both a leg and a gap however crowded the
-                // passage, so this walk has no crowded case of its own to refuse.
-                //
-                // The margin is read at the HEAD this product hands over to — the cut itself —
-                // exactly as the presentation trim reads it (`trimToMargin`), so the stored arrival
-                // lands where the drawn tail would have been trimmed to anyway. It is a duration,
-                // so every cut of a multi-instant split asks for its own.
-                const common::core::Fraction margin = common::core::minimumSustainDistanceBeats(
-                    tempo_map, common::core::advanceGridPosition(tempo_map, note.position, end));
-                rebased.offset = common::core::latestStatementBeforeStrike(
-                    end - start,
-                    margin,
-                    product.keyframes.empty() ? common::core::Fraction{}
-                                              : product.keyframes.back().offset);
-                // A retreated arrival that restates the path in force — the point a join of equal
-                // frets leaves, or one typed at the note's own fret — has no leg to keep. Kept, it
-                // would be authoring state the origin never meant, drawn on the tail's tip until
-                // the caret leaving the note dissolved it; the one silence law sheds it here, so
-                // a silent point's split leaves a plain tail. `product` is the note WITHOUT it,
-                // which is what the law judges against.
-                if (common::core::keyframeSaysNothingNew(product, rebased))
-                {
-                    continue;
-                }
-            }
             product.keyframes.push_back(rebased);
         }
-        // The release is the keyframe at the ring's END, so it reaches only the product that ends
-        // where the gesture did: every earlier product ends at a cut, which is a sounded fret and
-        // never the release.
+        // A statement standing exactly at a cut becomes the product's END statement, ON the head
+        // the next product starts at, and the chart then PROVES what it is: the fret named is the
+        // stop that product is struck at, so the statement is an ARRIVAL and not a fall
+        // (\ref common::core::arrivesIntoNextHead). `ringStateAt` at the cut reads that same
+        // keyframe as the new head's own statement, which is why the two can never name different
+        // stops. A FALL reaches only the product ending where the gesture did, every earlier
+        // product ending at a cut the next product is struck at.
+        //
+        // What the end may KEEP is the channel table's: a SHAKE there has no ring left to shake in
+        // and goes — no loss, being the NEXT product's onset state — while the BEND stays, the
+        // curve's last value completing as this product's ring does.
+        static_cast<void>(common::core::shedEndStatementShake(product));
         products.push_back(std::move(product));
         start = end;
     }
@@ -537,23 +522,26 @@ struct AddressedStop
 // Nothing else of the head survives. Its attack, mutes, node, tremolo, emphasis and held stop are
 // facts about a STRIKE, and the join is precisely the statement that no strike happens there.
 //
-// THE ARRIVAL RETURNS. A split retreats the origin's arrival off the new head, because no keyframe
-// may sit on a head of its own string; this asks the same authority backward. Where the
-// predecessor's last keyframe states the head's own fret and stands EXACTLY where
-// `latestStatementBeforeStrike` would have put it, it moves back onto the junction — an arrival
-// that retreated only because a head stood there belongs at the junction once the head is gone.
-// That, and nothing else, is what makes split-then-join a byte-exact round trip.
+// THE ARRIVAL NEEDS NO RETURN. The split leaves its product's arrival AT the cut, so the statement
+// is already standing at the junction when the join reaches it and the merge below takes it over —
+// which is the whole of what makes split-then-join an exact round trip, with no "did this point
+// retreat?" equality test and no spelling-based distinction between a retreated arrival and a
+// charter's own point at the clearance.
 [[nodiscard]] std::expected<common::core::Fraction, ChartPlanRefusal> joinHeadIntoPath(
     const common::core::TempoMap& tempo_map, common::core::ChartNote& predecessor,
     const common::core::ChartNote& head)
 {
     // A scrape's travel is the PICK's position on the string, so no fretting finger arrives
     // anywhere for a path to continue from.
-    // A trail-off's tail is authored exit geometry, not slack to spend: growing the ring under it
-    // would rewrite the gesture (the D14 assist refuses the same reshape, planSetLegato).
+    // A FALL's tail is authored exit geometry, not slack to spend: growing the ring under it
+    // would rewrite the gesture (the D14 assist refuses the same reshape, planSetLegato). An
+    // ARRIVAL is the opposite — the finger is already on the stop this very head takes — so it is
+    // joinable, and the predicate is asked of the PAIR this function holds rather than of a
+    // resolved vector it has no index into.
     // A fret-hand harmonic is a touch, and a touch holds nothing to hand over.
+    const bool arrives = common::core::arrivesIntoNextHead(predecessor, head, tempo_map);
     if (common::core::isScrape(predecessor.attack) ||
-        common::core::slideOutFretOrNull(predecessor) != nullptr ||
+        common::core::slideOutFretOrNull(predecessor, arrives) != nullptr ||
         common::core::fretHandHarmonic(predecessor))
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
@@ -567,25 +555,8 @@ struct AddressedStop
 
     const common::core::Fraction gap =
         common::core::beatDistance(tempo_map, predecessor.position, head.position);
-    // The margin belongs to the HEAD being folded in — the strike the arrival retreated from —
-    // which is what makes this the exact inverse of the split's own reading.
-    const common::core::Fraction margin =
-        common::core::minimumSustainDistanceBeats(tempo_map, head.position);
-    if (!predecessor.keyframes.empty())
-    {
-        common::core::Keyframe& arrival = predecessor.keyframes.back();
-        const std::size_t count = predecessor.keyframes.size();
-        const common::core::Fraction leg_start =
-            count > 1 ? predecessor.keyframes[count - 2].offset : common::core::Fraction{};
-        if (arrival.fret == head.fret &&
-            arrival.offset == common::core::latestStatementBeforeStrike(gap, margin, leg_start))
-        {
-            arrival.offset = gap;
-        }
-    }
-
-    // Read AFTER the return, so a returned arrival is part of what is in force at the junction —
-    // which is what makes the round trip's point restate the fret rather than change it.
+    // An arrival already standing at the junction is part of what is in force there — which is what
+    // makes the round trip's point restate the fret rather than change it.
     const common::core::RingState at = common::core::ringStateAt(predecessor, gap);
     const std::optional<double> point_bend =
         std::is_neq(head.bend <=> at.bend) ? std::optional<double>{head.bend} : std::nullopt;
@@ -594,8 +565,9 @@ struct AddressedStop
                                    : std::nullopt;
     if (!predecessor.keyframes.empty() && predecessor.keyframes.back().offset == gap)
     {
-        // The returned arrival IS the junction, so the point merges into it rather than doubling
-        // its offset — a second record on one offset is a shape no chart may hold. A channel the
+        // The arrival standing there IS the junction, so the point merges into it rather than
+        // doubling its offset — a second record on one offset is a shape no chart may hold. A
+        // channel the
         // point does not state is left exactly as the arrival had it, because that statement is
         // what `at` just read as in force.
         common::core::Keyframe& merged = predecessor.keyframes.back();
@@ -823,12 +795,14 @@ common::core::Fraction chartSteppedKeyframeOffset(
     {
         return stepped;
     }
-    // Only the RELEASE carries the ring's END with it, and the end is the one thing 40-Q2-B bounds.
-    // Every other point is bounded by that end instead, which planMoveSelection refuses a step past
-    // rather than clamping — so a key naming an interior point, or naming nothing, answers with the
-    // plain step.
-    const common::core::Keyframe* const release = common::core::releaseKeyframe(*note);
-    if (release == nullptr || release->offset != keyframe.offset)
+    // Only the statement AT the ring's end carries that end with it, and the end is the one thing
+    // 40-Q2-B bounds. Every other point is bounded by that end instead, which planMoveSelection
+    // refuses a step past rather than clamping — so a key naming an interior point, or naming
+    // nothing, answers with the plain step. NOTE-LOCAL, and the relation is no part of it: a fall
+    // and a shift slide's arrival are the same point at the same moment, and moving either moves
+    // the end, so asking which gesture it proves would change nothing this verb does.
+    const common::core::Keyframe* const end = common::core::endFretStatement(*note);
+    if (end == nullptr || end->offset != keyframe.offset)
     {
         return stepped;
     }
@@ -878,7 +852,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             {
                 continue;
             }
-            const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
+            const common::core::Keyframe* const release = common::core::endFretStatement(note);
             // The ring's end AFTER this step, which every INTERIOR point must stay STRICTLY below:
             // the move verb never changes what a point IS, so a step that would reach the end is
             // refused exactly like one that reaches the onset below or the neighbour beside. Read
@@ -891,8 +865,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             // Without the bound the step authored a release the burst could not then drag: the
             // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
             // the end never followed the next press and the run stuck until re-selection. And what
-            // it left behind was a release nothing draws (a repeated fret) or one bared of its
-            // shake (stripReleaseChannels) — a point that lost its meaning to a move.
+            // it left behind was a release nothing draws (a repeated fret) or one shed of its
+            // shake (shedEndStatementShake) — a point that lost its meaning to a move.
             const common::core::Fraction end =
                 release != nullptr && std::ranges::binary_search(offsets, release->offset)
                     ? chartSteppedKeyframeOffset(
@@ -1359,7 +1333,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             common::core::clipPayloadsToSustain(stepped, target);
             note = std::move(stepped);
         }
-        else if (floor == target && common::core::releaseKeyframe(stepped) != nullptr)
+        else if (floor == target && common::core::endFretStatement(stepped) != nullptr)
         {
             // A running gesture can grow a release into an ordinary pitched keyframe, then step
             // straight back to the release it started from. That replay describes no edit relative
@@ -1484,7 +1458,8 @@ ChartLegatoPlan planSetLegato(
             // (A scrape never reaches here: the resolver disqualifies it outright, so its hold is
             // never the only blocker.)
             if (hold_was_the_only_blocker &&
-                common::core::slideOutFretOrNull(*predecessor) == nullptr)
+                common::core::slideOutFretOrNull(
+                    *predecessor, connections.arrives_into[predecessor_index]) == nullptr)
             {
                 common::core::clipPayloadsToSustain(
                     candidate[predecessor_index], still_ringing.sustain);

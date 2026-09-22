@@ -1200,7 +1200,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     const common::core::ChartNote& scrape = chart->notes[0];
     REQUIRE(scrape.attack == common::core::NoteAttack::PickSlide);
     REQUIRE(scrape.fret == 17);
-    const int* const scrape_terminal = common::core::slideOutFretOrNull(scrape);
+    const int* const scrape_terminal = common::core::endStatedFretOrNull(scrape);
     REQUIRE(scrape_terminal != nullptr);
     if (scrape_terminal != nullptr)
     {
@@ -1231,7 +1231,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     chart = chartOrNull(controller);
     const common::core::ChartNote& retyped = chart->notes[0];
     CHECK(retyped.fret == 13);
-    const int* const retyped_terminal = common::core::slideOutFretOrNull(retyped);
+    const int* const retyped_terminal = common::core::endStatedFretOrNull(retyped);
     REQUIRE(retyped_terminal != nullptr);
     if (retyped_terminal != nullptr)
     {

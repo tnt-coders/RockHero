@@ -173,7 +173,7 @@ constexpr Fraction g_claim_ring{1, 32};
 {
     const ChartConnections connections = chartConnections(notes, tempo_map);
     return deriveChartShapes(
-        notes, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
 }
 
 // The derivation as every reader gets it: from the saved stream alone.
@@ -2665,12 +2665,12 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // LANDING is the case a second reading of the same adjacency could part from it over, since
         // a landing is a reach that is not a ring's end.
         //
-        // They do not part, and the chart's own encoding is why: a fret-stating keyframe never
-        // sits on a later onset of its own string, so a glide's arrival lands one margin BEFORE
-        // the note it glides into and no slot ever sounds a member at its landing instant. The
-        // emitted figure is therefore the plain one — the departing grip covers its transit and
-        // ends at the landing, the successor is left no room and is never emitted, and the
-        // restrike's own statement stands on its own.
+        // They do not part. This figure is a CHARTER's own arrival, standing one margin inside its
+        // ring with the ribbon running on to a FOREIGN chord. The emitted figure is the plain one:
+        // the departing grip covers its transit and ends at the landing, the successor is left no
+        // room and is never emitted (its tenure is exactly one quantum, which the strict test
+        // drops), and the restrike's own statement stands on its own. A SHIFT SLIDE reaches none of
+        // this, which the case below pins.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{9, 5}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{9, 5}, 10}}),
@@ -2703,6 +2703,36 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
             derived.postures[derived.shapes[1].posture].stops;
         CHECK(replacing[0] == std::optional{frettedStop(3)});
         CHECK(replacing[1] == std::optional{frettedStop(5)});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("A SHIFT SLIDE OPENS NO LANDING AT ALL, by construction")
+    {
+        // The same three-string glide as a SHIFT SLIDE: the arrival stands AT each ring's end, on
+        // the re-picked chord's own onset, and the chart PROVES it is an arrival because every fret
+        // it names is the stop that chord is struck at (\ref arrivesIntoNextHead). A landing hands
+        // the grip over only where the ring runs STRICTLY PAST it, and an arrival never does — so
+        // no successor is opened, rule 6's tenure test is never reached, and the departing grip
+        // simply runs to the chord that replaces it.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{2}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{2}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{2}, 11}}),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1}),
+            noteAt(3, Fraction{}, 2, 10, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 11, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(std::ranges::none_of(derived.shapes, [](const ChartShape& shape) {
+            return shape.landing_opened;
+        }));
+        // The departing grip covers its whole transit, ending ON the chord it slides into: the
+        // store says the hand arrives there, so the span says so too.
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
         everySpanIsPositive(derived);
     }
 

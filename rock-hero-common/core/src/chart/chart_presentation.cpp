@@ -113,21 +113,22 @@ void dropPresentedTail(ChartNote& note)
 
 // WHERE A NOTE'S LAST STATEMENT IS DRAWN when it must keep clear of the strike ahead of it: one
 // margin before that strike, or halfway along its own last leg where the margin would crowd the
-// leg's start. Presentation's alone — the stored chart keeps whatever the hands did, an end
-// statement sitting exactly on the next head included — so the spacing lives here, at its one
-// caller, rather than in the rule authority.
+// leg's start. DISPLAY'S ALONE, and the whole reason this lives here rather than in a shared
+// header: the stored chart keeps what the hands did — an end statement sitting exactly on the next
+// head included — and nothing but the drawn copy ever wants this number.
 //
 // The leg reading is the whole of what makes the split safe: the last leg starts at the statement
 // before the last one — the onset where there is none — and the clearance never takes that start,
-// so the result always leaves both a leg and a gap however crowded the passage
-// (latestStatementBeforeStrike). `note` must carry at least one keyframe, and `gap` — the beats to
-// the strike — must lie strictly past the statement before the last.
+// so the result always leaves both a leg and a gap however crowded the passage. `note` must carry
+// at least one keyframe, and `gap` — the beats to the strike — must lie strictly past the statement
+// before the last.
 [[nodiscard]] Fraction lastStatementClearance(
     const ChartNote& note, const Fraction gap, const Fraction margin)
 {
     const std::size_t count = note.keyframes.size();
     const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
-    return latestStatementBeforeStrike(gap, margin, leg_start);
+    const Fraction clear = gap - margin;
+    return leg_start < clear ? clear : leg_start + ((gap - leg_start) * Fraction{1, 2});
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
@@ -189,24 +190,28 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // FINISHES: it completes at the takeover, where the successor picks the sound up. So it is the
 // finished-statement split with an EMPTY remainder — the whole drawn ribbon is the stated
 // portion, and the landmark is the ribbon's own end.
-// THE HANDOVER IS ASKED FIRST, deliberately: the takeover terminates whatever the ring was still
-// stating — a shake or a bend into a pull-off ends where the successor takes the string — so a
-// handed-over ring is a finished statement whether or not its channels were quiet at its end,
-// and its landmark is the ribbon's end either way. Read as a statement still in progress it would
-// refuse to rest at all and draw its whole ribbon in front of the curtain that owns it. The
-// branch is what keeps a plain handed-over ring resting from its own end.
+// A ring whose end ARRIVES into the next head (\ref ChartConnections::arrives_into) finishes the
+// same way and for the same reason: the glide completes exactly where the strike takes the stop, so
+// the whole ribbon is the statement and its landmark is the ribbon's end. Read as a statement still
+// in progress — which is what the FALL beside it is — an arrival would refuse to rest at all and
+// draw its ribbon in front of the curtain that owns it.
+// BOTH ARE ASKED FIRST, deliberately: either event terminates whatever the ring was still
+// stating — a shake or a bend into a pull-off ends where the successor takes the string — so such a
+// ring is a finished statement whether or not its channels were quiet at its end,
+// and its landmark is the ribbon's end either way. The branch is what keeps a plain handed-over
+// ring resting from its own end.
 [[nodiscard]] std::optional<Fraction> restedOffsetOf(
     const ChartConnections& connections, const std::size_t index, const ChartNote& presented)
 {
     const ChartNote& stored = connections.saved_notes[index];
-    if (connections.hands_over[index])
+    if (connections.hands_over[index] || connections.arrives_into[index])
     {
         return presented.sustain;
     }
-    // Still stating at the ring's end: tremolo and a release run to the end by construction,
-    // and the state in force at the ring's own end says whether the bend and vibrato channels
-    // ever go quiet.
-    if (stored.tremolo || slideOutFretOrNull(stored) != nullptr)
+    // Still stating at the ring's end: tremolo and a FALL run to the end by construction, and with
+    // the arrival taken above an end fret statement here IS the fall, while the state in force at
+    // the ring's own end says whether the bend and vibrato channels ever go quiet.
+    if (stored.tremolo || endFretStatement(stored) != nullptr)
     {
         return std::nullopt;
     }

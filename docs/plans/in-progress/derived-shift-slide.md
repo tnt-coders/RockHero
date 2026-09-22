@@ -138,3 +138,85 @@ presentation cases; tests and the developer guide (`the-project-lifecycle.md` im
 `the-editor-2d-views.md`, `file-formats.md`'s keyframe row). Re-import the corpus afterwards so the
 files hold the arrival on the head; the presented corpus must be unchanged, which is the
 acceptance test.
+## The model half: BUILT 2026-09-22
+
+Built, green, and cleaned: the predicate `arrivesIntoNextHead` beside `resolveLegato` with its
+`ChartConnections::arrives_into` vector; the release family split into a NOTE-LOCAL pair
+(`endFretStatement`, `endStatedFretOrNull`) and a RESOLVED pair (`releaseKeyframe(note,
+arrives_into)`, `slideOutFretOrNull(note, arrives_into)`, the second spelled over the first so the
+relational clause stands in one function); the strip narrowed to `shedEndStatementShake` /
+`endStatementWouldShedShake` (note-local, any end statement, the shake alone,
+`ChartRepair::EndStatementShake`); `releasedFret` and `dissolveSilentRelease` reading the fact; the
+importer's shift branch collapsed to "grow the ring to the gap and state the landing's fret at the
+end"; the `Shift+L` split's retreat and the join's equality test deleted, with a scrape now refused
+outright; `latestStatementBeforeStrike` folded into `chart_presentation.cpp` as
+`lastStatementClearance`; the projection's `release` flag read from the fact; `deriveChartShapes`
+taking the connections.
+
+### The four findings, and how each was settled
+
+**1. Rule 6's re-key is unrepresentable, so the tenure test stands unchanged — ACCEPTED.** This
+page predicted "that tenure is zero for every shift slide". The truth is stronger: a landing opens
+a successor only where the ring runs STRICTLY PAST the boundary (`settle_landings`), and an arrival
+stands at its ring's END, so a shift slide opens no landing span at all. A branch keyed on the
+relation could never fire, so none was added; the strict tenure test now governs a charter's own
+crowded landing and nothing else.
+
+**2. The landing hand-off disappears corpus-wide — RULED (user, 2026-09-22): the EXACT END OF A
+TAIL never founds a span.** Where a tail's end lands on the same instant as an onset, only the
+ONSET is a member of the span that results. The "held through" clause therefore stands as built,
+and the new census counts are the truth: the old ones came from the synthesized arrival standing a
+margin early, which made a ring ending exactly at the strike look held through it. Re-pinned in
+`test_corpus_census.cpp`, with the ruling stated in the two pin comments and in
+`chart-ruleset.md`'s span section:
+
+| Census row | Old pin | New pin |
+|---|---|---|
+| spans total | 22398 | 22386 |
+| arpeggio spans | 1164 | 1154 |
+| lone re-pick spans | 2778 | 2769 |
+| spans opened by a LANDING | 1243 | 988 |
+| ... landing successors classified BOX | 1149 | 904 |
+| spans holding a stop outside the window | 163 | 159 |
+| ... those out-of-reach stops | 219 | 211 |
+
+The five cross-check rows that were already FLAGGING at `1216def0` (the FHP-shift and pinned-finger
+rows) keep their signed figures untouched: they are standing findings, not stale pins, and two of
+them moved only within their band (pinned finger 530 to 538, pinned rings 1058 to 1090).
+
+What the ruling costs, and it is accepted: a ring held THROUGH a shift-slide landing no longer
+crosses the seam into the shape that replaces it, so in the Periphery fixture the beat-3 chord's
+grip states the two stops it strikes and not the tied fret-3 still down under it, and that shape is
+a BOX rather than an arpeggio.
+
+**3. A source-stated FALL may never name the next head's stop — FIXED.** The importer INVENTS a
+trail-off's exit fret (four frets out, or the hand's next move), and a fret at a ring's end naming
+the stop the next head is struck at, at that same instant, is what the chart reads as an ARRIVAL.
+`fallExitClearOfNextHead` now keeps both writers clear of that stop — the synthesis placeholder and
+the resolved exit in `resolveSlideOutExits` — by moving one fret further in the gesture's own
+direction, asked of `arrivesIntoNextHead` itself rather than by restating its clauses.
+
+The presented corpus is therefore NOT byte-identical to `1216def0`, and cannot be: 175 of 245 866
+notes differ, across 25 of 113 packages, in exactly two ways.
+
+- **168 exit frets moved by one**, each a source-stated fall whose invented exit named the next
+  head's own stop. At `1216def0` those 168 gestures were stored in the one spelling the derived
+  model reads as a shift slide, so the store was wrong about them; keeping them clear is what makes
+  it right, and the price is one fret of an exit nobody authored.
+- **7 end statements keep a BEND they previously lost**, which is the signed amendment working: a
+  bend at a ring's end is the curve's last value on a fall exactly as on an arrival.
+
+**Stored end statements sitting exactly on the next head of their own string: 583 to 1927** (530 to
+1874 of them stating a fret), so **1344 stored arrivals moved onto the head**.
+
+**4. The fret-hand window moves with the arrival — ACCEPTED.** Rule 9's drag had to be re-homed:
+the drag event WAS the synthesized arrival, so with the arrival on the head the coverage event
+vanished and the window fell back to minimal-shift placement. It is now stated at the landing's own
+onset — a head some glide ARRIVED into inherits that glide's fret delta — and the same-instant merge
+folds it with the head's own demand, which restores rule 9 exactly. What does not survive is the
+hull-exact reshape for a shift slide: at the arrival's instant a chord partner's ring has just
+ended, so nothing pins an edge and the window translates at the four-fret width. Reading the
+relation inside `coverageEventsOf` was tried and reverted: there the landing head itself counts as
+the planted finger, and the reshape collapses to a one-fret window. One coupling is open and
+accepted: an FHP authored at the arrival resolves to the STORED instant while the drawn rail
+arrives one margin earlier, so the hand marker lands a margin after the rail completes.

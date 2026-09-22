@@ -83,6 +83,43 @@ author the ring a claim needs) asks it by handing over a predecessor carrying th
     const ChartNote& note, const ChartNote* predecessor, const TempoMap& tempo_map);
 
 /*!
+\brief THE SHIFT SLIDE, as a fact the chart PROVES: does \p predecessor's end statement glide INTO
+the stop \p successor is struck at?
+
+A fret at a ring's end is one statement and two opposite gestures: the FALL, where pressure comes
+off and the pitch slides away toward a fret the hand never sounds, and the ARRIVAL, where the finger
+glides into position for a note that is then picked. Nothing stores which, because the statement's
+own sentence already says it. FIVE clauses:
+
+1. \p predecessor ends in a statement NAMING A FRET (\ref endFretStatement): nothing else is a
+   gesture to classify.
+2. Its ring ends EXACTLY at \p successor's onset: strict adjacency is the whole of "one instant".
+3. NEITHER is a scrape: a scrape's travel is the PICK's, and its terminal is required at its end.
+4. \p successor is not stopped by the PICKING hand (\ref pickingHandStopsString): a fretting hand
+   sliding into a fret a different hand then stops is not one gesture. A TAPPED HARMONIC passes by
+   construction, that hand holding the stop its node rides.
+5. The fret named IS the stop \p successor is struck at, NODE-AWARE (\ref frettingStopAt): a
+   same-string head at a DIFFERENT fret is a fall that merely abuts, so the test is never adjacency
+   alone.
+
+Whether \p successor is re-struck or claims legato is deliberately ABSENT: reading its claim would
+give the pair two self-consistent readings, since the connection resolver reads this very answer to
+find the predecessor's released fret.
+
+ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revision into
+\ref ChartConnections::arrives_into, which every consumer reads; a caller already HOLDING the pair
+(\ref resolveLegato, the `Shift+L` join) asks here rather than deriving the relation twice.
+
+\param predecessor Note whose end statement is in question.
+\param successor The next note on the same string.
+\param tempo_map Song tempo map supplying the beat axis the adjacency is measured on.
+
+\return True when the end statement is an arrival into \p successor.
+*/
+[[nodiscard]] bool arrivesIntoNextHead(
+    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map);
+
+/*!
 \brief The saved note stream and every connection claim it justifies.
 
 What the connection rules need, and nothing more. \ref resolveLegato reads a predecessor's stored
@@ -148,6 +185,23 @@ struct ChartConnections
     predecessor.
     */
     std::vector<bool> hands_over;
+
+    /*!
+    \brief True where this note's end statement ARRIVES into the next head on its string rather
+    than falling away from it — the shift slide (\ref arrivesIntoNextHead states the clauses).
+
+    THE ONE PRODUCER of the relation, filled in the same forward walk that answers \ref hands_over
+    and for the same reason: the same-string pair this needs is exactly the one that walk
+    establishes, and two producers of one relation is how a chart comes to be described two ways.
+    Every reader of "is this end statement a release" takes its answer from here
+    (\ref releaseKeyframe), so a fall and an arrival cannot be told apart two different ways.
+
+    Written from the SUCCESSOR onto its predecessor, because the relation is about the pair and the
+    walk reaches the successor second; a note has at most one same-string successor, so the entry is
+    written at most once. False where nothing follows on the string: nothing is there to arrive
+    into.
+    */
+    std::vector<bool> arrives_into;
 };
 
 /*!

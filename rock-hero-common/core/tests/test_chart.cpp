@@ -1253,7 +1253,7 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
             CHECK(std::is_eq(*reached <=> 0.0));
         }
         // It states no fret, so the carry makes no release of it.
-        CHECK(slideOutFretOrNull(notes[0]) == nullptr);
+        CHECK(endStatedFretOrNull(notes[0]) == nullptr);
         // The new end IS the next head of its own string, and the statement STAYS THERE: the store
         // holds what the hands did, and nothing in it spaces a mark (user ruling, 2026-09-21). The
         // truncation is its own fixpoint.
@@ -1264,15 +1264,16 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
 
     SECTION("a stated fret carried onto the head is the release there and stays on it")
     {
-        // A fret at the ring's end IS the release (releaseKeyframe reads position), so a ring cut
-        // back onto its own arrival falls away toward it — on the head itself, which is where the
-        // material says the fall completes.
+        // A fret at the ring's end that names NO stop the next head takes is the FALL, so a ring
+        // cut back onto its own statement falls away toward it — on the head itself, which is where
+        // the material says the fall completes. Here it names 7 and the head is struck at 5, so the
+        // relation refuses the arrival reading (arrivesIntoNextHead, clause 5).
         notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
         CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
         CHECK(notes[0].sustain == Fraction{2});
         REQUIRE(notes[0].keyframes.size() == 1);
         CHECK(notes[0].keyframes.front().offset == Fraction{2});
-        const int* const release = slideOutFretOrNull(notes[0]);
+        const int* const release = endStatedFretOrNull(notes[0]);
         REQUIRE(release != nullptr);
         if (release != nullptr)
         {
@@ -1293,9 +1294,8 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         REQUIRE(notes[0].keyframes.size() == 1);
         const Keyframe& merged = notes[0].keyframes.front();
         CHECK(merged.offset == Fraction{2});
-        // A fret at the ring's end is the release, and a release states its fret and nothing else,
-        // so the shake it landed on goes with the ring that would have sounded it
-        // (stripReleaseChannels).
+        // An end statement leaves no SHAKE, whatever else it states, so the shake it landed on goes
+        // with the ring that would have sounded it (shedEndStatementShake).
         CHECK(merged.fret == 9);
         CHECK(!merged.vibrato.has_value());
     }
@@ -1318,11 +1318,11 @@ TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
     SECTION("a release falling toward the fret in force")
     {
         setSlideOut(note, 5);
-        CHECK(dissolveSilentRelease(note));
+        CHECK(dissolveSilentRelease(note, false));
         CHECK(note.keyframes.empty());
         // Only the statement goes: the tail simply ends where it ended.
         CHECK(note.sustain == Fraction{2});
-        CHECK_FALSE(dissolveSilentRelease(note));
+        CHECK_FALSE(dissolveSilentRelease(note, false));
     }
     SECTION("a release falling toward a fret an earlier junction reached")
     {
@@ -1330,23 +1330,33 @@ TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
         // onset's own does — and the junction itself, which travels, stays.
         note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 7);
-        CHECK(dissolveSilentRelease(note));
+        CHECK(dissolveSilentRelease(note, false));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{1});
     }
     SECTION("a release that travels stays")
     {
         setSlideOut(note, 3);
-        CHECK_FALSE(dissolveSilentRelease(note));
-        CHECK(slideOutFretOrNull(note) != nullptr);
+        CHECK_FALSE(dissolveSilentRelease(note, false));
+        CHECK(endStatedFretOrNull(note) != nullptr);
     }
     SECTION("an interior point that says nothing stays")
     {
         // The charter can see this one, so it lives until its note leaves focus
         // (stripSilentKeyframes) — the whole distinction the dissolve rests on.
         note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 5, .bend = {}, .vibrato = {}}};
-        CHECK_FALSE(dissolveSilentRelease(note));
+        CHECK_FALSE(dissolveSilentRelease(note, false));
         CHECK(note.keyframes.size() == 1);
+    }
+    SECTION("an ARRIVAL is never taken, even when it says nothing new")
+    {
+        // The relation, not the fret, decides: a statement naming the stop the next head is struck
+        // at wears a linked head at the presented end, so a silent one is ordinary visible
+        // authoring state and this rule has no business with it. Exactly the shape a `Shift+L`
+        // split leaves when it cuts a plain ring, and what makes the join an exact inverse.
+        setSlideOut(note, 5);
+        CHECK_FALSE(dissolveSilentRelease(note, true));
+        CHECK(endStatedFretOrNull(note) != nullptr);
     }
     SECTION("a scrape's terminal can never be taken")
     {
@@ -1355,8 +1365,8 @@ TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
         note.attack = NoteAttack::PickSlide;
         note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 12);
-        CHECK_FALSE(dissolveSilentRelease(note));
-        CHECK(slideOutFretOrNull(note) != nullptr);
+        CHECK_FALSE(dissolveSilentRelease(note, false));
+        CHECK(endStatedFretOrNull(note) != nullptr);
     }
 }
 
@@ -1416,7 +1426,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(repairs.front() == ChartRepair::OpenStringSlide);
         // The release went with the rest of the path: its keyframe stated a fret and nothing else,
         // so stripping the channel left no record at all.
-        CHECK(slideOutFretOrNull(note) == nullptr);
+        CHECK(endStatedFretOrNull(note) == nullptr);
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].fret.has_value());
         const std::optional<VibratoState>& kept_vibrato = note.keyframes[0].vibrato;
@@ -1532,10 +1542,10 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         note.sustain = Fraction{1, 2};
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
-        CHECK(repairs.front() == ChartRepair::ReleasePayload);
+        CHECK(repairs.front() == ChartRepair::EndStatementShake);
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].vibrato.has_value());
-        const int* const release = slideOutFretOrNull(note);
+        const int* const release = endStatedFretOrNull(note);
         REQUIRE(release != nullptr);
         if (release != nullptr)
         {
@@ -1590,7 +1600,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(*path_fret == 9);
         }
         CHECK_FALSE(saved.keyframes[0].bend.has_value());
-        CHECK(slideOutFretOrNull(saved) != nullptr);
+        CHECK(endStatedFretOrNull(saved) != nullptr);
         // In memory the latents are untouched, which is what makes toggling the attack back
         // restore them.
         CHECK(note.keyframes.size() == 3);
@@ -2008,7 +2018,7 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(keyframe_on_onset.notes[5].sustain == Fraction{1, 3});
     REQUIRE(keyframe_on_onset.notes[5].keyframes.size() == 1);
     CHECK(keyframe_on_onset.notes[5].keyframes[0].offset == Fraction{1, 3});
-    CHECK(slideOutFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
+    CHECK(endStatedFretOrNull(keyframe_on_onset.notes[5]) != nullptr);
     // And the normalized chart is its own fixpoint: a second pass reports nothing.
     CHECK(normalizeChart(keyframe_on_onset, tempo_map).empty());
 
@@ -2086,7 +2096,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         setSlideOut(open_exit, 5);
         CHECK_FALSE(validate({open_exit}).has_value());
         static_cast<void>(normalizeChartNote(open_exit, ChartTuning{}));
-        CHECK(slideOutFretOrNull(open_exit) == nullptr);
+        CHECK(endStatedFretOrNull(open_exit) == nullptr);
 
         // The capo'd open is no different: the capo does not move.
         ChartNote capo_open = make_note(1, 1, 0);
@@ -2466,7 +2476,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(past.fret == g_max_fret);
         CHECK(past.keyframes.front().fret == g_max_fret);
         // The release is clamped by the same keyframe rule, with no clause of its own.
-        const int* const clamped_release = slideOutFretOrNull(past);
+        const int* const clamped_release = endStatedFretOrNull(past);
         REQUIRE(clamped_release != nullptr);
         if (clamped_release != nullptr)
         {
@@ -2497,7 +2507,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         // left with its fret.
         REQUIRE(glide.keyframes.size() == 2);
         CHECK(glide.keyframes.front().fret == 7);
-        const int* const lifted_release = slideOutFretOrNull(glide);
+        const int* const lifted_release = endStatedFretOrNull(glide);
         REQUIRE(lifted_release != nullptr);
         if (lifted_release != nullptr)
         {
@@ -2540,7 +2550,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo, ChartRepair::StilledScrape});
         CHECK(scrape.attack == NoteAttack::Pick);
         CHECK(scrape.keyframes.empty());
-        CHECK(slideOutFretOrNull(scrape) == nullptr);
+        CHECK(endStatedFretOrNull(scrape) == nullptr);
         CHECK(scrape.sustain == Fraction{1});
         CHECK(valid(scrape));
 
@@ -2658,6 +2668,174 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(
             chartConversionText(conversions[0]) ==
             std::string{chartRepairText(ChartRepair::OverlappingTail)} + " at 1:1 string 2");
+    }
+}
+
+// THE SHIFT SLIDE AS A FACT THE CHART PROVES. A fret at a ring's end is one statement and two
+// opposite gestures, and the five clauses of arrivesIntoNextHead are the whole of what tells them
+// apart. Each is pinned in both directions, because a clause that only ever answers one way is a
+// clause nothing depends on. Asked through the CONNECTIONS, the path every consumer takes.
+TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    // Two notes a beat apart on one string, the first ringing exactly to the second: the shape
+    // every clause below varies one field of.
+    const auto pair_with = [&tempo_map](const ChartNote& first, const ChartNote& second) {
+        const std::vector<ChartNote> notes{first, second};
+        const ChartConnections connections = chartConnections(notes, tempo_map);
+        REQUIRE(connections.arrives_into.size() == 2);
+        // The relation is written from the SUCCESSOR onto its predecessor, and nothing follows the
+        // second note, so its own entry is always false.
+        CHECK_FALSE(connections.arrives_into[1]);
+        return connections.arrives_into[0];
+    };
+    const auto glide_to = [](const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 3;
+        note.fret = 5;
+        note.sustain = Fraction{1};
+        setSlideOut(note, fret);
+        return note;
+    };
+    const auto head_at = [](const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 2};
+        note.string = 3;
+        note.fret = fret;
+        note.sustain = Fraction{1};
+        return note;
+    };
+
+    SECTION("the whole shape: the end names the stop the next head takes, at the same instant")
+    {
+        CHECK(pair_with(glide_to(9), head_at(9)));
+    }
+    SECTION("clause 1: an end that names no fret states no gesture to classify")
+    {
+        ChartNote bends_out = glide_to(9);
+        clearSlideOut(bends_out);
+        setEndStatement(bends_out, Keyframe{.offset = {}, .fret = {}, .bend = 1.0, .vibrato = {}});
+        CHECK_FALSE(pair_with(bends_out, head_at(9)));
+    }
+    SECTION("clause 2: adjacency is exact, and a fall that merely abuts is a fall")
+    {
+        ChartNote falls_short = glide_to(9);
+        falls_short.sustain = Fraction{1, 2};
+        falls_short.keyframes.back().offset = Fraction{1, 2};
+        CHECK_FALSE(pair_with(falls_short, head_at(9)));
+        // And a ring running PAST the head is something else again; the same-string clamp cuts it
+        // before any pair exists, but the relation refuses it on its own terms.
+        ChartNote runs_past = glide_to(9);
+        runs_past.sustain = Fraction{2};
+        runs_past.keyframes.back().offset = Fraction{2};
+        CHECK_FALSE(pair_with(runs_past, head_at(9)));
+    }
+    SECTION("clause 3: a scrape on either side never arrives")
+    {
+        ChartNote scrape = glide_to(9);
+        scrape.attack = NoteAttack::PickSlide;
+        CHECK_FALSE(pair_with(scrape, head_at(9)));
+        ChartNote scraped_into = head_at(9);
+        scraped_into.attack = NoteAttack::PickSlide;
+        setSlideOut(scraped_into, 12);
+        CHECK_FALSE(pair_with(glide_to(9), scraped_into));
+    }
+    SECTION("clause 4: a next head the PICKING hand stops is not arrived into")
+    {
+        ChartNote tapped = head_at(9);
+        tapped.attack = NoteAttack::Tap;
+        CHECK_FALSE(pair_with(glide_to(9), tapped));
+        // A TAPPED HARMONIC is the exception, and it falls out of the same predicate rather than
+        // needing a clause: the fretting hand holds the stop its node rides, which is that note's
+        // own fret. Pinned at the relation's level, validation refusing tapped harmonics.
+        ChartNote tapped_harmonic = tapped;
+        tapped_harmonic.harmonic_node = 12.0;
+        CHECK(pair_with(glide_to(9), tapped_harmonic));
+    }
+    SECTION("clause 5: the fret named is the stop the head is struck at, node-aware")
+    {
+        // A DIFFERENT fret abutting is a fall, which most of the corpus's slide-outs are.
+        CHECK_FALSE(pair_with(glide_to(9), head_at(7)));
+        // The open string can never match: a keyframe at fret 0 is refused, so there is nothing to
+        // glide to.
+        CHECK_FALSE(pair_with(glide_to(9), head_at(0)));
+        // NODE-AWARE: a harmonic touched at node 9 is not the pressed fret 9 the glide reaches.
+        ChartNote node_head = head_at(9);
+        node_head.fret = 0;
+        node_head.harmonic_node = 9.0;
+        CHECK_FALSE(pair_with(glide_to(9), node_head));
+    }
+    SECTION("what is deliberately absent: whether the next head claims legato")
+    {
+        // The successor's own claim is its business. An equal-fret claim can never be justified, so
+        // after a settle it plays as the pick it sounds like, while the ARRIVAL stands either way —
+        // which is what keeps the `Shift+L` split's product from changing the relation under it.
+        ChartNote claimed = head_at(9);
+        claimed.attack = NoteAttack::Legato;
+        CHECK(pair_with(glide_to(9), claimed));
+        std::vector<ChartNote> notes{glide_to(9), claimed};
+        CHECK(sweepUnjustifiedLegato(notes, tempo_map).size() == 1);
+        CHECK(notes[1].attack == NoteAttack::Pick);
+        // The arrival survives it: a settle changes an attack, never a stop.
+        CHECK(chartConnections(notes, tempo_map).arrives_into[0]);
+    }
+}
+
+// AN END STATEMENT LEAVES NO SHAKE, and keeps its BEND. The channel table's own law, note-local and
+// asked of ANY end statement: a shake stated where the string is let go has no ring to sound in,
+// while a bend there is the curve's LAST value and shapes the final leg running into the end — as
+// true of a fall as of a shift slide's arrival.
+TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]")
+{
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1};
+    note.string = 3;
+    note.fret = 5;
+    note.sustain = Fraction{1};
+
+    SECTION("a fret and a bend stand together at the end, whichever gesture the fret proves")
+    {
+        setEndStatement(note, Keyframe{.offset = {}, .fret = 9, .bend = 1.0, .vibrato = {}});
+        REQUIRE(note.keyframes.size() == 1);
+        // Bound once, with the explicit guard the CI-only optional checker needs.
+        const std::optional<double>& reached = note.keyframes[0].bend;
+        CHECK(note.keyframes[0].fret == 9);
+        REQUIRE(reached.has_value());
+        if (reached.has_value())
+        {
+            CHECK_THAT(*reached, Catch::Matchers::WithinULP(1.0, 0));
+        }
+        // Through the normalizer, which is the load path's own half of the law.
+        CHECK(normalizeChartNote(note, tuning).empty());
+        // And through a clip, which carries the end's statement to the new end whole.
+        clipPayloadsToSustain(note, Fraction{1, 2});
+        REQUIRE(note.keyframes.size() == 1);
+        const std::optional<double>& carried = note.keyframes[0].bend;
+        CHECK(note.keyframes[0].offset == Fraction{1, 2});
+        CHECK(note.keyframes[0].fret == 9);
+        REQUIRE(carried.has_value());
+        if (carried.has_value())
+        {
+            CHECK_THAT(*carried, Catch::Matchers::WithinULP(1.0, 0));
+        }
+    }
+    SECTION("a shake at the end is shed, and a statement that said only the shake goes whole")
+    {
+        setEndStatement(
+            note, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = VibratoState::Narrow});
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].fret == 9);
+        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        // No fret beside it, so shedding the shake leaves nothing stated and the keyframe goes: an
+        // empty keyframe is a shape no chart may hold.
+        note.keyframes = {
+            Keyframe{.offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide}
+        };
+        CHECK(shedEndStatementShake(note));
+        CHECK(note.keyframes.empty());
     }
 }
 
@@ -3164,7 +3342,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     CHECK(terminal_on_onset.notes[0].sustain == Fraction{1, 2});
     REQUIRE(terminal_on_onset.notes[0].keyframes.size() == 1);
     CHECK(terminal_on_onset.notes[0].keyframes.front().offset == Fraction{1, 2});
-    CHECK(slideOutFretOrNull(terminal_on_onset.notes[0]) != nullptr);
+    CHECK(endStatedFretOrNull(terminal_on_onset.notes[0]) != nullptr);
 
     // An interior stop on the head with the ring running PAST it: the truncation cuts to exact
     // adjacency and makes that stop the terminal (a fret at the ring's end is the release), on the
@@ -3204,7 +3382,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK_FALSE(saved.palm_mute);
     CHECK_FALSE(saved.dead);
     CHECK(saved.emphasis == NoteEmphasis::Accent);
-    const int* const saved_release = slideOutFretOrNull(saved);
+    const int* const saved_release = endStatedFretOrNull(saved);
     REQUIRE(saved_release != nullptr);
     if (saved_release != nullptr)
     {

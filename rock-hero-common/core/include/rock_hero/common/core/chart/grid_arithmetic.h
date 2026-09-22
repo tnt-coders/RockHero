@@ -36,8 +36,8 @@ inline constexpr Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominato
 event.
 
 The one settled spacing sustain tails, slide glide ends, chord/arpeggio shape spans, and the
-hand-window morph ramps all trim to, and the clearance a synthesized glide arrival takes before the
-head that follows it.
+hand-window morph ramps all trim to — display's alone, since the stored chart holds the truth and a
+statement at a ring's end may sit exactly on the next head of its own string.
 
 A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
 is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
@@ -69,34 +69,6 @@ makes a tempo change inside the margin exact and the answer never shorter than t
 */
 [[nodiscard]] Fraction minimumSustainDistanceBeats(
     const TempoMap& tempo_map, const GridPosition& onset);
-
-/*!
-\brief The latest offset a gesture-ending statement may stand at before the next strike on its
-string.
-
-A statement that must stand clear of the head after it keeps the minimum sustain distance from it,
-so the two marks never print on top of each other and the one before the head stays reachable. The
-gesture's last LEG starts at `leg_start`, and no statement before it may be taken: where the margin
-line falls on or before that start, the statement halves the leg's distance to the strike instead,
-the one split that always leaves both a leg and a gap however crowded the passage.
-
-One answer for all three askers, so they cannot disagree about where a statement lands before a
-head: the DRAWN place of any statement standing at a ring's end (\ref presentedChartNotes rule 2),
-the importer's synthesized shift-glide arrival, and the `Shift+L` split's matching retreat. The
-first is display alone — the stored chart holds the truth, an end statement sitting exactly on the
-next head included — while the other two are stored, because a fret at a ring's end is the release
-and a shift glide's arrival is a pitched stop. A charter's own placement inside the margin is not
-this function's business: it stands.
-
-\param gap Beats from the note's onset to the next strike on its string; strictly positive.
-\param margin The minimum sustain distance in beats at the strike this clearance is kept before
-       (\ref minimumSustainDistanceBeats).
-\param leg_start Offset the gesture's last leg starts from — the onset (zero) or its last earlier
-       statement; strictly before `gap`.
-\return The latest offset from the onset, in beats, strictly between `leg_start` and `gap`.
-*/
-[[nodiscard]] Fraction latestStatementBeforeStrike(
-    Fraction gap, Fraction margin, Fraction leg_start);
 
 /*!
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn

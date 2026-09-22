@@ -504,13 +504,13 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     CHECK(severed.notes[0].fret == 5);
     CHECK(severed.notes[0].sustain == common::core::Fraction{4});
     // The origin keeps the keyframe it travels to: the leg the user split at is real travel, and
-    // the junction is now an equal-fret handover to the new head. The arrival lands the
-    // glide-into-a-landing margin before that head (a fifth of a beat at the fixture's 120 BPM) —
-    // a fret-stating keyframe may not sit on a later onset of its own string — while the RING
-    // still runs to it.
+    // the junction is an equal-fret handover to the new head. The arrival stands AT that head, at
+    // the ring's own end, and the chart PROVES it is an arrival and not a fall: the fret it names
+    // is the stop the new head is struck at, at the same instant. The DRAWN copy is spaced a margin
+    // before the head by presentation, as every tail is.
     REQUIRE(severed.notes[0].keyframes.size() == 1);
     CHECK(severed.notes[0].keyframes[0].fret == 9);
-    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{19, 5});
+    CHECK(severed.notes[0].keyframes[0].offset == common::core::Fraction{4});
 
     CHECK(
         severed.notes[1].position ==
@@ -570,12 +570,10 @@ TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart
 
 // The same door walked from NOTHING at the session's own default grid — the flow a charter
 // actually types, and the one the fixture's quarter-note grid hid. A note typed onto an empty slot
-// rings one grid step, and at the default 1/16 that step is SHORTER than the glide-into-a-landing
-// margin, so the split's two products are each shorter than it. The origin's arrival must still
-// land inside its own leg: retreating it by a whole margin put it on or behind the origin's onset,
-// which the plan gate refused as an out-of-order payload — `Shift+L` silently doing nothing.
+// rings ONE GRID STEP, and at the default 1/16 that step is shorter than the glide-into-a-landing
+// margin: the commonest split there is, end to end through the controller.
 //
-// Typed at the note's own fret, so the point is the SILENT one, which is the case that proves the
+// Typed at the note's own fret, so the arrival is the SILENT one, which is the case that proves the
 // authoring state survives the verb's settle prologue and is still there to be cut.
 TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[core][chart]")
 {
@@ -603,10 +601,12 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
     CHECK(origin.string == 2);
     CHECK(origin.fret == 7);
     CHECK(origin.sustain == common::core::Fraction{1, 4});
-    // The point restated the fret in force, so its retreated copy has no leg for the origin to
-    // keep: the walk sheds it, and the origin ends on a plain tail rather than on a silent point
-    // that would stand there only until the caret left the note.
-    CHECK(origin.keyframes.empty());
+    // The point restated the fret in force, and it stays: an ARRIVAL wears a linked head at the
+    // presented end, so a silent one is ordinary visible authoring state, unlike a silent FALL,
+    // which the gate dissolves for having no face at all.
+    REQUIRE(origin.keyframes.size() == 1);
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 4});
+    CHECK(origin.keyframes[0].fret == 7);
     CHECK(split.string == 2);
     CHECK(split.fret == 7);
     CHECK(
@@ -752,7 +752,7 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
         REQUIRE(chart.notes.size() == 1);
         REQUIRE(chart.notes[0].keyframes.size() == 1);
         CHECK(chart.notes[0].sustain == common::core::Fraction{8});
-        CHECK(common::core::slideOutFretOrNull(chart.notes[0]) == nullptr);
+        CHECK(common::core::endStatedFretOrNull(chart.notes[0]) == nullptr);
         return chart.notes[0].keyframes[0].offset;
     };
     REQUIRE(point() == common::core::Fraction{4});
@@ -1399,7 +1399,7 @@ TEST_CASE("A point typed before a release dissolves the release it duplicates", 
     CHECK(stated.notes[0].keyframes[0].fret == 6);
     // The ring keeps its length; what went is the statement at its end.
     CHECK(stated.notes[0].sustain == common::core::Fraction{8});
-    CHECK(common::core::slideOutFretOrNull(stated.notes[0]) == nullptr);
+    CHECK(common::core::endStatedFretOrNull(stated.notes[0]) == nullptr);
 
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
     fixture.controller.onUndoRequested();

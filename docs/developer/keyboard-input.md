@@ -372,13 +372,12 @@ nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by 
 point where the division belongs, `Shift+L` splits it there (below). The point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
-keyframe after it rides the new note, a slide-out included; the first note's arrival retreats clear
-of the new head, at the clearance `latestStatementBeforeStrike` gives every unauthored statement —
-one margin back, or halfway from the last leg's start when the leg is shorter than a margin, which
-is what lets a grid-step ring split at all — unless the point says nothing the first note's path
-does not already say (`keyframeSaysNothingNew`), in which case it has no leg and the first note
-sheds it, ending on a plain tail. That segment walk has ONE caller, so there is one rule
-and one place it lives. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
+keyframe after it rides the new note, a slide-out included; the first note's arrival stands AT the
+cut, on the new head itself, which the chart proves is an arrival and not a fall because it names
+that head's own stop at that same instant (`arrivesIntoNextHead`) — so nothing retreats, a
+grid-step ring splits with no crowded case, and a silent arrival is kept as the visible authoring
+state it is. That segment walk has ONE caller, so there is one rule
+and one place it lives. A SCRAPE is refused: one picking-hand gesture has no junction. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
 remains the authority for load, for import, and for the MOVE verb — the
 one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved
 note brings its own payload and there is nothing coherent to merge. Even it never DELETES a

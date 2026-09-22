@@ -80,7 +80,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     CHECK(scrape.fret == original.fret);
     // The required terminal, which ends the ring by definition — there is no second coordinate
     // left to check it against.
-    REQUIRE(common::core::slideOutFretOrNull(scrape) != nullptr);
+    REQUIRE(common::core::endStatedFretOrNull(scrape) != nullptr);
 
     // Toggling back inside the window restores the note field-for-field.
     controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
@@ -93,7 +93,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     controller.onUndoRequested();
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
-    CHECK(common::core::slideOutFretOrNull(chart->notes[0]) == nullptr);
+    CHECK(common::core::endStatedFretOrNull(chart->notes[0]) == nullptr);
     CHECK(chart->notes[0].sustain == g_fixture_sustain);
 }
 
@@ -144,8 +144,8 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
     CHECK(chart->notes[0].keyframes.empty());
     CHECK(chart->notes[1].keyframes.empty());
-    CHECK(common::core::slideOutFretOrNull(chart->notes[0]) == nullptr);
-    CHECK(common::core::slideOutFretOrNull(chart->notes[1]) == nullptr);
+    CHECK(common::core::endStatedFretOrNull(chart->notes[0]) == nullptr);
+    CHECK(common::core::endStatedFretOrNull(chart->notes[1]) == nullptr);
 }
 
 // The mutes join the shared toggle window rather than owning a law of their own: a second press
@@ -675,7 +675,7 @@ TEST_CASE("EditorController tap conversion drops the scrape's path", "[core][cha
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     const common::core::Chart* chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
-    REQUIRE(common::core::slideOutFretOrNull(chart->notes[0]) != nullptr);
+    REQUIRE(common::core::endStatedFretOrNull(chart->notes[0]) != nullptr);
 
     // A history move commits the scrape and closes its window, so T below is a fresh conversion
     // rather than that press's reversal.
@@ -686,7 +686,7 @@ TEST_CASE("EditorController tap conversion drops the scrape's path", "[core][cha
     chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Tap);
-    CHECK(common::core::slideOutFretOrNull(chart->notes[0]) == nullptr);
+    CHECK(common::core::endStatedFretOrNull(chart->notes[0]) == nullptr);
     CHECK(chart->notes[0].keyframes.empty());
 }
 

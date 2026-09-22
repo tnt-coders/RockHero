@@ -227,10 +227,11 @@ enum class ChartRepair : std::uint8_t
     DerivedHeldStop,
 
     /*!
-    \brief A bend or shake stated on the release was dropped: the string is let go there, so
-    nothing sounds it (\ref stripReleaseChannels).
+    \brief A SHAKE stated at the ring's end was dropped: a shake is a state that holds until the
+    next statement, so one stated where the string is let go has no ring to sound in
+    (\ref shedEndStatementShake). A BEND there is the curve's last value and stays.
     */
-    ReleasePayload,
+    EndStatementShake,
 
     /*!
     \brief A keyframe that said nothing the path did not already say was dropped
@@ -321,9 +322,9 @@ the end. THE END'S OWN STATEMENT (\ref endStatement) is stated AT the end, so a 
 under it carries it with the end and re-attaches it there (\ref setEndStatement) after every
 statement past the new end has gone, WHATEVER it states: a fall toward a fret, the bend curve's
 last value, or both. A ring lengthened past it leaves the statement where it was — a pitched stop
-now, the one way a slide-out turns back into a glide (\ref releaseKeyframe). The fall's own length
-is the move verb's to change, which drags the ring's end with the release — and only with the
-release, since that verb keeps every other point strictly inside the ring rather than letting a
+now, the one way a fall turns back into a glide (\ref releaseKeyframe). The fall's own length
+is the move verb's to change, which drags the ring's end with the end statement — and only with it,
+since that verb keeps every other point strictly inside the ring rather than letting a
 step change what a point is. A scrape's terminal rides in both directions, because a scrape rings
 exactly as long as the pick travels. What a SCRAPE's terminal still needs is a new aim — when
 compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes

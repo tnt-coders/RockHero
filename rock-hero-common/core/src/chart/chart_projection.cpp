@@ -80,18 +80,19 @@ struct SlideRamp
 //
 // The keyframes walked are the PRESENTED note's, so a keyframe the trim clipped past the drawn
 // ring registers no ramp — but each ramp is FILED under its stored offset, because the key is an
-// identity the fret-hand pass looks up by the placement's authored position. The RELEASE is read
-// off the STORED ring for the reason the note loop below gives: the trim stops a drawn tail exactly
-// on a pitched arrival too, so "the keyframe at the drawn end" names both a shift slide's arrival
-// and a slide-out, and only the stored form tells them apart. It is also what keeps a hold keyframe
-// the trim lands on falling through to the margin morph instead of easing with the trail-off curve.
+// identity the fret-hand pass looks up by the placement's authored position. The RELEASE is the
+// RESOLVED fact, read against the STORED ring: a fall and a shift slide's arrival are the same
+// statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
+// Asking position alone eases every arrival with the trail-off curve, and the stored ring is also
+// what keeps a hold keyframe the trim lands on falling through to the margin morph.
 //
-// `presented` and `saved` are index-parallel (\ref ChartResolutions), which is what lets one walk
-// read both.
+// `presented` and the connections' own stream are index-parallel (\ref ChartResolutions), which is
+// what lets one walk read both.
 [[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
-    const std::vector<ChartNote>& presented, const std::vector<ChartNote>& saved,
+    const std::vector<ChartNote>& presented, const ChartConnections& connections,
     const TempoMap& tempo_map)
 {
+    const std::vector<ChartNote>& saved = connections.saved_notes;
     std::map<GridPosition, SlideRamp> starts;
     for (std::size_t index = 0; index < presented.size(); ++index)
     {
@@ -105,7 +106,8 @@ struct SlideRamp
         }
         // The release rides every trim, so when the stored note has one it is the drawn note's
         // last keyframe.
-        const bool releases = slideOutFretOrNull(saved[index]) != nullptr;
+        const bool releases =
+            slideOutFretOrNull(saved[index], connections.arrives_into[index]) != nullptr;
         // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
         // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
         // segment's own start. Presentation may show the end's statement earlier than the chart
@@ -193,7 +195,7 @@ ChartViewState makeChartViewState(
     // Where each fret-hand placement's approach ramp begins, from the presented stream in either
     // form; asked once for the whole chart and read by the placement pass at the bottom.
     const std::map<GridPosition, SlideRamp> slide_ramp_starts =
-        makeSlideRampStarts(presented_notes, resolutions.connections.saved_notes, tempo_map);
+        makeSlideRampStarts(presented_notes, resolutions.connections, tempo_map);
 
     // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
     // into, so the note loop below reads the answer this pass publishes rather than deciding it a
@@ -551,12 +553,14 @@ ChartViewState makeChartViewState(
         // (\ref ChartResolutions). Two things only it can say are read off it below: whether the
         // note releases, and what each drawn keyframe is NAMED by.
         const ChartNote& stored = resolutions.connections.saved_notes[note_index];
-        // The release is read off the STORED ring, never the drawn one: the presentation trims a
-        // drawn tail back to a pitched arrival too, so "the keyframe at the drawn end" names both
-        // a shift slide's arrival and a slide-out, and only the stored form tells them apart. The
-        // release rides every trim, so when the stored note has one it is the drawn note's last
-        // keyframe.
-        const bool releases = slideOutFretOrNull(stored) != nullptr;
+        // THE ONE FLAG that isolates every surface, and it comes from the RESOLVED relation, never
+        // from position: a fall and a shift slide's arrival are one statement at the ring's end,
+        // and what tells them apart is the stop the next head takes (\ref arrivesIntoNextHead).
+        // False draws a linked arrival head at the presented end; true draws a floating fall chip.
+        // The end statement rides every trim, so when the stored note has one it is the last
+        // keyframe of the drawn one.
+        const bool releases =
+            slideOutFretOrNull(stored, resolutions.connections.arrives_into[note_index]) != nullptr;
         // The stored statement behind each drawn one, asked once per note: the mark's IDENTITY is
         // the stored keyframe's offset while its `seconds` is where presentation puts it, so the
         // two are read from two places on purpose (\ref keyframeIdentities).

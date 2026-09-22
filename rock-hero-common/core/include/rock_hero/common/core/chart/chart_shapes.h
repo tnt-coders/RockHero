@@ -18,6 +18,14 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The resolved connections this derivation reads (`chart_legato.h`).
+
+Declared rather than included: the connections carry the shapes (\ref ChartResolutions), so the
+include runs one way only and a reference needs no more than the name.
+*/
+struct ChartConnections;
+
+/*!
 \brief One hand posture: the stop held on each string while a span runs.
 
 Array index 0 is the lowest-pitched string; a null entry means the string is not part of the
@@ -397,13 +405,19 @@ behind the floor state their stops into the posture and date nothing. The fronti
 as this dating floor; the reach never reads it.
 
 THE LANDED SPAN'S EMISSION. A landing span is emitted if an event ever stated it, or its tenure
-STRICTLY EXCEEDS the notated-distinguishability quantum at the closing head's measure — the
-importer synthesizes every glide-into-restrike arrival exactly one quantum before the replacing
-onset, so the strictness IS the ratified suppressed population, and the chord name never flickers
-for a sliver. A held-but-never-restruck landed span is emitted: it is what states the chord-name
-change at the landing. Publication rides the push, which is what keeps that drop safe.
+STRICTLY EXCEEDS the notated-distinguishability quantum at the closing head's measure, so the chord
+name never flickers for a sliver. A held-but-never-restruck landed span is emitted: it is what
+states the chord-name change at the landing. Publication rides the push, which is what keeps that
+drop safe. A SHIFT SLIDE reaches that test never: its arrival stands at the ring's own end
+(\ref arrivesIntoNextHead) and a landing opens a successor only where the ring runs strictly past
+it, so what the test governs is a charter's own crowded landing.
 
-\param saved_notes The stored stream, sorted by position; rings are facts and are never written.
+\param connections The resolved connections, whose `saved_notes` is the stored stream this reads
+       (rings are facts and are never written) and whose `arrives_into` tells a FALL from a shift
+       slide's ARRIVAL at every end statement (\ref arrivesIntoNextHead): a fall takes the finger
+       off the board where an arrival lands it on a stop. Handed over whole rather than as two
+       vectors, because they are index-parallel and passing them apart is a mismatch waiting to
+       happen.
 \param claimed_stops The resolved claim table: what the fretting hand HOLDS under each right-hand
        onset (a claim states where that hand is, so a claimed fret participates fully on the
        statement path).
@@ -416,7 +430,7 @@ change at the landing. Publication rides the push, which is what keeps that drop
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const std::vector<ChartNote>& saved_notes, const std::vector<std::optional<int>>& claimed_stops,
+    const ChartConnections& connections, const std::vector<std::optional<int>>& claimed_stops,
     const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map);
 
 /*!

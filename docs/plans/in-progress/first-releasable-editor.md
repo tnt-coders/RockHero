@@ -137,7 +137,7 @@ unenforced rulings, and a set of defects on supported material.
   exactly ON the landing, so a ring truncated by a MOVE can still end on a keyframe carrying a
   shake or a bend, which becomes the release and is stripped by the bare-fret law the same way.
   That half stands: confirm with a test before fixing; the fix is the predicate the resize now asks
-  (`releaseWouldStripChannels`).
+  (`endStatementWouldShedShake`).
   The three SILENT-release routes beside it are CLOSED (user ruling, 2026-09-21): a landing on a
   keyframe repeating the fret in force, a `clipPayloadsToSustain` that turns a TRAVELLING release
   silent by erasing the junction it travelled from, and a digit typed under `Alt` at a ring's exact

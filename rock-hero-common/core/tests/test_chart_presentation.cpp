@@ -124,7 +124,7 @@ struct SpanFigure
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
     const ChartShapes derived = deriveChartShapes(
-        saved, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
     SpanFigure figure;
     figure.arrivals = chartShapeArrivals(saved, derived.shapes, tempo_map);
     ChartPresentation presentation = presentedChartNotes(connections, tempo_map);
@@ -357,14 +357,13 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         CHECK(presented[0].keyframes.size() == 2);
     }
 
-    SECTION("a glide arrival synthesized at the margin lands exactly on the new end")
+    SECTION("a charter's own arrival at the margin lands exactly on the new end")
     {
-        // The import shape this fix was reported against: a tie merged across a neighbour,
-        // carrying a shift-slide whose arrival keyframe the importer synthesizes at
-        // `gap - margin`. The ring passes the neighbour and binds on the landing it reaches, and
-        // the trim stops exactly on that arrival — which is the instant the arrival was placed
-        // for. Presented whole, the tail ran a margin past its own arrival and died on the landing
-        // head with no gap at all.
+        // A charter's own arrival standing at `gap - margin` INSIDE the ring, on a tie merged
+        // across a neighbour: the ring passes the neighbour and binds on the landing it reaches,
+        // and the trim stops exactly on that arrival. Presented whole, the tail would run a margin
+        // past its own arrival and die on the landing head with no gap at all. A SHIFT SLIDE states
+        // its arrival AT the ring's end, and the trim carries it back to this very instant.
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{1}, .fret = 5},
             Keyframe{.offset = Fraction{9, 5}, .fret = 2},
@@ -389,7 +388,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         // operator[] call, which the analysis cannot tie back to the guard, so the guard only
         // reaches the access through a single name.
         const ChartNote& first = presented[0];
-        const int* const falls_toward = slideOutFretOrNull(first);
+        const int* const falls_toward = endStatedFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
         if (falls_toward != nullptr)
         {
@@ -582,7 +581,7 @@ TEST_CASE("A released ring abuts the next head and presents one clearance early"
         setSlideOut(saved[0], 8);
         const ChartNote first = stored_and_presented(saved);
         CHECK(first.sustain == Fraction{1, 10});
-        const int* const falls_toward = slideOutFretOrNull(first);
+        const int* const falls_toward = endStatedFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
         if (falls_toward != nullptr)
         {
@@ -690,7 +689,7 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     CHECK(drawn_fall.sustain == Fraction{9, 5});
     REQUIRE(drawn_fall.keyframes.size() == 1);
     CHECK(drawn_fall.keyframes.front().offset == Fraction{9, 5});
-    const int* const falls_toward = slideOutFretOrNull(drawn_fall);
+    const int* const falls_toward = endStatedFretOrNull(drawn_fall);
     REQUIRE(falls_toward != nullptr);
     if (falls_toward != nullptr)
     {
@@ -718,7 +717,7 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     REQUIRE(drawn_crowded.keyframes.size() == 2);
     CHECK(drawn_crowded.keyframes.front().offset == Fraction{15, 8});
     CHECK(drawn_crowded.keyframes.back().offset == Fraction{31, 16});
-    CHECK(slideOutFretOrNull(drawn_crowded) != nullptr);
+    CHECK(endStatedFretOrNull(drawn_crowded) != nullptr);
 }
 
 // THE END'S OWN STATEMENT RIDES THE PRESENTED END (user ruling, 2026-09-21). A head on ANOTHER
@@ -750,7 +749,7 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
         CHECK(first.sustain == Fraction{9, 5});
         // Still the LAST statement, and still stating its fret: the fall completes as the tail
         // ends.
-        const int* const falls_toward = slideOutFretOrNull(first);
+        const int* const falls_toward = endStatedFretOrNull(first);
         REQUIRE(falls_toward != nullptr);
         if (falls_toward != nullptr)
         {
@@ -787,9 +786,9 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
         {
             CHECK_THAT(*reached, Catch::Matchers::WithinULP(1.5, 0));
         }
-        // It states no fret, so it is no release and nothing sheds its bend (stripReleaseChannels).
+        // It states no fret, so it is no fall, and nothing sheds a bend (shedEndStatementShake).
         CHECK(!ends.fret.has_value());
-        CHECK(slideOutFretOrNull(first) == nullptr);
+        CHECK(endStatedFretOrNull(first) == nullptr);
     }
 
     SECTION("a crowded last leg halves what it has left")

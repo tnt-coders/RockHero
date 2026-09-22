@@ -20,10 +20,12 @@ int pickSlideDefaultLowFret(const int capo) noexcept
 
 bool convertSlideToScrapePath(common::core::ChartNote& note)
 {
-    if (common::core::slideOutFretOrNull(note) != nullptr)
+    if (common::core::endStatedFretOrNull(note) != nullptr)
     {
-        // Already terminated: the release is the keyframe at the ring's end, and the gesture
-        // follows whatever the sustain is.
+        // Already terminated: the terminal is the keyframe at the ring's end, and the gesture
+        // follows whatever the sustain is. NOTE-LOCAL: clause 3 of the arrival relation excludes a
+        // scrape on either side, so a scrape's end always falls and there is nothing to resolve
+        // (\ref common::core::arrivesIntoNextHead).
         return true;
     }
     // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
@@ -50,7 +52,7 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
     }
     // False leaves the note untouched for the default path: a note whose keyframes state only
     // bends or shakes has no travel to rebuild a scrape from.
-    return common::core::slideOutFretOrNull(note) != nullptr;
+    return common::core::endStatedFretOrNull(note) != nullptr;
 }
 
 void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward, const int capo)

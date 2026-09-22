@@ -303,7 +303,7 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     const auto released = [&fixture] {
         const common::core::Chart* const chart = chartOrNull(fixture.controller);
         return chart != nullptr && chart->notes.size() == 1 &&
-               common::core::slideOutFretOrNull(chart->notes[0]) != nullptr;
+               common::core::endStatedFretOrNull(chart->notes[0]) != nullptr;
     };
 
     fixture.step(-1);
@@ -332,22 +332,71 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     CHECK_FALSE(released());
 }
 
-// The landing is taken only where it ERASES NOTHING. A junction that also states a bend or a shake
-// would lose that statement to the release's bare-fret law, and this verb shortens rings rather
-// than deleting statements — so such a junction holds the ring STRICTLY above it, exactly as a
-// fretless one does, and the step into it is refused rather than recorded.
-TEST_CASE("A ring holds above a last keyframe that states more than a fret", "[core][chart]")
+// A BEND at the junction costs the landing nothing, so the landing is taken. A bend stated exactly
+// at a ring's end is the curve's LAST value — it shapes the final leg running into the end — so it
+// is as meaningful on a fall as anywhere else and rides to the end with the statement. The ring
+// therefore lands on its junction exactly as a bare-fret one does, and the bend survives it.
+TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][chart]")
 {
     GestureFixture fixture;
     common::core::Chart chart = makeGlideChart();
-    SECTION("a shake")
-    {
-        chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
-    }
-    SECTION("a bend")
-    {
-        chart.notes[0].keyframes[0].bend = 1.0;
-    }
+    chart.notes[0].keyframes[0].bend = 1.0;
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
+
+    click(fixture.controller, 40.0f, 140.0f);
+    const auto keeps_its_bend = [&fixture](const common::core::Fraction offset) {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        if (chart_now == nullptr || chart_now->notes.size() != 1 ||
+            chart_now->notes[0].keyframes.size() != 1)
+        {
+            return false;
+        }
+        const common::core::Keyframe& only = chart_now->notes[0].keyframes[0];
+        // Bound once, with the explicit guard the CI-only optional checker needs.
+        const std::optional<double>& bend = only.bend;
+        if (!bend.has_value())
+        {
+            return false;
+        }
+        return only.offset == offset && std::is_eq(*bend <=> 1.0);
+    };
+    const auto released = [&fixture] {
+        const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
+        return chart_now != nullptr && chart_now->notes.size() == 1 &&
+               common::core::endStatedFretOrNull(chart_now->notes[0]) != nullptr;
+    };
+
+    fixture.step(-1);
+    fixture.step(-1);
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
+    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK_FALSE(released());
+
+    // 8 - 4 lands the end ON the junction: the junction is the fall and its bend the curve's last
+    // value, both completing as the ring ends.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK(released());
+
+    // From there the ring holds: the ribbon cannot pass its own end point.
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
+    CHECK(keeps_its_bend(common::core::Fraction{4}));
+    CHECK(released());
+}
+
+// The landing is taken only where it ERASES NOTHING. A junction that also states a SHAKE would lose
+// it — a state stated where the string is let go has no ring to shake in — and this verb shortens
+// rings rather than deleting statements, so such a junction holds the ring STRICTLY above it,
+// exactly as a fretless one does, and the step into it is refused rather than recorded.
+TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][chart]")
+{
+    GestureFixture fixture;
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
     const bool loaded = fixture.load(std::move(chart));
     REQUIRE(loaded);
 
@@ -361,15 +410,15 @@ TEST_CASE("A ring holds above a last keyframe that states more than a fret", "[c
     const auto released = [&fixture] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
-               common::core::slideOutFretOrNull(chart_now->notes[0]) != nullptr;
+               common::core::endStatedFretOrNull(chart_now->notes[0]) != nullptr;
     };
     // Asked with the production predicate, so the test cannot drift from the law it pins: the
-    // junction still carries a statement a release could not have kept.
-    const auto states_more_than_a_fret = [&fixture] {
+    // junction still carries the one statement an end could not have kept.
+    const auto states_a_shake = [&fixture] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                chart_now->notes[0].keyframes.size() == 1 &&
-               common::core::releaseWouldStripChannels(chart_now->notes[0].keyframes[0]);
+               common::core::endStatementWouldShedShake(chart_now->notes[0].keyframes[0]);
     };
 
     fixture.step(-1);
@@ -378,7 +427,7 @@ TEST_CASE("A ring holds above a last keyframe that states more than a fret", "[c
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(released());
-    CHECK(states_more_than_a_fret());
+    CHECK(states_a_shake());
 
     // 8 - 4 would land the end ON the junction and bare it: the ring stays one step above instead,
     // the junction keeps what it stated, and the press moved no ring so it is not recorded.
@@ -386,16 +435,16 @@ TEST_CASE("A ring holds above a last keyframe that states more than a fret", "[c
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(released());
-    CHECK(states_more_than_a_fret());
+    CHECK(states_a_shake());
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(states_more_than_a_fret());
+    CHECK(states_a_shake());
 
     // The two held presses left no trace, so one grow is one visible step out from five beats.
     fixture.step(1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK(states_more_than_a_fret());
+    CHECK(states_a_shake());
 }
 
 // The defect the landing rule exists to prevent, end to end. A delayed shake mid-hold is a keyframe
@@ -497,7 +546,7 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                chart_now->notes[0].keyframes.size() == points &&
                chart_now->notes[0].keyframes.back().offset == common::core::Fraction{4} &&
-               common::core::slideOutFretOrNull(chart_now->notes[0]) == nullptr;
+               common::core::endStatedFretOrNull(chart_now->notes[0]) == nullptr;
     };
     // Asked with the production predicate, so the test cannot drift from the law it pins: the
     // landing this floor would take is one that says nothing, and stays refused.
@@ -565,7 +614,7 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
         {
             return std::nullopt;
         }
-        const int* const release = common::core::slideOutFretOrNull(chart_now->notes[0]);
+        const int* const release = common::core::endStatedFretOrNull(chart_now->notes[0]);
         return release != nullptr ? std::optional<int>{*release} : std::nullopt;
     };
 
@@ -836,7 +885,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     REQUIRE(chart != nullptr);
     const common::core::ChartNote scrape = chart->notes[2];
     REQUIRE(scrape.attack == common::core::NoteAttack::PickSlide);
-    REQUIRE(common::core::slideOutFretOrNull(scrape) != nullptr);
+    REQUIRE(common::core::endStatedFretOrNull(scrape) != nullptr);
     const std::size_t entries_before = fixture.undoEntryCount();
 
     for (int index = 0; index < 5; ++index)
@@ -850,7 +899,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     {
         const common::core::ChartNote& slid = chart->notes[2];
         // The terminal rode the ring down: it is the keyframe at the floored end.
-        const common::core::Keyframe* const release = common::core::releaseKeyframe(slid);
+        const common::core::Keyframe* const release = common::core::endFretStatement(slid);
         REQUIRE(release != nullptr);
         if (release != nullptr)
         {

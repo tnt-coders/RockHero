@@ -1731,7 +1731,7 @@ TEST_CASE(
     {
         const ChartNote& repaired = loaded->song.arrangements.front().chart->notes.at(0);
         CHECK(repaired.attack == NoteAttack::Pick);
-        CHECK(slideOutFretOrNull(repaired) == nullptr);
+        CHECK(endStatedFretOrNull(repaired) == nullptr);
         CHECK(repaired.sustain == Fraction{1, 2});
     }
 }
