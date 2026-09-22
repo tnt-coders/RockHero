@@ -1978,6 +1978,12 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // alive — the window's proof compares the armed keys against the live selection, so the
     // re-pointing is part of the gesture rather than a courtesy after it. A keyframe on a SELECTED
     // note keeps its offset and follows that note's slot, exactly as the plan moves it.
+    //
+    // A stepping keyframe's landing is the PLANNER's own answer rather than the delta arithmetic,
+    // because a release stepped past the next head on its string parks ON that head
+    // (chartSteppedKeyframeOffset): naming the unclamped offset would leave the selection — and
+    // with it the next press's window proof — pointing at a keyframe nothing holds. Asked of the
+    // pre-gesture chart the run replays over, which is what the landing callback is handed.
     const auto moved_slot = [this, &delta](const ChartSlotKey& slot) {
         return ChartSlotKey{
             .position = common::core::advanceGridPosition(
@@ -1985,21 +1991,28 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
             .string = slot.string + delta.strings,
         };
     };
-    std::vector<ChartSelectionKey> moved;
-    moved.reserve(gesture.note_keys.size() + gesture.keyframe_keys.size());
-    for (const ChartSlotKey& slot : gesture.note_keys)
-    {
-        moved.emplace_back(ChartNoteKey{.slot = moved_slot(slot)});
-    }
-    for (const ChartKeyframeKey& key : gesture.keyframe_keys)
-    {
-        const bool note_moved = std::ranges::binary_search(gesture.note_keys, key.note);
-        moved.emplace_back(
-            ChartKeyframeKey{
-                .note = note_moved ? moved_slot(key.note) : key.note,
-                .offset = note_moved ? key.offset : key.offset + delta.beats,
-            });
-    }
+    const auto landing = [this, &delta, &gesture, &moved_slot](
+                             const common::core::Chart& pre_gesture) {
+        std::vector<ChartSelectionKey> moved;
+        moved.reserve(gesture.note_keys.size() + gesture.keyframe_keys.size());
+        for (const ChartSlotKey& slot : gesture.note_keys)
+        {
+            moved.emplace_back(ChartNoteKey{.slot = moved_slot(slot)});
+        }
+        for (const ChartKeyframeKey& key : gesture.keyframe_keys)
+        {
+            const bool note_moved = std::ranges::binary_search(gesture.note_keys, key.note);
+            moved.emplace_back(
+                ChartKeyframeKey{
+                    .note = note_moved ? moved_slot(key.note) : key.note,
+                    .offset = note_moved
+                                  ? key.offset
+                                  : chartSteppedKeyframeOffset(
+                                        pre_gesture, session().song().tempo_map, key, delta.beats),
+                });
+        }
+        return moved;
+    };
 
     // A caret sitting exactly on the single moved object rides along (an object stop stays under
     // the caret through its own nudge); the caret moves directly — no re-arm — so the derived
@@ -2051,7 +2064,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
                 label);
         },
         gesture,
-        moved);
+        landing);
     if (committed && caret_rides)
     {
         // Re-read after the edit: the selection followed the move, so it names where the caret
@@ -2637,11 +2650,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
 // continues: whether this press proved it continues a live run of its OWN verb (the shared window
 // proof, asked by the caller through liveChartGestureVerb). replan: the plan describing the whole
 // run, given the state it started from. verb: what the next press must match to continue this run.
-// select_exactly: where the run's objects have LANDED, for a verb whose steps re-key them; absent
-// leaves the plan's default follow to it, which is right for every verb that rewrites in place.
+// landing: where the run's objects have LANDED, for a verb whose steps re-key them; absent leaves
+// the plan's default follow to it, which is right for every verb that rewrites in place. Asked of
+// the pre-gesture chart, exactly like the replan, because a landing a bound HELD is a fact about
+// that same state.
 bool EditorController::Impl::commitChartGestureStep(
     const bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
-    const std::optional<std::vector<ChartSelectionKey>>& select_exactly)
+    const ChartGestureLanding& landing)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
@@ -2669,6 +2684,11 @@ bool EditorController::Impl::commitChartGestureStep(
         pre_gesture = &reconstructed;
     }
 
+    std::optional<std::vector<ChartSelectionKey>> select_exactly;
+    if (landing)
+    {
+        select_exactly = landing(*pre_gesture);
+    }
     std::expected<ChartEditPlan, ChartPlanRefusal> plan = replan(*pre_gesture);
     if (!plan.has_value())
     {
@@ -2696,6 +2716,25 @@ bool EditorController::Impl::commitChartGestureStep(
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
             return true;
         }
+        return false;
+    }
+
+    // A replayed run that describes EXACTLY the plan its entry already holds moved nothing — every
+    // object pinned at a bound or held at a floor — so the press is not recorded: the caller's step
+    // list is still its own local until the window is armed below, and a running gesture keeps the
+    // entry and the steps it had. Recording it would bank an overshoot the charter cannot see and
+    // would have to pay back, press by press, before the next visible step. The label is
+    // deliberately not compared: it names the run's NET direction, and a run standing still has no
+    // new direction to name.
+    //
+    // Stated here rather than per verb because it is a fact about the GESTURE, not about any verb's
+    // rules: the entry's plan is the only record of where the run has reached, and the shared
+    // authority is the one place holding it. It is what makes a clamp safe to coalesce — the move
+    // verb's release parks on the next head on its string, so every further press that way is a
+    // no-op that must cost nothing to come back from.
+    if (burst != nullptr && plan->removed == burst->plan.removed &&
+        plan->inserted == burst->plan.inserted)
+    {
         return false;
     }
 

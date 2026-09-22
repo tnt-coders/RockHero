@@ -247,8 +247,10 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
 }
 
 // The floor is the bound's mirror image: a ring the replay would take to zero holds where it is
-// instead of vanishing. A lone note's step into the floor moves nothing, so it is REFUSED and never
-// recorded — the next grow is the first visible step back, with no unseen overshoot to pay.
+// instead of vanishing. A lone note's step into the floor moves nothing — the replay answers the
+// plan the entry already holds — so the gesture authority never records it, and the next grow is
+// the first visible step back with no unseen overshoot to pay. THIS is where that is asserted: the
+// planner states nothing about it (`planAdjustSustain` is a pure function of the step list).
 TEST_CASE("An emptied ring holds and the steps into the floor are not recorded", "[core][chart]")
 {
     GestureFixture fixture;

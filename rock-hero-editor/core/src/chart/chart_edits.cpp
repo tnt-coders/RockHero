@@ -810,6 +810,31 @@ ChartMoveDelta chartMoveGestureDelta(
     return delta;
 }
 
+common::core::Fraction chartSteppedKeyframeOffset(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartKeyframeKey& keyframe, const common::core::Fraction beat_delta)
+{
+    const common::core::Fraction stepped = keyframe.offset + beat_delta;
+    const auto note = std::ranges::lower_bound(
+        chart.notes, keyframe.note, {}, [](const common::core::ChartNote& candidate) {
+            return chartSlotKeyOf(candidate);
+        });
+    if (note == chart.notes.end() || chartSlotKeyOf(*note) != keyframe.note)
+    {
+        return stepped;
+    }
+    // Only the RELEASE carries the ring's END with it, and the end is the one thing 40-Q2-B bounds.
+    // Every other point is bounded by that end instead, which planMoveSelection refuses a step past
+    // rather than clamping — so a key naming an interior point, or naming nothing, answers with the
+    // plain step.
+    const common::core::Keyframe* const release = common::core::releaseKeyframe(*note);
+    if (release == nullptr || release->offset != keyframe.offset)
+    {
+        return stepped;
+    }
+    return common::core::ringEndWithinBound(chart.notes, *note, tempo_map, stepped);
+}
+
 std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
@@ -833,9 +858,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     // The RELEASE is the ring's end, so stepping it steps the end with it: the fall's length is
     // the point's to change, and this is the verb that changes it — outward for a longer fall,
     // inward for a shorter one, never onto or across the last sounded fret (the order refusal
-    // above), and past the string's next onset only as far as the same-string clamp lets a ring
-    // reach, where the release parks. Read before any offset moves, because the release is
-    // recognised by sitting exactly at the end.
+    // above), and outward only as far as a ring's end may reach, where the release parks. Read
+    // before any offset moves, because the release is recognised by sitting exactly at the end.
     //
     // KIND IS NOT THIS VERB'S TO CHANGE: a point that already IS the release drags the end, and
     // every other point lives STRICTLY inside the ring at both ends — the onset below (the
@@ -847,23 +871,22 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     {
         for (common::core::ChartNote& note : notes.rest)
         {
+            const ChartSlotKey slot = chartSlotKeyOf(note);
             const std::vector<common::core::Fraction> offsets =
-                selectedOffsetsOn(keyframe_keys, chartSlotKeyOf(note));
+                selectedOffsetsOn(keyframe_keys, slot);
             if (offsets.empty())
             {
                 continue;
             }
             const common::core::Keyframe* const release = common::core::releaseKeyframe(note);
-            // The next strike on the string is a WALL for a stepped point, not a landing: a step
-            // onto or past it is refused, so the drag stops exactly where it is rather than
-            // dragging a ring's end across a head that stops it.
-            const std::optional<common::core::Fraction> wall =
-                common::core::sustainBoundOf(chart.notes, note, tempo_map);
             // The ring's end AFTER this step, which every INTERIOR point must stay STRICTLY below:
             // the move verb never changes what a point IS, so a step that would reach the end is
             // refused exactly like one that reaches the onset below or the neighbour beside. Read
             // off the release when the release is stepping too — one uniform delta moves both, so
-            // a figure selected whole keeps its shape and the end travels with it.
+            // a figure selected whole keeps its shape and the end travels with it — and asked of
+            // the one authority that holds a ring's end at the next head on its string
+            // (\ref chartSteppedKeyframeOffset), so a release stepped onto that head lands there
+            // and one stepped past it parks on it, exactly as the duration verb's clamp does.
             //
             // Without the bound the step authored a release the burst could not then drag: the
             // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
@@ -872,7 +895,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             // shake (stripReleaseChannels) — a point that lost its meaning to a move.
             const common::core::Fraction end =
                 release != nullptr && std::ranges::binary_search(offsets, release->offset)
-                    ? release->offset + beat_delta
+                    ? chartSteppedKeyframeOffset(
+                          chart,
+                          tempo_map,
+                          ChartKeyframeKey{.note = slot, .offset = release->offset},
+                          beat_delta)
                     : note.sustain;
             for (common::core::Keyframe& keyframe : note.keyframes)
             {
@@ -880,20 +907,26 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                 {
                     continue;
                 }
-                keyframe.offset = keyframe.offset + beat_delta;
-                if (wall.has_value() && !(keyframe.offset < *wall))
-                {
-                    return std::unexpected{ChartPlanRefusal::Invalid};
-                }
-                // The RELEASE is the ring's end, so stepping it steps the end with it; the lower
-                // bound both kinds share is the validator's (offsets are strictly positive).
+                // The RELEASE is the ring's end, so stepping it steps the end with it — as far as
+                // that end may reach and no further, the clamp being where the whole step lands
+                // rather than a second answer applied after it. The lower bound both kinds share
+                // is the validator's (offsets are strictly positive).
                 if (&keyframe == release)
                 {
-                    note.sustain = keyframe.offset;
+                    keyframe.offset = end;
+                    note.sustain = end;
                 }
-                else if (!(keyframe.offset < end))
+                else
                 {
-                    return std::unexpected{ChartPlanRefusal::Invalid};
+                    keyframe.offset = keyframe.offset + beat_delta;
+                    // Against the CLAMPED end: a step that would strand an interior point on or
+                    // past the head its own ring stops at is refused, never clamped — clamping it
+                    // would stack it on the release, and letting it stand would leave the gate's
+                    // truncation to clip a statement away with no record.
+                    if (!(keyframe.offset < end))
+                    {
+                        return std::unexpected{ChartPlanRefusal::Invalid};
+                    }
                 }
                 stepped_keyframe = true;
             }
@@ -1309,21 +1342,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         if (floor < target || (floor_may_end_the_ring && floor == target))
         {
-            // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
-            // onset on its OWN string and no further, because a re-strike stops the ring. The
-            // margin that binds growth against ANY string is the DRAWN tail's spacing rule, which
-            // presentation owns rather than this clamp. Clamping the replayed value needs no
-            // direction test and no memory of the previous step — a note pinned at its bound
-            // reports the bound for every step past it, and leaves it the moment the replayed ring
-            // falls back inside. The clamp can never SHORTEN a note below where the gesture found
-            // it: normalizeSustainOverlaps holds every stored ring inside this same bound, so
-            // `start` is already at most the bound.
-            const std::optional<common::core::Fraction> bound =
-                common::core::sustainBoundOf(chart.notes, note, tempo_map);
-            if (bound.has_value() && !(target < *bound))
-            {
-                target = *bound;
-            }
+            // The one bound on a ring (40-Q2-B), asked of the one authority that applies it — the
+            // same call the move verb's stepped release makes, so both verbs give one answer for a
+            // ring's end reaching the next head on its string. The margin that binds growth
+            // against ANY string is the DRAWN tail's spacing rule, which presentation owns rather
+            // than this clamp. The clamp can never SHORTEN a note below where the gesture found it:
+            // normalizeSustainOverlaps holds every stored ring inside this same bound, so `start`
+            // is already at most the bound.
+            target = common::core::ringEndWithinBound(chart.notes, note, tempo_map, target);
             // The one way a ring changes length once it carries a payload: a pitched note's
             // keyframes all lie above its floor, so nothing clips there — the resize leaves a
             // release behind a lengthening ring as the pitched stop it has become, and re-aims a
@@ -1346,17 +1372,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         net = net + (note.sustain - start->sustain);
     }
 
-    // A running gesture's step that moves NO ring — every keyed note held at its floor or pinned
-    // at its bound — is refused rather than recorded, exactly as the move verb refuses a step it
-    // cannot apply. Recording it would bank an overshoot the charter cannot see and would have to
-    // pay back, click by click, before the next visible step. A chord member held while another
-    // member moves is not this case: that step happened, and replaying the held member from its
-    // start is what brings it back in shape with the others. A FIRST step that moves nothing is
-    // the ordinary no-op the finalize below answers, which arms no gesture at all.
-    if (candidate == chart.notes && chart.notes != base)
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
+    // A step that moves NO ring — every keyed note held at its floor or pinned at its bound —
+    // needs no clause here. The replay is a pure function of the step list, so it answers the plan
+    // it answered last time, and dropping that press so the run banks no overshoot is the shared
+    // gesture authority's (commitChartGestureStep, which compares the replay against the plan its
+    // entry already holds). A chord member held while another member moves is not this case at all:
+    // that step happened, and replaying the held member from its start is what brings it back in
+    // shape with the others.
 
     // The label states the gesture's NET direction, because the entry it goes on describes the
     // whole gesture (start → now) rather than the step just pressed: grow, grow, shrink is a growth

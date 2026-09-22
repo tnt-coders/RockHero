@@ -58,9 +58,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   scrape defaults all floor on this one window.
 - `sustainBoundOf(notes, note, tempo_map)` — the one bound on a ring: the distance to the next
   onset on the note's **own** string, or nullopt when nothing later sounds there. A re-strike stops
-  the ring (40-Q2-B), so a tail may reach that onset exactly and never pass it. Two rules need the
-  same answer and are stated once through this one: `normalizeSustainOverlaps` truncates to it, and
-  the editor's duration verbs grow toward it. It bounds the RING and nothing else: the span-implied
+  the ring (40-Q2-B), so a tail may reach that onset exactly and never pass it. Three rules need
+  the same answer and are stated once through `ringEndWithinBound(notes, note, tempo_map, target)`,
+  which APPLIES the bound — `target`, or the bound where `target` would reach or pass it:
+  `normalizeSustainOverlaps` truncates a stored ring to it, the editor's duration verb grows a ring
+  toward it, and its move verb steps a release toward it, so "a ring's end reaching the next head on
+  its string" has one answer wherever it is asked. It bounds the RING and nothing else: the span-implied
   hold `chartHolds` answers deliberately runs past it, because a re-strike stops a string without
   releasing the shape (see that function).
 - `predecessorHoldReaches(...)` — the connection hold test, and it is plain: true when the

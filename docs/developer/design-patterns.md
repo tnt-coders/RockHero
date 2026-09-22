@@ -241,6 +241,12 @@ and re-arms in place. The split keeps mutations predictable (nothing half-applie
 never feel dead. Exemplars: the "refuses the whole plan, never clamps" contracts in
 `chart_edits.h` and the refused-move comments across `chart_handlers.cpp`.
 
+The ONE clamp on the editing side, and what earns it: a ring's END against the next head on its own
+string (`ringEndWithinBound`). It is not a partial application of a crossing edit — the end simply
+cannot exist past that head, so the head IS the answer to "how far out", and both verbs that move an
+end (duration and move) give it rather than each inventing a refusal. Everything that CROSSES a
+boundary in those verbs still refuses: a head's landing, and any point other than the release.
+
 ## Typed boundary errors {#patterns_typed_errors}
 
 Recoverable failures cross project-owned APIs as a code + message pair, never as raw framework

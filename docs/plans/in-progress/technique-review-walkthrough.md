@@ -251,13 +251,21 @@ Keep this list and the session task list in step.
     authority's, reached through the finalize gate — the onset below, a neighbour beside, a later
     same-string onset, the capo floor — so a step across a neighbour REFUSES rather than swapping,
     which is the only reading a keyframe's identity allows. The step re-keys the selection
-    (`select_exactly`), because that identity IS the offset. Two bounds the planner states itself,
-    the gate does not state: the next head on the string is a WALL
-    (a step must not drag a ring's end across the strike that stops it), and the ring's END is
+    (`select_exactly`), because that identity IS the offset — and after a CLAMPED step it names the
+    offset the clamp landed on, asked of the same authority the plan asked
+    (`chartSteppedKeyframeOffset`), since delta arithmetic would name an offset nothing sits on. Two
+    bounds the planner states itself, the gate does not state: the next head on the string is the
+    one CEILING a ring's end has, so a stepped RELEASE lands on that head and a step past it PARKS
+    there rather than refusing — one answer shared with the duration verb's clamp
+    (`ringEndWithinBound`; re-ruled 2026-09-21, it was a refusal until then) — and the ring's END is
     EXCLUSIVE for every point but the release (ruled 2026-09-21) — KIND IS NOT THIS VERB'S TO
     CHANGE, so the release drags the end and no other point ever becomes one. Measured against the
-    end AFTER the step, so a figure selected whole slides out together; and the way past the
-    shrink floor a silent or shake-carrying point raises is still moving that point LEFT.
+    CLAMPED end AFTER the step, so a figure selected whole slides out together and an interior point
+    the clamp would strand on the head is refused rather than clipped away by the gate; and the way
+    past the shrink floor a silent or shake-carrying point raises is still moving that point LEFT.
+    The gesture consequence the clamp had to earn: a replayed run describing exactly the plan its
+    entry already holds is NOT recorded (`commitChartGestureStep`), so every further press into the
+    head costs nothing to come back from.
   - **Still open, and untouched by the above:** a DISPLAY question — a keyframe stating no fret
     draws nothing today, so no pointer can reach it — the bend display study's to answer.
 - [x] **W15 — The harmonic verbs and the node picker.** `H` states the fret-hand harmonic and

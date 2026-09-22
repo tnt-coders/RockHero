@@ -309,6 +309,25 @@ checked first: span rule 6's emit test is calibrated to the synthesized arrival 
 quantum before the onset and would re-key to the derived fact; the signed shift-slide look (P8);
 and whether `Shift+L`'s split retreat, which places an arrival the same way, follows.
 
+*Study result, same day, and two rulings.* The fact is about a PAIR of notes, so it is resolved
+once per revision beside `hands_over` in the connections pass and read everywhere — never threaded
+into the note-local helpers. With `releaseKeyframe` then meaning "an end statement whose fret does
+not travel into the next head", the bare-fret strip applies only to a real fall and a shift
+arrival keeps its bend with no new clause: the user's coexistence ruling, obtained for free. The
+importer's placement collapses to "state the next head's fret at the end and grow the ring to
+it"; the `Shift+L` split's retreat and the join's equality test go; span rule 6 keys on the
+relation and its census pins do not move. The 2D look needs no decision: today's drawing (a
+linked arrival head at the retreated end, then the landing's ordinary picked head) falls out of
+the existing painter with no change, since one flag isolates every surface and it merely gets its
+answer from the relation.
+
+**RULED (user, 2026-09-21): a next head struck by the picking hand is NOT arrived into** — a
+fretting hand sliding into a fret a different hand then stops is not one gesture — **except a
+tapped harmonic**, whose fretting-hand stop IS the fret slid into: it reads as a regular slide to
+the stop held under the harmonic, with no landing head of its own, only the bracket. (Tapped
+harmonics are refused by validation today; the exception is recorded for their return.) Scrapes on
+either side and an open-string next head are excluded as the study found.
+
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
 a ring's exact end is the next note — and the plan gate's ring clamp shortens the ring to the
@@ -621,6 +640,29 @@ step is shippable on its own and the last one changes nothing the eye can see:
    whole corpus, abutting or not: the silent-point shed, the payload trim against the ACTUAL ring,
    tie merging and the shift-arrival retreat each turn a written end bend into something else.
    Re-import the corpus so the files hold the truth. Sight it.
+
+   *The one shape left with two answers, and its ruling — 2026-09-21, matched the same day.* Step 3
+   left "a ring's end reaching the next head on its string" answered twice: the DURATION verb
+   clamped a growing ring onto that head with its end statement on it, while the MOVE verb refused
+   stepping a release there at all. The user ruled the move verb must match, and it does: stepping
+   the release onto the head lands it there, stepping PAST it parks it on the head, and both verbs
+   now ask one function for the answer (`ringEndWithinBound`, beside `sustainBoundOf` — the move
+   verb through `chartSteppedKeyframeOffset`, which the controller's re-keying asks too so a clamped
+   landing and the selection can never disagree). `normalizeSustainOverlaps` was rewritten on it, so
+   the load truncation is provably the same rule. What the clamp had to earn was the burst: a press
+   the clamp eats moves nothing, and recording it would bank an overshoot the charter cannot see, so
+   a replayed run describing exactly the plan its entry already holds is no longer recorded
+   (`commitChartGestureStep` — the shared gesture authority, since the entry's plan is the only
+   record of where a run has reached). The interior-point bound (`9312840c`) is untouched and is now
+   measured against the CLAMPED end. `planAdjustSustain`'s own copy of that law — "a running
+   gesture's step that moves NO ring is refused", an exact subset of the shared one, its only
+   production caller being the gesture step itself — was DELETED in the same change, so the rule is
+   stated once: the planner is a pure function of its step list and simply answers the plan it
+   answered last time, and dropping the press is the authority's. One planner-level case moved with
+   it (`test_chart_edits.cpp`, now "holds an emptied ring and repeats its plan"), asserting the
+   floor hold and the repeated plan; the no-banking property stays asserted at the controller level
+   in `test_chart_sustain_gesture.cpp`. The `floor == target` branch that restores a replayed
+   release is a different thing (it makes the candidate equal the BASE) and stands.
 
 Deferred until after those three, each on its own: the shift slide as a derived fact (span rule 6
 and the signed look to verify first); a fret AND a bend together at the end (the strip family);

@@ -353,6 +353,18 @@ std::optional<Fraction> sustainBoundOf(
     return beatDistance(tempo_map, note.position, next->position);
 }
 
+Fraction ringEndWithinBound(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map,
+    const Fraction target)
+{
+    const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
+    if (bound.has_value() && !(target < *bound))
+    {
+        return *bound;
+    }
+    return target;
+}
+
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
 std::vector<std::size_t> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
@@ -361,12 +373,12 @@ std::vector<std::size_t> normalizeSustainOverlaps(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
-        const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
-        if (!bound.has_value() || !(*bound < note.sustain))
+        const Fraction end = ringEndWithinBound(notes, note, tempo_map, note.sustain);
+        if (!(end < note.sustain))
         {
             continue;
         }
-        clipPayloadsToSustain(note, *bound);
+        clipPayloadsToSustain(note, end);
         truncated.push_back(index);
     }
     return truncated;

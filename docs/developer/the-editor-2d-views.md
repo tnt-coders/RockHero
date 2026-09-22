@@ -297,10 +297,13 @@ Three consequences worth knowing before touching this:
   may CLIP payload doing it — deliberately, since a moved note brings its own payload and there is
   nothing coherent to merge. No entry gesture truncates: a digit on a
   covered slot states a POINT and never a head, and `Shift+L`'s disconnect makes an existing point
-  the new head, carrying every later one onto the new note. The verbs that step a point
-  (`Alt+←/→` on a chip) treat the next head on the string as a WALL: a step that would reach it
-  is refused and the point stays exactly where it is, rather than dragging a ring's end across the
-  strike that stops it. The presented
+  the new head, carrying every later one onto the new note. Stepping a point (`Alt+←/→` on a chip)
+  gives the SAME answer as growing a ring into that head (user ruling, 2026-09-21): the RELEASE — the
+  one point that carries the ring's end — steps onto the head and PARKS there, a step past it landing
+  on the head rather than refusing, exactly as `planAdjustSustain` clamps
+  (`chartSteppedKeyframeOffset` and the duration verb both ask `ringEndWithinBound`). Every other
+  point is bounded by its own ring's END instead, and a step that would reach it is refused, so a
+  move never turns a point into the release. The presented
   tail always reaches a note's last INTERIOR keyframe (presentation rule 2), so a keyframe placed
   inside the margin draws the tail up to itself; a statement standing AT a ring's end is the end's
   own and RIDES to the presented end instead, one minimum sustain distance before the onset that

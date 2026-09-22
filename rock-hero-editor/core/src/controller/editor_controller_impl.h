@@ -221,6 +221,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     using ChartGestureReplan = std::function<std::expected<ChartEditPlan, ChartPlanRefusal>(
         const common::core::Chart& pre_gesture)>;
 
+    // Where a run's objects have LANDED, for a verb whose steps re-key them. Asked of the same
+    // pre-gesture chart the replay is planned against, because a landing a bound HELD is a fact
+    // about that chart and nothing else — delta arithmetic alone would name an offset the plan
+    // clamped away, leaving the selection pointing at no keyframe at all.
+    using ChartGestureLanding =
+        std::function<std::vector<ChartSelectionKey>(const common::core::Chart& pre_gesture)>;
+
     void performActionImpl(const EditorAction::StepChartCaret& action);
     void performActionImpl(const EditorAction::StepToRowObject& action);
     void performActionImpl(const EditorAction::JumpToFocusRow& action);
@@ -334,11 +341,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const ChartVerbWindowVerb* liveChartGestureVerb() const;
     // ONE step of a coalescing gesture, whichever verb's: replays the run over the chart state it
     // started at (`replan`) and folds the result into the single entry the run owns — pushed by the
-    // first step, replaced by every later one, so the entry always describes start → now. True when
-    // the chart moved.
+    // first step, replaced by every later one, so the entry always describes start → now. A replay
+    // that describes exactly the plan already on that entry moved nothing and is NOT recorded, so a
+    // press into a bound costs nothing to come back from. True when the chart moved.
     bool commitChartGestureStep(
         bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
-        const std::optional<std::vector<ChartSelectionKey>>& select_exactly = std::nullopt);
+        const ChartGestureLanding& landing = {});
     // Ends a gesture whose replayed steps describe no edit at all: takes its entry back out of
     // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
     // that replays back to its start leaves neither a dead undo step nor a modified document

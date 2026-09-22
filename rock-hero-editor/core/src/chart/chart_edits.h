@@ -343,6 +343,36 @@ is measured from there.
     const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps);
 
 /*!
+\brief Where a stepped keyframe LANDS: one delta along its ring, the RELEASE held at the ring's own
+bound.
+
+A release IS the ring's end, so stepping it steps the end, and the end has exactly one ceiling —
+exact adjacency with the next onset on the note's own string
+(\ref common::core::ringEndWithinBound). A step that would carry it past that head lands ON the
+head instead, which is the same answer the duration verb gives a ring grown into it: one rule for
+"a ring's end reaching the next head on its string", asked in one place.
+
+Every other point is bounded by its own ring's END rather than by that head, and
+\ref planMoveSelection refuses a step that would reach it rather than clamping, so an interior key
+— and a key naming no note at all — answers with the plain step.
+
+Stated here rather than inside the planner because the CALLER needs the same answer: a move gesture
+re-keys the objects it moves (a keyframe's identity IS its offset), so the landing it hands the
+selection has to be the one the plan wrote, not the delta arithmetic the plan may have clamped.
+
+\param chart Chart the step is taken against — for a gesture, the state the run STARTED from, since
+that is what the replay is planned against.
+\param tempo_map Tempo map supplying the beat axis the bound is measured on.
+\param keyframe Key of the keyframe stepping, naming its note's slot and its current offset.
+\param beat_delta Signed exact beat delta of the whole step.
+
+\return The offset the keyframe lands on.
+*/
+[[nodiscard]] common::core::Fraction chartSteppedKeyframeOffset(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartKeyframeKey& keyframe, common::core::Fraction beat_delta);
+
+/*!
 \brief Plans moving the selection one step in time and/or across strings: notes by their slot,
 keyframes by their offset.
 
@@ -357,7 +387,8 @@ selection also names does not step: an offset is relative to its onset, and movi
 it twice. Only keyframes on notes the selection left standing take the beat delta.
 
 Refused (empty) when any moved note would leave the chart's string range or land on a slot an
-unmoved note occupies — validation-preserving edits only, never clamped. Overlaps created at the
+unmoved note occupies — validation-preserving edits only, and a HEAD's landing is never clamped
+short of where it was aimed (the one clamp is a ring's end, below). Overlaps created at the
 destinations truncate per 40-Q2-B: this is the ONE verb that re-strikes by truncation, so a landing
 inside a tail SHORTENS that ring and rides its release back to the new end. It never DELETES a
 statement, though — a landing that would clip a keyframe other than the release off the tail is
@@ -372,14 +403,18 @@ same-string onset or below the capo floor is refused just as a retyped one is
 therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
 offset IS the identity, so exchanging two would leave the selection pointing at the other record.
 
-Two bounds the planner does state, because the rules carry neither. The next strike on the string is
-a WALL rather than a landing: it bites only on the RELEASE, whose step moves the ring's END, and a
-ring may not be dragged across the strike that stops it — for every interior point the end bound
-below already implies it, since a stored ring never passes its own bound. And an INTERIOR point
-stays STRICTLY BELOW the ring's end: KIND IS NOT THIS VERB'S TO CHANGE, so a
-point that already is the release drags the end with it and no other point ever becomes one. Moving
-a point LEFT remains the way past the resize floor that a point which says nothing, or one carrying
-a shake, raises under a shrinking ring (\ref common::core::ringEndMayLandOnLastKeyframe).
+Two bounds the planner does state, because the rules carry neither. A stepped RELEASE moves the
+ring's END, and the end reaches the next strike on its own string exactly and no further, so a step
+onto that head lands there and a step PAST it parks on it — CLAMPED, not refused, which is the same
+answer the duration verb gives a ring grown into that head
+(\ref chartSteppedKeyframeOffset, \ref common::core::ringEndWithinBound). And an INTERIOR point
+stays STRICTLY BELOW the ring's end — the clamped end, so a step that would strand it on or past
+that head is refused rather than left for the gate's truncation to clip away: KIND IS NOT THIS
+VERB'S TO CHANGE, so a point that already is the release drags the end with it and no other point
+ever becomes one. Moving a point LEFT remains the way past the resize floor that a point which says
+nothing, or one carrying a shake, raises under a shrinking ring
+(\ref common::core::ringEndMayLandOnLastKeyframe); leftward it needs no ceiling of its own, since a
+shortening ring only ever moves away from the head that bounds it.
 
 The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so the
 caller replays its step list into a single delta (\ref chartMoveGestureDelta) and hands this planner
@@ -576,9 +611,11 @@ result is an ordinary one-step edit.
 
 Two rules bound the replayed ring, and neither is fed back into the replay — they judge its answer,
 so a clamp never becomes the next step's starting value. A step both rules absorb for EVERY keyed
-note, moving no ring at all, is refused and never recorded: a lone note at its bound simply stops,
-with no unseen overshoot to pay back, while a chord member pinned beside a moving one rides the
-recorded steps and rejoins where it parted.
+note moves no ring at all, and this planner states nothing about it: the replay is a pure function
+of the step list, so it simply answers the plan it answered last time, and the shared gesture
+authority drops that press rather than recording it — so a lone note at its bound stops with no
+unseen overshoot to pay back. A chord member pinned beside a moving one is not that case: the step
+IS recorded, and the member rejoins where it parted.
 
 - Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
   \ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
@@ -623,8 +660,8 @@ binary-search this precondition).
 \return The plan the gesture's entry should hold; NoChange when the replay puts every ring back
         where `base` had it (or when there are no steps yet), which means the gesture describes no
         edit at all — the caller's answer is to RETIRE the entry it pushed rather than replace it
-        with one that describes nothing; Invalid when the gate refuses the result, or when the
-        step moved no ring at all, so that the caller records nothing for it.
+        with one that describes nothing; Invalid when the gate refuses the result. A step that moved
+        no ring returns the PLAN the step before it returned, which is how the caller recognises it.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,

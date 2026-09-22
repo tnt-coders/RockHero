@@ -146,6 +146,24 @@ constexpr int g_retyped_fret{9};
     return chart;
 }
 
+// THE PARKING FIGURE. A four-beat ring on string 3 whose statement at its end IS the release (fret
+// 9 where the ring stops), with the string struck again four beats past it. So the release stands
+// exactly ONE whole-note step from the only thing that bounds a ring's end — the next head on its
+// own string — and the scenario's first right press reaches that head. Its onset is measure 2
+// beat 1, so at the geometry's 20 px/s the release draws at 4.0s (x = 80, g_junction_x) like the
+// junction above, and the next head a whole measure further at 6.0s: far enough that a click on the
+// release is nowhere near the 25px head, which is why the step is a whole note and not a quarter.
+[[nodiscard]] common::core::Chart makeParkedReleaseChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    common::core::ChartNote glide =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{4});
+    glide.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 9}};
+    chart.notes = {std::move(glide), makeTestNote({.measure = 4, .beat = 1}, 3, 3)};
+    return chart;
+}
+
 // Whether any note in the chart carries a point at an offset stating a fret. Found by offset rather
 // than by index, because a keyframe list is offset-ordered and a step can carry a point past its
 // neighbours.
@@ -358,6 +376,79 @@ TEST_CASE("A keyframe move gesture re-points the selection at every step", "[cor
 
     fixture.controller.onUndoRequested();
     CHECK(fixture.currentChart() == original);
+}
+
+// A RING'S END REACHING THE NEXT HEAD HAS ONE ANSWER, and this is the move verb giving it: the
+// release parks ON that head rather than refusing, exactly as a ring GROWN into it parks there. The
+// gesture consequence is what the clamp has to earn — a press that cannot move must cost nothing to
+// come back from, or the charter pays back an overshoot they never saw, press by press.
+TEST_CASE("A move gesture parks a release on the next head and banks nothing", "[core][chart]")
+{
+    MoveFixture fixture;
+    REQUIRE(fixture.load(makeParkedReleaseChart()));
+    // A whole-note step, so one press spans the four beats to the head — see the figure above.
+    fixture.controller.onGridNoteValueChangeRequested(common::core::Fraction{1});
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    {
+        const EditorViewState* const selected = stateOrNull(fixture.view.last_state);
+        REQUIRE(selected != nullptr);
+        if (selected != nullptr)
+        {
+            REQUIRE(selected->chart_edit.selected_keyframes.size() == 1);
+        }
+    }
+    const common::core::Chart original = fixture.currentChart();
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    // One step lands the release exactly on the head, and the ring's end goes with it: the fall
+    // completes on the head, which is what the store says the hands did.
+    fixture.step(ChartStepDirection::Right);
+    const common::core::Chart parked = fixture.currentChart();
+    REQUIRE(parked.notes.size() == 2);
+    if (parked.notes.size() == 2)
+    {
+        CHECK(parked.notes[0].sustain == common::core::Fraction{8});
+        REQUIRE(parked.notes[0].keyframes.size() == 1);
+        if (parked.notes[0].keyframes.size() == 1)
+        {
+            CHECK(parked.notes[0].keyframes[0].offset == common::core::Fraction{8});
+            CHECK(parked.notes[0].keyframes[0].fret == 9);
+        }
+    }
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    // Further presses that way do NOTHING VISIBLE: the clamp holds the release on the head, so the
+    // replay describes the plan the entry already holds and the press is not recorded at all.
+    fixture.step(ChartStepDirection::Right);
+    fixture.step(ChartStepDirection::Right);
+    CHECK(fixture.currentChart() == parked);
+    CHECK(fixture.undoEntryCount() == entries_before + 1);
+    // And the selection still names the release — at the offset the CLAMP landed it on, not the one
+    // the delta arithmetic would have named, which nothing in the chart sits on.
+    {
+        const EditorViewState* const held = stateOrNull(fixture.view.last_state);
+        REQUIRE(held != nullptr);
+        if (held != nullptr)
+        {
+            CHECK(held->chart_edit.selected_keyframes.size() == 1);
+        }
+    }
+
+    // One press back moves again, and it is the FIRST press back: the two no-op presses banked
+    // nothing, so the run replays to its start, retires its entry, and the release stands where the
+    // charter found it.
+    fixture.step(ChartStepDirection::Left);
+    CHECK(fixture.currentChart() == original);
+    CHECK(fixture.undoEntryCount() == entries_before);
+    {
+        const EditorViewState* const home = stateOrNull(fixture.view.last_state);
+        REQUIRE(home != nullptr);
+        if (home != nullptr)
+        {
+            CHECK(home->chart_edit.selected_keyframes.size() == 1);
+        }
+    }
 }
 
 // THE burst record's own law, and a data-loss regression: the record must not outlive the edit it

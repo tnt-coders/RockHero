@@ -941,9 +941,10 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
     SECTION("stepped onto a later onset of its own string")
     {
-        // The next strike on the string is a WALL for the verb: a step that would land on or past
-        // it is refused, so the point stays exactly where it is rather than being dragged across a
-        // head that stops the ring it rides.
+        // An INTERIOR point's ceiling is its own ring's END, and a stored ring never passes the
+        // head that stops it — so the head bounds the point too, through the end, and a step onto
+        // it is refused rather than clamped: only the RELEASE parks on that head, because only the
+        // release carries the end with it.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
@@ -1015,8 +1016,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
     SECTION("stepped inside the margin before a later onset of its own string stands there")
     {
-        // The wall is the head itself, never proximity: a charter who steps a keyframe to an eighth
-        // before the next head gets exactly that, and the ring below still reaches the head.
+        // The bound is the ring's end itself, never proximity to the head: a charter who steps a
+        // keyframe to an eighth before the next head gets exactly that, and the ring below still
+        // reaches the head.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
@@ -1082,21 +1084,61 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::slideOutFretOrNull(moved) != nullptr);
         }
     }
-    SECTION("outward stops where it is at the next head on its string")
+    SECTION("outward parks on the next head on its string")
     {
-        // The next strike is a WALL for the verb: a step onto or past the head is refused, so the
-        // release stays exactly where it is rather than dragging the ring's end across the strike
-        // that stops it. A shorter step lands where it was aimed, close to the head included.
+        // ONE ANSWER FOR A RING'S END REACHING THE NEXT HEAD, shared with the duration verb: the
+        // step onto that head lands there, and a step PAST it clamps onto it rather than refusing.
+        // The release IS the ring's end, so the ring ends on the head with its fall completing
+        // there, which is what the store says the hands did; the spacing the mark needs to be seen
+        // is presentation's. The head is five beats out, one past the four-beat release.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
-        const auto onto = planMoveSelection(
-            repicked, tempo_map, {}, release, common::core::Fraction{1}, 0, "Move Keyframe");
-        REQUIRE_FALSE(onto.has_value());
-        CHECK(onto.error() == ChartPlanRefusal::Invalid);
+        const auto parked = [&](const common::core::Fraction step) {
+            const auto plan =
+                planMoveSelection(repicked, tempo_map, {}, release, step, 0, "Move Keyframe");
+            REQUIRE(plan.has_value());
+            if (!plan.has_value())
+            {
+                return;
+            }
+            const common::core::ChartNote* const glide = noteAt(plan->inserted, glideOnset(), 1);
+            REQUIRE(glide != nullptr);
+            if (glide != nullptr)
+            {
+                CHECK(glide->sustain == common::core::Fraction{5});
+                REQUIRE(glide->keyframes.size() == 2);
+                CHECK(glide->keyframes.back().offset == common::core::Fraction{5});
+                const int* const falls_toward = common::core::slideOutFretOrNull(*glide);
+                REQUIRE(falls_toward != nullptr);
+                if (falls_toward != nullptr)
+                {
+                    CHECK(*falls_toward == 12);
+                }
+            }
+            // The gate accepts a ring ending exactly on the next head, adjacency being legal.
+            common::core::Chart applied = repicked;
+            applyAndValidate(applied, tempo_map, *plan);
+        };
+        // Exactly onto the head, then past it: one plan, because the clamp IS where the step lands.
+        parked(common::core::Fraction{1});
+        parked(common::core::Fraction{2});
+        // A FURTHER press in the same direction is HELD, not NoChange: the plan is diffed against
+        // the PRE-GESTURE chart, which still holds the four-beat ring, so the replay describes the
+        // same edit the previous press did — an identical entry replacing itself, nothing visible
+        // moving. NoChange is the other case, a FIRST press on a release already parked there.
+        parked(common::core::Fraction{3});
         const auto past = planMoveSelection(
             repicked, tempo_map, {}, release, common::core::Fraction{2}, 0, "Move Keyframe");
-        REQUIRE_FALSE(past.has_value());
-        CHECK(past.error() == ChartPlanRefusal::Invalid);
+        const auto further = planMoveSelection(
+            repicked, tempo_map, {}, release, common::core::Fraction{3}, 0, "Move Keyframe");
+        REQUIRE(past.has_value());
+        REQUIRE(further.has_value());
+        if (past.has_value() && further.has_value())
+        {
+            CHECK(past->inserted == further->inserted);
+            CHECK(past->removed == further->removed);
+        }
+        // A shorter step still lands where it was aimed, close to the head included.
         const auto inside = planMoveSelection(
             repicked, tempo_map, {}, release, common::core::Fraction{7, 8}, 0, "Move Keyframe");
         REQUIRE(inside.has_value());
@@ -1108,6 +1150,65 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(glide->sustain == common::core::Fraction{39, 8});
             CHECK(common::core::slideOutFretOrNull(*glide) != nullptr);
         }
+    }
+    SECTION("a release already on the head answers NoChange")
+    {
+        // A FIRST press whose whole step the clamp eats describes no edit at all, so it arms no
+        // gesture and the next press in the other direction starts from the current ring rather
+        // than paying back a step that moved nothing.
+        common::core::Chart parked;
+        parked.tuning.strings = chart.tuning.strings;
+        common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
+        glide.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 9},
+            common::core::Keyframe{.offset = common::core::Fraction{5}, .fret = 12},
+        };
+        parked.notes = {std::move(glide), makeTestNote({.measure = 3, .beat = 2}, 1, 3)};
+        const std::vector<ChartKeyframeKey> at_head{keyframeKeyAt(
+            glideOnset(), 1, common::core::Fraction{5})};
+        const auto plan = planMoveSelection(
+            parked, tempo_map, {}, at_head, common::core::Fraction{1}, 0, "Move Keyframe");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        // And stepping BACK moves again: the ring shortens with the release, which never had a
+        // ceiling in that direction.
+        const auto back = planMoveSelection(
+            parked, tempo_map, {}, at_head, common::core::Fraction{-1}, 0, "Move Keyframe");
+        REQUIRE(back.has_value());
+        if (back.has_value())
+        {
+            const common::core::ChartNote* const shortened =
+                noteAt(back->inserted, glideOnset(), 1);
+            REQUIRE(shortened != nullptr);
+            if (shortened != nullptr)
+            {
+                CHECK(shortened->sustain == common::core::Fraction{4});
+            }
+        }
+    }
+    SECTION("an interior point stranded past the clamped end is refused")
+    {
+        // The clamp lands the END, never an interior point: a junction stepped onto or past the
+        // head its own ring stops at has nowhere legal to stand, and clamping it would stack it on
+        // the release. Refused rather than left for the gate's truncation to clip it away with no
+        // record. The ring already ends ON the head here, so the release's own step is a no-op and
+        // only the junction is asking to move.
+        common::core::Chart parked;
+        parked.tuning.strings = chart.tuning.strings;
+        common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
+        glide.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{9, 2}, .fret = 9},
+            common::core::Keyframe{.offset = common::core::Fraction{5}, .fret = 12},
+        };
+        parked.notes = {std::move(glide), makeTestNote({.measure = 3, .beat = 2}, 1, 3)};
+        const std::vector<ChartKeyframeKey> both{
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{9, 2}),
+            keyframeKeyAt(glideOnset(), 1, common::core::Fraction{5}),
+        };
+        const auto plan = planMoveSelection(
+            parked, tempo_map, {}, both, common::core::Fraction{1}, 0, "Move Selection");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("a note moved back onto the release leaves the ring alone")
     {
@@ -2186,9 +2287,12 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
 
 // A ring the replay would empty holds the value it CURRENTLY has — read from the live chart, not
 // from the gesture's start. Holding the start value instead would grow the note back on a shrink
-// press. A running gesture's step into the floor moves nothing, so it is REFUSED and the caller
-// records nothing for it: the next grow is the first step back, with no unseen overshoot to pay.
-TEST_CASE("planAdjustSustain holds an emptied ring and refuses the step into it", "[core][chart]")
+// press. A step into the floor therefore moves NOTHING, and the planner says so the only way a pure
+// function of the step list can: it answers the plan it answered last time. DROPPING that press so
+// the run banks no overshoot is the shared gesture authority's (`commitChartGestureStep` compares
+// the replay against the plan its entry already holds), and the controller-level twin in
+// `test_chart_sustain_gesture.cpp` is where that is asserted — so nothing here pops a step.
+TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2199,19 +2303,20 @@ TEST_CASE("planAdjustSustain holds an emptied ring and refuses the step into it"
 
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
-    // A press as the caller makes it: the step is appended first, and a refused step is taken back
-    // out, since the caller records nothing for it.
+    // A press as the caller makes it: the step is appended, the whole run replays over `base`, and
+    // the live chart is walked to what the plan describes. The plan comes back so a caller can ask
+    // whether the press moved anything.
     const auto press = [&](bool grow) {
         steps.push_back(gridStep(g_quarter_grid, grow));
-        const auto plan = planAdjustSustain(live, tempo_map, base, keys, steps);
+        std::expected<ChartEditPlan, ChartPlanRefusal> plan =
+            planAdjustSustain(live, tempo_map, base, keys, steps);
+        REQUIRE(plan.has_value());
         if (plan.has_value())
         {
             live.notes = base;
             REQUIRE(applyChartChange(live, *plan).has_value());
-            return;
         }
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
-        steps.pop_back();
+        return plan;
     };
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which
     // no step below expects, so the caller's own comparison fails.
@@ -2220,27 +2325,48 @@ TEST_CASE("planAdjustSustain holds an emptied ring and refuses the step into it"
             noteAt(live.notes, {.measure = 2, .beat = 1}, 1);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
+    // Whether two presses describe the same edit, which is the question the gesture authority asks.
+    // The label is left out of it: it names the run's NET direction, which a run standing still has
+    // no new value for.
+    const auto describes_the_same = [](const std::expected<ChartEditPlan, ChartPlanRefusal>& lhs,
+                                       const std::expected<ChartEditPlan, ChartPlanRefusal>& rhs) {
+        return lhs.has_value() && rhs.has_value() && lhs->removed == rhs->removed &&
+               lhs->inserted == rhs->inserted;
+    };
 
-    press(/*grow=*/false);
+    static_cast<void>(press(/*grow=*/false));
     CHECK(ring() == common::core::Fraction{2});
-    press(/*grow=*/false);
+    const auto second = press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
     // The next line IS the onset, so the ring holds where the previous step left it rather than
-    // being clamped to some invented floor or restored to its three-beat start — and the press is
-    // refused, leaving the run with the two steps it had.
-    press(/*grow=*/false);
+    // being clamped to some invented floor or restored to its three-beat start — and the plan is
+    // the one before it, to the note. It stays that way for every further press into the floor.
+    const auto floored = press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
-    CHECK(steps.size() == 2);
-    press(/*grow=*/false);
+    CHECK(describes_the_same(floored, second));
+    const auto still_floored = press(/*grow=*/false);
     CHECK(ring() == common::core::Fraction{1});
-    CHECK(steps.size() == 2);
-    // The first grow is the first step back: nothing was banked by the two refused presses.
-    press(/*grow=*/true);
-    CHECK(ring() == common::core::Fraction{2});
+    CHECK(describes_the_same(still_floored, second));
+
+    // The run the caller is left holding, having dropped both of those presses: two shrinks. The
+    // first grow off it is the first step back, with no unseen overshoot to pay.
+    std::vector<ChartSustainStep> recorded{
+        gridStep(g_quarter_grid, false),
+        gridStep(g_quarter_grid, false),
+        gridStep(g_quarter_grid, true)
+    };
+    const auto regrown = planAdjustSustain(live, tempo_map, base, keys, recorded);
+    REQUIRE(regrown.has_value());
+    if (regrown.has_value())
+    {
+        live.notes = base;
+        REQUIRE(applyChartChange(live, *regrown).has_value());
+        CHECK(ring() == common::core::Fraction{2});
+    }
     // A run that replays back to its start describes nothing: NoChange is what tells the caller to
     // take the gesture's entry back out and walk the chart to `base`.
-    steps.push_back(gridStep(g_quarter_grid, true));
-    const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
+    recorded.push_back(gridStep(g_quarter_grid, true));
+    const auto closed = planAdjustSustain(live, tempo_map, base, keys, recorded);
     REQUIRE_FALSE(closed.has_value());
     CHECK(closed.error() == ChartPlanRefusal::NoChange);
 }

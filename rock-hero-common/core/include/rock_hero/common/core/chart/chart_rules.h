@@ -372,6 +372,31 @@ placement asks the same question.
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
+\brief The end a ring may reach: `target`, held at the note's own \ref sustainBoundOf.
+
+40-Q2-B's clamp, applied. Stated once here because three rules apply it and disagreeing would be
+the defect: \ref normalizeSustainOverlaps truncates a stored ring to it, the editor's duration verb
+grows a ring toward it, and its move verb steps a release toward it — so "a ring's end reaching the
+next head on its string" has ONE answer wherever it is asked. Exact adjacency is legal, which is
+what lets a slide reach its landing and a fall complete on the head it goes out on; the spacing
+that mark then needs to be seen is presentation's (\ref presentedChartNotes rule 2).
+
+A clamp rather than a refusal, and it needs no direction test: a ring already at its bound reports
+the bound for every target past it, and leaves it the moment the target falls back inside.
+
+\param notes Note stream sorted by (position, string).
+\param note Note whose ring is bounded; as with \ref sustainBoundOf, only its position and string
+are read, so a candidate placement asks the same question.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+\param target The end asked for.
+
+\return `target`, or the bound where `target` would reach or pass it.
+*/
+[[nodiscard]] Fraction ringEndWithinBound(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map,
+    Fraction target);
+
+/*!
 \brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
