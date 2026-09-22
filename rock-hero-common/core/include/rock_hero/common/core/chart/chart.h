@@ -547,11 +547,11 @@ its landing exists and keeps the point only while the charter is still on that n
 document writer and the load repair both shed it, so the all-equal junk path is unrepresentable in
 every saved chart.
 
-**A FRET at the ring's END is a FALL or an ARRIVAL, and the chart PROVES which** — nothing is
-stored to say so. The FALL is pressure coming off: a fret the hand never sounds, the pitch sliding
-away toward it, the unpitched slide-out (\ref releaseKeyframe). The ARRIVAL is the shift slide: the
-same statement naming the very stop the next head on that string is struck at, at the same instant,
-which is a finger gliding into position for a note that is then picked
+**A FRET at the ring's END is a SLIDE-OUT or an ARRIVAL, and the chart PROVES which** — nothing is
+stored to say so. The SLIDE-OUT is pressure coming off: a fret the hand never sounds, the pitch
+sliding away toward it, the unpitched slide-out (\ref slideOutKeyframe). The ARRIVAL is the shift
+slide: the same statement naming the very stop the next head on that string is struck at, at the
+same instant, which is a finger gliding into position for a note that is then picked
 (\ref arrivesIntoNextHead). One statement, two gestures, told apart by a RELATION resolved once per
 revision (\ref ChartConnections::arrives_into) rather than asked of position at each reader. Either
 leaves no SHAKE (\ref shedEndStatementShake), a state stated where the string is let go having no
@@ -562,10 +562,10 @@ definition. A point never moves because the ring did: a ring shortened under the
 at its end carries that statement with the end (\ref endStatement, \ref clipPayloadsToSustain —
 whatever it states, since its moment IS the end), a ring lengthened past it leaves the statement
 where it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular
-slide — and a ring pulled back exactly onto its last stated fret makes that fret a fall.
+slide — and a ring pulled back exactly onto its last stated fret makes that fret a slide-out.
 Presentation carries the end's statement the same way, to the instant the DRAWN tail ends
 (\ref presentedChartNotes rule 2), so every tail keeps the same spacing before the next head
-whatever it ends in. The fall's
+whatever it ends in. The slide-out's
 own length is the end statement's to change: moving it moves the ring's end with it, and no OTHER
 point becomes one by moving — an interior point lives strictly inside the ring at both ends, so the
 only verb that changes a point's kind is the one that moves the ring's end onto it.
@@ -580,7 +580,7 @@ note, so they agree by construction.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
-is its required release keyframe.
+is its required slide-out keyframe.
 
 A keyframe stating NOTHING is not a record at all but a location with no fact attached;
 \ref keyframeStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
@@ -1168,8 +1168,8 @@ is the last: the question is one comparison, asked here rather than restated by 
 moves an end. The end's statement belongs to the END — a ring resized under it carries it along
 (\ref clipPayloadsToSustain) and presentation carries it to wherever the drawn end goes
 (\ref presentedChartNotes rule 2) — so what it STATES is a separate question: a fret there is the
-FALL or the shift slide's pitched ARRIVAL, which the chart PROVES rather than stores
-(\ref releaseKeyframe, \ref arrivesIntoNextHead); a bend value there is the curve's last value.
+SLIDE-OUT or the shift slide's pitched ARRIVAL, which the chart PROVES rather than stores
+(\ref slideOutKeyframe, \ref arrivesIntoNextHead); a bend value there is the curve's last value.
 
 \param note Note whose tail is inspected.
 \return The keyframe at the ring's end, or nullptr.
@@ -1200,10 +1200,10 @@ FALL or the shift slide's pitched ARRIVAL, which the chart PROVES rather than st
 before any successor exists.
 
 A fret stated where the sound stops is one of two opposite gestures, and nothing on the note itself
-tells them apart: the FALL, pressure coming off toward a fret the hand never sounds, or a shift
+tells them apart: the SLIDE-OUT, pressure coming off toward a fret the hand never sounds, or a shift
 slide's pitched ARRIVAL, the finger gliding INTO the stop the next strike takes. Which one is a fact
 about a PAIR of notes (\ref arrivesIntoNextHead), so this answers only what a producer BUILDING a
-note can know, and \ref releaseKeyframe adds the relation for every consumer that must know which
+note can know, and \ref slideOutKeyframe adds the relation for every consumer that must know which
 gesture stands there. WHERE it stands is \ref endStatement's question and is asked there.
 
 Hands back the KEYFRAME, which is what its remaining callers need: an identity compare against a
@@ -1246,42 +1246,43 @@ where a has_value() guard on the loop variable's own member is not otherwise cre
 }
 
 /*!
-\brief The note's RELEASE: the end's fret statement where that fret does NOT travel into the next
-head — the FALL, and nothing else.
+\brief The note's SLIDE-OUT: the end's fret statement where that fret does NOT travel into the next
+head — pressure coming off toward a fret the hand never sounds, and nothing else.
 
 THE ONE RELATIONAL CLAUSE, stated here over the note-local \ref endFretStatement and nowhere else.
-A fall and an ARRIVAL are written identically, so what tells them apart is the chart and not a
+A slide-out and an ARRIVAL are written identically, so what tells them apart is the chart and not a
 stored kind: an end statement naming the same stop the next head on that string is struck at, at
 the same instant, is a glide into position and a pick (\ref arrivesIntoNextHead). Every consumer of
-"is this a release" therefore reads the resolved answer rather than asking position alone.
+"is this a slide-out" therefore reads the resolved answer rather than asking position alone.
 
 \param note Note whose tail is inspected.
 \param arrives_into_next_head The resolved relation for this note
        (\ref ChartConnections::arrives_into).
-\return The release keyframe, or nullptr.
+\return The slide-out keyframe, or nullptr.
 */
-[[nodiscard]] inline const Keyframe* releaseKeyframe(
+[[nodiscard]] inline const Keyframe* slideOutKeyframe(
     const ChartNote& note, const bool arrives_into_next_head) noexcept
 {
     return arrives_into_next_head ? nullptr : endFretStatement(note);
 }
 
 /*!
-\brief The fret the note's unpitched FALL gestures toward, as a nullable pointer
-(\ref releaseKeyframe).
+\brief The fret the note's unpitched SLIDE-OUT gestures toward, as a nullable pointer
+(\ref slideOutKeyframe).
 
 \param note Note whose tail is inspected.
 \param arrives_into_next_head The resolved relation for this note
        (\ref ChartConnections::arrives_into).
-\return Address of the release keyframe's fret, or nullptr when the tail simply ends or arrives.
+\return Address of the slide-out keyframe's fret, or nullptr when the tail simply ends or arrives.
 */
 [[nodiscard]] inline const int* slideOutFretOrNull(
     const ChartNote& note, const bool arrives_into_next_head) noexcept
 {
-    // The relational clause is asked of \ref releaseKeyframe, so it stands in exactly one function,
-    // and the fret comes through the note-local accessor rather than being read a second way.
-    return releaseKeyframe(note, arrives_into_next_head) != nullptr ? endStatedFretOrNull(note)
-                                                                    : nullptr;
+    // The relational clause is asked of \ref slideOutKeyframe, so it stands in exactly one
+    // function, and the fret comes through the note-local accessor rather than being read a second
+    // way.
+    return slideOutKeyframe(note, arrives_into_next_head) != nullptr ? endStatedFretOrNull(note)
+                                                                     : nullptr;
 }
 
 /*!
@@ -1303,32 +1304,32 @@ the ring's end read the same list.
 
 /*!
 \brief Reports whether a shortening ring's end may be pulled exactly ONTO the note's last keyframe,
-making that keyframe the RELEASE.
+making that keyframe the SLIDE-OUT.
 
 The landing's one spelling, so every verb that shortens a ring asks the same question instead of
 each restating part of it. It is allowed only where it costs the keyframe nothing and states
 something: the tail must simply END, because on a ring whose end already carries a statement the end
-IS that point and the fall's length is the point's to change (\ref endStatement); the keyframe must
-state no SHAKE, because a shake at the end has no ring to shake in and would be shed
+IS that point and the slide-out's length is the point's to change (\ref endStatement); the keyframe
+must state no SHAKE, because a shake at the end has no ring to shake in and would be shed
 (\ref endStatementWouldShedShake) — a bend rides to the end as the curve's last value and costs
 nothing; it must state a fret, because an end that states none is no landing at all; and that fret
 must TRAVEL from the one already in force there —
-the onset's, or an earlier junction's — because a release falling toward the fret the string already
+the onset's, or an earlier junction's — because a slide-out toward the fret the string already
 holds says nothing the path does not already say (\ref keyframeSaysNothingNew), and a statement that
 says nothing does not survive its note leaving focus (\ref stripSilentKeyframes). Landing on such a
 point would therefore trade the charter's own point for a ring that simply ends, and move the floor
 the tail verb stops at with it.
 So a keyframe that says nothing holds the end STRICTLY ABOVE it, exactly as a fretless one does, and
-moving the point itself LEFT is the way past it — a step that never makes the point a release,
+moving the point itself LEFT is the way past it — a step that never makes the point a slide-out,
 since the move verb refuses the ring's end exactly as it refuses the onset below.
 
 NOTE-LOCAL, and provably so: a shrink moves the end AWAY from the next head on the string, so the
-statement it lands on can never be adjacent to that head and the landing is always a FALL — there
-is no relation to resolve (\ref arrivesIntoNextHead).
+statement it lands on can never be adjacent to that head and the landing is always a SLIDE-OUT —
+there is no relation to resolve (\ref arrivesIntoNextHead).
 
 \param note Note whose ring is being shortened onto its own tail.
 
-\return True when landing on the last keyframe makes a real release and erases nothing.
+\return True when landing on the last keyframe makes a real slide-out and erases nothing.
 */
 [[nodiscard]] bool ringEndMayLandOnLastKeyframe(const ChartNote& note);
 
@@ -1340,7 +1341,7 @@ stated at the instant the string is let go has no ring left to sound in, and a s
 nothing is not kept (\ref keyframeStatesNothing). The BEND stays, whatever the end states, being the
 curve's LAST value and so shaping the final leg into the end (\ref endStatementWouldShedShake).
 
-NOTE-LOCAL, and applied to ANY end statement rather than to a release alone: what an instant can
+NOTE-LOCAL, and applied to ANY end statement rather than to a slide-out alone: what an instant can
 carry is a fact about the channels, so it needs no relation. Asked wherever a statement comes to
 stand at the end — written there (\ref setEndStatement), reached by a ring shortening onto it
 (\ref clipPayloadsToSustain), or found there on load.
@@ -1401,9 +1402,9 @@ placed as a new one where the end is bare.
 
 The one writer for the end's own statement, so no caller reasons about whether the end is already
 occupied, about keeping the offsets ascending (the end is past every earlier offset by the payload
-invariant), or about what a release may keep. Its OFFSET never travels with it: the end's moment is
-the ring's end by definition, so this stamps `note.sustain` on it and the ring must already be the
-length the statement is meant to stand at.
+invariant), or about what a slide-out may keep. Its OFFSET never travels with it: the end's moment
+is the ring's end by definition, so this stamps `note.sustain` on it and the ring must already be
+the length the statement is meant to stand at.
 
 OVERLAID rather than replaced (\ref overlayKeyframe, the one spelling of that merge). What an end
 may then KEEP is the channel table's (\ref shedEndStatementShake), applied here so every writer of
@@ -1427,18 +1428,18 @@ inline void setEndStatement(ChartNote& note, Keyframe statement)
 }
 
 /*!
-\brief States the note's release: the statement at the ring's end takes `fret`, created there when
+\brief States the note's slide-out: the statement at the ring's end takes `fret`, created there when
 the end is bare.
 
 The one writer for the slide-out, spelled over the end's own writer (\ref setEndStatement) so a
 caller never reasons about whether the end already carries a statement of another channel (a shake
 there says nothing and goes; a bend rides on — \ref shedEndStatementShake). The ring must already be
-the length the release is meant to leave at — a release is stated at an END, never given one. What
-makes the fret a FALL rather than an arrival is the relation and not this writer
+the length the slide-out is meant to leave at — a slide-out is stated at an END, never given one.
+What makes the fret a SLIDE-OUT rather than an arrival is the relation and not this writer
 (\ref arrivesIntoNextHead).
 
-\param note Note whose ring releases.
-\param fret Fret the release falls away toward.
+\param note Note whose ring slides out.
+\param fret Fret the slide-out gestures toward.
 */
 inline void setSlideOut(ChartNote& note, const int fret)
 {
@@ -1472,7 +1473,7 @@ inline void clearSlideOut(ChartNote& note)
 \brief Whether the onset's own travel covers a fret — the closed hull of every stop it states.
 
 The note's whole path as one range: its own \ref ChartNote::fret and every fret its keyframes
-state along the way, the release it falls away toward included. Asked of the PATH rather than of
+state along the way, the slide-out it gestures toward included. Asked of the PATH rather than of
 the attack, so a tap and a pick slide are the same question asked once rather than two rules that
 would have to be kept in step: a scrape always states a path, a tap states one wherever the charter
 wrote keyframes or a slide-out for it, and an onset stating none has a hull of one point — the
@@ -1683,7 +1684,7 @@ writer sheds it (\ref documentChart) and the load repair sheds one that arrives
 (\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.
 How long it lives in memory is the editor's own rule — no undo entry ever records one, and it
 dissolves when its note leaves focus — so nothing anywhere keeps a record of who planted what.
-THE END'S OWN STATEMENT IS NO EXCEPTION: a fall toward the fret already in force draws its chip
+THE END'S OWN STATEMENT IS NO EXCEPTION: a slide-out toward the fret already in force draws its chip
 exactly as an interior same-fret point draws its linked head, so it can be selected, retyped and
 deleted like any other, and one rule takes every silent point when its note leaves focus.
 
@@ -1735,7 +1736,7 @@ excluded because a scrape's node is never a sounding node at all: E2 forbids one
 so a node found on a scrape is purely the in-memory latent the attack toggle preserves (chart.h's
 override contract), and reading it as a fretting-hand touch goes wrong twice over — the connection
 resolver would refuse to release from a scrape while the SAVED stream it is contracted to judge
-(where the node is stripped) says there is nothing to refuse, so a pull the released-fret
+(where the node is stripped) says there is nothing to refuse, so a pull the fret-at-ring-end
 semantics rule calls valid would silently resolve to nothing; and the normalizer's
 fret-hand-harmonic stage would strip the scrape's REQUIRED slide-out terminal, producing a chart
 that E2 then rejects on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
@@ -1965,7 +1966,7 @@ that glided hands over its last fret-STATING keyframe rather than its onset fret
 departs from 7), while keyframes stating only a bend or a vibrato change say nothing about position
 and carry the running fret forward. NOTE-LOCAL, and the question a caller asks when it wants where
 the travel left FROM rather than where the note ends: the departure a glide's own delta is measured
-against, and the fret a FALL falls away from.
+against, and the fret a SLIDE-OUT leaves from.
 
 \param note Note whose interior position channel is read.
 
@@ -1991,10 +1992,10 @@ against, and the fret a FALL falls away from.
 releases from.
 
 WHICH stop that is, is the relation's answer: an ARRIVAL is a stop the finger reaches and holds, so
-it IS where the finger ends, while a FALL names where the hand goes AFTER leaving and so leaves the
-last stop stated inside the ring ruling (\ref fretBeforeEnd, \ref arrivesIntoNextHead). Meaningful
-only for a note a finger actually stops: a scrape's travel is the pick's position, which is why the
-connection resolver disqualifies a scrape before ever asking this.
+it IS where the finger ends, while a SLIDE-OUT names where the hand goes AFTER leaving and so leaves
+the last stop stated inside the ring ruling (\ref fretBeforeEnd, \ref arrivesIntoNextHead).
+Meaningful only for a note a finger actually stops: a scrape's travel is the pick's position, which
+is why the connection resolver disqualifies a scrape before ever asking this.
 
 \param note Note whose end position is read.
 \param arrives_into_next_head The resolved relation for this note
@@ -2002,10 +2003,10 @@ connection resolver disqualifies a scrape before ever asking this.
 
 \return Fret at the note's end.
 */
-[[nodiscard]] inline int releasedFret(const ChartNote& note, const bool arrives_into_next_head)
+[[nodiscard]] inline int fretAtRingEnd(const ChartNote& note, const bool arrives_into_next_head)
 {
     // Only an ARRIVAL names a fret here, and by clause 1 of the relation it always does: the one
-    // null test therefore carries both cases, the fall falling through to the last stop stated
+    // null test therefore carries both cases, the slide-out falling through to the last stop stated
     // inside the ring.
     const int* const arrival = arrives_into_next_head ? endStatedFretOrNull(note) : nullptr;
     return arrival != nullptr ? *arrival : fretBeforeEnd(note);

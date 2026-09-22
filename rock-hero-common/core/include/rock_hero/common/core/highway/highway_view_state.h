@@ -215,7 +215,7 @@ struct HighwayTapOnsetViewState
     The first station sits at the onset with the onset extent; later stations land on the taps'
     pitched slide keyframes (the light morphs with the glide) — or, for a scrape, on every
     keyframe of the pick's travel, flagged unpitched — and on the hold end (sustained contact
-    keeps the light on through the sustain). Unpitched trail-offs contribute nothing —
+    keeps the light on through the sustain). Unpitched slide-outs contribute nothing —
     pressure is already releasing, so the light decays from the last pitched station instead.
     Never empty; a sustainless tap has exactly one station.
     */
@@ -581,7 +581,7 @@ simultaneous taps, the tapped chord box — plus the light path the envelope fol
 onset through the hand's travel (a tap's pitched glides, or a scrape's whole keyframe path —
 the light rides the slide either way) to the release: the sustain end for held contact and for
 scrapes (the pick leaves at the path's end), or the last pitched station when an unpitched
-trail-off is already releasing pressure. Fretting-hand notes sharing the onset contribute
+slide-out is already releasing pressure. Fretting-hand notes sharing the onset contribute
 nothing. Notes are judged on where they SOUND, not on `fret`: an open-string tap harmonic strikes
 its node, and reading `fret` instead dropped the light from a note the rules explicitly allow.
 A sounding place at or below the nut is skipped, and one past the last fret is held at the board's
@@ -602,8 +602,8 @@ tap onset's release.
     const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
 {
     // A member's hand position at an instant: its own fret before any glide, linear between
-    // its path stops, and the last station afterwards. A trail-off's unpitched terminal is
-    // a release and never moves the light; a scrape's unpitched stops ARE the hand's
+    // its path stops, and the last station afterwards. A slide-out's unpitched terminal
+    // never moves the light; a scrape's unpitched stops ARE the hand's
     // travel.
     const auto member_fret_at = [](const NoteViewState& note, const double seconds) {
         const bool scrape = isScrape(note.attack);
@@ -636,16 +636,16 @@ tap onset's release.
         }
         return previous_fret;
     };
-    // When the member's hand leaves: the last pitched keyframe when an unpitched trail-off
-    // follows (the release is already underway), otherwise the sustain end — which for a
+    // When the member's hand leaves: the last pitched keyframe when an unpitched slide-out
+    // follows (pressure is already coming off), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const NoteViewState& note) {
-        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().release)
+        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().slide_out)
         {
             double last_pitched = note.start_seconds;
             for (const KeyframeViewState& keyframe : note.slides)
             {
-                if (!keyframe.release && keyframe.fret > 0)
+                if (!keyframe.slide_out && keyframe.fret > 0)
                 {
                     last_pitched = keyframe.seconds;
                 }

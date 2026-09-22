@@ -52,11 +52,11 @@ HighwayHandWindow highwayHandWindowAt(
     const HighwayHandWindow target = settledWindow(*next);
     const double progress = (seconds - (next->seconds - next->ramp_seconds)) / next->ramp_seconds;
     // The window eases with the SAME curve the drawn rail uses for this move: the pitched glide's
-    // curve for a pitched ramp, the unpitched release curve for a trail-off. Easing every move with
+    // curve for a pitched ramp, the unpitched release curve for a slide-out. Easing every move with
     // the pitched one left the window and the rail sharing only their endpoints, which read as the
     // window not moving with the slide. The pitched curve leaves and rejoins the settled edges
     // tangentially; the unpitched one arrives with slope, so the window stops abruptly at a
-    // release — matching the rail, which stops at the same instant.
+    // slide-out — matching the rail, which stops at the same instant.
     const double weight = highwaySlideEaseWeight(progress, next->unpitched_ramp);
     return HighwayHandWindow{
         .low_line = previous.low_line + ((target.low_line - previous.low_line) * weight),

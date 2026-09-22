@@ -17,12 +17,12 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Whether this note's end statement is a FALL rather than a shift slide's arrival, from the
+// Whether this note's end statement is a SLIDE-OUT rather than a shift slide's arrival, from the
 // RESOLVED relation and never from position: the two are one statement at the ring's end, and what
 // tells them apart is the stop the next head takes (\ref arrivesIntoNextHead). Asked by both walks
 // here, so the flag the surfaces key on cannot be derived two ways. The end statement rides every
 // trim, so when the stored note has one it is the last keyframe of the drawn one.
-[[nodiscard]] bool noteReleases(const ChartConnections& connections, const std::size_t index)
+[[nodiscard]] bool noteSlidesOut(const ChartConnections& connections, const std::size_t index)
 {
     return slideOutFretOrNull(connections.saved_notes[index], connections.arrives_into[index]) !=
            nullptr;
@@ -72,7 +72,7 @@ namespace
 // Where a fret-hand placement's approach ramp begins when the placement lands exactly on a glide
 // arrival, keyed by the keyframe's advanced grid position. A placement sitting on a keyframe ties
 // its ramp to that glide's own segment, so a drawn hand travels with the drawn rail instead of on
-// an unrelated metrical margin. UNPITCHED trail-off ends are recorded too, and carry their family
+// an unrelated metrical margin. UNPITCHED slide-out ends are recorded too, and carry their family
 // so the hand eases with the same curve the rail uses. Chord slides record identical values under
 // one key.
 struct SlideRamp
@@ -91,10 +91,10 @@ struct SlideRamp
 //
 // The keyframes walked are the PRESENTED note's, so a keyframe the trim clipped past the drawn
 // ring registers no ramp — but each ramp is FILED under its stored offset, because the key is an
-// identity the fret-hand pass looks up by the placement's authored position. The RELEASE is the
-// RESOLVED fact, read against the STORED ring: a fall and a shift slide's arrival are the same
+// identity the fret-hand pass looks up by the placement's authored position. The SLIDE-OUT is the
+// RESOLVED fact, read against the STORED ring: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
-// Asking position alone eases every arrival with the trail-off curve, and the stored ring is also
+// Asking position alone eases every arrival with the slide-out curve, and the stored ring is also
 // what keeps a hold keyframe the trim lands on falling through to the margin morph.
 //
 // `presented` and the connections' own stream are index-parallel (\ref ChartResolutions), which is
@@ -115,7 +115,7 @@ struct SlideRamp
         {
             continue;
         }
-        const bool releases = noteReleases(connections, index);
+        const bool slides_out = noteSlidesOut(connections, index);
         // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
         // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
         // segment's own start. Presentation may show the end's statement earlier than the chart
@@ -147,10 +147,10 @@ struct SlideRamp
             // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
-            // glide its true, shorter span. The release's segment starts where the last sounded
+            // glide its true, shorter span. The slide-out's segment starts where the last sounded
             // fret left off and ends where the RING does — exactly the span the rail is drawn
-            // over — and is marked unpitched so the ease matches the trail-off.
-            const bool unpitched = releases && keyframe_index + 1 == note.keyframes.size();
+            // over — and is marked unpitched so the ease matches the slide-out.
+            const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
             if (*fret != segment_start_fret || unpitched)
             {
                 starts.try_emplace(
@@ -289,7 +289,7 @@ ChartViewState makeChartViewState(
             // planting strike's posture entry IS its plant and so equals its held stop, and a
             // harmonic over a pressed stop hands the span that same pressed stop as its grip
             // statement (chart_shapes.cpp, RULED 2026-09-18), so it agrees here too. Where the span
-            // states something else on that string — a later release the same hand restated into
+            // states something else on that string — a later slide-out the same hand restated into
             // the span — the bracket keeps its digit, so both are published and neither is
             // silenced.
             // Bound once so the presence test and the read are provably the same object.
@@ -561,9 +561,9 @@ ChartViewState makeChartViewState(
         // (\ref ChartResolutions). What only it can say is read off it below: what each drawn
         // keyframe is NAMED by.
         const ChartNote& stored = resolutions.connections.saved_notes[note_index];
-        // THE ONE FLAG that isolates every surface (noteReleases): false draws a linked arrival
-        // head at the presented end; true draws a floating fall chip.
-        const bool releases = noteReleases(resolutions.connections, note_index);
+        // THE ONE FLAG that isolates every surface (noteSlidesOut): false draws a linked arrival
+        // head at the presented end; true draws a floating slide-out chip.
+        const bool slides_out = noteSlidesOut(resolutions.connections, note_index);
         // The pair fact the surfaces need for the band a mark at the END takes, carried per note
         // from the walk that resolved it (\ref ChartConnections::ends_on_next_head). It is the
         // STORED ring's adjacency: presentation spaces the mark, and where the band belongs is
@@ -637,7 +637,7 @@ ChartViewState makeChartViewState(
                         // statement's own offset, the one name every mapping back to the chart
                         // uses.
                         .offset = identities[keyframe_index].offset,
-                        .release = releases && keyframe_index + 1 == note.keyframes.size(),
+                        .slide_out = slides_out && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
         }

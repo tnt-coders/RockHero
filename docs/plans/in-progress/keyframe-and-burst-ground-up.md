@@ -43,7 +43,7 @@ the earlier "a release is bare" rule was this, over-stated:
 
 | Channel | Inside the ring | Exactly at the end |
 |---|---|---|
-| fret | a pitched stop the path arrives at | the FALL: an unpitched slide-out toward it, if it travels; nothing if it repeats the fret in force |
+| fret | a pitched stop the path arrives at | the SLIDE-OUT: an unpitched glide toward it, if it travels; nothing if it repeats the fret in force |
 | bend | a value the curve passes through | the curve's LAST value — meaningful, it sets the final slope |
 | shake | the state from here on | nothing: there is no ring left to shake |
 
@@ -82,11 +82,11 @@ The one decision: **the end has its own statement, and it belongs to the end.** 
 keyframe that happens to stand there.
 
 1. **Shape.** POINTS stand strictly inside the ring, in order. The END may carry an END STATEMENT:
-   a fall toward a fret that travels, a final bend value, or both.
+   a slide-out toward a fret that travels, a final bend value, or both.
 2. **The tail verb moves the END, and the end statement goes with it.** Points are its walls: it
    stops one step short of the last point, and at the next head.
 3. **The move verb moves the selected POINTS, never anything else.** Its walls are the onset, the
-   neighbours and the end. (Selecting the fall's chip and stepping it IS the tail verb: the chip is
+   neighbours and the end. (Selecting the slide-out's chip and stepping it IS the tail verb: the chip is
    the end's handle.)
 4. **No verb makes a statement say less, or deletes one it was not aimed at.** A note arriving on a
    ring is refused by any point it would cut; the end statement rides back with the end.
@@ -96,7 +96,7 @@ keyframe that happens to stand there.
 7. **A wall the charter can see is silent.**
 
 Nothing converts, so there is no landing test, no seam, no "released ring cannot shrink" (it can:
-the fall gets shorter, which is what a charter would expect), no grow-leaves-it-behind branch and
+the slide-out gets shorter, which is what a charter would expect), no grow-leaves-it-behind branch and
 no grown-release-steps-back branch. A scrape's terminal already rides its end in both directions
 as a special case; under Set B that is simply the rule.
 
@@ -107,7 +107,7 @@ glide into a slide-out is Delete the landing, then `Alt`+digit. The user called 
 conversion out approvingly on 2026-09-21, so this is a real loss to weigh, not a free deletion.
 
 Model, IN MEMORY: `keyframes` strictly inside `(0, sustain)`, plus an end statement on the note
-holding an optional fall fret and an optional final bend — with no offset, because its moment is
+holding an optional slide-out fret and an optional final bend — with no offset, because its moment is
 the end by definition. Held as a keyframe whose offset must always equal the sustain, every verb
 that writes a sustain would have to move it by hand, and forgetting to is exactly the accidental
 kind-change this set exists to remove.
@@ -121,7 +121,7 @@ statement as a row at `offset == sustain`, the reader takes the row at `offset =
 end statement, and a shake stated there is shed as the silence it is. In a file the equality is a
 definition, not two facts to keep in step — a row is the end statement exactly when its offset is
 the sustain — so nothing can desync, and no package is re-imported and no converter is touched.
-The format spec changes by one sentence: the row at the ring's end may state a fret (the fall) and
+The format spec changes by one sentence: the row at the ring's end may state a fret (the slide-out) and
 a bend (the curve's last value).
 
 About twenty-five tests pin a conversion and are retired or rewritten.
@@ -131,7 +131,7 @@ the next note "would need to squish backward the same way a slide out currently 
 the SAME rules"). The chart law already forbids a statement standing ON the next head on its
 string: `normalizeKeyframeClearances` pulls it back to the clearance, on load and in the plan
 gate. Today that repair has two branches — a release SHORTENS the ring to the clearance, while any
-other keyframe at the end is moved back ALONE and the ring keeps its length — so a fall and a bend
+other keyframe at the end is moved back ALONE and the ring keeps its length — so a slide-out and a bend
 at the same end obey different rules. Under Set B there is one: the end statement is the end, so
 the ring ends at the clearance, whatever the end states. It also means no end statement ever
 shares a slot with a head, which is the gap the user proposed as a rule; it is the existing law,

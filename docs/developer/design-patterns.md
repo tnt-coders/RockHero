@@ -245,7 +245,7 @@ The ONE clamp on the editing side, and what earns it: a ring's END against the n
 string (`ringEndWithinBound`). It is not a partial application of a crossing edit — the end simply
 cannot exist past that head, so the head IS the answer to "how far out", and both verbs that move an
 end (duration and move) give it rather than each inventing a refusal. Everything that CROSSES a
-boundary in those verbs still refuses: a head's landing, and any point other than the release.
+boundary in those verbs still refuses: a head's landing, and any point other than the slide-out.
 
 ## Typed boundary errors {#patterns_typed_errors}
 

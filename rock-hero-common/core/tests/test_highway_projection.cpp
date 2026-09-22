@@ -218,7 +218,7 @@ namespace
             .keyframes = {},
         },
         // Both payload kinds on one tail: a bend point mid-sustain and a fret stated at the ring's
-        // end, which is the RELEASE the hand falls away toward. Ghosted, so the fixture carries
+        // end, which is the SLIDE-OUT the hand slides out toward. Ghosted, so the fixture carries
         // BOTH ends of the emphasis axis and the comparison below cannot pass by finding one value
         // everywhere.
         ChartNote{
@@ -458,12 +458,12 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK(scene.fret_hand_positions.size() == 2);
 
     // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
-    // continues the gesture, while its terminal — the release, last of the same keyframe sequence —
-    // sits exactly at the ring's end and so continues nothing.
+    // continues the gesture, while its terminal — the slide-out, last of the same keyframe sequence
+    // — sits exactly at the ring's end and so continues nothing.
     const NoteViewState& scrape = scene.notes.front();
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     REQUIRE(scrape.slides.size() == 2);
-    CHECK(scrape.slides.back().release);
+    CHECK(scrape.slides.back().slide_out);
     CHECK(linkedKeyframe(scrape, scrape.slides[0]));
     CHECK_FALSE(linkedKeyframe(scrape, scrape.slides[1]));
     CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.end_seconds));
@@ -1143,7 +1143,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
 // through the sustain, a tapped slide adds a station per pitched keyframe so the light morphs
-// with the glide, and an unpitched trail-off releases the light from the last pitched station.
+// with the glide, and an unpitched slide-out releases the light from the last pitched station.
 TEST_CASE("Highway tap onsets carry the light path through glides", "[core][highway]")
 {
     std::vector<NoteViewState> notes;
@@ -1167,7 +1167,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     sliding.slides = {KeyframeViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
     notes.push_back(sliding);
 
-    // Tapped slide with an unpitched trail-off: the pitched glide ends at 6.0; the trail to 6.5
+    // Tapped slide with an unpitched slide-out: the pitched glide ends at 6.0; the trail to 6.5
     // is already releasing pressure, so the light must not follow it.
     NoteViewState trailing;
     trailing.start_seconds = 5.0;
@@ -1176,7 +1176,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     trailing.attack = NoteAttack::Tap;
     trailing.slides = {
         KeyframeViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 6.5, .fret = 8, .offset = Fraction{}, .release = true},
+        KeyframeViewState{.seconds = 6.5, .fret = 8, .offset = Fraction{}, .slide_out = true},
     };
     notes.push_back(trailing);
 
@@ -1294,7 +1294,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
     REQUIRE(view.slides.size() == 2);
-    CHECK(view.slides.back().release);
+    CHECK(view.slides.back().slide_out);
     REQUIRE(glideStopCount(view) == 2);
     CHECK(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);

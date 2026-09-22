@@ -35,14 +35,14 @@ namespace
 }
 
 // True when the lane draws a mark at this keyframe, which is exactly when it is clickable: a
-// linked head along the tail, or the release's falls-away chip at its end. An unlinked keyframe
-// that is not the release sits at the presented tail's end where the re-picked landing draws its
+// linked head along the tail, or the slide-out's chip at its end. An unlinked keyframe
+// that is not the slide-out sits at the presented tail's end where the re-picked landing draws its
 // own head, and is no target. The same reads the paint core gates its passes on.
 [[nodiscard]] bool keyframeHasHead(
     const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe) noexcept
 {
-    return common::core::linkedKeyframe(note, keyframe) || keyframe.release;
+    return common::core::linkedKeyframe(note, keyframe) || keyframe.slide_out;
 }
 
 } // namespace

@@ -62,7 +62,7 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   the same answer and are stated once through `ringEndWithinBound(notes, note, tempo_map, target)`,
   which APPLIES the bound — `target`, or the bound where `target` would reach or pass it:
   `normalizeSustainOverlaps` truncates a stored ring to it, the editor's duration verb grows a ring
-  toward it, and its move verb steps a release toward it, so "a ring's end reaching the next head on
+  toward it, and its move verb steps a slide-out toward it, so "a ring's end reaching the next head on
   its string" has one answer wherever it is asked. It bounds the RING and nothing else: the span-implied
   hold `chartHolds` answers deliberately runs past it, because a re-strike stops a string without
   releasing the shape (see that function).
@@ -242,7 +242,7 @@ tail off what a surface **draws**.
   RIDES to the presented end instead — one minimum sustain distance before the binding onset, or
   halfway along its own last leg where that margin would crowd the leg's start — so every drawn
   tail keeps the same spacing before the next head whatever it ends in. That trim is the ONLY
-  place the spacing lives: the stored chart may end a fall or a bend exactly on the next head of
+  place the spacing lives: the stored chart may end a slide-out or a bend exactly on the next head of
   its own string, because the store holds what the hands did (user ruling, 2026-09-21).
 
 Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note (its
@@ -251,7 +251,7 @@ in force here" is a fold over the two. `RingState` is that state, `ringStateAtOn
 `RingState::advance` applies one keyframe's statements (a channel a keyframe says nothing about
 passes through), and `ringStateAt(note, offset)` folds to an instant — a statement standing exactly
 AT the instant counts. Every reader of a running value reads it there: what a pull-off releases from
-(`releasedFret` = the position channel at the ring's end), what a folded Guitar Pro segment's
+(`fretAtRingEnd` = the position channel at the ring's end), what a folded Guitar Pro segment's
 vibrato flag has to disagree with before it says anything, the commit law's per-channel silence
 test (`keyframeSaysNothingNew`), and the regions the projection hands both surfaces. What it
 reports is the

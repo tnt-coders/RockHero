@@ -358,7 +358,7 @@ is ALWAYS the next note, whatever that end states: no landing addresses the end'
 (`chartObjectAt`), so nothing there can swallow the keystroke into a retype. `INSERT` is what states
 the end — the digit route with the digit supplied, the fret already in force at the caret
 (`insertChartStatementAtCaret`): inside a ring the silent point typing the note's own fret makes, at
-the end a fall toward the fret in force, or the ARRIVAL where a head at that stop abuts. A statement
+the end a slide-out toward the fret in force, or the ARRIVAL where a head at that stop abuts. A statement
 already standing at that offset is selected rather than doubled. A pointer press creates nothing
 under any modifier: it arms the caret and selects what it HIT (`Alt` keeps the ring reveal, the
 wheel and the arrows).
@@ -371,7 +371,7 @@ point where the division belongs, `Shift+L` splits it there (below). The point b
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
 keyframe after it rides the new note, a slide-out included; the first note's arrival stands AT the
-cut, on the new head itself, which the chart proves is an arrival and not a fall because it names
+cut, on the new head itself, which the chart proves is an arrival and not a slide-out because it names
 that head's own stop at that same instant (`arrivesIntoNextHead`) — so nothing retreats, a
 grid-step ring splits with no crowded case, and a silent arrival is kept as the visible authoring
 state it is. That segment walk has ONE caller, so there is one rule
@@ -386,7 +386,7 @@ written states (`writtenChartPlan`), so planting one pushes no entry and the edi
 meaning carries its creation; it dissolves, again with no entry, when its NOTE leaves focus
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
 and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). That lifetime is
-EVERY silent point's, the END's own statement included: a fall toward the fret in force draws its
+EVERY silent point's, the END's own statement included: a slide-out toward the fret in force draws its
 chip exactly as an interior same-fret point draws its linked head, so it can be selected, retyped
 and deleted, and one sweep takes them all when the note leaves focus. A charter
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning

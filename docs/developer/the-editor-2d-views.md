@@ -202,7 +202,7 @@ entry safe — and it is the next note there whatever that ring's end states, be
 addresses the end's own statement. On a slot a ring COVERS, a digit lands a POINT on that note's
 path at the typed fret, planted and selected with the caret on it. `INSERT` is the one key that
 states the END: the digit route with the digit supplied, the fret ALREADY IN FORCE at the caret —
-inside a ring the silent point typing the note's own fret makes, at the end a fall toward the fret
+inside a ring the silent point typing the note's own fret makes, at the end a slide-out toward the fret
 in force, or the ARRIVAL where a head at that stop abuts, which is a shift slide in one key
 (`insertChartStatementAtCaret`). A statement already standing at that offset is selected, never
 doubled. A pointer press, under every modifier, arms the
@@ -219,10 +219,10 @@ stated fret, with a bend in force as its onset bend and a shake in force opening
 keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
 note holding its stated fret while the new note travels on to the arrival; and the first note's
 arrival stands AT the cut, on the new head itself, which the chart then PROVES is an arrival rather
-than a fall — it names the very stop the new head is struck at, at the same instant
+than a slide-out — it names the very stop the new head is struck at, at the same instant
 (`arrivesIntoNextHead`). Presentation spaces the DRAWN arrival one margin before that head, as it
 spaces every tail, so there is no retreat to compute and no crowded-leg case to repair: a grid-step
-ring splits with nothing said about it. A silent arrival is KEPT, unlike a silent fall — it wears a
+ring splits with nothing said about it. A silent arrival is KEPT, unlike a silent slide-out — it wears a
 linked head at the presented end, so it is ordinary visible authoring state. That segment walk has
 exactly one caller, so there is one rule and one place it lives. A SCRAPE is refused: one
 picking-hand gesture has no junction. **The same chord JOINS a selected
@@ -234,7 +234,7 @@ exists — for load, for import, and for the MOVE verb: a note moved onto anothe
 editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
 payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its
 end's own statement back to the new end — onto the landing itself, which is where the chart then
-says the fall or the bend completes; it never DELETES a statement, so a landing that would clip any
+says the slide-out or the bend completes; it never DELETES a statement, so a landing that would clip any
 other keyframe off that tail is refused whole (`planMoveSelection`) — the statement belongs to a
 note the charter never touched, and the clip would leave no record of it. A keyframe standing
 exactly ON the landing survives the clip and stands there, so that landing is allowed.
@@ -271,11 +271,11 @@ Four consequences worth knowing before touching this:
   through the core's own drawer (`paintTabKeyframeHead`), so the redrawn mark cannot differ from the
   drawn one by a pixel. A chip needs nothing, chips already drawing above every head, and a selected
   HEAD keeps drawing over the arrival, as the instant's owner should.
-- **`Insert` at the exact END of a tail authors the end's statement.** The release is the
-  keyframe at the ring's end (`releaseKeyframe`, `chart.h`), so the caret standing on the end slot
+- **`Insert` at the exact END of a tail authors the end's statement.** The slide-out is the
+  keyframe at the ring's end (`slideOutKeyframe`, `chart.h`), so the caret standing on the end slot
   and `Insert` pressed there plant it exactly as a digit anywhere else on the tail plants a
   point — one gesture, one object kind — with the value the key supplies being the fret already in
-  force there. It is the ONE keystroke on the lane that authors a fall, which is why the end slot is
+  force there. It is the ONE keystroke on the lane that authors a slide-out, which is why the end slot is
   where the grammar shows plainest: a DIGIT there is simply the NEXT NOTE, the ring already stopping
   at that instant with nothing to divide and nothing to shorten — exactly what keeps sequential
   entry safe — whatever the end states. Sequential entry meets
@@ -284,7 +284,7 @@ Four consequences worth knowing before touching this:
   digit is a point instead. Where a
   statement ALREADY stands on that end, `Insert` SELECTS it rather than doubling it, and the keys
   address it from there.
-  Its falls-away chip is a selection citizen
+  Its slide-out chip is a selection citizen
   like any keyframe: click it, or step onto it with `Shift+Tab` from the slot — the walk stops on
   the end statement before the head that shares its instant — and it wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
@@ -293,37 +293,37 @@ Four consequences worth knowing before touching this:
   DRAWS ITS CHIP — the painter skips the diagonal for a leg that travels nowhere, never the mark —
   so it can be selected, retyped and deleted, and it goes with the rest when its note leaves focus
   (`dissolveSilentKeyframes`). A point never moves because the ring did: growing the
-  ring past a release leaves it as a pitched stop with the tail running on, shrinking a ring
-  exactly onto its last stated fret makes that fret the release — but only where the landing costs
+  ring past a slide-out leaves it as a pitched stop with the tail running on, shrinking a ring
+  exactly onto its last stated fret makes that fret the slide-out — but only where the landing costs
   the point nothing and states something, which is the previous sentence's other half:
   `ringEndMayLandOnLastKeyframe` (`chart.h`) grants the landing only on a keyframe stating a fret,
   nothing else, and a fret the path does not already hold there, so a point carrying a shake or a
   bend, and one repeating the fret in force, each hold the ring at the nearest grid line ABOVE them
-  instead — a shrink neither deletes a statement nor authors a fall nothing draws. And a released
+  instead — a shrink neither deletes a statement nor authors a slide-out nothing draws. And a slide-out's
   ring shrinks no
-  further. The chip is the fall's own handle — `Alt+←/→` on it drags the ring's end with it, and
+  further. The chip is the slide-out's own handle — `Alt+←/→` on it drags the ring's end with it, and
   the way past the floor above is moving the point itself LEFT. Only the chip's own step moves the
   end: every other point stays STRICTLY inside its ring, so a step that would reach the end is
-  refused exactly as one onto the onset is, and a move never turns a point into a release (user
+  refused exactly as one onto the onset is, and a move never turns a point into a slide-out (user
   ruling, 2026-09-21 — kind is not the move verb's to change). A STATEMENT AT A RING'S END MAY SIT
   EXACTLY ON THE NEXT HEAD OF ITS OWN STRING (user ruling, 2026-09-21): the chart holds the truth,
-  and nothing stored spaces it — a note moved onto a release truncates that ring to the landing and
-  the release rides onto it. The MOVE is the one editing gesture that truncates, and the one that
+  and nothing stored spaces it — a note moved onto a slide-out truncates that ring to the landing and
+  the slide-out rides onto it. The MOVE is the one editing gesture that truncates, and the one that
   may CLIP payload doing it — deliberately, since a moved note brings its own payload and there is
   nothing coherent to merge. No entry gesture truncates: a digit on a
   covered slot states a POINT and never a head, and `Shift+L`'s disconnect makes an existing point
   the new head, carrying every later one onto the new note. Stepping a point (`Alt+←/→` on a chip)
-  gives the SAME answer as growing a ring into that head (user ruling, 2026-09-21): the RELEASE — the
+  gives the SAME answer as growing a ring into that head (user ruling, 2026-09-21): the SLIDE-OUT — the
   one point that carries the ring's end — steps onto the head and PARKS there, a step past it landing
   on the head rather than refusing, exactly as `planAdjustSustain` clamps
   (`chartSteppedKeyframeOffset` and the duration verb both ask `ringEndWithinBound`). Every other
   point is bounded by its own ring's END instead, and a step that would reach it is refused, so a
-  move never turns a point into the release. The presented
+  move never turns a point into the slide-out. The presented
   tail always reaches a note's last INTERIOR keyframe (presentation rule 2), so a keyframe placed
   inside the margin draws the tail up to itself; a statement standing AT a ring's end is the end's
   own and RIDES to the presented end instead, one minimum sustain distance before the onset that
   binds the drawn tail, or halfway along its own last leg where that margin would crowd the leg's
-  start. So a tail ending in a fall or a
+  start. So a tail ending in a slide-out or a
   bend is spaced before the next head exactly as a bare tail is, on ANY string — and that trim is
   now the ONLY place the spacing lives, so a same-string head moves the drawn chip by the same
   margin an other-string head does while the chart goes on stating the moment the charter authored.
@@ -573,19 +573,19 @@ is deliberately single-sourced:
 - **EVERY STOP WEARS ITS MARK, whatever the leg into it did.** `drawSlideLines` skips the DIAGONAL
   for a leg whose fret equals the one before it — a hold is a tie, and the linked head at the
   junction renders the continuation — but never the stop's own mark: an interior same-fret point
-  draws its linked head, and a fall toward the fret already in force draws its chip. That is what
+  draws its linked head, and a slide-out toward the fret already in force draws its chip. That is what
   gives a statement saying nothing a face to select, retype and delete, so one focus-leave sweep can
   own every silent point (`dissolveSilentKeyframes`) with no rule of its own for the end.
 - **AT A SHARED INSTANT THE INSTANT BELONGS TO THE HEAD**, and the band conditional is the whole of
   it: where a ring ENDS exactly on a head of its own string
   (`common::core::NoteViewState::ends_on_next_head`, resolved in the connections pass beside the
   arrival relation), every mark of the ring that ends there takes the side of the envelope opposite
-  the head's own marks — the fall chip and an end bend chip below, the head's pre-bend chip above —
-  so a rising fall chip and a pre-bend chip at one column cannot overlap, and nothing changes band
+  the head's own marks — the slide-out chip and an end bend chip below, the head's pre-bend chip above —
+  so a rising slide-out chip and a pre-bend chip at one column cannot overlap, and nothing changes band
   as the reveal goes down. It is stated ONCE, in `endMarkYAtSharedInstant` (`tab_lane_layout.h`),
   which both the painter and the layout manifest read, so the chip's ink and the box the click is
-  bounded in can never land on opposite sides; the band itself is `fallChipY` beside it, the one
-  spelling of where a tail chip sits. The cost, accepted: a fall chip's side does not double as the
+  bounded in can never land on opposite sides; the band itself is `slideOutChipY` beside it, the one
+  spelling of where a tail chip sits. The cost, accepted: a slide-out chip's side does not double as the
   last leg's direction at such an end — the diagonal already says that.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.

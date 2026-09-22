@@ -170,7 +170,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            // The turnaround, then the required terminal: a scrape's release is the keyframe
+            // The turnaround, then the required terminal: a scrape's slide-out is the keyframe
             // stating a fret exactly at the ring's end.
             .keyframes =
                 {

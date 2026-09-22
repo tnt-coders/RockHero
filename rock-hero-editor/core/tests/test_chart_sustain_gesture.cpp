@@ -280,12 +280,12 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
 // would pull the end back past it holds where it is instead — the same hold the onset gives a ring
 // with no keyframe — and the junction is never clipped away. Pulling the end exactly ONTO a
 // junction that states a fret and NOTHING ELSE is the one legal landing: the stop it stated is
-// never sounded there, so the junction becomes the RELEASE and the glide an unpitched slide-out —
+// never sounded there, so the junction becomes the SLIDE-OUT and the glide an unpitched slide-out —
 // the tail meeting the waypoint is how a charter authors one. From there the ring holds: the ribbon
-// cannot pass its own end point, and the fall's length is the point's to change (the move verb).
-// The held steps are not recorded, so the first grow after them moves the tail at once — and a
-// point never moves because the ring did: the ribbon runs on past the junction, which is a pitched
-// stop again.
+// cannot pass its own end point, and the slide-out's length is the point's to change (the move
+// verb). The held steps are not recorded, so the first grow after them moves the tail at once — and
+// a point never moves because the ring did: the ribbon runs on past the junction, which is a
+// pitched stop again.
 TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -300,7 +300,7 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
                chart->notes[0].keyframes.size() == 1 &&
                chart->notes[0].keyframes[0].offset == offset;
     };
-    const auto released = [&fixture] {
+    const auto slides_out = [&fixture] {
         const common::core::Chart* const chart = chartOrNull(fixture.controller);
         return chart != nullptr && chart->notes.size() == 1 &&
                common::core::endStatedFretOrNull(chart->notes[0]) != nullptr;
@@ -311,31 +311,31 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK_FALSE(released());
-    // 8 - 4 lands the end ON the junction: the junction is now the release, fret 9 the fall, and
-    // the landing cost the junction nothing it had stated.
+    CHECK_FALSE(slides_out());
+    // 8 - 4 lands the end ON the junction: the junction is now the slide-out, fret 9 the slide-out,
+    // and the landing cost the junction nothing it had stated.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK(released());
-    // A release needs its own leg, so the ring holds here.
+    CHECK(slides_out());
+    // A slide-out needs its own leg, so the ring holds here.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK(released());
+    CHECK(slides_out());
 
     // The held press left no trace: one grow is one visible step — and the junction stays where
     // it was, a pitched stop again with the ribbon running on past it.
     fixture.step(1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK_FALSE(released());
+    CHECK_FALSE(slides_out());
 }
 
 // A BEND at the junction costs the landing nothing, so the landing is taken. A bend stated exactly
 // at a ring's end is the curve's LAST value — it shapes the final leg running into the end — so it
-// is as meaningful on a fall as anywhere else and rides to the end with the statement. The ring
-// therefore lands on its junction exactly as a bare-fret one does, and the bend survives it.
+// is as meaningful on a slide-out as anywhere else and rides to the end with the statement. The
+// ring therefore lands on its junction exactly as a bare-fret one does, and the bend survives it.
 TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][chart]")
 {
     GestureFixture fixture;
@@ -361,7 +361,7 @@ TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][cha
         }
         return only.offset == offset && std::is_eq(*bend <=> 1.0);
     };
-    const auto released = [&fixture] {
+    const auto slides_out = [&fixture] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                common::core::endStatedFretOrNull(chart_now->notes[0]) != nullptr;
@@ -372,20 +372,20 @@ TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][cha
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(keeps_its_bend(common::core::Fraction{4}));
-    CHECK_FALSE(released());
+    CHECK_FALSE(slides_out());
 
-    // 8 - 4 lands the end ON the junction: the junction is the fall and its bend the curve's last
-    // value, both completing as the ring ends.
+    // 8 - 4 lands the end ON the junction: the junction is the slide-out and its bend the curve's
+    // last value, both completing as the ring ends.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
     CHECK(keeps_its_bend(common::core::Fraction{4}));
-    CHECK(released());
+    CHECK(slides_out());
 
     // From there the ring holds: the ribbon cannot pass its own end point.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
     CHECK(keeps_its_bend(common::core::Fraction{4}));
-    CHECK(released());
+    CHECK(slides_out());
 }
 
 // The landing is taken only where it ERASES NOTHING. A junction that also states a SHAKE would lose
@@ -407,7 +407,7 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
                chart_now->notes[0].keyframes.size() == 1 &&
                chart_now->notes[0].keyframes[0].offset == offset;
     };
-    const auto released = [&fixture] {
+    const auto slides_out = [&fixture] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                common::core::endStatedFretOrNull(chart_now->notes[0]) != nullptr;
@@ -426,7 +426,7 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK_FALSE(released());
+    CHECK_FALSE(slides_out());
     CHECK(states_a_shake());
 
     // 8 - 4 would land the end ON the junction and bare it: the ring stays one step above instead,
@@ -434,7 +434,7 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK_FALSE(released());
+    CHECK_FALSE(slides_out());
     CHECK(states_a_shake());
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
@@ -496,11 +496,11 @@ TEST_CASE("A shrink to the floor keeps a mid-hold shake through the settle", "[c
 }
 
 // The landing must also SAY something. A last keyframe repeating the fret already in force states
-// no travel, so baring it would author a fall toward the fret the string already holds: nothing
-// draws that fall, the settle's silent-point sweep dissolves the point, and until then the released
-// ring refuses to shorten any further — a floor the charter cannot see. Such a keyframe holds the
-// ring strictly above it, and "the fret already in force" is the PATH's answer, so a fret an
-// earlier junction travelled to counts exactly as the onset's own does.
+// no travel, so baring it would author a slide-out toward the fret the string already holds:
+// nothing draws that mark, the settle's silent-point sweep dissolves the point, and until then the
+// released ring refuses to shorten any further — a floor the charter cannot see. Such a keyframe
+// holds the ring strictly above it, and "the fret already in force" is the PATH's answer, so a fret
+// an earlier junction travelled to counts exactly as the onset's own does.
 //
 // The point is TYPED rather than loaded, because a chart reaching the editor through the package
 // reader never carries one: the load repair sheds it (stripSilentKeyframes), so the digit is the
@@ -563,8 +563,8 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
     CHECK(path_intact());
     CHECK(landing_refused());
 
-    // 8 - 4 would land the end ON the point and bare it into a release that falls nowhere: the ring
-    // stays one step above instead, and the press moved no ring so it is not recorded.
+    // 8 - 4 would land the end ON the point and bare it into a slide-out that goes nowhere: the
+    // ring stays one step above instead, and the press moved no ring so it is not recorded.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(path_intact());
@@ -580,8 +580,8 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
 }
 
 // The other half of the same rule: a last keyframe stating a fret the path does NOT already hold
-// travels, so baring it states a real fall and the landing is taken — here a point that turns the
-// glide back toward the onset's own fret, reached across an earlier junction.
+// travels, so baring it states a real slide-out and the landing is taken — here a point that turns
+// the glide back toward the onset's own fret, reached across an earlier junction.
 TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
 {
     GestureFixture fixture;
@@ -608,44 +608,44 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     REQUIRE(loaded);
 
     click(fixture.controller, 40.0f, 140.0f);
-    const auto falls_toward = [&fixture]() -> std::optional<int> {
+    const auto slides_out_toward = [&fixture]() -> std::optional<int> {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         if (chart_now == nullptr || chart_now->notes.size() != 1)
         {
             return std::nullopt;
         }
-        const int* const release = common::core::endStatedFretOrNull(chart_now->notes[0]);
-        return release != nullptr ? std::optional<int>{*release} : std::nullopt;
+        const int* const slide_out = common::core::endStatedFretOrNull(chart_now->notes[0]);
+        return slide_out != nullptr ? std::optional<int>{*slide_out} : std::nullopt;
     };
 
     fixture.step(-1);
     fixture.step(-1);
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK_FALSE(falls_toward().has_value());
+    CHECK_FALSE(slides_out_toward().has_value());
 
-    // 8 - 4 lands the end ON the turn: the point is the release now, and the fall from the 7 in
-    // force down to its 5 is a fall the surfaces draw.
+    // 8 - 4 lands the end ON the turn: the point is the slide-out now, and the slide-out from the 7
+    // in force down to its 5 is a slide-out the surfaces draw.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    const std::optional<int> landed = falls_toward();
+    const std::optional<int> landed = slides_out_toward();
     REQUIRE(landed.has_value());
     if (landed.has_value())
     {
         CHECK(*landed == 5);
     }
-    // A release needs its own leg, so the ring holds here.
+    // A slide-out needs its own leg, so the ring holds here.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{4});
-    CHECK(falls_toward().has_value());
+    CHECK(slides_out_toward().has_value());
 }
 
 // The defect end to end, by the route that authored it: a digit typed on a tail plants a point, and
 // a digit repeating the note's own fret plants one that says nothing. Shrinking onto it would have
-// made it an invisible release, after which the ring refused to shorten from the head either — the
-// charter's tail stuck on a mark nothing draws. The ring now floors one step above the point the
-// charter CAN see, from the point's selection and from the head alike; and once the point dissolves
-// at the settle, the floor falls back to the onset and the tail moves again.
+// made it an invisible slide-out, after which the ring refused to shorten from the head either —
+// the charter's tail stuck on a mark nothing draws. The ring now floors one step above the point
+// the charter CAN see, from the point's selection and from the head alike; and once the point
+// dissolves at the settle, the floor falls back to the onset and the tail moves again.
 TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]")
 {
     GestureFixture fixture;
@@ -676,7 +676,7 @@ TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]"
     CHECK(point_at(common::core::Fraction{4}));
 
     // Selecting the head keeps the note in focus, so the point stands — and the floor it raises is
-    // the same one, not a lower one hidden behind a release the landing would have written.
+    // the same one, not a lower one hidden behind a slide-out the landing would have written.
     click(fixture.controller, 40.0f, 140.0f);
     fixture.step(-1);
     fixture.step(-1);
@@ -899,12 +899,12 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     {
         const common::core::ChartNote& slid = chart->notes[2];
         // The terminal rode the ring down: it is the keyframe at the floored end.
-        const common::core::Keyframe* const release = common::core::endFretStatement(slid);
-        REQUIRE(release != nullptr);
-        if (release != nullptr)
+        const common::core::Keyframe* const slide_out = common::core::endFretStatement(slid);
+        REQUIRE(slide_out != nullptr);
+        if (slide_out != nullptr)
         {
             CHECK(slid.sustain == common::core::g_minimum_slide_window);
-            CHECK(release->offset == common::core::g_minimum_slide_window);
+            CHECK(slide_out->offset == common::core::g_minimum_slide_window);
         }
     }
 

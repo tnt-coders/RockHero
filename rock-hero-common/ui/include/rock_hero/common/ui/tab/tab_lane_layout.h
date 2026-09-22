@@ -368,7 +368,7 @@ click, so the box and the mark can never land on opposite sides of the envelope.
 \param upward True where the leg into the stop rises.
 \return The chip's center on the vertical axis.
 */
-[[nodiscard]] float fallChipY(
+[[nodiscard]] float slideOutChipY(
     const TabLaneGeometry& geometry, float center_y, bool upward) noexcept;
 
 /*!
@@ -378,9 +378,9 @@ string — or nothing where the mark keeps the place its own rule gives it.
 THE BAND CONDITIONAL, stated once for every reader: the painter that draws the chip and the manifest
 that bounds the click. At a shared instant two marks stand at one x, and the instant belongs to the
 HEAD — its own marks keep their side of the envelope, and every mark of the ring that ENDS there
-takes the band BELOW (\ref fallChipY with a falling leg), so nothing overlaps and nothing changes
-band as the reveal goes down. What it costs is that a fall chip's side does not double as the last
-leg's direction at such an end; the diagonal already says that.
+takes the band BELOW (\ref slideOutChipY with a falling leg), so nothing overlaps and nothing
+changes band as the reveal goes down. What it costs is that a slide-out chip's side does not double
+as the last leg's direction at such an end; the diagonal already says that.
 
 \param geometry Lane geometry supplying the tail height and the note height the lift is measured in.
 \param center_y The note's string line.

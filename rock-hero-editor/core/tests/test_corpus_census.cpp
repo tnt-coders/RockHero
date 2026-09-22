@@ -720,13 +720,13 @@ struct SourceLanding
 [[nodiscard]] std::optional<SourceLanding> sourceLanding(
     const ChartNote& note, const bool arrives_into_next_head)
 {
-    // The FALL states where the hand LEAVES toward as the sound stops, which is the one fret
-    // statement that is no grip at all: it is skipped in both passes below, so a trail-off never
+    // The SLIDE-OUT states where the hand LEAVES toward as the sound stops, which is the one fret
+    // statement that is no grip at all: it is skipped in both passes below, so a slide-out never
     // reads as a landing and never ends one. An ARRIVAL is a landing like any other — the finger
     // comes to rest on the stop the next head takes — so the RESOLVED relation is what this skips
     // by (\ref common::core::arrivesIntoNextHead), never position alone.
-    const common::core::Keyframe* const release =
-        common::core::releaseKeyframe(note, arrives_into_next_head);
+    const common::core::Keyframe* const slide_out =
+        common::core::slideOutKeyframe(note, arrives_into_next_head);
     // The first stop the channel comes to rest on after leaving the note's own.
     std::optional<Fraction> arrival;
     int landed = note.fret;
@@ -734,7 +734,7 @@ struct SourceLanding
     {
         // Bound to a local so the presence test and the read are provably the same object.
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || &keyframe == release)
+        if (!fret.has_value() || &keyframe == slide_out)
         {
             continue;
         }
@@ -766,7 +766,7 @@ struct SourceLanding
     for (const common::core::Keyframe& keyframe : note.keyframes)
     {
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || keyframe.offset < *lands || &keyframe == release)
+        if (!fret.has_value() || keyframe.offset < *lands || &keyframe == slide_out)
         {
             continue;
         }
@@ -1550,17 +1550,17 @@ void countDerivation(
         for (const std::size_t member : struck_at_start)
         {
             const ChartNote& note = saved[member];
-            // The FALL is where pressure comes OFF, not a stop the string sounds, so the travel
-            // this measures is read from the statements before it. An ARRIVAL is a stop, so the
-            // resolved relation is what this skips by.
-            const common::core::Keyframe* const release =
-                common::core::releaseKeyframe(note, arrives_into[member]);
+            // The SLIDE-OUT is where pressure comes OFF, not a stop the string sounds, so the
+            // travel this measures is read from the statements before it. An ARRIVAL is a stop, so
+            // the resolved relation is what this skips by.
+            const common::core::Keyframe* const slide_out =
+                common::core::slideOutKeyframe(note, arrives_into[member]);
             std::optional<Fraction> landing;
             bool differs = false;
             for (const common::core::Keyframe& keyframe : note.keyframes)
             {
                 const std::optional<int>& fret = keyframe.fret;
-                if (!fret.has_value() || &keyframe == release)
+                if (!fret.has_value() || &keyframe == slide_out)
                 {
                     continue;
                 }
@@ -1573,7 +1573,7 @@ void countDerivation(
                 break;
             }
             const Fraction arrival = *landing;
-            if (release != nullptr || arrival >= note.sustain)
+            if (slide_out != nullptr || arrival >= note.sustain)
             {
                 every_travel_lands = false;
             }

@@ -79,7 +79,7 @@ void dropPresentedTail(ChartNote& note)
 // RULE 2's FLOOR: the last statement standing strictly INSIDE the ring. The statement AT a ring's
 // end is the END's own — its moment is the end by definition — so it rides wherever the end goes
 // and can never hold the drawn tail open against the margin; that is the whole of what makes a tail
-// ending in a fall or a bend keep the same spacing before the next head as a bare one. Offsets
+// ending in a slide-out or a bend keep the same spacing before the next head as a bare one. Offsets
 // ascend strictly within the sustain, so at most one statement stands at the end and dropping it is
 // the whole of "interior" (endStatement).
 [[nodiscard]] Fraction lastInteriorStatementEnd(const ChartNote& note)
@@ -150,9 +150,9 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // it rides to where the end goes and the tail is spaced like every other — the clearance a last
     // statement takes before a strike (lastStatementClearance: one margin back, or halfway along
     // its own last leg where the margin would crowd the leg's start). This is the ONE place that
-    // spacing is applied: the stored chart holds the truth — a fall or a bend may end exactly on
-    // the next head of its own string — and display alone moves the mark back so it can be seen and
-    // reached. It never lands ON the last interior statement either — the split always
+    // spacing is applied: the stored chart holds the truth — a slide-out or a bend may end exactly
+    // on the next head of its own string — and display alone moves the mark back so it can be seen
+    // and reached. It never lands ON the last interior statement either — the split always
     // leaves a leg — which is what keeps the drawn keyframes index-parallel to the stored ones
     // (keyframeIdentities); the interior statement's own floor therefore never enters, and flooring
     // on it would put the drawn end back on the head this trim exists to clear.
@@ -193,8 +193,8 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 // A ring whose end ARRIVES into the next head (\ref ChartConnections::arrives_into) finishes the
 // same way and for the same reason: the glide completes exactly where the strike takes the stop, so
 // the whole ribbon is the statement and its landmark is the ribbon's end. Read as a statement still
-// in progress — which is what the FALL beside it is — an arrival would refuse to rest at all and
-// draw its ribbon in front of the curtain that owns it.
+// in progress — which is what the SLIDE-OUT beside it is — an arrival would refuse to rest at all
+// and draw its ribbon in front of the curtain that owns it.
 // BOTH ARE ASKED FIRST, deliberately: either event terminates whatever the ring was still
 // stating — a shake or a bend into a pull-off ends where the successor takes the string — so such a
 // ring is a finished statement whether or not its channels were quiet at its end,
@@ -208,9 +208,9 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     {
         return presented.sustain;
     }
-    // Still stating at the ring's end: tremolo and a FALL run to the end by construction, and with
-    // the arrival taken above an end fret statement here IS the fall, while the state in force at
-    // the ring's own end says whether the bend and vibrato channels ever go quiet.
+    // Still stating at the ring's end: tremolo and a SLIDE-OUT run to the end by construction, and
+    // with the arrival taken above an end fret statement here IS the slide-out, while the state in
+    // force at the ring's own end says whether the bend and vibrato channels ever go quiet.
     if (stored.tremolo || endStatedFretOrNull(stored) != nullptr)
     {
         return std::nullopt;

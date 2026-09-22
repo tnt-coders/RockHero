@@ -141,7 +141,7 @@ public:
     nothing is selected on.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
-    operating system every frame for its whole life, so a release nothing delivered cannot strand
+    operating system every frame for its whole life, so a slide-out nothing delivered cannot strand
     the reveal on and where the pointer sits never matters. The key itself is the shell's business
     — this lane, like everything headless below it, knows only the state.
 
@@ -184,7 +184,7 @@ public:
     void mouseDrag(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Forwards the release as a chart pointer Up intent.
+    \brief Forwards the slide-out as a chart pointer Up intent.
     \param event Mouse event delivered by JUCE.
     */
     void mouseUp(const juce::MouseEvent& event) override;

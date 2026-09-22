@@ -116,7 +116,7 @@ void applyAndValidate(
 }
 
 // A glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in and
-// stating fret 12 exactly where the ring ends — which is the RELEASE, the fret the hand leaves
+// stating fret 12 exactly where the ring ends — which is the SLIDE-OUT, the fret the hand leaves
 // toward, since a statement at the ring's end is a fret the note never sounds. One note, so a
 // plan's whole effect on the stream is readable without hunting for the record it touched.
 [[nodiscard]] common::core::Chart makeGlideChart()
@@ -943,8 +943,8 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     {
         // An INTERIOR point's ceiling is its own ring's END, and a stored ring never passes the
         // head that stops it — so the head bounds the point too, through the end, and a step onto
-        // it is refused rather than clamped: only the RELEASE parks on that head, because only the
-        // release carries the end with it.
+        // it is refused rather than clamped: only the SLIDE-OUT parks on that head, because only
+        // the slide-out carries the end with it.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
@@ -955,8 +955,8 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     SECTION("stepped exactly onto the ring's end")
     {
         // KIND IS NOT THE MOVE VERB'S TO CHANGE. The end is a bound like the onset below it: a
-        // point stepped onto it would BECOME the release, which the burst could not then drag —
-        // the replay reads release-ness off the pre-gesture chart, where the point is still
+        // point stepped onto it would BECOME the slide-out, which the burst could not then drag —
+        // the replay reads slide-out-ness off the pre-gesture chart, where the point is still
         // interior — so the step is refused and the point stays where it is.
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
@@ -984,9 +984,9 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     {
         // The bound is about POSITION, so what the point STATES never enters it — which is exactly
         // what keeps the two losses the old step could inflict unreachable: a same-fret point
-        // became a release falling toward the fret the string already holds (a mark nothing draws,
-        // dissolved by the gate, the visible point gone with it), and a point carrying a shake was
-        // bared of it by the release's fret-and-nothing-else law.
+        // became a slide-out falling toward the fret the string already holds (a mark nothing
+        // draws, dissolved by the gate, the visible point gone with it), and a point carrying a
+        // shake was bared of it by the slide-out's fret-and-nothing-else law.
         common::core::Chart one_point;
         one_point.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note =
@@ -1036,45 +1036,45 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     }
 }
 
-// The release is the ring's end, so stepping it steps the end: the move verb is the fall's own
-// handle — outward the slide-out lengthens, inward it shortens — while the duration verb, which
-// moves the ribbon and never a point, leaves a release behind a lengthening ring. A release cannot
-// be stepped onto the last sounded fret: a fall needs a leg of its own, and the order refusal is
-// what says so.
-TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][chart]")
+// The slide-out is the ring's end, so stepping it steps the end: the move verb is the slide-out's
+// own handle — outward the slide-out lengthens, inward it shortens — while the duration verb, which
+// moves the ribbon and never a point, leaves a slide-out behind a lengthening ring. A slide-out
+// cannot be stepped onto the last sounded fret: a slide-out needs a leg of its own, and the order
+// refusal is what says so.
+TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][chart]")
 {
-    // The glide chart's fret-12 statement sits exactly at its four-beat end: the release.
+    // The glide chart's fret-12 statement sits exactly at its four-beat end: the slide-out.
     const common::core::Chart chart = makeGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartKeyframeKey> release{keyframeKeyAt(
+    const std::vector<ChartKeyframeKey> slide_out{keyframeKeyAt(
         glideOnset(), 1, common::core::Fraction{4})};
     REQUIRE(common::core::endStatedFretOrNull(chart.notes.front()) != nullptr);
 
-    SECTION("outward lengthens the fall")
+    SECTION("outward lengthens the slide-out")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, release, common::core::Fraction{1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{1}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& moved = plan->inserted.front();
             CHECK(moved.sustain == common::core::Fraction{5});
-            const int* const falls_toward = common::core::endStatedFretOrNull(moved);
-            REQUIRE(falls_toward != nullptr);
-            if (falls_toward != nullptr)
+            const int* const slides_out_toward = common::core::endStatedFretOrNull(moved);
+            REQUIRE(slides_out_toward != nullptr);
+            if (slides_out_toward != nullptr)
             {
-                CHECK(*falls_toward == 12);
+                CHECK(*slides_out_toward == 12);
             }
             // The junction before it did not move.
             REQUIRE(moved.keyframes.size() == 2);
             CHECK(moved.keyframes.front().offset == common::core::Fraction{2});
         }
     }
-    SECTION("inward shortens the fall")
+    SECTION("inward shortens the slide-out")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, release, common::core::Fraction{-1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{-1}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1088,14 +1088,14 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
     {
         // ONE ANSWER FOR A RING'S END REACHING THE NEXT HEAD, shared with the duration verb: the
         // step onto that head lands there, and a step PAST it clamps onto it rather than refusing.
-        // The release IS the ring's end, so the ring ends on the head with its fall completing
+        // The slide-out IS the ring's end, so the ring ends on the head with its exit completing
         // there, which is what the store says the hands did; the spacing the mark needs to be seen
-        // is presentation's. The head is five beats out, one past the four-beat release.
+        // is presentation's. The head is five beats out, one past the four-beat slide-out.
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const auto parked = [&](const common::core::Fraction step) {
             const auto plan =
-                planMoveSelection(repicked, tempo_map, {}, release, step, 0, "Move Keyframe");
+                planMoveSelection(repicked, tempo_map, {}, slide_out, step, 0, "Move Keyframe");
             REQUIRE(plan.has_value());
             if (!plan.has_value())
             {
@@ -1108,11 +1108,11 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
                 CHECK(glide->sustain == common::core::Fraction{5});
                 REQUIRE(glide->keyframes.size() == 2);
                 CHECK(glide->keyframes.back().offset == common::core::Fraction{5});
-                const int* const falls_toward = common::core::endStatedFretOrNull(*glide);
-                REQUIRE(falls_toward != nullptr);
-                if (falls_toward != nullptr)
+                const int* const slides_out_toward = common::core::endStatedFretOrNull(*glide);
+                REQUIRE(slides_out_toward != nullptr);
+                if (slides_out_toward != nullptr)
                 {
-                    CHECK(*falls_toward == 12);
+                    CHECK(*slides_out_toward == 12);
                 }
             }
             // The gate accepts a ring ending exactly on the next head, adjacency being legal.
@@ -1125,12 +1125,12 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
         // A FURTHER press in the same direction is HELD, not NoChange: the plan is diffed against
         // the PRE-GESTURE chart, which still holds the four-beat ring, so the replay describes the
         // same edit the previous press did — an identical entry replacing itself, nothing visible
-        // moving. NoChange is the other case, a FIRST press on a release already parked there.
+        // moving. NoChange is the other case, a FIRST press on a slide-out already parked there.
         parked(common::core::Fraction{3});
         const auto past = planMoveSelection(
-            repicked, tempo_map, {}, release, common::core::Fraction{2}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{2}, 0, "Move Keyframe");
         const auto further = planMoveSelection(
-            repicked, tempo_map, {}, release, common::core::Fraction{3}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{3}, 0, "Move Keyframe");
         REQUIRE(past.has_value());
         REQUIRE(further.has_value());
         if (past.has_value() && further.has_value())
@@ -1140,7 +1140,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
         }
         // A shorter step still lands where it was aimed, close to the head included.
         const auto inside = planMoveSelection(
-            repicked, tempo_map, {}, release, common::core::Fraction{7, 8}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{7, 8}, 0, "Move Keyframe");
         REQUIRE(inside.has_value());
         if (inside.has_value())
         {
@@ -1151,7 +1151,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             CHECK(common::core::endStatedFretOrNull(*glide) != nullptr);
         }
     }
-    SECTION("a release already on the head answers NoChange")
+    SECTION("a slide-out already on the head answers NoChange")
     {
         // A FIRST press whose whole step the clamp eats describes no edit at all, so it arms no
         // gesture and the next press in the other direction starts from the current ring rather
@@ -1170,7 +1170,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
             parked, tempo_map, {}, at_head, common::core::Fraction{1}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
-        // And stepping BACK moves again: the ring shortens with the release, which never had a
+        // And stepping BACK moves again: the ring shortens with the slide-out, which never had a
         // ceiling in that direction.
         const auto back = planMoveSelection(
             parked, tempo_map, {}, at_head, common::core::Fraction{-1}, 0, "Move Keyframe");
@@ -1190,9 +1190,9 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
     {
         // The clamp lands the END, never an interior point: a junction stepped onto or past the
         // head its own ring stops at has nowhere legal to stand, and clamping it would stack it on
-        // the release. Refused rather than left for the gate's truncation to clip it away with no
-        // record. The ring already ends ON the head here, so the release's own step is a no-op and
-        // only the junction is asking to move.
+        // the slide-out. Refused rather than left for the gate's truncation to clip it away with no
+        // record. The ring already ends ON the head here, so the slide-out's own step is a no-op
+        // and only the junction is asking to move.
         common::core::Chart parked;
         parked.tuning.strings = chart.tuning.strings;
         common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
@@ -1210,10 +1210,10 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
-    SECTION("a note moved back onto the release leaves the ring alone")
+    SECTION("a note moved back onto the slide-out leaves the ring alone")
     {
-        // The note's head lands exactly where the release stood, and that is legal: the ring ends
-        // on the new head with its fall completing there, which is what the store says the hands
+        // The note's head lands exactly where the slide-out stood, and that is legal: the ring ends
+        // on the new head with its exit completing there, which is what the store says the hands
         // did. So the glide is not in the plan at all — nothing about it changed — exactly as when
         // the step stops short of it.
         common::core::Chart repicked = chart;
@@ -1237,16 +1237,16 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
     SECTION("onto the last sounded fret is refused")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, release, common::core::Fraction{-2}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{-2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("the figure selected whole keeps its shape")
     {
         // The end bound every interior point obeys is the end AFTER the step, because one uniform
-        // delta moves the release too: a charter who selects the junction and the release together
-        // slides the whole fall outward, where a bound read off the ring's OLD end would have
-        // refused a step that changes nothing about the figure.
+        // delta moves the slide-out too: a charter who selects the junction and the slide-out
+        // together slides the whole slide-out outward, where a bound read off the ring's OLD end
+        // would have refused a step that changes nothing about the figure.
         const std::vector<ChartKeyframeKey> both{
             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2}),
             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
@@ -1268,8 +1268,8 @@ TEST_CASE("planMoveSelection drags the ring's end with its release", "[core][cha
 }
 
 // A MOVE MAY SHORTEN A RING, BUT NEVER DELETE A STATEMENT. A note moved back onto an earlier
-// note's tail re-strikes it, so the gate truncates that ring at the landing and rides its release
-// back with the end — both the move's to do, a ring's length and the fall it goes out on being
+// note's tail re-strikes it, so the gate truncates that ring at the landing and rides its slide-out
+// back with the end — both the move's to do, a ring's length and the slide-out it goes out on being
 // exactly what this verb changes. What the clip would ALSO do is drop every other keyframe past
 // the landing, erasing something the charter wrote on a note they never touched and leaving no
 // record of it, so a landing that would is refused whole instead.
@@ -1310,11 +1310,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 
-    SECTION("a release past the landing rides back onto the landing itself")
+    SECTION("a slide-out past the landing rides back onto the landing itself")
     {
-        // The release IS the ring's end, so it moves because the end did — no statement is lost —
+        // The slide-out IS the ring's end, so it moves because the end did — no statement is lost —
         // and it lands exactly on the new head, three beats out, which is where the store says the
-        // fall completes. Nothing spaces it: the drawn tail is presentation's to place.
+        // slide-out completes. Nothing spaces it: the drawn tail is presentation's to place.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}
@@ -1330,11 +1330,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
                 CHECK(tail->sustain == common::core::Fraction{3});
                 REQUIRE(tail->keyframes.size() == 1);
                 CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
-                const int* const falls_toward = common::core::endStatedFretOrNull(*tail);
-                REQUIRE(falls_toward != nullptr);
-                if (falls_toward != nullptr)
+                const int* const slides_out_toward = common::core::endStatedFretOrNull(*tail);
+                REQUIRE(slides_out_toward != nullptr);
+                if (slides_out_toward != nullptr)
                 {
-                    CHECK(*falls_toward == 3);
+                    CHECK(*slides_out_toward == 3);
                 }
             }
         }
@@ -1364,8 +1364,8 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     SECTION("a statement exactly on the landing stands there, not erased")
     {
         // The clip's bound is inclusive, so it survives — and standing on the new head is legal, so
-        // it stays: the truncated ring ends on the landing with the statement, now its release,
-        // falling away toward fret 9 there.
+        // it stays: the truncated ring ends on the landing with the statement, now its slide-out,
+        // sliding out toward fret 9 there.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
@@ -1389,9 +1389,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     SECTION("a same-fret statement on the landing stands there too")
     {
         // The same landing on a point that says nothing YET: becoming the end's own statement, it
-        // falls toward the fret the string already holds — which draws its chip like any silent
-        // point's mark, so the edit leaves it standing and the note's own focus decides how long it
-        // lives. A statement is never deleted by a verb that was handed a ring's length.
+        // slides out toward the fret the string already holds — which draws its chip like any
+        // silent point's mark, so the edit leaves it standing and the note's own focus decides how
+        // long it lives. A statement is never deleted by a verb that was handed a ring's length.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{3}, .fret = 7, .bend = {}, .vibrato = {}
@@ -1413,23 +1413,23 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
     }
 }
 
-// The other route a truncation reaches a release by: the clip ERASES the statement the release
-// travelled from, and the release it re-attaches at the new end then falls toward the fret the
+// The other route a truncation reaches a slide-out by: the clip ERASES the statement the slide-out
+// travelled from, and the slide-out it re-attaches at the new end then goes toward the fret the
 // SURVIVING path already holds. It stays exactly where the end put it — three halves of a beat —
-// because a fall toward the fret in force draws its chip like any silent point's mark: the edit
-// deletes no statement, and the note's own focus decides how long one that says nothing lives.
-TEST_CASE("A clip leaves a release that says nothing standing", "[core][chart]")
+// because a slide-out toward the fret in force draws its chip like any silent point's mark: the
+// edit deletes no statement, and the note's own focus decides how long one that says nothing lives.
+TEST_CASE("A clip leaves a slide-out that says nothing standing", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    // One four-beat glide from fret 5 on string 1, stating `path` along the way and falling away to
-    // `falls_toward` at its end. Every statement says something while the whole ring stands.
-    const auto figure = [](std::vector<common::core::Keyframe> path, const int falls_toward) {
+    // One four-beat glide from fret 5 on string 1, stating `path` along the way and sliding out to
+    // `slides_out_toward` at its end. Every statement says something while the whole ring stands.
+    const auto figure = [](std::vector<common::core::Keyframe> path, const int slides_out_toward) {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote glide =
             makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
         glide.keyframes = std::move(path);
-        common::core::setSlideOut(glide, falls_toward);
+        common::core::setSlideOut(glide, slides_out_toward);
         chart.notes = {std::move(glide)};
         return chart;
     };
@@ -1437,34 +1437,34 @@ TEST_CASE("A clip leaves a release that says nothing standing", "[core][chart]")
         return common::core::Keyframe{.offset = offset, .fret = fret, .bend = {}, .vibrato = {}};
     };
 
-    // What the ring states before the clip, the fret it falls away toward, and the statements that
-    // survive the clip. Either way the release re-attaches onto a path that already holds its fret,
-    // at the new end (three halves of a beat).
+    // What the ring states before the clip, the fret it slides out toward, and the statements that
+    // survive the clip. Either way the slide-out re-attaches onto a path that already holds its
+    // fret, at the new end (three halves of a beat).
     std::vector<common::core::Keyframe> path;
-    int falls_toward{};
+    int slides_out_toward{};
     std::vector<common::core::Keyframe> surviving;
-    SECTION("the release falls back onto the onset's own fret")
+    SECTION("the slide-out falls back onto the onset's own fret")
     {
         path = {junction(common::core::Fraction{2}, 7)};
-        falls_toward = 5;
+        slides_out_toward = 5;
         surviving = {junction(common::core::Fraction{3, 2}, 5)};
     }
     SECTION("or onto a junction the clip leaves standing")
     {
         // The statement the clip exposes stands STRICTLY inside the new ring — a keyframe under the
-        // release is under the ring's end, which the truncation has already pulled back to the
-        // head — so the silenced fall keeps an ordinary interior point before it.
+        // slide-out is under the ring's end, which the truncation has already pulled back to the
+        // head — so the silenced slide-out keeps an ordinary interior point before it.
         path = {junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{2}, 5)};
-        falls_toward = 7;
+        slides_out_toward = 7;
         surviving = {
             junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{3, 2}, 7)
         };
     }
-    const common::core::Chart chart = figure(path, falls_toward);
+    const common::core::Chart chart = figure(path, slides_out_toward);
     REQUIRE(common::core::endStatedFretOrNull(chart.notes.front()) != nullptr);
 
     // A note struck on the string a beat and a half in re-strikes it, so the ring ends there: every
-    // statement past the landing is clipped and the release rides back onto what is left.
+    // statement past the landing is clipped and the slide-out rides back onto what is left.
     const auto plan = planInsertNote(
         chart,
         tempo_map,
@@ -1479,7 +1479,7 @@ TEST_CASE("A clip leaves a release that says nothing standing", "[core][chart]")
         if (clipped != nullptr)
         {
             // The ring ends on the landing itself, and what is left is exactly what survived the
-            // clip with the fall riding back onto that end; nothing else moved.
+            // clip with the slide-out riding back onto that end; nothing else moved.
             CHECK(clipped->sustain == common::core::Fraction{3, 2});
             CHECK(clipped->keyframes == surviving);
             CHECK(common::core::endStatedFretOrNull(*clipped) != nullptr);
@@ -2449,26 +2449,26 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     }
 }
 
-TEST_CASE("planAdjustSustain can return a grown release to an unpitched slide", "[core][chart]")
+TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "[core][chart]")
 {
     common::core::Chart chart = makeSteppedGlideChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt(glideOnset(), 1)};
 
     // First gesture: shrink the pitched glide onto its last fret statement. That statement becomes
-    // the release, so the note is now an unpitched slide-out.
-    const auto release_plan =
+    // the slide-out, so the note's tail is now unpitched.
+    const auto slide_out_plan =
         planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
-    REQUIRE(release_plan.has_value());
-    applyAndValidate(chart, tempo_map, *release_plan);
-    const common::core::ChartNote* released = noteAt(chart.notes, glideOnset(), 1);
-    REQUIRE(released != nullptr);
-    CHECK(released->sustain == common::core::Fraction{3});
-    REQUIRE(common::core::endStatedFretOrNull(*released) != nullptr);
+    REQUIRE(slide_out_plan.has_value());
+    applyAndValidate(chart, tempo_map, *slide_out_plan);
+    const common::core::ChartNote* slid_out = noteAt(chart.notes, glideOnset(), 1);
+    REQUIRE(slid_out != nullptr);
+    CHECK(slid_out->sustain == common::core::Fraction{3});
+    REQUIRE(common::core::endStatedFretOrNull(*slid_out) != nullptr);
 
     const std::vector<common::core::ChartNote> base = chart.notes;
 
-    // Second gesture, first step: growing past the release turns it back into an ordinary pitched
+    // Second gesture, first step: growing past the slide-out turns it back into an ordinary pitched
     // keyframe because the keyframe stays put while the ring moves on.
     const auto grown_plan =
         planAdjustSustain(chart, tempo_map, base, keys, {gridStep(g_quarter_grid, true)});
@@ -2484,7 +2484,7 @@ TEST_CASE("planAdjustSustain can return a grown release to an unpitched slide", 
 
     // Same second gesture, opposite step: the replay has returned to the gesture's start. That
     // must be reported as NoChange so the controller retires the grow entry and restores the
-    // release, instead of refusing the visible shrink and leaving the grown tail stuck.
+    // slide-out, instead of refusing the visible shrink and leaving the grown tail stuck.
     const auto returned = planAdjustSustain(
         chart,
         tempo_map,
@@ -2593,7 +2593,8 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
         CHECK(scrape->fret == 7);
         // Fret 7 sits in the neck's lower half, so the default travels upward to the high end.
-        // The synthesized path is the terminal alone: one keyframe, the release at the ring's end.
+        // The synthesized path is the terminal alone: one keyframe, the slide-out at the ring's
+        // end.
         CHECK(scrape->keyframes.size() == 1);
         const int* const terminal = common::core::endStatedFretOrNull(*scrape);
         REQUIRE(terminal != nullptr);
@@ -3109,7 +3110,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
             REQUIRE(plan->inserted.size() == 1);
             const common::core::ChartNote& retyped = plan->inserted.front();
             CHECK(retyped.fret == expected_start);
-            // The whole path at once, terminal included: the release is the keyframe at the
+            // The whole path at once, terminal included: the slide-out is the keyframe at the
             // ring's end, so one comparison says every stop stayed where it was authored.
             CHECK(retyped.keyframes == chart.notes.front().keyframes);
             common::core::Chart applied = chart;
@@ -3327,7 +3328,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 4});
-            // The turnaround, then the terminal: the release is the keyframe at the ring's end,
+            // The turnaround, then the terminal: the slide-out is the keyframe at the ring's end,
             // so compressing the ring moves it and leaves the count alone.
             REQUIRE(scrape->keyframes.size() == 2);
             CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
@@ -3391,12 +3392,12 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 2});
             // The terminal rides a scrape's ring in both directions, so it sits at the grown end.
-            const common::core::Keyframe* const release = common::core::endFretStatement(*scrape);
-            REQUIRE(release != nullptr);
-            if (release != nullptr)
+            const common::core::Keyframe* const slide_out = common::core::endFretStatement(*scrape);
+            REQUIRE(slide_out != nullptr);
+            if (slide_out != nullptr)
             {
-                CHECK(release->offset == common::core::Fraction{3, 2});
-                CHECK(release->fret == 12);
+                CHECK(slide_out->offset == common::core::Fraction{3, 2});
+                CHECK(slide_out->fret == 12);
             }
         }
     }
@@ -3416,12 +3417,12 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             // The turnaround no longer fits inside the floored window; the terminal alone rides,
             // and it is a keyframe of its own at the floored end.
             REQUIRE(scrape->keyframes.size() == 1);
-            const common::core::Keyframe* const release = common::core::endFretStatement(*scrape);
-            REQUIRE(release != nullptr);
-            if (release != nullptr)
+            const common::core::Keyframe* const slide_out = common::core::endFretStatement(*scrape);
+            REQUIRE(slide_out != nullptr);
+            if (slide_out != nullptr)
             {
-                CHECK(release->offset == common::core::g_minimum_slide_window);
-                CHECK(release->fret == 12);
+                CHECK(slide_out->offset == common::core::g_minimum_slide_window);
+                CHECK(slide_out->fret == 12);
             }
         }
     }
@@ -3458,12 +3459,12 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
         REQUIRE(shrunk->keyframes.size() == 2);
         CHECK(shrunk->keyframes[0].offset == common::core::Fraction{1, 4});
         CHECK(shrunk->keyframes[0].fret == 3);
-        const common::core::Keyframe* const release = common::core::endFretStatement(*shrunk);
-        REQUIRE(release != nullptr);
-        if (release != nullptr)
+        const common::core::Keyframe* const slide_out = common::core::endFretStatement(*shrunk);
+        REQUIRE(slide_out != nullptr);
+        if (slide_out != nullptr)
         {
-            CHECK(release->offset == common::core::Fraction{1, 2});
-            CHECK(release->fret == 12);
+            CHECK(slide_out->offset == common::core::Fraction{1, 2});
+            CHECK(slide_out->fret == 12);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -3564,7 +3565,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     REQUIRE(scrape != nullptr);
     // The glide's single keyframe was its whole path, so it becomes the terminal: fret 9 kept
     // from the charter's own glide rather than the synthesized default's far endpoint. The
-    // statement MOVES to the ring's end, where it is the release, so the note still carries
+    // statement MOVES to the ring's end, where it is the slide-out, so the note still carries
     // exactly one keyframe.
     REQUIRE(scrape->keyframes.size() == 1);
     const int* const terminal = common::core::endStatedFretOrNull(*scrape);
@@ -3684,7 +3685,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
     SECTION("a released predecessor whose connection cannot be authored")
     {
         // The predecessor's ring stops short, and the one tail the assist may not spend is a
-        // gesture's own authored window: a trail-off's exit is data the author placed, so the note
+        // gesture's own authored window: a slide-out's exit is data the author placed, so the note
         // is skipped whole rather than having its gesture rewritten to buy a connection.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -3851,12 +3852,12 @@ TEST_CASE(
         }
     }
 
-    SECTION("a trail-off predecessor's tail is never reshaped")
+    SECTION("a slide-out predecessor's tail is never reshaped")
     {
-        // A trail-off's exit is authored gesture geometry, so the assist refuses to spend it even
-        // though the connection itself would be legal (the resolver reads the RELEASED fret, so a
-        // pull off the last pitched stop resolves once the hold reaches). The hold IS the only
-        // blocker here, which is exactly what the skip reason reports.
+        // A slide-out's exit is authored gesture geometry, so the assist refuses to spend it even
+        // though the connection itself would be legal (the resolver reads the FRET AT THE RING'S
+        // END, so a pull off the last pitched stop resolves once the hold reaches). The hold IS the
+        // only blocker here, which is exactly what the skip reason reports.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -4333,9 +4334,9 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     CHECK(origin.attack == common::core::NoteAttack::Pick);
     REQUIRE(origin.keyframes.size() == 1);
     // The arrival stands AT the new head, at the origin's own ring end: the store holds what the
-    // hands did, and the chart PROVES the statement is an arrival rather than a fall, naming the
-    // very stop the new head is struck at, at the same instant. Presentation alone spaces the DRAWN
-    // copy a margin early.
+    // hands did, and the chart PROVES the statement is an arrival rather than a slide-out, naming
+    // the very stop the new head is struck at, at the same instant. Presentation alone spaces the
+    // DRAWN copy a margin early.
     CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
     CHECK(origin.keyframes[0].fret == 9);
 
@@ -4344,7 +4345,7 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     CHECK(product.string == 1);
     // The remainder is the same note restarted: its fret is the junction's, its ring is what was
     // left, and its own later keyframe rides along rebased onto the new onset (4 - 2 = 2) — where
-    // it lands on the product's own ring end, so the fixture's release stays a release.
+    // it lands on the product's own ring end, so the fixture's end statement stays a slide-out.
     CHECK(product.fret == 9);
     CHECK(product.sustain == common::core::Fraction{2});
     REQUIRE(product.keyframes.size() == 1);
@@ -4423,10 +4424,11 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
     }
 }
 
-// An arrival that says nothing the origin's path does not already say is KEPT, where a silent FALL
-// is not. The difference is the FACE: a fall toward the fret the string already holds draws nothing
-// and wears no head, so the gate dissolves it, while an arrival wears a linked head at the
-// presented end and is ordinary visible authoring state. The join takes it straight back over.
+// An arrival that says nothing the origin's path does not already say is KEPT, where a silent
+// SLIDE-OUT is not. The difference is the FACE: a slide-out toward the fret the string already
+// holds draws nothing and wears no head, so the gate dissolves it, while an arrival wears a linked
+// head at the presented end and is ordinary visible authoring state. The join takes it straight
+// back over.
 TEST_CASE("planToggleJunctions keeps a silent arrival on the origin", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -5132,7 +5134,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
 
 // Uniform scope, one level inside the note: every selected keyframe on a note splits it, so two
 // selected junctions make three. The channel states in force at each split become the product's
-// ONSET values, which is what keeps the sound identical across the cut, and the falls-away
+// ONSET values, which is what keeps the sound identical across the cut, and the slide-out
 // terminal goes with the last product because a slide-out is the ring's end by definition.
 TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart]")
 {
@@ -5177,7 +5179,7 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     CHECK_THAT(second.bend, Catch::Matchers::WithinULP(1.0, 0));
     CHECK(second.vibrato == common::core::VibratoState::Narrow);
     // Its own arrival stands AT the head that follows it, which the relation reads as an arrival
-    // and not a trail-off: the fret it names is that head's own stop.
+    // and not a slide-out: the fret it names is that head's own stop.
     REQUIRE(second.keyframes.size() == 1);
     CHECK(second.keyframes[0].offset == common::core::Fraction{1});
     CHECK(second.keyframes[0].fret == 11);
@@ -5357,7 +5359,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         CHECK(joined.error() == ChartPlanRefusal::Invalid);
     }
 
-    SECTION("a predecessor whose tail already falls away")
+    SECTION("a predecessor whose tail already slides out")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -5608,7 +5610,7 @@ TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][c
 TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
-    // On the junction, not the release: a release states its fret and nothing else.
+    // On the junction, not the slide-out: a slide-out states its fret and nothing else.
     chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
     const common::core::TempoMap tempo_map = makeTempoMap();
 

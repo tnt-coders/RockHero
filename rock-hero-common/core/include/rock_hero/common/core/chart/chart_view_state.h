@@ -214,9 +214,9 @@ struct VibratoSpanViewState
 
 The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about where
 the hand is, so it reaches the surfaces through \ref NoteViewState::bend and \ref
-NoteViewState::vibrato instead and never appears here. The falls-away terminal IS here, last, as
-the \ref release — the chart stores it as the keyframe at the ring's end, and the surfaces walk one
-sequence of stops.
+NoteViewState::vibrato instead and never appears here. The slide-out terminal IS here, last, as
+the \ref slide_out — the chart stores it as the keyframe at the ring's end, and the surfaces walk
+one sequence of stops.
 */
 struct KeyframeViewState
 {
@@ -252,7 +252,7 @@ struct KeyframeViewState
     Fraction offset{};
 
     /*!
-    \brief True when this keyframe is the note's RELEASE: the fret the hand leaves toward as the
+    \brief True when this keyframe is the note's SLIDE-OUT: the fret the hand leaves toward as the
     STORED ring ends, so unpitched travel rather than a stop the finger arrives at.
 
     Read off the stored ring by the projection and carried here rather than re-derived from the
@@ -260,7 +260,7 @@ struct KeyframeViewState
     keyframe at the drawn end" names a shift slide's arrival and a slide-out alike, and only the
     stored form tells them apart. Always the last entry when true.
     */
-    bool release{false};
+    bool slide_out{false};
 
     /*!
     \brief Compares two slide keyframes by their stored fields.
@@ -272,7 +272,7 @@ struct KeyframeViewState
         const KeyframeViewState& lhs, const KeyframeViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.offset == rhs.offset && lhs.release == rhs.release;
+               lhs.offset == rhs.offset && lhs.slide_out == rhs.slide_out;
     }
 };
 
@@ -550,8 +550,8 @@ struct NoteViewState
     /*!
     \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
 
-    The falls-away terminal is the LAST of them when the note has one (\ref
-    KeyframeViewState::release): the chart stores the release as the keyframe at the ring's end,
+    The slide-out terminal is the LAST of them when the note has one (\ref
+    KeyframeViewState::slide_out): the chart stores the slide-out as the keyframe at the ring's end,
     and it rides every trim, so it sits at \ref end_seconds here. \ref glideStopCount and \ref
     glideStopAt read the same list as the uniform sequence of stops every geometry consumer walks.
     */
@@ -573,7 +573,7 @@ struct NoteViewState
 
     THE BAND CONDITIONAL'S one input (\ref ChartConnections::ends_on_next_head): at a shared instant
     the instant belongs to the HEAD, so the head's marks keep their side of the envelope and every
-    mark of the ring that ENDS there takes the other. An arrival and an abutting fall both land
+    mark of the ring that ENDS there takes the other. An arrival and an abutting slide-out both land
     here, because what collides is geometry rather than gesture.
     */
     bool ends_on_next_head{false};
@@ -597,7 +597,7 @@ struct NoteViewState
     }
 };
 
-/*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the falls-away terminal. */
+/*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the slide-out terminal. */
 struct GlideStop
 {
     /*! \brief Absolute timeline position the gesture reaches this stop. */
@@ -609,15 +609,15 @@ struct GlideStop
     /*!
     \brief True when this stop is unpitched travel rather than a pitched arrival.
 
-    NOT "the glide trails off here". A pick slide's every stop carries it, because a scrape's whole
+    NOT "the glide slides out here". A pick slide's every stop carries it, because a scrape's whole
     path is unpitched travel — the turnarounds included — so reading it as an ending mis-draws every
-    scrape. The terminal carries it too, and there the release reading does hold.
+    scrape. The terminal carries it too, and there the slide-out reading does hold.
     */
     bool unpitched{false};
 };
 
 /*!
-\brief How many stops a note's drawn gesture has: its position keyframes, the release included.
+\brief How many stops a note's drawn gesture has: its position keyframes, the slide-out included.
 
 The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
 camera's framing, the lane's diagonals. Paired with \ref glideStopAt, which folds the note's
@@ -633,7 +633,7 @@ attack into each stop's pitched-ness, so no consumer restates that rule.
 
 /*!
 \brief One stop of a note's drawn gesture, by index into the uniform sequence — the position
-keyframes in time order, the release last when the note has one.
+keyframes in time order, the slide-out last when the note has one.
 
 \param note Note whose gesture is being walked.
 \param index Stop index, below \ref glideStopCount for this note.
@@ -646,9 +646,9 @@ keyframes in time order, the release last when the note has one.
         .seconds = keyframe.seconds,
         .fret = keyframe.fret,
         // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any other
-        // note a stated position is a stop the finger arrives at — except the release, which is
+        // note a stated position is a stop the finger arrives at — except the slide-out, which is
         // where the finger leaves toward.
-        .unpitched = isScrape(note.attack) || keyframe.release,
+        .unpitched = isScrape(note.attack) || keyframe.slide_out,
     };
 }
 
@@ -656,8 +656,8 @@ keyframes in time order, the release last when the note has one.
 \brief True when the glide continues the same note at this keyframe rather than ending it.
 
 Every stated position the tail reaches is a stop the finger arrives at, and it wears the note's own
-head shape there — the release alone is not one, since it is where the finger leaves toward and
-the slide line draws its falls-away chip instead. The presented tail reaches every statement the
+head shape there — the slide-out alone is not one, since it is where the finger leaves toward and
+the slide line draws its slide-out chip instead. The presented tail reaches every statement the
 drawn note carries — the interior ones it floors at, and the end's own, which rides to the drawn
 end (\ref presentedChartNotes rule 2) — so the LAST keyframe is always visible: a
 shift-slide's arrival, trimmed to exactly the drawn end, draws its continuation head there with
@@ -667,7 +667,7 @@ keeps the corner from reading as a break.
 
 A READ of shared facts, not a stored field, so the one continuation rule cannot be restated per
 surface, and correct in either \ref ChartNoteForm without a second rule: it asks the tail the note
-in front of it actually has, and the release flag is the stored ring's, so a pitched arrival at
+in front of it actually has, and the slide-out flag is the stored ring's, so a pitched arrival at
 the drawn end is never mistaken for a slide-out.
 
 \param note Note the keyframe belongs to.
@@ -677,7 +677,7 @@ the drawn end is never mistaken for a slide-out.
 [[nodiscard]] constexpr bool linkedKeyframe(
     const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
 {
-    return !keyframe.release && keyframe.seconds <= note.end_seconds;
+    return !keyframe.slide_out && keyframe.seconds <= note.end_seconds;
 }
 
 /*!
@@ -912,7 +912,7 @@ struct FhpViewState
 
     When the fretting hand starts moving toward this placement is a fact about the chart, not
     about a surface, so it is derived once here: a placement landing exactly on a slide keyframe —
-    pitched glide or unpitched trail-off end alike — ramps over that glide's own segment so a
+    pitched glide or unpitched slide-out end alike — ramps over that glide's own segment so a
     drawn hand travels with the drawn rail, and every other placement morphs over the
     minimum-sustain-distance margin before it (shortened when placements crowd closer than the
     ramp). The board's hand window animates it; the lane's static marker draws the arrival alone.
@@ -921,12 +921,12 @@ struct FhpViewState
 
     /*!
     \brief True when \ref ramp_seconds spans an UNPITCHED glide, so an animated hand eases with the
-    unpitched release curve instead of the pitched one.
+    unpitched glide's curve instead of the pitched one.
 
     The hand follows whatever the rail draws, and the two families are different functions of
     progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
     window and the rail sharing only their endpoints. Note the consequence: the unpitched curve
-    arrives at full travel with nonzero slope, so the window stops abruptly at the release — which
+    arrives at full travel with nonzero slope, so the window stops abruptly at the slide-out — which
     is exactly what the drawn rail does at the same instant.
     */
     bool unpitched_ramp{false};

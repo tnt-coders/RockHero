@@ -508,7 +508,7 @@ void TabView::paint(juce::Graphics& g)
     };
 
     // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
-    // them — the linked head at a junction, the falls-away chip's box at a release — one selection
+    // them — the linked head at a junction, the slide-out chip's box at a slide-out — one selection
     // idiom for every selectable, so a selected junction reads exactly as a selected head does.
     //
     // THE SELECTED OBJECT DRAWS LAST: a linked head is redrawn here before its ring, because the
@@ -628,7 +628,7 @@ void TabView::paint(juce::Graphics& g)
             }
             // A selected keyframe's box rides the mark the paint core drew for it — the linked
             // head at a junction, which the note places exactly as it does its onset's digit, or
-            // the falls-away chip at a release, whose digit sits on the chip's own line with no
+            // the slide-out chip at a slide-out, whose digit sits on the chip's own line with no
             // head shape to raise it — so the digit lands where the value will print.
             for_each_drawn_keyframe(
                 targets->keyframes,

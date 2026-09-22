@@ -85,7 +85,7 @@ namespace
 
 // A note that CLAIMS a connection to its same-string predecessor. The claim is the whole of what
 // the junction skip reads: intent is what the chart stores, and the direction a claim plays as is
-// derived per read from the predecessor's released fret.
+// derived per read from the predecessor's fret at its ring's end.
 [[nodiscard]] ChartNote connected(
     const GridPosition position, const int string, const Fraction sustain, const int fret)
 {
@@ -387,15 +387,15 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         // operator[] call, which the analysis cannot tie back to the guard, so the guard only
         // reaches the access through a single name.
         const ChartNote& first = presented[0];
-        const int* const falls_toward = endStatedFretOrNull(first);
-        REQUIRE(falls_toward != nullptr);
-        if (falls_toward != nullptr)
+        const int* const slides_out_toward = endStatedFretOrNull(first);
+        REQUIRE(slides_out_toward != nullptr);
+        if (slides_out_toward != nullptr)
         {
-            CHECK(*falls_toward == 9);
+            CHECK(*slides_out_toward == 9);
         }
-        // The fall is the END's own statement, so it rides to the margin before the binding onset
-        // and the drawn tail is spaced exactly as a bare one — while the junction it travels from
-        // stands where the chart states it, well clear below.
+        // The slide-out is the END's own statement, so it rides to the margin before the binding
+        // onset and the drawn tail is spaced exactly as a bare one — while the junction it travels
+        // from stands where the chart states it, well clear below.
         CHECK(first.sustain == Fraction{9, 5});
         REQUIRE(first.keyframes.size() == 2);
         CHECK(first.keyframes.front().offset == Fraction{1});
@@ -552,12 +552,13 @@ TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]
     }
 }
 
-// A released ring may END EXACTLY ON the next head of its OWN string — the store holds what the
+// A slide-out's ring may END EXACTLY ON the next head of its OWN string — the store holds what the
 // hands did (user ruling, 2026-09-21) — and PRESENTATION is the only thing that spaces it. So the
 // stored ring survives the load path untouched and the drawn one ends where the store used to be
 // squished to: rule 2's carry, asked with that head, that margin and that last leg. These are its
 // worked numbers on the same shapes the stored repair was pinned on.
-TEST_CASE("A released ring abuts the next head and presents one clearance early", "[core][chart]")
+TEST_CASE(
+    "A slide-out's ring abuts the next head and presents one clearance early", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const auto stored_and_presented = [&map](std::vector<ChartNote> saved) {
@@ -580,15 +581,15 @@ TEST_CASE("A released ring abuts the next head and presents one clearance early"
         setSlideOut(saved[0], 8);
         const ChartNote first = stored_and_presented(saved);
         CHECK(first.sustain == Fraction{1, 10});
-        const int* const falls_toward = endStatedFretOrNull(first);
-        REQUIRE(falls_toward != nullptr);
-        if (falls_toward != nullptr)
+        const int* const slides_out_toward = endStatedFretOrNull(first);
+        REQUIRE(slides_out_toward != nullptr);
+        if (slides_out_toward != nullptr)
         {
-            CHECK(*falls_toward == 8);
+            CHECK(*slides_out_toward == 8);
         }
     }
 
-    SECTION("a fall whose margin line lands on its last stop draws halfway past it")
+    SECTION("a slide-out whose margin line lands on its last stop draws halfway past it")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{1, 2}),
@@ -644,8 +645,8 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     // every drawn tail is bound by that same onset, two beats out with a fifth-of-a-beat margin.
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    ChartNote falls = note(at(1, 1), 1, Fraction{2});
-    setSlideOut(falls, 9);
+    ChartNote slides_out = note(at(1, 1), 1, Fraction{2});
+    setSlideOut(slides_out, 9);
     ChartNote bends = note(at(1, 1), 2, Fraction{2});
     bends.keyframes = {
         Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
@@ -657,7 +658,7 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     crowded.keyframes = {Keyframe{.offset = Fraction{15, 8}, .fret = 7}};
     setSlideOut(crowded, 9);
     chart.notes = {
-        std::move(falls),
+        std::move(slides_out),
         std::move(bends),
         std::move(crowded),
         note(at(1, 3), 1, Fraction{1}, 7),
@@ -684,15 +685,15 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     const std::vector<ChartNote> presented = presentedNotesOf(chart.notes, map);
     REQUIRE(presented.size() == chart.notes.size());
 
-    const ChartNote& drawn_fall = presented[0];
-    CHECK(drawn_fall.sustain == Fraction{9, 5});
-    REQUIRE(drawn_fall.keyframes.size() == 1);
-    CHECK(drawn_fall.keyframes.front().offset == Fraction{9, 5});
-    const int* const falls_toward = endStatedFretOrNull(drawn_fall);
-    REQUIRE(falls_toward != nullptr);
-    if (falls_toward != nullptr)
+    const ChartNote& drawn_slide_out = presented[0];
+    CHECK(drawn_slide_out.sustain == Fraction{9, 5});
+    REQUIRE(drawn_slide_out.keyframes.size() == 1);
+    CHECK(drawn_slide_out.keyframes.front().offset == Fraction{9, 5});
+    const int* const slides_out_toward = endStatedFretOrNull(drawn_slide_out);
+    REQUIRE(slides_out_toward != nullptr);
+    if (slides_out_toward != nullptr)
     {
-        CHECK(*falls_toward == 9);
+        CHECK(*slides_out_toward == 9);
     }
 
     const ChartNote& drawn_bend = presented[1];
@@ -722,9 +723,9 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
 // THE END'S OWN STATEMENT RIDES THE PRESENTED END (user ruling, 2026-09-21). A head on ANOTHER
 // string does not stop the stored ring, so no chart law touches it — but it does bind the DRAWN
 // tail, and a statement standing exactly at the ring's end is the END's rather than a floor under
-// it. So a tail ending in a fall or a bend keeps the spacing a bare tail keeps, and its statement
-// completes as the drawn tail ends. The stored ring is untouched throughout, as under every
-// presentation rule.
+// it. So a tail ending in a slide-out or a bend keeps the spacing a bare tail keeps, and its
+// statement completes as the drawn tail ends. The stored ring is untouched throughout, as under
+// every presentation rule.
 TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -735,7 +736,7 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
         note(at(1, 3), 2, Fraction{1}),
     };
 
-    SECTION("a slide-out lands one margin before the head with its fall intact")
+    SECTION("a slide-out lands one margin before the head with its exit intact")
     {
         saved[0].keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7}};
         setSlideOut(saved[0], 9);
@@ -746,19 +747,20 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
         const ChartNote& first = presented.front();
         // The gap less the margin, exactly as a bare tail would take it.
         CHECK(first.sustain == Fraction{9, 5});
-        // Still the LAST statement, and still stating its fret: the fall completes as the tail
+        // Still the LAST statement, and still stating its fret: the slide-out completes as the tail
         // ends.
-        const int* const falls_toward = endStatedFretOrNull(first);
-        REQUIRE(falls_toward != nullptr);
-        if (falls_toward != nullptr)
+        const int* const slides_out_toward = endStatedFretOrNull(first);
+        REQUIRE(slides_out_toward != nullptr);
+        if (slides_out_toward != nullptr)
         {
-            CHECK(*falls_toward == 9);
+            CHECK(*slides_out_toward == 9);
         }
-        // The junction the fall travels from keeps its own moment: only the end's statement moves.
+        // The junction the slide-out travels from keeps its own moment: only the end's statement
+        // moves.
         REQUIRE(first.keyframes.size() == 2);
         CHECK(first.keyframes.front().offset == Fraction{1});
         CHECK(first.keyframes.back().offset == Fraction{9, 5});
-        // The chart goes on stating the fall at the ring's end, where the charter authored it.
+        // The chart goes on stating the slide-out at the ring's end, where the charter authored it.
         CHECK(saved[0].sustain == Fraction{2});
         CHECK(saved[0].keyframes.back().offset == Fraction{2});
     }
@@ -785,7 +787,8 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
         {
             CHECK_THAT(*reached, Catch::Matchers::WithinULP(1.5, 0));
         }
-        // It states no fret, so it is no fall, and nothing sheds a bend (shedEndStatementShake).
+        // It states no fret, so it is no slide-out, and nothing sheds a bend
+        // (shedEndStatementShake).
         CHECK(!ends.fret.has_value());
         CHECK(endStatedFretOrNull(first) == nullptr);
     }
@@ -821,14 +824,14 @@ TEST_CASE("Rule 2 carries a statement at the ring's end to the presented end", "
             presentedNotesOf(saved, map).front().sustain ==
             Fraction{9, 5} + g_minimum_slide_window);
 
-        // Give that same ring a fall at its end and the window stops being the question: the end's
-        // own statement decides where the tail ends, and from a leg starting ON the margin line
-        // that is half of what remains. Flooring on the window here would push the fall's chip past
-        // the margin and back against the head this trim exists to clear.
+        // Give that same ring a slide-out at its end and the window stops being the question: the
+        // end's own statement decides where the tail ends, and from a leg starting ON the margin
+        // line that is half of what remains. Flooring on the window here would push the slide-out's
+        // chip past the margin and back against the head this trim exists to clear.
         setSlideOut(saved[0], 9);
-        const std::vector<ChartNote> released = presentedNotesOf(saved, map);
-        REQUIRE(released.size() == saved.size());
-        const ChartNote& first = released.front();
+        const std::vector<ChartNote> drawn = presentedNotesOf(saved, map);
+        REQUIRE(drawn.size() == saved.size());
+        const ChartNote& first = drawn.front();
         CHECK(first.sustain == Fraction{19, 10});
         REQUIRE(first.keyframes.size() == 2);
         CHECK(first.keyframes.front().offset == Fraction{9, 5});
@@ -1749,7 +1752,7 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
 
     SECTION("a statement that finishes rests from where it finished")
     {
-        // The same bend released mid-ring: the channel goes plain at the release, so the stated
+        // The same bend released mid-ring: the channel goes plain at the slide-out, so the stated
         // portion stays always visible and the remainder rests from that landmark.
         ChartNote released = note(at(1, 1), 1, Fraction{4});
         released.bend = 2.0;
@@ -2012,7 +2015,7 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         note(at(1, 2, Fraction{1, 2}), 3, Fraction{1}, 0),
     };
 
-    SECTION("the partner rests from its head, the handover from its end, the release rests too")
+    SECTION("the partner rests from its head, the handover from its end, the slide-out rests too")
     {
         const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);
         const std::vector<Fraction> shown = presentedSustains(saved, map);
@@ -2029,7 +2032,7 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         CHECK(rests[1] == std::optional{Fraction{3, 10}});
         CHECK(rests[2] == std::optional{Fraction{}});
         // Rested, never shortened: the partner presents its notated two beats, and the handover's
-        // ribbon is bound at the takeover by rule 1 — the margin short of the release's head —
+        // ribbon is bound at the takeover by rule 1 — the margin short of the slide-out's head —
         // which is exactly where its landmark sits.
         CHECK(shown[0] == Fraction{2});
         CHECK(shown[1] == Fraction{3, 10});

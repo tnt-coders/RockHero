@@ -90,17 +90,17 @@ struct StatedStop
     Fraction held{};
     Fraction stop_from{};
     std::optional<FretTravel> travel;
-    // The FALL is no statement about where the finger IS: pressure is off, and the fret the pitch
-    // falls toward is a grip the hand never takes. The channel simply stops stating there, which is
-    // what the slide-out ring's own law reads (a released string is a member of nothing). An
-    // ARRIVAL is the opposite and is READ: the finger glides onto that stop and the next strike
-    // takes it, so the channel's last landing is the end (\ref arrivesIntoNextHead).
-    const Keyframe* const release = releaseKeyframe(note, arrives_into_next_head);
+    // The SLIDE-OUT is no statement about where the finger IS: pressure is off, and the fret the
+    // pitch slides out toward is a grip the hand never takes. The channel simply stops stating
+    // there, which is what the slide-out ring's own law reads (a released string is a member of
+    // nothing). An ARRIVAL is the opposite and is READ: the finger glides onto that stop and the
+    // next strike takes it, so the channel's last landing is the end (\ref arrivesIntoNextHead).
+    const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into_next_head);
     for (const Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
         const std::optional<int>& fret = keyframe.fret;
-        if (!fret.has_value() || &keyframe == release)
+        if (!fret.has_value() || &keyframe == slide_out)
         {
             continue;
         }
@@ -215,8 +215,8 @@ struct StringHand
 
     // The stop `finger`'s strike STATED beneath the fret it sounds (\ref gripStatement), empty
     // where it stated the fret it sounds. Decided once, at the strike, against what was down then —
-    // so the release riding back onto it, the dating and a later carry all read the verdict rather
-    // than re-ask a question whose evidence the strike itself replaced.
+    // so the slide-out riding back onto it, the dating and a later carry all read the verdict
+    // rather than re-ask a question whose evidence the strike itself replaced.
     std::optional<ChartStop> stated_beneath;
 };
 
@@ -362,10 +362,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     // that needs them for its own sake keeps its own copy (\ref ChartResolutions).
     const std::vector<std::optional<int>> claimed_stops = chartClaimedStops(connections);
     const std::vector<std::optional<int>> planted_stops = chartPlantedStops(connections);
-    // A FALL or an ARRIVAL at every end statement, resolved once for the revision by the one walk
-    // that establishes the pair (\ref ChartConnections::arrives_into). Read by the channel reader
-    // and by the two sound tests below: every place this walk asks what a fret at a ring's end
-    // means.
+    // A SLIDE-OUT or an ARRIVAL at every end statement, resolved once for the revision by the one
+    // walk that establishes the pair (\ref ChartConnections::arrives_into). Read by the channel
+    // reader and by the two sound tests below: every place this walk asks what a fret at a ring's
+    // end means.
     const std::vector<bool>& arrives_into = connections.arrives_into;
     ChartShapes derived;
     derived.claim_shapes.assign(saved_notes.size(), std::nullopt);
@@ -433,9 +433,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     };
 
     // Whether one string still AUDIBLY sounds the fretting hand's finger as of `now`, read
-    // end-INCLUSIVELY (the displacement window): its ring reaches `now` and does not FALL away,
-    // whose finger is off the board by its end. A ring whose end ARRIVES is still the hand on a
-    // stop, the next strike taking it, so it sounds like any other. What it holds there is
+    // end-INCLUSIVELY (the displacement window): its ring reaches `now` and does not SLIDE-OUT
+    // away, whose finger is off the board by its end. A ring whose end ARRIVES is still the hand on
+    // a stop, the next strike taking it, so it sounds like any other. What it holds there is
     // \ref covers_at's to say.
     const auto sounds_at =
         [&saved_notes, &arrives_into, &hand](const std::size_t string_index, const Fraction now) {
@@ -930,7 +930,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         std::vector<Fraction> stated_since_here(string_count);
         // THE HOLD-UNDER LAW. Whether a stop this slot states and a stop already down on the string
         // are ONE HAND rather than two. A pull-off proves a finger on its landing stop at the
-        // RELEASE and at no earlier instant, so the derivation asserts nothing by itself; what it
+        // SLIDE-OUT and at no earlier instant, so the derivation asserts nothing by itself; what it
         // may say is that a finger ADDED above a stop a standing grip ALREADY HOLDS contradicts
         // nothing, and that the stop RE-EMERGING under it as that finger lifts lifts nothing. ONE
         // authority (\ref gripStatement), asked at the figure's two ends: the note stating
@@ -987,8 +987,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         //
         // The harmonic clause rides the one authority (\ref gripStatement), so this site and every
         // other statement site read one rule: a harmonic over a PRESSED stop states that stop, and
-        // the fall-through below hands back exactly it. A NODE-grip harmonic — a natural, whose
-        // grip IS the node — is never a pull-off source at all, the resolver refusing a
+        // the slide-out-through below hands back exactly it. A NODE-grip harmonic — a natural,
+        // whose grip IS the node — is never a pull-off source at all, the resolver refusing a
         // fretHandHarmonic as one, so nothing can displace that node.
         const auto grip_statement_of =
             [&saved_notes, &planted_stops, &slot, &gripped_before](
@@ -1052,7 +1052,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // grip-statement law: a strike whose statement matches the statement the string's
             // sounding finger holds inherits that statement's beginning, and every other strike
             // begins its own. THE FOLD's two arms ARE this equality — a source over the still-held
-            // stop states that stop (the ornament rides above), and the release of such a source
+            // stop states that stop (the ornament rides above), and the slide-out of such a source
             // states the stop the source stated beneath itself — so one 5-7-5 figure is one
             // statement of 5 with one beginning (the Torn intro fronting at its first note), while
             // a source over any other ground states what it sounds and its release begins a

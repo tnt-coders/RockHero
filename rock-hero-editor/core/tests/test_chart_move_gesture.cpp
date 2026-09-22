@@ -146,14 +146,15 @@ constexpr int g_retyped_fret{9};
     return chart;
 }
 
-// THE PARKING FIGURE. A four-beat ring on string 3 whose statement at its end IS the release (fret
-// 9 where the ring stops), with the string struck again four beats past it. So the release stands
-// exactly ONE whole-note step from the only thing that bounds a ring's end — the next head on its
-// own string — and the scenario's first right press reaches that head. Its onset is measure 2
-// beat 1, so at the geometry's 20 px/s the release draws at 4.0s (x = 80, g_junction_x) like the
-// junction above, and the next head a whole measure further at 6.0s: far enough that a click on the
-// release is nowhere near the 25px head, which is why the step is a whole note and not a quarter.
-[[nodiscard]] common::core::Chart makeParkedReleaseChart()
+// THE PARKING FIGURE. A four-beat ring on string 3 whose statement at its end IS the slide-out
+// (fret 9 where the ring stops), with the string struck again four beats past it. So the slide-out
+// stands exactly ONE whole-note step from the only thing that bounds a ring's end — the next head
+// on its own string — and the scenario's first right press reaches that head. Its onset is measure
+// 2 beat 1, so at the geometry's 20 px/s the slide-out draws at 4.0s (x = 80, g_junction_x) like
+// the junction above, and the next head a whole measure further at 6.0s: far enough that a click on
+// the slide-out is nowhere near the 25px head, which is why the step is a whole note and not a
+// quarter.
+[[nodiscard]] common::core::Chart makeParkedSlideOutChart()
 {
     common::core::Chart chart;
     chart.tuning.strings = common::core::testing::standardTuning();
@@ -379,18 +380,18 @@ TEST_CASE("A keyframe move gesture re-points the selection at every step", "[cor
 }
 
 // A RING'S END REACHING THE NEXT HEAD HAS ONE ANSWER, and this is the move verb giving it: the
-// release parks ON that head rather than refusing, exactly as a ring GROWN into it parks there. The
-// gesture consequence is what the clamp has to earn — a press that cannot move must cost nothing to
-// come back from, or the charter pays back an overshoot they never saw, press by press.
-TEST_CASE("A move gesture parks a release on the next head and banks nothing", "[core][chart]")
+// slide-out parks ON that head rather than refusing, exactly as a ring GROWN into it parks there.
+// The gesture consequence is what the clamp has to earn — a press that cannot move must cost
+// nothing to come back from, or the charter pays back an overshoot they never saw, press by press.
+TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing", "[core][chart]")
 {
     MoveFixture fixture;
-    REQUIRE(fixture.load(makeParkedReleaseChart()));
+    REQUIRE(fixture.load(makeParkedSlideOutChart()));
     // A whole-note step, so one press spans the four beats to the head — see the figure above.
     fixture.controller.onGridNoteValueChangeRequested(common::core::Fraction{1});
 
-    // The release stands at the ring's END, which no landing addresses: the click arms the caret on
-    // that slot and one Shift+Tab steps onto the statement itself.
+    // The slide-out stands at the ring's END, which no landing addresses: the click arms the caret
+    // on that slot and one Shift+Tab steps onto the statement itself.
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onRowObjectStepRequested(false, false);
     {
@@ -404,8 +405,8 @@ TEST_CASE("A move gesture parks a release on the next head and banks nothing", "
     const common::core::Chart original = fixture.currentChart();
     const std::size_t entries_before = fixture.undoEntryCount();
 
-    // One step lands the release exactly on the head, and the ring's end goes with it: the fall
-    // completes on the head, which is what the store says the hands did.
+    // One step lands the slide-out exactly on the head, and the ring's end goes with it: the
+    // slide-out completes on the head, which is what the store says the hands did.
     fixture.step(ChartStepDirection::Right);
     const common::core::Chart parked = fixture.currentChart();
     REQUIRE(parked.notes.size() == 2);
@@ -421,14 +422,14 @@ TEST_CASE("A move gesture parks a release on the next head and banks nothing", "
     }
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
-    // Further presses that way do NOTHING VISIBLE: the clamp holds the release on the head, so the
-    // replay describes the plan the entry already holds and the press is not recorded at all.
+    // Further presses that way do NOTHING VISIBLE: the clamp holds the slide-out on the head, so
+    // the replay describes the plan the entry already holds and the press is not recorded at all.
     fixture.step(ChartStepDirection::Right);
     fixture.step(ChartStepDirection::Right);
     CHECK(fixture.currentChart() == parked);
     CHECK(fixture.undoEntryCount() == entries_before + 1);
-    // And the selection still names the release — at the offset the CLAMP landed it on, not the one
-    // the delta arithmetic would have named, which nothing in the chart sits on.
+    // And the selection still names the slide-out — at the offset the CLAMP landed it on, not the
+    // one the delta arithmetic would have named, which nothing in the chart sits on.
     {
         const EditorViewState* const held = stateOrNull(fixture.view.last_state);
         REQUIRE(held != nullptr);
@@ -439,8 +440,8 @@ TEST_CASE("A move gesture parks a release on the next head and banks nothing", "
     }
 
     // One press back moves again, and it is the FIRST press back: the two no-op presses banked
-    // nothing, so the run replays to its start, retires its entry, and the release stands where the
-    // charter found it.
+    // nothing, so the run replays to its start, retires its entry, and the slide-out stands where
+    // the charter found it.
     fixture.step(ChartStepDirection::Left);
     CHECK(fixture.currentChart() == original);
     CHECK(fixture.undoEntryCount() == entries_before);

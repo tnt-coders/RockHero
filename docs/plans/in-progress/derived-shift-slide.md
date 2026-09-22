@@ -9,7 +9,7 @@ Every code claim below carries that date.
 
 A shift slide — a glide into a note that is then struck again on the same string — is stored as
 the fret statement AT the ring's end, landing exactly on the next head. That the statement is an
-ARRIVAL and not a FALL is a fact the chart proves: the statement names the same stop the next head
+ARRIVAL and not a SLIDE-OUT is a fact the chart proves: the statement names the same stop the next head
 on that string is struck at, at the same instant. Nothing is stored to say so.
 
 Today the importer synthesizes a pitched arrival one margin BEFORE the next head, because a fret
@@ -36,12 +36,12 @@ here and the text below is amended to match.
   what the claim's own sentence says — the end statement names the stop the next head takes, at
   the same instant. An equal-fret claim can never be justified, so after a settle the deleted
   clause was always true whenever the other five held.
-- **The strip sheds only the SHAKE.** "A release states its fret and nothing else" was enforced
+- **The strip sheds only the SHAKE.** "A slide-out states its fret and nothing else" was enforced
   eagerly in the note-local writers, which cannot see the relation. The bend half of that law was
   wrong on its own terms: by the channel table a bend at the end is the curve's LAST value, which
-  shapes the final leg before the end, and that is as true of a fall as of an arrival. So the strip
+  shapes the final leg before the end, and that is as true of a slide-out as of an arrival. So the strip
   is note-local, applies to any end statement, and sheds the shake alone (a shake at the end has no
-  ring to shake in). A bend on a fall becomes legal; no corpus note has one, so nothing re-imports
+  ring to shake in). A bend on a slide-out becomes legal; no corpus note has one, so nothing re-imports
   differently. The `ReleasePayload` repair narrows to the shake likewise.
 
 ## The interaction half (signed the same day): BUILT 2026-09-22
@@ -49,7 +49,7 @@ here and the text below is amended to match.
 - **`Insert` on a tail types the fret in force at the caret** — the digit route with the digit
   supplied, through the same pending entry. Inside a ring that is what typing the note's own fret
   already does; at the ring's end the product is the end statement at the fret in force. Digits
-  retype it into a fall, `B` gives it a bend, `Tab` finds it, Delete removes it. At the end of a
+  retype it into a slide-out, `B` gives it a bend, `Tab` finds it, Delete removes it. At the end of a
   ring abutting a head at that fret the product names the head's stop: a shift slide, one key.
   `Insert`'s chart half, retired 2026-09-11 because "every note is typed", returns with the fret
   it supplies being the one already stated.
@@ -115,22 +115,22 @@ For a predecessor `p` and the successor `s` the walk reaches on the same string,
 neither is a scrape (a scrape's travel is the pick's, and its terminal is required at its end);
 `s` is not stopped by the picking hand (a tapped harmonic excepted); and the fret named is the
 stop `s` is struck at, node-aware. Whether `s` is picked or claimed is `s`'s own business (see the
-amendment above). A same-string head at a DIFFERENT fret is a fall that abuts — 463 corpus slide-outs
+amendment above). A same-string head at a DIFFERENT fret is a slide-out that abuts — 463 corpus slide-outs
 are exactly that — which is why the test is the fret and not adjacency alone. An open-string next
 head can never match (a keyframe at fret 0 is refused). A tied next note was merged away before
 any pair exists.
 
-**The release follows.** `releaseKeyframe` — and with it `slideOutFretOrNull`, the strip
+**The slide-out follows.** `slideOutKeyframe` — and with it `slideOutFretOrNull`, the strip
 `stripReleaseChannels`, `dissolveSilentRelease`, `ringEndMayLandOnLastKeyframe`,
-`moveErasesStatement`'s exemption, `releasedFret`, `statedStopFrom` and the FHP generator's skip —
+`moveErasesStatement`'s exemption, `fretAtRingEnd`, `statedStopFrom` and the FHP generator's skip —
 means "an end statement whose fret does not travel into the next head". Each consumer reads the
 resolved answer instead of asking position alone. This is the whole cost of the change: about
 twenty-five call sites move from a local helper to a resolved read.
 
 **The strip needs no relation.** It sheds the shake from any end statement, note-local, and never
-the bend (see the amendment above). The coexistence ruling holds for arrivals and falls alike.
+the bend (see the amendment above). The coexistence ruling holds for arrivals and slide-outs alike.
 
-**No display change.** One flag, `KeyframeViewState::release`, isolates every surface: false draws
+**No display change.** One flag, `KeyframeViewState::slide_out`, isolates every surface: false draws
 a linked arrival head at the presented end, true draws a floating fall chip. The projection fills
 it from the resolved answer instead of from position, and the presented instant is already the
 trim's. Both surfaces keep drawing what they draw; the signed P8 look is reproduced pixel for
@@ -163,16 +163,16 @@ The census pins do not move; three discriminating tests (`test_chart_shapes.cpp`
 ## The model half: BUILT 2026-09-22
 
 Built, green, and cleaned: the predicate `arrivesIntoNextHead` beside `resolveLegato` with its
-`ChartConnections::arrives_into` vector; the release family split into a NOTE-LOCAL pair
-(`endFretStatement`, `endStatedFretOrNull`) and a RESOLVED pair (`releaseKeyframe(note,
+`ChartConnections::arrives_into` vector; the slide-out family split into a NOTE-LOCAL pair
+(`endFretStatement`, `endStatedFretOrNull`) and a RESOLVED pair (`slideOutKeyframe(note,
 arrives_into)`, `slideOutFretOrNull(note, arrives_into)`, the second spelled over the first so the
 relational clause stands in one function); the strip narrowed to `shedEndStatementShake` /
 `endStatementWouldShedShake` (note-local, any end statement, the shake alone,
-`ChartRepair::EndStatementShake`); `releasedFret` and `dissolveSilentRelease` reading the fact; the
+`ChartRepair::EndStatementShake`); `fretAtRingEnd` and `dissolveSilentRelease` reading the fact; the
 importer's shift branch collapsed to "grow the ring to the gap and state the landing's fret at the
 end"; the `Shift+L` split's retreat and the join's equality test deleted, with a scrape now refused
 outright; `latestStatementBeforeStrike` folded into `chart_presentation.cpp` as
-`lastStatementClearance`; the projection's `release` flag read from the fact; `deriveChartShapes`
+`lastStatementClearance`; the projection's `slide_out` flag read from the fact; `deriveChartShapes`
 taking the connections.
 
 ### The four findings, and how each was settled
@@ -211,10 +211,10 @@ crosses the seam into the shape that replaces it, so in the Periphery fixture th
 grip states the two stops it strikes and not the tied fret-3 still down under it, and that shape is
 a BOX rather than an arpeggio.
 
-**3. A source-stated FALL may never name the next head's stop — FIXED.** The importer INVENTS a
-trail-off's exit fret (four frets out, or the hand's next move), and a fret at a ring's end naming
+**3. A source-stated SLIDE-OUT may never name the next head's stop — FIXED.** The importer INVENTS a
+slide-out's exit fret (four frets out, or the hand's next move), and a fret at a ring's end naming
 the stop the next head is struck at, at that same instant, is what the chart reads as an ARRIVAL.
-`fallExitClearOfNextHead` now keeps both writers clear of that stop — the synthesis placeholder and
+`slideOutExitClearOfNextHead` now keeps both writers clear of that stop — the synthesis placeholder and
 the resolved exit in `resolveSlideOutExits` — by moving one fret further in the gesture's own
 direction, asked of `arrivesIntoNextHead` itself rather than by restating its clauses.
 
@@ -226,7 +226,7 @@ notes differ, across 25 of 113 packages, in exactly two ways.
   model reads as a shift slide, so the store was wrong about them; keeping them clear is what makes
   it right, and the price is one fret of an exit nobody authored.
 - **7 end statements keep a BEND they previously lost**, which is the signed amendment working: a
-  bend at a ring's end is the curve's last value on a fall exactly as on an arrival.
+  bend at a ring's end is the curve's last value on a slide-out exactly as on an arrival.
 
 **Stored end statements sitting exactly on the next head of their own string: 583 to 1927** (530 to
 1874 of them stating a fret), so **1344 stored arrivals moved onto the head**.
@@ -246,7 +246,7 @@ arrives one margin earlier, so the hand marker lands a margin after the rail com
 ## Order
 
 After the user has sighted the store-the-truth work. Then as one change set: the predicate and its
-vector; the release family re-homed onto it; the importer and split deletions; rule 6; the
+vector; the slide-out family re-homed onto it; the importer and split deletions; rule 6; the
 presentation cases; tests and the developer guide (`the-project-lifecycle.md` import rule 13,
 `the-editor-2d-views.md`, `file-formats.md`'s keyframe row). Re-import the corpus afterwards so the
 files hold the arrival on the head; the presented corpus must be unchanged, which is the

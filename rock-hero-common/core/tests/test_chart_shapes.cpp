@@ -4819,9 +4819,9 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
 {
     // Two whole chugs, then the chord restated with its fretted strings gliding away while the
     // third holds and is picked beneath the transit; the travellers land on a restrike, which is
-    // the glide-into-restrike shape the landing machinery already tiles — the arrival one margin
-    // inside the ring, as the importer writes every glide into a landing (a fret stated exactly
-    // where the ring ends would be the release, not an arrival).
+    // the glide-into-restrike shape the landing machinery already tiles — a charter-placed
+    // arrival one margin inside the ring (a fret stated exactly where the ring ends would be
+    // the shift slide's arrival on the head, which opens no landing at all).
     const std::vector<ChartNote> notes = streamOf({
         noteAt(1, Fraction{}, 1, 5, Fraction{1}),
         noteAt(1, Fraction{}, 2, 7, Fraction{1}),

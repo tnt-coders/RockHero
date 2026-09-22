@@ -1068,7 +1068,7 @@ void fillHeadShape(
 constexpr float g_technique_line_thickness = 2.0f;
 
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
-// rising for ascending slides. Keyframe chains continue segment by segment; the falls-away
+// rising for ascending slides. Keyframe chains continue segment by segment; the slide-out
 // terminal gets Charter's fret label chip (white on the tail color darkened three times) at its
 // segment end, exactly as Charter labels unpitched slides.
 void drawSlideLines(
@@ -1076,7 +1076,7 @@ void drawSlideLines(
     const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels, const float opacity)
 {
-    // The gesture as one uniform sequence: the position keyframes, the release last when the
+    // The gesture as one uniform sequence: the position keyframes, the slide-out last when the
     // note has one.
     const std::size_t stop_count = common::core::glideStopCount(note);
     if (stop_count == 0)
@@ -1104,7 +1104,8 @@ void drawSlideLines(
         const bool upward = stop.fret >= previous_fret;
         // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
         // the keyframe renders the continuation, and the next segment's line leaves from here. The
-        // stop's own MARK still draws, which is what gives a fall toward the fret in force a face.
+        // stop's own MARK still draws, which is what gives a slide-out toward the fret in force a
+        // face.
         if (stop.fret != previous_fret)
         {
             const float from_y = upward ? interior.bottom - line_thickness / 2.0f
@@ -1117,15 +1118,15 @@ void drawSlideLines(
         }
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
-        // would be the same number twice. Only the RELEASE keeps the chip: a trail-off and a
+        // would be the same number twice. Only the SLIDE-OUT keeps the chip: a slide-out and a
         // scrape's terminal have no head, because nothing lands where the string is released.
-        const bool terminal = note.slides[index].release;
+        const bool terminal = note.slides[index].slide_out;
         if (terminal && metrics.draw_text)
         {
             // The leg's own direction ordinarily, and the shared instant's band where the ring ends
             // on a head of its own string (endMarkYAtSharedInstant).
             const float label_y = endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head)
-                                      .value_or(fallChipY(metrics, center_y, upward));
+                                      .value_or(slideOutChipY(metrics, center_y, upward));
             slide_labels.push_back(
                 LabelChip{
                     .position = {metrics.x(stop.seconds), label_y},

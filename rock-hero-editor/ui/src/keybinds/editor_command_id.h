@@ -325,8 +325,8 @@ enum class EditorCommandId : std::uint16_t
     The key's whole meaning, and one verb for both rows: an on-curve point on an automation lane,
     and on the chart lane the statement at the caret's own offset along the ring it stands in,
     carrying the fret ALREADY IN FORCE there — which is what gives a key that carries no value
-    something to place. At a ring's END that statement is the fall, or the ARRIVAL where a head at
-    that stop abuts: a shift slide in one key.
+    something to place. At a ring's END that statement is the slide-out, or the ARRIVAL where a head
+    at that stop abuts: a shift slide in one key.
     */
     InsertLanePoint = 0x1707,
 
@@ -432,10 +432,10 @@ enum class EditorCommandId : std::uint16_t
     TypeDigit9 = 0x180A,
 
     // 0x180B-0x1814 were the path digits (`Alt`+digit), the one verb that differed from the bare
-    // digit in a single cell: at a ring's exact END it stated the fall. `Insert` states the end
-    // from the fret already in force (\ref EditorCommandId::InsertLanePoint) and the walk reaches
-    // the statement standing there, so `Alt` creates nothing on this lane. The values stay spent: a
-    // stale persisted keymap naming one resolves to no spec and is dropped.
+    // digit in a single cell: at a ring's exact END it stated the slide-out. `Insert` states the
+    // end from the fret already in force (\ref EditorCommandId::InsertLanePoint) and the walk
+    // reaches the statement standing there, so `Alt` creates nothing on this lane. The values stay
+    // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
 
     /*! \brief Step the grid one preset finer (`+` main-row or numpad; `=` unshifted alias). */
     GridFiner = 0x1901,

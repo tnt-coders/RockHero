@@ -1765,7 +1765,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         {
             note.attack = common::core::NoteAttack::PickSlide;
             // The attack makes every stop unpitched pick travel; the last entry is the required
-            // terminal, the RELEASE, which sits at the ring's end by definition.
+            // terminal, the SLIDE-OUT, which sits at the ring's end by definition.
             note.slides = {
                 common::core::KeyframeViewState{
                     .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{}
@@ -1777,7 +1777,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
                     .seconds = 12.0,
                     .fret = 12,
                     .offset = common::core::Fraction{},
-                    .release = true,
+                    .slide_out = true,
                 },
             };
         }
@@ -1885,9 +1885,9 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         CHECK(topDigitInkRow(scraped, turnaround_x, lane_y) > 0);
     }
 
-    // THE TERMINAL IS NOT A TURNAROUND. Nothing continues past an unpitched release, so it draws no
-    // head — only the chip naming where the string was let go — and the rows below the ribbon that
-    // every turnaround fills stay empty at its column.
+    // THE TERMINAL IS NOT A TURNAROUND. Nothing continues past an unpitched slide-out, so it draws
+    // no head — only the chip naming where the string was let go — and the rows below the ribbon
+    // that every turnaround fills stay empty at its column.
     int terminal_pixels = 0;
     for (int y = ribbon_bottom + 1; y <= lane_y + 20; ++y)
     {
@@ -2196,13 +2196,13 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
         return false;
     };
 
-    // The glide's stub is observable only where the ribbon's end is BARE, which is the release.
+    // The glide's stub is observable only where the ribbon's end is BARE, which is the slide-out.
     // A pitched last keyframe at the sustain end is LINKED (\ref common::core::linkedKeyframe), so
     // a continuation head a head-width wide is painted over the tip: an inset would hide entirely
     // beneath it, and the only white left at the last column is the head's own fret digit — a
     // single glyph pixel, which pins nothing about the mark and answers to the platform's text
     // rasterizer rather than to the inset.
-    SECTION("a glide whose release lands on the sustain end")
+    SECTION("a glide whose slide-out lands on the sustain end")
     {
         CHECK(mark_reaches(
             painted(
@@ -2213,7 +2213,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .fret = 5,
                     .bend = {},
                     .slides = {common::core::KeyframeViewState{
-                        .seconds = 9.0, .fret = 9, .release = true
+                        .seconds = 9.0, .fret = 9, .slide_out = true
                     }},
                     .vibrato = {},
                 }),
@@ -2237,12 +2237,12 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
     }
 }
 
-// EVERY STOP WEARS ITS MARK, whatever the leg into it did. A fall toward the fret already in force
-// travels nowhere, so no diagonal is drawn for it — but the chip still is, exactly as an interior
-// same-fret point still draws its linked head, which is what gives a statement that says nothing a
-// face to select, retype and delete. And where the ring ENDS on a head of its own string, the chips
-// of the ring that ends there take the band opposite the head's own marks, so two marks at one
-// column never overlap.
+// EVERY STOP WEARS ITS MARK, whatever the leg into it did. A slide-out toward the fret already in
+// force travels nowhere, so no diagonal is drawn for it — but the chip still is, exactly as an
+// interior same-fret point still draws its linked head, which is what gives a statement that says
+// nothing a face to select, retype and delete. And where the ring ENDS on a head of its own string,
+// the chips of the ring that ends there take the band opposite the head's own marks, so two marks
+// at one column never overlap.
 TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2306,12 +2306,14 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
 
     const juce::Image bare = painted({ringing({}, false)});
 
-    SECTION("a fall toward the fret in force draws its chip and no diagonal")
+    SECTION("a slide-out toward the fret in force draws its chip and no diagonal")
     {
-        const common::core::KeyframeViewState fall{.seconds = 8.0, .fret = 7, .release = true};
-        const common::core::NoteViewState note = ringing({fall}, false);
+        const common::core::KeyframeViewState slide_out{
+            .seconds = 8.0, .fret = 7, .slide_out = true
+        };
+        const common::core::NoteViewState note = ringing({slide_out}, false);
         const juce::Image image = painted({note});
-        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, fall);
+        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, slide_out);
         CHECK(layout.chip);
         CHECK(box_differs(image, bare, layout.head));
         CHECK(envelope_agrees(image, bare));
@@ -2319,7 +2321,7 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
 
     SECTION("an interior same-fret point draws its linked head and no diagonal")
     {
-        const common::core::KeyframeViewState hold{.seconds = 6.0, .fret = 7, .release = false};
+        const common::core::KeyframeViewState hold{.seconds = 6.0, .fret = 7, .slide_out = false};
         const common::core::NoteViewState note = ringing({hold}, false);
         const juce::Image image = painted({note});
         const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, hold);
@@ -2330,10 +2332,12 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
 
     SECTION("at a shared instant the ending ring's chip takes the band below the envelope")
     {
-        // A fall that travels, landing exactly where the next head of its own string is struck,
-        // and that head carrying the PRE-BEND whose chip sits above it.
-        const common::core::KeyframeViewState fall{.seconds = 8.0, .fret = 12, .release = true};
-        const common::core::NoteViewState glide = ringing({fall}, true);
+        // A slide-out that travels, landing exactly where the next head of its own string is
+        // struck, and that head carrying the PRE-BEND whose chip sits above it.
+        const common::core::KeyframeViewState slide_out{
+            .seconds = 8.0, .fret = 12, .slide_out = true
+        };
+        const common::core::NoteViewState glide = ringing({slide_out}, true);
         const common::core::NoteViewState landing{
             .start_seconds = 8.0,
             .end_seconds = 10.0,
@@ -2343,12 +2347,13 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
             .slides = {},
             .vibrato = {},
         };
-        const TabKeyframeLayout shared = tabKeyframeLayout(metrics, glide, fall);
+        const TabKeyframeLayout shared = tabKeyframeLayout(metrics, glide, slide_out);
         CHECK(shared.chip);
         CHECK(shared.center_y > span.bottom);
-        // And the band is the RELATION's, not the leg's: the same rising fall takes the band above
-        // where nothing shares its instant.
-        CHECK(tabKeyframeLayout(metrics, ringing({fall}, false), fall).center_y < span.top);
+        // And the band is the RELATION's, not the leg's: the same rising slide-out takes the band
+        // above where nothing shares its instant.
+        CHECK(
+            tabKeyframeLayout(metrics, ringing({slide_out}, false), slide_out).center_y < span.top);
 
         // The head's own marks keep the band above it, so the two never meet: the chip's ink is
         // below the envelope and the pre-bend's above the head.

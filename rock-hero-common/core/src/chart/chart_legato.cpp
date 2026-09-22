@@ -39,16 +39,16 @@ LegatoMotion resolveLegato(
     {
         return LegatoMotion::Unjustified;
     }
-    // Where the finger ENDS, which the arrival changes: a fall names a fret the hand never
+    // Where the finger ENDS, which the arrival changes: a slide-out names a fret the hand never
     // reaches, while an arrival is a stop it glides onto and holds. This caller HOLDS the pair, so
     // it asks the relation directly rather than taking a resolved vector it has no index into.
-    const int released =
-        releasedFret(*predecessor, arrivesIntoNextHead(*predecessor, note, tempo_map));
-    if (released > note.fret && !note.harmonic_node.has_value())
+    const int fret_at_end =
+        fretAtRingEnd(*predecessor, arrivesIntoNextHead(*predecessor, note, tempo_map));
+    if (fret_at_end > note.fret && !note.harmonic_node.has_value())
     {
         return LegatoMotion::Pull;
     }
-    if (released < note.fret)
+    if (fret_at_end < note.fret)
     {
         return LegatoMotion::Hammer;
     }
@@ -58,8 +58,9 @@ LegatoMotion resolveLegato(
 bool endsOnNextHead(
     const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
 {
-    // A glide finishing early states a fall, and a ring running past the head is bounded by the
-    // same-string clamp before any pair exists, so strict equality is the whole of "one instant".
+    // A glide finishing early states a slide-out, and a ring running past the head is bounded by
+    // the same-string clamp before any pair exists, so strict equality is the whole of "one
+    // instant".
     return sustainEndPosition(tempo_map, predecessor) == successor.position;
 }
 
@@ -135,14 +136,14 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
                                                  : &connections.saved_notes[predecessor_index];
         // THE SHIFT SLIDE, marked from the SUCCESSOR onto its predecessor because the relation is
         // about the pair (\ref arrivesIntoNextHead). Resolved BEFORE the claim below, which reads
-        // the predecessor's released fret and therefore this very answer — asked here once and
-        // through the predicate there, one producer either way.
+        // the predecessor's fret at its ring's end and therefore this very answer — asked here once
+        // and through the predicate there, one producer either way.
         if (predecessor != nullptr)
         {
             connections.arrives_into[predecessor_index] =
                 arrivesIntoNextHead(*predecessor, note, tempo_map);
-            // The arrival's EXACT ADJACENCY clause on its own: what an arrival and an abutting fall
-            // share, and all the surfaces need to know that two marks stand at one x.
+            // The arrival's EXACT ADJACENCY clause on its own: what an arrival and an abutting
+            // slide-out share, and all the surfaces need to know that two marks stand at one x.
             connections.ends_on_next_head[predecessor_index] =
                 endsOnNextHead(*predecessor, note, tempo_map);
         }
@@ -183,7 +184,7 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
     const std::vector<ChartNote>& notes = connections.saved_notes;
     // THE HOLD-UNDER DERIVATION, read off the connections this walk already resolved: a PULL-OFF
     // states the stop planted beneath its source, because a finger has to be waiting on a fret to
-    // be pulled off onto — whichever hand made the source's onset. It is a fact about the RELEASE
+    // be pulled off onto — whichever hand made the source's onset. It is a fact about the SLIDE-OUT
     // and no earlier instant, so what it may state to a grip is \ref gripStatement's to decide; it
     // is written NOWHERE, because the notation already states it, in the pull-off itself.
     std::vector<std::optional<int>> planted(notes.size());

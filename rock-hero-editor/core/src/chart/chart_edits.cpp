@@ -152,7 +152,7 @@ struct KeyedSplit
 // honest. A note moved back onto an earlier note's tail re-strikes it, so the gate truncates that
 // ring at the landing (normalizeSustainOverlaps) and the clip drops every keyframe past the new
 // end: something the charter authored, on a note they never touched, gone with no record. A move
-// may SHORTEN a ring and ride its release back with the end; it may not delete a statement, so a
+// may SHORTEN a ring and ride its slide-out back with the end; it may not delete a statement, so a
 // landing that would is refused whole.
 //
 // `landings` are the moved notes at their new slots, still in slot order — one uniform delta moves
@@ -161,8 +161,8 @@ struct KeyedSplit
 // (sustainBoundOf, exactly as the truncation does).
 //
 // Two statements survive the clip and are therefore no reason to refuse: the END's own fret
-// statement, whose moment IS the ring's end so it rides back to the new one — a fall and a shift
-// slide's arrival alike, which is why the question here is note-local and asks nothing of the
+// statement, whose moment IS the ring's end so it rides back to the new one — a slide-out and a
+// shift slide's arrival alike, which is why the question here is note-local and asks nothing of the
 // relation — and a statement standing exactly ON the landing, which the inclusive bound keeps where
 // it stands.
 [[nodiscard]] bool moveErasesStatement(
@@ -218,9 +218,9 @@ enum class StrandedStrikeRepair : std::uint8_t
 // the gesture started from while the ring RULES still judge the live chart. The move gesture,
 // equally a gesture, needs no such split — every bound it reads is a fact about the PRE-GESTURE
 // chart that its own steps cannot change, so its caller simply hands it that chart and `base` is
-// that chart's own notes. Release-ness is the one that had to be earned: a point stepped onto the
-// ring's end would have become the release mid-run, leaving the replay reading a kind the chart no
-// longer had, so the verb refuses that step instead (planMoveSelection).
+// that chart's own notes. Slide-out-ness is the one that had to be earned: a point stepped onto the
+// ring's end would have become the slide-out mid-run, leaving the replay reading a kind the chart
+// no longer had, so the verb refuses that step instead (planMoveSelection).
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
@@ -477,10 +477,10 @@ struct AddressedStop
         }
         // A statement standing exactly at a cut becomes the product's END statement, ON the head
         // the next product starts at, and the chart then PROVES what it is: the fret named is the
-        // stop that product is struck at, so the statement is an ARRIVAL and not a fall
+        // stop that product is struck at, so the statement is an ARRIVAL and not a slide-out
         // (\ref common::core::arrivesIntoNextHead). `ringStateAt` at the cut reads that same
         // keyframe as the new head's own statement, which is why the two can never name different
-        // stops. A FALL reaches only the product ending where the gesture did, every earlier
+        // stops. A SLIDE-OUT reaches only the product ending where the gesture did, every earlier
         // product ending at a cut the next product is struck at.
         //
         // What the end may KEEP is the channel table's: a SHAKE there has no ring left to shake in
@@ -517,7 +517,7 @@ struct AddressedStop
 {
     // A scrape's travel is the PICK's position on the string, so no fretting finger arrives
     // anywhere for a path to continue from.
-    // A FALL's tail is authored exit geometry, not slack to spend: growing the ring under it
+    // A SLIDE-OUT's tail is authored exit geometry, not slack to spend: growing the ring under it
     // would rewrite the gesture (the D14 assist refuses the same reshape, planSetLegato). An
     // ARRIVAL is the opposite — the finger is already on the stop this very head takes — so it is
     // joinable, and the predicate is asked of the PAIR this function holds rather than of a
@@ -564,8 +564,8 @@ struct AddressedStop
     }
 
     // The two rings laid end to end. The head's keyframes follow the point by construction (their
-    // offsets are strictly positive), so appending keeps the array ascending, and a release of the
-    // head lands on the grown ring's end and is the predecessor's release now.
+    // offsets are strictly positive), so appending keeps the array ascending, and a slide-out of
+    // the head lands on the grown ring's end and is the predecessor's slide-out now.
     predecessor.sustain = gap + head.sustain;
     for (const common::core::Keyframe& keyframe : head.keyframes)
     {
@@ -772,9 +772,9 @@ common::core::Fraction chartSteppedKeyframeOffset(
     // Only the statement AT the ring's end carries that end with it, and the end is the one thing
     // 40-Q2-B bounds. Every other point is bounded by that end instead, which planMoveSelection
     // refuses a step past rather than clamping — so a key naming an interior point, or naming
-    // nothing, answers with the plain step. NOTE-LOCAL, and the relation is no part of it: a fall
-    // and a shift slide's arrival are the same point at the same moment, and moving either moves
-    // the end, so asking which gesture it proves would change nothing this verb does.
+    // nothing, answers with the plain step. NOTE-LOCAL, and the relation is no part of it: a
+    // slide-out and a shift slide's arrival are the same point at the same moment, and moving
+    // either moves the end, so asking which gesture it proves would change nothing this verb does.
     const common::core::Keyframe* const end = common::core::endFretStatement(*note);
     if (end == nullptr || end->offset != keyframe.offset)
     {
@@ -803,16 +803,17 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     // which is what makes a step onto or across a neighbour show up as offsets that no longer
     // ascend — a refusal from the one rule authority, never a swap this planner had to forbid.
     //
-    // The RELEASE is the ring's end, so stepping it steps the end with it: the fall's length is
-    // the point's to change, and this is the verb that changes it — outward for a longer fall,
-    // inward for a shorter one, never onto or across the last sounded fret (the order refusal
-    // above), and outward only as far as a ring's end may reach, where the release parks. Read
-    // before any offset moves, because the release is recognised by sitting exactly at the end.
+    // The SLIDE-OUT is the ring's end, so stepping it steps the end with it: the slide-out's length
+    // is the point's to change, and this is the verb that changes it — outward for a longer
+    // slide-out, inward for a shorter one, never onto or across the last sounded fret (the order
+    // refusal above), and outward only as far as a ring's end may reach, where the slide-out parks.
+    // Read before any offset moves, because the slide-out is recognised by sitting exactly at the
+    // end.
     //
-    // KIND IS NOT THIS VERB'S TO CHANGE: a point that already IS the release drags the end, and
+    // KIND IS NOT THIS VERB'S TO CHANGE: a point that already IS the slide-out drags the end, and
     // every other point lives STRICTLY inside the ring at both ends — the onset below (the
-    // validator's strictly-positive offsets) and the end above (the bound below). So the release a
-    // step reads off the note it was handed is still the release after it, which is what lets a
+    // validator's strictly-positive offsets) and the end above (the bound below). So the slide-out
+    // a step reads off the note it was handed is still the slide-out after it, which is what lets a
     // held run replay from its pre-gesture chart at all.
     bool stepped_keyframe = false;
     if (beat_delta.numerator != 0)
@@ -826,27 +827,27 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             {
                 continue;
             }
-            const common::core::Keyframe* const release = common::core::endFretStatement(note);
+            const common::core::Keyframe* const slide_out = common::core::endFretStatement(note);
             // The ring's end AFTER this step, which every INTERIOR point must stay STRICTLY below:
             // the move verb never changes what a point IS, so a step that would reach the end is
             // refused exactly like one that reaches the onset below or the neighbour beside. Read
-            // off the release when the release is stepping too — one uniform delta moves both, so
-            // a figure selected whole keeps its shape and the end travels with it — and asked of
+            // off the slide-out when the slide-out is stepping too — one uniform delta moves both,
+            // so a figure selected whole keeps its shape and the end travels with it — and asked of
             // the one authority that holds a ring's end at the next head on its string
-            // (\ref chartSteppedKeyframeOffset), so a release stepped onto that head lands there
+            // (\ref chartSteppedKeyframeOffset), so a slide-out stepped onto that head lands there
             // and one stepped past it parks on it, exactly as the duration verb's clamp does.
             //
-            // Without the bound the step authored a release the burst could not then drag: the
+            // Without the bound the step authored a slide-out the burst could not then drag: the
             // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
             // the end never followed the next press and the run stuck until re-selection. And what
-            // it left behind was a release nothing draws (a repeated fret) or one shed of its
+            // it left behind was a slide-out nothing draws (a repeated fret) or one shed of its
             // shake (shedEndStatementShake) — a point that lost its meaning to a move.
             const common::core::Fraction end =
-                release != nullptr && std::ranges::binary_search(offsets, release->offset)
+                slide_out != nullptr && std::ranges::binary_search(offsets, slide_out->offset)
                     ? chartSteppedKeyframeOffset(
                           chart,
                           tempo_map,
-                          ChartKeyframeKey{.note = slot, .offset = release->offset},
+                          ChartKeyframeKey{.note = slot, .offset = slide_out->offset},
                           beat_delta)
                     : note.sustain;
             for (common::core::Keyframe& keyframe : note.keyframes)
@@ -855,11 +856,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                 {
                     continue;
                 }
-                // The RELEASE is the ring's end, so stepping it steps the end with it — as far as
+                // The SLIDE-OUT is the ring's end, so stepping it steps the end with it — as far as
                 // that end may reach and no further, the clamp being where the whole step lands
                 // rather than a second answer applied after it. The lower bound both kinds share
                 // is the validator's (offsets are strictly positive).
-                if (&keyframe == release)
+                if (&keyframe == slide_out)
                 {
                     keyframe.offset = end;
                     note.sustain = end;
@@ -869,7 +870,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                     keyframe.offset = keyframe.offset + beat_delta;
                     // Against the CLAMPED end: a step that would strand an interior point on or
                     // past the head its own ring stops at is refused, never clamped — clamping it
-                    // would stack it on the release, and letting it stand would leave the gate's
+                    // would stack it on the slide-out, and letting it stand would leave the gate's
                     // truncation to clip a statement away with no record.
                     if (!(keyframe.offset < end))
                     {
@@ -915,7 +916,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // A landing inside a tail may shorten that ring and ride its release back, but never delete a
+    // A landing inside a tail may shorten that ring and ride its slide-out back, but never delete a
     // statement standing past it — so a landing that would is refused instead.
     if (moveErasesStatement(tempo_map, notes.rest, notes.keyed))
     {
@@ -1260,12 +1261,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         // the ring it currently has — the live value the candidate was seeded with — rather than
         // being clamped to some invented value, and rejoins the gesture the moment the replayed
         // ring clears the floor again. Deleting the keyframe, or dragging it (the move verb, which
-        // on a release drags the end with it), is the verb for going further. The floor is
-        // INCLUSIVE where landing on it makes the point a REAL release and costs it nothing:
+        // on a slide-out drags the end with it), is the verb for going further. The floor is
+        // INCLUSIVE where landing on it makes the point a REAL slide-out and costs it nothing:
         // pulling the end exactly onto a keyframe that states a fret, nothing else, and a fret the
         // path does not already hold there, on a ring that simply ends, is how a glide becomes an
-        // unpitched slide-out. On a ring already released the floor IS the release and stays
-        // exclusive — the ribbon cannot pass its own end point, and the fall's length is the
+        // unpitched slide-out. On a ring that already slides out the floor IS it and stays
+        // exclusive — the ribbon cannot pass its own end point, and the slide-out's length is the
         // point's to change. The onset itself is never a legal end,
         // so the empty ring's floor stays exclusive too. A scrape's path is DERIVED and
         // re-terminates onto whatever tail it has, so it floors at the minimum gesture window
@@ -1291,8 +1292,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         if (floor < target || (floor_may_end_the_ring && floor == target))
         {
             // The one bound on a ring (40-Q2-B), asked of the one authority that applies it — the
-            // same call the move verb's stepped release makes, so both verbs give one answer for a
-            // ring's end reaching the next head on its string. The margin that binds growth
+            // same call the move verb's stepped slide-out makes, so both verbs give one answer for
+            // a ring's end reaching the next head on its string. The margin that binds growth
             // against ANY string is the DRAWN tail's spacing rule, which presentation owns rather
             // than this clamp. The clamp can never SHORTEN a note below where the gesture found it:
             // normalizeSustainOverlaps holds every stored ring inside this same bound, so `start`
@@ -1300,7 +1301,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             target = common::core::ringEndWithinBound(chart.notes, note, tempo_map, target);
             // The one way a ring changes length once it carries a payload: a pitched note's
             // keyframes all lie above its floor, so nothing clips there — the resize leaves a
-            // release behind a lengthening ring as the pitched stop it has become, and re-aims a
+            // slide-out behind a lengthening ring as the pitched stop it has become, and re-aims a
             // scrape's compressed path. A scrape needs no clause of its own: its terminal rides
             // the end, so a gesture grown onto the next head ends exactly there with its terminal
             // on it, which is what the store holds and what presentation then spaces.
@@ -1309,10 +1310,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         else if (floor == target && common::core::endStatedFretOrNull(stepped) != nullptr)
         {
-            // A running gesture can grow a release into an ordinary pitched keyframe, then step
-            // straight back to the release it started from. That replay describes no edit relative
-            // to `base`, but the live chart still holds the grown note the candidate was seeded
-            // with; restore the replayed release so finalizePlan reports NoChange and the
+            // A running gesture can grow a slide-out into an ordinary pitched keyframe, then step
+            // straight back to the slide-out it started from. That replay describes no edit
+            // relative to `base`, but the live chart still holds the grown note the candidate was
+            // seeded with; restore the replayed slide-out so finalizePlan reports NoChange and the
             // controller retires the grow entry instead of treating the shrink as refused.
             note = std::move(stepped);
         }
@@ -1426,11 +1427,11 @@ ChartLegatoPlan planSetLegato(
             const common::core::LegatoMotion if_held =
                 common::core::resolveLegato(asked, &still_ringing, tempo_map);
             hold_was_the_only_blocker = if_held != common::core::LegatoMotion::Unjustified;
-            // A trail-off's tail is its authored exit window, not slack to spend: reshaping it to
+            // A slide-out's tail is its authored exit window, not slack to spend: reshaping it to
             // buy a connection would rewrite the gesture. The connection itself stays legal — the
-            // resolver reads the RELEASED fret — it just has to be authored by dragging that tail.
-            // (A scrape never reaches here: the resolver disqualifies it outright, so its hold is
-            // never the only blocker.)
+            // resolver reads the FRET AT THE RING'S END — it just has to be authored by dragging
+            // that tail. (A scrape never reaches here: the resolver disqualifies it outright, so
+            // its hold is never the only blocker.)
             if (hold_was_the_only_blocker &&
                 common::core::slideOutFretOrNull(
                     *predecessor, connections.arrives_into[predecessor_index]) == nullptr)
@@ -1547,7 +1548,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
             const bool was_scrape = common::core::isScrape(note.attack);
             if (was_scrape && !common::core::isScrape(attack))
             {
-                // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
+                // The path was gesture geometry; as a pitched glide or an ordinary slide-out it
                 // would be a fiction. The overridden techniques were never touched, so they
                 // simply resurface — including a bend or vibrato statement authored ON one of
                 // the path's own keyframes, which is why the drop is per channel.

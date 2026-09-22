@@ -19,7 +19,7 @@ namespace
     return std::pow(std::sin(std::numbers::pi / 4.0), 3.0);
 }
 
-// The unpitched release ease at half progress (1 - sin(pi/4)), the curve a trail-off's window
+// The unpitched release ease at half progress (1 - sin(pi/4)), the curve a slide-out's window
 // transition uses instead.
 [[nodiscard]] double unpitchedHalfProgressWeight()
 {
@@ -101,15 +101,15 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
     CHECK(opening_mid.high_line == Catch::Approx(8.0));
 }
 
-// A placement arriving on an unpitched trail-off eases with the release curve, not the pitched
+// A placement arriving on an unpitched slide-out eases with the slide-out curve, not the pitched
 // one: same settled windows at both ends of the ramp, a different path between them. That
 // difference is the flag's entire purpose, and the projection setting it is not evidence the
 // window reads it.
-TEST_CASE("Hand window eases an unpitched ramp with the release curve", "[core][highway][window]")
+TEST_CASE("Hand window eases an unpitched ramp with the slide-out curve", "[core][highway][window]")
 {
     const std::vector<FhpViewState> placements = makeUnpitchedPlacements();
 
-    // Ramp start: the release curve is zero at zero progress, so the previous window still holds.
+    // Ramp start: the slide-out curve is zero at zero progress, so the previous window still holds.
     const HighwayHandWindow at_start = highwayHandWindowAt(placements, 4.0);
     CHECK(at_start.low_line == Catch::Approx(2.0));
     CHECK(at_start.high_line == Catch::Approx(6.0));
@@ -126,7 +126,7 @@ TEST_CASE("Hand window eases an unpitched ramp with the release curve", "[core][
     CHECK(mid.high_line == Catch::Approx(6.0 + (7.0 * weight)));
 
     // And it is genuinely the other family rather than the pitched curve relabeled: over the
-    // identical move, the release has given up less of its travel by half progress.
+    // identical move, the slide-out has given up less of its travel by half progress.
     const HighwayHandWindow pitched_mid = highwayHandWindowAt(makePlacements(), 5.0);
     CHECK(mid.low_line < pitched_mid.low_line);
     CHECK(mid.high_line < pitched_mid.high_line);

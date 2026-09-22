@@ -149,12 +149,12 @@ struct ChartPathTail
     common::core::Fraction offset;
 
     /*!
-    \brief True when the offset is the ring's END exactly — the release instant, rather than a
+    \brief True when the offset is the ring's END exactly — the slide-out instant, rather than a
     place inside the path.
 
     The one fact the two digit verbs read differently, stored once by the walk that already knows it
     rather than re-derived at each call site. Strictly inside, every digit states a point on the
-    path; at the END, `Alt`+digit states the slide-out the release names while a bare digit places
+    path; at the END, `Alt`+digit states the fret the slide-out names while a bare digit places
     the adjacent head instead, since the ring already stops where that head would start.
     */
     bool at_ring_end{};
@@ -188,16 +188,16 @@ so a slot a head stands on answers nothing here.
 The candidate note is built with the point inserted at its sorted place and handed to the shared
 finalize, so every bound this verb could restate is the rule authority's instead: an offset at or
 before the onset or past the ring, a second record on one offset, a stated fret at or after a
-falls-away terminal, a fret below the capo floor or past the board, a path a fret-hand harmonic or
+slide-out terminal, a fret below the capo floor or past the board, a path a fret-hand harmonic or
 an open string may not carry at all, a later same-string onset the fret would restate, and a scrape
 a repeated position would still. None of them appears here.
 
 Nor does the commit law: a point that says nothing the path does not already say is planted like
 any other — authoring state the history never records (\ref writtenChartPlan) and the document
 writer sheds (\ref common::core::keyframeSaysNothingNew) — so this planner never refuses a point
-for its meaning, at the ring's END as much as inside it: a fall toward the fret already in force
-draws its chip, so it can be selected, retyped and deleted, and it goes with every other silent
-point when its note leaves focus. The scrape's
+for its meaning, at the ring's END as much as inside it: a slide-out toward the fret already in
+force draws its chip, so it can be selected, retyped and deleted, and it goes with every other
+silent point when its note leaves focus. The scrape's
 still-hold — a repeated position that would stop the pick travelling — refuses through the fixpoint,
 because a scrape that rests on a fret is no scrape.
 
@@ -342,10 +342,10 @@ is measured from there.
     const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps);
 
 /*!
-\brief Where a stepped keyframe LANDS: one delta along its ring, the RELEASE held at the ring's own
-bound.
+\brief Where a stepped keyframe LANDS: one delta along its ring, the SLIDE-OUT held at the ring's
+own bound.
 
-A release IS the ring's end, so stepping it steps the end, and the end has exactly one ceiling —
+A slide-out IS the ring's end, so stepping it steps the end, and the end has exactly one ceiling —
 exact adjacency with the next onset on the note's own string
 (\ref common::core::ringEndWithinBound). A step that would carry it past that head lands ON the
 head instead, which is the same answer the duration verb gives a ring grown into it: one rule for
@@ -389,8 +389,8 @@ Refused (empty) when any moved note would leave the chart's string range or land
 unmoved note occupies — validation-preserving edits only, and a HEAD's landing is never clamped
 short of where it was aimed (the one clamp is a ring's end, below). Overlaps created at the
 destinations truncate per 40-Q2-B: this is the ONE verb that re-strikes by truncation, so a landing
-inside a tail SHORTENS that ring and rides its release back to the new end. It never DELETES a
-statement, though — a landing that would clip a keyframe other than the release off the tail is
+inside a tail SHORTENS that ring and rides its slide-out back to the new end. It never DELETES a
+statement, though — a landing that would clip a keyframe other than the slide-out off the tail is
 refused whole, since the statement belongs to a note the charter did not touch and the clip leaves
 no record of it.
 
@@ -402,14 +402,14 @@ same-string onset or below the capo floor is refused just as a retyped one is
 therefore a REFUSAL rather than a swap, which is the only reading a keyframe's identity allows: the
 offset IS the identity, so exchanging two would leave the selection pointing at the other record.
 
-Two bounds the planner does state, because the rules carry neither. A stepped RELEASE moves the
+Two bounds the planner does state, because the rules carry neither. A stepped SLIDE-OUT moves the
 ring's END, and the end reaches the next strike on its own string exactly and no further, so a step
 onto that head lands there and a step PAST it parks on it — CLAMPED, not refused, which is the same
 answer the duration verb gives a ring grown into that head
 (\ref chartSteppedKeyframeOffset, \ref common::core::ringEndWithinBound). And an INTERIOR point
 stays STRICTLY BELOW the ring's end — the clamped end, so a step that would strand it on or past
 that head is refused rather than left for the gate's truncation to clip away: KIND IS NOT THIS
-VERB'S TO CHANGE, so a point that already is the release drags the end with it and no other point
+VERB'S TO CHANGE, so a point that already is the slide-out drags the end with it and no other point
 ever becomes one. Moving a point LEFT remains the way past the resize floor that a point which says
 nothing, or one carrying a shake, raises under a shrinking ring
 (\ref common::core::ringEndMayLandOnLastKeyframe); leftward it needs no ceiling of its own, since a
@@ -421,7 +421,7 @@ the chart state the run STARTED from. Nothing here has to know that — the plan
 the chart it is given, so a first press passes the live chart and every later one passes the
 pre-gesture chart the burst's own entry reconstructs. That is why the move needs no separate `base`
 parameter where the duration gesture does: every bound a move reads is a fact about the chart it is
-handed that its own steps cannot change — release-ness included, which is what the end bound above
+handed that its own steps cannot change — slide-out-ness included, which is what the end bound above
 buys — so the one chart argument serves as both the source of the objects and the stream the plan is
 diffed against.
 
@@ -622,13 +622,13 @@ IS recorded, and the member rejoins where it parted.
   inside.
 - Shrinking stops at the ring's FLOOR: the last keyframe's offset where the note carries one, the
   onset otherwise. The ring holds STRICTLY ABOVE its floor, with one landing allowed — the one
-  \ref common::core::ringEndMayLandOnLastKeyframe grants, where the landing makes a REAL release and
-  costs nothing: a last keyframe stating a fret, nothing else, and a fret the path does not already
-  hold there, on a ring that simply ends, may be landed on exactly, which makes it the RELEASE and
-  the glide an unpitched slide-out. A BEND beside that fret costs the landing nothing and rides to
-  the end as the curve's last value; a keyframe also stating a SHAKE would lose it, having no ring
-  left to shake in, and one repeating the fret already in force would author
-  a fall saying nothing the path does not already say — one the focus-leave sweep takes
+  \ref common::core::ringEndMayLandOnLastKeyframe grants, where the landing makes a REAL slide-out
+  and costs nothing: a last keyframe stating a fret, nothing else, and a fret the path does not
+  already hold there, on a ring that simply ends, may be landed on exactly, which makes it the
+  SLIDE-OUT and the glide an unpitched slide-out. A BEND beside that fret costs the landing nothing
+  and rides to the end as the curve's last value; a keyframe also stating a SHAKE would lose it,
+  having no ring left to shake in, and one repeating the fret already in force would author
+  a slide-out saying nothing the path does not already say — one the focus-leave sweep takes
   (\ref common::core::stripSilentKeyframes), trading the point the charter can still see for a ring
   that simply ends. Either holds the ring above it like a fretless one: this verb shortens
   rings, it neither deletes statements nor writes ones nothing shows. A ring the replay takes to or
@@ -730,9 +730,9 @@ predecessor's ring stops short of the onset, it grows to that ONSET — exact ad
 plan, but only when that makes the claim resolve. It can never author what a manual drag could not
 reach, and needs no bound of its own to say so: the claiming note IS the next onset on the
 predecessor's string, so the target is exactly that predecessor's
-\ref common::core::sustainBoundOf. It skips a trail-off predecessor — any note ending in a release —
-because that tail is the gesture's authored window, not slack to spend. (A scrape needs no such
-guard: the resolver disqualifies it outright, so its ring is never the only blocker.)
+\ref common::core::sustainBoundOf. It skips a slide-out predecessor — any note whose ring ends in
+one — because that tail is the gesture's authored window, not slack to spend. (A scrape needs no
+such guard: the resolver disqualifies it outright, so its ring is never the only blocker.)
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.
@@ -1174,8 +1174,8 @@ What each product carries. The remainder is the same note restarted at the junct
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
 onset values — the bend it was already pushing and the shake it was already carrying, so the sound
 does not change across a split. Its later keyframes ride along, rebased onto the new onset, and the
-release reaches only the LAST product, since it is the keyframe at the ring's end and the ring's end
-is now there. The origin's own onset facts are untouched.
+slide-out reaches only the LAST product, since it is the keyframe at the ring's end and the ring's
+end is now there. The origin's own onset facts are untouched.
 
 **The split head's attack, and the one thing this cannot yet say.** W10 ruled the split head stores
 plain `Legato` — never `Pick` (which would author a strike that is not in the music) and never a
@@ -1217,7 +1217,7 @@ Join refusals, each because the handover it would author is not one the format c
 
 - No predecessor on the string at all — there is no path for the point to join.
 - A scrape predecessor: its travel is the PICK's position, so no fretting finger arrives anywhere.
-- A predecessor whose end FALLS: a trail-off's tail is authored geometry, not slack to spend —
+- A predecessor whose end SLIDES OUT: a slide-out's tail is authored geometry, not slack to spend —
   the same rule the D14 legato assist already refuses to reshape (\ref planSetLegato). A
   predecessor whose end ARRIVES into this very head is the opposite case and IS joinable: the
   finger is already on the stop the head takes, so the relation is asked of the pair the join

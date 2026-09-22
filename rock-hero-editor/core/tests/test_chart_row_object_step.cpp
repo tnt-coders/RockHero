@@ -105,8 +105,9 @@ struct RowObjectStepFixture
 }
 
 // The glide's ring ending EXACTLY on the next head of its own string — one instant carrying two
-// objects. With `stated` the end names a fret the next head is not struck at, which is a fall that
-// abuts; without it the ring simply stops there and nothing stands at the instant but the head.
+// objects. With `stated` the end names a fret the next head is not struck at, which is a slide-out
+// that abuts; without it the ring simply stops there and nothing stands at the instant but the
+// head.
 [[nodiscard]] common::core::Chart makeAbuttingStringChart(const bool stated)
 {
     common::core::Chart chart = makeGlideChart();

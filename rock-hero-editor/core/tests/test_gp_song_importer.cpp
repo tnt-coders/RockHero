@@ -585,11 +585,11 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// An unpitched trail-off is a release, not a rule-9 pitched drag — the generator's walk never
+// An unpitched slide-out is a slide-out, not a rule-9 pitched drag — the generator's walk never
 // repositions for it — but the window still rides the gesture: a dip
-// placement at the compressed trail-off end, returning at the next onset (here the real
+// placement at the compressed slide-out end, returning at the next onset (here the real
 // fret-7 landing placement, which the restore yields to).
-TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[core][gp-import]")
+TEST_CASE("Guitar Pro import rides the window through a slide-out", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_unpitched_slide_fhp_test";
@@ -612,13 +612,14 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
     REQUIRE(chart.notes.size() == 5);
-    // The trail-off IS the keyframe at the ring's end, and the tail states nothing else.
+    // The slide-out IS the keyframe at the ring's end, and the tail states nothing else.
     CHECK(chart.notes[1].keyframes.size() == 1);
     const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(*slide_out == 3);
-    // The STORED gesture runs right up to the fret-9 onset, its release on that head; the DRAWN one
-    // keeps the minimum sustain distance clear of it — which is the end the hand exit below rides.
+    // The STORED gesture runs right up to the fret-9 onset, its slide-out on that head; the DRAWN
+    // one keeps the minimum sustain distance clear of it — which is the end the hand exit below
+    // rides.
     CHECK(chart.notes[1].sustain == Fraction{1, 2});
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
     const common::core::ChartNote& second = presented[1];
@@ -626,7 +627,7 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     CHECK(second.sustain == Fraction{3, 10});
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
-    // the window with the trail-off — the fret-3 exit pulls the anchor down at the compressed
+    // the window with the slide-out — the fret-3 exit pulls the anchor down at the compressed
     // end, stopping at the capo-2 floor — and the real fret-9 landing placement (the minimal
     // fret-6 window) takes over at the next onset, standing in for the restore.
     CHECK(chart.fret_hand_positions.front().fret == 5);
@@ -683,9 +684,9 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     CHECK(landing.keyframes.front().fret == 9);
     CHECK(landing.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
 
-    // With no fabricated head in the gap, the half-beat trail-off is STORED running to the notated
-    // onset with its release on it, and DRAWN the plain margin before it, so the two gestures stay
-    // clear of each other on the surfaces that show them.
+    // With no fabricated head in the gap, the half-beat slide-out is STORED running to the notated
+    // onset with its slide-out on it, and DRAWN the plain margin before it, so the two gestures
+    // stay clear of each other on the surfaces that show them.
     const common::core::ChartNote& dip = chart.notes[1];
     const auto* const slide_out = common::core::endStatedFretOrNull(dip);
     REQUIRE(slide_out != nullptr);
@@ -3175,7 +3176,7 @@ TEST_CASE("Guitar Pro import rings a let-ring note on to what sounds", "[core][g
     SECTION("a slide-out marked note keeps its shipped ring")
     {
         // The one exemption that stands: an unpitched slide-out states the ring's own end (LAW I
-        // — the release IS the end, physically forced), so the mark extends nothing and the law's
+        // — the slide-out IS the end, physically forced), so the mark extends nothing and the law's
         // REACH is stated rather than assumed.
         GpScore score = makeLinearScore(1, syncs);
         GpBeat slid = letRingBeat(quarter, 5);
@@ -4668,12 +4669,12 @@ namespace
 
 } // namespace
 
-// A downward trail-off from a low fret: the four-fret exit is held onto the playable board at the
+// A downward slide-out from a low fret: the four-fret exit is held onto the playable board at the
 // first fret above the capo, never the nut. Flooring the exit at 0 while the rules demand
-// above-the-capo fails a whole track's import on a single trail-off from frets 1-4, so the importer
+// above-the-capo fails a whole track's import on a single slide-out from frets 1-4, so the importer
 // asks the one floor and the chart validates without any normalizer repair.
 TEST_CASE(
-    "Guitar Pro import floors a trail-off exit at the first playable fret", "[core][gp-import]")
+    "Guitar Pro import floors a slide-out exit at the first playable fret", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
@@ -4682,7 +4683,7 @@ TEST_CASE(
     SECTION("at no capo the floor is fret 1")
     {
         GpScore score = makeLinearScore(1, syncs);
-        // Flag 4 is the downward trail-off; a half note leaves room for the exit.
+        // Flag 4 is the downward slide-out; a half note leaves room for the exit.
         score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 2}, 3, 0, 4)}}});
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
@@ -5921,8 +5922,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
     SECTION("a slide-out on the same short note keeps the scoop strictly before it")
     {
         GpScore score = makeLinearScore(1, syncs);
-        // Flags 20 = slide-in from below (16) + downward trail-off (4) on one thirty-second
-        // note: the trail-off end pins at the 1/8-beat sustain, exactly where the floored
+        // Flags 20 = slide-in from below (16) + downward slide-out (4) on one thirty-second
+        // note: the slide-out end pins at the 1/8-beat sustain, exactly where the floored
         // scoop window would land, so the scoop halves to stay strictly before it (the
         // ascending-payload invariant chart validation enforces).
         score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 32}, 8, 0, 20)}}});
@@ -5932,7 +5933,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].fret == 6);
-        // Two statements: the scoop's arrival, then the trail-off's own release at the ring's end.
+        // Two statements: the scoop's arrival, then the slide-out's own statement at the ring's
+        // end.
         REQUIRE(chart.notes[0].keyframes.size() == 2);
         CHECK(chart.notes[0].keyframes[0].offset == Fraction{1, 16});
         CHECK(chart.notes[0].keyframes[0].fret == 8);
@@ -6107,12 +6109,12 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
     }
 }
 
-// A crowded trail-off is STORED running right up to the next onset — the material's own truth —
-// and DRAWN clear of it without ever taking the fall's last earlier statement. A legato chain
-// inheriting a trail-off is where that bites: the plain margin line lands on the junction itself,
-// so the drawn release halves the leg's distance to the onset instead of overwriting the landing.
+// A crowded slide-out is STORED running right up to the next onset — the material's own truth —
+// and DRAWN clear of it without ever taking the slide-out's last earlier statement. A legato chain
+// inheriting a slide-out is where that bites: the plain margin line lands on the junction itself,
+// so the drawn slide-out halves the leg's distance to the onset instead of overwriting the landing.
 TEST_CASE(
-    "Guitar Pro import floors a crushed trail-off after its last keyframe", "[core][gp-import]")
+    "Guitar Pro import floors a crushed slide-out after its last keyframe", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
@@ -6120,10 +6122,10 @@ TEST_CASE(
 
     GpScore score = makeLinearScore(1, syncs);
     // Flags 2 = legato: the fret-10 landing folds into the fret-8 origin as a keyframe one
-    // beat in, and its own flags-4 trail-off carries onto the merged note. The stored ring runs to
-    // the fret-5 onset an eighth of a beat after the landing, its release on that head. That onset
-    // then crowds the DRAWN gesture: the margin target lands before the junction, so the floor
-    // halves the last leg and puts the drawn end at 1 + 1/16.
+    // beat in, and its own flags-4 slide-out carries onto the merged note. The stored ring runs to
+    // the fret-5 onset an eighth of a beat after the landing, its slide-out on that head. That
+    // onset then crowds the DRAWN gesture: the margin target lands before the junction, so the
+    // floor halves the last leg and puts the drawn end at 1 + 1/16.
     score.tracks[0].bars.push_back(
         GpBar{
             .voices = {
@@ -6139,7 +6141,7 @@ TEST_CASE(
     REQUIRE(chart.notes.size() == 2);
 
     const common::core::ChartNote& merged = chart.notes[0];
-    // The junction, then the trail-off's release riding the merged ring's end.
+    // The junction, then the slide-out riding the merged ring's end.
     REQUIRE(merged.keyframes.size() == 2);
     CHECK(merged.keyframes[0].offset == Fraction{1});
     CHECK(merged.keyframes[0].fret == 10);
@@ -6147,12 +6149,12 @@ TEST_CASE(
     const auto* const slide_out = common::core::endStatedFretOrNull(merged);
     REQUIRE(slide_out != nullptr);
     // STORED: the ring runs right up to the fret-5 onset, a beat and an eighth out, with the
-    // release on it. DRAWN: halfway between the junction and that onset — never on the junction,
+    // slide-out on it. DRAWN: halfway between the junction and that onset — never on the junction,
     // which would overwrite the landing, and never on the onset.
     CHECK(merged.sustain == Fraction{9, 8});
     const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[0];
     REQUIRE(common::core::endStatedFretOrNull(presented) != nullptr);
-    // The release rides the drawn end itself, so what the crush has to clear is the junction
+    // The slide-out rides the drawn end itself, so what the crush has to clear is the junction
     // before it — the first of the two statements, not the last.
     REQUIRE(presented.keyframes.size() == 2);
     CHECK(presented.sustain == Fraction{17, 16});
@@ -6160,10 +6162,10 @@ TEST_CASE(
 }
 
 // A glide whose landing is the OPEN string has nothing pressed to arrive with (a pitched keyframe
-// may not be fret 0), so it degrades to the unpitched trail-off exactly like a missing landing,
+// may not be fret 0), so it degrades to the unpitched slide-out exactly like a missing landing,
 // and the open-string landing keeps its own onset.
 TEST_CASE(
-    "Guitar Pro import degrades a glide to the open string into a trail-off", "[core][gp-import]")
+    "Guitar Pro import degrades a glide to the open string into a slide-out", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
@@ -6181,7 +6183,7 @@ TEST_CASE(
 
     const common::core::ChartNote& origin = chart.notes[0];
     CHECK(origin.fret == 8);
-    // Nothing pitched was stated: the origin's one keyframe IS the trail-off's release.
+    // Nothing pitched was stated: the origin's one keyframe IS the slide-out.
     CHECK(origin.keyframes.size() == 1);
     CHECK(common::core::endStatedFretOrNull(origin) != nullptr);
     CHECK(chart.notes[1].fret == 0);
@@ -6189,14 +6191,14 @@ TEST_CASE(
     CHECK(common::core::validateChartRules(chart, built->tempo_map).has_value());
 }
 
-// The window always rides an unpitched trail-off; the hand's next move
-// picks the figure. A next placement departing in the trail-off's direction AND serving the very
+// The window always rides an unpitched slide-out; the hand's next move
+// picks the figure. A next placement departing in the slide-out's direction AND serving the very
 // next onset makes the gesture a departure: the exit fret rides that anchor travel (widened to
-// the slide-in rule's two-fret minimum) and the window flows onward. Otherwise it is a release:
+// the slide-in rule's two-fret minimum) and the window flows onward. Otherwise it is a slide-out:
 // the fixed four-fret exit, the window dipping with it and a restore at the next onset so no
 // note is stranded. The edges override both: a gesture with no room before the next onset stays
 // planted, and one with no note after it may rest where it ends.
-TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-import]")
+TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
@@ -6213,15 +6215,15 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
 
-        // The hand's next anchor departs 8 -> 3, agreeing with the downward trail-off, so the exit
+        // The hand's next anchor departs 8 -> 3, agreeing with the downward slide-out, so the exit
         // rides that travel instead of the fixed four frets. The ride's own answer, 3, is the stop
         // the next head is struck at, and the ring reaches that head: written there the chart would
-        // read the FALL the source stated as a shift slide's ARRIVAL, so the exit moves one fret
-        // further in the gesture's own direction (fallExitClearOfNextHead).
+        // read the SLIDE-OUT the source stated as a shift slide's ARRIVAL, so the exit moves one
+        // fret further in the gesture's own direction (slideOutExitClearOfNextHead).
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(*slide_out == 2);
-        // The gesture is STORED running to the fret-3 onset with its fall on it, and DRAWN the
+        // The gesture is STORED running to the fret-3 onset with its slide-out on it, and DRAWN the
         // margin before it; the exit placement lands on that drawn end, so the window rides the
         // gesture down with it.
         CHECK(chart.notes[0].sustain == Fraction{1});
@@ -6250,7 +6252,7 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         REQUIRE(chart.notes.size() == 2);
 
         // The upward mirror: the hand's next anchor departs 3 -> 5 (the minimal move that
-        // reaches fret 8), agreeing with the flags-8 trail-off, so the exit rides the widened
+        // reaches fret 8), agreeing with the flags-8 slide-out, so the exit rides the widened
         // travel 3 + max(+2, +2) = 5 rather than the four-fret default 7.
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
@@ -6270,7 +6272,7 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         CHECK(chart.fret_hand_positions[2].fret == 5);
     }
 
-    SECTION("an upward trail-off at the top of the neck clamps to the last fret")
+    SECTION("an upward slide-out at the top of the neck clamps to the last fret")
     {
         GpScore score = makeLinearScore(1, syncs);
         // Fret 22 with the four-fret upward default would exit at 26 — off a 24-fret neck.
@@ -6284,7 +6286,7 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(*slide_out == common::core::g_max_fret);
-        // The hand never moves, so this is a release: the exit window must still cover the
+        // The hand never moves, so this is a slide-out: the exit window must still cover the
         // clamped exit fret without running off the neck itself.
         const common::core::FretHandPosition* const exit = fretHandPositionAt(
             chart, GridPosition{.measure = 1, .beat = 1, .offset = Fraction{4, 5}});
@@ -6312,8 +6314,8 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         REQUIRE(chart.notes.size() == 3);
 
         // The hand's move to fret 3 serves the THIRD onset, not the next one, so the exit
-        // keeps the fixed four-fret release — but the window still rides it: a dip at the
-        // compressed trail-off end and a restore at the second onset, real move untouched.
+        // keeps the fixed four-fret slide-out — but the window still rides it: a dip at the
+        // compressed slide-out end and a restore at the second onset, real move untouched.
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(*slide_out == 4);
@@ -6412,7 +6414,7 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         CHECK(chart.fret_hand_positions[1].fret == 4);
     }
 
-    SECTION("a trail-off crowded by the next onset is drawn halfway to it")
+    SECTION("a slide-out crowded by the next onset is drawn halfway to it")
     {
         GpScore score = makeLinearScore(1, syncs);
         // Two thirty-seconds an eighth of a beat apart. The STORED ring runs to the next head; the
@@ -6435,13 +6437,13 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         CHECK(chart.fret_hand_positions.front().fret == 8);
     }
 
-    SECTION("a crowded trail-off still rides an agreeing departure")
+    SECTION("a crowded slide-out still rides an agreeing departure")
     {
         GpScore score = makeLinearScore(1, syncs);
         // The hand's next placement departs downward and serves the very next onset, and the DRAWN
-        // release ends halfway to that onset rather than on it, so there is room to ride. The
+        // slide-out ends halfway to that onset rather than on it, so there is room to ride. The
         // ride's answer is the next head's own stop and the ring reaches that head, so the exit
-        // steps one fret past it to keep the source's FALL from reading as an arrival.
+        // steps one fret past it to keep the source's SLIDE-OUT from reading as an arrival.
         score.tracks[0].bars.push_back(
             GpBar{.voices = {{noteBeat(Fraction{1, 32}, 8, 0, 4), noteBeat(Fraction{1, 32}, 3)}}});
 
@@ -7915,20 +7917,20 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
             anyNoteContains(built->notes, "1 let-ring rings were extended to their figure's end"));
     }
 
-    SECTION("a source over ground the figure never gripped seams at its RELEASE")
+    SECTION("a source over ground the figure never gripped seams at its SLIDE-OUT")
     {
         // THE PULL-OFF LAW, read by the figure walk through the span machine's own authority
         // (\ref rock_hero::common::core::gripStatement). A pull-off proves a finger on its landing
-        // stop AT THE RELEASE and at no earlier instant, so a source arriving on a string the
+        // stop AT THE SLIDE-OUT and at no earlier instant, so a source arriving on a string the
         // figure never gripped states the fret it SOUNDS: the fret-nine mark on beat two GROWS the
-        // grip to nine, and the release to seven on beat three states a stop the grip never held —
-        // the seam, exactly where it falls were the two notes plainly picked.
+        // grip to nine, and the slide-out to seven on beat three states a stop the grip never held
+        // — the seam, exactly where it falls were the two notes plainly picked.
         //
         // Measured through the GROUPING, which is the only thing a seam does: a mark on beat four
         // lands on the far side of it, so the opening pair's stack ends with the beat-two mark and
         // its anchor is the first onset after it, on beat three. TWO beats each. FOUR is the
         // reading where the source states its LANDING stop — the pre-2026-09-19 law — under which
-        // the release merely confirms the grip, nothing seams, the beat-four mark joins the same
+        // the slide-out merely confirms the grip, nothing seams, the beat-four mark joins the same
         // stack and the anchor slides to bar two's downbeat.
         GpBeat release = noteBeat(quarter, 7, 2);
         release.notes.front().hopo_destination = true;
@@ -7951,7 +7953,7 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         // The gesture the section is about, stated rather than assumed: with the connection
-        // unresolved the release would be a plain strike and the numbers below would be the same
+        // unresolved the slide-out would be a plain strike and the numbers below would be the same
         // for the wrong reason.
         const auto pulled = std::ranges::find_if(chart.notes, [](const common::core::ChartNote& n) {
             return n.string == 3 && n.position.beat == 3;
@@ -7972,8 +7974,8 @@ TEST_CASE("Guitar Pro import seams a let-ring figure at a grip contradiction", "
         // The surviving half, in the same shape and one string apart: the figure grips fret seven
         // on string 3 from the downbeat, and the fret-nine source on beat two arrives ABOVE that
         // very stop before being pulled back off onto it. So it states the seven the figure holds
-        // — the nine is the ornament riding above — and the release beneath it restates that seven
-        // rather than stating anything new.
+        // — the nine is the ornament riding above — and the slide-out beneath it restates that
+        // seven rather than stating anything new.
         //
         // Nothing seams, so the beat-four mark is in the same stack, the figure's last mark is
         // there, and the opening mark's anchor is the first onset after it: bar two's downbeat.

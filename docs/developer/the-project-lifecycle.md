@@ -92,7 +92,7 @@ The plain-English specification of what the builder does to a Guitar Pro chart b
 conversion. This section is deliberately written as numbered rules so a behavior tweak can be
 made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `generateFretHandPositions`, `resolveSlideIns` (rule 16's scoops), and
-`resolveSlideOutExits` (rule 9's trail-off rides and rule 13's exit fret), closing with the one
+`resolveSlideOutExits` (rule 9's slide-out rides and rule 13's exit fret), closing with the one
 chart normalizer `normalizeChart` (rule 26), all covered by `test_gp_song_importer.cpp`). Rules
 1–25 apply to GP import only; rule 26 is the normalizer every load path runs — `.rock` imports
 and saved projects go through exactly the same function, so a chart written under older rules is
@@ -114,7 +114,7 @@ that lengthen. And a **re-strike stops the ring**: the same-string clamp (40-Q2-
 `normalizeSustainOverlaps`) ends every tail at the next onset on its own string. The clamp runs
 after every pass that can lengthen a ring — the let-ring figure walk below is the last of them —
 and before the two passes that ride the drawn picture — the chord spans (rules 10–12) and the
-trail-off hand exits (rule 9); the fret-hand generator and slide-in resolution run ahead of it,
+slide-out hand exits (rule 9); the fret-hand generator and slide-in resolution run ahead of it,
 because the resolver's scoops are one of the passes that lengthen. Payload is trimmed to the ring
 ONCE, straight after that clamp, because that is where the ring stops moving: the imported bend is
 the only payload written past a ring, and trimming it earlier cut a let-ring note's curve against a
@@ -191,8 +191,8 @@ Four notes never lengthen. Three are Guitar Pro's own pre-emptions, where playba
 it ever reads the mark: a **dead**, a **palm-muted** and a **staccato** note each keep the ring
 their own mark gives them (only the pre-emption is taken from that block — the static durations it
 returns are declined, because the notated duration is the timing information the chart reads). The
-fourth is a note whose end is already stated by an unpitched slide-out — the release keyframe —
-since that release IS the ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
+fourth is a note whose end is already stated by an unpitched slide-out — the slide-out keyframe —
+since that statement IS the ring's end by definition. A note that ABSORBED a same-string merge — a tie continuation, a
 legato-slide landing — is NOT among them: the merge states the note's true WRITTEN duration, and
 the mark then extends the merged note like any other, Guitar Pro itself audibly ringing tied
 let-ring notes past the written duration.
@@ -277,15 +277,15 @@ file and from a fresh import shows the same tails, and the model behind the spli
    point again (the interval before it already showed everything). The techniques that are still
    whole-note — tremolo, emphasis, muting, harmonics — cannot change mid-sustain, so they never
    override the margin at all. What floors the trim is a statement standing strictly INSIDE the
-   ring: one standing exactly AT the ring's end — a slide-out's fall, a bend curve's last value, a
+   ring: one standing exactly AT the ring's end — a slide-out's fret, a bend curve's last value, a
    scrape's terminal — is the END's own statement, whose moment is the end by definition, so it
    floors nothing and RIDES to the presented end with it. Where that end goes is one margin back
    from the binding onset, or halfway along its own last leg where the margin line would fall on or
    before that leg's start — the one split that always leaves both a leg and a gap
    (`lastStatementClearance`, presentation's own file-local now that it has no other asker). So a
-   tail ending in a fall, a bend or a shift slide's arrival is spaced before the next
+   tail ending in a slide-out, a bend or a shift slide's arrival is spaced before the next
    head exactly as a bare tail is, on any string. This trim is the ONLY place that spacing lives:
-   the stored chart may end a fall or a bend exactly ON the next head of its own string, because
+   the stored chart may end a slide-out or a bend exactly ON the next head of its own string, because
    the store holds what the hands did (user ruling, 2026-09-21), so the drawn and stored moments
    differ by a margin wherever any head binds the tail.
 3. **Drop short effect-free tails, per strum.** A strum that carries no sustain technique
@@ -363,21 +363,21 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
      slides whose deltas disagree (a convergence or divergence) are not a rigid translation, so
      they cancel the drag and reshape in place instead.
 
-   The window always rides an unpitched slide-out: an exit placement at the trail-off's compressed
-   end carries the window with the gesture. That placement rides the trail-off's OWN segment and
+   The window always rides an unpitched slide-out: an exit placement at the slide-out's compressed
+   end carries the window with the gesture. That placement rides the slide-out's OWN segment and
    eases with the unpitched curve, so the window follows the drawn rail precisely instead of
-   approximating it — a trail-off's curve is defined, so there is nothing to approximate. Arriving
+   approximating it — a slide-out's curve is defined, so there is nothing to approximate. Arriving
    through the standard margin morph instead leaves the window stationary for most of the drawn
    glide and then sprinting to catch up. The morph's own reason — stopping the window creeping from
    the note's onset on long notes — is a property of the RAIL's own span, so if the creep reads
    wrong the fix belongs to the drawn geometry rather than to the window, which simply agrees with
    whatever is drawn. The hand's next move decides the rest. When its next placement departs in the
-   trail-off's direction AND arrives by the very next onset, the gesture IS the departure: the exit
+   slide-out's direction AND arrives by the very next onset, the gesture IS the departure: the exit
    fret rides the anchor travel (widened to the slide-in rule's two-fret minimum) and the window
-   flows onward into the arrival. Otherwise the gesture is a release and return: the exit keeps the
+   flows onward into the arrival. Otherwise the gesture is a slide-out and return: the exit keeps the
    fixed four-fret gesture, the window dips with it, and a restore placement at the very next onset
    brings the window back for the note that follows — so notes after the gesture are never stranded
-   in the dipped window. A trail-off with no room before the next onset stays planted.
+   in the dipped window. A slide-out with no room before the next onset stays planted.
 
 **Posture and shape derivation** — not an import rule at all. GP scores in practice carry no
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
@@ -1157,7 +1157,7 @@ neighbours.
     planted finger is on the string, so the onset cannot start on it, end on
     it, or pass through it. One rule over both attacks that can carry a stop, because it reads the
     PATH rather than the attack: the range is the closed hull of the note's own fret and every
-    keyframe fret, the release included — a pick slide always states such a path, a tap does wherever
+    keyframe fret, the slide-out included — a pick slide always states such a path, a tap does wherever
     the charter wrote one, and an onset that states none has a hull of one point, which is the
     equal-fret refusal as the degenerate case. A refusal rather than a repair, because no
     lift can know the stop the charter meant.
@@ -1290,7 +1290,7 @@ neighbours.
     either. Under such a harmonic the SPAN states that same pressed fret as its grip and never a
     planted finger a pull-off derives beneath it (RULED 2026-09-18) — the node is measured from the
     pressed stop, so that is the grip the figure needs — which is why satellite and bracket agree
-    and the digit falls away. That answer holds wherever the release falls, because the HOLD-UNDER
+    and the digit falls away. That answer holds wherever the slide-out lands, because the HOLD-UNDER
     test asks the same authority: a landing rides beneath a source only where it is the stop that
     source STATES, so a pull-off from such a harmonic is a new statement and the span closes at the
     release even when the chord around it goes on ringing. That is the general law and not a
@@ -1351,17 +1351,17 @@ clamped and then drawn like any other):
     statement as an arrival: an end statement naming the same stop the next head on its string is
     struck at, at the same instant, IS a glide into position and a pick (`arrivesIntoNextHead`,
     five clauses). Guitar Pro states no arrival time and none is synthesized — the arrival's instant
-    is the head's own, which is what the hands did. The gesture degrades to an unpitched trail-off
+    is the head's own, which is what the hands did. The gesture degrades to an unpitched slide-out
     when the landing is an open string or no landing note exists at all. The string itself rings on
     until the landing re-picks it — the clamp is what ends it there — and the drawn tail comes
     back one margin through rules 1 and 2, which is where the arrival is SHOWN. The target note
     keeps its own onset and head. The projections render the arrival with its linked continuation
-    glyph at the drawn tail's tip — the release flag is false because the relation says so, never
+    glyph at the drawn tail's tip — the slide-out flag is false because the relation says so, never
     because of where the statement sits — and the re-picked landing's own head renders a margin
     after it. Unpitched slide-outs
-    are the RELEASE keyframe — the keyframe at the ring's end stating the gestured fret; no
+    are the SLIDE-OUT keyframe — the keyframe at the ring's end stating the gestured fret; no
     landing note exists, so there is nothing to desync from — though the drawn gesture compresses
-    back to the margin like any tail (rule 2), the release riding the trimmed end. The gestured fret defaults to four frets out in
+    back to the margin like any tail (rule 2), the slide-out riding the trimmed end. The gestured fret defaults to four frets out in
     the flag's direction and rides the hand's next anchor travel instead when it agrees (rule 9's
     departure case).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
@@ -1391,7 +1391,7 @@ clamped and then drawn like any other):
     to). The head keeps its notated position at a derived approach fret and an ordinary
     pitched keyframe rises to the notated fret over the scoop window: a quarter of the
     notated duration, capped at the minimum-sustain-distance margin, floored at the minimum
-    slide window, and kept strictly before the note's slide chain and trail-off end (bend
+    slide window, and kept strictly before the note's slide chain and slide-out end (bend
     curves order only against the sustain, so the scoop leaves them untouched).
     The scoop is synthesis, so it may LENGTHEN a short note's ring to fit — the note sounds
     while it travels. Anticipation — approach before the beat, target landing on it — is what a
@@ -1438,7 +1438,7 @@ clamped and then drawn like any other):
     as a dead note carrying Slide flag 64 (down) or 128 (up); the carrier is the encoding
     vehicle, so it sheds its mute and becomes an `attack: pickSlide` note with the
     corpus-derived default path (down 17 → 3, up the mirror) across the notated span, ready
-    for the user to reshape. The path is the required unpitched terminal, the release keyframe
+    for the user to reshape. The path is the required unpitched terminal, the slide-out keyframe
     at exactly the sustain; turnaround keyframes are the user's to author, never synthesized. Simultaneous
     same-direction carriers are ONE scrape sounding on EVERY string the pick crosses, so each
     carrier becomes its own note on its own string, all of them sharing the gesture's longest

@@ -1478,7 +1478,7 @@ TEST_CASE(
     // 400 px across 20 s: the shared instant at 8.0s lands at x = 160, and six lanes down 240 px
     // give a 25 px head — wide enough for a probe eight pixels off centre to clear the fret digit
     // and the accent ring alike, so what it reads is the head FILL.
-    const common::core::KeyframeViewState arrival{.seconds = 8.0, .fret = 9, .release = false};
+    const common::core::KeyframeViewState arrival{.seconds = 8.0, .fret = 9, .slide_out = false};
     const common::core::NoteViewState glide{
         .start_seconds = 2.0,
         .end_seconds = 8.0,

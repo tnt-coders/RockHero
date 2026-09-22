@@ -24,8 +24,8 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
     {
         // Already terminated: the terminal is the keyframe at the ring's end, and the gesture
         // follows whatever the sustain is. NOTE-LOCAL: clause 3 of the arrival relation excludes a
-        // scrape on either side, so a scrape's end always falls and there is nothing to resolve
-        // (\ref common::core::arrivesIntoNextHead).
+        // scrape on either side, so a scrape's end always slides out and there is nothing to
+        // resolve (\ref common::core::arrivesIntoNextHead).
         return true;
     }
     // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
@@ -66,7 +66,7 @@ void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward,
     {
         target = upward ? low_fret : g_pick_slide_default_high_fret;
     }
-    // The gesture is the required terminal — the release keyframe at the ring's end; turnaround
+    // The gesture is the required terminal — the slide-out keyframe at the ring's end; turnaround
     // keyframes are authored later.
     note.keyframes.clear();
     common::core::setSlideOut(note, target);

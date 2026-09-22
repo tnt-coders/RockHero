@@ -25,8 +25,8 @@ namespace
 }
 
 // One glide keyframe, pitched. A keyframe is unpitched exactly when its note is a scrape or when
-// it is the note's RELEASE — the falls-away terminal, which lives in the same list as its last
-// entry and which `releaseKeyframe` below states. The authored offset is left unstated — these
+// it is the note's SLIDE-OUT — the slide-out terminal, which lives in the same list as its last
+// entry and which `slideOutKeyframe` below states. The authored offset is left unstated — these
 // fixtures resolve no tempo map, and only the editor's selection reads it.
 [[nodiscard]] common::core::KeyframeViewState keyframe(const double seconds, const int fret)
 {
@@ -34,18 +34,18 @@ namespace
         .seconds = seconds,
         .fret = fret,
         .offset = common::core::Fraction{},
-        .release = false,
+        .slide_out = false,
     };
 }
 
-// The falls-away terminal: the note's last keyframe, sitting at the ring's end by definition.
-[[nodiscard]] common::core::KeyframeViewState releaseKeyframe(const double seconds, const int fret)
+// The slide-out terminal: the note's last keyframe, sitting at the ring's end by definition.
+[[nodiscard]] common::core::KeyframeViewState slideOutKeyframe(const double seconds, const int fret)
 {
     return common::core::KeyframeViewState{
         .seconds = seconds,
         .fret = fret,
         .offset = common::core::Fraction{},
-        .release = true,
+        .slide_out = true,
     };
 }
 
@@ -100,12 +100,12 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState pitched = frettedNote();
     pitched.slides = {keyframe(2.0, 9)};
-    // The unpitched arm is a falls-away terminal, which lands at the ring's end by definition —
+    // The unpitched arm is a slide-out terminal, which lands at the ring's end by definition —
     // so the ring is shortened to the instant the pitched arm's keyframe arrives at, and the two
     // segments span exactly the same time.
     common::core::NoteViewState unpitched = frettedNote();
     unpitched.end_seconds = 2.0;
-    unpitched.slides = {releaseKeyframe(2.0, 9)};
+    unpitched.slides = {slideOutKeyframe(2.0, 9)};
 
     const double base_x = highwayNoteFretboardX(pitched, pitched.fret, metrics, false);
     const double target_x = highwayNoteFretboardX(pitched, 9, metrics, false);
@@ -164,7 +164,7 @@ TEST_CASE("A harmonic's node rides its stop through a glide", "[ui][highway]")
         Catch::Matchers::WithinAbs(common::core::highwayFretLineX(11.2, metrics, false), 1e-12));
 }
 
-// The unpitched release's dim spans the whole CONSECUTIVE run, not each leg: a scrape's chained
+// The unpitched slide-out's dim spans the whole CONSECUTIVE run, not each leg: a scrape's chained
 // legs are one continuous release, so the alpha must never snap back to full where the travel
 // reverses. Only the geometry restarts per leg.
 TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][highway]")
@@ -175,7 +175,7 @@ TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][high
     common::core::NoteViewState scrape = frettedNote();
     scrape.attack = common::core::NoteAttack::PickSlide;
     scrape.end_seconds = 3.0;
-    scrape.slides = {keyframe(2.0, 10), releaseKeyframe(3.0, 3)};
+    scrape.slides = {keyframe(2.0, 10), slideOutKeyframe(3.0, 3)};
     const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
     const auto alpha_at = [&](const double seconds) {
         return highwaySlideStateAt(scrape, base_x, metrics, false, seconds).alpha;

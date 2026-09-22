@@ -1039,8 +1039,8 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
         const auto* chart = chartOrNull(controller);
         CHECK(chart->notes[0].fret == 5);
         CHECK(chart->notes[1] == claim_bytes);
-        // Equal released fret: nothing to hammer or pull, so the claim resolves to nothing and the
-        // lane draws a plain head.
+        // Equal fret at the ring's end: nothing to hammer or pull, so the claim resolves to nothing
+        // and the lane draws a plain head.
         CHECK(resolution(1) == common::core::LegatoMotion::Unjustified);
         CHECK(state->undo_history.labels.size() == entries_before + 4);
 

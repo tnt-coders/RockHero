@@ -293,7 +293,7 @@ never disagree about what the repaired note becomes.
 [[nodiscard]] bool flattenStrandedStrike(ChartNote& note);
 
 /*!
-\brief Takes a note's PATH away: every stated fret and the trail-off, leaving all else standing.
+\brief Takes a note's PATH away: every stated fret and the slide-out, leaving all else standing.
 
 The one spelling of "this note does not travel", shared by the three places that decide so: the
 open string that has nothing pressed to glide, the scrape whose path stopped travelling and became
@@ -320,11 +320,11 @@ sustain when a toggle-back makes them real again.
 A point never leaves the ring and never moves because the ring did — except the one whose moment IS
 the end. THE END'S OWN STATEMENT (\ref endStatement) is stated AT the end, so a ring shortened
 under it carries it with the end and re-attaches it there (\ref setEndStatement) after every
-statement past the new end has gone, WHATEVER it states: a fall toward a fret, the bend curve's
+statement past the new end has gone, WHATEVER it states: a slide-out toward a fret, the bend curve's
 last value, or both. A ring lengthened past it leaves the statement where it was — a pitched stop
-now, the one way a fall turns back into a glide (\ref releaseKeyframe). The fall's own length
-is the move verb's to change, which drags the ring's end with the end statement — and only with it,
-since that verb keeps every other point strictly inside the ring rather than letting a
+now, the one way a slide-out turns back into a glide (\ref slideOutKeyframe). The slide-out's own
+length is the move verb's to change, which drags the ring's end with the end statement — and only
+with it, since that verb keeps every other point strictly inside the ring rather than letting a
 step change what a point is. A scrape's terminal rides in both directions, because a scrape rings
 exactly as long as the pick travels. What a SCRAPE's terminal still needs is a new aim — when
 compression makes its fret meet the fret it now follows, the nearest earlier differing fret takes
@@ -377,9 +377,9 @@ placement asks the same question.
 
 40-Q2-B's clamp, applied. Stated once here because three rules apply it and disagreeing would be
 the defect: \ref normalizeSustainOverlaps truncates a stored ring to it, the editor's duration verb
-grows a ring toward it, and its move verb steps a release toward it — so "a ring's end reaching the
-next head on its string" has ONE answer wherever it is asked. Exact adjacency is legal, which is
-what lets a slide reach its landing and a fall complete on the head it goes out on; the spacing
+grows a ring toward it, and its move verb steps a slide-out toward it — so "a ring's end reaching
+the next head on its string" has ONE answer wherever it is asked. Exact adjacency is legal, which is
+what lets a slide reach its landing and a slide-out complete on the head it goes out on; the spacing
 that mark then needs to be seen is presentation's (\ref presentedChartNotes rule 2).
 
 A clamp rather than a refusal, and it needs no direction test: a ring already at its bound reports
@@ -403,7 +403,7 @@ are read, so a candidate placement asks the same question.
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
 payload with the tail (\ref clipPayloadsToSustain), the statement standing at the ring's end riding
-to the new end whatever it states — a fall, or the bend curve's last value.
+to the new end whatever it states — a slide-out, or the bend curve's last value.
 
 Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
 import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it on

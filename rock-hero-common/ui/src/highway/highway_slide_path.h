@@ -30,7 +30,7 @@ namespace rock_hero::common::ui
 /*!
 \brief Alpha an unpitched (pressure-release) glide has dimmed to by the end of its run.
 
-The release is a fading gesture rather than a sounding stop, so the rail dims toward this across
+The slide-out is a fading gesture rather than a sounding stop, so the rail dims toward this across
 the whole consecutive unpitched run instead of holding the note's own brightness to the last
 keyframe.
 */
@@ -87,7 +87,7 @@ struct HighwaySlideState
     /*! \brief World-X offset from the note's own onset anchor; zero before it moves. */
     double x_offset{0.0};
 
-    /*! \brief Brightness scale from the unpitched release; 1.0 for a pitched glide. */
+    /*! \brief Brightness scale from the unpitched slide-out; 1.0 for a pitched glide. */
     double alpha{1.0};
 };
 
@@ -102,7 +102,7 @@ fret it stopped on.
 
 One caveat rides that hold, and only a mark drawn past the PRESENTED end could see it: presentation
 compresses an unpitched slide-out's terminal earlier than the stored gesture, so past the presented
-end the held position is the trail-off's compressed end fret while the pick was, in the stored form,
+end the held position is the slide-out's compressed end fret while the pick was, in the stored form,
 still travelling. Nothing here can do better from a presented note; a second producer for the
 untrimmed path would state the glide twice.
 
@@ -116,14 +116,14 @@ to the original per-segment dim.
 \param metrics Board metrics the fret axis is laid out by.
 \param mirrored True when the board draws left-handed (world X reflected).
 \param seconds Absolute position to evaluate at.
-\return The offset from `base_x` and the release dim; a still note reports zero and 1.0.
+\return The offset from `base_x` and the slide-out dim; a still note reports zero and 1.0.
 */
 [[nodiscard]] inline HighwaySlideState highwaySlideStateAt(
     const common::core::NoteViewState& note, double base_x,
     const common::core::HighwayMetrics& metrics, bool mirrored, double seconds)
 {
     // The gesture read as one uniform sequence — the note's position keyframes, then its
-    // falls-away terminal — through the shared stop accessors, so the terminal is a segment here
+    // slide-out terminal — through the shared stop accessors, so the terminal is a segment here
     // without being a keyframe in the projection (W9-L).
     const std::size_t stop_count = common::core::glideStopCount(note);
     if (stop_count == 0 || note.fret <= 0)

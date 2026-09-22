@@ -155,8 +155,8 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
 
 TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
 {
-    // String 1 carries a resolvable descending pair (released 7 over fret 5, tail reaching the
-    // onset, so plain H claims a connection that reads as a pull-off); string 2 the open string
+    // String 1 carries a resolvable descending pair (7 at the ring's end over fret 5, tail reaching
+    // the onset, so plain H claims a connection that reads as a pull-off); string 2 the open string
     // with no node — the verb's sole matrix-grounds refusal; string 3 a natural harmonic whose node
     // is a strike point the left hand can take; string 4 a stopped pinch, which the verb refuses
     // because the result would be the disabled artificial form; string 5 an open-string pinch whose
@@ -352,7 +352,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .fret = 9,
             .sustain = common::core::Fraction{1},
             .bend = 0.0,
-            // The trail-off: a fret stated exactly at the ring's end is the release.
+            // The slide-out: a fret stated exactly at the ring's end is the slide-out.
             .keyframes = {common::core::Keyframe{
                 .offset = common::core::Fraction{1},
                 .fret = 12,
@@ -444,16 +444,16 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     }
 
     // The assist writes a tail, and a tail is sometimes a gesture's own authored window. Where it
-    // is, the verb declines rather than reshaping it: a trail-off's exit is data the author
+    // is, the verb declines rather than reshaping it: a slide-out's exit is data the author
     // placed, and spending it to buy a connection would silently rewrite the sound. The connection
-    // itself stays authorable — the resolver reads the released fret, so a pull off the last
-    // pitched stop is legal — but only by dragging the tail out by hand first.
+    // itself stays authorable — the resolver reads the fret at the ring's end, so a pull off the
+    // last pitched stop is legal — but only by dragging the tail out by hand first.
     SECTION("the assist never spends a gesture carrier's tail")
     {
         click(controller, 160.0f, 140.0f);
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
 
-        // Nothing changed at all: no claim, no growth, and the trail-off's own geometry intact.
+        // Nothing changed at all: no claim, no growth, and the slide-out's own geometry intact.
         const common::core::ChartNote& carrier = note(3);
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
         CHECK(carrier.sustain == common::core::Fraction{1});

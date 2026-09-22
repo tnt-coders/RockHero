@@ -55,9 +55,9 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 // True where the target is a note's held-stop SATELLITE rather than a glyph that selects by being
 // clicked. A satellite is its note's held face and nothing else (SATELLITES ARE NOTE-SCOPED), and
 // the press settles it whole: it hands the caret that note's other stop, preserving a wider
-// selection where the note is already in one. So the release's collapse — which exists to reduce a
-// chord selection to the head that was clicked — must not run for it, or it would take back exactly
-// the selection the press preserved.
+// selection where the note is already in one. So the slide-out's collapse — which exists to reduce
+// a chord selection to the head that was clicked — must not run for it, or it would take back
+// exactly the selection the press preserved.
 [[nodiscard]] bool chartSatelliteTarget(const ChartHitTarget& target) noexcept
 {
     return std::holds_alternative<ChartHeldStopHit>(target);
@@ -1195,7 +1195,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         // Arming takes the object the press HIT as the singleton selection — the press knows which
         // mark it reached, and at a shared instant the slot cannot say. A press on an
         // already-selected one keeps the standing selection (and marker) untouched until
-        // the release collapses it — the gap a future drag-move gesture lives in — unless it
+        // the slide-out collapses it — the gap a future drag-move gesture lives in — unless it
         // moves the caret to the note's OTHER stop, which is a change the next digit depends on.
         // The stop every object has: the satellite branch above took every target that addresses
         // another one.
@@ -2081,7 +2081,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // note keeps its offset and follows that note's slot, exactly as the plan moves it.
     //
     // A stepping keyframe's landing is the PLANNER's own answer rather than the delta arithmetic,
-    // because a release stepped past the next head on its string parks ON that head
+    // because a slide-out stepped past the next head on its string parks ON that head
     // (chartSteppedKeyframeOffset): naming the unclamped offset would leave the selection — and
     // with it the next press's window proof — pointing at a keyframe nothing holds. Asked of the
     // pre-gesture chart the run replays over, which is what the landing callback is handed.
@@ -2545,9 +2545,10 @@ void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::
 // `Insert` ON A TAIL: the digit route with the digit SUPPLIED — the fret in force at the caret,
 // stated through the same pending entry the typed digit opens. Strictly inside a ring the product
 // is the same silent point typing the note's own fret makes; at the ring's END it is the end
-// statement at that fret, a fall toward the fret in force, or the ARRIVAL the chart then proves
-// where a head at that stop abuts (common::core::arrivesIntoNextHead) — a shift slide in one key.
-// Where no ring covers the slot there is no fret in force, so the key states nothing on this lane.
+// statement at that fret, a slide-out toward the fret in force, or the ARRIVAL the chart then
+// proves where a head at that stop abuts (common::core::arrivesIntoNextHead) — a shift slide in one
+// key. Where no ring covers the slot there is no fret in force, so the key states nothing on this
+// lane.
 //
 // A statement already standing at the caret's offset is ADDRESSED rather than doubled: two records
 // on one offset is a shape no chart may hold, so the press selects what is there and every
@@ -2875,7 +2876,7 @@ bool EditorController::Impl::commitChartGestureStep(
     // Stated here rather than per verb because it is a fact about the GESTURE, not about any verb's
     // rules: the entry's plan is the only record of where the run has reached, and the shared
     // authority is the one place holding it. It is what makes a clamp safe to coalesce — the move
-    // verb's release parks on the next head on its string, so every further press that way is a
+    // verb's slide-out parks on the next head on its string, so every further press that way is a
     // no-op that must cost nothing to come back from.
     if (burst != nullptr && plan->removed == burst->plan.removed &&
         plan->inserted == burst->plan.inserted)

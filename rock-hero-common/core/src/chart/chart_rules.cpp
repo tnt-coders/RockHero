@@ -29,7 +29,7 @@ constexpr double g_max_cent_offset{1200.0};
 }
 
 // True when consecutive neck positions along a scrape's path — start, turnarounds, and the exit
-// when present (the release keyframe, last in the same list) — all strictly differ. Only the
+// when present (the slide-out keyframe, last in the same list) — all strictly differ. Only the
 // POSITION channel is a neck position; a keyframe carrying nothing but a latent bend or vibrato
 // passes through without breaking the travel.
 [[nodiscard]] bool pickSlidePathTravels(const ChartNote& note)
@@ -282,14 +282,15 @@ bool flattenStrandedStrike(ChartNote& note)
 // A POINT NEVER LEAVES THE RING, AND NEVER MOVES BECAUSE THE RING DID — except the one whose
 // moment IS the ring's end. That statement is stated AT the end, so a ring shortened under it
 // carries it with the end (it comes sooner — there is nowhere else for it to be), WHATEVER it
-// states: a fall toward a fret, the bend curve's last value, or both. A ring lengthened past it
-// leaves the statement where it was, a pitched stop now, the tail running on as a plain ring — the
-// ribbon moved and the point stayed, exactly as every other keyframe stays. Kind is position, so
-// that is how a slide-out becomes a regular slide; the release's own handle for the FALL's length
-// is the move verb, which drags the ring's end with it (planMoveSelection) — and only for the point
-// that IS the release, since that verb keeps every other point strictly inside the ring rather than
-// letting a step change what a point is. A scrape's terminal rides both ways, because a
-// scrape rings exactly as long as the pick travels and its terminal is required at the end.
+// states: a slide-out toward a fret, the bend curve's last value, or both. A ring lengthened past
+// it leaves the statement where it was, a pitched stop now, the tail running on as a plain ring —
+// the ribbon moved and the point stayed, exactly as every other keyframe stays. Kind is position,
+// so that is how a slide-out becomes a regular slide; the slide-out's own handle for the
+// SLIDE-OUT's length is the move verb, which drags the ring's end with it (planMoveSelection) — and
+// only for the point that IS the slide-out, since that verb keeps every other point strictly inside
+// the ring rather than letting a step change what a point is. A scrape's terminal rides both ways,
+// because a scrape rings exactly as long as the pick travels and its terminal is required at the
+// end.
 void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
 {
     const bool shortening = sustain < note.sustain;
@@ -416,14 +417,14 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         fired(ChartRepair::FretPastBoard);
     }
 
-    // 2. The capo floor for every fret a slide gesture names: a scrape's start and every release
+    // 2. The capo floor for every fret a slide gesture names: a scrape's start and every slide-out
     //    lift to the first playable fret, because the pick travels the sounding string and a
-    //    "scrape at the nut" is no scrape, and a release names a direction as much as a fret — a
-    //    fall toward the floor is still a fall; a PITCHED keyframe on or below the floor loses its
-    //    position instead, since a stop there is nothing pressed — stripped per channel, so a bend
-    //    or vibrato change authored at the same instant survives the lift and only a keyframe left
-    //    stating nothing goes. A pressed NOTE on a capo'd fret is not repaired here: no lift can
-    //    know the pitch the author meant, so it stays a refusal.
+    //    "scrape at the nut" is no scrape, and a slide-out names a direction as much as a fret — a
+    //    slide-out toward the floor is still a slide-out; a PITCHED keyframe on or below the floor
+    // loses its    position instead, since a stop there is nothing pressed — stripped per channel,
+    // so a bend    or vibrato change authored at the same instant survives the lift and only a
+    // keyframe left    stating nothing goes. A pressed NOTE on a capo'd fret is not repaired here:
+    // no lift can    know the pitch the author meant, so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
     if (isScrape(note.attack) && note.fret < floor)
@@ -524,7 +525,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         note.keyframes.clear();
         fired(ChartRepair::FretHandHarmonicPayload);
     }
-    // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
+    // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or slide-out
     // loses its position channel. A scrape never reaches this — its start was floored above.
     if (!isScrape(note.attack) && note.fret == 0 && anyKeyframeStatesFret(note.keyframes))
     {
@@ -533,7 +534,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     }
     // AN END STATEMENT LEAVES NO SHAKE: the string is let go there, so a state stated at that
     // instant has no ring to sound in. The bend stays, being the curve's last value, which shapes
-    // the final leg into the end whether that end falls away or arrives into the next head.
+    // the final leg into the end whether that end slides out or arrives into the next head.
     if (shedEndStatementShake(note))
     {
         fired(ChartRepair::EndStatementShake);
@@ -822,7 +823,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     //
     // Offsets are STRICTLY positive: offset zero is the onset, whose facts the note itself carries,
     // so a keyframe there would be a second spelling of a value the note already states. Strictly
-    // ascending and bounded by the sustain is also what makes the release unique: at most one
+    // ascending and bounded by the sustain is also what makes the slide-out unique: at most one
     // keyframe can sit at the ring's end, so "the fret stated where the sound stops" names one
     // statement or none.
     Fraction previous_offset{0};
@@ -894,11 +895,11 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // The scrape's own gesture: the required unpitched terminal, exactly at the sustain (nothing
-    // rings past a scrape) — the release keyframe. That the path keeps traveling is the
+    // rings past a scrape) — the slide-out keyframe. That the path keeps traveling is the
     // normalizer's demotion, asked as the fixpoint below.
     if (isScrape(note.attack))
     {
-        // Presence is the whole rule: a release IS the keyframe at the ring's end, so one that
+        // Presence is the whole rule: a slide-out IS the keyframe at the ring's end, so one that
         // exists sits exactly at the sustain and there is no second coordinate to disagree with.
         if (endStatedFretOrNull(note) == nullptr)
         {

@@ -413,11 +413,11 @@ drop safe. A SHIFT SLIDE reaches that test never: its arrival stands at the ring
 it, so what the test governs is a charter's own crowded landing.
 
 \param connections The resolved connections, whose `saved_notes` is the stored stream this reads
-       (rings are facts and are never written) and whose `arrives_into` tells a FALL from a shift
-       slide's ARRIVAL at every end statement (\ref arrivesIntoNextHead): a fall takes the finger
-       off the board where an arrival lands it on a stop. Handed over whole rather than as two
-       vectors, because they are index-parallel and passing them apart is a mismatch waiting to
-       happen. The two stop tables this reads — the resolved claims (\ref chartClaimedStops: what
+       (rings are facts and are never written) and whose `arrives_into` tells a SLIDE-OUT from a
+       shift slide's ARRIVAL at every end statement (\ref arrivesIntoNextHead): a slide-out takes
+       the finger off the board where an arrival lands it on a stop. Handed over whole rather than
+       as two vectors, because they are index-parallel and passing them apart is a mismatch waiting
+       to happen. The two stop tables this reads — the resolved claims (\ref chartClaimedStops: what
        the fretting hand HOLDS under each right-hand onset, so a claimed fret participates fully on
        the statement path) and the hold-under table (\ref chartPlantedStops, never read bare: every
        site asks \ref gripStatement) — are derivations OF the connections, so they are asked here
@@ -433,7 +433,7 @@ it, so what the test governs is a charter's own crowded landing.
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.
 
 THE ONE AUTHORITY for the hold-under law, shared by the span derivation and the importer's let-ring
-figure walk. A pull-off proves a finger on its landing stop AT THE RELEASE and nothing about any
+figure walk. A pull-off proves a finger on its landing stop AT THE SLIDE-OUT and nothing about any
 earlier instant, so a DERIVED landing stop states nothing by itself: a source states the fret it
 sounds. The one thing the derivation may say is that a finger ADDED ABOVE a stop the string is
 demonstrably already at moves nothing — there the source states that stop, the fret it sounds is

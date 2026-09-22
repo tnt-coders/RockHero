@@ -68,8 +68,8 @@ struct PathStop
 };
 
 // The note's fret path as the stops that STATE it — its onset at offset zero, then each
-// fret-stating keyframe in turn, the release included. Between stops the position interpolates and
-// past the last one it holds, which is the same sequence the board walks a projection later
+// fret-stating keyframe in turn, the slide-out included. Between stops the position interpolates
+// and past the last one it holds, which is the same sequence the board walks a projection later
 // (`highwaySlideStateAt`), read here off the authored note.
 [[nodiscard]] std::vector<PathStop> fretPathStops(const ChartNote& note)
 {
@@ -140,7 +140,7 @@ struct PathStop
 // LAW is defined on the path WITHOUT the point, so the point comes off a copy before the walk reads
 // it — which is also what makes the walk account for every earlier junction rather than the onset
 // alone. Written once here because two rules ask it of the same keyframe: the landing grant, which
-// refuses to bare a point that would state nothing, and the release dissolve, which removes one
+// refuses to bare a point that would state nothing, and the slide-out dissolve, which removes one
 // that already does. The note must carry at least one keyframe.
 [[nodiscard]] bool lastKeyframeSaysNothingNew(const ChartNote& note)
 {

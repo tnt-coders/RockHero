@@ -35,13 +35,13 @@ is intra-note only; the relational rules that would otherwise refuse a document 
 clauses instead, because a claim the chart cannot justify is a claim that plays as a plain pick,
 not a broken file.
 
-Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
-last keyframe — never against predecessor identity. Four things disqualify a predecessor outright:
-none exists, it is a scrape (its travel is the pick's position, so no finger waits at its end), it
-is a fret-hand harmonic (a touch holds nothing to hand over), or its ring has already stopped at
-this onset (\ref predecessorHoldReaches, strict adjacency). A string that stopped sounding is a
-released string, which is why shrinking a tail drops the connection its neighbour claimed and why a
-claim after a REST resolves to nothing.
+Judged against the FRET AT THE RING'S END — where the predecessor's finger ends, so a glide hands
+over its last keyframe — never against predecessor identity. Four things disqualify a predecessor
+outright: none exists, it is a scrape (its travel is the pick's position, so no finger waits at its
+end), it is a fret-hand harmonic (a touch holds nothing to hand over), or its ring has already
+stopped at this onset (\ref predecessorHoldReaches, strict adjacency). A string that stopped
+sounding is a released string, which is why shrinking a tail drops the connection its neighbour
+claimed and why a claim after a REST resolves to nothing.
 
 A dead predecessor is an ordinary one: its finger is on the stop, and the muted cluck after it is a
 hammer or pull like any other. It is bounded by the same one test, reading the same field — a dead
@@ -49,11 +49,11 @@ note stores the duration its damped stroke lasts (only the DRAWN tail goes, E25)
 to its restrike connects and a cluck the hand left long before does not. The alternative —
 disqualifying the dead note outright — turns every imported muted cluck into a picked note.
 
-Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
-pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on needs somewhere
-to land, which the direction test already guarantees — a released fret is never negative, so a
-hammer's note is stopped at fret 1 or above by construction and needs no second test. Equal frets
-justify nothing — there is no connection to record, and inventing one would be inventing data.
+Then the fret at the ring's end picks the direction: above the note is a pull-off, below it a
+hammer-on. A pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on
+needs somewhere to land, which the direction test already guarantees — that fret is never negative,
+so a hammer's note is stopped at fret 1 or above by construction and needs no second test. Equal
+frets justify nothing — there is no connection to record, and inventing one would be inventing data.
 
 `LeftTap` resolves to the hammer motion unconditionally and reads no predecessor at all: it is the
 authored statement that the fretting hand strikes the note from nowhere, so no neighbour can
@@ -103,10 +103,10 @@ x take. Strict equality is the whole of it, so the two cannot come to measure ad
 \brief THE SHIFT SLIDE, as a fact the chart PROVES: does \p predecessor's end statement glide INTO
 the stop \p successor is struck at?
 
-A fret at a ring's end is one statement and two opposite gestures: the FALL, where pressure comes
-off and the pitch slides away toward a fret the hand never sounds, and the ARRIVAL, where the finger
-glides into position for a note that is then picked. Nothing stores which, because the statement's
-own sentence already says it. FIVE clauses:
+A fret at a ring's end is one statement and two opposite gestures: the SLIDE-OUT, where pressure
+comes off and the pitch slides away toward a fret the hand never sounds, and the ARRIVAL, where the
+finger glides into position for a note that is then picked. Nothing stores which, because the
+statement's own sentence already says it. FIVE clauses:
 
 1. \p predecessor ends in a statement NAMING A FRET (\ref endStatedFretOrNull): nothing else is a
    gesture to classify.
@@ -117,12 +117,12 @@ own sentence already says it. FIVE clauses:
    sliding into a fret a different hand then stops is not one gesture. A TAPPED HARMONIC passes by
    construction, that hand holding the stop its node rides.
 5. The fret named IS the stop \p successor is struck at, NODE-AWARE (\ref frettingStopAt): a
-   same-string head at a DIFFERENT fret is a fall that merely abuts, so the test is never adjacency
-   alone.
+   same-string head at a DIFFERENT fret is a slide-out that merely abuts, so the test is never
+   adjacency alone.
 
 Whether \p successor is re-struck or claims legato is deliberately ABSENT: reading its claim would
 give the pair two self-consistent readings, since the connection resolver reads this very answer to
-find the predecessor's released fret.
+find the predecessor's fret at its ring's end.
 
 ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revision into
 \ref ChartConnections::arrives_into, which every consumer reads; a caller already HOLDING the pair
@@ -141,9 +141,9 @@ ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revisio
 \brief The saved note stream and every connection claim it justifies.
 
 What the connection rules need, and nothing more. \ref resolveLegato reads a predecessor's stored
-position, ring, released fret and attack class, so the saved stream plus one forward walk answers
-every claim in the chart; nothing presentation derives — the drawn tails, the hand-posture spans,
-the holds — can change a verdict here.
+position, ring, fret at the ring's end and attack class, so the saved stream plus one forward walk
+answers every claim in the chart; nothing presentation derives — the drawn tails, the hand-posture
+spans, the holds — can change a verdict here.
 
 That is why this is asked on its own rather than through \ref ChartResolutions. The settle sweep
 and the editor's legato verb want only these three vectors, and they run at every caret move,
@@ -186,8 +186,8 @@ struct ChartConnections
     \brief True where this note's ring HANDS ITS STRING OVER: the next strike on it claims a
     connection and reaches back to take the sound.
 
-    A TRANSFER rather than a release — the finger stays down and the next strike takes the sound off
-    it — which is why it lives beside the relation that answers it rather than inside the
+    A TRANSFER rather than a slide-out — the finger stays down and the next strike takes the sound
+    off it — which is why it lives beside the relation that answers it rather than inside the
     span-scoped display rules that read it (\ref presentedChartNotes and \ref chartHolds: furniture
     states GRIP, and a handover is sound moving from one strike to the next, which no furniture on
     the lane states — so the ring keeps its whole ribbon, its statement finishing at the takeover,
@@ -206,13 +206,13 @@ struct ChartConnections
 
     /*!
     \brief True where this note's end statement ARRIVES into the next head on its string rather
-    than falling away from it — the shift slide (\ref arrivesIntoNextHead states the clauses).
+    than sliding out from it — the shift slide (\ref arrivesIntoNextHead states the clauses).
 
     THE ONE PRODUCER of the relation, filled in the same forward walk that answers \ref hands_over
     and for the same reason: the same-string pair this needs is exactly the one that walk
     establishes, and two producers of one relation is how a chart comes to be described two ways.
-    Every reader of "is this end statement a release" takes its answer from here
-    (\ref releaseKeyframe), so a fall and an arrival cannot be told apart two different ways.
+    Every reader of "is this end statement a slide-out" takes its answer from here
+    (\ref slideOutKeyframe), so a slide-out and an arrival cannot be told apart two different ways.
 
     Written from the SUCCESSOR onto its predecessor, because the relation is about the pair and the
     walk reaches the successor second; a note has at most one same-string successor, so the entry is
@@ -225,8 +225,8 @@ struct ChartConnections
     \brief True where this note's ring ENDS exactly on the next head of its own string — one
     instant carrying both, whatever the end states.
 
-    \ref endsOnNextHead, which is what an ARRIVAL and an abutting FALL share: the surfaces need it
-    because two marks then stand at one x, and the band each takes is decided by the pair rather
+    \ref endsOnNextHead, which is what an ARRIVAL and an abutting SLIDE-OUT share: the surfaces need
+    it because two marks then stand at one x, and the band each takes is decided by the pair rather
     than by either note (\ref NoteViewState::ends_on_next_head). Filled in this walk beside
     \ref hands_over and for the same reason — the same-string pair it needs is the one the walk
     establishes.
@@ -604,7 +604,7 @@ cannot survive a settle or reach a file hold everywhere at once instead of per c
 A `LeftTap` is never touched: its claim is local, so nothing can withdraw it.
 
 One pass is enough, and that is a property of the resolver rather than an assumption: resolution
-reads a predecessor's released fret, node, attack class, position and ring, and flattening
+reads a predecessor's fret at the ring's end, node, attack class, position and ring, and flattening
 `Legato` to `Pick` changes none of them (a scrape is never a claim, so no flatten touches one), so
 no flatten can create or destroy another note's justification.
 

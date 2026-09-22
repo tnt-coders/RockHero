@@ -664,7 +664,7 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
 
 // True when a position the builder DERIVED (rather than read from a beat) is a position the chart
 // rules will accept. The measure always lands in range because the lookup above clamps it, but the
-// beat does not: a global beat past the final bar's last beat — a trail-off or a scoop window
+// beat does not: a global beat past the final bar's last beat — a slide-out or a scoop window
 // running off the end of the score — yields a beat past that measure's own count, and a fabricated
 // hand placement there fails validateChartRules and takes the WHOLE song's import down with it.
 // Callers that fabricate furniture check this and simply omit the furniture: there is no board
@@ -1701,10 +1701,10 @@ struct BuiltNote
 // the same-string clamp and the presentation derivation speak about a note stream, so this is
 // what they are handed. No scrape suppression is applied on the way out — the pick-slide
 // conversion already stores its carriers in saved form, and nothing later re-adds a latent mark.
-// The next HEAD on this record's own string, or nullptr — the successor the fall/arrival relation
-// is a fact about. The stream is in onset order, so the first later record on the string is it. A
-// record `merged_away` marks was folded into its predecessor and is no head; a null table says the
-// stream holds heads only, which is what it holds once the merges have been compacted out.
+// The next HEAD on this record's own string, or nullptr — the successor the slide-out/arrival
+// relation is a fact about. The stream is in onset order, so the first later record on the string
+// is it. A record `merged_away` marks was folded into its predecessor and is no head; a null table
+// says the stream holds heads only, which is what it holds once the merges have been compacted out.
 [[nodiscard]] const ChartNote* nextHeadOnString(
     const std::vector<BuiltNote>& built, const std::size_t index,
     const std::vector<bool>* const merged_away)
@@ -1723,10 +1723,10 @@ struct BuiltNote
     return nullptr;
 }
 
-// The exit fret a FALL may take. The importer INVENTS this fret — four frets out in the flag's
+// The exit fret a SLIDE-OUT may take. The importer INVENTS this fret — four frets out in the flag's
 // direction, or the hand's next move where it agrees — and a fret at a ring's end naming the stop
 // the next head on that string is struck at, at that same instant, is what the chart reads as a
-// shift slide's ARRIVAL. The source said this note falls AWAY, so the invented fret is the
+// shift slide's ARRIVAL. The source said this note SLIDES OUT, so the invented fret is the
 // importer's to keep clear of that stop: where the candidate would collide, the choice moves one
 // fret further in the gesture's own direction, and the other way at the board's edge.
 //
@@ -1734,7 +1734,7 @@ struct BuiltNote
 // same-string clamp will settle on: that clamp only ever shortens, so a ring already reaching the
 // next head ends exactly on it while a shorter one never can. One step is always enough, the
 // relation comparing the candidate against a single stop.
-[[nodiscard]] int fallExitClearOfNextHead(
+[[nodiscard]] int slideOutExitClearOfNextHead(
     const ChartNote& note, const ChartNote* const next_head,
     const common::core::TempoMap& tempo_map, const int candidate, const bool upward, const int capo)
 {
@@ -1781,7 +1781,7 @@ struct BuiltNote
 // The one rule a note cannot obey alone, asked of the one authority in core rather than restated
 // here (which is why the notes travel out and back — that authority speaks about a note stream,
 // not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
-// crosses the next onset on its own string. A trail-off or an end bend authored on a tiled ring
+// crosses the next onset on its own string. A slide-out or an end bend authored on a tiled ring
 // then ends EXACTLY on that head, which is what the material says the hands did; the spacing the
 // mark needs to be seen is presentation's, applied to the drawn copy alone.
 //
@@ -1861,9 +1861,9 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // stating a different stop on a gripped string closes the figure and founds the next AT ITSELF;
 // only TIME seams besides it. The comparison judges GRIP STATEMENTS (\c gripStatementAt): a
 // pull-off source over the stop the figure already grips on its string states THAT stop, the fret
-// it sounds being the ornament riding above, so it and the release returning beneath it both
+// it sounds being the ornament riding above, so it and the slide-out returning beneath it both
 // restate the grip and close nothing. A source over any other ground states the fret it sounds,
-// and the figure closes at its RELEASE — the same seam the span machine breaks at, asked of the
+// and the figure closes at its SLIDE-OUT — the same seam the span machine breaks at, asked of the
 // same authority, with the import span-blind. The grip is figure-scoped memory. The figure's
 // whole job for the tails is grouping the MARKS — which let-ring stack a mark belongs to, and
 // therefore where that stack's marked run ends — with one correction to the grouping, the FRAGMENT
@@ -1913,7 +1913,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // arriving above the stop the figure ALREADY GRIPS on its string, which states that stop, the fret
 // it sounds being the ornament riding above it (\ref rock_hero::common::core::gripStatement, the
 // span machine's own authority, so the cut law seams where the spans break and the import stays
-// span-blind). Such a source and the release returning beneath it both restate the grip and close
+// span-blind). Such a source and the slide-out returning beneath it both restate the grip and close
 // nothing. A source over any other ground states what it sounds, so its release is an ordinary new
 // statement and the figure closes THERE, as it would were the same notes plainly picked: a pull-off
 // proves a finger at its release and at no earlier instant.
@@ -1950,7 +1950,7 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     };
     // Writes one note into a grip as its string's latest statement — unless it rides above the
     // stop already gripped there (\ref gripStatementAt), which it restates WITHOUT rewriting: the
-    // entry stays the note that really states that stop, so the release beneath the ornament
+    // entry stays the note that really states that stop, so the slide-out beneath the ornament
     // confirms it and nothing downstream reads the ornament as the grip.
     const auto state_into = [&built, &planted_stops, &gripped_at](
                                 Grip& grip, const std::size_t index, const Fraction instant) {
@@ -2316,8 +2316,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // Only a stated fret moves the hand; a keyframe carrying a bend or a vibrato change
             // says nothing about where this finger is and neither reaches nor co-slides. Nor does
             // the statement AT the ring's END, and NOTE-LOCALLY so, whichever gesture it proves: a
-            // FALL takes pressure off, and an ARRIVAL stands on the next head's own instant, where
-            // that head's onset event already states the hand's demand.
+            // SLIDE-OUT takes pressure off, and an ARRIVAL stands on the next head's own instant,
+            // where that head's onset event already states the hand's demand.
             const std::optional<int>& stated_fret = keyframe.fret;
             if (!stated_fret.has_value() || &keyframe == other_end)
             {
@@ -2435,7 +2435,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     // Only the POSITION channel announces a hand position: a bend or a vibrato
                     // change states nothing about where the hand sits, so it places no window.
                     // The statement AT the ring's END announces none either, and NOTE-LOCALLY so:
-                    // a FALL is the hand leaving, and where it rides is the exit placement
+                    // a SLIDE-OUT is the hand leaving, and where it rides is the exit placement
                     // resolveSlideOutExits decides; an ARRIVAL stands on the LANDING's own onset,
                     // where that head's onset event already states the demand — and stating it
                     // twice made the window the sliding finger's alone, since at that instant the
@@ -2666,7 +2666,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // The fret-hand placement window active at a position: the iterator PAST the last placement at
 // or before it. Callers read `after - 1` as the active window and handle begin() ("no window
 // yet") themselves — the two slide resolvers deliberately differ there (a scoop still applies
-// with its default start; a trail-off gesture is skipped entirely).
+// with its default start; a slide-out gesture is skipped entirely).
 [[nodiscard]] std::vector<common::core::FretHandPosition>::iterator firstPlacementAfter(
     std::vector<common::core::FretHandPosition>& placements, const GridPosition& position)
 {
@@ -2734,7 +2734,7 @@ void upsertPlacement(
 // notated tick at an offset pitch and resolve to the target a quarter of the duration in. The head
 // therefore keeps its notated position at a derived approach fret and glides to the notated fret
 // over the scoop window: a quarter of the notated duration, capped at the sustain margin, floored
-// at the minimum slide window, and kept strictly before the note's slide chain and trail-off end
+// at the minimum slide window, and kept strictly before the note's slide chain and slide-out end
 // (bend curves order only against the sustain, so the scoop leaves them untouched). Anticipation —
 // the approach sounding BEFORE the beat with the target landing ON it — is the before-beat
 // grace-with-slide notation, which resolves through the ordinary chain; a bare slide-in must not
@@ -2824,7 +2824,7 @@ void resolveSlideIns(
             window = first_travel * Fraction{1, 2};
         }
         // A slide-out is the other fret-travel payload the scoop must stay strictly before:
-        // on a short note the floored window can reach the trail-off, which ends the ring, and a
+        // on a short note the floored window can reach the slide-out, which ends the ring, and a
         // stated fret at or past that end fails chart validation.
         if (common::core::endStatedFretOrNull(note) != nullptr && window >= note.sustain)
         {
@@ -2889,22 +2889,22 @@ void resolveSlideIns(
     }
 }
 
-// Rides the hand window along every unpitched trail-off: the window always moves with the gesture
-// — an exit placement at the trail-off's end, reached through the projection's standard margin
+// Rides the hand window along every unpitched slide-out: the window always moves with the gesture
+// — an exit placement at the slide-out's end, reached through the projection's standard margin
 // morph so the motion lands with the perceptible release — and the hand's next move decides only
-// the exit fret and what follows. When the next placement departs in the trail-off's direction AND
-// arrives by the very next onset, the trail-off IS the departure: the exit fret rides that travel
+// the exit fret and what follows. When the next placement departs in the slide-out's direction AND
+// arrives by the very next onset, the slide-out IS the departure: the exit fret rides that travel
 // (widened to the slide-in rule's two-fret minimum) and the window flows onward into the arrival.
-// Otherwise the trail-off is a release: the exit keeps the fixed four-fret gesture, the window dips
+// Otherwise the slide-out is only that: the exit keeps the fixed four-fret gesture, the window dips
 // with it, and a restore placement at the next onset brings the window back for the note that
 // follows (so notes after the gesture are never stranded in the dipped window). Fabricated exits
 // yield to real placements at their instant, restores yield to anything already there, and a
-// trail-off ending at or past the next onset stays planted (no room to ride).
+// slide-out ending at or past the next onset stays planted (no room to ride).
 //
-// The gesture it rides is the DRAWN one, so every question here — where the trail-off ends, which
+// The gesture it rides is the DRAWN one, so every question here — where the slide-out ends, which
 // fret it leaves from, whether it still clears the next onset — is asked of the presented note,
 // while the resolved exit fret is written into the stored one (presentation compresses a
-// trail-off's end but never drops it, so the stored gesture is always there to write to).
+// slide-out's end but never drops it, so the stored gesture is always there to write to).
 void resolveSlideOutExits(
     std::vector<BuiltNote>& built, const std::vector<ChartNote>& presented,
     const std::vector<bool>& arrives_into, std::vector<common::core::FretHandPosition>& placements,
@@ -2916,16 +2916,16 @@ void resolveSlideOutExits(
     {
         BuiltNote& entry = built[index];
         const ChartNote& note = presented[index];
-        // A scrape's slide-out is authored travel, not a trail-off exit to resolve — and the
+        // A scrape's slide-out is authored travel, not an exit to resolve — and the
         // scrape never anchors the hand, so there is no placement to ride. Both forms of the
         // gesture are required up front: the drawn one is what the window rides, the stored one
         // is what the resolved exit fret is written back into. They always agree — presentation
-        // compresses a trail-off's end and never drops it — so the second test costs nothing and
+        // compresses a slide-out's end and never drops it — so the second test costs nothing and
         // makes the write below provably safe rather than safe by argument.
         //
-        // THE FALL IS THE RESOLVED FACT, and it is resolved on the STORED stream: a shift slide's
-        // ARRIVAL is the same statement at the same place and no exit at all — the hand is landing
-        // on the stop the next head takes, not leaving the board (\ref
+        // THE SLIDE-OUT IS THE RESOLVED FACT, and it is resolved on the STORED stream: a shift
+        // slide's ARRIVAL is the same statement at the same place and no exit at all — the hand is
+        // landing on the stop the next head takes, not leaving the board (\ref
         // common::core::arrivesIntoNextHead). The presented copy's own adjacency is not the
         // question, its ring having been trimmed, so both reads take the stored verdict, which the
         // index-parallel streams make the same note's.
@@ -2936,9 +2936,9 @@ void resolveSlideOutExits(
         {
             continue;
         }
-        // Where the trail-off DEPARTS from, which is the note-local question: the guard above has
-        // already established that this end falls, so the last stop stated inside the ring is the
-        // fret the gesture leaves.
+        // Where the slide-out DEPARTS from, which is the note-local question: the guard above has
+        // already established that this end slides out, so the last stop stated inside the ring is
+        // the fret the gesture leaves.
         const int departing = common::core::fretBeforeEnd(note);
         const bool downward = *drawn < departing;
         const auto after = firstPlacementAfter(placements, note.position);
@@ -2954,12 +2954,12 @@ void resolveSlideOutExits(
             ++next_note;
         }
         // The gesture ends where the DRAWN ring does, which is what a slide-out having no offset
-        // of its own means: presentation compresses that end, and the trail-off comes with it.
+        // of its own means: presentation compresses that end, and the slide-out comes with it.
         const GridPosition end_position =
             gridPositionForGlobalBeat(grid, entry.global_beat + note.sustain);
         if (!withinGrid(grid, end_position))
         {
-            // The trail-off ends past the last bar (a hold-exempt ring presentation never
+            // The slide-out ends past the last bar (a hold-exempt ring presentation never
             // compressed, at the very end of the score). A placement there is not representable,
             // and fabricating one failed validation for the whole song; the gesture keeps its
             // default exit fret and the hand simply stays put, which is what happens anyway when
@@ -2970,14 +2970,14 @@ void resolveSlideOutExits(
         const bool has_room = !has_next || end_position < built[next_note].note.position;
         if (has_next && !has_room)
         {
-            // The gesture reaches the next onset (a hold-exempt trail-off presentation never
+            // The gesture reaches the next onset (a hold-exempt slide-out presentation never
             // compressed, or a crush to exactly the gap): no room to ride, so the whole
             // gesture stays planted — default exit fret, no fabricated placements.
             continue;
         }
 
         // Departure: the next placement's move serves the very next onset and agrees with
-        // the trail-off's direction, so the window flows onward instead of returning.
+        // the slide-out's direction, so the window flows onward instead of returning.
         const int delta = after == placements.end() ? 0 : after->fret - active->fret;
         const bool departs = delta != 0 && (delta < 0) == downward && has_next &&
                              !(built[next_note].note.position < after->position);
@@ -2985,7 +2985,7 @@ void resolveSlideOutExits(
         if (departs)
         {
             const int travel = widenedToMinimumTravel(delta, downward);
-            exit_fret = fallExitClearOfNextHead(
+            exit_fret = slideOutExitClearOfNextHead(
                 entry.note,
                 nextHeadOnString(built, index, nullptr),
                 tempo_map,
@@ -3207,7 +3207,7 @@ void resolveSlideOutExits(
             // stored claim says, so the import needs no direction and invents none. The junk flags
             // real scores carry (a hopo mark with nothing before it, or with a predecessor at the
             // same stop) are settled by the sweep at the end of the build, where the slide chains
-            // that decide a predecessor's RELEASED fret are finally built.
+            // that decide a predecessor's FRET AT THE RING'S END are finally built.
             note.attack = NoteAttack::Legato;
         }
 
@@ -3403,7 +3403,7 @@ void resolveSlideOutExits(
     // re-picked, so it folds into the origin as a pitched keyframe at the junction — the sustain
     // extends through the target's notated end, its sustain-carried techniques fold in, and its own
     // onward slide continues the chain until a shift, a slide-out, or the chain's end stops it.
-    // Slide-outs trail off unpitched.
+    // Slide-outs are unpitched.
     std::vector<bool> merged_away(built.size(), false);
 
     // Pick-slide carriers (Slide flags 64 down / 128 up) convert IN PLACE into pick-slide
@@ -3546,7 +3546,7 @@ void resolveSlideOutExits(
             if (next->note.fret == 0)
             {
                 // The landing is the open string: nothing is pressed to glide to, and a keyframe
-                // at fret 0 is refused, so the gesture degrades to the unpitched trail-off exactly
+                // at fret 0 is refused, so the gesture degrades to the unpitched slide-out exactly
                 // like a missing landing — which is what a slide down toward the open string
                 // physically is. The landing keeps its own onset.
                 flags |= 4;
@@ -3596,7 +3596,7 @@ void resolveSlideOutExits(
             // arrival is spaced one margin before it by the presentation rule that spaces every
             // tail (`presentedChartNotes` rule 2).
             //
-            // A trail-off the chain resolved earlier cannot outlive the gesture it trails off from:
+            // A slide-out the chain resolved earlier cannot outlive the gesture it slides out of:
             // its fret would become an interior stop once the ring grows past it, so the end's
             // fret statement is cleared before the arrival takes that instant. A BEND standing at
             // that same end is not cleared and rides on — an arrival and a bend coexist, both
@@ -3628,10 +3628,10 @@ void resolveSlideOutExits(
                     ? std::min(glide_fret + 4, common::core::g_max_fret)
                     : std::max(glide_fret - 4, common::core::firstPlayableFret(chart.tuning.capo));
             // The slide-out ends the RING, so what the gesture needs is a ring end strictly after
-            // any chain keyframe's stated fret — otherwise the trail-off would leave from a
+            // any chain keyframe's stated fret — otherwise the slide-out would leave from a
             // position stated at the very instant it ends — and one minimum gesture window past it
             // is the smallest legal answer. A bend or a shake at the end does not bind it: a
-            // release states its fret and nothing else, so a statement standing where the string
+            // slide-out states its fret and nothing else, so a statement standing where the string
             // is let go says nothing by the model's own law (shedEndStatementShake). The four-fret
             // exit is provisional: resolveSlideOutExits rides the hand's next move instead when it
             // agrees with the flag's direction. The answer is strictly positive without a floor of
@@ -3654,7 +3654,7 @@ void resolveSlideOutExits(
             // asks whether that ring reaches the next head.
             common::core::setSlideOut(
                 note,
-                fallExitClearOfNextHead(
+                slideOutExitClearOfNextHead(
                     note,
                     nextHeadOnString(built, index, &merged_away),
                     tempo_map,
@@ -3798,7 +3798,7 @@ void resolveSlideOutExits(
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
     // shape here — the clamp, the payload trimmed to the ring, the clearance — and then the
     // picture the surfaces will draw. The one pass below rides that picture rather than the rings
-    // behind it — a trail-off's hand exit lands where the gesture is DRAWN to end. Hand-posture
+    // behind it — a slide-out's hand exit lands where the gesture is DRAWN to end. Hand-posture
     // spans are NOT an import decision any more: they are derived from the finished notes
     // wherever they are read (common/core's deriveChartShapes), so there is nothing to run here
     // and nothing to report.
@@ -3841,9 +3841,9 @@ void resolveSlideOutExits(
     }
 
     // What the surfaces will draw from the stored stream, index-aligned with the build records, and
-    // the RELATION the stored stream proves: a fret at a ring's end is a fall or a shift slide's
-    // arrival, and the one pass below must not ride an arrival as an exit. Both come off one
-    // connections walk, which is what keeps the drawn picture and the verdict about it the same
+    // the RELATION the stored stream proves: a fret at a ring's end is a slide-out or a shift
+    // slide's arrival, and the one pass below must not ride an arrival as an exit. Both come off
+    // one connections walk, which is what keeps the drawn picture and the verdict about it the same
     // note's.
     //
     // The tail law's verdict is discarded here, and that is not a shortcut: the pass below reads
@@ -3853,14 +3853,14 @@ void resolveSlideOutExits(
     // very stream is fed back into it.
     // RESOLVED AGAIN because two passes have since moved rings: the let-ring law lengthened every
     // marked ring to its figure's end, and `clampSameStringOverlaps` then cut each ring back to the
-    // next strike on its string and trimmed the payload to it — which is exactly where a fall or an
-    // arrival comes to stand, so no earlier walk can answer for this one.
+    // next strike on its string and trimmed the payload to it — which is exactly where a slide-out
+    // or an arrival comes to stand, so no earlier walk can answer for this one.
     const common::core::ChartConnections drawn_connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
     const std::vector<ChartNote> presented =
         common::core::presentedChartNotes(drawn_connections, tempo_map).notes;
 
-    // Trail-off exits follow the hand's next move where it agrees.
+    // Slide-out exits follow the hand's next move where it agrees.
     resolveSlideOutExits(
         built,
         presented,

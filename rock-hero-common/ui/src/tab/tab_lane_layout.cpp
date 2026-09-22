@@ -114,7 +114,8 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.
-float fallChipY(const TabLaneGeometry& geometry, const float center_y, const bool upward) noexcept
+float slideOutChipY(
+    const TabLaneGeometry& geometry, const float center_y, const bool upward) noexcept
 {
     const TailSpan span = tailSpan(geometry, center_y);
     const float lift = geometry.note_height / 3.0f;
@@ -127,7 +128,8 @@ std::optional<float> endMarkYAtSharedInstant(
 {
     // BELOW, whatever the leg's own direction: the instant belongs to the head, whose pre-bend chip
     // is what sits above the envelope, so the ring that ENDS there takes the other band.
-    return ends_on_next_head ? std::optional{fallChipY(geometry, center_y, false)} : std::nullopt;
+    return ends_on_next_head ? std::optional{slideOutChipY(geometry, center_y, false)}
+                             : std::nullopt;
 }
 
 } // namespace rock_hero::common::ui

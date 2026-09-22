@@ -3927,7 +3927,7 @@ void HighwayRenderer::Impl::draw(
                 ? 1.0
                 : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
         // Slide state at the anchor: a sounding head glides with its slide, and an unpitched
-        // release dims the head and its post in step with the tail.
+        // slide-out dims the head and its post in step with the tail.
         const HighwaySlideState head_slide = highwaySlideStateAt(
             note,
             common::core::openString(note)
@@ -5446,7 +5446,7 @@ void HighwayRenderer::Impl::draw(
             return false;
         };
         // A scrape's stops are the PICKING hand's travel, so none of them earns a fret-hand
-        // marker; the falls-away terminal never earns one either, and it is not in this list to be
+        // marker; the slide-out terminal never earns one either, and it is not in this list to be
         // filtered out (W9-L).
         if (!common::core::isScrape(note.attack))
         {
@@ -6620,7 +6620,7 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
     // (the game registers these as hit-or-miss, and the editor previews 100%-perfect play,
     // so each one shows its success feedback). A pitched slide keyframe is a fret arrival —
     // the finger lands on a new fret, the tail kinks there, the FHP window ramps there —
-    // and pops the landing's lines, whichever hand slides; unpitched trail-offs are
+    // and pops the landing's lines, whichever hand slides; unpitched slide-outs are
     // pressure already releasing and contribute nothing (the tap light's rule). A bend
     // target is a pitch arrival on the fret the finger stays planted on, so it pops that
     // same line pair: each curve point ending a sloped segment (bend reached, release
@@ -6639,7 +6639,7 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         const common::core::NoteViewState& note = state.chart.notes[index];
         for (const common::core::KeyframeViewState& keyframe : note.slides)
         {
-            // A scrape's stops are unpitched pick travel and pop no fret line; the falls-away
+            // A scrape's stops are unpitched pick travel and pop no fret line; the slide-out
             // terminal is not in this list at all (W9-L), which is the same exclusion it always
             // had through the flag.
             if (common::core::isScrape(note.attack) || keyframe.fret <= 0)

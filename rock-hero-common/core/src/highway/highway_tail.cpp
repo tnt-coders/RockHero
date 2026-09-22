@@ -216,7 +216,7 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(point.seconds);
         }
     }
-    // Every stop of the gesture, the falls-away terminal included: the centerline kinks at each
+    // Every stop of the gesture, the slide-out terminal included: the centerline kinks at each
     // one, so a sample has to land there whether or not the stop is a keyframe.
     for (std::size_t index = 0; index < glideStopCount(note); ++index)
     {

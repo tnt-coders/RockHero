@@ -137,17 +137,17 @@ every LENGTH is theirs, and the law adds a verdict beside it without moving one.
    Nothing else is asked: a stored note's last keyframe always says something, because the keyframe
    commit law (\ref keyframeSaysNothingNew) sheds one that does not.
 
-   A statement standing exactly AT the ring's end — a slide-out's fall, a bend curve's last value, a
+   A statement standing exactly AT the ring's end — a slide-out's fret, a bend curve's last value, a
    scrape's terminal — is the END's own (\ref endStatement): its moment is the end by definition, so
    it never floors this trim and instead RIDES to the presented end
    (\ref clipPayloadsToSustain), one margin back from the binding onset, or halfway along its own
    last leg where the margin would crowd that leg's start. So every tail keeps the same spacing
-   before the next head whatever it ends in, and a head on ANOTHER string spaces a fall exactly as
-   it spaces a bare tail. THIS IS THE ONLY PLACE THAT SPACING LIVES: the stored chart holds what the
-   hands did — a fall or a bend may end exactly on the next head of its own string — and display,
-   and later scoring, alone move the mark back so it can be seen and reached. The STORED ring is
-   untouched, as under every rule here: the statement stays exactly where the charter authored it,
-   and the drawn mark is keyed by that authored moment rather than by where it prints
+   before the next head whatever it ends in, and a head on ANOTHER string spaces a slide-out exactly
+   as it spaces a bare tail. THIS IS THE ONLY PLACE THAT SPACING LIVES: the stored chart holds what
+   the hands did — a slide-out or a bend may end exactly on the next head of its own string — and
+   display, and later scoring, alone move the mark back so it can be seen and reached. The STORED
+   ring is untouched, as under every rule here: the statement stays exactly where the charter
+   authored it, and the drawn mark is keyed by that authored moment rather than by where it prints
    (\ref keyframeIdentities).
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
    whose members carry no sustain technique, no deliberate hold, and no *actual* ring lasting LONGER
