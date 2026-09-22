@@ -328,6 +328,42 @@ the stop held under the harmonic, with no landing head of its own, only the brac
 harmonics are refused by validation today; the exception is recorded for their return.) Scrapes on
 either side and an open-string next head are excluded as the study found.
 
+**The revealed form at a shared instant** (the user's question, 2026-09-21: a tail ending in a
+bend and a fall, then a head with its own pre-bend, all at one instant under `Alt` — how is that
+shown without contradiction? Judged by the ui-design-expert against the painter's measured
+geometry). First, the worst case is UNREPRESENTABLE: a fall states its fret and nothing else, so an
+end is either a fall chip (fret only) or an arrival (fret, optionally a bend, drawn as a linked
+head with no chip) — never a fall chip and an end bend chip together. What can collide at one x,
+measured at the shipped note height: a RISING fall chip against the head's pre-bend chip (9.5 px
+of a 14.5 px chip, the one real overlap); a one-step end bend chip against the top of the picked
+head; and the shift arrival's linked head exactly under the picked head — same square, same
+node-aware digit, benign: the picked head is opaque and later in order, and the diagonal running
+into it already states the arrival. The corpus makes the rest rare: 471 abutting falls, 53
+bend-only ends, and only 69 bend-only ends in total.
+
+Recommended rule, ONE conditional keyed on the stored relation so nothing changes band when `Alt`
+goes down: **the instant belongs to the head** — heads and digits on the line, picked head over
+arrival head; the HEAD's own marks above the envelope; the ENDING RING's chips below it. The cost
+is that a fall chip's above/below placement no longer doubles as the last leg's direction at an
+abutting end; the diagonal already says that. Rejected: an x offset for the end's marks (reintroduces
+the retreat the reveal exists to undo); z-order alone (a partially covered numeral is a misread,
+the one failure worse than an unread mark); suppressing the end chips under the reveal (the reveal
+would say less than the working view, and hide what `Alt`+digit just authored); a fourth band (the
+pre-bend chip already borrows 6.75 px of the neighbouring lane).
+
+Authoring under `Alt`: **move the accent ring, add nothing** — while `Alt` is held, the ring that
+marks the addressed head marks the ending ring's end mark instead, the fall chip's box or the
+linked head. A held mode must show which object it addresses, and "`Alt` already means it" fails
+exactly where two objects share one x.
+
+Two questions of taste, the user's: (1) at an abutting end whose last leg RISES, does the fall chip
+flip below (losing the direction redundancy) or stay above and the head's pre-bend chip yield?
+(2) Under the reveal, is the arrival's head drawn under the picked head (doubled ink, a hair bolder
+digit) or skipped as a coincident duplicate? Sighting: `Alt` over a one-step end bend arriving
+into a pre-bent same-string head, and a rising fall abutting a pre-bent head, at the shipped note
+height and just above the text floor — falsified by any partially covered digit, any chip crossing
+the neighbouring envelope, or any mark changing band as `Alt` goes down.
+
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
 a ring's exact end is the next note — and the plan gate's ring clamp shortens the ring to the
