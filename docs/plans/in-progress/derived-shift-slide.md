@@ -160,14 +160,6 @@ head is suppressed outright; the tenure test survives for landing spans closed b
 The census pins do not move; three discriminating tests (`test_chart_shapes.cpp` ~2685,
 ~3347-3390, ~3863-3875) are rewritten to the relation rather than re-spelled.
 
-## Order
-
-After the user has sighted the store-the-truth work. Then as one change set: the predicate and its
-vector; the release family re-homed onto it; the importer and split deletions; rule 6; the
-presentation cases; tests and the developer guide (`the-project-lifecycle.md` import rule 13,
-`the-editor-2d-views.md`, `file-formats.md`'s keyframe row). Re-import the corpus afterwards so the
-files hold the arrival on the head; the presented corpus must be unchanged, which is the
-acceptance test.
 ## The model half: BUILT 2026-09-22
 
 Built, green, and cleaned: the predicate `arrivesIntoNextHead` beside `resolveLegato` with its
@@ -250,3 +242,12 @@ relation inside `coverageEventsOf` was tried and reverted: there the landing hea
 the planted finger, and the reshape collapses to a one-fret window. One coupling is open and
 accepted: an FHP authored at the arrival resolves to the STORED instant while the drawn rail
 arrives one margin earlier, so the hand marker lands a margin after the rail completes.
+
+## Order
+
+After the user has sighted the store-the-truth work. Then as one change set: the predicate and its
+vector; the release family re-homed onto it; the importer and split deletions; rule 6; the
+presentation cases; tests and the developer guide (`the-project-lifecycle.md` import rule 13,
+`the-editor-2d-views.md`, `file-formats.md`'s keyframe row). Re-import the corpus afterwards so the
+files hold the arrival on the head; the presented corpus must be unchanged, which is the
+acceptance test.

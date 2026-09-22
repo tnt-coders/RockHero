@@ -17,6 +17,17 @@ namespace rock_hero::common::core
 namespace
 {
 
+// Whether this note's end statement is a FALL rather than a shift slide's arrival, from the
+// RESOLVED relation and never from position: the two are one statement at the ring's end, and what
+// tells them apart is the stop the next head takes (\ref arrivesIntoNextHead). Asked by both walks
+// here, so the flag the surfaces key on cannot be derived two ways. The end statement rides every
+// trim, so when the stored note has one it is the last keyframe of the drawn one.
+[[nodiscard]] bool noteReleases(const ChartConnections& connections, const std::size_t index)
+{
+    return slideOutFretOrNull(connections.saved_notes[index], connections.arrives_into[index]) !=
+           nullptr;
+}
+
 // RULE 12A, and this is the only place it lives. A span's DRAWN extent keeps the minimum sustain
 // distance before the head that closed it — the same margin every other drawn element keeps, so
 // consecutive shapes show the gap everything else shows instead of butting exactly. What the
@@ -104,10 +115,7 @@ struct SlideRamp
         {
             continue;
         }
-        // The release rides every trim, so when the stored note has one it is the drawn note's
-        // last keyframe.
-        const bool releases =
-            slideOutFretOrNull(saved[index], connections.arrives_into[index]) != nullptr;
+        const bool releases = noteReleases(connections, index);
         // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
         // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
         // segment's own start. Presentation may show the end's statement earlier than the chart
@@ -550,17 +558,12 @@ ChartViewState makeChartViewState(
         }
         view.slides.reserve(note.keyframes.size());
         // THE STORED NOTE this drawn one shows, index-parallel by construction
-        // (\ref ChartResolutions). Two things only it can say are read off it below: whether the
-        // note releases, and what each drawn keyframe is NAMED by.
+        // (\ref ChartResolutions). What only it can say is read off it below: what each drawn
+        // keyframe is NAMED by.
         const ChartNote& stored = resolutions.connections.saved_notes[note_index];
-        // THE ONE FLAG that isolates every surface, and it comes from the RESOLVED relation, never
-        // from position: a fall and a shift slide's arrival are one statement at the ring's end,
-        // and what tells them apart is the stop the next head takes (\ref arrivesIntoNextHead).
-        // False draws a linked arrival head at the presented end; true draws a floating fall chip.
-        // The end statement rides every trim, so when the stored note has one it is the last
-        // keyframe of the drawn one.
-        const bool releases =
-            slideOutFretOrNull(stored, resolutions.connections.arrives_into[note_index]) != nullptr;
+        // THE ONE FLAG that isolates every surface (noteReleases): false draws a linked arrival
+        // head at the presented end; true draws a floating fall chip.
+        const bool releases = noteReleases(resolutions.connections, note_index);
         // The pair fact the surfaces need for the band a mark at the END takes, carried per note
         // from the walk that resolved it (\ref ChartConnections::ends_on_next_head). It is the
         // STORED ring's adjacency: presentation spaces the mark, and where the band belongs is

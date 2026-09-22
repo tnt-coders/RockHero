@@ -171,9 +171,7 @@ constexpr Fraction g_claim_ring{1, 32};
 // a figure whose held stop is DERIVED from a pull-off derives here exactly as it does in the app.
 [[nodiscard]] ChartShapes deriveWith(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    const ChartConnections connections = chartConnections(notes, tempo_map);
-    return deriveChartShapes(
-        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+    return deriveChartShapes(chartConnections(notes, tempo_map), tempo_map);
 }
 
 // The derivation as every reader gets it: from the saved stream alone.

@@ -584,10 +584,9 @@ is deliberately single-sourced:
   so a rising fall chip and a pre-bend chip at one column cannot overlap, and nothing changes band
   as the reveal goes down. It is stated ONCE, in `endMarkYAtSharedInstant` (`tab_lane_layout.h`),
   which both the painter and the layout manifest read, so the chip's ink and the box the click is
-  bounded in can never land on opposite sides. The direction is one constant
-  (`g_ending_ring_marks_above`) so the sighting can flip the pair together. The cost, accepted: a
-  fall chip's above/below no longer doubles as the last leg's direction at such an end — the
-  diagonal already says that.
+  bounded in can never land on opposite sides; the band itself is `fallChipY` beside it, the one
+  spelling of where a tail chip sits. The cost, accepted: a fall chip's side does not double as the
+  last leg's direction at such an end — the diagonal already says that.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the

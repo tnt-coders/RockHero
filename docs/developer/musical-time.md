@@ -108,7 +108,7 @@ tail off what a surface **draws**.
   floor the trim on payload that still changes something, drop short effect-free tails per onset
   group, and present no tail on a dead note that is neither tremoloed nor sliding. Payload is
   clipped with the tail, never rescaled.
-- `deriveChartShapes(saved_notes, claimed_stops, tempo_map)` — the hand-posture spans and the
+- `deriveChartShapes(connections, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. **A span is GRIP TENURE — the
   statement "the hand holds this grip, from here to here"** (the grip-tenure law); everything else

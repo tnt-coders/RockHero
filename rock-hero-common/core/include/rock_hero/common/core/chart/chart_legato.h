@@ -83,6 +83,23 @@ author the ring a claim needs) asks it by handing over a predecessor carrying th
     const ChartNote& note, const ChartNote* predecessor, const TempoMap& tempo_map);
 
 /*!
+\brief Does \p predecessor's ring END exactly on \p successor's onset — one instant carrying both,
+whatever the end states?
+
+Clause 2 of \ref arrivesIntoNextHead on its own, and here because two readers need it: that relation
+and \ref ChartConnections::ends_on_next_head, which the surfaces read for the band two marks at one
+x take. Strict equality is the whole of it, so the two cannot come to measure adjacency differently.
+
+\param predecessor Note whose ring's end is in question.
+\param successor The next note on the same string.
+\param tempo_map Song tempo map supplying the beat axis the adjacency is measured on.
+
+\return True when the ring ends precisely where the next head starts.
+*/
+[[nodiscard]] bool endsOnNextHead(
+    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map);
+
+/*!
 \brief THE SHIFT SLIDE, as a fact the chart PROVES: does \p predecessor's end statement glide INTO
 the stop \p successor is struck at?
 
@@ -91,9 +108,10 @@ off and the pitch slides away toward a fret the hand never sounds, and the ARRIV
 glides into position for a note that is then picked. Nothing stores which, because the statement's
 own sentence already says it. FIVE clauses:
 
-1. \p predecessor ends in a statement NAMING A FRET (\ref endFretStatement): nothing else is a
+1. \p predecessor ends in a statement NAMING A FRET (\ref endStatedFretOrNull): nothing else is a
    gesture to classify.
-2. Its ring ends EXACTLY at \p successor's onset: strict adjacency is the whole of "one instant".
+2. Its ring ends EXACTLY at \p successor's onset (\ref endsOnNextHead): strict adjacency is the
+   whole of "one instant".
 3. NEITHER is a scrape: a scrape's travel is the PICK's, and its terminal is required at its end.
 4. \p successor is not stopped by the PICKING hand (\ref pickingHandStopsString): a fretting hand
    sliding into a fret a different hand then stops is not one gesture. A TAPPED HARMONIC passes by
@@ -207,11 +225,11 @@ struct ChartConnections
     \brief True where this note's ring ENDS exactly on the next head of its own string — one
     instant carrying both, whatever the end states.
 
-    Clause 2 of \ref arrivesIntoNextHead on its own, which is what an ARRIVAL and an abutting FALL
-    share: the surfaces need it because two marks then stand at one x, and the band each takes is
-    decided by the pair rather than by either note (\ref NoteViewState::ends_on_next_head). Filled
-    in this walk beside \ref hands_over and for the same reason — the same-string pair it needs is
-    the one the walk establishes.
+    \ref endsOnNextHead, which is what an ARRIVAL and an abutting FALL share: the surfaces need it
+    because two marks then stand at one x, and the band each takes is decided by the pair rather
+    than by either note (\ref NoteViewState::ends_on_next_head). Filled in this walk beside
+    \ref hands_over and for the same reason — the same-string pair it needs is the one the walk
+    establishes.
 
     Written from the SUCCESSOR onto its predecessor, like the two relations above; false where
     nothing follows on the string.

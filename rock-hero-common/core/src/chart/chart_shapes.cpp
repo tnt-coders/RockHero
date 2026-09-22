@@ -354,11 +354,14 @@ bool foundsSpan(const std::size_t stated_together, const std::size_t sounding_to
            sounding_together >= g_accumulation_member_minimum;
 }
 
-ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const std::vector<std::optional<int>>& claimed_stops,
-    const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map)
+ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
+    // Both stop tables are derivations of the connections themselves, so they are asked here rather
+    // than handed in: a caller could otherwise pass tables built from another revision, and one
+    // that needs them for its own sake keeps its own copy (\ref ChartResolutions).
+    const std::vector<std::optional<int>> claimed_stops = chartClaimedStops(connections);
+    const std::vector<std::optional<int>> planted_stops = chartPlantedStops(connections);
     // A FALL or an ARRIVAL at every end statement, resolved once for the revision by the one walk
     // that establishes the pair (\ref ChartConnections::arrives_into). Read by the channel reader
     // and by the two sound tests below: every place this walk asks what a fret at a ring's end

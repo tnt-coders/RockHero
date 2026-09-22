@@ -30,6 +30,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "tone_designer/tone_designer_edits.h"
 #include "tone_designer/tone_designer_state.h"
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -64,6 +65,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -1485,12 +1487,29 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // can never disagree about which rows exist.
     [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
 
-    // Where one step of the object walk lands: the slot, and the chart object addressed there.
-    // The object is absent on a lane row, whose point the slot alone names.
+    // Where one step of the object walk lands: the slot, the chart object addressed there, and
+    // which of the two objects that can share one instant it is. The object is absent on a lane
+    // row, whose point the slot alone names.
+    //
+    // AT A SHARED INSTANT a slot holds two: a ring's END STATEMENT and the head that takes the
+    // string back. `is_head` is that datum, and the ordering below is the whole of the walk's
+    // rule — `false < true` puts the statement before the head at one position, which is time
+    // order, the instant belonging to the head, and is how the keyboard reaches a statement no
+    // landing addresses (chartObjectAt).
     struct RowObjectStop
     {
         common::core::GridPosition position{};
+        bool is_head{};
         std::optional<ChartSelectionKey> object{};
+
+        // Over the two ordering members alone: the object is an identity, and the selection key
+        // carries equality only (ChartSelectionKey), so a defaulted comparison would drag in a
+        // member that has no order.
+        friend std::strong_ordering operator<=>(
+            const RowObjectStop& lhs, const RowObjectStop& rhs) noexcept
+        {
+            return std::tie(lhs.position, lhs.is_head) <=> std::tie(rhs.position, rhs.is_head);
+        }
     };
 
     // The caret row's next authored object strictly beyond the caret in the step direction —
@@ -1498,9 +1517,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Objects are first-class caret stops (the union stop set): plain arrows step to the nearer of
     // the adjacent grid line and this, so an off-grid object stays reachable from the keyboard, and
     // Tab steps to this alone.
-    //
-    // It carries the OBJECT and not only the slot, because at a shared instant a slot holds two: a
-    // ring's end statement and the head that takes the string back, stepped in that order.
     [[nodiscard]] std::optional<RowObjectStop> nextRowObjectStop(
         const ChartCaret& caret, bool later, bool notes_only);
 

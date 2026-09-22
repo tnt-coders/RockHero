@@ -107,13 +107,11 @@ TabKeyframeLayout tabKeyframeLayout(
         previous_fret = earlier.fret;
     }
     const bool upward = keyframe.fret >= previous_fret;
-    const TailSpan span = tailSpan(geometry, layout.center_y);
-    const float lift = geometry.note_height / 3.0f;
     layout.chip = true;
-    // The band conditional is the shared authority's (endMarkYAtSharedInstant), so the box the
+    // Both bands are the shared authority's (fallChipY, endMarkYAtSharedInstant), so the box the
     // click is bounded in cannot land on the other side of the envelope from the chip.
     layout.center_y = endMarkYAtSharedInstant(geometry, layout.center_y, note.ends_on_next_head)
-                          .value_or(upward ? span.top - lift : span.bottom + lift);
+                          .value_or(fallChipY(geometry, layout.center_y, upward));
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;

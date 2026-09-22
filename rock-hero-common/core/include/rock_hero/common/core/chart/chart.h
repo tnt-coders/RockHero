@@ -571,12 +571,12 @@ point becomes one by moving — an interior point lives strictly inside the ring
 only verb that changes a point's kind is the one that moves the ring's end onto it.
 
 A KEYFRAME MAY SIT EXACTLY ON A LATER ONSET OF ITS OWN STRING: the stored chart holds the truth,
-and a slide-out or a bend that completes as the next note is struck is what the hands did (user
-ruling, 2026-09-21). Nothing in the store spaces it. The spacing a mark needs to be seen and
-reached is presentation's, applied to the DRAWN copy alone: a statement at the ring's end rides to
-one minimum sustain distance before the onset that binds the drawn tail, or halfway along its own
-last leg where that margin would crowd the leg's start (\ref presentedChartNotes rule 2). Both
-surfaces and scoring read the presented note, so they agree by construction.
+and a slide-out or a bend that completes as the next note is struck is what the hands did. Nothing
+in the store spaces it. The spacing a mark needs to be seen and reached is presentation's, applied
+to the DRAWN copy alone: a statement at the ring's end rides to one minimum sustain distance before
+the onset that binds the drawn tail, or halfway along its own last leg where that margin would crowd
+the leg's start (\ref presentedChartNotes rule 2). Both surfaces and scoring read the presented
+note, so they agree by construction.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
@@ -1206,6 +1206,10 @@ about a PAIR of notes (\ref arrivesIntoNextHead), so this answers only what a pr
 note can know, and \ref releaseKeyframe adds the relation for every consumer that must know which
 gesture stands there. WHERE it stands is \ref endStatement's question and is asked there.
 
+Hands back the KEYFRAME, which is what its remaining callers need: an identity compare against a
+record in the note's own array, or a mutation of it. A caller after the FRET reads
+\ref endStatedFretOrNull, the one note-local spelling of that.
+
 \param note Note whose tail is inspected.
 \return The keyframe at the ring's end when it states a fret, or nullptr.
 */
@@ -1274,22 +1278,19 @@ the same instant, is a glide into position and a pick (\ref arrivesIntoNextHead)
 [[nodiscard]] inline const int* slideOutFretOrNull(
     const ChartNote& note, const bool arrives_into_next_head) noexcept
 {
-    // Spelled over \ref releaseKeyframe rather than over the note-local pair, so the relational
-    // clause stands in exactly one function.
-    const Keyframe* const release = releaseKeyframe(note, arrives_into_next_head);
-    return release != nullptr && release->fret.has_value() ? &*release->fret : nullptr;
+    // The relational clause is asked of \ref releaseKeyframe, so it stands in exactly one function,
+    // and the fret comes through the note-local accessor rather than being read a second way.
+    return releaseKeyframe(note, arrives_into_next_head) != nullptr ? endStatedFretOrNull(note)
+                                                                    : nullptr;
 }
 
 /*!
 \brief Reports whether standing at the ring's END would shed a statement from this keyframe.
 
-ONE channel does, and it is note-local: the SHAKE, a STATE that holds until the next statement, so
-one stated at the very end has no ring left to shake in. A BEND there is a POINT — the curve's LAST
-value, shaping the final leg into the end — so it stays, on a fall exactly as on an arrival: the
-channel table decides what an instant can carry, not the gesture. Spelled once, so the shed
-(\ref shedEndStatementShake) and every verb that must know BEFORE it hands a keyframe the ring's end
-read the same list. A duration step asks it to decide whether pulling the end onto its last keyframe
-erases anything — a verb may shorten a ring, never delete a statement.
+ONE channel does: the SHAKE, a state that holds until the next statement, so one stated at the very
+end has no ring left to shake in — while a BEND stays, being the curve's last value. Spelled once,
+so the shed (\ref shedEndStatementShake) and every verb that must know BEFORE it hands a keyframe
+the ring's end read the same list.
 
 \param keyframe Keyframe the ring's end would reach.
 
@@ -1365,6 +1366,36 @@ inline bool shedEndStatementShake(ChartNote& note) noexcept
 }
 
 /*!
+\brief Overlays one keyframe onto another standing at the same moment: the arriving one speaks for
+every channel it STATES and leaves the standing one's others alone.
+
+THE OVERLAY LAW, and both writers that merge two statements of one instant ask it — the end's own
+writer (\ref setEndStatement) and the join that folds a head into a junction point on its
+predecessor's path. Overlaid rather than replaced because the two are about the same moment, which
+is how a fret riding back onto a ring shortened exactly onto a bend point states both.
+
+The standing keyframe keeps its own OFFSET: its moment is not the arriving statement's to change.
+
+\param standing Keyframe already at the moment, overwritten channel by channel.
+\param arriving What is stated there; its `offset` is ignored.
+*/
+inline void overlayKeyframe(Keyframe& standing, const Keyframe& arriving) noexcept
+{
+    if (arriving.fret.has_value())
+    {
+        standing.fret = arriving.fret;
+    }
+    if (arriving.bend.has_value())
+    {
+        standing.bend = arriving.bend;
+    }
+    if (arriving.vibrato.has_value())
+    {
+        standing.vibrato = arriving.vibrato;
+    }
+}
+
+/*!
 \brief States `statement` at the ring's END: overlaid onto the statement already standing there, or
 placed as a new one where the end is bare.
 
@@ -1374,11 +1405,9 @@ invariant), or about what a release may keep. Its OFFSET never travels with it: 
 the ring's end by definition, so this stamps `note.sustain` on it and the ring must already be the
 length the statement is meant to stand at.
 
-OVERLAID rather than replaced, because the two statements are about the same moment: the arriving
-one speaks for the channels it states and leaves the standing one's others alone, which is how a
-fret riding back onto a ring shortened exactly onto a bend point states both. What an end may then
-KEEP is the channel table's (\ref shedEndStatementShake), applied here so every writer of the end
-gets the same answer.
+OVERLAID rather than replaced (\ref overlayKeyframe, the one spelling of that merge). What an end
+may then KEEP is the channel table's (\ref shedEndStatementShake), applied here so every writer of
+the end gets the same answer.
 
 \param note Note whose ring's end takes the statement.
 \param statement What is stated there; its own `offset` is ignored.
@@ -1388,19 +1417,7 @@ inline void setEndStatement(ChartNote& note, Keyframe statement)
     statement.offset = note.sustain;
     if (Keyframe* const standing = endStatement(note); standing != nullptr)
     {
-        if (!statement.fret.has_value())
-        {
-            statement.fret = standing->fret;
-        }
-        if (!statement.bend.has_value())
-        {
-            statement.bend = standing->bend;
-        }
-        if (!statement.vibrato.has_value())
-        {
-            statement.vibrato = standing->vibrato;
-        }
-        *standing = statement;
+        overlayKeyframe(*standing, statement);
     }
     else
     {
@@ -1987,21 +2004,11 @@ connection resolver disqualifies a scrape before ever asking this.
 */
 [[nodiscard]] inline int releasedFret(const ChartNote& note, const bool arrives_into_next_head)
 {
-    if (arrives_into_next_head)
-    {
-        // An arrival names a fret by clause 1 of the relation, so this branch always answers; the
-        // guard is spelled anyway, the CI-only optional-access checker not seeing through it.
-        const Keyframe* const end = endFretStatement(note);
-        if (end != nullptr)
-        {
-            const std::optional<int>& stated = end->fret;
-            if (stated.has_value())
-            {
-                return *stated;
-            }
-        }
-    }
-    return fretBeforeEnd(note);
+    // Only an ARRIVAL names a fret here, and by clause 1 of the relation it always does: the one
+    // null test therefore carries both cases, the fall falling through to the last stop stated
+    // inside the ring.
+    const int* const arrival = arrives_into_next_head ? endStatedFretOrNull(note) : nullptr;
+    return arrival != nullptr ? *arrival : fretBeforeEnd(note);
 }
 
 /*! \brief Fret-hand position: where the hand sits on the neck from this point on. */

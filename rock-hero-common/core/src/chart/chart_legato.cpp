@@ -55,6 +55,14 @@ LegatoMotion resolveLegato(
     return LegatoMotion::Unjustified;
 }
 
+bool endsOnNextHead(
+    const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
+{
+    // A glide finishing early states a fall, and a ring running past the head is bounded by the
+    // same-string clamp before any pair exists, so strict equality is the whole of "one instant".
+    return sustainEndPosition(tempo_map, predecessor) == successor.position;
+}
+
 bool arrivesIntoNextHead(
     const ChartNote& predecessor, const ChartNote& successor, const TempoMap& tempo_map)
 {
@@ -73,22 +81,15 @@ bool arrivesIntoNextHead(
     {
         return false;
     }
-    // (1) The end must NAME A FRET. Bound once so the presence test and the read below are provably
-    // the same object.
-    const Keyframe* const end = endFretStatement(predecessor);
-    if (end == nullptr)
+    // (1) The end must NAME A FRET, asked through the one note-local accessor.
+    const int* const stated = endStatedFretOrNull(predecessor);
+    if (stated == nullptr)
     {
         return false;
     }
-    const std::optional<int>& stated = end->fret;
-    if (!stated.has_value())
-    {
-        return false;
-    }
-    // (2) EXACT ADJACENCY: the ring ends precisely where the next head starts. A glide finishing
-    // early states a fall, and a ring running past the head is bounded by the same-string clamp
-    // before any pair exists.
-    if (sustainEndPosition(tempo_map, predecessor) != successor.position)
+    // (2) EXACT ADJACENCY, asked of the clause's own function so the walk and this cannot measure
+    // it two ways.
+    if (!endsOnNextHead(predecessor, successor, tempo_map))
     {
         return false;
     }
@@ -143,7 +144,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
             // The arrival's EXACT ADJACENCY clause on its own: what an arrival and an abutting fall
             // share, and all the surfaces need to know that two marks stand at one x.
             connections.ends_on_next_head[predecessor_index] =
-                sustainEndPosition(tempo_map, *predecessor) == note.position;
+                endsOnNextHead(*predecessor, note, tempo_map);
         }
         // Only a note that actually CLAIMS a connection is resolved here. A plain pick's entry
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets
@@ -361,8 +362,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // readers — the held table's fretting-hand tier below and the editor's retype refusal (THE
     // PLANT'S FACE); the claim column never sees it (\ref chartPlantedStops).
     resolutions.planted_stops = chartPlantedStops(resolutions.connections);
-    ChartShapes derived = deriveChartShapes(
-        resolutions.connections, resolutions.claimed_stops, resolutions.planted_stops, tempo_map);
+    ChartShapes derived = deriveChartShapes(resolutions.connections, tempo_map);
     // THE COMPLETE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures the claims
     // above just produced. It therefore runs AFTER the derivation and feeds nothing that runs
@@ -450,8 +450,7 @@ std::vector<ChartConversion> sweepInertClaimedStops(
     // arise. The spans read the stored stream alone, so no presentation pass is paid for here:
     // one would only hand back the frets it started with.
     const ChartConnections connections = chartConnections(notes, tempo_map);
-    const ChartShapes derived = deriveChartShapes(
-        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+    const ChartShapes derived = deriveChartShapes(connections, tempo_map);
     // Clearing a field leaves every index in place, so each repair is applied as the scan finds it.
     for (std::size_t index = 0; index < notes.size(); ++index)
     {

@@ -255,15 +255,10 @@ void strokeTabNoteHeadOutline(
 /*!
 \brief Redraws one keyframe's LINKED HEAD — the mark and its digit — over whatever is already there.
 
-THE SELECTED OBJECT DRAWS LAST, and that is host chrome: the lane paints its notes in chart order,
-so an ARRIVAL at a head's own instant is covered by that head, and a charter who selected the
-arrival would see the accent ring around a mark they cannot read. The host redraws the mark it is
-about to ring, through the very drawer the lane used, so the selected one cannot differ from the
-committed one by a pixel. The falls-away chip needs no such call: chips already draw above every
-head.
-
-Nothing is drawn for a keyframe the note does not link (a release), and no ring, ground or
-selection colour is implied — the host owns those.
+THE SELECTED OBJECT DRAWS LAST: the lane paints in chart order, so an ARRIVAL at a head's own
+instant is covered by that head and its accent ring would sit around a mark nobody can read. Drawn
+through the very drawers the lane used, so the redrawn mark cannot differ from the committed one.
+Nothing is drawn for a keyframe the note does not link (\ref common::core::linkedKeyframe).
 
 \param g Graphics context to draw into.
 \param metrics Metrics of the lane being painted.

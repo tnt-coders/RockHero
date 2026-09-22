@@ -63,6 +63,28 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
     return std::holds_alternative<ChartHeldStopHit>(target);
 }
 
+// The note a tail rides. The tail names a note of this very stream (chartPathTailAt), so the search
+// lands on it; null only where a caller hands over a tail the stream no longer holds.
+[[nodiscard]] const common::core::ChartNote* tailCarrier(
+    const std::vector<common::core::ChartNote>& notes, const ChartPathTail& tail)
+{
+    const auto carrier =
+        std::ranges::lower_bound(notes, tail.note, {}, [](const common::core::ChartNote& note) {
+            return chartSlotKeyOf(note);
+        });
+    return carrier != notes.end() ? &*carrier : nullptr;
+}
+
+// The keyframe standing at exactly the tail's offset, or null where the ring states none there.
+// Exact rationals, so equality is the test.
+[[nodiscard]] const common::core::Keyframe* keyframeAtTail(
+    const common::core::ChartNote& carrier, const ChartPathTail& tail)
+{
+    const auto standing =
+        std::ranges::find(carrier.keyframes, tail.offset, &common::core::Keyframe::offset);
+    return standing != carrier.keyframes.end() ? &*standing : nullptr;
+}
+
 // One callable per alternative for std::visit, so a variant that gains an alternative fails to
 // compile at every visit that has not said what the new one means.
 template <typename... Handlers> struct Overloaded : Handlers...
@@ -372,11 +394,8 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     {
         return std::nullopt;
     }
-    // The tail names a note of this very stream, so the search lands on it.
-    const auto carrier = std::ranges::lower_bound(notes, tail->note, {}, slot_of);
-    if (carrier != notes.end() &&
-        std::ranges::find(carrier->keyframes, tail->offset, &common::core::Keyframe::offset) !=
-            carrier->keyframes.end())
+    const common::core::ChartNote* const carrier = tailCarrier(notes, *tail);
+    if (carrier != nullptr && keyframeAtTail(*carrier, *tail) != nullptr)
     {
         return ChartKeyframeKey{.note = tail->note, .offset = tail->offset};
     }
@@ -757,55 +776,34 @@ bool EditorController::Impl::lanePointAt(
 
 // The caret row's next authored object strictly beyond the caret in the step direction, as the
 // object itself: notes and their keyframes on the caret's string (the notes alone with notes_only),
-// points on its lane. Linear scans are fine at keypress cadence.
-//
-// AT A SHARED INSTANT the walk steps the ending ring's STATEMENT before the head that takes the
-// string back — time order, the instant belonging to the head — which is the whole of how the
-// keyboard reaches a statement no landing addresses (chartObjectAt). An EMPTY end is not an object
-// and never a stop: the walk enumerates the keyframes a note actually states.
+// points on its lane. Linear scans are fine at keypress cadence. The shared instant's order is
+// RowObjectStop's own (editor_controller_impl.h), so this walk only says which stops exist.
 std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nextRowObjectStop(
     const ChartCaret& caret, const bool later, const bool notes_only)
 {
-    // The two objects that can share one slot, in the order they are stepped. A lane point has no
-    // instant-mate, so its rank never decides anything.
-    constexpr int statement_rank = 0;
-    constexpr int head_rank = 1;
-    const auto before = [](const common::core::GridPosition& lhs_position,
-                           const int lhs_rank,
-                           const common::core::GridPosition& rhs_position,
-                           const int rhs_rank) {
-        return lhs_position < rhs_position || (lhs_position == rhs_position && lhs_rank < rhs_rank);
-    };
     // WHERE THE WALK STANDS, which the caret's slot alone cannot say once two objects share it: the
     // statement when the selection names one there — the walk's own landing selects it — and the
     // head otherwise, so a second press leaves the slot instead of stepping back onto the head.
     const ChartSlotKey caret_slot{.position = caret.position, .string = caret.string};
-    const int from_rank =
-        std::ranges::any_of(
+    const RowObjectStop from{
+        .position = caret.position,
+        .is_head = !std::ranges::any_of(
             chartSelection().keyframes(),
             [this, &caret_slot](const ChartKeyframeKey& key) {
                 return chartCaretSlotFor(session().song().tempo_map, key) == caret_slot;
-            })
-            ? statement_rank
-            : head_rank;
+            }),
+        .object = {},
+    };
     std::optional<RowObjectStop> best;
-    int best_rank = head_rank;
-    const auto consider = [&](const common::core::GridPosition& position,
-                              const int rank,
-                              const std::optional<ChartSelectionKey>& object) {
-        const bool beyond = later ? before(caret.position, from_rank, position, rank)
-                                  : before(position, rank, caret.position, from_rank);
+    const auto consider = [&](const RowObjectStop& stop) {
+        const bool beyond = later ? from < stop : stop < from;
         if (!beyond)
         {
             return;
         }
-        const bool nearer =
-            !best.has_value() || (later ? before(position, rank, best->position, best_rank)
-                                        : before(best->position, best_rank, position, rank));
-        if (nearer)
+        if (!best.has_value() || (later ? stop < *best : *best < stop))
         {
-            best = RowObjectStop{.position = position, .object = object};
-            best_rank = rank;
+            best = stop;
         }
     };
     if (caret.lane.has_value())
@@ -815,7 +813,9 @@ std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nex
         {
             for (const common::core::ToneAutomationPoint& point : *points)
             {
-                consider(point.position, head_rank, std::nullopt);
+                // A lane point has no instant-mate, so which side of one it takes never decides
+                // anything.
+                consider(RowObjectStop{.position = point.position, .is_head = true, .object = {}});
             }
         }
         return best;
@@ -833,7 +833,12 @@ std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nex
             continue;
         }
         const ChartSlotKey slot = chartSlotKeyOf(note);
-        consider(note.position, head_rank, ChartSelectionKey{ChartNoteKey{.slot = slot}});
+        consider(
+            RowObjectStop{
+                .position = note.position,
+                .is_head = true,
+                .object = ChartSelectionKey{ChartNoteKey{.slot = slot}},
+            });
         if (notes_only)
         {
             continue;
@@ -843,9 +848,14 @@ std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nex
         for (const common::core::Keyframe& keyframe : note.keyframes)
         {
             consider(
-                common::core::advanceGridPosition(tempo_map, note.position, keyframe.offset),
-                statement_rank,
-                ChartSelectionKey{ChartKeyframeKey{.note = slot, .offset = keyframe.offset}});
+                RowObjectStop{
+                    .position = common::core::advanceGridPosition(
+                        tempo_map, note.position, keyframe.offset),
+                    .is_head = false,
+                    .object = ChartSelectionKey{
+                        ChartKeyframeKey{.note = slot, .offset = keyframe.offset}
+                    },
+                });
         }
     }
     return best;
@@ -2559,17 +2569,12 @@ void EditorController::Impl::insertChartStatementAtCaret()
     {
         return;
     }
-    // The tail names a note of this very stream, so the search lands on it.
-    const auto carrier =
-        std::ranges::lower_bound(notes, tail->note, {}, [](const common::core::ChartNote& note) {
-            return chartSlotKeyOf(note);
-        });
-    if (carrier == notes.end())
+    const common::core::ChartNote* const carrier = tailCarrier(notes, *tail);
+    if (carrier == nullptr)
     {
         return;
     }
-    if (std::ranges::find(carrier->keyframes, tail->offset, &common::core::Keyframe::offset) !=
-        carrier->keyframes.end())
+    if (keyframeAtTail(*carrier, *tail) != nullptr)
     {
         chartSelectionMutable().replaceWith(
             ChartKeyframeKey{.note = tail->note, .offset = tail->offset});

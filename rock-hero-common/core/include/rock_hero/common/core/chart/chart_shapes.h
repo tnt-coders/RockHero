@@ -417,21 +417,17 @@ it, so what the test governs is a charter's own crowded landing.
        slide's ARRIVAL at every end statement (\ref arrivesIntoNextHead): a fall takes the finger
        off the board where an arrival lands it on a stop. Handed over whole rather than as two
        vectors, because they are index-parallel and passing them apart is a mismatch waiting to
-       happen.
-\param claimed_stops The resolved claim table: what the fretting hand HOLDS under each right-hand
-       onset (a claim states where that hand is, so a claimed fret participates fully on the
-       statement path).
-\param planted_stops The hold-under table (\ref chartPlantedStops): per
-       note, the stop its pull-off lands on, whichever hand made the onset. Never read bare: every
-       site asks \ref gripStatement, which admits the landing stop only where the string is
-       demonstrably already at it.
+       happen. The two stop tables this reads — the resolved claims (\ref chartClaimedStops: what
+       the fretting hand HOLDS under each right-hand onset, so a claimed fret participates fully on
+       the statement path) and the hold-under table (\ref chartPlantedStops, never read bare: every
+       site asks \ref gripStatement) — are derivations OF the connections, so they are asked here
+       rather than handed in and no caller can pass tables built from another revision.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const std::vector<std::optional<int>>& claimed_stops,
-    const std::vector<std::optional<int>>& planted_stops, const TempoMap& tempo_map);
+    const ChartConnections& connections, const TempoMap& tempo_map);
 
 /*!
 \brief The grip a pull-off source states beneath the fret it sounds, where it states one.

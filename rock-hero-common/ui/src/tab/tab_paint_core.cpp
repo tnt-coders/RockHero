@@ -1085,7 +1085,6 @@ void drawSlideLines(
     }
 
     constexpr float line_thickness = g_technique_line_thickness;
-    const TailSpan span = tailSpan(metrics, center_y);
     // Diagonals span the tail's INTERIOR, endpoint stroke included: anchored a half-thickness
     // inside the rails' inner boundaries, so the line meets the tail's edge without ever riding
     // onto the rail — a mark reaching the outer edge reads as leaking out of the sustain.
@@ -1126,9 +1125,7 @@ void drawSlideLines(
             // The leg's own direction ordinarily, and the shared instant's band where the ring ends
             // on a head of its own string (endMarkYAtSharedInstant).
             const float label_y = endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head)
-                                      .value_or(
-                                          upward ? span.top - metrics.note_height / 3.0f
-                                                 : span.bottom + metrics.note_height / 3.0f);
+                                      .value_or(fallChipY(metrics, center_y, upward));
             slide_labels.push_back(
                 LabelChip{
                     .position = {metrics.x(stop.seconds), label_y},

@@ -123,8 +123,7 @@ struct SpanFigure
 [[nodiscard]] SpanFigure spanFigure(const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
-    const ChartShapes derived = deriveChartShapes(
-        connections, chartClaimedStops(connections), chartPlantedStops(connections), tempo_map);
+    const ChartShapes derived = deriveChartShapes(connections, tempo_map);
     SpanFigure figure;
     figure.arrivals = chartShapeArrivals(saved, derived.shapes, tempo_map);
     ChartPresentation presentation = presentedChartNotes(connections, tempo_map);

@@ -211,7 +211,7 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // Still stating at the ring's end: tremolo and a FALL run to the end by construction, and with
     // the arrival taken above an end fret statement here IS the fall, while the state in force at
     // the ring's own end says whether the bend and vibrato channels ever go quiet.
-    if (stored.tremolo || endFretStatement(stored) != nullptr)
+    if (stored.tremolo || endStatedFretOrNull(stored) != nullptr)
     {
         return std::nullopt;
     }

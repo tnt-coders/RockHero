@@ -547,30 +547,20 @@ struct AddressedStop
     const std::optional<common::core::VibratoState> point_vibrato =
         head.vibrato != at.vibrato ? std::optional<common::core::VibratoState>{head.vibrato}
                                    : std::nullopt;
+    const common::core::Keyframe point{
+        .offset = gap, .fret = head.fret, .bend = point_bend, .vibrato = point_vibrato
+    };
     if (!predecessor.keyframes.empty() && predecessor.keyframes.back().offset == gap)
     {
         // The arrival standing there IS the junction, so the point merges into it rather than
-        // doubling its offset — a second record on one offset is a shape no chart may hold. A
-        // channel the
-        // point does not state is left exactly as the arrival had it, because that statement is
-        // what `at` just read as in force.
-        common::core::Keyframe& merged = predecessor.keyframes.back();
-        merged.fret = head.fret;
-        if (point_bend.has_value())
-        {
-            merged.bend = point_bend;
-        }
-        if (point_vibrato.has_value())
-        {
-            merged.vibrato = point_vibrato;
-        }
+        // doubling its offset — a second record on one offset is a shape no chart may hold. The
+        // merge is the overlay law's (common::core::overlayKeyframe): a channel the point does not
+        // state is left exactly as the arrival had it, which is what `at` just read as in force.
+        common::core::overlayKeyframe(predecessor.keyframes.back(), point);
     }
     else
     {
-        predecessor.keyframes.push_back(
-            common::core::Keyframe{
-                .offset = gap, .fret = head.fret, .bend = point_bend, .vibrato = point_vibrato
-            });
+        predecessor.keyframes.push_back(point);
     }
 
     // The two rings laid end to end. The head's keyframes follow the point by construction (their
@@ -1317,7 +1307,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             common::core::clipPayloadsToSustain(stepped, target);
             note = std::move(stepped);
         }
-        else if (floor == target && common::core::endFretStatement(stepped) != nullptr)
+        else if (floor == target && common::core::endStatedFretOrNull(stepped) != nullptr)
         {
             // A running gesture can grow a release into an ordinary pitched keyframe, then step
             // straight back to the release it started from. That replay describes no edit relative
