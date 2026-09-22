@@ -405,9 +405,9 @@ constexpr int g_add_lane_key = 'a';
         "Shift Frets Down",
         "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
-    // The key's whole remaining meaning: an on-curve point on an automation lane. The chart lane
-    // keeps no `Insert` verb, because every object on it is TYPED — a digit states the note or the
-    // point, and a key with no value to carry could only invent a fret nobody typed.
+    // One verb, each lane's own point: an on-curve point on an automation lane, and on the chart
+    // lane the statement at the caret's offset carrying the fret already in force — the value a key
+    // that carries none takes, rather than a fret nobody typed.
     add(EditorCommandId::InsertLanePoint,
         "Insert Lane Point",
         "Authoring",
@@ -504,8 +504,8 @@ constexpr int g_add_lane_key = 'a';
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
-    // first-class alias of the same command. Each digit registers BOTH entry verbs, the bare digit
-    // and the `Alt` path digit, so a digit's two commands sit together in the keymap list.
+    // first-class alias of the same command. One verb per digit — `Alt` states nothing on this
+    // lane, so a digit has no second chord.
     for (int digit = 0; digit <= 9; ++digit)
     {
         static constexpr std::array<const char*, 10> g_digit_names{
@@ -520,34 +520,10 @@ constexpr int g_add_lane_key = 'a';
             "Type Digit 8",
             "Type Digit 9",
         };
-        static constexpr std::array<const char*, 10> g_path_digit_names{
-            "Type Path Digit 0",
-            "Type Path Digit 1",
-            "Type Path Digit 2",
-            "Type Path Digit 3",
-            "Type Path Digit 4",
-            "Type Path Digit 5",
-            "Type Path Digit 6",
-            "Type Path Digit 7",
-            "Type Path Digit 8",
-            "Type Path Digit 9",
-        };
-        const auto name_index = static_cast<std::size_t>(digit);
         add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeDigit0) + digit),
-            g_digit_names.at(name_index),
+            g_digit_names.at(static_cast<std::size_t>(digit)),
             "Value Entry",
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
-        // Under `Alt` on Windows a NUMPAD digit arrives from JUCE carrying the TOP-ROW key code:
-        // Alt-code composition leaves no WM_CHAR pending, so doKeyChar's numpad remap
-        // (juce_Windowing_windows.cpp:3178-3191) never runs and doKeyDown synthesizes the press
-        // from MapVirtualKey(vk, MAPVK_VK_TO_CHAR) instead (:3150), which maps VK_NUMPAD7 to '7'.
-        // The top-row chord is therefore what matches BOTH rows there, and the numberPad chord is
-        // what serves the platforms that report the numpad as itself — the same key-code class the
-        // numpad +/- comment below documents.
-        add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypePathDigit0) + digit),
-            g_path_digit_names.at(name_index),
-            "Value Entry",
-            {chord('0' + digit, alt), chord(juce::KeyPress::numberPad0 + digit, alt)});
     }
 
     // Grid & zoom. The numpad add/subtract keys arrive as their character key codes on

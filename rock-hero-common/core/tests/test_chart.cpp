@@ -1301,13 +1301,12 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
     }
 }
 
-// A SILENT RELEASE IS NOT AUTHORING STATE. An interior point that says nothing is visible — a
-// linked head the charter can select, shake or delete — but a release falling toward the fret the
-// path already holds draws no fall and wears no head, so nothing can reach it while it still pins
-// the ring. The dissolve asks the commit law's one authority about it and takes it; the ring keeps
-// its length, and a point that says something, a release that travels, and a scrape's terminal are
-// each left alone.
-TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
+// THE END'S OWN STATEMENT IS SWEPT LIKE ANY OTHER POINT. Every silent point is visible authoring
+// state — a fall toward the fret in force draws its chip exactly as an interior same-fret point
+// draws its linked head — so the one focus-leave sweep clears them all, the end included, and the
+// ring keeps its length. A point that says something, a fall that travels and a scrape's terminal
+// are each left alone.
+TEST_CASE("The silent-keyframe sweep takes a silent end statement", "[core][chart]")
 {
     ChartNote note;
     note.position = GridPosition{.measure = 1, .beat = 1};
@@ -1315,47 +1314,29 @@ TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
     note.fret = 5;
     note.sustain = Fraction{2};
 
-    SECTION("a release falling toward the fret in force")
+    SECTION("a fall toward the fret in force")
     {
         setSlideOut(note, 5);
-        CHECK(dissolveSilentRelease(note, false));
+        CHECK(stripSilentKeyframes(note));
         CHECK(note.keyframes.empty());
         // Only the statement goes: the tail simply ends where it ended.
         CHECK(note.sustain == Fraction{2});
-        CHECK_FALSE(dissolveSilentRelease(note, false));
+        CHECK_FALSE(stripSilentKeyframes(note));
     }
-    SECTION("a release falling toward a fret an earlier junction reached")
+    SECTION("a fall toward a fret an earlier junction reached")
     {
         // "The fret in force" is the PATH's answer, so a junction's fret counts exactly as the
         // onset's own does — and the junction itself, which travels, stays.
         note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 7);
-        CHECK(dissolveSilentRelease(note, false));
+        CHECK(stripSilentKeyframes(note));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{1});
     }
-    SECTION("a release that travels stays")
+    SECTION("a fall that travels stays")
     {
         setSlideOut(note, 3);
-        CHECK_FALSE(dissolveSilentRelease(note, false));
-        CHECK(endStatedFretOrNull(note) != nullptr);
-    }
-    SECTION("an interior point that says nothing stays")
-    {
-        // The charter can see this one, so it lives until its note leaves focus
-        // (stripSilentKeyframes) — the whole distinction the dissolve rests on.
-        note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 5, .bend = {}, .vibrato = {}}};
-        CHECK_FALSE(dissolveSilentRelease(note, false));
-        CHECK(note.keyframes.size() == 1);
-    }
-    SECTION("an ARRIVAL is never taken, even when it says nothing new")
-    {
-        // The relation, not the fret, decides: a statement naming the stop the next head is struck
-        // at wears a linked head at the presented end, so a silent one is ordinary visible
-        // authoring state and this rule has no business with it. Exactly the shape a `Shift+L`
-        // split leaves when it cuts a plain ring, and what makes the join an exact inverse.
-        setSlideOut(note, 5);
-        CHECK_FALSE(dissolveSilentRelease(note, true));
+        CHECK_FALSE(stripSilentKeyframes(note));
         CHECK(endStatedFretOrNull(note) != nullptr);
     }
     SECTION("a scrape's terminal can never be taken")
@@ -1365,7 +1346,7 @@ TEST_CASE("A silent release dissolves and nothing else does", "[core][chart]")
         note.attack = NoteAttack::PickSlide;
         note.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}}};
         setSlideOut(note, 12);
-        CHECK_FALSE(dissolveSilentRelease(note, false));
+        CHECK_FALSE(stripSilentKeyframes(note));
         CHECK(endStatedFretOrNull(note) != nullptr);
     }
 }
@@ -2780,6 +2761,52 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
         // The arrival survives it: a settle changes an attack, never a stop.
         CHECK(chartConnections(notes, tempo_map).arrives_into[0]);
     }
+}
+
+// THE PAIR FACT THE SURFACES NEED: whether a ring's end lands exactly on the next head of its own
+// string, which is clause 2 of the arrival on its own. It is what an ARRIVAL and an abutting FALL
+// share — two marks at one column, whatever the gesture — so it is resolved beside the relation and
+// asked of neither note alone.
+TEST_CASE("The connections report a ring ending on the next head", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto ends_on_next_head = [&tempo_map](const ChartNote& first, const ChartNote& second) {
+        const std::vector<ChartNote> notes{first, second};
+        const ChartConnections connections = chartConnections(notes, tempo_map);
+        REQUIRE(connections.ends_on_next_head.size() == 2);
+        // Written from the SUCCESSOR onto its predecessor, so nothing following means false.
+        CHECK_FALSE(connections.ends_on_next_head[1]);
+        return connections.ends_on_next_head[0];
+    };
+    ChartNote ring;
+    ring.position = GridPosition{.measure = 1, .beat = 1};
+    ring.string = 3;
+    ring.fret = 5;
+    ring.sustain = Fraction{1};
+    ChartNote head;
+    head.position = GridPosition{.measure = 1, .beat = 2};
+    head.string = 3;
+    head.fret = 9;
+    head.sustain = Fraction{1};
+
+    // The arrival and the abutting fall answer alike, and so does a ring stating nothing at all:
+    // what shares the instant is the ring's END, not a gesture.
+    CHECK(ends_on_next_head(ring, head));
+    ChartNote arriving = ring;
+    setSlideOut(arriving, 9);
+    CHECK(ends_on_next_head(arriving, head));
+    ChartNote falling = ring;
+    setSlideOut(falling, 12);
+    CHECK(ends_on_next_head(falling, head));
+
+    // A ring stopping short shares no instant, and neither does one on another string.
+    ChartNote short_ring = falling;
+    short_ring.sustain = Fraction{1, 2};
+    short_ring.keyframes.back().offset = Fraction{1, 2};
+    CHECK_FALSE(ends_on_next_head(short_ring, head));
+    ChartNote other_string = head;
+    other_string.string = 4;
+    CHECK_FALSE(ends_on_next_head(falling, other_string));
 }
 
 // AN END STATEMENT LEAVES NO SHAKE, and keeps its BEND. The channel table's own law, note-local and

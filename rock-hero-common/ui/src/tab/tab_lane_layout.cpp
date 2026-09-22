@@ -13,6 +13,12 @@ namespace
 // Notes smaller than this cannot fit readable fret numbers and drop to bare markers.
 constexpr float g_min_note_height_for_text{9.0f};
 
+// WHICH SIDE the ending ring's marks take at a shared instant, and the head's own marks the other:
+// below the envelope, the measured pick — the head's pre-bend chip is what sits above it, and a
+// fall chip rising into that band is the one real overlap the geometry has. One constant, so the
+// pair flips together.
+constexpr bool g_ending_ring_marks_above{false};
+
 } // namespace
 
 // Standard tablature orientation: highest string on top, lowest on the bottom. Hosts size the
@@ -111,6 +117,19 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
         .top = center_y - half,
         .bottom = center_y + half,
     };
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
+std::optional<float> endMarkYAtSharedInstant(
+    const TabLaneGeometry& geometry, const float center_y, const bool ends_on_next_head) noexcept
+{
+    if (!ends_on_next_head)
+    {
+        return std::nullopt;
+    }
+    const TailSpan span = tailSpan(geometry, center_y);
+    const float lift = geometry.note_height / 3.0f;
+    return g_ending_ring_marks_above ? span.top - lift : span.bottom + lift;
 }
 
 } // namespace rock_hero::common::ui

@@ -293,13 +293,6 @@ public:
         chart_fret_digit_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartPathDigitTyped */
-    void onChartPathDigitTyped(int digit) override
-    {
-        last_chart_path_digit = digit;
-        chart_path_digit_count += 1;
-    }
-
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override
     {
@@ -883,9 +876,6 @@ public:
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};
 
-    /*! \brief Last STATE-verb fret digit received. */
-    int last_chart_path_digit{-1};
-
     /*! \brief Last fret-shift direction received. */
     int last_chart_fret_shift_direction{0};
 
@@ -894,9 +884,6 @@ public:
 
     /*! \brief Number of onChartFretDigitTyped() intents received. */
     int chart_fret_digit_count{0};
-
-    /*! \brief Number of onChartPathDigitTyped() intents received. */
-    int chart_path_digit_count{0};
 
     /*! \brief Last sustain-adjust direction received. */
     int last_chart_sustain_direction{0};

@@ -1,5 +1,6 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <utility>
@@ -105,8 +106,8 @@ constexpr ChartPointerModifiers g_alt{.ctrl = false, .shift = false, .alt = true
 constexpr float g_ring_end_x{120.0f};
 
 // The glide chart with a RELEASE at the ring's end: the same eight-beat gesture, plus the fret the
-// hand falls away toward exactly where the ring stops. The figure where arming the caret on the
-// end slot SELECTS a keyframe, so a digit there retypes rather than placing anything.
+// hand falls away toward exactly where the ring stops. The figure where the end's own statement is
+// reached by the object walk rather than by a landing, since no slot holds it.
 [[nodiscard]] common::core::Chart makeReleasedGlideChart()
 {
     common::core::Chart chart = makeGlideChart();
@@ -422,7 +423,7 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
         CHECK(edit.caret->string == 3);
     }
 
-    fixture.controller.onChartPathDigitTyped(7);
+    fixture.controller.onChartFretDigitTyped(7);
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
@@ -446,7 +447,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(7);
+    fixture.controller.onChartFretDigitTyped(7);
     REQUIRE(currentChart(fixture.controller).notes[0].keyframes.size() == 2);
 
     fixture.controller.onUndoRequested();
@@ -455,7 +456,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     // leaves, reached here by the transition's own repair.
     CHECK_FALSE(publishedState(fixture.view).selection_present);
 
-    fixture.controller.onChartPathDigitTyped(9);
+    fixture.controller.onChartFretDigitTyped(9);
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
@@ -1089,11 +1090,11 @@ TEST_CASE("A digit on a plain note's tail plants a point, not a note", "[core][c
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// An Alt+digit at a caret a ring covers states a POINT on the tail, not a note that would chop it:
+// A digit at a caret a GLIDE covers states a POINT on the tail, not a note that would chop it:
 // the typed fret rides the same pending entry a typed note does and lands planted and selected —
 // so a typed fret the path already passes through is a point that says nothing, authoring state
 // that pushes no entry.
-TEST_CASE("An Alt digit at a caret on a tail states a point", "[core][chart]")
+TEST_CASE("A digit at a caret on a travel leg states a point", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -1101,7 +1102,7 @@ TEST_CASE("An Alt digit at a caret on a tail states a point", "[core][chart]")
 
     // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(7);
+    fixture.controller.onChartFretDigitTyped(7);
     const common::core::Chart silent = currentChart(fixture.controller);
     REQUIRE(silent.notes.size() == 1);
     REQUIRE(silent.notes[0].keyframes.size() == 2);
@@ -1114,8 +1115,8 @@ TEST_CASE("An Alt digit at a caret on a tail states a point", "[core][chart]")
 
     // 6 bends the leg, so it says something — as a point, selected, the ring intact — and the
     // retype is the one entry, carrying the point's creation. The point is SELECTED by now, so
-    // this digit retypes it whichever verb types it.
-    fixture.controller.onChartPathDigitTyped(6);
+    // this digit retypes it.
+    fixture.controller.onChartFretDigitTyped(6);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
@@ -1132,7 +1133,7 @@ TEST_CASE("An Alt digit at a caret on a tail states a point", "[core][chart]")
 }
 
 // The typed point and its changed path draw immediately beneath the pending box, then wait for a
-// second Alt digit exactly as a typed note does: the two combine into one value inside the entry
+// second digit exactly as a typed note does: the two combine into one value inside the entry
 // window, so a point widens like every other typed value. The stored chart remains untouched
 // until settlement.
 TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][chart]")
@@ -1141,7 +1142,7 @@ TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][c
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(1);
+    fixture.controller.onChartFretDigitTyped(1);
     CHECK(currentChart(fixture.controller) == original);
     const std::shared_ptr<const common::core::ChartViewState>& preview =
         publishedState(fixture.view).tab;
@@ -1165,7 +1166,7 @@ TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][c
         }
     }
 
-    fixture.controller.onChartPathDigitTyped(2);
+    fixture.controller.onChartFretDigitTyped(2);
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
@@ -1215,41 +1216,18 @@ TEST_CASE("A digit at a keyframe draws the pending box and waits for a second", 
     CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
 }
 
-// STRICTLY INSIDE a ring the two digit verbs name the same object, so they simply COMBINE: an Alt
-// digit and a bare digit typed into one entry widen the single point they are both stating.
-TEST_CASE("Digits of either verb combine inside a ring", "[core][chart]")
+// A DIGIT AT A RING'S EXACT END IS ALWAYS THE NEXT NOTE — the ring already stops where that head
+// starts, so sequential entry never trips — and that holds whatever the end states: no landing
+// addresses the end's own statement, so nothing there can swallow the keystroke into a retype.
+TEST_CASE("A digit at a ring's end places the head, whatever the end states", "[core][chart]")
 {
-    PendingKeyframeFixture fixture;
-    const common::core::Chart original = currentChart(fixture.controller);
-
-    // Two beats in on the travel leg, with a widenable 1 typed under Alt.
-    click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(1);
-    REQUIRE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
-    CHECK(currentChart(fixture.controller) == original);
-
-    // The bare 2 widens it rather than opening an entry of its own, and 12 exhausts the fret cap,
-    // so the one point settles in that keystroke.
-    fixture.controller.onChartFretDigitTyped(2);
-    const common::core::Chart stated = currentChart(fixture.controller);
-    REQUIRE(stated.notes.size() == 1);
-    REQUIRE(stated.notes[0].keyframes.size() == 2);
-    CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{2});
-    CHECK(stated.notes[0].keyframes[0].fret == 12);
-    CHECK(stated.notes[0].sustain == original.notes[0].sustain);
-}
-
-// THE ONE CELL THE VERBS PART COMPANY IN: at a ring's exact END a bare digit places the adjacent
-// head — the ring already stops where that head starts, so sequential entry never trips — while
-// Alt+digit states the SLIDE-OUT the release names, leaving the ring alone.
-TEST_CASE("The two digit verbs differ only at a ring's exact end", "[core][chart]")
-{
-    KeyframeFixture fixture;
-    const common::core::Chart original = currentChart(fixture.controller);
-
-    click(fixture.controller, g_ring_end_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(3);
+    SECTION("on a ring that simply ends")
     {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onChartFretDigitTyped(3);
         const common::core::Chart placed = currentChart(fixture.controller);
         REQUIRE(placed.notes.size() == 2);
         // The glide is untouched: nothing was split and it grew no release.
@@ -1260,65 +1238,19 @@ TEST_CASE("The two digit verbs differ only at a ring's exact end", "[core][chart
         CHECK(placed.notes[1].fret == 3);
     }
 
-    fixture.controller.onUndoRequested();
-    REQUIRE(currentChart(fixture.controller) == original);
-
-    // Alt at the same slot authors the slide-out instead: one note still, the ring unchanged, and
-    // a fret-stating keyframe exactly where the ring stops.
-    click(fixture.controller, g_ring_end_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(3);
-    const common::core::Chart released = currentChart(fixture.controller);
-    REQUIRE(released.notes.size() == 1);
-    CHECK(released.notes[0].sustain == original.notes[0].sustain);
-    REQUIRE(released.notes[0].keyframes.size() == 2);
-    CHECK(released.notes[0].keyframes[1].offset == common::core::Fraction{8});
-    CHECK(released.notes[0].keyframes[1].fret == 3);
-}
-
-// THE FIRST DIGIT'S MODIFIER DECIDES, and the ring's end is the only slot where that can be seen:
-// what the entry creates is settled by the keystroke that opened it, and every digit after it only
-// widens the value. So a two-digit fret means one object either way round, never one of each.
-TEST_CASE("The first digit's verb decides what a widened entry creates", "[core][chart]")
-{
-    SECTION("Alt first states the slide-out, and a bare digit widens it")
+    SECTION("on a ring whose end states a fall")
     {
-        PendingKeyframeFixture fixture;
+        KeyframeFixture fixture{makeReleasedGlideChart()};
         const common::core::Chart original = currentChart(fixture.controller);
 
         click(fixture.controller, g_ring_end_x, g_string_3_y);
-        fixture.controller.onChartPathDigitTyped(1);
-        REQUIRE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
-        CHECK(currentChart(fixture.controller) == original);
-
-        // 12 exhausts the fret cap, so the one object settles in this keystroke.
-        fixture.controller.onChartFretDigitTyped(2);
-        const common::core::Chart settled = currentChart(fixture.controller);
-        REQUIRE(settled.notes.size() == 1);
-        CHECK(settled.notes[0].sustain == original.notes[0].sustain);
-        REQUIRE(settled.notes[0].keyframes.size() == 2);
-        CHECK(settled.notes[0].keyframes[1].offset == common::core::Fraction{8});
-        CHECK(settled.notes[0].keyframes[1].fret == 12);
-    }
-
-    SECTION("a bare digit first places the adjacent head, and Alt widens it")
-    {
-        PendingKeyframeFixture fixture;
-        const common::core::Chart original = currentChart(fixture.controller);
-
-        click(fixture.controller, g_ring_end_x, g_string_3_y);
-        fixture.controller.onChartFretDigitTyped(1);
-        REQUIRE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
-        CHECK(currentChart(fixture.controller) == original);
-
-        fixture.controller.onChartPathDigitTyped(2);
-        const common::core::Chart settled = currentChart(fixture.controller);
-        REQUIRE(settled.notes.size() == 2);
-        // The glide is untouched: the head stands where the ring already stops.
-        CHECK(settled.notes[0].sustain == original.notes[0].sustain);
-        CHECK(settled.notes[0].keyframes.size() == original.notes[0].keyframes.size());
-        CHECK(settled.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
-        CHECK(settled.notes[1].string == 3);
-        CHECK(settled.notes[1].fret == 12);
+        CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+        fixture.controller.onChartFretDigitTyped(3);
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        // The fall is exactly as authored: the digit went to the new head beside it.
+        CHECK(placed.notes[0].keyframes == original.notes[0].keyframes);
+        CHECK(placed.notes[1].fret == 3);
     }
 }
 
@@ -1349,14 +1281,46 @@ TEST_CASE("A click inside a tail arms the caret and creates nothing", "[core][ch
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 }
 
-// The selection rule wins where it applies: with the release selected, a bare digit is a RETYPE of
-// that keyframe and places nothing. The two verbs never race — a digit states the selected stop,
-// and only the caret decides when nothing is selected.
-TEST_CASE("A bare digit on a selected release retypes it", "[core][chart]")
+// AN UNDO/REDO TRANSITION KEEPS A SELECTION THE CHART STILL HOLDS, and the end's own statement is
+// no exception: the transition's repair asks whether the chart holds what each key NAMES, not
+// whether a landing at its slot would address it — a fall chip is a real object no landing reaches,
+// and losing its selection to an unrelated undo would be a loss the screen never explains.
+TEST_CASE("An undo transition keeps a selected end statement", "[core][chart]")
+{
+    KeyframeFixture fixture{makeReleasedGlideChart()};
+
+    // An unrelated note on another string, placed LATER than the glide so the glide keeps its own
+    // index: a published keyframe ref is a drawn position, and re-indexing is not what is under
+    // test here.
+    click(fixture.controller, g_holding_tail_x, g_string_2_y);
+    fixture.controller.onChartFretDigitTyped(4);
+    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    fixture.controller.onRowObjectStepRequested(false, false);
+    const std::vector<ChartKeyframeRef> selected =
+        publishedState(fixture.view).chart_edit.selected_keyframes;
+    REQUIRE(selected.size() == 1);
+
+    // Both directions of the transition leave the glide and its fall exactly as authored, so the
+    // key goes on naming the statement it named.
+    fixture.controller.onUndoRequested();
+    CHECK(common::core::endStatedFretOrNull(currentChart(fixture.controller).notes[0]) != nullptr);
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes == selected);
+    fixture.controller.onRedoRequested();
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes == selected);
+}
+
+// The selection rule wins where it applies: with the release selected — reached from the caret at
+// its own slot by ONE Shift+Tab, the walk stepping the statement before the head that slot would
+// otherwise answer with — a digit is a RETYPE of that keyframe and places nothing.
+TEST_CASE("A digit on a selected release retypes it", "[core][chart]")
 {
     KeyframeFixture fixture{makeReleasedGlideChart()};
 
     click(fixture.controller, g_ring_end_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+    fixture.controller.onRowObjectStepRequested(false, false);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
 
     fixture.controller.onChartFretDigitTyped(7);
@@ -1368,13 +1332,12 @@ TEST_CASE("A bare digit on a selected release retypes it", "[core][chart]")
     CHECK(retyped.notes[0].sustain == common::core::Fraction{8});
 }
 
-// A SILENT RELEASE DISSOLVES IN THE SAME EDIT THAT MADE IT. The charter's report: a fall to 6 on a
-// fret-5 ring, then a 6 typed one step before the end. The new point travels, so it stands — and it
-// leaves the release falling toward the fret the path now holds, a mark nothing draws and no head
-// reaches, which would still pin the ring. The gate takes the release rather than the point, and
-// ONE undo puts the figure back: the diff records document states, and both sides of this one are
-// statements the writer keeps.
-TEST_CASE("A point typed before a release dissolves the release it duplicates", "[core][chart]")
+// A SILENCED RELEASE LINGERS IN FOCUS AND GOES ON LEAVE, like every other silent point. The
+// charter's report: a fall to 6 on a fret-5 ring, then a 6 typed one step before the end. The new
+// point travels, so it stands — and it leaves the release falling toward the fret the path now
+// holds. That fall draws its chip and can be reached, so nothing takes it while the note is in
+// focus; the focus-leave sweep does, with no history entry, because none ever held it.
+TEST_CASE("A point typed before a release silences it until focus leaves", "[core][chart]")
 {
     common::core::Chart falling;
     falling.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1394,37 +1357,152 @@ TEST_CASE("A point typed before a release dissolves the release it duplicates", 
 
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
-    REQUIRE(stated.notes[0].keyframes.size() == 1);
+    REQUIRE(stated.notes[0].keyframes.size() == 2);
     CHECK(stated.notes[0].keyframes[0].offset == common::core::Fraction{7});
     CHECK(stated.notes[0].keyframes[0].fret == 6);
-    // The ring keeps its length; what went is the statement at its end.
+    // The silenced fall is still there, with the ring it pins.
     CHECK(stated.notes[0].sustain == common::core::Fraction{8});
-    CHECK(common::core::endStatedFretOrNull(stated.notes[0]) == nullptr);
-
+    CHECK(common::core::endStatedFretOrNull(stated.notes[0]) != nullptr);
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+
+    // Focus leaves for another string: the sweep takes the fall and leaves the point that travels.
+    click(fixture.controller, g_onset_x, g_string_2_y);
+    const common::core::Chart swept = currentChart(fixture.controller);
+    REQUIRE(swept.notes.size() == 1);
+    REQUIRE(swept.notes[0].keyframes.size() == 1);
+    CHECK(swept.notes[0].keyframes[0].offset == common::core::Fraction{7});
+    CHECK(swept.notes[0].sustain == common::core::Fraction{8});
+    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// The same law reached by the verb that states a release directly: `Alt`+digit at the ring's exact
-// end with that very fret in force would author the one point no surface draws and no head reaches,
-// so the edit comes out as NO CHANGE — the press authors nothing rather than planting something
-// unreachable. (A press the screen does not explain; see docs/plans/in-progress/refusal-flash.md.)
-TEST_CASE("Alt at a ring's end repeating the fret in force authors nothing", "[core][chart]")
+// `Insert` ON A TAIL types the fret in force at the caret: the digit route with the digit supplied.
+// Inside a ring that is the silent point typing the note's own fret makes — selected, and gone when
+// its note leaves focus — and at the ring's END it is the end statement at that fret, which a digit
+// then retypes into a fall that travels.
+TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
 {
-    KeyframeFixture fixture;
-    const common::core::Chart original = currentChart(fixture.controller);
-    const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+    SECTION("inside a ring it plants the silent point")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+        const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
-    // The glide holds its junction's 9 from four beats in to the end, so 9 is the fret in force
-    // there and the slide-out it would name falls nowhere.
+        // Six beats in, where the glide holds its junction's 9.
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onLanePointInsertRequested();
+
+        const common::core::Chart planted = currentChart(fixture.controller);
+        REQUIRE(planted.notes.size() == 1);
+        REQUIRE(planted.notes[0].keyframes.size() == 2);
+        CHECK(planted.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK(planted.notes[0].keyframes[1].fret == 9);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_keyframes ==
+            (std::vector<ChartKeyframeRef>{
+                ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+            }));
+        // Authoring state: no history entry, and gone when the note leaves focus.
+        CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+        click(fixture.controller, g_onset_x, g_string_2_y);
+        CHECK(currentChart(fixture.controller) == original);
+    }
+
+    SECTION("at the ring's end it states the end, and a digit retypes it into a fall")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onLanePointInsertRequested();
+
+        const common::core::Chart stated = currentChart(fixture.controller);
+        REQUIRE(stated.notes.size() == 1);
+        CHECK(stated.notes[0].sustain == original.notes[0].sustain);
+        const int* const in_force = common::core::endStatedFretOrNull(stated.notes[0]);
+        REQUIRE(in_force != nullptr);
+        if (in_force != nullptr)
+        {
+            CHECK(*in_force == 9);
+        }
+
+        // The statement is selected, so the digit that follows retypes it rather than placing the
+        // head the same slot's bare digit would.
+        fixture.controller.onChartFretDigitTyped(3);
+        const common::core::Chart retyped = currentChart(fixture.controller);
+        REQUIRE(retyped.notes.size() == 1);
+        const int* const falls_toward = common::core::endStatedFretOrNull(retyped.notes[0]);
+        REQUIRE(falls_toward != nullptr);
+        if (falls_toward != nullptr)
+        {
+            CHECK(*falls_toward == 3);
+        }
+    }
+
+    SECTION("a statement already standing at the end is selected, not doubled")
+    {
+        KeyframeFixture fixture{makeReleasedGlideChart()};
+        const common::core::Chart original = currentChart(fixture.controller);
+
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+        fixture.controller.onLanePointInsertRequested();
+
+        CHECK(currentChart(fixture.controller) == original);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_keyframes ==
+            (std::vector<ChartKeyframeRef>{
+                ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+            }));
+    }
+
+    SECTION("a slot no ring covers is inert")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+
+        // The empty string-2 lane: nothing rings there, so there is no fret in force to state.
+        click(fixture.controller, g_holding_tail_x, g_string_2_y);
+        fixture.controller.onLanePointInsertRequested();
+        CHECK(currentChart(fixture.controller) == original);
+
+        // Nor on a head, whose own facts the note carries: the caret is not on a tail at all.
+        click(fixture.controller, g_onset_x, g_string_3_y);
+        fixture.controller.onLanePointInsertRequested();
+        CHECK(currentChart(fixture.controller) == original);
+    }
+}
+
+// THE SHIFT SLIDE IN ONE KEY: at the end of a ring abutting a head at the fret in force, the
+// statement `Insert` writes names the stop that head is struck at, at the same instant, which is
+// what the chart reads as an ARRIVAL rather than a fall.
+TEST_CASE("Insert at an abutting end states the arrival", "[core][chart]")
+{
+    // A fret-9 ring ending exactly on a fret-9 head of the same string: the glide's junction holds
+    // 9 to the end, so the fret in force there IS the landing's own stop.
+    common::core::Chart abutting = makeGlideChart();
+    abutting.notes.push_back(
+        makeTestNote({.measure = 4, .beat = 1}, 3, 9, common::core::Fraction{4}));
+    KeyframeFixture fixture{std::move(abutting)};
+
     click(fixture.controller, g_ring_end_x, g_string_3_y);
-    fixture.controller.onChartPathDigitTyped(9);
+    fixture.controller.onLanePointInsertRequested();
 
-    CHECK(currentChart(fixture.controller) == original);
-    CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
-    // NoChange is not a refusal, so nothing is left armed for a second digit to widen.
-    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+    const common::core::Chart stated = currentChart(fixture.controller);
+    REQUIRE(stated.notes.size() == 2);
+    const common::core::ChartConnections connections =
+        common::core::chartConnections(stated.notes, fixture.controller.session().song().tempo_map);
+    REQUIRE(connections.arrives_into.size() == 2);
+    CHECK(connections.arrives_into[0]);
+    // The relation, not a stored kind: the statement is the ordinary end statement at fret 9.
+    const int* const arrival = common::core::endStatedFretOrNull(stated.notes[0]);
+    REQUIRE(arrival != nullptr);
+    if (arrival != nullptr)
+    {
+        CHECK(*arrival == 9);
+    }
 }
 
 } // namespace rock_hero::editor::core

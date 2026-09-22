@@ -81,10 +81,9 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// A bare digit at a caret a ring covers STATES A POINT on that ring's path: a fret at an instant
+// A digit at a caret a ring covers STATES A POINT on that ring's path: a fret at an instant
 // the string is already sounding is a stop the hand takes, never a second onset, and nothing
-// single-press cuts a ring. The Alt digit says the same thing here; the two part company only at
-// the ring's exact end, one test below.
+// single-press cuts a ring.
 TEST_CASE("EditorController digit inside a sustain states a point on the path", "[core][chart]")
 {
     FakeTransport transport;
@@ -123,9 +122,10 @@ TEST_CASE("EditorController digit inside a sustain states a point on the path", 
     CHECK(*chartOrNull(controller) == original);
 }
 
-// At the ring's EXACT END a bare digit places the ADJACENT head, and nothing is truncated: the
+// At the ring's EXACT END a digit places the ADJACENT head, and nothing is truncated: the
 // ring already stops where the new onset starts, so the two stand side by side and sequential
-// entry never trips.
+// entry never trips. ALWAYS the next note there, whatever that ring's end states and with no
+// modifier that says otherwise — the end's own statement is `Insert`'s and the walk's.
 TEST_CASE("EditorController digit at a ring's end places an adjacent note", "[core][chart]")
 {
     FakeTransport transport;
@@ -158,110 +158,6 @@ TEST_CASE("EditorController digit at a ring's end places an adjacent note", "[co
 
     controller.onUndoRequested();
     CHECK(*chartOrNull(controller) == original);
-}
-
-// Inside a ring the PATH verb says exactly what the bare digit says: a POINT on the ring the slot
-// falls inside. The two part company at the ring's end alone, which the case below pins.
-TEST_CASE("EditorController Alt digit inside a sustain states a keyframe on it", "[core][chart]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio));
-    const common::core::Chart original = *chartOrNull(controller);
-
-    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
-    // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
-    // selects nothing.
-    click(controller, 90.0f, 180.0f);
-    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
-    controller.onChartPathDigitTyped(5);
-
-    const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == 3);
-    CHECK(chart->notes[2].sustain == common::core::Fraction{2, 1});
-    REQUIRE(chart->notes[2].keyframes.size() == 1);
-    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{1});
-    CHECK(chart->notes[2].keyframes[0].fret == 5);
-
-    controller.onUndoRequested();
-    CHECK(*chartOrNull(controller) == original);
-}
-
-// THE ONE CELL THE VERBS PART COMPANY IN: at the ring's EXACT END `Alt`+digit states its RELEASE —
-// the slide-out — where the bare digit above placed the adjacent head.
-TEST_CASE("EditorController Alt digit at a ring's end states its release", "[core][chart]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio));
-    const common::core::Chart original = *chartOrNull(controller);
-
-    click(controller, 100.0f, 180.0f);
-    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
-    controller.onChartPathDigitTyped(5);
-
-    const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == 3);
-    CHECK(chart->notes[2].sustain == original.notes[2].sustain);
-    REQUIRE(chart->notes[2].keyframes.size() == 1);
-    CHECK(chart->notes[2].keyframes[0].offset == common::core::Fraction{2});
-    CHECK(chart->notes[2].keyframes[0].fret == 5);
-
-    controller.onUndoRequested();
-    CHECK(*chartOrNull(controller) == original);
-}
-
-// With no ring to join, the PATH verb states what the bare digit does: on an empty slot Alt+digit
-// places the same head, so the modifier costs a charter nothing where it means nothing.
-TEST_CASE("EditorController Alt digit on an empty slot places a head", "[core][chart]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio));
-    const std::size_t notes_before = chartOrNull(controller)->notes.size();
-
-    // x = 200 is 10.0s on the empty string-4 lane, beyond every fixture note.
-    click(controller, 200.0f, 100.0f);
-    controller.onChartPathDigitTyped(7);
-
-    const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == notes_before + 1);
-    CHECK(chart->notes.back().string == 4);
-    CHECK(chart->notes.back().fret == 7);
-    CHECK(chart->notes.back().keyframes.empty());
 }
 
 // Delete removes the whole selection as one entry and undo restores it.

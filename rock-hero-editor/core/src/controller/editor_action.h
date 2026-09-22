@@ -724,26 +724,21 @@ struct EditorAction
     {
     };
 
-    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
+    /*!
+    \brief The Insert key's create: the point at an armed caret's slot, on either lane.
+
+    An on-curve point on an automation lane; on the chart lane the statement at the caret's own
+    offset along the ring it stands in, carrying the fret already in force there.
+    */
     struct InsertLanePoint
     {
     };
 
-    /*! \brief Type one digit into the chart's fret entry, in one of the two entry verbs. */
+    /*! \brief Type one digit into the chart's fret entry. */
     struct TypeChartFretDigit
     {
         /*! \brief The digit typed, 0 to 9. */
         int digit{};
-
-        /*!
-        \brief True for the PATH verb (`Alt`+digit), false for the bare digit.
-
-        One cell of the tab lane's entry grammar differs between them: at a ring's EXACT END, an
-        `Alt` digit states the slide-out the release names while a bare digit places the adjacent
-        head. Everywhere else the two say the same thing — a point on a ring the slot falls inside,
-        a head on a slot no ring covers, a retype over a non-empty selection.
-        */
-        bool path{false};
     };
 
     /*! \brief Shift every selected note's fret by one, shape-preserving. */

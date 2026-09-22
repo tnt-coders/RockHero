@@ -568,6 +568,17 @@ struct NoteViewState
     std::vector<VibratoSpanViewState> vibrato;
 
     /*!
+    \brief True when the ring ENDS exactly on the next head of its own string, so a mark stating the
+    end and that head's own marks stand at one x.
+
+    THE BAND CONDITIONAL'S one input (\ref ChartConnections::ends_on_next_head): at a shared instant
+    the instant belongs to the HEAD, so the head's marks keep their side of the envelope and every
+    mark of the ring that ENDS there takes the other. An arrival and an abutting fall both land
+    here, because what collides is geometry rather than gesture.
+    */
+    bool ends_on_next_head{false};
+
+    /*!
     \brief Compares two note view states by their stored fields.
     \param lhs Left-hand note.
     \param rhs Right-hand note.
@@ -582,7 +593,7 @@ struct NoteViewState
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
-               lhs.vibrato == rhs.vibrato;
+               lhs.vibrato == rhs.vibrato && lhs.ends_on_next_head == rhs.ends_on_next_head;
     }
 };
 

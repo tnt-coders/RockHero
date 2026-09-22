@@ -389,7 +389,10 @@ TEST_CASE("A move gesture parks a release on the next head and banks nothing", "
     // A whole-note step, so one press spans the four beats to the head — see the figure above.
     fixture.controller.onGridNoteValueChangeRequested(common::core::Fraction{1});
 
+    // The release stands at the ring's END, which no landing addresses: the click arms the caret on
+    // that slot and one Shift+Tab steps onto the statement itself.
     click(fixture.controller, g_junction_x, g_string_3_y);
+    fixture.controller.onRowObjectStepRequested(false, false);
     {
         const EditorViewState* const selected = stateOrNull(fixture.view.last_state);
         REQUIRE(selected != nullptr);

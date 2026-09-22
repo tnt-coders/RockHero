@@ -1692,16 +1692,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::TypeDigit7:
         case EditorCommandId::TypeDigit8:
         case EditorCommandId::TypeDigit9:
-        case EditorCommandId::TypePathDigit0:
-        case EditorCommandId::TypePathDigit1:
-        case EditorCommandId::TypePathDigit2:
-        case EditorCommandId::TypePathDigit3:
-        case EditorCommandId::TypePathDigit4:
-        case EditorCommandId::TypePathDigit5:
-        case EditorCommandId::TypePathDigit6:
-        case EditorCommandId::TypePathDigit7:
-        case EditorCommandId::TypePathDigit8:
-        case EditorCommandId::TypePathDigit9:
         case EditorCommandId::GridFiner:
         case EditorCommandId::GridCoarser:
         case EditorCommandId::ZoomIn:
@@ -2421,30 +2411,6 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartFretDigitTyped(digit);
-            }
-            return true;
-        }
-
-        // The path verb's digits. Deliberately NOT offered to the tone-automation lanes first the
-        // way the bare digits are: Alt+click on a lane is that lane's own live verb, so Alt+digit
-        // there would claim a chord the lanes already spell for something else. The path digit is
-        // the chart's alone.
-        case EditorCommandId::TypePathDigit0:
-        case EditorCommandId::TypePathDigit1:
-        case EditorCommandId::TypePathDigit2:
-        case EditorCommandId::TypePathDigit3:
-        case EditorCommandId::TypePathDigit4:
-        case EditorCommandId::TypePathDigit5:
-        case EditorCommandId::TypePathDigit6:
-        case EditorCommandId::TypePathDigit7:
-        case EditorCommandId::TypePathDigit8:
-        case EditorCommandId::TypePathDigit9:
-        {
-            const int digit = static_cast<int>(info.commandID) -
-                              static_cast<int>(toJuceCommandId(EditorCommandId::TypePathDigit0));
-            if (hasChart())
-            {
-                m_controller.onChartPathDigitTyped(digit);
             }
             return true;
         }

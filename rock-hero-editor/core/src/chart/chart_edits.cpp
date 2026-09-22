@@ -234,22 +234,6 @@ enum class StrandedStrikeRepair : std::uint8_t
     // are the load path's business (it names what it changed); a producer that only needs the
     // invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    // After the truncation, whose clip is what can leave a release saying nothing, and before the
-    // validator: a silent RELEASE has no face and no handle — nothing draws a fall toward the fret
-    // the path already holds, and a release wears no head — so it cannot be reached while it still
-    // pins the ring, and the edit that created it is the edit that clears it.
-    //
-    // A FALL is what this takes, never an arrival: a glide that lands on the stop the next head is
-    // struck at wears a linked head at the presented end, so a silent one is ordinary visible
-    // authoring state. The relation is resolved once for the whole candidate here
-    // (\ref common::core::ChartConnections::arrives_into) rather than asked per note.
-    const common::core::ChartConnections settled =
-        common::core::chartConnections(candidate, tempo_map);
-    for (std::size_t index = 0; index < candidate.size(); ++index)
-    {
-        static_cast<void>(
-            common::core::dissolveSilentRelease(candidate[index], settled.arrives_into[index]));
-    }
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record

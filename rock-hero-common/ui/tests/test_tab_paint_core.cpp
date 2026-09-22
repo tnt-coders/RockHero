@@ -2237,6 +2237,152 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
     }
 }
 
+// EVERY STOP WEARS ITS MARK, whatever the leg into it did. A fall toward the fret already in force
+// travels nowhere, so no diagonal is drawn for it — but the chip still is, exactly as an interior
+// same-fret point still draws its linked head, which is what gives a statement that says nothing a
+// face to select, retype and delete. And where the ring ENDS on a head of its own string, the chips
+// of the ring that ends there take the band opposite the head's own marks, so two marks at one
+// column never overlap.
+TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    const auto painted = [&metrics](const std::vector<common::core::NoteViewState>& notes) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = notes;
+        const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, prefix_max);
+        return image;
+    };
+    // The ring under test: six seconds on string 3 at fret 7, carrying whatever stop is passed.
+    const auto ringing = [](std::vector<common::core::KeyframeViewState> slides,
+                            const bool ends_on_next_head) {
+        return common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .end_seconds = 8.0,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = std::move(slides),
+            .vibrato = {},
+            .ends_on_next_head = ends_on_next_head,
+        };
+    };
+    const float center_y = metrics.laneY(3);
+    const TailSpan span = tailSpan(metrics, center_y);
+    // Mid-ribbon, well clear of both the onset head and the end: where a diagonal would have to
+    // cross if the leg travelled at all.
+    const int mid_x = juce::roundToInt(metrics.x(5.0));
+    const auto envelope_agrees = [&](const juce::Image& lhs, const juce::Image& rhs) {
+        for (int y = juce::roundToInt(span.top); y <= juce::roundToInt(span.bottom); ++y)
+        {
+            if (lhs.getPixelAt(mid_x, y) != rhs.getPixelAt(mid_x, y))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+    // Whether anything inside a layout rectangle differs between two renders — the chip's own
+    // rasterised ground and frame, never the digit over it.
+    const auto box_differs =
+        [](const juce::Image& lhs, const juce::Image& rhs, const TabLayoutRect& box) {
+            for (int y = juce::roundToInt(box.y); y < juce::roundToInt(box.y + box.height); ++y)
+            {
+                for (int x = juce::roundToInt(box.x); x < juce::roundToInt(box.x + box.width); ++x)
+                {
+                    if (lhs.getPixelAt(x, y) != rhs.getPixelAt(x, y))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+    const juce::Image bare = painted({ringing({}, false)});
+
+    SECTION("a fall toward the fret in force draws its chip and no diagonal")
+    {
+        const common::core::KeyframeViewState fall{.seconds = 8.0, .fret = 7, .release = true};
+        const common::core::NoteViewState note = ringing({fall}, false);
+        const juce::Image image = painted({note});
+        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, fall);
+        CHECK(layout.chip);
+        CHECK(box_differs(image, bare, layout.head));
+        CHECK(envelope_agrees(image, bare));
+    }
+
+    SECTION("an interior same-fret point draws its linked head and no diagonal")
+    {
+        const common::core::KeyframeViewState hold{.seconds = 6.0, .fret = 7, .release = false};
+        const common::core::NoteViewState note = ringing({hold}, false);
+        const juce::Image image = painted({note});
+        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, hold);
+        CHECK_FALSE(layout.chip);
+        CHECK(box_differs(image, bare, layout.head));
+        CHECK(envelope_agrees(image, bare));
+    }
+
+    SECTION("at a shared instant the ending ring's chip takes the band below the envelope")
+    {
+        // A fall that travels, landing exactly where the next head of its own string is struck,
+        // and that head carrying the PRE-BEND whose chip sits above it.
+        const common::core::KeyframeViewState fall{.seconds = 8.0, .fret = 12, .release = true};
+        const common::core::NoteViewState glide = ringing({fall}, true);
+        const common::core::NoteViewState landing{
+            .start_seconds = 8.0,
+            .end_seconds = 10.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {common::core::BendPointViewState{.seconds = 8.0, .semitones = 2.0}},
+            .slides = {},
+            .vibrato = {},
+        };
+        const TabKeyframeLayout shared = tabKeyframeLayout(metrics, glide, fall);
+        CHECK(shared.chip);
+        CHECK(shared.center_y > span.bottom);
+        // And the band is the RELATION's, not the leg's: the same rising fall takes the band above
+        // where nothing shares its instant.
+        CHECK(tabKeyframeLayout(metrics, ringing({fall}, false), fall).center_y < span.top);
+
+        // The head's own marks keep the band above it, so the two never meet: the chip's ink is
+        // below the envelope and the pre-bend's above the head.
+        const juce::Image image = painted({glide, landing});
+        const juce::Image without_pre_bend = painted(
+            {glide,
+             common::core::NoteViewState{
+                 .start_seconds = 8.0,
+                 .end_seconds = 10.0,
+                 .string = 3,
+                 .fret = 5,
+                 .bend = {},
+                 .slides = {},
+                 .vibrato = {},
+             }});
+        CHECK(box_differs(image, painted({landing}), shared.head));
+        const int head_x = juce::roundToInt(metrics.x(8.0));
+        const auto differs_above_head = [&] {
+            for (int y = juce::roundToInt(span.top) - 12; y < juce::roundToInt(span.top); ++y)
+            {
+                for (int x = head_x - 6; x <= head_x + 6; ++x)
+                {
+                    if (image.getPixelAt(x, y) != without_pre_bend.getPixelAt(x, y))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        CHECK(differs_above_head());
+    }
+}
+
 // The pending entry box: the editor's provisional-value chrome, exported from the core so the
 // digit's plate and typography stay the committed head's. Pins the inks the primitive promises
 // on BOTH plate polarities: the host's text color at the glyphs, the host's border color on the

@@ -1095,12 +1095,7 @@ void EditorController::onSelectionDeleteRequested()
 
 void EditorController::onChartFretDigitTyped(int digit)
 {
-    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit, .path = false});
-}
-
-void EditorController::onChartPathDigitTyped(int digit)
-{
-    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit, .path = true});
+    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit});
 }
 
 void EditorController::onChartFretShiftRequested(int direction)

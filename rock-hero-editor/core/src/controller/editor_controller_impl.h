@@ -255,11 +255,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct ChartFretEntry;
     // The typing rule's three flows, split from the digit dispatcher: combining into the pending
     // entry (false = no live entry claimed the digit — an expired one settled and the digit
-    // falls through to a fresh flow), starting an insert entry at the armed caret in the named
-    // verb, and starting a retype entry over the selection.
+    // falls through to a fresh flow), starting an insert entry at the armed caret, and starting a
+    // retype entry over the selection.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
-    void insertChartFretAtCaret(int digit, bool path, std::uint32_t now_ms);
+    void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // `Insert`'s chart half: the same insert flow with the value SUPPLIED — the fret in force at
+    // the caret, which inside a ring is a silent point and at the ring's end is the end statement.
+    // It takes no digit, so the entry settles in the same keystroke; a statement already standing
+    // at that offset is selected instead of doubled.
+    void insertChartStatementAtCaret();
     // The harmonic node picker over the current selection: the node rows of the member whose label
     // names the most nodes (which member that was, so the view can anchor on it), each marked when
     // it is where that member already touches, plus whether a clear is among the changes and
@@ -375,24 +380,29 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
     void clearChartEditingState();
-    // What the chart holds on a slot, or absent when nothing does: the note at it, else the
-    // keyframe whose offset lands there along the ring of the string's preceding note. THE ONE
-    // occupancy question — caret arming re-derives the selection from it, and it is the inverse of
-    // chartCaretSlotFor, so a caret armed on what this returns always names it.
+    // What a slot HOLDS, or absent when nothing does: the note at it, else the keyframe whose
+    // offset lands STRICTLY INSIDE the ring of the string's preceding note. WHAT A LANDING
+    // ADDRESSES, and the arming's authority alone — it is the inverse of chartCaretSlotFor, so a
+    // caret armed on what this returns always names it. A ring's END STATEMENT is not one of the
+    // slot's objects; the walk and the pointer carry that key into the landing instead.
     [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
         common::core::GridPosition position, int string) const;
-    // Drops every selection key naming an object the chart no longer holds, resolved through
-    // chartObjectAt. Called once an undo/redo transition commits: the dissolve law's linger serves
-    // a live verb window, which the transition has already ended, and past it a key resolving to
-    // nothing simply swallows the next digit into a retype that finds no operand.
+    // Drops every selection key naming an object the chart no longer holds, asked of the key's own
+    // kind rather than of the slot it sits on. Called once an undo/redo transition commits: the
+    // dissolve law's linger serves a live verb window, which the transition has already ended, and
+    // past it a key resolving to nothing simply swallows the next digit into a retype that finds no
+    // operand.
     void dropChartSelectionKeysNamingNothing();
-    // Arms the caret at a slot and re-derives the selection from what sits under it (a note
-    // selects, an empty slot clears). The channel names WHICH stop of that note the caret sits
-    // on; it defaults to the one every note has, and a Held request the slot cannot honour falls
-    // back to it, so the caret can never park on a mark the lane does not draw.
+    // Arms the caret at a slot and takes the landing's own object as the selection, or re-derives
+    // one from what sits under it (a note selects, an empty slot clears). The channel names WHICH
+    // stop of that note the caret sits on; it defaults to the one every note has, and a Held
+    // request the slot cannot honour falls back to it, so the caret can never park on a mark the
+    // lane does not draw. `object` is given by a caller that knows what it landed on — the object
+    // walk, the pointer — the only way to address a ring's END statement, since no slot holds it.
     void armChartCaret(
         common::core::GridPosition position, int string,
-        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding);
+        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding,
+        const std::optional<ChartSelectionKey>& object = {});
     // Moves the caret onto a SELECTED note's held stop without touching the selection — the
     // selection handle. armChartCaret cannot serve: it re-derives the selection from the slot, so
     // a chord would collapse to the member whose satellite was aimed at, taking the scope away in
@@ -1034,7 +1044,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
-        // An entry begun by a bare digit where nothing rings THROUGH the slot — an empty one, or
+        // An entry begun by a digit where nothing rings THROUGH the slot — an empty one, or
         // one at a ring's exact end, where the new head simply stands adjacent: settling applies
         // ONE insert carrying the combined fret at the slot (undo removes the note), and the
         // pending box draws there.
@@ -1062,12 +1072,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             std::vector<common::core::ChartNote> base_notes{};
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
-        // An entry begun by a DIGIT at a caret a ring covers: the tail's own typed value, where an
-        // empty slot's would be a note. Settling plants one point at `offset` along `note`'s ring
-        // carrying the entry's value, selected — from there it is any keyframe, the commit law
-        // included. Reached by a BARE digit strictly inside the ring (every note is typed, and a
-        // digit inside a ring states the path rather than cutting it) and by `Alt`+digit at the
-        // ring's exact END, where the point it states is the slide-out.
+        // An entry begun at a caret a ring covers: the tail's own value, where an empty slot's
+        // would be a note. Settling plants one point at `offset` along `note`'s ring carrying the
+        // entry's value, selected — from there it is any keyframe, the commit law included. Reached
+        // by a digit strictly inside the ring (every note is typed, and a digit inside a ring
+        // states the path rather than cutting it), and by `Insert` anywhere on the tail — its exact
+        // END included, where the value is the fret already in force rather than one typed.
         //
         // A third beginning rather than a Retype naming the point, because the point does not
         // exist yet: a retype addresses stops the chart holds, and there is nothing here to
@@ -1109,14 +1119,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Declared here rather than beside the other chart helpers above, because it names the entry
     // type defined just above it.
     //
-    // THE one rule for which object a fresh insert-flow digit of this verb addresses at the armed
-    // caret, expressed as the entry beginning it would open — a head at the slot, or a point on
-    // the path of a ring covering it — or nothing where no caret can take a digit at all (a
-    // passive marker, or a caret riding an automation lane row, where typing is the lane's own
-    // value editor). Asked only by the FIRST digit of an entry: that digit's verb decides what the
-    // entry creates, and every digit after it widens the value rather than re-deciding the target.
-    [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartCaretDigitTarget(
-        bool path) const;
+    // THE one rule for which object a fresh insert-flow digit addresses at the armed caret,
+    // expressed as the entry beginning it would open — a point on the path of a ring RINGING
+    // THROUGH the slot, or a head at the slot otherwise — or nothing where no caret can take a
+    // digit at all (a passive marker, or a caret riding an automation lane row, where typing is the
+    // lane's own value editor). Asked only by the FIRST digit of an entry: every digit after it
+    // widens the value rather than re-deciding the target.
+    [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartCaretDigitTarget() const;
     // The slot an offset along a ring lands on — the inverse of the `beatDistance` that measured
     // it, so a site named as (note, offset) can name its own slot for the selection it plants and
     // the box it draws without either re-deriving it.
@@ -1456,9 +1465,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // THE landing, for every row. A point row arms at the column, or at the paused cursor's slot
     // when none is given, with the channel meaning something on a string row only. A marker row
     // demotes an armed caret in place and takes the selection, so it has no column of its own.
+    //
+    // `object` is the chart object the landing addresses where the caller knows it — the object
+    // walk does — and nothing where the slot is left to answer (armChartCaret). A lane row has no
+    // use for it: one point per slot, so the slot names it.
     void landOnRow(
         const FocusRow& row, std::optional<common::core::GridPosition> column,
-        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding);
+        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding,
+        const std::optional<ChartSelectionKey>& object = {});
 
     // The EDITOR-driven cursor move: seeks onto a musical position, remembers that exact position
     // for the next arming while the marker is passive, and points the rig at the tone found there,
@@ -1471,12 +1485,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // can never disagree about which rows exist.
     [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
 
+    // Where one step of the object walk lands: the slot, and the chart object addressed there.
+    // The object is absent on a lane row, whose point the slot alone names.
+    struct RowObjectStop
+    {
+        common::core::GridPosition position{};
+        std::optional<ChartSelectionKey> object{};
+    };
+
     // The caret row's next authored object strictly beyond the caret in the step direction —
     // a note or keyframe on its string (a note alone with notes_only), a point on its lane.
     // Objects are first-class caret stops (the union stop set): plain arrows step to the nearer of
     // the adjacent grid line and this, so an off-grid object stays reachable from the keyboard, and
     // Tab steps to this alone.
-    [[nodiscard]] std::optional<common::core::GridPosition> nextRowObjectStop(
+    //
+    // It carries the OBJECT and not only the slot, because at a shared instant a slot holds two: a
+    // ring's end statement and the head that takes the string back, stepped in that order.
+    [[nodiscard]] std::optional<RowObjectStop> nextRowObjectStop(
         const ChartCaret& caret, bool later, bool notes_only);
 
     // The authored points of one lane row, resolved through the durable plugin identity, or

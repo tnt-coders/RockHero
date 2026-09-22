@@ -356,10 +356,13 @@ marks the addressed head marks the ending ring's end mark instead, the fall chip
 linked head. A held mode must show which object it addresses, and "`Alt` already means it" fails
 exactly where two objects share one x.
 
-Two questions of taste, the user's: (1) at an abutting end whose last leg RISES, does the fall chip
-flip below (losing the direction redundancy) or stay above and the head's pre-bend chip yield?
-(2) Under the reveal, is the arrival's head drawn under the picked head (doubled ink, a hair bolder
-digit) or skipped as a coincident duplicate? Sighting: `Alt` over a one-step end bend arriving
+**BUILT 2026-09-22 with the interaction half.** (1) is answered as the expert measured it: the
+ending ring's chips take the band BELOW the envelope whenever its end stands on a head of its own
+string, rising leg or not, and the head's own marks keep the band above — one conditional
+(`endMarkYAtSharedInstant`), one constant to flip it, read by the painter and the layout manifest
+alike. (2) is answered by the SELECTION rather than by the reveal: the picked head draws over the
+arrival as the instant's owner, and the arrival is redrawn over it only while it is the selected
+object. Still open at the sighting: Sighting: `Alt` over a one-step end bend arriving
 into a pre-bent same-string head, and a rising fall abutting a pre-bent head, at the shipped note
 height and just above the text floor — falsified by any partially covered digit, any chip crossing
 the neighbouring envelope, or any mark changing band as `Alt` goes down.
@@ -404,8 +407,11 @@ German, Polish or Brazilian layout AltGr+7 (the charter's `{`) already fires `Ty
 the composed-character filter does not catch it. `Ctrl+Alt` itself is free and not
 AltGr-ambiguous.
 
-Taste, the user's: (i) at the shared instant does `Shift+Tab` stop on the end BEFORE the head
-(time order) or after it (heads first, attachments second, Sibelius's way); (ii) G1 or G2.
+**BUILT 2026-09-22: G1, in time order** — `Shift+Tab` stops on the end statement BEFORE the head,
+one step below it, and an empty end is no object (G2's selectable empty end was not built). The
+walk carries the OBJECT and not its slot, and the same key reaches `armChartCaret`, which is what
+made the "arming selects a slide-out's chip" clause deletable. The AltGr collision went with
+`Alt`+digit rather than needing a backlog entry.
 
 **A head typed onto a ring's end that holds a statement** (the user's question, 2026-09-21). The
 answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
@@ -427,14 +433,15 @@ drag the end statement back by hand — a whole grid step where the repair leave
 tick steps with snap off. The squish is also not a breach of rule 4: that rule is about LOSS, and
 a squished statement says everything it said.
 
-One thing stands in the way and needs a ruling: today ARMING the caret on a slot where a slide-out
-ends SELECTS its chip, so a digit there retypes the fall instead of placing a head (ruled
-2026-09-11, when `Alt`+digit made falls and a fall at the slot was the rarer case). Carried over to
-end bends, a charter who ends a note with a bend release and steps right to type the next note
-would instead give the bend point a fret — a fall nobody asked for. Proposed: a bare digit at a
-ring's end slot is ALWAYS the next note, no exception for what the ring's end states; the end
-statement's chip is selected by clicking it, and the keys address it once it is. Sequential entry
-then has no trap in it, and the rule has one clause instead of two.
+One thing stood in the way and was ruled: ARMING the caret on a slot where a slide-out ends used to
+SELECT its chip, so a digit there retyped the fall instead of placing a head (ruled 2026-09-11, when
+`Alt`+digit made falls and a fall at the slot was the rarer case). Carried over to end bends, a
+charter who ends a note with a bend release and steps right to type the next note would instead
+give the bend point a fret — a fall nobody asked for. **BUILT 2026-09-22:** a digit at a ring's end
+slot is ALWAYS the next note, no exception for what the ring's end states. The end statement is
+reached by clicking its chip or by one `Shift+Tab`, both of which carry its KEY into the landing;
+`chartObjectAt` answers what a slot HOLDS and the end is not one of its objects. Sequential entry
+has no trap in it, and the rule has one clause instead of two.
 
 **Authoring the end's bend, for Phase 3** (superseded by the entry above if that is signed) (raised by the user 2026-09-21; a proposal, to be signed
 with the `B` verb). The slot where a ring ends is often the slot where the next note's head

@@ -120,6 +120,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     connections.predecessors.reserve(notes.size());
     connections.hands_over.assign(notes.size(), false);
     connections.arrives_into.assign(notes.size(), false);
+    connections.ends_on_next_head.assign(notes.size(), false);
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
@@ -139,6 +140,10 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         {
             connections.arrives_into[predecessor_index] =
                 arrivesIntoNextHead(*predecessor, note, tempo_map);
+            // The arrival's EXACT ADJACENCY clause on its own: what an arrival and an abutting fall
+            // share, and all the surfaces need to know that two marks stand at one x.
+            connections.ends_on_next_head[predecessor_index] =
+                sustainEndPosition(tempo_map, *predecessor) == note.position;
         }
         // Only a note that actually CLAIMS a connection is resolved here. A plain pick's entry
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets

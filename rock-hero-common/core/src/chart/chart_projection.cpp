@@ -561,6 +561,11 @@ ChartViewState makeChartViewState(
         // keyframe of the drawn one.
         const bool releases =
             slideOutFretOrNull(stored, resolutions.connections.arrives_into[note_index]) != nullptr;
+        // The pair fact the surfaces need for the band a mark at the END takes, carried per note
+        // from the walk that resolved it (\ref ChartConnections::ends_on_next_head). It is the
+        // STORED ring's adjacency: presentation spaces the mark, and where the band belongs is
+        // decided by the instant the chart states it at.
+        view.ends_on_next_head = resolutions.connections.ends_on_next_head[note_index];
         // The stored statement behind each drawn one, asked once per note: the mark's IDENTITY is
         // the stored keyframe's offset while its `seconds` is where presentation puts it, so the
         // two are read from two places on purpose (\ref keyframeIdentities).

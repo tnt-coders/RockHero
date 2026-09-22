@@ -1386,13 +1386,12 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         }
     }
 
-    SECTION("a same-fret statement on the landing dissolves instead of becoming a release")
+    SECTION("a same-fret statement on the landing stands there too")
     {
-        // The same landing, on a point that says nothing: baring it would author a fall toward the
-        // fret the string already holds — nothing draws it, no head reaches it, and it would pin
-        // the ring — so the plan gate takes it in this very edit and the tail simply ends. The ring
-        // still ends exactly on the landing, three beats out, but with nothing stated there, which
-        // is what separates this from the section above.
+        // The same landing on a point that says nothing YET: becoming the end's own statement, it
+        // falls toward the fret the string already holds — which draws its chip like any silent
+        // point's mark, so the edit leaves it standing and the note's own focus decides how long it
+        // lives. A statement is never deleted by a verb that was handed a ring's length.
         const common::core::Chart chart = figure(
             common::core::Keyframe{
                 .offset = common::core::Fraction{3}, .fret = 7, .bend = {}, .vibrato = {}
@@ -1406,7 +1405,9 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             if (tail != nullptr)
             {
                 CHECK(tail->sustain == common::core::Fraction{3});
-                CHECK(tail->keyframes.empty());
+                REQUIRE(tail->keyframes.size() == 1);
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().fret == 7);
             }
         }
     }
@@ -1414,11 +1415,10 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
 
 // The other route a truncation reaches a release by: the clip ERASES the statement the release
 // travelled from, and the release it re-attaches at the new end then falls toward the fret the
-// SURVIVING path already holds. Nothing draws that fall and no head reaches it, so the gate
-// dissolves it in the edit that made it rather than leaving the charter a ring pinned by a mark
-// they cannot see, so the ring ends exactly where the new head put it (three halves of a beat)
-// with nothing stated there.
-TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core][chart]")
+// SURVIVING path already holds. It stays exactly where the end put it — three halves of a beat —
+// because a fall toward the fret in force draws its chip like any silent point's mark: the edit
+// deletes no statement, and the note's own focus decides how long one that says nothing lives.
+TEST_CASE("A clip leaves a release that says nothing standing", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     // One four-beat glide from fret 5 on string 1, stating `path` along the way and falling away to
@@ -1438,7 +1438,8 @@ TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core
     };
 
     // What the ring states before the clip, the fret it falls away toward, and the statements that
-    // survive the clip. Either way the release re-attaches onto a path that already holds its fret.
+    // survive the clip. Either way the release re-attaches onto a path that already holds its fret,
+    // at the new end (three halves of a beat).
     std::vector<common::core::Keyframe> path;
     int falls_toward{};
     std::vector<common::core::Keyframe> surviving;
@@ -1446,15 +1447,18 @@ TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core
     {
         path = {junction(common::core::Fraction{2}, 7)};
         falls_toward = 5;
+        surviving = {junction(common::core::Fraction{3, 2}, 5)};
     }
     SECTION("or onto a junction the clip leaves standing")
     {
-        // The exposed statement stands STRICTLY inside the new ring — a keyframe under the
-        // dissolved release is under the ring's end, which the truncation has already pulled back
-        // to the head — so the dissolve leaves an ordinary interior point behind it.
+        // The statement the clip exposes stands STRICTLY inside the new ring — a keyframe under the
+        // release is under the ring's end, which the truncation has already pulled back to the
+        // head — so the silenced fall keeps an ordinary interior point before it.
         path = {junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{2}, 5)};
         falls_toward = 7;
-        surviving = {junction(common::core::Fraction{1}, 7)};
+        surviving = {
+            junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{3, 2}, 7)
+        };
     }
     const common::core::Chart chart = figure(path, falls_toward);
     REQUIRE(common::core::endStatedFretOrNull(chart.notes.front()) != nullptr);
@@ -1475,10 +1479,10 @@ TEST_CASE("The plan gate dissolves a release a clip left saying nothing", "[core
         if (clipped != nullptr)
         {
             // The ring ends on the landing itself, and what is left is exactly what survived the
-            // clip: the fall is gone, and nothing else moved.
+            // clip with the fall riding back onto that end; nothing else moved.
             CHECK(clipped->sustain == common::core::Fraction{3, 2});
             CHECK(clipped->keyframes == surviving);
-            CHECK(common::core::endStatedFretOrNull(*clipped) == nullptr);
+            CHECK(common::core::endStatedFretOrNull(*clipped) != nullptr);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);

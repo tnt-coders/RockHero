@@ -14,6 +14,8 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 #include <vector>
@@ -1461,6 +1463,95 @@ TEST_CASE("TabView draws a selected note's ring beside a presented mate", "[ui][
     const juce::Image revealed = render();
     CHECK(revealed.getPixelAt(tail_x, upper_row).getARGB() != 0);
     CHECK(revealed.getPixelAt(tail_x, lower_row).getARGB() != 0);
+}
+
+// THE SELECTED OBJECT DRAWS LAST. An arrival stands at the very instant the head it glides into is
+// struck at, and the lane paints notes in chart order, so the picked head covers it: a charter who
+// selected the arrival would get the accent ring around a mark they cannot read. The overlay
+// redraws the mark it is about to ring, through the lane's own drawer, and the probe says so by
+// identity — the shared square reads as the arrival's own head, not the picked one's.
+TEST_CASE(
+    "TabView draws a selected arrival over the head it shares an instant with", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 400 px across 20 s: the shared instant at 8.0s lands at x = 160, and six lanes down 240 px
+    // give a 25 px head — wide enough for a probe eight pixels off centre to clear the fret digit
+    // and the accent ring alike, so what it reads is the head FILL.
+    const common::core::KeyframeViewState arrival{.seconds = 8.0, .fret = 9, .release = false};
+    const common::core::NoteViewState glide{
+        .start_seconds = 2.0,
+        .end_seconds = 8.0,
+        .string = 3,
+        .fret = 7,
+        .bend = {},
+        .slides = {arrival},
+        .vibrato = {},
+        .ends_on_next_head = true,
+    };
+    const common::core::NoteViewState landing{
+        .start_seconds = 8.0,
+        .end_seconds = 10.0,
+        .string = 3,
+        .fret = 9,
+        .bend = {},
+        .slides = {},
+        .vibrato = {},
+    };
+
+    TabView view{};
+    view.setBounds(0, 0, 400, 240);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    const auto render = [&view](std::vector<common::core::NoteViewState> notes) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = std::move(notes);
+        const auto shared_state =
+            std::make_shared<const common::core::ChartViewState>(std::move(state));
+        view.setState(shared_state, shared_state, 0);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    constexpr int probe_x = 168;
+    const int probe_y = juce::roundToInt(
+        common::ui::tabNoteLayout(
+            common::ui::makeTabLaneMetrics(
+                juce::Rectangle<int>{0, 0, 400, 240},
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{},
+                    .end = common::core::TimePosition{20.0},
+                },
+                6,
+                6),
+            landing)
+            .center_y);
+
+    view.setEditState(core::ChartEditViewState{});
+    const juce::Image picked_on_top = render({glide, landing});
+    // The arrival's own head, with nothing over it: what the shared square must read as once the
+    // arrival is the selected object.
+    const juce::Image arrival_alone = render({glide});
+
+    view.setEditState(
+        core::ChartEditViewState{
+            .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
+        });
+    const juce::Image arrival_selected = render({glide, landing});
+
+    CHECK(
+        arrival_selected.getPixelAt(probe_x, probe_y) !=
+        picked_on_top.getPixelAt(probe_x, probe_y));
+    CHECK(
+        arrival_selected.getPixelAt(probe_x, probe_y) ==
+        arrival_alone.getPixelAt(probe_x, probe_y));
 }
 
 // The controller-published armed caret renders as a white square outline on its empty slot

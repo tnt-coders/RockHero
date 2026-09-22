@@ -7,8 +7,10 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -1100,21 +1102,20 @@ void drawSlideLines(
         // than separate anything.
         const bool final_leg = index + 1 == stop_count;
         const float to_x = metrics.x(stop.seconds) - (final_leg ? 0.0f : line_thickness);
-        // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
-        // the keyframe renders the continuation, and the next segment's line leaves from here.
-        if (stop.fret == previous_fret)
-        {
-            from_x = to_x;
-            continue;
-        }
         const bool upward = stop.fret >= previous_fret;
-        const float from_y =
-            upward ? interior.bottom - line_thickness / 2.0f : interior.top + line_thickness / 2.0f;
-        const float to_y =
-            upward ? interior.top + line_thickness / 2.0f : interior.bottom - line_thickness / 2.0f;
+        // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
+        // the keyframe renders the continuation, and the next segment's line leaves from here. The
+        // stop's own MARK still draws, which is what gives a fall toward the fret in force a face.
+        if (stop.fret != previous_fret)
+        {
+            const float from_y = upward ? interior.bottom - line_thickness / 2.0f
+                                        : interior.top + line_thickness / 2.0f;
+            const float to_y = upward ? interior.top + line_thickness / 2.0f
+                                      : interior.bottom - line_thickness / 2.0f;
 
-        g.setColour(style[Ink::TechniqueLine]);
-        g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
+            g.setColour(style[Ink::TechniqueLine]);
+            g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
+        }
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
         // would be the same number twice. Only the RELEASE keeps the chip: a trail-off and a
@@ -1122,8 +1123,12 @@ void drawSlideLines(
         const bool terminal = note.slides[index].release;
         if (terminal && metrics.draw_text)
         {
-            const float label_y = upward ? span.top - metrics.note_height / 3.0f
-                                         : span.bottom + metrics.note_height / 3.0f;
+            // The leg's own direction ordinarily, and the shared instant's band where the ring ends
+            // on a head of its own string (endMarkYAtSharedInstant).
+            const float label_y = endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head)
+                                      .value_or(
+                                          upward ? span.top - metrics.note_height / 3.0f
+                                                 : span.bottom + metrics.note_height / 3.0f);
             slide_labels.push_back(
                 LabelChip{
                     .position = {metrics.x(stop.seconds), label_y},
@@ -1280,11 +1285,18 @@ void drawBendLines(
         g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
         if (metrics.draw_text)
         {
-            // Chips sit on the bend line, or above the head when the bend is at the onset.
+            // Chips sit on the bend line, or above the head when the bend is at the onset — except
+            // at the ring's END where it stands on a head of its own string, which is the band
+            // conditional's (endMarkYAtSharedInstant): a chip left on the curve there would sit
+            // over that head's top.
             const bool over_head = to.x <= onset_x + metrics.note_height / 2.0f;
-            const float chip_y = over_head ? center_y - metrics.note_height / 2.0f -
-                                                 metrics.bend_font.height() / 2.0f - 1.0f
-                                           : to.y - metrics.tail_height / 2.0f;
+            const bool at_ring_end = std::is_eq(point.seconds <=> note.end_seconds);
+            const float chip_y =
+                endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head && at_ring_end)
+                    .value_or(
+                        over_head ? center_y - metrics.note_height / 2.0f -
+                                        metrics.bend_font.height() / 2.0f - 1.0f
+                                  : to.y - metrics.tail_height / 2.0f);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
@@ -2146,6 +2158,22 @@ void strokeTabNoteHeadOutline(
             break;
     }
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. Through the lane's own drawers, in the
+// lane's own style for this string, so the redrawn mark is the drawn mark.
+void paintTabKeyframeHead(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
+    const common::core::KeyframeViewState& keyframe)
+{
+    if (!common::core::linkedKeyframe(note, keyframe))
+    {
+        return;
+    }
+    const StringStyle style{metrics.baseColor(note.string)};
+    const float center_y = metrics.laneY(note.string);
+    drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
+    drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
 }
 
 // Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on

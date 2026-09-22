@@ -1817,17 +1817,22 @@ std::vector<common::core::ToneAutomationPoint> EditorController::Impl::
     return points;
 }
 
-// The Insert key's whole remaining create: an on-curve point at an armed LANE caret's slot — the
-// keyboard mirror of the on-curve Alt+click landing — selected once planted. The chart lane has no
-// share in this verb, because every object on it is TYPED: a digit states the note or the point,
-// and a key with no value to carry has nothing to place there. A slot that already holds a point is
-// a no-op (Insert never mutates existing objects), as are an unresolved parameter (no live line to
-// land on) and a marker that is not armed.
+// The Insert key's create, routed by the ROW the caret rides: this lane's own on-curve point at the
+// caret's slot — the keyboard mirror of the on-curve Alt+click landing — selected once planted, or
+// the chart lane's statement at the caret's offset, which is the entry flow's business
+// (insertChartStatementAtCaret). A slot that already holds a point is a no-op here (Insert never
+// mutates existing objects), as are an unresolved parameter (no live line to land on) and a marker
+// that is not armed.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertLanePoint&)
 {
     const ChartCaret* const armed_caret = armedChartCaret();
-    if (armed_caret == nullptr || !armed_caret->lane.has_value())
+    if (armed_caret == nullptr)
     {
+        return;
+    }
+    if (!armed_caret->lane.has_value())
+    {
+        insertChartStatementAtCaret();
         return;
     }
     // Copied so the planting (a full action dispatch that re-points the selection and may touch

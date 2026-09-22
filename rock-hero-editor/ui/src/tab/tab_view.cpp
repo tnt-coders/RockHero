@@ -502,18 +502,29 @@ void TabView::paint(juce::Graphics& g)
             {
                 continue;
             }
-            draw(
-                note,
-                common::ui::tabKeyframeLayout(metrics, note, note.slides[ref.keyframe_index]));
+            const common::core::KeyframeViewState& keyframe = note.slides[ref.keyframe_index];
+            draw(note, keyframe, common::ui::tabKeyframeLayout(metrics, note, keyframe));
         }
     };
 
     // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
     // them — the linked head at a junction, the falls-away chip's box at a release — one selection
     // idiom for every selectable, so a selected junction reads exactly as a selected head does.
+    //
+    // THE SELECTED OBJECT DRAWS LAST: a linked head is redrawn here before its ring, because the
+    // lane paints notes in chart order and an ARRIVAL sits at the next head's own instant, which
+    // would otherwise leave the ring around a mark the charter cannot read. A chip needs nothing —
+    // chips already draw above every head — and a selected HEAD keeps drawing over the arrival, as
+    // the instant's owner should.
     for_each_drawn_keyframe(
         m_edit.selected_keyframes,
-        [&](const common::core::NoteViewState& note, const common::ui::TabKeyframeLayout& layout) {
+        [&](const common::core::NoteViewState& note,
+            const common::core::KeyframeViewState& keyframe,
+            const common::ui::TabKeyframeLayout& layout) {
+            if (!layout.chip)
+            {
+                common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
+            }
             g.setColour(accent);
             if (layout.chip)
             {
@@ -622,6 +633,7 @@ void TabView::paint(juce::Graphics& g)
             for_each_drawn_keyframe(
                 targets->keyframes,
                 [&](const common::core::NoteViewState& note,
+                    const common::core::KeyframeViewState&,
                     const common::ui::TabKeyframeLayout& layout) {
                     common::ui::paintTabPendingEntryBox(
                         g,

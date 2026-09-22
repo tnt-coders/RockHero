@@ -334,13 +334,23 @@ void EditorController::Impl::moveCursorTo(const common::core::GridPosition posit
     syncAudibleTone();
 }
 
-// What the chart holds on a slot, or absent when nothing does. The note stream holds each slot at
-// most once, so the note half is one binary search. Where no note stands, the only object that can
-// is a keyframe of the one ring covering the slot — which is chartPathTailAt's question, answered
-// there once for the typed digit and this — so this asks it and then only checks whether a keyframe
-// sits at exactly that offset. Exact rationals, so equality is the test.
+// What a slot HOLDS — what a landing there addresses — or absent when nothing does. The note stream
+// holds each slot at most once, so the note half is one binary search, and notes come first. Where
+// no note stands, the only object that can is a keyframe STRICTLY INSIDE the one ring covering the
+// slot — which is chartPathTailAt's question, answered there once for the typed digit and this — so
+// this asks it and then only checks whether a keyframe sits at exactly that offset. Exact
+// rationals, so equality is the test.
 //
-// Shared by caret arming (selection re-derivation) and every verb that asks what stands at a slot.
+// A ring's END STATEMENT is not one of the slot's objects: it belongs to the ring that ENDS there
+// rather than to the slot the next head starts on, and it is reached through that ring — by the
+// object walk, one step below the head at a shared instant, or by clicking its chip, both of which
+// carry the key itself into the landing (armChartCaret). That is what keeps a bare digit at a
+// ring's end slot always the next note, whatever the end states.
+//
+// THE ARMING's authority, and only its: a landing that carries no object of its own re-derives one
+// here. What a selection KEY names is a different question, asked of the key
+// (dropChartSelectionKeysNamingNothing), because an object exists whether or not a landing reaches
+// it.
 std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     const common::core::GridPosition position, const int string) const
 {
@@ -358,7 +368,7 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     }
     const std::optional<ChartPathTail> tail =
         chartPathTailAt(notes, session().song().tempo_map, position, string);
-    if (!tail.has_value())
+    if (!tail.has_value() || tail->at_ring_end)
     {
         return std::nullopt;
     }
@@ -388,24 +398,43 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
 //
 // PRUNED, not cleared: a selection the transition left whole is still the user's scope, including
 // one an armed caret deliberately does not own (armChartHeldStopHandle keeps a chord selected
-// while the caret reaches one member's satellite). Resolution is chartObjectAt's — the ONE
-// occupancy question — asked at each key's own slot and confirmed by equality, so no second rule
-// about what a key names can drift from it.
+// while the caret reaches one member's satellite). The question is the KEY's own — does the chart
+// still hold what this names — asked of the kind the key is, and deliberately NOT of what a landing
+// at its slot would address: a ring's END STATEMENT is a real object that no landing addresses (see
+// chartObjectAt), and a selection holding one must survive a transition exactly as any other does.
 void EditorController::Impl::dropChartSelectionKeysNamingNothing()
 {
     if (chartSelection().empty())
     {
         return;
     }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
+    // A note at its slot, or a keyframe at its offset along the note that stores it. Exact
+    // rationals, so equality is the test, and the stream's slot order makes each answer a search.
+    const auto chart_holds = [&](const ChartSelectionKey& key) {
+        if (const auto* const note_key = std::get_if<ChartNoteKey>(&key))
+        {
+            return std::ranges::binary_search(notes, note_key->slot, {}, slot_of);
+        }
+        const ChartKeyframeKey& keyframe_key = std::get<ChartKeyframeKey>(key);
+        const auto carrier = std::ranges::lower_bound(notes, keyframe_key.note, {}, slot_of);
+        return carrier != notes.end() && slot_of(*carrier) == keyframe_key.note &&
+               std::ranges::find(
+                   carrier->keyframes, keyframe_key.offset, &common::core::Keyframe::offset) !=
+                   carrier->keyframes.end();
+    };
     const std::vector<ChartSelectionKey> selected = chartSelection().keys();
     std::vector<ChartSelectionKey> surviving;
     surviving.reserve(selected.size());
     for (const ChartSelectionKey& key : selected)
     {
-        const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, key);
-        if (const std::optional<ChartSelectionKey> object =
-                chartObjectAt(slot.position, slot.string);
-            object.has_value() && *object == key)
+        if (chart_holds(key))
         {
             surviving.push_back(key);
         }
@@ -603,7 +632,8 @@ common::core::ChartStopChannel EditorController::Impl::chartCaretChannel() const
 }
 
 void EditorController::Impl::armChartCaret(
-    common::core::GridPosition position, int string, common::core::ChartStopChannel channel)
+    common::core::GridPosition position, int string, common::core::ChartStopChannel channel,
+    const std::optional<ChartSelectionKey>& object)
 {
     // The pending fret entry settles BEFORE the marker moves: the settle selects the note it
     // committed at the OLD slot, and the arming below then replaces that selection for the new
@@ -635,13 +665,18 @@ void EditorController::Impl::armChartCaret(
     // and both branches below replace it through chartSelectionMutable's emplace — itself a
     // re-derivation — so the last word always comes after this new caret is in place.
     setArmedCaret(ChartCaret{.position = position, .string = string, .channel = channel});
-    if (const std::optional<ChartSelectionKey> object = chartObjectAt(position, string);
-        object.has_value())
+    // THE LANDING'S OWN OBJECT when it carries one, and what the slot holds otherwise: the walk and
+    // the pointer both know which object they reached, and at a shared instant the slot cannot say
+    // — a head and the previous ring's end statement stand on one slot, and re-deriving would take
+    // the head every time (chartObjectAt).
+    const std::optional<ChartSelectionKey> landed =
+        object.has_value() ? object : chartObjectAt(position, string);
+    if (landed.has_value())
     {
-        // Whatever the slot holds becomes the selection — a note or a keyframe alike, so the
+        // Whatever the landing addresses becomes the selection — a note or a keyframe alike, so the
         // armed-caret invariant reads the same for every kind and a verb finds its own object
         // selected after it authors one.
-        chartSelectionMutable().replaceWith(*object);
+        chartSelectionMutable().replaceWith(*landed);
     }
     else
     {
@@ -720,21 +755,57 @@ bool EditorController::Impl::lanePointAt(
            });
 }
 
-// The caret row's next authored object strictly beyond the caret in the step direction: notes and
-// their keyframes on the caret's string (the notes alone with notes_only), points on its lane.
-// Linear scans are fine at keypress cadence.
-std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectStop(
+// The caret row's next authored object strictly beyond the caret in the step direction, as the
+// object itself: notes and their keyframes on the caret's string (the notes alone with notes_only),
+// points on its lane. Linear scans are fine at keypress cadence.
+//
+// AT A SHARED INSTANT the walk steps the ending ring's STATEMENT before the head that takes the
+// string back — time order, the instant belonging to the head — which is the whole of how the
+// keyboard reaches a statement no landing addresses (chartObjectAt). An EMPTY end is not an object
+// and never a stop: the walk enumerates the keyframes a note actually states.
+std::optional<EditorController::Impl::RowObjectStop> EditorController::Impl::nextRowObjectStop(
     const ChartCaret& caret, const bool later, const bool notes_only)
 {
-    std::optional<common::core::GridPosition> best;
-    const auto consider = [&](const common::core::GridPosition& position) {
-        if (later ? !(caret.position < position) : !(position < caret.position))
+    // The two objects that can share one slot, in the order they are stepped. A lane point has no
+    // instant-mate, so its rank never decides anything.
+    constexpr int statement_rank = 0;
+    constexpr int head_rank = 1;
+    const auto before = [](const common::core::GridPosition& lhs_position,
+                           const int lhs_rank,
+                           const common::core::GridPosition& rhs_position,
+                           const int rhs_rank) {
+        return lhs_position < rhs_position || (lhs_position == rhs_position && lhs_rank < rhs_rank);
+    };
+    // WHERE THE WALK STANDS, which the caret's slot alone cannot say once two objects share it: the
+    // statement when the selection names one there — the walk's own landing selects it — and the
+    // head otherwise, so a second press leaves the slot instead of stepping back onto the head.
+    const ChartSlotKey caret_slot{.position = caret.position, .string = caret.string};
+    const int from_rank =
+        std::ranges::any_of(
+            chartSelection().keyframes(),
+            [this, &caret_slot](const ChartKeyframeKey& key) {
+                return chartCaretSlotFor(session().song().tempo_map, key) == caret_slot;
+            })
+            ? statement_rank
+            : head_rank;
+    std::optional<RowObjectStop> best;
+    int best_rank = head_rank;
+    const auto consider = [&](const common::core::GridPosition& position,
+                              const int rank,
+                              const std::optional<ChartSelectionKey>& object) {
+        const bool beyond = later ? before(caret.position, from_rank, position, rank)
+                                  : before(position, rank, caret.position, from_rank);
+        if (!beyond)
         {
             return;
         }
-        if (!best.has_value() || (later ? position < *best : *best < position))
+        const bool nearer =
+            !best.has_value() || (later ? before(position, rank, best->position, best_rank)
+                                        : before(best->position, best_rank, position, rank));
+        if (nearer)
         {
-            best = position;
+            best = RowObjectStop{.position = position, .object = object};
+            best_rank = rank;
         }
     };
     if (caret.lane.has_value())
@@ -744,7 +815,7 @@ std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectS
         {
             for (const common::core::ToneAutomationPoint& point : *points)
             {
-                consider(point.position);
+                consider(point.position, head_rank, std::nullopt);
             }
         }
         return best;
@@ -761,7 +832,8 @@ std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectS
         {
             continue;
         }
-        consider(note.position);
+        const ChartSlotKey slot = chartSlotKeyOf(note);
+        consider(note.position, head_rank, ChartSelectionKey{ChartNoteKey{.slot = slot}});
         if (notes_only)
         {
             continue;
@@ -770,7 +842,10 @@ std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectS
         // on its own slot along the ring, so the walk stops on it exactly as it stops on a note.
         for (const common::core::Keyframe& keyframe : note.keyframes)
         {
-            consider(common::core::advanceGridPosition(tempo_map, note.position, keyframe.offset));
+            consider(
+                common::core::advanceGridPosition(tempo_map, note.position, keyframe.offset),
+                statement_rank,
+                ChartSelectionKey{ChartKeyframeKey{.note = slot, .offset = keyframe.offset}});
         }
     }
     return best;
@@ -1107,14 +1182,15 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     }
     else if (!chartSelection().contains(*key) || channel_changes)
     {
-        // Arming re-derives the singleton selection from the object under the caret. A press on
-        // an already-selected one keeps the standing selection (and marker) untouched until
+        // Arming takes the object the press HIT as the singleton selection — the press knows which
+        // mark it reached, and at a shared instant the slot cannot say. A press on an
+        // already-selected one keeps the standing selection (and marker) untouched until
         // the release collapses it — the gap a future drag-move gesture lives in — unless it
         // moves the caret to the note's OTHER stop, which is a change the next digit depends on.
         // The stop every object has: the satellite branch above took every target that addresses
         // another one.
         const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-        armChartCaret(slot.position, slot.string);
+        armChartCaret(slot.position, slot.string, common::core::ChartStopChannel::Sounding, *key);
     }
     updateView();
 }
@@ -1189,9 +1265,11 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 key.has_value())
             {
                 // Every target reaching here addresses the object's own head, which is the stop
-                // every object has.
+                // every object has; the collapse names that object rather than letting the slot
+                // answer, so a click on a mark a head shares its instant with keeps the mark.
                 const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-                armChartCaret(slot.position, slot.string);
+                armChartCaret(
+                    slot.position, slot.string, common::core::ChartStopChannel::Sounding, *key);
             }
         }
         updateView();
@@ -1412,7 +1490,7 @@ common::core::GridPosition EditorController::Impl::pausedCursorPosition(
 
 void EditorController::Impl::landOnRow(
     const FocusRow& row, const std::optional<common::core::GridPosition> column,
-    const common::core::ChartStopChannel channel)
+    const common::core::ChartStopChannel channel, const std::optional<ChartSelectionKey>& object)
 {
     std::visit(
         Overloaded{
@@ -1420,7 +1498,8 @@ void EditorController::Impl::landOnRow(
                 armChartCaret(
                     column.has_value() ? *column : pausedCursorPosition(placementQuantum()),
                     string_row.string,
-                    channel);
+                    channel,
+                    object);
             },
             [&](const AutomationLaneRow& lane) {
                 armLaneCaret(
@@ -1541,16 +1620,20 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         // steps with, so the two surfaces can never land on different slots for the same verb.
         stepped =
             adjacentTempoGridPosition(tempo_map, placementQuantum(), caret.position, sign > 0);
-        if (const std::optional<common::core::GridPosition> object_stop =
+        if (const std::optional<RowObjectStop> object_stop =
                 nextRowObjectStop(caret, sign > 0, false);
             object_stop.has_value())
         {
+            // The SLOT is what an arrow step takes from the walk: an arrow lands on a slot and lets
+            // it answer what stands there, which is what keeps a bare digit at a ring's end slot
+            // the next note.
+            const common::core::GridPosition position = object_stop->position;
             const bool grid_advanced =
                 sign > 0 ? caret.position < stepped : stepped < caret.position;
-            const bool object_nearer = sign > 0 ? *object_stop < stepped : stepped < *object_stop;
+            const bool object_nearer = sign > 0 ? position < stepped : stepped < position;
             if (!grid_advanced || object_nearer)
             {
-                stepped = *object_stop;
+                stepped = position;
             }
         }
     }
@@ -1577,7 +1660,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 // cursor and Shift+Tab the start strictly before it — from inside a marker past its start, that is
 // the marker's OWN start, the media player's "previous" — and the marker starting there is
 // selected with the cursor on it. A held stop's satellite is part of its note rather than an object
-// of its own, so a string step always lands on a note's head. Past either end, and on the "+" row,
+// of its own, so a string step always lands on the stop every object has. Where a ring's end
+// statement and a head share an instant the statement is stepped first, so Shift+Tab from the head
+// selects it and a second press leaves. Past either end, and on the "+" row,
 // which holds no objects, the press is inert; from the passive marker it arms in place, as the
 // arrows' first press does.
 void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObject& action)
@@ -1616,11 +1701,17 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepToRowObje
         armMarkerInPlace(tab->stringCount());
         return;
     }
-    if (const std::optional<common::core::GridPosition> stop =
+    if (const std::optional<RowObjectStop> stop =
             nextRowObjectStop(*armed, action.later, action.notes_only);
         stop.has_value())
     {
-        landOnRow(prepareLandingRow(tab->stringCount()), stop);
+        // Lands on the OBJECT the walk named, never on the slot alone: at a shared instant the slot
+        // holds the head too, and re-deriving would take it every time (chartObjectAt).
+        landOnRow(
+            prepareLandingRow(tab->stringCount()),
+            stop->position,
+            common::core::ChartStopChannel::Sounding,
+            stop->object);
         updateView();
     }
 }
@@ -2166,11 +2257,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
         return;
     }
     const std::uint32_t now_ms = m_now_milliseconds();
-    // THE FIRST DIGIT'S MODIFIER DECIDES what the entry creates, and every digit after it — bare or
-    // under `Alt` — simply widens that value. So "1" then "Alt+2" at a ring's end is the fret-12
-    // HEAD the bare digit opened, and "Alt+1" then "2" there is the fret-12 SLIDE-OUT. The two
-    // verbs differ in one cell only, and re-deriving the target on every keystroke to catch a verb
-    // switch inside one 750 ms window bought that cell at the price of the whole entry's cost.
+    // THE FIRST DIGIT DECIDES what the entry creates, and every digit after it simply widens that
+    // value — re-deriving the target on every keystroke would buy nothing and cost the whole
+    // entry's replan.
     if (m_chart_fret_entry.has_value() && combineChartFretEntry(digit, now_ms))
     {
         return;
@@ -2182,7 +2271,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     // authored anyway.
     if (chartSelection().notes().empty() && chartSelection().keyframes().empty())
     {
-        insertChartFretAtCaret(digit, action.path, now_ms);
+        insertChartFretAtCaret(digit, now_ms);
         return;
     }
     retypeChartSelectionFret(digit, now_ms);
@@ -2398,7 +2487,7 @@ ChartSlotKey EditorController::Impl::chartRingSiteSlot(
 
 // Rationale lives on the declaration in editor_controller_impl.h.
 std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorController::Impl::
-    chartCaretDigitTarget(const bool path) const
+    chartCaretDigitTarget() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const ChartCaret* const caret = armedChartCaret();
@@ -2412,36 +2501,28 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     const ChartSlotKey slot{.position = caret->position, .string = caret->string};
     const std::optional<ChartPathTail> tail = chartPathTailAt(
         arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string);
-    if (!tail.has_value())
-    {
-        // Nothing rings here, so both verbs state the same head.
-        return ChartFretEntry::InsertAt{.slot = slot};
-    }
-    // A digit states a POINT wherever the path can take one: STRICTLY INSIDE the ring always, where
-    // the only thing a fret can mean at an instant the string is already sounding is a stop the
-    // hand takes, and at the ring's exact END under `Alt` alone, where it is the slide-out the
-    // release names. Nothing single-press cuts a ring — the disconnect verb (Shift+L) is the
-    // split's only door — and a release already standing on the end slot is unreachable from here,
-    // since arming the caret selected its chip and the digit went to the retype flow instead.
-    if (!tail->at_ring_end || path)
+    // A digit states a POINT where the path can take one: STRICTLY INSIDE the ring, where the only
+    // thing a fret can mean at an instant the string is already sounding is a stop the hand takes.
+    // Nothing single-press cuts a ring — the disconnect verb (Shift+L) is the split's only door.
+    if (tail.has_value() && !tail->at_ring_end)
     {
         return ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
     }
-    // A BARE digit at the exact end places the adjacent head instead: the ring already stops where
-    // that head starts, so sequential entry never trips over a grid-step note's tail.
+    // Nothing rings THROUGH the slot — an empty one, or one where a ring merely stops: the digit
+    // states the head there, whatever that ring's end states, so sequential entry never trips over
+    // a grid-step note's tail. The end's own statement is the `Insert` key's
+    // (insertChartStatementAtCaret) and the keys address it once the walk or a click selects it.
     return ChartFretEntry::InsertAt{.slot = slot};
 }
 
 // Fresh insert: with no selection, the typed digit states an object at the armed caret — a head on
-// a slot no ring covers, a POINT on the path of one that does, or at a ring's exact end the head
-// bare and the slide-out under Alt. Each rides the same pending entry: the box at the slot, red
-// where the gate refuses the fret, and nothing authored until the window settles. While the marker
-// is passive, digits are inert by design (the marker model) — a stray keystroke after listening
-// authors nothing.
-void EditorController::Impl::insertChartFretAtCaret(
-    const int digit, const bool path, const std::uint32_t now_ms)
+// a slot no ring rings through, a POINT on the path of one that does. Each rides the same pending
+// entry: the box at the slot, red where the gate refuses the fret, and nothing authored until the
+// window settles. While the marker is passive, digits are inert by design (the marker model) — a
+// stray keystroke after listening authors nothing.
+void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::uint32_t now_ms)
 {
-    std::optional<decltype(ChartFretEntry::target)> target = chartCaretDigitTarget(path);
+    std::optional<decltype(ChartFretEntry::target)> target = chartCaretDigitTarget();
     if (!target.has_value())
     {
         return;
@@ -2449,6 +2530,65 @@ void EditorController::Impl::insertChartFretAtCaret(
     ChartFretEntry entry{.value = digit, .target = std::move(*target), .armed_ms = now_ms};
     entry.plan = replanChartFretEntry(entry);
     armOrSettleChartFretEntry(std::move(entry));
+}
+
+// `Insert` ON A TAIL: the digit route with the digit SUPPLIED — the fret in force at the caret,
+// stated through the same pending entry the typed digit opens. Strictly inside a ring the product
+// is the same silent point typing the note's own fret makes; at the ring's END it is the end
+// statement at that fret, a fall toward the fret in force, or the ARRIVAL the chart then proves
+// where a head at that stop abuts (common::core::arrivesIntoNextHead) — a shift slide in one key.
+// Where no ring covers the slot there is no fret in force, so the key states nothing on this lane.
+//
+// A statement already standing at the caret's offset is ADDRESSED rather than doubled: two records
+// on one offset is a shape no chart may hold, so the press selects what is there and every
+// selection-addressed verb then reaches it. Reached at all from the keyboard only for the END's own
+// statement, which no landing addresses (chartObjectAt).
+void EditorController::Impl::insertChartStatementAtCaret()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const ChartCaret* const caret = armedChartCaret();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || caret == nullptr ||
+        caret->lane.has_value())
+    {
+        return;
+    }
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    const std::optional<ChartPathTail> tail =
+        chartPathTailAt(notes, session().song().tempo_map, caret->position, caret->string);
+    if (!tail.has_value())
+    {
+        return;
+    }
+    // The tail names a note of this very stream, so the search lands on it.
+    const auto carrier =
+        std::ranges::lower_bound(notes, tail->note, {}, [](const common::core::ChartNote& note) {
+            return chartSlotKeyOf(note);
+        });
+    if (carrier == notes.end())
+    {
+        return;
+    }
+    if (std::ranges::find(carrier->keyframes, tail->offset, &common::core::Keyframe::offset) !=
+        carrier->keyframes.end())
+    {
+        chartSelectionMutable().replaceWith(
+            ChartKeyframeKey{.note = tail->note, .offset = tail->offset});
+        updateView();
+        return;
+    }
+    ChartFretEntry entry{
+        // THE FRET IN FORCE, read from the one path authority (common::core::ringStateAt): the
+        // onset's fret, or the last statement before this offset.
+        .value = common::core::ringStateAt(*carrier, tail->offset).fret,
+        .target = ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset},
+        .armed_ms = m_now_milliseconds(),
+    };
+    entry.plan = replanChartFretEntry(entry);
+    // Settled in this keystroke rather than armed: the value arrives WHOLE, so there is no digit
+    // left to widen it and no provisional value to show — which is also why a refusal shows no red
+    // box here, the key having typed nothing the charter can see undone.
+    m_chart_fret_entry = std::move(entry);
+    settleChartFretEntry();
 }
 
 // Fresh retype: capture the selection's pre-entry values as the replan base, plan the typed

@@ -202,6 +202,21 @@ struct ChartConnections
     into.
     */
     std::vector<bool> arrives_into;
+
+    /*!
+    \brief True where this note's ring ENDS exactly on the next head of its own string — one
+    instant carrying both, whatever the end states.
+
+    Clause 2 of \ref arrivesIntoNextHead on its own, which is what an ARRIVAL and an abutting FALL
+    share: the surfaces need it because two marks then stand at one x, and the band each takes is
+    decided by the pair rather than by either note (\ref NoteViewState::ends_on_next_head). Filled
+    in this walk beside \ref hands_over and for the same reason — the same-string pair it needs is
+    the one the walk establishes.
+
+    Written from the SUCCESSOR onto its predecessor, like the two relations above; false where
+    nothing follows on the string.
+    */
+    std::vector<bool> ends_on_next_head;
 };
 
 /*!

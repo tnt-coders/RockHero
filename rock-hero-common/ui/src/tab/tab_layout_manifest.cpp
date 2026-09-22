@@ -79,8 +79,9 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 // own head size, centred on the keyframe's instant and the note's string line. Same square as the
 // onset head, one column along the tail. The release mirrors drawSlideLines instead: its chip
 // sits a third of a head above the tail envelope when the last leg rises and below it when it
-// falls, and the box is the chip's ground — the fret text height with the chip's one-pixel
-// margins, and the two-digit width the satellite column already states for this lane's digits.
+// falls — or on the side the shared instant gives it, which both read from one authority — and the
+// box is the chip's ground: the fret text height with the chip's one-pixel margins, and the
+// two-digit width the satellite column already states for this lane's digits.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe) noexcept
@@ -109,7 +110,10 @@ TabKeyframeLayout tabKeyframeLayout(
     const TailSpan span = tailSpan(geometry, layout.center_y);
     const float lift = geometry.note_height / 3.0f;
     layout.chip = true;
-    layout.center_y = upward ? span.top - lift : span.bottom + lift;
+    // The band conditional is the shared authority's (endMarkYAtSharedInstant), so the box the
+    // click is bounded in cannot land on the other side of the envelope from the chip.
+    layout.center_y = endMarkYAtSharedInstant(geometry, layout.center_y, note.ends_on_next_head)
+                          .value_or(upward ? span.top - lift : span.bottom + lift);
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;

@@ -1313,10 +1313,10 @@ state no SHAKE, because a shake at the end has no ring to shake in and would be 
 nothing; it must state a fret, because an end that states none is no landing at all; and that fret
 must TRAVEL from the one already in force there —
 the onset's, or an earlier junction's — because a release falling toward the fret the string already
-holds is an unpitched slide-out that draws no fall (\ref keyframeSaysNothingNew). Landing on such a
-point would author a statement nothing shows — one the editor's plan gate dissolves in the very edit
-that made it (\ref dissolveSilentRelease), which would DELETE the point the charter can still see
-here — while the ring it now ends at refuses to shorten any further: a floor the charter cannot see.
+holds says nothing the path does not already say (\ref keyframeSaysNothingNew), and a statement that
+says nothing does not survive its note leaving focus (\ref stripSilentKeyframes). Landing on such a
+point would therefore trade the charter's own point for a ring that simply ends, and move the floor
+the tail verb stops at with it.
 So a keyframe that says nothing holds the end STRICTLY ABOVE it, exactly as a fretless one does, and
 moving the point itself LEFT is the way past it — a step that never makes the point a release,
 since the move verb refuses the ring's end exactly as it refuses the onset below.
@@ -1666,11 +1666,9 @@ writer sheds it (\ref documentChart) and the load repair sheds one that arrives
 (\ref stripSilentKeyframes), so the all-equal junk path is unrepresentable in every saved chart.
 How long it lives in memory is the editor's own rule — no undo entry ever records one, and it
 dissolves when its note leaves focus — so nothing anywhere keeps a record of who planted what.
-The RELEASE is the one exception, because it is the one such point with no face and no handle: the
-lane draws nothing for a segment that does not travel and a release wears no head, so it cannot be
-selected, given a shake, or deleted, while it still pins the ring and blocks the legato assist.
-A silent one is therefore not authoring state at all, and the editor's plan gate removes it in the
-same edit that created it (\ref dissolveSilentRelease).
+THE END'S OWN STATEMENT IS NO EXCEPTION: a fall toward the fret already in force draws its chip
+exactly as an interior same-fret point draws its linked head, so it can be selected, retyped and
+deleted like any other, and one rule takes every silent point when its note leaves focus.
 
 \param note The note WITHOUT the point — the path the point is judged against.
 \param point The point, with every channel it would state.
@@ -1686,36 +1684,6 @@ same edit that created it (\ref dissolveSilentRelease).
 \return True when any keyframe was dropped — what the normalizer reports as its repair.
 */
 bool stripSilentKeyframes(ChartNote& note);
-
-/*!
-\brief Removes the note's RELEASE when it falls toward the fret the path already holds there.
-
-The one point THE KEYFRAME COMMIT LAW cannot leave to the charter: an interior point that says
-nothing is visible authoring state — a linked head that can be selected, given a shake, or deleted
-— but a release has no face and no handle, since the lane draws no fall for a segment that does not
-travel and a release wears no head. So it cannot be reached, yet it pins the ring and blocks the
-legato assist, which is why the editor's plan gate takes it in the same edit that created it
-instead of waiting for the focus-leave sweep that clears the visible ones
-(\ref stripSilentKeyframes). Asked of the ONE authority
-(\ref keyframeSaysNothingNew), on the path without the point, so this never becomes a second
-opinion about what a point states; the verdict is the fret's alone, a bend beside it being the
-curve's own last value and no part of what the fall says. A scrape's terminal can never be
-removed here: a scrape's whole path is required to TRAVEL
-(\ref validateChartNoteAlone, the always-traveling rule), so its terminal's fret differs from the
-one in force before it by construction.
-
-AN ARRIVAL IS NEVER TAKEN, which is what the resolved read buys: it wears a linked head at the
-presented end, so it is the visible authoring state this rule leaves to the charter — and a
-`Shift+L` split whose product arrives at the fret already in force keeps it, which is what makes
-split-then-join an exact round trip.
-
-\param note Note whose release, if it has one and it says nothing, is removed; the ring keeps its
-            length.
-\param arrives_into_next_head The resolved relation for this note
-       (\ref ChartConnections::arrives_into).
-\return True when the release was removed.
-*/
-bool dissolveSilentRelease(ChartNote& note, bool arrives_into_next_head);
 
 /*!
 \brief The note as a saved document records it: everything its attack cannot carry stripped.

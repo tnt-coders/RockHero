@@ -140,8 +140,7 @@ and that is gone too, so `Alt` is the whole of this idiom on either surface.
 
 `Alt`+letter chords now exist: `Alt+F`, `Alt+E`, `Alt+V` open the menu-bar menus (the platform's
 access-key convention, implemented by the app because JUCE's menu bar has no mnemonic handling).
-Pressing one flashes the reveal for the chord's duration, the same way `Alt`+digit and `Alt`+arrows
-always have. The held-Alt poll feeds both hints from one sample: `EditorView::syncAltHeldState`
+Pressing one flashes the reveal for the chord's duration, the same way `Alt`+arrows always have. The held-Alt poll feeds both hints from one sample: `EditorView::syncAltHeldState`
 pushes the same boolean to `TabView::setActualRingReveal` and to
 `MenuLookAndFeel::setAccessKeysVisible`, which underlines the access letter in every menu title
 while the key is down, so the two can never disagree about whether `Alt` is held.
@@ -203,11 +202,9 @@ twins like `Shift+=` and the numpad-arrival `'+'`) group into **one chip** in th
 dialog and one entry in menu shortcut text; the chip's change/remove operate on every chord in
 its group, so no ghost binding can survive a visible removal.
 
-**`Alt` changes which digit key arrives, and Windows composes a character out of the chord.** Under
-`Alt` a numpad digit reaches JUCE with the TOP-ROW key code on Windows — `doKeyDown` resolves the
-character through `MapVirtualKey` before the numpad remap can claim it — so the `Alt`+digit commands
-register both shapes as alternatives and it is the top-row chord that matches there. Worse, Windows
-reads the chord as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
+**Windows composes a character out of `Alt`+numpad digits.** Nothing binds that chord — `Alt` creates
+nothing on the chart lane — but a charter holding `Alt` for the ring reveal can still strike one, and
+Windows reads the pair as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
 the COMPOSED CHARACTER as a bare key press on the release, so `Alt`+7 `Alt`+6 would arrive as a
 plain `L` and fire the legato verb, and the codes 27 and 32 would arrive as cancel and play/pause.
 Each top-level window therefore filters at its key entry — `MainWindow` and `PreviewWindow`, the two
@@ -293,8 +290,8 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
 Alt+Shift+arrows, `Tab`/`Shift+Tab` and their `Ctrl` twins, the five `Ctrl+Shift`+letter row jumps,
-digits, `Alt`+digits, `Enter`, `Ctrl+R`, Delete, Insert (the lanes' and the tone row's neutral
-create — the chart's `Insert` verbs were retired 2026-09-11 when every note became typed), and Esc
+digits, `Enter`, `Ctrl+R`, Delete, Insert (the point at the armed caret, on either lane: an
+on-curve point on an automation lane, the statement at the fret in force on a chart tail), and Esc
 are registered commands like everything else. Their `perform` cases route to dedicated controller
 intents, and since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
@@ -310,8 +307,8 @@ owns the busy gate, the chart/transport/selection preconditions, and the logging
 is the keystroke that CONTINUES the live entry rather than acting against it, asked as
 `chartFretEntryContinuedBy(action)`: a DIGIT widens the typed value, and nothing else does — the
 harmonic node picker is a popup that commits on the row chosen, so no verb leaves a value
-provisional, and a run of those choices folds into one undo entry rather than pending. EVERY digit continues a live entry, bare or under
-`Alt` — the FIRST digit's modifier is what decided the entry's target, and the ones after it only
+provisional, and a run of those choices folds into one undo entry rather than pending. EVERY digit continues a live entry — the FIRST digit
+decided the entry's target, and the ones after it only
 widen the value, so no keystroke re-derives what the entry creates. What stays per-verb is reading
 its own operand. Esc remains a direct ladder because its first rung is the invalid pending
 value itself. The intents —
@@ -350,20 +347,21 @@ No third `ChartStopChannel` value and no second entry kind — the selection KIN
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
 `onLanePointInsertRequested` (the lanes' on-curve point — the `Insert` key's whole remaining
-create; the chart lane no longer answers it) and the entry gestures around it — **every note is TYPED, a click never creates, and
-`Alt` creates only the slide-out**. Every entry case on the lane follows from that one sentence.
+create; on the chart lane it states the fret in force at the caret) and the entry gestures around it — **every note is TYPED, a click never creates, and
+`Alt` creates nothing**. Every entry case on the lane follows from that one sentence.
 The DIGITS (`TypeDigit0`–`9`, "Type Digit N") are the whole of chart entry: at the armed caret, on
 an EMPTY slot and at a ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply
 the next note, since the ring already stops there, which is why sequential entry is safe — and on a
 slot a ring COVERS, a POINT on that note's path at the typed fret, planted and selected with the
-caret on it so the technique keys address it as they address any keyframe. `Alt`+digits
-(`TypePathDigit0`–`9`, "Type Path Digit N") differ in exactly ONE cell: at a ring's exact end where
-nothing yet stands, the typed fret is the SLIDE-OUT, the release keyframe — the only thing `Alt`
-creates on this lane. Everywhere else the two chords land the same product, so a mistimed `Alt`
-costs nothing. A pointer press creates nothing under any modifier: it arms the caret and selects
-what is there (`Alt` keeps the ring reveal, the wheel and the arrows). Where a slide-out already
-ends on the slot, arming the caret selects its chip, so a digit retypes the fall by the ordinary
-selection rule.
+caret on it so the technique keys address it as they address any keyframe. At a ring's end the digit
+is ALWAYS the next note, whatever that end states: no landing addresses the end's own statement
+(`chartObjectAt`), so nothing there can swallow the keystroke into a retype. `INSERT` is what states
+the end — the digit route with the digit supplied, the fret already in force at the caret
+(`insertChartStatementAtCaret`): inside a ring the silent point typing the note's own fret makes, at
+the end a fall toward the fret in force, or the ARRIVAL where a head at that stop abuts. A statement
+already standing at that offset is selected rather than doubled. A pointer press creates nothing
+under any modifier: it arms the caret and selects what it HIT (`Alt` keeps the ring reveal, the
+wheel and the arrows).
 A point that merely restates the fret the path is already running on says NOTHING, so it is silent
 authoring state (the commit law below): typing the same fret on a tail and stopping there leaves
 nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
@@ -388,19 +386,17 @@ written states (`writtenChartPlan`), so planting one pushes no entry and the edi
 meaning carries its creation; it dissolves, again with no entry, when its NOTE leaves focus
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
 and the load repair both shed it (`documentChart`, `ChartRepair::SilentKeyframe`). That lifetime is
-an INTERIOR point's, which the charter can see and reach. A silent RELEASE has no head and draws no
-fall, so it is not authoring state at all: the plan gate removes it in the edit that made it
-(`dissolveSilentRelease`), which is why an `Alt` digit at a ring's exact end naming the fret
-already in force authors nothing. A charter
+EVERY silent point's, the END's own statement included: a fall toward the fret in force draws its
+chip exactly as an interior same-fret point draws its linked head, so it can be selected, retyped
+and deleted, and one sweep takes them all when the note leaves focus. A charter
 therefore places a point first, walks the tail to where the slide lands, and gives it its meaning
 second.
 A typed digit reaches every product through the SAME pending entry — the box at the slot, red where
 the gate refuses the fret, a valid plan projected into the 2D lane immediately without touching the
 stored chart or history, and the product planted and selected when it settles — and what the slot
 decides is only which beginning that entry takes (`ChartFretEntry::CreateKeyframe` is the point
-one). A non-empty selection is retyped by a digit either way, bare or under `Alt`, because a
-selection is an operand neither chord has to choose between; only a digit at a bare caret standing
-on a ring's exact end has anything to choose at all),
+one). A non-empty selection is retyped by a digit, which is
+how the keys reach a ring's end statement once the walk or a click has selected it),
 `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, pinch harmonic, and legato, each a row of

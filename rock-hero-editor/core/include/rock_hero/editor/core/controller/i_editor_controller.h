@@ -384,18 +384,6 @@ public:
     virtual void onChartFretDigitTyped(int digit) = 0;
 
     /*!
-    \brief Handles a typed fret digit in the PATH verb (Alt+digit).
-
-    The bare digit with ONE cell changed: at a ring's exact END the typed value states the
-    SLIDE-OUT the release names, where a bare digit would place the adjacent head. Everywhere
-    else — a non-empty selection, a slot no ring covers, a slot strictly inside a ring — the two
-    verbs say exactly the same thing.
-
-    \param digit Typed digit in [0, 9].
-    */
-    virtual void onChartPathDigitTyped(int digit) = 0;
-
-    /*!
     \brief Handles a request to shift every selected note's fret by one (Alt+Shift+wheel).
 
     Shape-preserving by construction: all members move together, so chords and runs keep
@@ -750,13 +738,17 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
-    \brief Handles the Insert key: plants an on-curve point at an armed AUTOMATION-LANE slot.
+    \brief Handles the Insert key: plants the point at an armed caret's slot, on either lane.
 
-    The key's whole remaining meaning. A string row has nothing for it to place, because every
-    object on the chart lane is TYPED — a digit states the note or the point, and a key carrying no
-    value could only invent one. A slot already holding a point is a no-op (Insert never mutates
-    what is there), as is a marker that is not armed — a passive one, or the cursor a multi-select
-    gesture leaves.
+    ONE verb, each lane's own point. On an AUTOMATION lane an on-curve point at the caret's slot. On
+    a STRING lane the statement at the caret's own offset along the ring it stands in, carrying the
+    fret ALREADY IN FORCE there — the typed digit's route with the digit supplied: inside the ring
+    the silent point typing the note's own fret makes, at the ring's end the end statement at that
+    fret. A caret no ring covers has no fret in force, so the key states nothing there.
+
+    A slot already holding a point is never mutated: the lane no-ops, and the chart selects the
+    statement standing there so the keys address it. A marker that is not armed — a passive one, or
+    the cursor a multi-select gesture leaves — is inert.
     */
     virtual void onLanePointInsertRequested() = 0;
 

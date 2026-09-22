@@ -172,6 +172,9 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // it ends the gesture rather than continuing it and no linked head renders at the tail tip.
     CHECK(sliding.slides[0].release);
     CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
+    // Nothing is struck on its string where its ring stops, so no mark of another note shares the
+    // instant and the band conditional has nothing to do here.
+    CHECK_FALSE(sliding.ends_on_next_head);
 
     // The shift glide STATES its arrival on the landing and is DRAWN the minimum sustain distance
     // before it, where the presented trim stops the tail. The arrival is NOT the release, and the
@@ -186,6 +189,9 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(shift_slider.slides[0].release);
     CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.8 * beat));
+    // The STORED ring lands on that head, which is what the band conditional keys on — and it is
+    // the stored adjacency, not the drawn one: presentation has already retreated the mark.
+    CHECK(shift_slider.ends_on_next_head);
     // WHERE it draws is `seconds`; WHAT it is is `offset`, the STORED statement's own instant — the
     // ring's end, a whole beat in, which is the one name every mapping back to the chart uses.
     CHECK(shift_slider.slides[0].offset == Fraction{1});

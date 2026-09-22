@@ -320,10 +320,13 @@ enum class EditorCommandId : std::uint16_t
     FretShiftDown = 0x1706,
 
     /*!
-    \brief Plant an on-curve point at an armed AUTOMATION-LANE caret slot (`Insert`).
+    \brief Plant the point at an armed caret slot, on either lane (`Insert`).
 
-    The key's whole meaning. The chart lane has no share in it: every object there is TYPED, so a
-    digit states the note or the point and a key carrying no value has nothing to place.
+    The key's whole meaning, and one verb for both rows: an on-curve point on an automation lane,
+    and on the chart lane the statement at the caret's own offset along the ring it stands in,
+    carrying the fret ALREADY IN FORCE there — which is what gives a key that carries no value
+    something to place. At a ring's END that statement is the fall, or the ARRIVAL where a head at
+    that stop abuts: a shift slide in one key.
     */
     InsertLanePoint = 0x1707,
 
@@ -394,11 +397,10 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief Type digit 0 into the armed row's payload (`0`, numpad `0`).
 
-    Every object on the chart lane is typed, and the bare digits are how: the value they accumulate
-    states a note on a slot no ring covers, a point on the path of one that does, or a retype of a
-    non-empty selection. \ref EditorCommandId::TypePathDigit0 and its siblings differ in exactly one
-    cell — at a ring's exact END they state the slide-out where these place the adjacent head. On an
-    automation lane row a digit is plain value entry, which has no second verb.
+    Every object on the chart lane is typed, and the digits are how: the value they accumulate
+    states a note on a slot no ring RINGS THROUGH — a ring's exact end included, where the head
+    simply stands adjacent — a point on the path of one that does, or a retype of a non-empty
+    selection. On an automation lane row a digit is plain value entry.
     */
     TypeDigit0 = 0x1801,
 
@@ -429,42 +431,11 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Type digit 9 at the armed caret (`9`, numpad `9`). */
     TypeDigit9 = 0x180A,
 
-    /*!
-    \brief Type digit 0 into a value that STATES the path (`Alt+0`).
-
-    The PATH verb, which differs from the bare digit (\ref EditorCommandId::TypeDigit0) in exactly
-    one cell: at a ring's exact END it states the SLIDE-OUT the release names, where the bare digit
-    places the adjacent head. Everywhere else the two say the same thing. Both keyboard rows carry
-    it — see the registry for why the numpad row binds the top-row code.
-    */
-    TypePathDigit0 = 0x180B,
-
-    /*! \brief Type digit 1, stating the path (`Alt+1`). */
-    TypePathDigit1 = 0x180C,
-
-    /*! \brief Type digit 2, stating the path (`Alt+2`). */
-    TypePathDigit2 = 0x180D,
-
-    /*! \brief Type digit 3, stating the path (`Alt+3`). */
-    TypePathDigit3 = 0x180E,
-
-    /*! \brief Type digit 4, stating the path (`Alt+4`). */
-    TypePathDigit4 = 0x180F,
-
-    /*! \brief Type digit 5, stating the path (`Alt+5`). */
-    TypePathDigit5 = 0x1810,
-
-    /*! \brief Type digit 6, stating the path (`Alt+6`). */
-    TypePathDigit6 = 0x1811,
-
-    /*! \brief Type digit 7, stating the path (`Alt+7`). */
-    TypePathDigit7 = 0x1812,
-
-    /*! \brief Type digit 8, stating the path (`Alt+8`). */
-    TypePathDigit8 = 0x1813,
-
-    /*! \brief Type digit 9, stating the path (`Alt+9`). */
-    TypePathDigit9 = 0x1814,
+    // 0x180B-0x1814 were the path digits (`Alt`+digit), the one verb that differed from the bare
+    // digit in a single cell: at a ring's exact END it stated the fall. `Insert` states the end
+    // from the fret already in force (\ref EditorCommandId::InsertLanePoint) and the walk reaches
+    // the statement standing there, so `Alt` creates nothing on this lane. The values stay spent: a
+    // stale persisted keymap naming one resolves to no spec and is dropped.
 
     /*! \brief Step the grid one preset finer (`+` main-row or numpad; `=` unshifted alias). */
     GridFiner = 0x1901,

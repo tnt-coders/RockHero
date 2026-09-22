@@ -44,7 +44,7 @@ here and the text below is amended to match.
   ring to shake in). A bend on a fall becomes legal; no corpus note has one, so nothing re-imports
   differently. The `ReleasePayload` repair narrows to the shake likewise.
 
-## The interaction half (signed the same day)
+## The interaction half (signed the same day): BUILT 2026-09-22
 
 - **`Insert` on a tail types the fret in force at the caret** — the digit route with the digit
   supplied, through the same pending entry. Inside a ring that is what typing the note's own fret
@@ -70,6 +70,36 @@ here and the text below is amended to match.
 - **The band conditional at a shared instant** (`keyframe-and-burst-ground-up.md`, "The revealed
   form at a shared instant"): built once, keyed on the stored relation; its direction — the
   ending ring's chips below, or the head's marks higher — chosen at the sighting with both drawn.
+
+Built as signed, with six things worth recording:
+
+- `Insert` is the command the registry already had, spelled `InsertLanePoint` ("Insert Lane Point",
+  `0x1707`) rather than `NeutralInsert` as `keymap-matrix.md` named it; the matrix row now names the
+  code. The chart lane IS a lane and its keyframe IS a point, so the name stayed and the doc moved.
+- The entry settles in the arming keystroke rather than arming the window: the value arrives WHOLE,
+  so no digit could widen it, and a refused one shows no red box — there is no provisional digit for
+  a box to display.
+- `chartObjectAt` narrowed to what a slot HOLDS: the end statement belongs to the ring that ends
+  there, so no landing re-derives it and the walk and the pointer carry its key into
+  `armChartCaret` instead. That is the deleted "arming selects a slide-out's chip" clause, and it is
+  what keeps a bare digit at a ring's end always the next note. The undo/redo repair
+  (`dropChartSelectionKeysNamingNothing`) stopped borrowing that answer with it: it asks whether the
+  chart holds what each KEY names — a note at its slot, a keyframe at its offset — because an object
+  exists whether or not a landing reaches it, and a selected fall chip lost to an unrelated undo
+  would be a loss the screen never explains. The linger law needed nothing from the old test: it is
+  scoped to a live verb window, which the transition has already ended.
+- The walk carries a `RowObjectStop` — the slot AND the object — because a lane point is named by
+  its slot alone while a chart object is not. At a shared instant the order is (instant, then
+  statement before head).
+- The band conditional needed one new pair fact, `ChartConnections::ends_on_next_head`, resolved in
+  the walk that resolves the arrival (it is that predicate's clause 2 on its own) and carried to the
+  surfaces on `NoteViewState`. An arrival and an abutting fall both set it: what collides is
+  geometry, not gesture.
+- The duration verb's floor (`ringEndMayLandOnLastKeyframe`) still refuses to land a ring's end on a
+  keyframe that says nothing. Its old reason was the dissolve; the reason now is that the landing
+  would trade the charter's own point for a ring that simply ends, since a silent statement does not
+  survive its note leaving focus. Whether the floor should lift with the dissolve is a duration-verb
+  question this change set deliberately did not open.
 
 ## The design
 

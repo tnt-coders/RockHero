@@ -473,9 +473,6 @@ public:
     /*! \copydoc IEditorController::onChartFretDigitTyped */
     void onChartFretDigitTyped(int digit) override;
 
-    /*! \copydoc IEditorController::onChartPathDigitTyped */
-    void onChartPathDigitTyped(int digit) override;
-
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override;
 

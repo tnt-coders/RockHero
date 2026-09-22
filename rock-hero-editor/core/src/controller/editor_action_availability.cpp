@@ -316,9 +316,9 @@ namespace
         {
             return conditions.has_chart && !conditions.transport_playing;
         }
-        // The armed caret is the gate; which ROW it rides is the verb's own question, since only a
-        // lane row has a point to place (a string row's objects are all typed). One condition
-        // rather than a second "armed on a lane" flag: the verb already reads the caret it needs.
+        // The armed caret is the gate; which ROW it rides is the verb's own question, since each
+        // lane has its own point to place. One condition rather than a second "armed on a lane"
+        // flag: the verb already reads the caret it needs.
         // Paused-only with the rest of the marker plane, stated here rather than left to the armed
         // caret's own paused-only lifetime, so the table answers for every marker verb alike.
         case EditorAction::Id::InsertLanePoint:

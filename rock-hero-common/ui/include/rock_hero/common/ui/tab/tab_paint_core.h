@@ -253,6 +253,28 @@ void strokeTabNoteHeadOutline(
     float extent, float stroke_thickness);
 
 /*!
+\brief Redraws one keyframe's LINKED HEAD — the mark and its digit — over whatever is already there.
+
+THE SELECTED OBJECT DRAWS LAST, and that is host chrome: the lane paints its notes in chart order,
+so an ARRIVAL at a head's own instant is covered by that head, and a charter who selected the
+arrival would see the accent ring around a mark they cannot read. The host redraws the mark it is
+about to ring, through the very drawer the lane used, so the selected one cannot differ from the
+committed one by a pixel. The falls-away chip needs no such call: chips already draw above every
+head.
+
+Nothing is drawn for a keyframe the note does not link (a release), and no ring, ground or
+selection colour is implied — the host owns those.
+
+\param g Graphics context to draw into.
+\param metrics Metrics of the lane being painted.
+\param note Note the keyframe rides.
+\param keyframe The keyframe whose linked head is redrawn.
+*/
+void paintTabKeyframeHead(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
+    const common::core::KeyframeViewState& keyframe);
+
+/*!
 \brief Draws the editor's pending fret entry box: the mute number-plate's own geometry and font
 carrying a provisional value.
 

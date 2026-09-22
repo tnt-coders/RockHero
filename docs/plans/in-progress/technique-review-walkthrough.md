@@ -837,7 +837,10 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   (`arrivesIntoNextHead`); the release may park on the onset that silences the string; the capo
   floor lifts a release rather than stripping it; saved projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
   through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
-  law — and an `Alt`+digit at a bare tail END authors it, so the FALL verb (`F`) is unnecessary. The
+  law — and `Insert` at a bare tail END authors it from the fret in force (2026-09-22, replacing the
+  `Alt`+digit that authored it), so the FALL verb (`F`) is unnecessary. A silent one is no exception
+  to the commit law either: it draws its chip, so it lingers while its note is in focus and goes
+  with every other silent point when focus leaves. The
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
   can also be a shift slide's trimmed arrival. UNSIGHTED.
 - **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again, finally on
@@ -871,12 +874,12 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   through the finalize gate — offset zero, past the ring, onto an existing point, a path a
   fret-hand harmonic or an open string may not carry, the capo floor, a scrape a repeated position
   would still — so the planner carries none of them.
-  **RE-RULED FINALLY 2026-09-11 (user): every note is TYPED, a click never creates, and `Alt`
-  creates only the slide-out.** The keystroke that states a point is the DIGIT — bare or under
-  `Alt`, which land the same point on a covered slot — and the fret-less keys that used to state one
-  are retired with the rest of the `Insert` family. On an empty slot and at a ring's exact END the
-  digit is a head instead, the next note, and `Alt`+digit at that end is the slide-out: the one cell
-  where the two chords differ, and the only thing `Alt` creates here. No press authors at all, under
+  **RE-RULED FINALLY 2026-09-11 (user): every note is TYPED and a click never creates**, with
+  `Alt`+digit keeping the slide-out cell until 2026-09-22, when it was deleted and `Alt` came to
+  create nothing here. The keystroke that states a point is the DIGIT, and `INSERT` returned as the
+  one that supplies a value instead of typing one — the fret already in force at the caret, which is
+  how the end's own statement is authored. On an empty slot and at a ring's exact END the
+  digit is a head instead, the next note, whatever that end states. No press authors at all, under
   any modifier. Everything above about what a stated point IS — the previous path point's fret
   supplying a fret-less restatement, the planted-and-selected landing, the commit law, the refusal
   list — is unchanged; only which key carries it moved. **Dividing a ring is now two keystrokes**:

@@ -1,10 +1,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -53,6 +55,30 @@ struct RowObjectStepFixture
         }
     }
 
+    // What the last published selection names, for the walk's own landings: a step lands on the
+    // OBJECT it reached, which at a shared instant is the only thing that tells the two apart.
+    [[nodiscard]] std::vector<ChartKeyframeRef> selectedKeyframes() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        if (state == nullptr)
+        {
+            throw std::logic_error("no state was published");
+        }
+        return state->chart_edit.selected_keyframes;
+    }
+
+    [[nodiscard]] std::vector<std::size_t> selectedNotes() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        if (state == nullptr)
+        {
+            throw std::logic_error("no state was published");
+        }
+        return state->chart_edit.selected_notes;
+    }
+
     // The armed string caret as last published.
     [[nodiscard]] const ChartCaretViewState& caret() const
     {
@@ -75,6 +101,21 @@ struct RowObjectStepFixture
 {
     common::core::Chart chart = makeGlideChart();
     chart.notes.push_back(makeTestNote({.measure = 5, .beat = 1}, 3, 7));
+    return chart;
+}
+
+// The glide's ring ending EXACTLY on the next head of its own string — one instant carrying two
+// objects. With `stated` the end names a fret the next head is not struck at, which is a fall that
+// abuts; without it the ring simply stops there and nothing stands at the instant but the head.
+[[nodiscard]] common::core::Chart makeAbuttingStringChart(const bool stated)
+{
+    common::core::Chart chart = makeGlideChart();
+    if (stated)
+    {
+        chart.notes[0].keyframes.push_back(
+            common::core::Keyframe{.offset = common::core::Fraction{8}, .fret = 12});
+    }
+    chart.notes.push_back(makeTestNote({.measure = 4, .beat = 1}, 3, 3));
     return chart;
 }
 
@@ -106,6 +147,62 @@ TEST_CASE("EditorController steps the caret to a string's objects", "[core][char
     fixture.controller.onRowObjectStepRequested(true, true);
     CHECK(fixture.caret().seconds == Catch::Approx(8.0));
     CHECK(fixture.caret().string == 3);
+}
+
+// AT A SHARED INSTANT THE WALK STEPS THE ENDING RING'S STATEMENT BEFORE THE HEAD — time order,
+// the instant belonging to the head — and it lands on the OBJECT, which is the whole of how the
+// keyboard reaches a statement no landing addresses. A second press leaves the slot.
+TEST_CASE("EditorController steps a ring's end statement before the head", "[core][chart]")
+{
+    RowObjectStepFixture fixture{makeAbuttingStringChart(true)};
+    fixture.armAt(0.0);
+    fixture.walkUp(2);
+    REQUIRE(fixture.caret().string == 3);
+
+    // The glide's head, then its junction, then the two objects sharing 6.0s.
+    fixture.controller.onRowObjectStepRequested(true, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(2.0));
+    fixture.controller.onRowObjectStepRequested(true, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(4.0));
+    fixture.controller.onRowObjectStepRequested(true, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(6.0));
+    CHECK(
+        fixture.selectedKeyframes() ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
+    fixture.controller.onRowObjectStepRequested(true, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(6.0));
+    CHECK(fixture.selectedKeyframes().empty());
+    CHECK(fixture.selectedNotes() == (std::vector<std::size_t>{1}));
+
+    // Backward from that head the statement comes first, and the press after it leaves the slot.
+    fixture.controller.onRowObjectStepRequested(false, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(6.0));
+    CHECK(
+        fixture.selectedKeyframes() ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}}));
+    fixture.controller.onRowObjectStepRequested(false, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(4.0));
+}
+
+// AN EMPTY END IS NOT AN OBJECT: where the ring simply stops on the next head, the only thing at
+// that instant is the head, and the press before it reaches the junction.
+TEST_CASE("EditorController steps over a ring's empty end", "[core][chart]")
+{
+    RowObjectStepFixture fixture{makeAbuttingStringChart(false)};
+    fixture.armAt(0.0);
+    fixture.walkUp(2);
+    REQUIRE(fixture.caret().string == 3);
+
+    fixture.controller.onRowObjectStepRequested(true, false);
+    fixture.controller.onRowObjectStepRequested(true, false);
+    REQUIRE(fixture.caret().seconds == Catch::Approx(4.0));
+    fixture.controller.onRowObjectStepRequested(true, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(6.0));
+    CHECK(fixture.selectedKeyframes().empty());
+    CHECK(fixture.selectedNotes() == (std::vector<std::size_t>{1}));
+
+    fixture.controller.onRowObjectStepRequested(false, false);
+    CHECK(fixture.caret().seconds == Catch::Approx(4.0));
 }
 
 // From the passive marker the first press arms in place, exactly as an arrow's first press does,

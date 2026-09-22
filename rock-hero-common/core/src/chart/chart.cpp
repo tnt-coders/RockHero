@@ -223,23 +223,6 @@ bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
     return !lastKeyframeSaysNothingNew(note);
 }
 
-bool dissolveSilentRelease(ChartNote& note, const bool arrives_into_next_head)
-{
-    // The commit law's verdict on a FALL is its fret's alone: a fret the path already holds at the
-    // ring's end draws no fall and takes no head, which is what makes this point unreachable rather
-    // than authored. An ARRIVAL is not this rule's business at all — it wears a linked head at the
-    // presented end, so a silent one is ordinary visible authoring state.
-    if (releaseKeyframe(note, arrives_into_next_head) == nullptr ||
-        !lastKeyframeSaysNothingNew(note))
-    {
-        return false;
-    }
-    // The ring keeps its length: only the statement goes, exactly as clearing a slide-out leaves
-    // the tail simply ending.
-    note.keyframes.pop_back();
-    return true;
-}
-
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
