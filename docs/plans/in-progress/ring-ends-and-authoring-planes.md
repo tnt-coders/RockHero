@@ -51,9 +51,12 @@ the other.
 
 ### The display: keyframes at their true instant, ink cropped
 
-**THE ENDING ZONE.** Where a head binds a tail, the zone is the half-open stretch `[crop, head)`:
+**THE ENDING ZONE.** Where a head binds a tail, the zone is the half-open stretch `(crop, head]`:
 the crop is `marginBefore(head)`, floored onto the tick lattice as today, clamped to no earlier
-than the ring's own onset. A tail is BOUND when its stored ring ends past the crop of the first
+than the ring's own onset. The crop itself is outside the zone (a keyframe standing exactly on it
+is inked) and the head is inside it (an end statement standing exactly on the head — a bend
+written to 100%, a slide-out onto the next strike — is a zone keyframe). A tail is BOUND when its
+stored ring ends past the crop of the first
 later onset on ANY string that the ring does not run strictly past (rule 1's onset, unchanged:
 a ring ending exactly at another string's head is bound by it; a ring stated to ring on past that
 head is not). A ring that ends at or before the crop is FREE and draws in full. On the ring's own
@@ -73,26 +76,36 @@ What that commits to:
    exist to push a trimmed end back out, and go with the trim.
 3. **The 2D label** is a destination chip at the crop, drawn only where the leg the ink ends on
    changes something: a slide's or arrival's fret, a bend's amount. It names where the drawn leg
-   is heading, which the strike on the same string then shows in its own state. A flat leg (a
-   held bend whose release is written inside the zone) and a vibrato-only leg draw no chip. Where
-   the zone's first keyframe states two channels, each channel's chip is drawn as it is elsewhere
-   on the lane. Clicking the chip selects the keyframe it names; the caret peek then shows its
-   true instant.
+   is heading, which the strike on the same string then shows in its own state. A leg that is
+   level across the crop (a bend held into the zone, its release written past the crop) and a
+   vibrato-only leg draw no chip. Where the zone's first keyframe states two channels, each
+   channel's chip is drawn as it is elsewhere on the lane. The chip is a MARK, not a click
+   target: a zone keyframe is selected through a reveal, where it stands at its true instant.
+   Its crop placement is stated once, in `tabKeyframeLayout` (`tab_layout_manifest.cpp`), the
+   layout every 2D consumer already shares. When the crop is clamped to the onset the chip would
+   sit on the head, and is suppressed.
 4. **3D has no label.** The rail and the bend curve run their true path to the crop and the hand
-   window completes at the TRUE instant — the picture that sighted well. The highway's existing
-   tail tip fade applies to the cropped extent.
+   window completes at the TRUE instant — the picture that sighted well. Every hand ramp is filed
+   at its keyframe's stored instant, zone keyframes included, so the hand travels with the rail
+   and completes where the sound goes; the ramp walk reads the stored notes directly. The
+   highway's existing tail tip fade (the last 35% of the drawn extent) applies to the cropped
+   extent; "ink" in the scoring contract means the geometric extent, not the fade.
 5. **2D is a hard crop.** No fade: the lane records "the bare end is chosen over both a cap and a
    dissolve" (`tab_paint_core.cpp`, the tail painter), and that stands. No new ink primitive.
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
-   a tail's ink, in the lane's ghost form (the transparency layer at `g_ghost_opacity`), to its
-   stored end, showing every stored keyframe at its true instant; the chip stays at the crop. The
+   a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note
+   layer, which names a technique), to its stored end, showing every stored keyframe at its true
+   instant, hit-testable and ringed there; the chip stays at the crop. The
    reveal-only held-stop satellites return with the peek and the selection, as before their
    withdrawal. The peek and the selection were withdrawn because revealing moved a clicked chip;
    once no reveal moves a mark that reason is gone (decided 2026-09-23).
 
 What is lost, deliberately: a gesture that begins and ends inside the zone (a flick up and back
-in the last 75 ms) has no visible leg, so it is neither drawn nor scored; and a note shorter than
-the margin draws no ink at all.
+in the last 75 ms) has no visible leg, so it is neither drawn nor scored; a shake switched on
+just before the crop shows only the sliver before it (the deleted shake window's job); and a
+note whose binding onset lies within a margin of its own onset draws no ink at all. A short FREE
+ring is unchanged: it draws in full, and a vibrato end statement cannot stand on it
+(`shedEndStatementShake`).
 
 **Scoring is the ink.** Judging what the player cannot see is a critical bug, and so is showing
 what is not judged. So the contract is one rule: what is drawn is what is judged. A keyframe before
@@ -102,33 +115,45 @@ player sees; a sustain is held to the crop; nothing past the crop is judged. A s
 judged as its own onset, and on another string the zone is the ring's ending. (No scoring code
 reads the chart yet; this is the contract it will be built against.)
 
-**One presented form, one ink end.** The presented note keeps the stored sustain and every
-keyframe at its stored offset, and presentation publishes an INK END beside it — one field, set by
-rule 1 (the crop) and by rules 3 and 4 (a dropped ring's ink end is its onset), exactly as the
-span state carries `drawn_end_seconds` beside `close_seconds`. With nothing moved there is nothing
-for a second form to show: `ChartNoteForm::Actual`, the editor's second projection `tab_actual`,
-`keyframeIdentities` and the ramp arrival clamp (`chart_projection.cpp` ~:698) are deleted, and
-the "two chart forms align by index" watch item closes. This single form is what makes per-note
-reveals possible at all.
+**No presented note, one ink end.** With nothing moved, the "presented note" is a byte copy of
+the stored one: `presentedChartNotes` only ever changed it through the trim and the dropped
+tail, and both go. So presentation publishes no note copy at all. `ChartPresentation::notes` and
+`ChartResolutions::presented_notes` are deleted, and presentation publishes per note an INK END —
+set by rule 1 (the crop) and by rules 3 and 4 (a dropped ring's ink end is its onset), exactly as
+the span state carries `drawn_end_seconds` beside `close_seconds` — beside `rested_from`. Every
+reader of a presented length then has to choose the stored ring or the ink end, and the compiler
+finds every one of them: that is the whole point, since a silent reader of a length that quietly
+became the stored ring is the defect class this change would otherwise breed. With it go
+`ChartNoteForm::Actual`, the editor's second projection `tab_actual`, `keyframeIdentities`, the
+ramp arrival clamp (`chart_projection.cpp` ~:698) and the "two chart forms align by index" watch
+item. The one form is what makes per-note reveals possible at all.
 
-Every reader of a presented length, and which length it reads from now on:
+The readers, and which length each reads from now on:
 
 | Reader | Reads |
 |---|---|
-| `chartHolds` (a lone resting note's hold) | the ink end |
-| `restedOffsetOf` / the tail law's `lastStatementEnd` landmark | the ink end |
-| `makeSlideRampStarts` and the hand-window ramps | keyframes before the crop; no ramp is filed for a zone keyframe |
-| `NoteViewState::end_seconds` (2D tail, chips, cull; highway tail, tip fade, slide path, camera framing; `visible_events.h`) | the ink end, published as today's field, plus the stored end for the reveal |
-| `linkedKeyframe`, `chart_hit_testing.cpp` (the `slide_out` exemption), `chart_selection.cpp` rings | a keyframe past the ink end is neither drawn, hit-testable nor ringed unless revealed |
-| `chart_legato.cpp` `chartResolutions` | positions only, unchanged |
+| the tail law's `sustain <= 0` skip and `hasRestingRemainder` (`chart_presentation.cpp`) | the ink end: a tail rules 3 and 4 dropped has no tail |
+| `chartHolds` (a lone resting note's hold) and `restedOffsetOf` | the ink end |
+| `makeSlideRampStarts` and the hand-window ramps | the stored notes; every ramp filed at its stored instant |
+| the crossing leg's value at the crop | ONE helper beside `glideStopAt` (`chart_view_state.h`) returning the leg and its fraction at the ink end, read by the 2D painter, the rail, the tail sample times, the camera and the future scorer |
+| `NoteViewState::end_seconds` (2D tail and chips; highway tail, tip fade, slide path, camera framing; `visible_events.h`) | the ink end, published as today's field, with the stored end beside it |
+| the 2D cull, the paint core's per-note early-outs, the ghost group bounds, the hit-test candidate range | the STORED end, since any reveal can extend ink to it (`tab_view.cpp` ~:891 already says why) |
+| `linkedKeyframe`, `chart_hit_testing.cpp`, selection rings (a `tab_view` overlay, since the controller never learns about `Alt`) | a keyframe past the ink end is neither drawn, hit-testable nor ringed unless revealed |
+| `makeHighwayTapOnsets` and chord-group `has_tails` (`highway_view_state.h`) | keyframes before the ink end |
+| `nextRowObjectStop` (`chart_handlers.cpp`, the keyboard walk) | every stored keyframe, as the reveal shows it |
 | the pending-entry preview and box (`editor_controller.cpp`) | the one projection |
+| `chart_legato.cpp` `chartResolutions` | positions only, unchanged |
+| the corpus census rows that read a presented length (`test_corpus_census.cpp`) | the ink end, re-pinned in phase 1a |
 | Guitar Pro `resolveSlideOutExits` | the STORED ring (it writes exit placements; see below) |
 
 **The importer reads the store.** `resolveSlideOutExits` (`gp_chart_builder.cpp` ~:2912, called
 ~:3950) places exit fret-hand placements at the presented end and tests for room. It reads the
-stored ring from now on, which is what "spacing is display's alone" requires; a slide-out clamped
-onto the next strike is then a slide with no room, and the hand stays planted. Acceptance is a
-corpus census diff, and the tests at `test_gp_song_importer.cpp` ~:6201-6251 restate it.
+stored ring from now on, which is what "spacing is display's alone" requires. A slide-out ending
+EXACTLY on the next onset — Guitar Pro's default — still counts as having room for the departure
+branch, so exit-fret resolution keeps running for those notes and `insertPlacementIfAbsent` keeps
+yielding the exit placement to the real one; a slide-out with less room than that stays planted.
+Acceptance is a corpus census diff. (The tests at `test_gp_song_importer.cpp` ~:6201-6251 cover
+the presentation's halfway floor, not this pass, and go with `lastStatementClearance`.)
 
 **The ring touches the next head in the data.** A ring may end exactly on the next onset on its
 string (`sustainBoundOf`), and an end statement may stand exactly there. No buffer is kept: Guitar
@@ -183,36 +208,42 @@ With no selection, at the caret:
 | **`Alt+Insert`** | a point on the ring here, at the fret in force | = `Insert` | = `Insert`, unless a ring ends there | a silent point, to be given a bend or shake | the end statement at the fret in force, silent |
 
 A head and a ring's end can share a slot; there the `Alt` chords take the "At a ring's end" column.
-Arming the caret on an object selects it (`chartObjectAt`), so "on a head" and "on a point" with
-no selection are reached only by a caret walk that lands on the slot; a slot holding an interior
-point is then a selection, and the bare digit retypes the point. With a selection, a bare digit
+Arming the caret on an object selects it (`chartObjectAt`, which excludes end statements), so "on
+a head" and "on a point" with no selection are reached only by a caret walk that lands on the
+slot; a slot holding an interior point is then a selection, and the bare digit retypes the point.
+**An `Alt` key at a ring's end ADDRESSES the statement already standing there** — retyping it, or
+overlaying the channel it states — exactly as `Alt+Insert` does today; it never creates a second
+keyframe at that offset, which `planInsertKeyframe` would refuse. With a selection, a bare digit
 retypes the selection, notes or keyframes alike; an `Alt` digit retypes a selected keyframe,
-states the end statement of a ring ending at a selected head, and retypes any other selected head.
-**One press over a mixed selection is one plan and one undo entry**: the targets are resolved per
-element up front (retype, or end statement) and the two planners' outputs are composed into one
-`ChartEditPlan`; `planRetypeFrets` alone cannot create a keyframe.
+states or retypes the end statement of a ring ending at a selected head, and retypes any other
+selected head. **One press over a mixed selection is one plan and one undo entry**: one planner
+resolves each element's target up front (retype, or end statement), builds ONE candidate chart,
+and runs `finalizePlan` once — two `ChartEditPlan`s cannot be composed, since each is a whole-note
+diff validated on its own and both may rewrite the same note. The pending entry gains a target for
+it beside `Cut`.
 
 **A bare digit on a head RETYPES it** — a behaviour change: today it replaces the note, dropping
 its techniques and keyframes. The entry routes to `Retype` over that slot.
 
-**`Insert` on a head selects it**, the precedent the shipped `Alt+Insert` sets: `Insert` creates,
-or selects what already stands there. It is a retype at the head's own fret whose plan is
-`NoChange`; the settle gains the one branch this needs, selecting a `Retype`'s keys when its plan
-changed nothing.
+**`Insert` on a head selects it directly**, through `chartSelectionMutable().replaceWith`, the
+way the shipped `Alt+Insert` selects a standing statement. Not through a same-fret retype: that
+would log a refusal on a fret-hand harmonic head, which `planRetypeFrets` refuses before any
+no-op test, and it needs no settle branch.
 
 **The fret in force** on the string at a slot, one definition for both `Insert` chords: inside a
 ring, the fret `ringStateAt` states at that offset (the last stated stop, never the travel between
-stops); past a ring's end, the last SOUNDED fret of that ring — its end statement's fret where
-that is a stop the string sounded, the last pitched stop before it where the end is a slide-out to
-an unsounded target, so `Insert` after a slide-out never manufactures a shift slide; with no note
-before it, 0. This reverses the 2026-09-11 retirement of the fret in force as a head's value and of
-the fret-0 default: `Insert` must place something, and the string's last sounded stop is what a
-charter continuing a line expects.
+stops); past a ring's end, `fretBeforeEnd` of the string's latest note (`chart.h`, the existing
+helper: the last pitched stop before the end, which is the end statement's own fret unless the end
+is a slide-out to an unsounded target), so `Insert` after a slide-out never manufactures a shift
+slide; with no note before it, 0. This reverses the 2026-09-11 retirement of the fret in force as
+a head's value and of the fret-0 default: `Insert` must place something, and the string's last
+sounded stop is what a charter continuing a line expects.
 
 **Multi-digit entry** is unchanged: `Alt+1` opens a pending entry that authors a keyframe, a `2`
 inside the 750 ms window widens it to 12, and after the window settles the keyframe is selected
-and a later `2` retypes it. The first key decides the plane, so `chartFretEntryContinuedBy` reads
-the plane as part of the entry.
+and a later `2` retypes it. The plane is a FIELD on `TypeChartFretDigit`, not a second action id
+(a new `EditorAction::Id` breaks every switch over it under `-Wswitch-enum` while MSVC stays
+silent); the first key's plane is the entry's, so `chartFretEntryContinuedBy` needs no change.
 
 **The cut is the split walk with a fresh head.** `splitNoteIntoProducts` (`chart_edits.cpp`)
 already divides a ring for `Shift+L`: the keyframes to the right ride onto the new head, rebased;
@@ -222,14 +253,16 @@ new head: it takes the typed fret (or the fret in force), a plain picked attack,
 DEFAULTS — no harmonic node, mute, tremolo, emphasis or held stop rides over from the origin,
 those being facts of the strike that made the origin (the join and the `Shift+L` row classify them
 so). A keyframe standing exactly at the cut becomes the origin's end statement; where its fret
-differs from the new head's it resolves as a slide-out, which is the test phase 2 pins. A cut
-mid-glide keeps the origin's fret to the cut and re-times nothing else; a later keyframe equal to
-the typed fret becomes silent and dissolves at settle under the commit law. A scrape refuses, as
-the split does, through the pending entry's red box; on `Insert`, which settles in its own
-keystroke, the refusal is the log line and the box is not shown. The walk becomes a public planner
-(`planCutRing`) so the cut is testable; whether it parameterizes the walk or overwrites the second
-product after it is phase 2's first question, the simpler shape winning. `Shift+L` keeps its own
-job, and splitting at a typed fret is `Alt`+digit then `Shift+L`.
+differs from the new head's it resolves as a slide-out onto the new same-string head — a point
+that was visible becomes a zone keyframe, which is the test phase 2 pins. A cut mid-glide keeps
+the origin's fret to the cut and re-times nothing else. The cut deletes no keyframe itself; a
+later keyframe equal to the typed fret becomes silent and dissolves at settle under the commit
+law, as any silent point does. A scrape refuses, as the split does, through the pending entry's
+red box; on `Insert`, which settles in its own keystroke, the refusal is the log line and the box
+is not shown. The walk becomes a public planner (`planCutRing`) so the cut is testable; whether it
+parameterizes the walk or overwrites the second product after it is phase 2's first question, the
+simpler shape winning. `Shift+L` keeps its own job, and splitting at a typed fret is `Alt`+digit
+then `Shift+L`.
 
 **A note here has two ring rules, one per verb.** A head placed on an empty slot or at a ring's
 end rings to the next line of the session's grid (`planInsertNote`, since `a6455969`); a head
@@ -272,27 +305,46 @@ Each phase ends built, with touched tests passing, sighted where it changes the 
 committed. The display comes first: it changes what the lane shows, and the keys are then sighted
 against the lane they will ship with.
 
-### Phase 1a — Presentation, projection and the importer
+### Phase 1a — Presentation, projection, painters' crop, the `Alt` reveal, the importer
 
-- `presentedChartNotes` keeps the stored sustain and keyframes and publishes the ink end per note
-  (a parallel vector in `ChartPresentation`, like `rested_from`); rule 1 sets it to the crop,
-  rules 3 and 4 to the onset. **Deleted:** `trimToMargin`'s ride (`clipPayloadsToSustain` stays
-  for the store's own clamp), `lastStatementClearance`, `lastInteriorStatementEnd`,
-  `statementsEnd`'s shake window, `keyframeIdentities`.
-- `chartHolds` and `restedOffsetOf` read the ink end (the table above).
-- `makeChartViewState`: `end_seconds` is the ink end and a stored end travels beside it for the
-  reveal; `NoteViewState`'s hand-written `operator==` and every designated initializer
-  (`KeyframeViewState{` at `chart_projection.cpp` ~:649) gain the field; `makeSlideRampStarts`
-  files no ramp for a zone keyframe; the arrival clamp is deleted; `ChartNoteForm` and
-  `tab_actual` are deleted with `EditorViewState::tab_actual` and the controller's second
-  projection.
-- `resolveSlideOutExits` reads the stored ring; corpus census diff recorded.
+One phase because it cannot be cut smaller and still end sighted: once presentation stops
+clipping, the unchanged painters draw every zone keyframe past the ink (2D bend polylines and
+slide diagonals, the projection's vibrato regions closing at the ink end, the 3D slide path, tail
+sample times and scrape framing), and deleting the second projection takes the `Alt` reveal with
+it until the single form carries one.
+
+- `presentedChartNotes` publishes the ink end per note (a parallel vector in `ChartPresentation`,
+  like `rested_from`) and NO note copy; rule 1 sets the ink end to the crop, rules 3 and 4 to the
+  onset. **Deleted:** `ChartPresentation::notes`, `ChartResolutions::presented_notes`, the
+  importer's `presentedChartNotes` call, `trimToMargin`'s ride (`clipPayloadsToSustain` stays for
+  the store's own clamp), `lastStatementClearance`, `lastInteriorStatementEnd`, `statementsEnd`'s
+  shake window, `keyframeIdentities`. Every reader in the table above then chooses its length.
+- The crossing-leg helper beside `glideStopAt`.
+- `makeChartViewState`: `end_seconds` is the ink end and a stored end travels beside it;
+  `NoteViewState` is built by assignment and its hand-written `operator==` gains the field; the
+  54 `NoteViewState{` test fixtures default the stored end to 0.0, so the readers are defined so a
+  stored end below the ink end reads as "no reveal" rather than a shorter ring, or the fixtures
+  are swept; `makeSlideRampStarts` walks the stored notes and files every ramp; the arrival clamp
+  is deleted; `ChartNoteForm` and `tab_actual` are deleted with `EditorViewState::tab_actual`,
+  the controller's second projection, `TabView::setState`'s second state and its cull table.
+- Painters crop at the ink end (2D: `drawNoteTail` and the bend, slide, vibrato, tremolo and
+  accent passes in `tab_paint_core.cpp`, marks past the crop suppressed, the `at_ring_end`
+  compare reading the stored end; 3D: `highway_renderer.cpp`, `highway_tail.cpp`,
+  `highway_slide_path.h`, the camera's scrape framing) — the crop only, no chip yet; the cull and
+  early-outs read the stored end.
+- The `Alt` reveal on the single form: ink to the stored end in full ink, zone keyframes shown at
+  their true instants.
+- `resolveSlideOutExits` reads the stored ring with the exact-touch room rule; corpus census
+  diff recorded and the presentation-derived census rows re-pinned.
 - **Tests:** presentation for a free tail, a bound tail with one end statement, several keyframes
-  in the zone, a keyframe exactly on the crop (inked), a flat leg crossing the crop, keyframes
-  before the crop, a note shorter than the margin, a ring ending exactly at another string's head
-  (bound) and one ringing past it (not bound); projection for the ink end, the ramps and the
-  holds; the importer's exit pass. `test_chart_presentation.cpp`'s `presentedSustains` helper
-  reads the ink end.
+  in the zone, a keyframe exactly on the crop (inked) and one exactly on the head (in the zone),
+  a level leg crossing the crop, keyframes before the crop, a note whose binding onset lies
+  within a margin of its onset, a ring ending exactly at another string's head (bound) and one
+  ringing past it (not bound); projection for the ink end, the ramps, the crossing-leg helper and
+  the holds; the painters' crop and the `Alt` reveal; the importer's exit pass.
+  `test_chart_presentation.cpp`'s `presentedSustains` helper reads the ink end, and the 27
+  `presentedNotesOf` sites in `test_gp_song_importer.cpp` are rewritten against the ink end so
+  none passes vacuously.
 - **Docs:** `chart_presentation.h`'s rule text, `chart.h` (~:562-578, :1169), `chart_rules.h`,
   `chart_view_state.h` (the `NoteViewState` block and `end_seconds`), `chart_legato.h`,
   `editor_view_state.h` (`tab_actual`), `grid_arithmetic.h` (the shake floor as a producer),
@@ -301,29 +353,27 @@ against the lane they will ship with.
   `docs/developer/musical-time.md`, `the-project-lifecycle.md`, `the-3d-highway.md` ("one presented
   end"), and the watch item on two chart forms.
 
-### Phase 1b — Painters
+### Phase 1b — The chip, hit testing, rings and the selection reveal
 
-- 2D: `drawNoteTail` and the bend, slide, vibrato, tremolo and accent passes in
-  `tab_paint_core.cpp` stop at the ink end, with the crossing leg's value interpolated at the crop;
-  every chip past the crop is suppressed and the destination chip is drawn at the crop; the
-  `at_ring_end` compare reads the stored end; the cull and ghost bounds read the ink end. The
-  recorded no-dissolve decision stands.
-- 3D: `highway_renderer.cpp`, `highway_tail.cpp`, `highway_slide_path.h` and the camera's scrape
-  framing take the ink end as the tail's extent; the tip fade applies to it; no label.
-- Hit testing and selection: a keyframe past the ink end is neither hit-testable nor ringed
-  unless revealed.
+- The 2D destination chip at the crop, placed by `tabKeyframeLayout`; the recorded no-dissolve
+  decision stands.
+- Hit testing (`chart_hit_testing.cpp`, whose keyframe hits index position keyframes only) and
+  selection rings (a `tab_view` overlay): a keyframe past the ink end is neither hit-testable nor
+  ringed unless revealed.
+- The selection reveal returns here rather than later, so a keyboard walk or a chip-adjacent
+  click that selects a zone keyframe always has a ring to show it (`chart_reveal.h`; the code
+  deleted at `a4bfed7b` is the starting point).
 - **Sight** My Sacrifice measure 9 (the chord shift slide with open strings ringing through), a
   slide-out and an end bend abutting a same-string head, a free-ending slide-out, a dense
   sixteenth passage at 160–180 BPM, and a Guitar Pro bend-release written at 98% and 99% (imported
-  points round onto the lattice, so two that round onto one tick stay apart) — each in 2D and 3D.
-  Confirm the margin against this picture.
+  points round onto the lattice, so two that round onto one tick stay apart) — each in 2D, in 3D
+  and under `Alt`. Confirm the margin against this picture.
 - **Docs:** `tab_paint_core.h`, `the-editor-2d-views.md`, `the-3d-highway.md`.
 
-### Phase 1c — The reveals return
+### Phase 1c — The caret peek returns
 
-- The caret peek and the selection reveal come back as reveals that add ink (`chart_reveal.h`;
-  the code deleted at `a4bfed7b` is the starting point), the held-stop satellites with them; the
-  `tab_view` cull table follows. Sight each under `Alt`, the peek and the selection.
+- The caret peek comes back as a reveal that adds ink, the held-stop satellites with it and with
+  the selection; the `tab_view` cull table follows. Sight the peek beside `Alt` and the selection.
 - **Docs:** `chart_reveal.h`, `the-editor-2d-views.md`, `keymap-matrix.md`'s reveal rows.
 
 ### Phase 2 — The keys
@@ -335,13 +385,13 @@ against the lane they will ship with.
   only cut (`chart_edits.cpp`, `chart_handlers.cpp`, `keyboard-input.md` step 5, the
   `keymap-matrix.md` `Shift+L` row) are rewritten.
 - The digit dispatch (`chartCaretDigitTarget` and the pending entry's targets) as operand then
-  plane. `ChartFretEntry` gains a `Cut` target; its three silent sites are the two
-  `std::get<Retype>` reads (`chart_handlers.cpp` ~:2345, `editor_controller.cpp` ~:2998), the
-  preview's `holds_alternative` check, and the settle's `select_exactly`. A bare digit on a head
-  routes to `Retype`; the `NoChange` retype selects its keys.
-- "Type Ring Digit 0–9" as new commands, with the fallback, the redirect, and the lanes-view
-  try-order the bare digits already follow; the composed mixed-selection plan;
-  `chartFretEntryContinuedBy` reads the plane.
+  plane. `ChartFretEntry` gains a `Cut` target and a mixed-selection target; the silent sites for
+  each are the two `std::get<Retype>` reads (`chart_handlers.cpp` ~:2345, `editor_controller.cpp`
+  ~:2998), the preview's `holds_alternative` check, and the settle's `select_exactly`. A bare
+  digit on a head routes to `Retype`; `Insert` on a head selects directly.
+- "Type Ring Digit 0–9" as new commands carrying the plane field, with the fallback, the
+  redirect, the standing-statement addressing at a ring's end, and the lanes-view try-order the
+  bare digits already follow; the one-candidate mixed-selection planner.
 - "Insert at Caret" (one action behind `0x1707`, creating whatever the caret's row holds) and
   "Insert Ring Point" (`0x171C`).
 - **Tests** at controller level for every cell of the table, the selection plane, the mixed
@@ -362,10 +412,15 @@ against the lane they will ship with.
   stands at the landing through `overlayKeyframe`, which overwrites every channel the carried
   statement also states: a point at fret 9 on the landing and a slide-out at fret 3 leave one
   keyframe at 3, the authored 9 gone. `moveErasesStatement` exists to refuse exactly that loss
-  and misses it, and it exempts only the end FRET statement while the clip carries any end
-  statement. Fix: refuse when the overlay would overwrite a channel of a standing landing
-  statement, and exempt any end statement. One plan-level test in `test_chart_edits.cpp`; every
-  existing move fixture carries a single keyframe.
+  and misses it; it exempts only the end FRET statement while the clip carries any end
+  statement; and it checks only unmoved rings against landings, while a MOVED note whose own
+  ring now runs through an unmoved head is truncated by `normalizeSustainOverlaps` with the same
+  silent loss. Fix, in one authority: the clip and the normalizer report the authored channels
+  they erased or overwrote — a channel both statements state with DIFFERENT values, never an
+  equal one — and `finalizePlan` refuses on that report; the restated predicate is deleted. One
+  plan-level test per direction in `test_chart_edits.cpp`; every existing move fixture carries a
+  single keyframe. This is store law, not display: the ridden end statement lands on the landing
+  head and is a zone keyframe from then on.
 
 ## Open decisions
 
