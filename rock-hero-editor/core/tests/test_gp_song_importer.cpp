@@ -4669,6 +4669,49 @@ namespace
 
 } // namespace
 
+// Guitar Pro places bend points at percentages of the note, which land between the chart's tick
+// lines almost everywhere; the import rounds each onto the nearest line. A 64th at 4/4 is 60 ticks,
+// so 17% (10.2 ticks) lands on tick 10, and 98% and 99% (58.8 and 59.4) both round to tick 59.
+// Guitar Pro wrote them apart — a hold at full, then the release — so they stay apart: the release
+// takes the next line, tick 60, which is the ring's end.
+TEST_CASE("Guitar Pro import rounds bend points onto the tick lattice", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    GpNote bent;
+    bent.string = 5;
+    bent.fret = 9;
+    bent.bend = GpBend{
+        .origin_value = 0.0,
+        .middle_value = 100.0,
+        .destination_value = 0.0,
+        .origin_offset = 0.0,
+        .middle_offset1 = 17.0,
+        .middle_offset2 = 98.0,
+        .destination_offset = 99.0,
+    };
+    GpNote plain;
+    plain.string = 5;
+    plain.fret = 9;
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{beatOf(Fraction{1, 64}, {bent}), beatOf(Fraction{1, 64}, {plain})}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+    const std::vector<BendReading> curve = bendCurve(chart.notes[0]);
+    REQUIRE(curve.size() == 4);
+    CHECK(curve[1].offset == Fraction{10, 960});
+    CHECK(curve[1].semitones == Catch::Approx(2.0));
+    CHECK(curve[2].offset == Fraction{59, 960});
+    CHECK(curve[2].semitones == Catch::Approx(2.0));
+    CHECK(curve[3].offset == Fraction{60, 960});
+    CHECK(curve[3].semitones == Catch::Approx(0.0));
+}
+
 // A downward slide-out from a low fret: the four-fret exit is held onto the playable board at the
 // first fret above the capo, never the nut. Flooring the exit at 0 while the rules demand
 // above-the-capo fails a whole track's import on a single slide-out from frets 1-4, so the importer

@@ -566,9 +566,44 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     }
 }
 
+// The line of the chart's position lattice (1/3840 of a whole note, grid_arithmetic.h) nearest a
+// global-beat position, a tie going to the earlier line as the editor's snap does. The lattice is
+// counted on the whole-note axis from the song's start; every downbeat lies on it, since each
+// meter's denominator divides the quantum, so this is the measure-anchored tick grid every stored
+// position must land on.
+[[nodiscard]] Fraction nearestLatticeBeat(const MeasureGrid& grid, const Fraction global)
+{
+    const Fraction whole = wholeAtGlobalBeat(grid, global);
+    const std::int64_t scaled =
+        static_cast<std::int64_t>(whole.numerator) * common::core::g_tick_quantum_denominator;
+    const std::int64_t below = scaled / whole.denominator;
+    const std::int64_t twice_remainder = 2 * (scaled - (below * whole.denominator));
+    const std::int64_t line = twice_remainder > whole.denominator ? below + 1 : below;
+    return globalBeatAtWhole(
+        grid, Fraction{static_cast<int>(line), common::core::g_tick_quantum_denominator});
+}
+
+// The lattice line one tick after a global-beat position that is itself on the lattice.
+[[nodiscard]] Fraction latticeBeatAfter(const MeasureGrid& grid, const Fraction global)
+{
+    return globalBeatAtWhole(
+        grid,
+        wholeAtGlobalBeat(grid, global) + Fraction{1, common::core::g_tick_quantum_denominator});
+}
+
 // Maps one GP bend onto the chart's [offset, semitones] pairs across the note sustain.
+//
+// Guitar Pro places each point at a percentage of the note, which lands between the chart's
+// lattice lines almost everywhere; each is rounded onto the nearest line, measured from the note's
+// `onset` on the global beat axis, exactly as a roll's partial stagger is. Merging and ordering are
+// asked of the percentages Guitar Pro WROTE, never of where rounding put them: two points it wrote
+// at one percentage are a step and fold into one, the later value winning, while two it kept apart
+// that round onto one line on a very short note stay apart — the later takes the next line, so a
+// hold followed by a release keeps its hold. Only where no line is left inside the ring do they
+// fold.
 [[nodiscard]] std::vector<BendCurvePoint> buildBendPoints(
-    const GpBend& bend, Fraction sustain, std::vector<std::string>& notes)
+    const GpBend& bend, const MeasureGrid& grid, const Fraction onset, const Fraction sustain,
+    std::vector<std::string>& notes)
 {
     if (sustain.numerator <= 0)
     {
@@ -608,22 +643,35 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     };
 
     std::vector<BendCurvePoint> points;
+    // The written percentage of the last point kept.
+    Fraction last_percent{};
     for (const RawPoint& point : raw)
     {
-        const Fraction offset =
-            percentFraction(std::clamp(point.offset_percent, 0.0, 100.0)) * sustain;
+        const Fraction percent = percentFraction(std::clamp(point.offset_percent, 0.0, 100.0));
         // GP bend values are percent of a whole step; the chart stores semitones.
         const double semitones = point.value / 50.0;
-        if (!points.empty() && points.back().offset == offset)
+        if (!points.empty() && percent == last_percent)
         {
             points.back().semitones = semitones;
             continue;
         }
-        if (!points.empty() && offset < points.back().offset)
+        if (!points.empty() && percent < last_percent)
         {
             continue;
         }
+        Fraction offset = nearestLatticeBeat(grid, onset + (percent * sustain)) - onset;
+        if (!points.empty() && !(points.back().offset < offset))
+        {
+            offset = latticeBeatAfter(grid, onset + points.back().offset) - onset;
+            if (sustain < offset)
+            {
+                points.back().semitones = semitones;
+                last_percent = percent;
+                continue;
+            }
+        }
         points.push_back(BendCurvePoint{.offset = offset, .semitones = semitones});
+        last_percent = percent;
     }
 
     // A flat zero curve carries no information.
@@ -3111,8 +3159,8 @@ void resolveSlideOutExits(
                 origin.note.tremolo = origin.note.tremolo || event.tremolo;
                 if (source.bend.has_value())
                 {
-                    for (BendCurvePoint point :
-                         buildBendPoints(*source.bend, notatedDuration(event), notes))
+                    for (BendCurvePoint point : buildBendPoints(
+                             *source.bend, grid, event.global_beat, notatedDuration(event), notes))
                     {
                         if (event.duration_beats < point.offset)
                         {
@@ -3367,7 +3415,10 @@ void resolveSlideOutExits(
             // that can reach past the ring, and it is trimmed back at the end of the build, where
             // the ring is finally settled — trimming it here would cut it against a ring the
             // let-ring pass is still going to lengthen.
-            applyBendCurve(note, buildBendPoints(*source.bend, notatedDuration(event), notes));
+            applyBendCurve(
+                note,
+                buildBendPoints(
+                    *source.bend, grid, event.global_beat, notatedDuration(event), notes));
         }
 
         // NO CLAIM IS EVER AUTHORED HERE, and that is the whole of what the import states about
