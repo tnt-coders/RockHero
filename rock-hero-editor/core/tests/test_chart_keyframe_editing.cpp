@@ -1001,8 +1001,8 @@ TEST_CASE("Undo collapses a silent point before it replays", "[core][chart]")
     CHECK(redone.notes[0].keyframes.size() == 2);
 }
 
-// THE SLIDE WORKFLOW the law exists for: Insert where the slide starts, walk the caret along the
-// same tail to where it lands, type the landing fret. The start says nothing until the landing
+// THE SLIDE WORKFLOW the law exists for: Alt+Insert where the slide starts, walk the caret along
+// the same tail to where it lands, type the landing fret. The start says nothing until the landing
 // exists, and the note stays in focus meanwhile, so it is simply there when the landing makes it a
 // hold boundary that says something — and the ONE entry the landing pushes carries both points,
 // because it diffs from the written state before it, which never had the start.
@@ -1379,11 +1379,11 @@ TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[c
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// `Insert` ON A TAIL types the fret in force at the caret: the digit route with the digit supplied.
+// `Alt+Insert` ON A TAIL types the fret in force at the caret: the digit route, digit supplied.
 // Inside a ring that is the silent point typing the note's own fret makes — selected, and gone when
 // its note leaves focus — and at the ring's END it is the end statement at that fret, which a digit
 // then retypes into a slide-out that travels.
-TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
+TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
 {
     SECTION("inside a ring it plants the silent point")
     {
@@ -1393,7 +1393,7 @@ TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
 
         // Six beats in, where the glide holds its junction's 9.
         click(fixture.controller, g_holding_tail_x, g_string_3_y);
-        fixture.controller.onLanePointInsertRequested();
+        fixture.controller.onChartStatementInsertRequested();
 
         const common::core::Chart planted = currentChart(fixture.controller);
         REQUIRE(planted.notes.size() == 1);
@@ -1417,7 +1417,7 @@ TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
         const common::core::Chart original = currentChart(fixture.controller);
 
         click(fixture.controller, g_ring_end_x, g_string_3_y);
-        fixture.controller.onLanePointInsertRequested();
+        fixture.controller.onChartStatementInsertRequested();
 
         const common::core::Chart stated = currentChart(fixture.controller);
         REQUIRE(stated.notes.size() == 1);
@@ -1449,7 +1449,7 @@ TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
 
         click(fixture.controller, g_ring_end_x, g_string_3_y);
         REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
-        fixture.controller.onLanePointInsertRequested();
+        fixture.controller.onChartStatementInsertRequested();
 
         CHECK(currentChart(fixture.controller) == original);
         CHECK(
@@ -1466,20 +1466,20 @@ TEST_CASE("Insert on a tail states the fret in force", "[core][chart]")
 
         // The empty string-2 lane: nothing rings there, so there is no fret in force to state.
         click(fixture.controller, g_holding_tail_x, g_string_2_y);
-        fixture.controller.onLanePointInsertRequested();
+        fixture.controller.onChartStatementInsertRequested();
         CHECK(currentChart(fixture.controller) == original);
 
         // Nor on a head, whose own facts the note carries: the caret is not on a tail at all.
         click(fixture.controller, g_onset_x, g_string_3_y);
-        fixture.controller.onLanePointInsertRequested();
+        fixture.controller.onChartStatementInsertRequested();
         CHECK(currentChart(fixture.controller) == original);
     }
 }
 
 // THE SHIFT SLIDE IN ONE KEY: at the end of a ring abutting a head at the fret in force, the
-// statement `Insert` writes names the stop that head is struck at, at the same instant, which is
-// what the chart reads as an ARRIVAL rather than a slide-out.
-TEST_CASE("Insert at an abutting end states the arrival", "[core][chart]")
+// statement `Alt+Insert` writes names the stop that head is struck at, at the same instant, which
+// is what the chart reads as an ARRIVAL rather than a slide-out.
+TEST_CASE("Alt+Insert at an abutting end states the arrival", "[core][chart]")
 {
     // A fret-9 ring ending exactly on a fret-9 head of the same string: the glide's junction holds
     // 9 to the end, so the fret in force there IS the landing's own stop.
@@ -1489,7 +1489,7 @@ TEST_CASE("Insert at an abutting end states the arrival", "[core][chart]")
     KeyframeFixture fixture{std::move(abutting)};
 
     click(fixture.controller, g_ring_end_x, g_string_3_y);
-    fixture.controller.onLanePointInsertRequested();
+    fixture.controller.onChartStatementInsertRequested();
 
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 2);

@@ -724,13 +724,20 @@ struct EditorAction
     {
     };
 
-    /*!
-    \brief The Insert key's create: the point at an armed caret's slot, on either lane.
-
-    An on-curve point on an automation lane; on the chart lane the statement at the caret's own
-    offset along the ring it stands in, carrying the fret already in force there.
-    */
+    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
     struct InsertLanePoint
+    {
+    };
+
+    /*!
+    \brief The chart lane's create: the statement at an armed caret's offset along its ring.
+
+    Carries the fret already in force there, which is what gives a key that supplies no value
+    something to state. A verb of its own rather than the lane point's other half, because the two
+    answer to different chords: this one to `Alt+Insert`, so the tail being inserted onto is
+    revealed while the charter inserts onto it.
+    */
+    struct InsertChartStatement
     {
     };
 
@@ -882,10 +889,10 @@ struct EditorAction
         SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints,
         NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
-        DeleteSelection, InsertLanePoint, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode, SetChartLeftTap,
-        ToggleChartJunction, SelectSongSection, InsertSongSection, RenameSongSection,
-        SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
+        DeleteSelection, InsertLanePoint, InsertChartStatement, TypeChartFretDigit, ShiftChartFrets,
+        AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
+        SetChartLeftTap, ToggleChartJunction, SelectSongSection, InsertSongSection,
+        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

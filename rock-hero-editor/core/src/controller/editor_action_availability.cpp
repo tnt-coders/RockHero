@@ -48,6 +48,7 @@ namespace
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
         case EditorAction::Id::InsertLanePoint:
+        case EditorAction::Id::InsertChartStatement:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
@@ -160,6 +161,7 @@ namespace
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
             case EditorAction::Id::InsertLanePoint:
+            case EditorAction::Id::InsertChartStatement:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -316,12 +318,13 @@ namespace
         {
             return conditions.has_chart && !conditions.transport_playing;
         }
-        // The armed caret is the gate; which ROW it rides is the verb's own question, since each
-        // lane has its own point to place. One condition rather than a second "armed on a lane"
+        // The armed caret is the gate; which ROW it rides is each verb's own question, since each
+        // lane has its own thing to place. One condition rather than a second "armed on a lane"
         // flag: the verb already reads the caret it needs.
         // Paused-only with the rest of the marker plane, stated here rather than left to the armed
         // caret's own paused-only lifetime, so the table answers for every marker verb alike.
         case EditorAction::Id::InsertLanePoint:
+        case EditorAction::Id::InsertChartStatement:
         {
             return conditions.has_loaded_arrangement && conditions.has_armed_caret &&
                    !conditions.transport_playing;
@@ -421,6 +424,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
         case EditorAction::Id::InsertLanePoint:
+        case EditorAction::Id::InsertChartStatement:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:

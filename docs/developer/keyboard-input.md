@@ -290,13 +290,14 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
 Alt+Shift+arrows, `Tab`/`Shift+Tab` and their `Ctrl` twins, the five `Ctrl+Shift`+letter row jumps,
-digits, `Enter`, `Ctrl+R`, Delete, Insert (the point at the armed caret, on either lane: an
-on-curve point on an automation lane, the statement at the fret in force on a chart tail), and Esc
+digits, `Enter`, `Ctrl+R`, Delete, Insert (an on-curve point at an armed automation-lane caret) and
+its chart twin `Alt+Insert` (the statement at the fret in force on a tail), and Esc
 are registered commands like everything else. Their `perform` cases route to dedicated controller
 intents, and since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `StepToRowObject`, `JumpToFocusRow`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
+`InsertChartStatement`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
 `ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`,
 `ToggleChartJunction`) — so
@@ -346,19 +347,21 @@ KEYFRAME as well as a head: a point on a slide states a fret exactly as a head d
 No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
-`onLanePointInsertRequested` (the lanes' on-curve point — the `Insert` key's whole remaining
-create; on the chart lane it states the fret in force at the caret) and the entry gestures around it — **every note is TYPED, a click never creates, and
-`Alt` creates nothing**. Every entry case on the lane follows from that one sentence.
+`onLanePointInsertRequested` (the lanes' on-curve point — bare `Insert`'s whole remaining create),
+`onChartStatementInsertRequested` (`Alt+Insert`, which states the fret in force at the caret; the
+reveal is in the chord so the tail being stated is drawn while it is stated) and the entry gestures
+around it — **every note is TYPED, a click never creates, and `Alt` creates no NOTE**. Every entry case on the lane follows from that one sentence.
 The DIGITS (`TypeDigit0`–`9`, "Type Digit N") are the whole of chart entry: at the armed caret, on
 an EMPTY slot and at a ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply
 the next note, since the ring already stops there, which is why sequential entry is safe — and on a
 slot a ring COVERS, a POINT on that note's path at the typed fret, planted and selected with the
 caret on it so the technique keys address it as they address any keyframe. At a ring's end the digit
 is ALWAYS the next note, whatever that end states: no landing addresses the end's own statement
-(`chartObjectAt`), so nothing there can swallow the keystroke into a retype. `INSERT` is what states
-the end — the digit route with the digit supplied, the fret already in force at the caret
-(`insertChartStatementAtCaret`): inside a ring the silent point typing the note's own fret makes, at
-the end a slide-out toward the fret in force, or the ARRIVAL where a head at that stop abuts. A statement
+(`chartObjectAt`), so nothing there can swallow the keystroke into a retype. `ALT+INSERT` is what
+states the end — the digit route with the digit supplied, the fret already in force at the caret
+(`EditorAction::InsertChartStatement`): inside a ring the silent point typing the note's own fret
+makes, at the end a slide-out toward the fret in force, or the ARRIVAL where a head at that stop
+abuts. Its chord carries the reveal, so the tail the point lands on is drawn while it lands. A statement
 already standing at that offset is selected rather than doubled. A pointer press creates nothing
 under any modifier: it arms the caret and selects what it HIT (`Alt` keeps the ring reveal, the
 wheel and the arrows).

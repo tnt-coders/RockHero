@@ -405,13 +405,18 @@ constexpr int g_add_lane_key = 'a';
         "Shift Frets Down",
         "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
-    // One verb, each lane's own point: an on-curve point on an automation lane, and on the chart
-    // lane the statement at the caret's offset carrying the fret already in force — the value a key
-    // that carries none takes, rather than a fret nobody typed.
+    // Two verbs on one key, because each lane's insert answers to its own chord: bare on an
+    // automation lane, and with the lane reveal held on the chart lane, where a slot before a head
+    // can look blank while lying inside a tail the presentation clipped — `Alt` draws that tail
+    // while the statement lands on it.
     add(EditorCommandId::InsertLanePoint,
         "Insert Lane Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
+    add(EditorCommandId::InsertChartStatement,
+        "Insert Chart Statement",
+        "Authoring",
+        {chord(juce::KeyPress::insertKey, alt)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
     // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
     // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of

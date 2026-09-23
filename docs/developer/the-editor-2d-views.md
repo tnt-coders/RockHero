@@ -194,17 +194,19 @@ element type than the two slot-keyed ones. Every verb reads its own kind's opera
 list (`notes()`, `keyframes()`) and a verb a kind has no meaning for simply reads an empty one,
 which is what keeps the technique verbs free of keyframe guards.
 
-**Every note is TYPED, a click never creates, and `Alt` creates nothing — one sentence,
+**Every note is TYPED, a click never creates, and `Alt` creates no NOTE — one sentence,
 and every entry case below derives from it.** The DIGITS are the whole of chart entry. At the armed
 caret, on an EMPTY slot and at a ring's EXACT END alike, a digit lands a HEAD at the typed fret; at
 the end it is simply the next note, the ring already stopping there, which is what makes sequential
 entry safe — and it is the next note there whatever that ring's end states, because no landing
 addresses the end's own statement. On a slot a ring COVERS, a digit lands a POINT on that note's
-path at the typed fret, planted and selected with the caret on it. `INSERT` is the one key that
+path at the typed fret, planted and selected with the caret on it. `ALT+INSERT` is the one key that
 states the END: the digit route with the digit supplied, the fret ALREADY IN FORCE at the caret —
 inside a ring the silent point typing the note's own fret makes, at the end a slide-out toward the fret
 in force, or the ARRIVAL where a head at that stop abuts, which is a shift slide in one key
-(`insertChartStatementAtCaret`). A statement already standing at that offset is selected, never
+(`EditorAction::InsertChartStatement`). The reveal rides in its chord because a slot just before a
+head can look blank while lying inside a tail presentation clipped, and this is the verb that states
+a point on that tail. A statement already standing at that offset is selected, never
 doubled. A pointer press, under every modifier, arms the
 caret and selects what it HIT and creates nothing. A point that merely restates the fret the
 path is already running on says nothing, so it is silent authoring state — no undo entry, gone when
@@ -271,23 +273,27 @@ Four consequences worth knowing before touching this:
   through the core's own drawer (`paintTabKeyframeHead`), so the redrawn mark cannot differ from the
   drawn one by a pixel. A chip needs nothing, chips already drawing above every head, and a selected
   HEAD keeps drawing over the arrival, as the instant's owner should.
-- **`Insert` at the exact END of a tail authors the end's statement.** The slide-out is the
+- **`Alt+Insert` at the exact END of a tail authors the end's statement.** The slide-out is the
   keyframe at the ring's end (`slideOutKeyframe`, `chart.h`), so the caret standing on the end slot
-  and `Insert` pressed there plant it exactly as a digit anywhere else on the tail plants a
+  and `Alt+Insert` pressed there plant it exactly as a digit anywhere else on the tail plants a
   point — one gesture, one object kind — with the value the key supplies being the fret already in
-  force there. It is the ONE keystroke on the lane that authors a slide-out, which is why the end slot is
+  force there. `Alt` is in the chord because it is the reveal: a slot just before a head can look
+  blank while lying inside a tail presentation clipped, and this verb states a point on exactly
+  that tail. It is the ONE keystroke on the lane that authors a slide-out, which is why the end slot is
   where the grammar shows plainest: a DIGIT there is simply the NEXT NOTE, the ring already stopping
   at that instant with nothing to divide and nothing to shorten — exactly what keeps sequential
   entry safe — whatever the end states. Sequential entry meets
   the covered case only past the grid: the slot after a grid-step ring IS that ring's end, while a
   ring deliberately lengthened past its grid step makes the following slot a covered one, where a
   digit is a point instead. Where a
-  statement ALREADY stands on that end, `Insert` SELECTS it rather than doubling it, and the keys
-  address it from there.
+  statement ALREADY stands on that end, `Alt+Insert` SELECTS it rather than doubling it, and the
+  keys address it from there.
   Its slide-out chip is a selection citizen
-  like any keyframe: click it, or step onto it from the head sharing its instant — the walk stops on
-  the end statement before that head, so `Shift+Tab` reaches it and so does a plain `←`, which stays
-  on the slot and names the statement rather than re-deriving the head there — and it wears
+  like any keyframe: click it, or step onto it from either side — the walk stops on the end
+  statement before the head sharing its instant, and the arrows honour that order at every slot, so
+  `→` onto the shared slot lands on the statement and a second press takes the head, while `←` from
+  the head names the statement without moving and a second press leaves. `Shift+Tab` reaches it the
+  same way. It wears
   the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
   `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
   force says nothing (`keyframeSaysNothingNew`) and is treated like every other silent point: it
@@ -764,8 +770,9 @@ PULL-OFF plants another beneath it: the press is what the pitch is measured from
 plant, and the plant reaches the picture through the covering span's posture instead of through this
 note's face. A stop a PULL-OFF **derives** is already printed by that notation, so
 it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
-note's real ring is, which is the selection-and-reveal pick the lane already makes. Revealing a note
-shows the whole truth about it at once. And a **tap fronting a bracket** stands whatever its
+note's real ring is, which is the lane reveal and nothing else. Revealing a note
+shows the whole truth about it at once, so a satellite that waits is reached by a press holding
+`Alt`; the caret reaches it from the keyboard whatever is drawn, arming being itself a reveal. And a **tap fronting a bracket** stands whatever its
 authorship, because there the bracket owes the statement: the tap's head holds the string's centre,
 so the posture's digit is displaced into the satellite column and IS that tap's face ([D2]).
 
@@ -808,20 +815,25 @@ multi-note entry it is which members are refusal CAUSES that changes, never the 
 a disagreeing derived member still rejects the whole plan, an agreeing one simply drops out of it,
 and the entry's default and authored satellites are written as ever.
 
-**One reveal, one predicate.** `core::chartNoteRevealed` (editor core) is the whole of it — the lane
-reveal modifier, the selection, or the caret standing inside the note's stored ring — and everything
-downstream reads that one answer: which form the note draws in, whether the paint core draws its
-satellite, whether the layout manifest bounds a click target for it, and whether the caret may sit
-on the held channel there. The projection stays selection-agnostic: it publishes the face and its
-terms (`common::core::StopMarkFace`), and the editor layers apply the reveal.
+**One reveal, one ground.** The lane reveal modifier (`TabView::setActualRingReveal`) is the whole
+of it, and everything downstream reads that one answer: which form the note draws in, whether the
+paint core draws its satellite, and whether the layout manifest bounds a click target for it. A
+selected note and the caret's own note draw presented like every other one, so a chip a click just
+selected stays where it was drawn and its stored instant shows under the key that is also held for
+every gesture that moves it. The projection stays selection-agnostic: it publishes the face and its
+terms (`common::core::StopMarkFace`), and the editor layers apply the reveal. The CARET's own
+reach is untouched by this, because it never went through the reveal: `chartSlotShowsHeldStop` asks
+the projection whether the note has a face at all, so arrows step onto a satellite and a digit at it
+is refused in red whether or not anything is drawn.
 
-**And a second predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Rule 12a stops
+**And a predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Rule 12a stops
 a span's rails one minimum-sustain-distance margin before the head that closed it, so the drawn
-extent is short of the musical close by design; while the reveal is held, or while the selection
-holds a note the span covers, that span's furniture runs to the close instead. Two grounds rather
-than the note's three, and the missing one is the caret: the peek asks "is something here?" about
-one note on one string, which is not a question a span can answer. The visual language is the note
-reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes away —
+extent is short of the musical close by design; while the reveal is held, while the selection
+holds a note the span covers, or while the caret stands inside its tenure, that span's furniture
+runs to the close instead. Three grounds where the note has one, and the difference is what
+revealing does to each: a span's furniture merely reaches further, where a note's end statement
+MOVES, and nothing may move a mark under the pointer that selected it. The visual language is the
+note reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes away —
 because a reveal shows the truth in the notation's own terms rather than annotating it. What makes
 it a second predicate rather than a second arm of the first is the datum: a note's truth lives in
 the OTHER projected form, so the lane hands the paint core a whole note
@@ -873,39 +885,27 @@ regions meeting at an instant, so the wave changes height where the chart says i
 
 **The actual-ring pick** is how the length you cannot see becomes visible while you author it. The
 lane draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
-invisible wherever presentation trimmed or dropped it. One rule decides, per note, which form that
-note is drawn in, and it has three inputs: a note draws its **actual** ring when the whole-lane
-`Alt` reveal is held, **or** when that note is **selected**, **or** while the **caret** stands
-anywhere inside that note's real ring; and its presented tail otherwise.
+invisible wherever presentation trimmed or dropped it. One rule decides which form the lane draws,
+and it has ONE input: every visible note draws its **actual** ring while the whole-lane `Alt` reveal
+is held, and its presented tail otherwise.
 
-The three inputs answer three different questions, which is why all of them exist:
+One input, because the others moved ink the charter was working in:
 
-- **The selection is the note under scrutiny.** You selected it to do something to it, so its real
-  length is what you need to see — and every chart verb already settles on a selection change, so
-  deselecting *is* the moment presentation clips the tail back to the picture.
-- **`Alt` is the lookahead, and the selection cannot serve it.** With a selection standing, typing
-  a digit RETYPES those notes instead of inserting one, so a charter placing notes holds no
-  selection at all — and placing the next note is exactly when the real tails around it matter.
-  Holding `Alt` shows every ring in the passage, including the notes nothing is selected on.
-  `Alt` is also already the authoring gate — it is what the sustain wheel gesture rides — so you
-  see the ring while you are the one changing it.
-- **The caret's PEEK is what a click on hidden ink means**, since tails are not targets. The
-  click does what every lane click does — it moves the caret to the slot under the pointer — and the
-  note ringing under that slot draws its whole ring for as long as the caret stays in it: **the peek
-  means the caret stands in this note's ring, so you see the whole ring.** Deterministic and keyed
-  on the edit position alone: no timer, nothing latched, and no selection touched, so the caret
-  moving away is the whole of what hides the ink again. The rule is as simple as that sentence: **if
-  a note's stored duration says it sustains at the caret at all, it peeks** — onset through actual
-  end, both ends included. Presentation is not an input at all: not why the ink is missing, and not
-  where the drawn ink stopped. The warrant is authoring — typing a technique onto a resting tail is
-  legal and keeps its stated portion always visible (a statement still running at the ring's end
-  keeps the whole ribbon standing), so authoring has to function identically anywhere in the ring.
-  Including the *drawn* stretch costs nothing, because the drawn part re-draws identically in either
-  form; what you see is the clipped end growing into view, which is the thing you were asking about.
-  That is what makes a quarter-note tail clipped a margin by the next onset answer from anywhere
-  along it rather than only from the sliver past its ink. And it is a third DISJUNCT of the rule
-  above rather than a mechanism of its own — the same `drawn_note` pick in `TabView::paint`, which
-  every overlay reads too, so nothing can trace a head the lane did not draw.
+- **`Alt` is the lookahead, and nothing else can serve it.** With a selection standing, typing a
+  digit RETYPES those notes instead of inserting one, so a charter placing notes holds no selection
+  at all — and placing the next note is exactly when the real tails around it matter. Holding `Alt`
+  shows every ring in the passage at once. `Alt` is also already the authoring gate — it is what
+  the sustain wheel gesture rides, and what the chart lane's insert now carries (`Alt+Insert`) — so
+  you see the ring while you are the one changing it.
+- **A SELECTION is not a reason to redraw.** Selecting a note used to switch its form, which moved
+  the end's own statement: a charter clicking a slide-out chip saw the chip jump to the stored
+  instant under the pointer that had just selected it. The mark a gesture is aimed at must not move
+  because the gesture landed, so a selected note draws like every other one and `Alt` — held for
+  every gesture that moves the end — is what shows where it really is.
+- **Nor is the CARET's position.** Standing in a ring answered "is something here?" by growing the
+  tail under the caret, and the same objection applies: an editing state the charter is in the
+  middle of is not a request to redraw the notation around it. What answers the question now is the
+  reveal, which shows every ring at once for as long as it is held.
 
 **The mark is the notation itself.** A note drawing its actual ring is drawn in the chart's ACTUAL
 form: its tail is the real ring, with its techniques and its payload riding it. Nothing is
@@ -954,22 +954,22 @@ Six things about it are deliberate:
   resolving against the presented projection keeps out of reach by construction rather than by a
   per-mark rule. A reveal shows an end statement at the ring's end while the presented form prints
   it a margin earlier, and only the presented chip is a target — which is the right answer, since
-  the two are one statement and it is keyed by the offset the chart states either way. `Alt`+wheel is unaffected because it
+  the two are one statement and it is keyed by the offset the chart states either way, and it is
+  why selecting that chip cannot be allowed to move it. `Alt`+wheel is unaffected because it
   acts on the selection, not on what is under the pointer. Inside `TabView` this needs no
   enforcement: every note paint reads comes from the one pick lambda, and the only projection reads
   outside paint are the string count and whether a chart exists, which are identical in both forms.
-- **One conservative cull index, because a chord can be half revealed.** `TabView` keeps a single
-  running maximum of the ACTUAL form's note ends and culls both forms against it. Presentation only
-  ever trims, so every presented end falls at or before its own note's ring: the actual ends bound
-  whatever is drawn, a ring outlasting its tail stays in range for as long as it is drawn, and the
-  paint pass drops each note whose DRAWN end really precedes the window. A per-form table could not
-  be used at all here — one member of a chord can draw actual while its neighbour draws presented.
-  The cull runs inside `paintTabLane`, and the pick reaches it as a per-index accessor
-  (`common::ui::TabDrawnNote`), so there is no second loop and no editor ink at all, which is the
-  whole economy of making the ring be the notation. A second accessor beside it
-  (`common::ui::TabRevealedNote`) carries the same pick's other consequence — a reveal-only
-  satellite is drawn exactly while its note's ring is — so both come off ONE predicate in the view
-  and this core is told the answer rather than the reason.
+- **One conservative cull index, kept across both forms.** `TabView` keeps a single running maximum
+  of the ACTUAL form's note ends and culls both forms against it. Presentation only ever trims, so
+  every presented end falls at or before its own note's ring: the actual ends bound whatever is
+  drawn, a ring outlasting its tail stays in range for as long as it is drawn, and the paint pass
+  drops each note whose DRAWN end really precedes the window. One table rather than one per form,
+  which also means the reveal going down changes no index. The cull runs inside `paintTabLane`, and
+  the pick reaches it as a per-index accessor (`common::ui::TabDrawnNote`), so there is no second
+  loop and no editor ink at all, which is the whole economy of making the ring be the notation. A
+  second accessor beside it (`common::ui::TabRevealedNote`) carries the same pick's other
+  consequence — a reveal-only satellite is drawn exactly while its note's ring is — and the host
+  answers both from its ONE reveal state, this core being told the answer rather than the reason.
 - **A second running maximum, over the SPANS.** The two span passes — the bracket marks in
   `paintTabLane` and the shape rails in `paintTabLaneFurniture`, which are drawn either side of
   whatever chrome the host lays between them — face the same problem the notes do and it has the

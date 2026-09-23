@@ -265,6 +265,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::MoveSelection:
             case core::EditorActionId::DeleteSelection:
             case core::EditorActionId::InsertLanePoint:
+            case core::EditorActionId::InsertChartStatement:
             case core::EditorActionId::TypeChartFretDigit:
             case core::EditorActionId::ShiftChartFrets:
             case core::EditorActionId::AdjustChartSustain:
@@ -352,6 +353,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::MoveSelection:
         case core::EditorActionId::DeleteSelection:
         case core::EditorActionId::InsertLanePoint:
+        case core::EditorActionId::InsertChartStatement:
         case core::EditorActionId::TypeChartFretDigit:
         case core::EditorActionId::ShiftChartFrets:
         case core::EditorActionId::AdjustChartSustain:
@@ -1681,6 +1683,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
         case EditorCommandId::InsertLanePoint:
+        case EditorCommandId::InsertChartStatement:
         case EditorCommandId::CancelDismiss:
         case EditorCommandId::TypeDigit0:
         case EditorCommandId::TypeDigit1:
@@ -2361,6 +2364,12 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::InsertLanePoint:
         {
             m_controller.onLanePointInsertRequested();
+            return true;
+        }
+
+        case EditorCommandId::InsertChartStatement:
+        {
+            m_controller.onChartStatementInsertRequested();
             return true;
         }
 

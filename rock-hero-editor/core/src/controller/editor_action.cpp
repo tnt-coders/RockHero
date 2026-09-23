@@ -211,6 +211,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::InsertLanePoint;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::InsertChartStatement>)
+    {
+        return EditorAction::Id::InsertChartStatement;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::TypeChartFretDigit>)
     {
         return EditorAction::Id::TypeChartFretDigit;

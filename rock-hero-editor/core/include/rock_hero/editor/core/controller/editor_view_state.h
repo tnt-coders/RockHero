@@ -1113,11 +1113,9 @@ struct EditorViewState
     Where the lane draws a note's real ring it draws it from here: the notation itself is swapped
     rather than annotated, so this carries the tails a chug or a trimmed sustain really rings for,
     with the payload the presentation rules clipped off with the tail — which no view-side end swap
-    could put back. WHICH notes take this form is the lane's own per-note pick (see
-    `TabView::setActualRingReveal`) — every visible note while Alt is held, and any selected note
-    otherwise — and nothing here needs to know: the two forms align by index, so the view reads one
-    or the other per note. Rebuilt and shared under exactly the rule \ref tab is, and null in
-    exactly the same cases.
+    could put back. WHEN the lane takes this form is its own business (see
+    `TabView::setActualRingReveal`): every visible note while Alt is held, and none otherwise.
+    Rebuilt and shared under exactly the rule \ref tab is, and null in exactly the same cases.
 
     It is not hit-testable and never scored: pointer resolution and selection both read \ref tab,
     and no game surface can obtain this form at all

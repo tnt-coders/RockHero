@@ -564,6 +564,9 @@ public:
     /*! \copydoc IEditorController::onLanePointInsertRequested */
     void onLanePointInsertRequested() override;
 
+    /*! \copydoc IEditorController::onChartStatementInsertRequested */
+    void onChartStatementInsertRequested() override;
+
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time) override;

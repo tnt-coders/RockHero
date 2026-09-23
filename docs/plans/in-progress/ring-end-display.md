@@ -59,6 +59,15 @@ rule for both surfaces, with something else giving 3D the smooth completion at t
 - Only `Alt` reveals the stored form; selection and the caret peek do not (built with the
   arrow-stop fix, so a clicked end chip does not jump).
 
+## Related, ruled 2026-09-22 while fixing the arrow
+
+- The chart lane's `Insert` is **`Alt+Insert`**: with only `Alt` revealing the stored form, a slot
+  just before a head can look blank while lying inside a tail the presentation clipped, and
+  `Insert` types onto that tail. Under `Alt` the tail is visible. `Alt` then reads as one thing on
+  the lane — reveal the stored geometry and act on it (`Alt`+arrows, `Alt`+wheel, `Alt+Insert`).
+- Left on record, not fixed: a bare digit on that same blank-looking slot makes a POINT (a digit
+  strictly inside a ring is a point, not a note). Older than this work; the reveal is the answer.
+
 ## What to sight to decide
 
 My Sacrifice measure 9 (the chord shift slide with open strings ringing through), a plain

@@ -319,15 +319,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Shift the selected notes' frets down (`Alt+Shift+Down`). */
     FretShiftDown = 0x1706,
 
-    /*!
-    \brief Plant the point at an armed caret slot, on either lane (`Insert`).
-
-    The key's whole meaning, and one verb for both rows: an on-curve point on an automation lane,
-    and on the chart lane the statement at the caret's own offset along the ring it stands in,
-    carrying the fret ALREADY IN FORCE there — which is what gives a key that carries no value
-    something to place. At a ring's END that statement is the slide-out, or the ARRIVAL where a head
-    at that stop abuts: a shift slide in one key.
-    */
+    /*! \brief Plant the on-curve point at an armed automation-lane slot (`Insert`). */
     InsertLanePoint = 0x1707,
 
     /*! \brief Cancel the Esc ladder's top rung: gesture, then caret, then selection (`Esc`). */
@@ -391,8 +383,19 @@ enum class EditorCommandId : std::uint16_t
     ChartPinchHarmonicToggle = 0x1719,
 
     // 0x171A-0x171B were Insert Point (Alt+Insert) and Insert Note, Repeating Fret
-    // (Shift+Insert), retired with the fretless entry verbs: every note is typed now, and the
-    // Insert key states nothing on the chart lane.
+    // (Shift+Insert), retired with the fretless entry verbs. The values stay spent, so a stale
+    // persisted keymap naming one resolves to no spec and is dropped; the chart lane's insert
+    // returned under an id of its own below.
+
+    /*!
+    \brief State the chart caret's own offset along the ring it stands in (`Alt+Insert`).
+
+    The fret ALREADY IN FORCE there is what gives a key carrying no value something to place: a
+    silent point strictly inside the ring, and at its END the slide-out, or the ARRIVAL where a head
+    at that stop abuts — a shift slide in one key. `Alt` is in the chord because it is also the lane
+    reveal: the tail being stated is drawn while the charter states it.
+    */
+    InsertChartStatement = 0x171C,
 
     /*!
     \brief Type digit 0 into the armed row's payload (`0`, numpad `0`).

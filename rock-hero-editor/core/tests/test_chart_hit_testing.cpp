@@ -286,10 +286,9 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
 }
 
 // THE SATELLITE REVEAL, as this probe sees it: a REVEAL-ONLY satellite is reachable exactly while
-// it is drawn, which is exactly while its note's whole truth is on show. The reveal is the caller's
-// own state — the lane modifier, the selection, the caret — so it is handed in here rather than
-// derived, and the layout answers "is it drawn" for the painter and for this probe from one
-// rectangle.
+// it is drawn, which is exactly while the lane reveal is held. The reveal is the caller's own
+// state, so it is handed in here rather than derived, and the layout answers "is it drawn" for the
+// painter and for this probe from one rectangle.
 TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();
@@ -314,17 +313,15 @@ TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][c
     const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
     const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
 
-    // Unrevealed — including a caller with no reveal state at all, which is what the empty
-    // accessor means: nothing is drawn out there, so nothing answers.
+    // Unrevealed — including a caller with no reveal state at all, which is what the default
+    // means: nothing is drawn out there, so nothing answers.
     CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, [](std::size_t) {
-                    return false;
-                }).has_value());
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, false).has_value());
 
     // Revealed: the same probe reaches the stop, as a second MARK of the same note.
-    CHECK(chartHitTarget(tab, geometry, satellite_x, 60.0f, [](std::size_t) {
-              return true;
-          }) == ChartHitTarget{ChartHeldStopHit{.index = 3}});
+    CHECK(
+        chartHitTarget(tab, geometry, satellite_x, 60.0f, true) ==
+        ChartHitTarget{ChartHeldStopHit{.index = 3}});
     // And the head is unaffected either way: a note is addressed at its own column whatever its
     // marks are doing.
     CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == noteTarget(3));

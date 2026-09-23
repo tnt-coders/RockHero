@@ -328,94 +328,51 @@ void TabView::paint(juce::Graphics& g)
     const common::core::ChartViewState& tab = lane->tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
-    // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while
-    // the whole-lane reveal is held, while it is selected, or while the CARET stands anywhere
-    // inside the ring the note really sounds. Its presented tail otherwise.
+    // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while the
+    // whole-lane reveal is held, its presented tail otherwise. The modifier is the WHOLE of it — a
+    // selected note and the caret's own note draw like every other one — so a chip a click just
+    // selected stays where it was drawn, and the stored position shows under the key that is also
+    // held for every move of it (setActualRingReveal carries the argument for the modifier itself).
     //
-    // The selection draws actual because the selection is the thing under scrutiny — and every
-    // chart verb settles on a selection change, so deselecting is exactly the moment presentation
-    // clips the tail back. The reveal covers what a selection cannot, since placing notes leaves
-    // nothing selected (setActualRingReveal carries that argument).
-    //
-    // THE CARET'S PEEK is the third, and it is what a click on a tail means, tails not being
-    // targets: the click moves the caret to the slot under the pointer, and if that slot lies
-    // inside ink the lane is hiding, the ink shows for as long as the caret stays in the ring.
-    // Deterministic and keyed on the edit position alone — no timer, no selection touched, nothing
-    // latched — so the caret leaving is the whole of what hides it again. It answers "is something
-    // here?" honestly while the click goes on doing what clicks in this lane always do.
-    //
-    // The peek asks ONLY whether the note is sounding here: if a note's STORED duration says it
-    // rings at the caret at all, it peeks. Onset through actual end, both ends included, and
-    // nothing about presentation enters the test — not why ink is missing, not where the drawn ink
-    // stopped. The warrant is authoring: a technique typed onto a presentation-hidden tail is legal
-    // and forces that tail visible, so authoring must function identically anywhere in the ring,
-    // and the reader's question ("is something here?") is the same question at every instant of it.
-    //
-    // It costs the rule NOTHING to include the drawn stretch, which is why a past-the-ink form
-    // would be the more complicated one for no gain: the drawn part re-draws identically either
-    // way (presentation touches only where a tail STOPS), so the visible change is exactly the
-    // clipped end growing into view — the very thing the caret is asking about. It also avoids two
-    // boundary problems: a quarter-tail clipped a sixteenth by the next onset reveals from
-    // anywhere along the tail rather than only from the sliver past its ink, and a grid-snapped
-    // caret landing exactly on a drawn end is inside the ring like any other position instead of a
-    // strictness question.
-    //
-    // Reads the published selection rather than a copy of it: the indices are the ones the
-    // selection ring already draws with, ascending in the tab projection's own note order
-    // (ChartEditViewState), so membership is a binary search over the same table.
-    //
-    // ONE PREDICATE, and everything the reveal decides reads it: which form a note draws in, and
+    // ONE ANSWER, and everything the reveal decides reads it: which form a note draws in, and
     // whether its reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing
     // a note shows the whole truth about it at once, so the two cannot be separate questions — and
-    // the rule itself lives in the editor core beside the hit test that must agree with it
-    // (core::chartNoteRevealed).
-    const auto revealed = [this](std::size_t index) {
-        if (m_actual == nullptr)
-        {
-            return false;
-        }
-        // Bound once so the presence test and the reads are provably the same object.
-        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
-        std::optional<core::ChartCaretPeek> peek;
-        if (caret.has_value())
-        {
-            peek = core::ChartCaretPeek{.seconds = caret->seconds, .string = caret->string};
-        }
-        return core::chartNoteRevealed(
-            m_actual->notes[index],
-            m_actual_ring_reveal,
-            std::ranges::binary_search(m_edit.selected_notes, index),
-            peek);
-    };
+    // the hit test is handed the same answer, so the drawn picture and the reachable one agree.
+    const bool revealed = m_actual_ring_reveal;
     const auto drawn_note =
-        [this, &tab, &revealed](std::size_t index) -> const common::core::NoteViewState& {
+        [this, &tab, revealed](std::size_t index) -> const common::core::NoteViewState& {
         // The ACTUAL form is what a revealed note draws in: setState pins the two tables to one
         // length and one order, so the index names the same note in either.
-        return m_actual != nullptr && revealed(index) ? m_actual->notes[index] : tab.notes[index];
+        return m_actual != nullptr && revealed ? m_actual->notes[index] : tab.notes[index];
     };
 
-    // THE SPAN ARM of the same reveal, stated beside the note's because it is the same held
-    // modifier and the same selection answering for a different subject: while it is on, or while a
-    // span covers a selected note, that span's furniture runs to its MUSICAL CLOSE instead of to
-    // the extent rule 12a trimmed for display.
+    // THE SPAN'S OWN REVEAL, stated beside the note's because it is the same held modifier
+    // answering for a different subject: while it is on, while a span covers a selected note, or
+    // while the caret stands inside its tenure, that span's furniture runs to its MUSICAL CLOSE
+    // instead of to the extent rule 12a trimmed for display. The two positional grounds the note
+    // gave up stay here because a span has no second form to jump to: revealing it lengthens
+    // furniture rather than moving a mark the charter just clicked.
     //
-    // A span has no second projected form to swap to — the two forms differ in their notes alone —
-    // so what the lane hands the paint core is the answer rather than a note, and the core reads
-    // whichever of the span's two ends that answer names. The rule itself lives in the editor core
-    // beside the note's (core::chartSpanRevealed), for the same reason: one spelling.
+    // What the lane hands the paint core is therefore the answer rather than a note, and the core
+    // reads whichever of the span's two ends that answer names. The rule itself lives in the editor
+    // core (core::chartSpanRevealed), so the lane never spells it.
     //
     // Reads the PRESENTED notes for the coverage test, which is exact in either form — presentation
     // moves no onset — and keeps the lambda off m_actual, which may be absent.
     const auto revealed_shape = [this, &tab](std::size_t index) {
-        // Bound once so the presence test and the reads are provably the same object.
+        // Bound once so the presence test and the read are provably the same object.
         const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
-        std::optional<core::ChartCaretPeek> peek;
+        std::optional<double> caret_seconds;
         if (caret.has_value())
         {
-            peek = core::ChartCaretPeek{.seconds = caret->seconds, .string = caret->string};
+            caret_seconds = caret->seconds;
         }
         return core::chartSpanRevealed(
-            tab.shapes[index], m_actual_ring_reveal, tab.notes, m_edit.selected_notes, peek);
+            tab.shapes[index],
+            m_actual_ring_reveal,
+            tab.notes,
+            m_edit.selected_notes,
+            caret_seconds);
     };
 
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, and this is where the whole of that
@@ -454,7 +411,8 @@ void TabView::paint(juce::Graphics& g)
         m_prefix_max_end_seconds,
         m_prefix_max_shape_end_seconds,
         drawn_note,
-        revealed);
+        // The core asks per note; this host's answer is the lane's, every note alike.
+        [revealed](std::size_t) { return revealed; });
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -606,7 +564,7 @@ void TabView::paint(juce::Graphics& g)
                 if (targets->channel == common::core::ChartStopChannel::Held)
                 {
                     if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                            common::ui::tabHeldStopLayout(metrics, note, revealed(index));
+                            common::ui::tabHeldStopLayout(metrics, note, revealed);
                         satellite.has_value())
                     {
                         common::ui::paintTabPendingEntryBox(

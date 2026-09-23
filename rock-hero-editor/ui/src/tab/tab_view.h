@@ -126,19 +126,16 @@ public:
     /*!
     \brief Turns the whole-lane actual-ring reveal on or off; repaints only when it changes.
 
-    One of the two inputs to the lane's per-note form pick, the other being the selection. While
-    it is on, EVERY visible note draws in its ACTUAL form — the tail is the ring the string really
-    sounds for, with its techniques and its payload riding it — in place of the presented picture.
-    The editor holds it on exactly while the application is in the foreground and the Alt key —
-    the sustain gesture's own modifier — is down, so the length being authored is visible while it
-    is authored, and releasing clips every note back to its presented tail except the ones the
-    selection still names.
+    THE WHOLE of the lane's form pick. While it is on, EVERY visible note draws in its ACTUAL
+    form — the tail is the ring the string really sounds for, with its techniques and its payload
+    riding it — in place of the presented picture. The editor holds it on exactly while the
+    application is in the foreground and the Alt key — the sustain gesture's own modifier — is
+    down, so the length being authored is visible while it is authored, and releasing clips every
+    note back to its presented tail.
 
-    It is kept beside the selection because the selection cannot do its job. With a selection
-    standing, typing a digit RETYPES those notes instead of inserting one, so a charter placing
-    notes holds no selection at all — and placing the next note is exactly when the real tails
-    around it matter. Alt is that lookahead: the whole passage's rings, including every note
-    nothing is selected on.
+    One ground rather than several, and a held modifier rather than a state the editor infers:
+    nothing a charter did a moment ago moves a mark under their pointer, and the key that shows a
+    ring's true extent is the one already held for every gesture that moves it.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
     operating system every frame for its whole life, so a slide-out nothing delivered cannot strand

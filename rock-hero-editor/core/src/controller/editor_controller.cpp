@@ -280,6 +280,10 @@ namespace
         {
             return "InsertLanePoint";
         }
+        case EditorAction::Id::InsertChartStatement:
+        {
+            return "InsertChartStatement";
+        }
         case EditorAction::Id::TypeChartFretDigit:
         {
             return "TypeChartFretDigit";
@@ -395,6 +399,7 @@ namespace
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
             case EditorAction::Id::InsertLanePoint:
+            case EditorAction::Id::InsertChartStatement:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -527,6 +532,7 @@ namespace
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
         case EditorAction::Id::InsertLanePoint:
+        case EditorAction::Id::InsertChartStatement:
         {
             if (!conditions.has_loaded_arrangement)
             {
@@ -1245,6 +1251,11 @@ void EditorController::onToneAutomationPointSelectRequested(
 void EditorController::onLanePointInsertRequested()
 {
     m_impl->runAction(EditorAction::InsertLanePoint{});
+}
+
+void EditorController::onChartStatementInsertRequested()
+{
+    m_impl->runAction(EditorAction::InsertChartStatement{});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(

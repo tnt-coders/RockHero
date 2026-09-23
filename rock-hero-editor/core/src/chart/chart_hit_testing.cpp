@@ -49,7 +49,7 @@ namespace
 
 std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, const ChartNoteRevealed& revealed)
+    float y, const bool revealed)
 {
     // The held-stop satellites first. A satellite's digit sits at its note's own instant, or at the
     // bracket its tap fronts, and its column lies OUTBOARD of the head's own columns and belongs to
@@ -68,7 +68,7 @@ std::optional<ChartHitTarget> chartHitTarget(
     for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
         const std::optional<common::ui::TabHeldStopLayout> layout =
-            common::ui::tabHeldStopLayout(geometry, tab.notes[index], revealed && revealed(index));
+            common::ui::tabHeldStopLayout(geometry, tab.notes[index], revealed);
         if (!layout.has_value() || !layout->box.contains(x, y))
         {
             continue;
@@ -151,8 +151,8 @@ std::optional<ChartHitTarget> chartHitTarget(
     // doing what clicks in this lane always do. Uniformly, too: a VISIBLE tail selects no more
     // than ink a covering span already owns.
     //
-    // What answers "is something here?" is the caret's own peek — the lane reveals the ring it
-    // sits inside — so the honest answer arrives without the click meaning two things.
+    // What answers "is something here?" is the lane reveal, which shows every ring at once for as
+    // long as it is held, so the honest answer arrives without the click meaning two things.
     return std::nullopt;
 }
 

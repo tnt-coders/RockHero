@@ -114,6 +114,10 @@ struct HeldStopFixture
     return bar_right + static_cast<float>(slot.extent()) / 2.0f;
 }
 
+// The lane reveal, as a press carries it: the modifier that shows a note's whole truth is the one
+// the pointer event reports, so a mark that waits for it is reached by a press holding it.
+constexpr ChartPointerModifiers g_reveal_held{.ctrl = false, .shift = false, .alt = true};
+
 // The armed caret's STOP as the controller last published it. The optional is bound ONCE and the
 // guard rides that name: the CI-only optional-access checker cannot tie a `has_value()` on one call
 // of an accessor to a dereference on the next, because they are two calls it cannot prove yield the
@@ -176,13 +180,13 @@ TEST_CASE("Typing at a bare tap's satellite authors its held stop", "[core][char
 {
     HeldStopFixture fixture{makeTappedShapeChart()};
 
-    // The tap at measure 2 beat 2 on string 3 (2.5s to x = 50, string 3 to y = 140). Selecting it
-    // reveals its truth, which is what puts the default satellite on show beside it.
+    // The tap at measure 2 beat 2 on string 3 (2.5s to x = 50, string 3 to y = 140). Its default
+    // satellite waits for the reveal, so the press that reaches it holds the modifier.
     click(fixture.controller, 50.0f, 140.0f);
     REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
 
-    click(fixture.controller, satelliteX(2.5), 140.0f);
+    click(fixture.controller, satelliteX(2.5), 140.0f, g_reveal_held);
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 
     fixture.controller.onChartFretDigitTyped(7);
@@ -214,7 +218,7 @@ TEST_CASE("Digits state the sounding fret or the held stop by channel", "[core][
 
     click(fixture.controller, 50.0f, 140.0f);
     // The satellite press is the channel prefix: these digits land in the held stop.
-    click(fixture.controller, satelliteX(2.5), 140.0f);
+    click(fixture.controller, satelliteX(2.5), 140.0f, g_reveal_held);
     fixture.controller.onChartFretDigitTyped(7);
 
     const common::core::Chart* chart = chartOrNull(fixture.controller);
@@ -261,10 +265,10 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
 }
 
 // THE SATELLITE REVEAL at the layers that read it. A DERIVED stop is already printed by the
-// pull-off notation, so its satellite does not stand: it appears exactly while the note's truth is
-// revealed — the same pick that draws the note's real ring — and the hit test, the caret channel
-// and the entry all follow that one answer. What it must never be is standing: this figure's stop
-// is the notation's, and a second standing copy would state it twice.
+// pull-off notation, so its satellite does not stand: it appears exactly while the lane reveal is
+// held — the same pick that draws the note's real ring — and the hit test and the entry follow that
+// one answer. What it must never be is standing: this figure's stop is the notation's, and a second
+// standing copy would state it twice.
 TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core][chart]")
 {
     HeldStopFixture fixture{makeRevealedHeldChart()};
@@ -288,18 +292,22 @@ TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core]
         CHECK(mark->face == common::core::StopMarkFace::Revealed);
     }
 
-    // UNREVEALED: nothing is selected and no caret stands in the ring, so the digit is not drawn —
-    // and nothing undrawn is reachable. The press falls through to the ordinary placement, which
-    // arms the caret on the stop every note has. Under a law that stood every satellite this press
-    // would land on the held one instead.
+    // UNREVEALED: the reveal is not held, so the digit is not drawn — and nothing undrawn is
+    // reachable. The press falls through to the ordinary placement, which arms the caret on the
+    // stop every note has. Under a law that stood every satellite it would land on the held one.
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    // Nor does selecting the tap draw it: the selection is not a reveal, so the same press still
+    // falls through.
+    click(fixture.controller, 50.0f, 140.0f);
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
 
-    // REVEALED: selecting the tap makes it the thing under scrutiny, so its whole truth shows —
-    // the real ring and this satellite alike — and the same press now reaches the stop.
+    // REVEALED: with the modifier down the tap's whole truth shows — the real ring and this
+    // satellite alike — and the same press reaches the stop.
     click(fixture.controller, 50.0f, 140.0f);
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
-    click(fixture.controller, satelliteX(2.5), 140.0f);
+    click(fixture.controller, satelliteX(2.5), 140.0f, g_reveal_held);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 
@@ -334,8 +342,7 @@ TEST_CASE("The lane reveal makes a derived satellite pressable", "[core][chart]"
 {
     HeldStopFixture fixture{makeRevealedHeldChart()};
 
-    const ChartPointerModifiers reveal_held{.ctrl = false, .shift = false, .alt = true};
-    click(fixture.controller, satelliteX(2.5), 140.0f, reveal_held);
+    click(fixture.controller, satelliteX(2.5), 140.0f, g_reveal_held);
 
     // The note becomes the selection, as an unselected note's satellite press always does, and the
     // caret lands on the stop that was clicked rather than on the head beside it.
@@ -380,9 +387,9 @@ TEST_CASE("A plant's satellite is revealed, read-only, and refuses Delete", "[co
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
 
-    // Revealed by selection, the same press reaches the plant.
+    // Under the reveal, the same press reaches the plant.
     click(fixture.controller, 50.0f, 140.0f);
-    click(fixture.controller, satelliteX(2.5), 140.0f);
+    click(fixture.controller, satelliteX(2.5), 140.0f, g_reveal_held);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 

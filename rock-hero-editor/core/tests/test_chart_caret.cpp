@@ -869,7 +869,8 @@ TEST_CASE("EditorController steps out of a time selection past its edge", "[core
 
 // WHERE A RING'S END STATEMENT SHARES A HEAD'S INSTANT two objects stand on one slot, and a plain
 // arrow names which of them it lands on rather than letting the slot re-derive — which would take
-// the head every time and trap the caret there. A step that MOVES still lands on the slot alone.
+// the head every time and trap the caret there. The walk's order is the arrow's order from either
+// side: the statement first, then the head, whether the press moves onto the slot or stays on it.
 TEST_CASE("EditorController steps the caret onto an abutting slide-out", "[core][chart]")
 {
     FakeTransport transport;
@@ -943,6 +944,64 @@ TEST_CASE("EditorController steps the caret onto an abutting slide-out", "[core]
     CHECK(caret->seconds == Catch::Approx(5.5));
     CHECK(state->chart_edit.selected_keyframes.empty());
     CHECK(state->chart_edit.selected_notes.empty());
+
+    // And RIGHT from that slot arrives on the statement, not on the head it shares the instant
+    // with: the press that MOVES honours the walk's order exactly as the one that stayed did, so
+    // the head takes the second press.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.selected_keyframes == statement);
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(state->chart_edit.selected_keyframes.empty());
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+}
+
+// THE OTHER HALF of that rule: a ring's end carrying NO statement holds no object at all, so the
+// arrow takes the GRID stop there and lands on the slot alone. Nothing is selected, and the digit
+// typed on it is simply the next note — the ring already stopping at that instant.
+TEST_CASE("EditorController types a head on an empty ring's end", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, makeGlideChart()));
+
+    // The grid line before the glide's end (5.5s), reached the way the scenario above reaches its
+    // own: arm in place at the cursor, climb to string 3, then step onto the end at 6.0s.
+    controller.onTimelineSeekRequested(common::core::TimePosition{5.5});
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartCaretViewState* const caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 3);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.selected_keyframes.empty());
+
+    controller.onChartFretDigitTyped(7);
+    const common::core::Chart* const chart = chartOrNull(controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 2);
+    CHECK(chart->notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(chart->notes[1].string == 3);
+    CHECK(chart->notes[1].fret == 7);
 }
 
 } // namespace rock_hero::editor::core

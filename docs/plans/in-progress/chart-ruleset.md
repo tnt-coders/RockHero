@@ -759,8 +759,9 @@ predecessor; the LAST STATEMENT (`ChartShape::stated_extent`), which floors the 
 furniture may not retreat behind the strum it is drawn over; and PROTECTED ADJACENCY, where even
 that leaves nothing, falling back to the musical close itself. Because the margin is display and not
 truth the view state publishes BOTH instants (`drawn_end_seconds` and `close_seconds`) and the
-editor's 2D lane reveals the second while the reveal modifier is held or the selection holds a note
-the span covers (`core::chartSpanRevealed`, beside the note's own `core::chartNoteRevealed`),
+editor's 2D lane reveals the second while the reveal modifier is held, the selection holds a note
+the span covers, or the caret stands inside its tenure (`core::chartSpanRevealed`; a NOTE's own
+form answers to the modifier alone, nothing else being allowed to move a mark under the pointer),
 snapping back on release. Where no margin was owed the two coincide and the reveal moves nothing.
 The board reveals nothing and reads the drawn extent.
 

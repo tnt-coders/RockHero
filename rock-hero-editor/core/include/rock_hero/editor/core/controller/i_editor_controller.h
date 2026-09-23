@@ -738,19 +738,26 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
-    \brief Handles the Insert key: plants the point at an armed caret's slot, on either lane.
+    \brief Handles the Insert key on an automation lane: the on-curve point at its caret's slot.
 
-    ONE verb, each lane's own point. On an AUTOMATION lane an on-curve point at the caret's slot. On
-    a STRING lane the statement at the caret's own offset along the ring it stands in, carrying the
-    fret ALREADY IN FORCE there — the typed digit's route with the digit supplied: inside the ring
-    the silent point typing the note's own fret makes, at the ring's end the end statement at that
-    fret. A caret no ring covers has no fret in force, so the key states nothing there.
-
-    A slot already holding a point is never mutated: the lane no-ops, and the chart selects the
-    statement standing there so the keys address it. A marker that is not armed — a passive one, or
-    the cursor a multi-select gesture leaves — is inert.
+    A slot already holding a point is never mutated, and a caret that is not armed on a lane — a
+    string row, a passive marker, the cursor a multi-select gesture leaves — is inert.
     */
     virtual void onLanePointInsertRequested() = 0;
+
+    /*!
+    \brief Handles the chart lane's insert: the statement at an armed caret's offset along its ring.
+
+    The typed digit's route with the digit supplied — the fret ALREADY IN FORCE at that offset:
+    inside the ring the silent point typing the note's own fret makes, at the ring's end the end
+    statement at that fret. A caret no ring covers has no fret in force, so the key states nothing
+    there, and a statement already standing at the offset is selected rather than doubled.
+
+    Its chord carries the lane reveal (`Alt+Insert`) because the slot before a head can look blank
+    while lying inside a tail the presentation clipped: under the reveal the charter sees the tail
+    they are inserting onto.
+    */
+    virtual void onChartStatementInsertRequested() = 0;
 
     /*!
     \brief Arms the lane caret at a timeline position: seeks and arms the caret on the named

@@ -14,7 +14,6 @@ draws, and nothing undrawn is reachable.
 #include "chart/chart_selection.h"
 
 #include <cstddef>
-#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -101,16 +100,6 @@ that was clicked.
 using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit>;
 
 /*!
-\brief Answers whether one projected note's whole truth is on show (\ref chartNoteRevealed).
-
-Handed in rather than derived here, for the reason every input to this file is: hit resolution reads
-the drawn picture, and WHICH notes are revealed is the controller's own state — the lane reveal, the
-selection, and the caret. An empty accessor reveals nothing, so a caller with no reveal state says
-so instead of a mark appearing under the pointer that nothing drew.
-*/
-using ChartNoteRevealed = std::function<bool(std::size_t index)>;
-
-/*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
 Topmost drawn wins, which is the rule and the reason for the order below. Held-stop satellites
@@ -121,8 +110,8 @@ riding a tail, which are drawn ON the ribbon and are the last mark a pointer can
 
 A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
 selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot
-placement and the lane answers "is something here?" by REVEALING the ring the caret sits inside —
-one meaning per click. The affordance this retires is selecting a long sustain whose head has
+placement, and "is something here?" is answered by the lane reveal instead — one meaning per
+click. The affordance this retires is selecting a long sustain whose head has
 scrolled off-screen by clicking its tail; the marquee and the keyboard still reach it, and it is
 recorded as a sighting item (`docs/tracking/watch-items.md`).
 
@@ -132,21 +121,22 @@ nothing at all today — how those should draw, and therefore how a pointer shou
 bend display study's question and not this function's.
 
 A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
-exactly while its note is revealed: the layout manifest answers both questions from one rectangle,
-so the two cannot part. Everything else here is unaffected by the reveal — a revealed note's extra
-tail length is deliberately not hit-testable (\ref EditorViewState::tab_actual), because a tail is
-not a target at all.
+exactly while the lane reveal is held: the layout manifest answers both questions from one
+rectangle, so the two cannot part. Everything else here is unaffected by the reveal — a revealed
+note's extra tail length is deliberately not hit-testable (\ref EditorViewState::tab_actual),
+because a tail is not a target at all.
 
 \param tab Seconds-resolved tab projection being displayed.
 \param geometry Lane geometry the notation was painted with.
 \param x Pointer x in lane-local pixels.
 \param y Pointer y in lane-local pixels.
-\param revealed Per-note answer to whether its whole truth is on show; empty reveals nothing.
+\param revealed True while the lane reveal modifier is held, which is the whole of what shows a
+       note's truth; a caller with no reveal state says false and reaches nothing undrawn.
 \return The hit object, or empty for an empty-lane point.
 */
 [[nodiscard]] std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, const ChartNoteRevealed& revealed = {});
+    float y, bool revealed = false);
 
 /*!
 \brief Collects the objects whose head or mark rectangles intersect a marquee box.

@@ -292,6 +292,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 
     conditions.has_armed_caret = true;
     CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    // Both inserts answer to the armed caret; which row it rides is each verb's own question.
+    CHECK(isActionAvailable(ActionId::InsertChartStatement, conditions));
 
     // The caret moves are paused-only, and so are the editor-wide move and delete, which dispatch
     // over the marker plane. The typed and technique verbs are not gated on the transport because

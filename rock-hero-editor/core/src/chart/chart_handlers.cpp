@@ -20,7 +20,6 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <string>
@@ -95,9 +94,9 @@ template <typename... Handlers> struct Overloaded : Handlers...
 } // namespace
 
 // The memoized PRESENTED projection deriveViewState pushed, which is what pointer events resolve
-// against; null while no chart is displayed. It is not the whole of what the lane DRAWS: a
-// selected note (and every note while the reveal is held) draws its longer actual ring, and that
-// extra length is deliberately not hit-testable — see EditorViewState::tab_actual.
+// against; null while no chart is displayed. It is not the whole of what the lane DRAWS: while the
+// reveal is held every note draws its longer actual ring, and that extra length is deliberately not
+// hit-testable — see EditorViewState::tab_actual.
 const common::core::ChartViewState* EditorController::Impl::displayedTabProjection() const
 {
     return m_tab_view_state.get();
@@ -465,48 +464,14 @@ void EditorController::Impl::dropChartSelectionKeysNamingNothing()
     chartSelectionMutable().applyBox(surviving, false);
 }
 
-// Whether this PROJECTED note's whole truth is on show — the lane's own reveal predicate
-// (\ref chartNoteRevealed), asked with the controller's inputs rather than the lane's. The rule is
-// one function; only the way each layer holds the selection and the caret differs, and neither
-// layer may spell the rule itself.
+// Whether the note at this slot is IN FOCUS for the keyframe commit law: the charter's attention is
+// on it — it is selected, the caret stands somewhere inside its ring, or it carries a selected
+// point. The last arm is the one the caret cannot answer, because a multi-selection of points
+// dissolves the caret: a point under scrutiny keeps its note in focus exactly as the caret on it
+// would.
 //
-// The LANE REVEAL is the one input this side does not hold: the modifier is sampled per frame in
-// the view and deliberately never pushed here (tab_view.h). A pointer event carries it — the press
-// that reaches a mark knows whether Alt was down — so the caller passes what it knows, and the
-// keyboard paths pass false: with Alt down they are not reachable, and a caret's own note is
-// revealed by the two inputs below anyway.
-bool EditorController::Impl::chartNoteRevealed(
-    const std::size_t index, const bool lane_reveal) const
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const common::core::ChartViewState* const actual = m_tab_actual_view_state.get();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || actual == nullptr ||
-        index >= actual->notes.size() || index >= arrangement->chart->notes.size())
-    {
-        return false;
-    }
-    // The caret's own two facts, resolved the way the published state resolves them, so the peek
-    // measures the same instant the lane's does.
-    std::optional<ChartCaretPeek> peek;
-    if (const ChartCaret* const caret = armedChartCaret();
-        caret != nullptr && !caret->lane.has_value())
-    {
-        peek = ChartCaretPeek{
-            .seconds = caretTimeBounds(session().song().tempo_map, caret->position).seconds,
-            .string = caret->string,
-        };
-    }
-    const ChartSelectionKey key{
-        ChartNoteKey{.slot = chartSlotKeyOf(arrangement->chart->notes[index])}
-    };
-    return core::chartNoteRevealed(
-        actual->notes[index], lane_reveal, chartSelection().contains(key), peek);
-}
-
-// Whether the note at this slot is IN FOCUS for the keyframe commit law: revealed by the lane's own
-// predicate — selected, or the caret standing inside its ring — or carrying a selected point. The
-// last arm is the one the reveal does not ask, because a multi-selection of points dissolves the
-// caret: a point under scrutiny keeps its note in focus exactly as the caret on it would.
+// Attention, deliberately not the lane's reveal, which only the held modifier raises now: what a
+// silent point may outlive is the charter still working on the note, never what is drawn.
 bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -515,17 +480,32 @@ bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
         return false;
     }
     const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-    const auto note =
-        std::ranges::lower_bound(notes, slot, {}, [](const common::core::ChartNote& candidate) {
-            return chartSlotKeyOf(candidate);
-        });
-    if (note == notes.end() || chartSlotKeyOf(*note) != slot)
+    const auto slot_of = [](const common::core::ChartNote& candidate) {
+        return chartSlotKeyOf(candidate);
+    };
+    if (!std::ranges::binary_search(notes, slot, {}, slot_of))
     {
         return false;
     }
-    if (chartNoteRevealed(static_cast<std::size_t>(note - notes.begin()), false))
+    if (chartSelection().contains(ChartSelectionKey{ChartNoteKey{.slot = slot}}))
     {
         return true;
+    }
+    if (const ChartCaret* const caret = armedChartCaret();
+        caret != nullptr && !caret->lane.has_value())
+    {
+        // The caret's own slot first, since a ring's tail excludes the onset it starts at
+        // (chartPathTailAt); the tail arm then covers the rest of the ring, its end included.
+        if (ChartSlotKey{.position = caret->position, .string = caret->string} == slot)
+        {
+            return true;
+        }
+        const std::optional<ChartPathTail> tail =
+            chartPathTailAt(notes, session().song().tempo_map, caret->position, caret->string);
+        if (tail.has_value() && tail->note == slot)
+        {
+            return true;
+        }
     }
     return std::ranges::any_of(chartSelection().keyframes(), [&slot](const ChartKeyframeKey& key) {
         return key.note == slot;
@@ -1105,10 +1085,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     // The press knows whether the lane reveal is up, because the modifier that holds it is the one
     // this event carries: a satellite the reveal brought in is reachable while it is drawn, which
     // is the whole of "nothing undrawn is clickable" for it.
-    gesture.hit_target = chartHitTarget(
-        *tab, event.geometry, event.x, event.y, [this, &event](const std::size_t index) {
-            return chartNoteRevealed(index, event.modifiers.alt);
-        });
+    gesture.hit_target =
+        chartHitTarget(*tab, event.geometry, event.x, event.y, event.modifiers.alt);
     m_chart_gesture = gesture;
 
     if (!gesture.hit_target.has_value())
@@ -1545,9 +1523,10 @@ void EditorController::Impl::armMarkerInPlace(const int string_count)
 // Left/Right from the passive marker — a marker row included — arm in place on the remembered row
 // without stepping, except under a time selection, which they leave past its edge in their
 // direction; while armed they step the union stop set on the caret's row, or jump measures under
-// the reach modifier (the Guitar Pro jump). A move re-derives the selection from what sits under
-// the caret; a step that stays on its slot names the object the walk reached instead, which is how
-// a ring's end statement sharing a head's instant is reachable and leavable. Inert while playing:
+// the reach modifier (the Guitar Pro jump). A step that takes the WALK's stop names the object the
+// walk reached, at any slot, so the arrow honours the walk's order everywhere — which is how a
+// ring's end statement sharing a head's instant is reachable and leavable from either side. A grid
+// stop lands on the slot alone and lets it answer what stands there. Inert while playing:
 // arming requires a paused transport (armed ⟹ paused is structural).
 void EditorController::Impl::performActionImpl(const EditorAction::StepChartCaret& action)
 {
@@ -1615,9 +1594,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         }
     }
     common::core::GridPosition stepped;
-    // The object a step lands ON, carried only when the step does not MOVE: the slot it stays on
-    // holds the head too, so re-deriving would take the head every time (chartObjectAt) and the
-    // caret could never reach the ring's end statement beside it.
+    // The object a step lands ON, carried whenever the walk's stop is the one taken: at a shared
+    // instant the slot holds the head too, so re-deriving would take the head every time
+    // (chartObjectAt) and the caret could never reach the ring's end statement beside it.
     std::optional<ChartSelectionKey> stepped_object;
     if (measure)
     {
@@ -1639,20 +1618,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
                 nextRowObjectStop(caret, sign > 0, false);
             object_stop.has_value())
         {
-            // A step that MOVES takes the SLOT from the walk: it lands there and lets the slot
-            // answer what stands on it, which is what keeps a bare digit at a ring's end slot the
-            // next note.
+            // The object wins a TIE, so the walk's order is the arrow's order at every slot: only
+            // a grid line strictly nearer than the walk's stop lands on a slot alone, which is
+            // what keeps a bare digit at an empty ring's end the next note.
             const common::core::GridPosition position = object_stop->position;
             const bool grid_advanced =
                 sign > 0 ? caret.position < stepped : stepped < caret.position;
-            const bool object_nearer = sign > 0 ? position < stepped : stepped < position;
-            if (!grid_advanced || object_nearer)
+            const bool grid_nearer =
+                grid_advanced && (sign > 0 ? stepped < position : position < stepped);
+            if (!grid_nearer)
             {
                 stepped = position;
-                if (position == caret.position)
-                {
-                    stepped_object = object_stop->object;
-                }
+                stepped_object = object_stop->object;
             }
         }
     }
@@ -1662,12 +1639,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     // meets it first and a caret arriving from the left meets the head first. A measure jump is not
     // traversal — it is a big move by definition — so it lands on the stop every note has.
     // armChartCaret drops a Held request the destination cannot draw, so this needs no second test
-    // of its own. A step landing on the walk's own object takes the stop every object has, exactly
-    // as the object walk does (StepToRowObject).
+    // of its own. A step that STAYS on its slot is already inside the column and takes the stop
+    // every object has, exactly as the object walk does (StepToRowObject); only one that arrives
+    // meets the column's marks in display order.
     landOnRow(
         prepareLandingRow(tab->stringCount()),
         stepped,
-        !measure && sign < 0 && !stepped_object.has_value()
+        !measure && sign < 0 && stepped != caret.position
             ? common::core::ChartStopChannel::Held
             : common::core::ChartStopChannel::Sounding,
         stepped_object);
@@ -2532,8 +2510,8 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     }
     // Nothing rings THROUGH the slot — an empty one, or one where a ring merely stops: the digit
     // states the head there, whatever that ring's end states, so sequential entry never trips over
-    // a grid-step note's tail. The end's own statement is the `Insert` key's
-    // (insertChartStatementAtCaret) and the keys address it once the walk or a click selects it.
+    // a grid-step note's tail. The end's own statement is `Alt+Insert`'s
+    // (InsertChartStatement) and the keys address it once the walk or a click selects it.
     return ChartFretEntry::InsertAt{.slot = slot};
 }
 
@@ -2554,7 +2532,7 @@ void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::
     armOrSettleChartFretEntry(std::move(entry));
 }
 
-// `Insert` ON A TAIL: the digit route with the digit SUPPLIED — the fret in force at the caret,
+// `Alt+Insert` ON A TAIL: the digit route with the digit SUPPLIED — the fret in force at the caret,
 // stated through the same pending entry the typed digit opens. Strictly inside a ring the product
 // is the same silent point typing the note's own fret makes; at the ring's END it is the end
 // statement at that fret, a slide-out toward the fret in force, or the ARRIVAL the chart then
@@ -2562,11 +2540,15 @@ void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::
 // key. Where no ring covers the slot there is no fret in force, so the key states nothing on this
 // lane.
 //
+// THE REVEAL IS IN THE CHORD because the slot before a head can look blank while lying inside a
+// tail the presentation clipped, and this key states a point on exactly that tail: with `Alt` held
+// the tail is drawn, so the charter sees what they are inserting onto.
+//
 // A statement already standing at the caret's offset is ADDRESSED rather than doubled: two records
 // on one offset is a shape no chart may hold, so the press selects what is there and every
 // selection-addressed verb then reaches it. Reached at all from the keyboard only for the END's own
 // statement, which no landing addresses (chartObjectAt).
-void EditorController::Impl::insertChartStatementAtCaret()
+void EditorController::Impl::performActionImpl(const EditorAction::InsertChartStatement&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const ChartCaret* const caret = armedChartCaret();

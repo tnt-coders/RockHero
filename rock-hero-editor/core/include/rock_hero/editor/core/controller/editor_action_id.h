@@ -169,6 +169,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
     InsertLanePoint,
 
+    /*! \brief The chart lane's create: the statement at an armed caret's offset along its ring. */
+    InsertChartStatement,
+
     /*! \brief Type one digit into the chart's fret entry. */
     TypeChartFretDigit,
 

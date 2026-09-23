@@ -262,11 +262,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
-    // `Insert`'s chart half: the same insert flow with the value SUPPLIED — the fret in force at
-    // the caret, which inside a ring is a silent point and at the ring's end is the end statement.
-    // It takes no digit, so the entry settles in the same keystroke; a statement already standing
-    // at that offset is selected instead of doubled.
-    void insertChartStatementAtCaret();
     // The harmonic node picker over the current selection: the node rows of the member whose label
     // names the most nodes (which member that was, so the view can anchor on it), each marked when
     // it is where that member already touches, plus whether a clear is among the changes and
@@ -372,8 +367,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
     // resting point, so a redo branch reached by undo survives.
     bool settleChartClaims();
-    // Whether the note at this slot is in focus for the keyframe commit law: revealed, or carrying
-    // a selected point.
+    // Whether the note at this slot is in focus for the keyframe commit law: selected, the caret
+    // standing inside its ring, or carrying a selected point.
     [[nodiscard]] bool chartNoteInFocus(const ChartSlotKey& slot) const;
     // Strips the silent keyframes of every note `keeps` refuses, with no history entry (none ever
     // held them): the commit law's in-memory half. True when any point went.
@@ -410,11 +405,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // a chord would collapse to the member whose satellite was aimed at, taking the scope away in
     // the very act of naming a stop within it.
     void armChartHeldStopHandle(const ChartSlotKey& slot);
-    // Whether this projected note's whole truth is on show, which is what a reveal-only mark waits
-    // for: the lane's own predicate (chartNoteRevealed) asked with the controller's selection and
-    // caret. The lane reveal is the caller's to supply — a pointer event carries the modifier, the
-    // keyboard paths answer false.
-    [[nodiscard]] bool chartNoteRevealed(std::size_t index, bool lane_reveal) const;
     // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
     // slot, the target a click reaches, and the only state in which a caret channel of Held is
     // legal. Read from the projection, which is where the derivation published whether the stop
@@ -1564,9 +1554,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
 
     // The Insert key's create: an on-curve point at an armed automation-lane slot. A no-op without
-    // an armed marker, and on a string row — the chart lane's every object is TYPED, so the key
-    // has nothing to place there.
+    // an armed marker and on a string row, whose own insert is the verb below.
     void performActionImpl(const EditorAction::InsertLanePoint& action);
+
+    // The chart lane's insert (Alt+Insert): the statement at the caret's offset along its ring,
+    // carrying the fret in force there. A no-op without a caret armed on a string row.
+    void performActionImpl(const EditorAction::InsertChartStatement& action);
 
     // The resolved ingredients for planting a point at an armed lane caret's slot: the lane's
     // existing points, the on-curve landing value at the caret, and the parameter's value

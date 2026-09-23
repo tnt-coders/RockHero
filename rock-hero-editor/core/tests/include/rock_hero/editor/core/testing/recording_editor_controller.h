@@ -489,6 +489,12 @@ public:
         lane_point_insert_call_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartStatementInsertRequested */
+    void onChartStatementInsertRequested() override
+    {
+        chart_statement_insert_call_count += 1;
+    }
+
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time) override
@@ -1025,6 +1031,9 @@ public:
 
     /*! \brief Number of onLanePointInsertRequested() calls received. */
     int lane_point_insert_call_count{0};
+
+    /*! \brief Number of onChartStatementInsertRequested() calls received. */
+    int chart_statement_insert_call_count{0};
 
     /*! \brief Last plugin instance id reported through onToneAutomationLaneCaretRequested(). */
     std::string last_lane_caret_instance_id{};
