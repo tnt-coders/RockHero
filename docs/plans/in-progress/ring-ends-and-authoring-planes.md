@@ -24,8 +24,8 @@ ring's end statement is DRAWN, the keys decide what reaches it, and each assumes
   charting converged on for the gap before a following note, and at or above the early half of
   plan 24's hit window target. 100 ms erased sixteenth-note ring detail above 150 BPM; 50 ms left
   about 3 px between a tail and the next head at the 2D lane's default zoom. It is confirmed, not
-  re-chosen, in the display phase's sighting once the fade is built, since a fade makes a gap read larger
-  than the margin itself. The fret-hand window morphs over the same margin, deliberately: it starts
+  re-chosen, in the display phase's sighting once the fade is built, since a fade makes a gap read
+  larger than the margin itself. The fret-hand window morphs over the same margin, deliberately: it starts
   moving exactly where the old tail's ink stops, so the hand never leaves while a note it holds is
   still drawn. A separate, longer approach lead was tried and reverted for that reason (2026-09-23);
   a morph START derived from where the ink under the old window ends is the recorded refinement if
