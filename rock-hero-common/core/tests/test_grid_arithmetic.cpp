@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -366,6 +367,79 @@ TEST_CASE("Grid stepping crosses a downbeat onto the previous meter's last line"
     CHECK(adjacentGridPosition(map, origin, quarter_grid, false) == origin);
     // Note-value validity policy belongs to callers, as for the snap.
     CHECK(adjacentGridPosition(map, downbeat, Fraction{}, true) == downbeat);
+}
+
+// THE ONE ROUNDING RULE: the nearest whole tick, a tie going to the earlier one, and whole ticks
+// passing through untouched.
+TEST_CASE("The tick rounding rule takes the nearest tick and the earlier on a tie", "[core][chart]")
+{
+    CHECK(nearestTick(12, 5) == 2); // 2.4
+    CHECK(nearestTick(13, 5) == 3); // 2.6
+    CHECK(nearestTick(5, 2) == 2);  // 2.5, the tie: the earlier tick
+    CHECK(nearestTick(7, 2) == 3);  // 3.5, the tie again
+    CHECK(nearestTick(6, 3) == 2);  // a whole tick is its own nearest
+    CHECK(nearestTick(0, 7) == 0);
+    CHECK(nearestTick(-5, 2) == -3); // -2.5 ties to the earlier, which is further below zero
+}
+
+// A position is on the lattice when its offset is a whole number of ticks at its own meter: a
+// quarter-note beat holds 960 ticks and an eighth-note beat 480.
+TEST_CASE("A position lies on the tick lattice when its offset is whole ticks", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    CHECK(isOnTickLattice(map, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 3}}));
+    CHECK(isOnTickLattice(map, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 960}}));
+    CHECK_FALSE(
+        isOnTickLattice(map, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 1920}}));
+    CHECK_FALSE(
+        isOnTickLattice(map, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{4, 7}}));
+    // In 7/8 a tick is 1/480 of the eighth-note beat, so 1/960 of that beat is half a tick.
+    CHECK(isOnTickLattice(map, GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 480}}));
+    CHECK_FALSE(
+        isOnTickLattice(map, GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 960}}));
+}
+
+// A grid no tick divides still names only ticks. A septuplet-sixteenth grid (1/28) steps a seventh
+// of a 4/4 beat, 137.14 ticks: every line is the tick nearest its exact place, the lines stay
+// strictly ascending, stepping walks them one by one and back, and snapping the EXACT septuplet
+// instant lands on the same rounded line — which is what lets an imported septuplet note and this
+// grid agree tick for tick.
+TEST_CASE("A septuplet grid's lines are ticks that step and snap exactly", "[core][chart]")
+{
+    const TempoMap map = steadyMap(120.0);
+    const Fraction septuplet_sixteenth{1, 28};
+    const GridPosition downbeat{.measure = 2, .beat = 1, .offset = {}};
+
+    std::vector<GridPosition> lines{downbeat};
+    for (int step = 0; step < 28; ++step)
+    {
+        lines.push_back(adjacentGridPosition(map, lines.back(), septuplet_sixteenth, true));
+    }
+    // Twenty-eight steps cross exactly one 4/4 measure, landing on the next downbeat.
+    CHECK(lines.back() == GridPosition{.measure = 3, .beat = 1, .offset = {}});
+    for (std::size_t index = 1; index < lines.size(); ++index)
+    {
+        CHECK(isOnTickLattice(map, lines[index]));
+        CHECK(lines[index - 1] < lines[index]);
+        CHECK(
+            adjacentGridPosition(map, lines[index], septuplet_sixteenth, false) ==
+            lines[index - 1]);
+    }
+
+    // Line k sits at the tick nearest k * 3840/28 ticks from the downbeat.
+    for (std::size_t line = 0; line < 28; ++line)
+    {
+        const auto exact_ticks = static_cast<std::int64_t>(line) * 3840;
+        const std::int64_t tick = nearestTick(exact_ticks, 28);
+        const GridPosition expected =
+            advanceGridPosition(map, downbeat, Fraction{static_cast<int>(tick), 960});
+        CHECK(lines[line] == expected);
+        // The exact septuplet instant, snapped, is that same line.
+        const GridPosition exact =
+            advanceGridPosition(map, downbeat, Fraction{static_cast<int>(line), 7});
+        CHECK(snapGridPosition(map, exact, septuplet_sixteenth) == expected);
+        CHECK(snapGridPosition(map, exact, g_tick_quantum_note_value) == expected);
+    }
 }
 
 } // namespace rock_hero::common::core

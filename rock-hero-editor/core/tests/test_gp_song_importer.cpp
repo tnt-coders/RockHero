@@ -4712,6 +4712,49 @@ TEST_CASE("Guitar Pro import rounds bend points onto the tick lattice", "[core][
     CHECK(curve[3].semitones == Catch::Approx(0.0));
 }
 
+// A septuplet run sits on sevenths of a beat, which no tick divides. The import rounds each onto
+// the tick the septuplet grid's own line names — the same exact instant, rounded by the same rule —
+// so stepping that grid from one note lands on the next one, never on a line a hair beside it, and
+// every ring still ends exactly on the next onset.
+TEST_CASE(
+    "Guitar Pro import puts a septuplet run on the septuplet grid's lines", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    std::vector<GpBeat> run;
+    for (int index = 0; index < 7; ++index)
+    {
+        run.push_back(noteBeat(Fraction{1, 28}, 5 + index, 2));
+    }
+    score.tracks[0].bars.push_back(GpBar{.voices = {run}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::TempoMap& map = built->tempo_map;
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 7);
+    const Fraction septuplet_sixteenth{1, 28};
+    for (std::size_t index = 0; index < chart.notes.size(); ++index)
+    {
+        const common::core::ChartNote& note = chart.notes[index];
+        CHECK(common::core::isOnTickLattice(map, note.position));
+        const GridPosition exact{
+            .measure = 1, .beat = 1, .offset = Fraction{static_cast<int>(index), 7}
+        };
+        CHECK(note.position == common::core::snapGridPosition(map, exact, septuplet_sixteenth));
+        if (index + 1 < chart.notes.size())
+        {
+            const GridPosition next = chart.notes[index + 1].position;
+            CHECK(
+                common::core::adjacentGridPosition(map, note.position, septuplet_sixteenth, true) ==
+                next);
+            CHECK(common::core::sustainEndPosition(map, note) == next);
+        }
+    }
+}
+
 // A downward slide-out from a low fret: the four-fret exit is held onto the playable board at the
 // first fret above the capo, never the nut. Flooring the exit at 0 while the rules demand
 // above-the-capo fails a whole track's import on a single slide-out from frets 1-4, so the importer

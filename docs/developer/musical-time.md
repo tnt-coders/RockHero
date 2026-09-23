@@ -75,6 +75,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 - `predecessorHoldReaches(...)` — the connection hold test, and it is plain: true when the
   predecessor's stored ring reaches the onset. Strict adjacency against the stored ring, with no
   kept-bound assumption and no margin slack, because the stored ring is the real one.
+- `nearestTick(numerator, denominator)` and `isOnTickLattice(tempo_map, position)` — THE one
+  rounding rule onto the tick lattice (the nearest whole tick, a tie to the earlier) and the test
+  every stored position passes. The lattice is the finest position a chart may store: validation
+  refuses an onset, ring end or keyframe between two ticks, and every producer of an exact instant
+  — the grid's lines, the editor's drawn grid, the Guitar Pro import's commit point — rounds
+  through the one rule.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition`, `adjacentGridPosition` — the exact `GridPosition` ↔ beat conversions, signed
   and inverse-exact, all crossing beat, measure, and meter boundaries without floating-point
@@ -352,8 +358,10 @@ where does one keyboard step land.
 
 The editor's grid note value (a `Fraction` of a whole note, default 1/16) is the *shared
 authority* for both drawing and snapping: `tempo_grid_geometry.cpp` computes visible grid lines
-and `nearestTempoGridPosition(...)` returns the exact rational `GridPosition` — the same math, so
-what you see is what you snap to.
+and `nearestTempoGridPosition(...)` returns the line's `GridPosition` — the same math, so what you
+see is what you snap to. Every line is the tick nearest its exact place (`nearestTick`), so a grid
+no tick divides — a septuplet's 1/28, a 1/13 — still names only positions a chart may store, and
+common's `snapGridPosition` and the Guitar Pro import round the same instant onto the same tick.
 
 What a verb actually snaps ONTO is the **placement quantum**: `placementQuantumNoteValue(...)`,
 the one authority, returns the grid note value while grid snap is on and the tick lattice

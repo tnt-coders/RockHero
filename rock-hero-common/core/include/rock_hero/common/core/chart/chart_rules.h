@@ -161,7 +161,8 @@ struct [[nodiscard]] ChartError
 \brief Reports whether a grid position names a real place on the tempo map's grid.
 
 Shared with song-level validation (section markers live on the same grid), so the on-grid rule
-cannot drift between chart and song documents.
+cannot drift between chart and song documents. A usable position lies on the tick lattice
+(\ref isOnTickLattice): the chart can state no instant between two ticks.
 
 \param position Grid position to test.
 \param tempo_map Song tempo map defining the grid.
@@ -529,9 +530,10 @@ Two halves, and only the first is a list of refusals: the structural rules no re
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
 length, and no repair can invent the one a chart failed to state — a node off the string or behind
 its stop, a
-pinch without its node, a pressed note on a capo'd fret, a position off the grid, a keyframe
-outside its sustain, out of order, stating nothing, or stating a negative fret or bend, a scrape
-without its terminal, a saved scrape still carrying a latent technique), and then the FIXPOINT —
+pinch without its node, a pressed note on a capo'd fret, a position off the grid, an onset, ring
+end or keyframe between two ticks of the lattice, a keyframe outside its sustain, out of order,
+stating nothing, or stating a negative fret or bend, a scrape without its terminal, a saved scrape
+still carrying a latent technique), and then the FIXPOINT —
 the note must already equal its
 own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
 once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
@@ -583,7 +585,8 @@ this paragraph — a summary here drifts, and this one did once, describing "pos
 zero was still the encoding for a note with no tail.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
-(position, string) with no duplicate onsets, on valid grid positions; strings in range;
+(position, string) with no duplicate onsets, on valid grid positions, with every onset, ring end
+and keyframe on the tick lattice; strings in range;
 non-negative frets, and a strictly positive sustain on every note; keyframe offsets ascending
 strictly inside the sustain, each stating at least one channel and no negative fret or bend; sorted
 fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling

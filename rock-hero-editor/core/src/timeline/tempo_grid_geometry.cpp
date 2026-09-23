@@ -41,6 +41,13 @@ double secondsAtColumn(common::core::TimeRange visible_timeline, double width_sp
 // meters whose length is not a multiple of the step, and it never advances past the terminal
 // anchor beat. Signature and measure base-index bookkeeping is incremental so the per-line hot
 // path stays integer arithmetic.
+//
+// The walk itself is exact, but every line it REPORTS is rounded onto the chart's tick lattice
+// through the one rounding rule (common::core::nearestTick), exactly as common's own lattice
+// rounds its lines — so a grid no tick divides (a septuplet's) still names only positions a chart
+// may store, and draws and snaps to the same tick an imported septuplet note landed on. A line
+// that would round onto the next downbeat is that downbeat, so the measure's last line stops
+// before it.
 class MeasureGridWalker
 {
 public:
@@ -66,15 +73,16 @@ public:
         return lineUnits() <= m_terminal_units;
     }
 
-    // Exact fractional global-beat position of the current line. Dividing the raw remainder is
-    // bit-identical to reducing it through Fraction first, because IEEE division is correctly
-    // rounded for the same rational value, and it keeps a gcd off the per-line hot path.
+    // Fractional global-beat position of the current line, on the tick lattice. Dividing the raw
+    // remainder is bit-identical to reducing it through Fraction first, because IEEE division is
+    // correctly rounded for the same rational value, and it keeps a gcd off the per-line hot path.
     [[nodiscard]] double beatPosition() const noexcept
     {
-        const std::int64_t whole = m_measure_beat_index + m_offset_units / m_note.denominator;
-        const std::int64_t remainder = m_offset_units % m_note.denominator;
+        const std::int64_t ticks = lineTicks(m_offset_units);
+        const std::int64_t whole = m_measure_beat_index + ticks / m_ticks_per_beat;
+        const std::int64_t remainder = ticks % m_ticks_per_beat;
         return static_cast<double>(whole) +
-               static_cast<double>(remainder) / static_cast<double>(m_note.denominator);
+               static_cast<double>(remainder) / static_cast<double>(m_ticks_per_beat);
     }
 
     // One-based measure number of the current line.
@@ -83,16 +91,16 @@ public:
         return m_measure;
     }
 
-    // Exact musical address of the current line. The within-measure offset stays a rational in
-    // the note denominator, so odd grids (a 1/13 note value) round-trip into stored positions
-    // without any fixed fine-grid approximation.
+    // Musical address of the current line, on the tick lattice: an odd grid (a 1/13 note value)
+    // yields the tick nearest each of its lines, which is the finest position a chart stores.
     [[nodiscard]] common::core::GridPosition gridPosition() const noexcept
     {
+        const std::int64_t ticks = lineTicks(m_offset_units);
         return common::core::GridPosition{
             .measure = m_measure,
-            .beat = 1 + static_cast<int>(m_offset_units / m_note.denominator),
+            .beat = 1 + static_cast<int>(ticks / m_ticks_per_beat),
             .offset = common::core::Fraction{
-                static_cast<int>(m_offset_units % m_note.denominator), m_note.denominator
+                static_cast<int>(ticks % m_ticks_per_beat), static_cast<int>(m_ticks_per_beat)
             },
         };
     }
@@ -109,11 +117,12 @@ public:
                                                         : TempoGridLineRank::Subdivision;
     }
 
-    // Moves to the next line, rolling into the next measure when the step leaves this one.
+    // Moves to the next line, rolling into the next measure when the step leaves this one — or
+    // lands on a line that rounds onto its downbeat.
     void advance()
     {
         m_offset_units += m_step_units;
-        if (m_offset_units >= m_measure_units)
+        if (m_offset_units >= m_measure_units || roundsOntoNextDownbeat(m_offset_units))
         {
             moveToMeasure(m_measure + 1, m_measure_beat_index + m_signature.numerator);
         }
@@ -232,6 +241,11 @@ private:
         m_signature.denominator = std::max(1, m_signature.denominator);
         m_step_units = static_cast<std::int64_t>(m_note.numerator) * m_signature.denominator;
         m_measure_units = static_cast<std::int64_t>(m_signature.numerator) * m_note.denominator;
+        // A meter whose denominator no tick divides has no lattice; its beat is then its own
+        // unit, which keeps that malformed map's walk progressing like the clamps above.
+        m_ticks_per_beat = common::core::g_tick_quantum_denominator % m_signature.denominator == 0
+                               ? common::core::g_tick_quantum_denominator / m_signature.denominator
+                               : 1;
     }
 
     // Current line's exact position in beat units (beats times the note denominator).
@@ -240,10 +254,26 @@ private:
         return m_measure_beat_index * m_note.denominator + m_offset_units;
     }
 
+    // Ticks from the downbeat to the line at an exact offset, rounded onto the lattice.
+    [[nodiscard]] std::int64_t lineTicks(std::int64_t offset_units) const noexcept
+    {
+        return common::core::nearestTick(offset_units * m_ticks_per_beat, m_note.denominator);
+    }
+
+    // Whether the line at an offset inside this measure rounds onto the next measure's downbeat.
+    [[nodiscard]] bool roundsOntoNextDownbeat(std::int64_t offset_units) const noexcept
+    {
+        return lineTicks(offset_units) >= m_signature.numerator * m_ticks_per_beat;
+    }
+
     // Last line offset that stays inside this measure and inside the authored beat range.
     [[nodiscard]] std::int64_t lastLineOffsetUnits() const noexcept
     {
         std::int64_t last_offset = ((m_measure_units - 1) / m_step_units) * m_step_units;
+        if (last_offset > 0 && roundsOntoNextDownbeat(last_offset))
+        {
+            last_offset -= m_step_units;
+        }
         const std::int64_t terminal_offset =
             m_terminal_units - m_measure_beat_index * m_note.denominator;
         if (terminal_offset < last_offset)
@@ -280,6 +310,9 @@ private:
 
     // Measure length in note-denominator units of a beat.
     std::int64_t m_measure_units{1};
+
+    // Ticks in one beat at the current measure's meter.
+    std::int64_t m_ticks_per_beat{1};
 };
 
 } // namespace

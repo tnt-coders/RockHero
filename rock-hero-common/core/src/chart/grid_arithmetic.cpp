@@ -57,6 +57,13 @@ namespace
 // steps after it, and the count restarts at the next downbeat, which is a line of its own even when
 // the measure length is not a multiple of the step. Both lattice queries — the nearest line and the
 // adjacent line — read their lines from here, so which lines EXIST is stated once.
+//
+// EVERY LINE IS A TICK: line k is the exact k steps ROUNDED onto the tick lattice (nearestTick), so
+// a grid whose step no tick divides — a septuplet's — still only ever names positions a chart may
+// store, and names exactly the tick an imported septuplet note rounded onto. A step is at least one
+// tick for every note value the grid admits, and rounding moves a line less than half a tick while
+// adding a whole tick to its input adds one to its output, so rounded lines stay strictly
+// ascending and never collapse into one another.
 struct MeasureLattice
 {
     // One grid step in beats: the note value (a fraction of a whole note) scaled by how many beats
@@ -66,12 +73,27 @@ struct MeasureLattice
     // The measure's length in beats, which is where the next downbeat sits.
     Fraction length;
 
-    // Index of the last line at or before a beat count from the downbeat.
+    // Ticks in one beat at this measure's meter.
+    std::int64_t ticks_per_beat{0};
+
+    // Index of the last line at or before a beat count from the downbeat. The exact quotient names
+    // the last EXACT line at or before it; rounding can carry that line past the count, or carry
+    // the next one back onto it, by less than half a tick, which a step of at least a tick bounds
+    // to a single index either way.
     [[nodiscard]] std::int64_t lineIndexAtOrBefore(Fraction beats_from_downbeat) const
     {
-        return floorDivide(
+        std::int64_t index = floorDivide(
             static_cast<std::int64_t>(beats_from_downbeat.numerator) * step.denominator,
             static_cast<std::int64_t>(beats_from_downbeat.denominator) * step.numerator);
+        if (beats_from_downbeat < lineAt(index))
+        {
+            --index;
+        }
+        else if (!(beats_from_downbeat < lineAt(index + 1)))
+        {
+            ++index;
+        }
+        return index;
     }
 
     // Beats from the downbeat to the line at an index. Unbounded on purpose: an index past the
@@ -79,7 +101,9 @@ struct MeasureLattice
     // turns that into the next downbeat.
     [[nodiscard]] Fraction lineAt(std::int64_t index) const
     {
-        return makeFraction(index * step.numerator, static_cast<std::int64_t>(step.denominator));
+        const std::int64_t tick =
+            nearestTick(index * step.numerator * ticks_per_beat, step.denominator);
+        return makeFraction(tick, ticks_per_beat);
     }
 
     // Index of the last line strictly inside the measure: the one the next downbeat follows.
@@ -100,13 +124,15 @@ struct MeasureLattice
         return std::nullopt;
     }
     const TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
-    if (signature.denominator <= 0 || signature.numerator <= 0)
+    if (signature.denominator <= 0 || signature.numerator <= 0 ||
+        g_tick_quantum_denominator % signature.denominator != 0)
     {
         return std::nullopt;
     }
     return MeasureLattice{
         .step = Fraction{note_value.numerator * signature.denominator, note_value.denominator},
         .length = Fraction{signature.numerator},
+        .ticks_per_beat = g_tick_quantum_denominator / signature.denominator,
     };
 }
 
@@ -244,8 +270,23 @@ bool predecessorHoldReaches(
     return sustain >= beatDistance(tempo_map, predecessor, onset);
 }
 
+// A whole number of ticks past its beat, at its own measure's meter: the offset times the ticks in
+// a beat is an integer.
+bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position)
+{
+    const int denominator = tempo_map.timeSignatureAt(position.measure).denominator;
+    if (denominator <= 0 || g_tick_quantum_denominator % denominator != 0)
+    {
+        return false;
+    }
+    const std::int64_t ticks_per_beat = g_tick_quantum_denominator / denominator;
+    return (static_cast<std::int64_t>(position.offset.numerator) * ticks_per_beat) %
+               position.offset.denominator ==
+           0;
+}
+
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored
-// note-value steps, downbeats always lines, ties to the earlier line, exact rational results.
+// note-value steps, downbeats always lines, ties to the earlier line, every line a tick.
 GridPosition snapGridPosition(const TempoMap& tempo_map, GridPosition position, Fraction note_value)
 {
     const std::optional<MeasureLattice> lattice =

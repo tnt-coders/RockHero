@@ -188,8 +188,10 @@ selection dispatch, and everything else bubbles them there.
 - Ctrl placement still quantizes to the **1/960-beat fine grid** so stored positions stay exact
   rationals (`timeline_cursor.cpp` — `g_fine_grid_denominator = 960`). 960 is the standard MIDI
   PPQ resolution, divides every practical straight/triplet/quintuplet subdivision, and lands well
-  below audible granularity. On-grid placement does **not** pass through 960: it stores the grid
-  line's own exact rational, so odd grids (1/13) round-trip perfectly. Both behaviors are already
+  below audible granularity. On-grid placement stores the grid line itself, and every line of an
+  odd grid (1/13, a septuplet's 1/28) is the tick nearest its exact place, so a stored position is
+  always one the lattice holds (amended 2026-09-22, when the tick lattice became a validated rule
+  rather than a stated one). Both behaviors are already
   implemented and shared through `musicalGridPositionForX`; new surfaces must use the same helper.
 - **Off-grid is a first-class state, not an error.** Imported source-derived content is largely
   off-grid; render such objects normally, with the exact position visible in readouts rather than

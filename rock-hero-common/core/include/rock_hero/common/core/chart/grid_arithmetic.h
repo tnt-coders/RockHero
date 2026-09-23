@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -30,6 +31,44 @@ placement quantum falls back to it while grid snap is off, and every song-time l
 (\ref positionSecondsBefore).
 */
 inline constexpr Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominator};
+
+/*!
+\brief THE one rounding rule onto the tick lattice: the whole tick nearest an exact tick count,
+a tie going to the earlier tick.
+
+Every producer that turns an exact instant into a position rounds through this — the grid's own
+lines (\ref snapGridPosition and \ref adjacentGridPosition), the editor's drawn grid, and the
+Guitar Pro import — so a septuplet grid's lines and a note imported off a septuplet rhythm land on
+the SAME tick: both start from the same exact instant and round it the same way. The tie rule is
+the snap's own stable-click rule. Adding whole ticks commutes with it, so rounding from a downbeat
+and rounding from the song's start agree, every downbeat being a whole tick.
+
+\param numerator Numerator of the exact tick count.
+\param denominator Denominator of the exact tick count; strictly positive.
+\return The nearest whole tick.
+*/
+[[nodiscard]] constexpr std::int64_t nearestTick(
+    const std::int64_t numerator, const std::int64_t denominator) noexcept
+{
+    // Round half down is the ceiling of x - 1/2, which is floor((2n + d - 1) / 2d).
+    const std::int64_t shifted = (2 * numerator) + denominator - 1;
+    const std::int64_t divisor = 2 * denominator;
+    const std::int64_t quotient = shifted / divisor;
+    return (shifted % divisor != 0 && shifted < 0) ? quotient - 1 : quotient;
+}
+
+/*!
+\brief Reports whether a position lies on the chart's tick lattice.
+
+The lattice is \ref g_tick_quantum_note_value measured from each downbeat, so a position is on it
+exactly when its sub-beat offset is a whole number of ticks at its measure's meter. A signature
+whose denominator does not divide the quantum has no lattice to lie on.
+
+\param tempo_map Tempo map supplying the meter at the position.
+\param position Position to test.
+\return True when the position is a whole number of ticks past its beat.
+*/
+[[nodiscard]] bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position);
 
 /*!
 \brief The minimum sustain distance: the seconds every DRAWN element keeps before a following
@@ -319,15 +358,16 @@ Same grid semantics as the editor timeline's rendered grid and time-space snap
 (`nearestTempoGridPosition`): the note value is a fraction of a whole note (1/8 means eighth
 notes in every meter), lines sit every step from each measure's downbeat with the count
 restarting at the next downbeat, every downbeat is a line even when the measure length is not a
-multiple of the step, ties resolve to the earlier line, and the result stores the line's exact
-rational position. Callers own note-value validity policy (the editor validates with
+multiple of the step, and ties resolve to the earlier line. Every line is ROUNDED onto the tick
+lattice (\ref nearestTick), so a grid no tick divides — a septuplet's — still yields only positions
+a chart may store. Callers own note-value validity policy (the editor validates with
 `isValidTempoGridNoteValue` and falls back to 1/4); a non-positive note value or degenerate
 signature returns the position unchanged.
 
 \param tempo_map Tempo map supplying signatures and the beat grid.
 \param position Valid grid position to snap (offset in [0, 1)).
-\param note_value Grid step as a fraction of a whole note; must be positive.
-\return The exact position of the nearest grid line.
+\param note_value Grid step as a fraction of a whole note; must be positive and at least a tick.
+\return The position of the nearest grid line, on the tick lattice.
 */
 [[nodiscard]] GridPosition snapGridPosition(
     const TempoMap& tempo_map, GridPosition position, Fraction note_value);
@@ -351,9 +391,9 @@ returns the position unchanged.
 
 \param tempo_map Tempo map supplying signatures and the beat grid.
 \param position Valid grid position to step from (offset in [0, 1)), on- or off-grid.
-\param note_value Grid step as a fraction of a whole note; must be positive.
+\param note_value Grid step as a fraction of a whole note; must be positive and at least a tick.
 \param later True to step later in time, false earlier.
-\return The exact position of the adjacent grid line in the step direction.
+\return The position of the adjacent grid line in the step direction, on the tick lattice.
 */
 [[nodiscard]] GridPosition adjacentGridPosition(
     const TempoMap& tempo_map, GridPosition position, Fraction note_value, bool later);

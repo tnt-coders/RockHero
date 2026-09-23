@@ -566,44 +566,13 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     }
 }
 
-// The line of the chart's position lattice (1/3840 of a whole note, grid_arithmetic.h) nearest a
-// global-beat position, a tie going to the earlier line as the editor's snap does. The lattice is
-// counted on the whole-note axis from the song's start; every downbeat lies on it, since each
-// meter's denominator divides the quantum, so this is the measure-anchored tick grid every stored
-// position must land on.
-[[nodiscard]] Fraction nearestLatticeBeat(const MeasureGrid& grid, const Fraction global)
-{
-    const Fraction whole = wholeAtGlobalBeat(grid, global);
-    const std::int64_t scaled =
-        static_cast<std::int64_t>(whole.numerator) * common::core::g_tick_quantum_denominator;
-    const std::int64_t below = scaled / whole.denominator;
-    const std::int64_t twice_remainder = 2 * (scaled - (below * whole.denominator));
-    const std::int64_t line = twice_remainder > whole.denominator ? below + 1 : below;
-    return globalBeatAtWhole(
-        grid, Fraction{static_cast<int>(line), common::core::g_tick_quantum_denominator});
-}
-
-// The lattice line one tick after a global-beat position that is itself on the lattice.
-[[nodiscard]] Fraction latticeBeatAfter(const MeasureGrid& grid, const Fraction global)
-{
-    return globalBeatAtWhole(
-        grid,
-        wholeAtGlobalBeat(grid, global) + Fraction{1, common::core::g_tick_quantum_denominator});
-}
-
 // Maps one GP bend onto the chart's [offset, semitones] pairs across the note sustain.
 //
-// Guitar Pro places each point at a percentage of the note, which lands between the chart's
-// lattice lines almost everywhere; each is rounded onto the nearest line, measured from the note's
-// `onset` on the global beat axis, exactly as a roll's partial stagger is. Merging and ordering are
-// asked of the percentages Guitar Pro WROTE, never of where rounding put them: two points it wrote
-// at one percentage are a step and fold into one, the later value winning, while two it kept apart
-// that round onto one line on a very short note stay apart — the later takes the next line, so a
-// hold followed by a release keeps its hold. Only where no line is left inside the ring do they
-// fold.
+// Each point lands at its exact percentage of the note, which is almost never a whole tick; the
+// commit point rounds it onto the lattice with every other stored instant (roundOntoTickLattice).
+// Two points written at one percentage are a step and fold into one here, the later value winning.
 [[nodiscard]] std::vector<BendCurvePoint> buildBendPoints(
-    const GpBend& bend, const MeasureGrid& grid, const Fraction onset, const Fraction sustain,
-    std::vector<std::string>& notes)
+    const GpBend& bend, Fraction sustain, std::vector<std::string>& notes)
 {
     if (sustain.numerator <= 0)
     {
@@ -643,35 +612,22 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
     };
 
     std::vector<BendCurvePoint> points;
-    // The written percentage of the last point kept.
-    Fraction last_percent{};
     for (const RawPoint& point : raw)
     {
-        const Fraction percent = percentFraction(std::clamp(point.offset_percent, 0.0, 100.0));
+        const Fraction offset =
+            percentFraction(std::clamp(point.offset_percent, 0.0, 100.0)) * sustain;
         // GP bend values are percent of a whole step; the chart stores semitones.
         const double semitones = point.value / 50.0;
-        if (!points.empty() && percent == last_percent)
+        if (!points.empty() && points.back().offset == offset)
         {
             points.back().semitones = semitones;
             continue;
         }
-        if (!points.empty() && percent < last_percent)
+        if (!points.empty() && offset < points.back().offset)
         {
             continue;
         }
-        Fraction offset = nearestLatticeBeat(grid, onset + (percent * sustain)) - onset;
-        if (!points.empty() && !(points.back().offset < offset))
-        {
-            offset = latticeBeatAfter(grid, onset + points.back().offset) - onset;
-            if (sustain < offset)
-            {
-                points.back().semitones = semitones;
-                last_percent = percent;
-                continue;
-            }
-        }
         points.push_back(BendCurvePoint{.offset = offset, .semitones = semitones});
-        last_percent = percent;
     }
 
     // A flat zero curve carries no information.
@@ -3088,6 +3044,91 @@ void resolveSlideOutExits(
 // The conversion notes and the let-ring report are both SONG-level accumulators the track
 // adds to, for the one reason: a reader asks what the whole import did, and a per-track answer
 // would have to be summed by every caller.
+// THE LATTICE AT THE COMMIT POINT: every instant the chart stores — an onset, a ring's end, a
+// keyframe, a hand placement — lands on the tick lattice, the finest position a chart may state.
+// Guitar Pro places some between two ticks (a septuplet's rhythm, a bend point's percentage) and
+// the builder derives more from those, so they are rounded here, once, rather than at each source:
+// the same exact instant always rounds to the same tick (the tick grid, common::core::nearestTick),
+// so a ring ending exactly on the next onset still ends exactly on it and every relation read above
+// survives, and an imported septuplet lands on the very tick a septuplet grid's line does.
+//
+// Two keyframes of one ring that round onto one tick stay apart, the later taking the next tick,
+// so a hold followed by a release keeps its hold; only where no tick is left inside the ring does
+// the later fold into the earlier, its stated channels winning. A ring keeps at least one tick.
+// Hand placements that round together keep the first, as the exit pass's first-inserted rule does.
+void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
+{
+    const auto on_lattice = [&tempo_map](const GridPosition& position) {
+        return common::core::snapGridPosition(
+            tempo_map, position, common::core::g_tick_quantum_note_value);
+    };
+    const auto next_tick = [&tempo_map](const GridPosition& position) {
+        return common::core::adjacentGridPosition(
+            tempo_map, position, common::core::g_tick_quantum_note_value, true);
+    };
+
+    for (ChartNote& note : chart.notes)
+    {
+        const GridPosition onset = on_lattice(note.position);
+        GridPosition end =
+            on_lattice(common::core::advanceGridPosition(tempo_map, note.position, note.sustain));
+        if (!(onset < end))
+        {
+            end = next_tick(onset);
+        }
+        std::vector<Keyframe> keyframes;
+        keyframes.reserve(note.keyframes.size());
+        for (const Keyframe& keyframe : note.keyframes)
+        {
+            const GridPosition previous =
+                keyframes.empty()
+                    ? onset
+                    : common::core::advanceGridPosition(tempo_map, onset, keyframes.back().offset);
+            GridPosition at = on_lattice(
+                common::core::advanceGridPosition(tempo_map, note.position, keyframe.offset));
+            if (!(previous < at))
+            {
+                at = next_tick(previous);
+            }
+            if (end < at && !keyframes.empty())
+            {
+                Keyframe& kept = keyframes.back();
+                if (keyframe.fret.has_value())
+                {
+                    kept.fret = keyframe.fret;
+                }
+                if (keyframe.bend.has_value())
+                {
+                    kept.bend = keyframe.bend;
+                }
+                if (keyframe.vibrato.has_value())
+                {
+                    kept.vibrato = keyframe.vibrato;
+                }
+                continue;
+            }
+            Keyframe rounded = keyframe;
+            rounded.offset = common::core::beatDistance(tempo_map, onset, at);
+            keyframes.push_back(rounded);
+        }
+        note.position = onset;
+        note.sustain = common::core::beatDistance(tempo_map, onset, end);
+        note.keyframes = std::move(keyframes);
+    }
+
+    std::vector<common::core::FretHandPosition> placements;
+    placements.reserve(chart.fret_hand_positions.size());
+    for (common::core::FretHandPosition placement : chart.fret_hand_positions)
+    {
+        placement.position = on_lattice(placement.position);
+        if (placements.empty() || placements.back().position < placement.position)
+        {
+            placements.push_back(placement);
+        }
+    }
+    chart.fret_hand_positions = std::move(placements);
+}
+
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
     const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes,
@@ -3159,8 +3200,8 @@ void resolveSlideOutExits(
                 origin.note.tremolo = origin.note.tremolo || event.tremolo;
                 if (source.bend.has_value())
                 {
-                    for (BendCurvePoint point : buildBendPoints(
-                             *source.bend, grid, event.global_beat, notatedDuration(event), notes))
+                    for (BendCurvePoint point :
+                         buildBendPoints(*source.bend, notatedDuration(event), notes))
                     {
                         if (event.duration_beats < point.offset)
                         {
@@ -3415,10 +3456,7 @@ void resolveSlideOutExits(
             // that can reach past the ring, and it is trimmed back at the end of the build, where
             // the ring is finally settled — trimming it here would cut it against a ring the
             // let-ring pass is still going to lengthen.
-            applyBendCurve(
-                note,
-                buildBendPoints(
-                    *source.bend, grid, event.global_beat, notatedDuration(event), notes));
+            applyBendCurve(note, buildBendPoints(*source.bend, notatedDuration(event), notes));
         }
 
         // NO CLAIM IS EVER AUTHORED HERE, and that is the whole of what the import states about
@@ -3953,6 +3991,7 @@ void resolveSlideOutExits(
     {
         chart.notes.push_back(std::move(entry.note));
     }
+    roundOntoTickLattice(chart, tempo_map);
 
     // Import is a commit point, so the chart leaves here in its normal form through the ONE
     // normalizer every load path calls: each note sheds what it cannot execute, every range is

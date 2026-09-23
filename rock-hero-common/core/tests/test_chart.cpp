@@ -592,6 +592,44 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
     }
 }
 
+// The tick lattice is the finest position a chart may state, and every stored instant is held to
+// it: the onset, where the ring ends, and each keyframe. A 4/4 beat holds 960 ticks, so a whole
+// number of 960ths lands on the lattice and half a tick past one does not.
+TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 960}};
+    note.string = 1;
+    note.fret = 5;
+    note.sustain = Fraction{1};
+    note.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 7}};
+    REQUIRE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+
+    SECTION("an onset between two ticks")
+    {
+        note.position.offset = Fraction{1, 1920};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+    }
+    SECTION("a ring ending between two ticks")
+    {
+        note.sustain = Fraction{1920 + 1, 1920};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+    }
+    SECTION("a keyframe between two ticks, however close to one")
+    {
+        note.keyframes.front().offset = Fraction{99, 1600};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+    }
+    SECTION("a septuplet instant, which no tick divides")
+    {
+        note.position.offset = Fraction{4, 7};
+        CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+    }
+}
+
 TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();

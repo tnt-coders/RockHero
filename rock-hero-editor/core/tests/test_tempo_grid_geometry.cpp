@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -598,26 +599,55 @@ TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-gr
     CHECK_FALSE(position.has_value());
 }
 
-// Verifies grid snapping yields the line's exact musical address even for note values no fixed
-// fine grid divides, so odd grids (1/13) store the grid line itself, not an approximation.
-TEST_CASE("Nearest tempo grid position is exact for odd note values", "[core][tempo-grid]")
+// Verifies a grid no tick divides still names only positions a chart may store: each line of an
+// odd grid (1/13) is the tick nearest its exact place, so a click stores a position validation
+// accepts, and the same tick common's lattice and the Guitar Pro import round that instant onto.
+TEST_CASE("Nearest tempo grid position rounds odd note values onto ticks", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(2, 4.0);
     const common::core::Fraction thirteenth_note{1, 13};
 
-    // In 4/4 a 1/13-note step is 4/13 of a beat; the second line of measure 1 sits at beat
-    // 1 + 4/13 (seconds: (4/13) beats * 1 s/beat = ~0.3077 s).
+    // In 4/4 a 1/13-note step is 4/13 of a beat, 295.38 ticks, so the second line of measure 1
+    // sits on tick 295: beat 1 + 295/960 (seconds: 295/960 beats * 1 s/beat = ~0.3073 s).
     const common::core::GridPosition snapped =
         nearestTempoGridPosition(map, thirteenth_note, common::core::TimePosition{0.3});
     CHECK(
         snapped == common::core::GridPosition{
-                       .measure = 1, .beat = 1, .offset = common::core::Fraction{4, 13}
+                       .measure = 1, .beat = 1, .offset = common::core::Fraction{295, 960}
                    });
+    CHECK(common::core::isOnTickLattice(map, snapped));
+    CHECK(
+        snapped == common::core::snapGridPosition(
+                       map,
+                       common::core::GridPosition{
+                           .measure = 1, .beat = 1, .offset = common::core::Fraction{4, 13}
+                       },
+                       thirteenth_note));
 
     // The time and position variants address the same line.
     CHECK(
         nearestTempoGridTime(map, thirteenth_note, common::core::TimePosition{0.3}).seconds ==
-        Catch::Approx(4.0 / 13.0));
+        Catch::Approx(295.0 / 960.0));
+
+    // The drawn grid and common's lattice are two walks over one set of lines: for every line of a
+    // septuplet grid, clicking at the line's time yields exactly the line common snaps its exact
+    // instant onto.
+    const common::core::Fraction septuplet_sixteenth{1, 28};
+    for (int line = 0; line < 28; ++line)
+    {
+        const common::core::GridPosition exact = common::core::advanceGridPosition(
+            map,
+            common::core::GridPosition{.measure = 1, .beat = 1},
+            common::core::Fraction{line, 7});
+        const common::core::GridPosition lattice_line =
+            common::core::snapGridPosition(map, exact, septuplet_sixteenth);
+        const double line_seconds =
+            map.secondsAtGlobalBeatPosition(common::core::globalBeatPosition(map, lattice_line));
+        CHECK(
+            nearestTempoGridPosition(
+                map, septuplet_sixteenth, common::core::TimePosition{line_seconds}) ==
+            lattice_line);
+    }
 
     // Whole-beat lines reduce to a zero offset.
     const common::core::GridPosition on_beat = nearestTempoGridPosition(

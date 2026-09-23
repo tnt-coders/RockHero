@@ -112,7 +112,8 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
 {
     return position.measure >= 1 && position.beat >= 1 &&
            position.beat <= tempo_map.beatsPerMeasureAt(position.measure) &&
-           position.offset.numerator >= 0 && position.offset < Fraction{1};
+           position.offset.numerator >= 0 && position.offset < Fraction{1} &&
+           isOnTickLattice(tempo_map, position);
 }
 
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
@@ -713,6 +714,15 @@ std::expected<void, ChartError> validateChartNoteAlone(
                        "; this chart predates the note duration model and must be re-imported",
         }};
     }
+    // Where the ring ends is a stored instant like the onset, so it lies on the tick lattice too:
+    // the chart can state no instant finer than a tick, and none between two.
+    if (!isOnTickLattice(tempo_map, sustainEndPosition(tempo_map, note)))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "note ring must end on the tick lattice at " + positionText(note.position),
+        }};
+    }
     // A legal node is stated as what it IS, in positive form: a node now takes part in the
     // posture map's ordering key (\ref ChartStop), and NaN — which passes both halves of the
     // negative form — would be a strict-weak-ordering violation there.
@@ -838,6 +848,15 @@ std::expected<void, ChartError> validateChartNoteAlone(
             }};
         }
         previous_offset = keyframe.offset;
+        if (!isOnTickLattice(
+                tempo_map, advanceGridPosition(tempo_map, note.position, keyframe.offset)))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNotePayload,
+                .message =
+                    "keyframe must lie on the tick lattice at " + positionText(note.position),
+            }};
+        }
         if (keyframeStatesNothing(keyframe))
         {
             return std::unexpected{ChartError{
