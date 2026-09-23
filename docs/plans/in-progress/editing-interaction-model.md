@@ -185,14 +185,15 @@ selection dispatch, and everything else bubbles them there.
   not a placement, so it does not use the `placementModeFor` mapping; `Ctrl`+ruler-drag snaps the
   range to measures (reach), never off-grid; and a keyboard anchor snaps to grid even from an
   off-grid caret. (Amends plan 47, which is dropping its `Ctrl`-off-grid range endpoints.)
-- Ctrl placement still quantizes to the **1/960-beat fine grid** so stored positions stay exact
-  rationals (`timeline_cursor.cpp` — `g_fine_grid_denominator = 960`). 960 is the standard MIDI
-  PPQ resolution, divides every practical straight/triplet/quintuplet subdivision, and lands well
-  below audible granularity. On-grid placement stores the grid line itself, and every line of an
-  odd grid (1/13, a septuplet's 1/28) is the tick nearest its exact place, so a stored position is
-  always one the lattice holds (amended 2026-09-22, when the tick lattice became a validated rule
-  rather than a stated one). Both behaviors are already
-  implemented and shared through `musicalGridPositionForX`; new surfaces must use the same helper.
+- Snap-off placement quantizes to the **tick lattice** — 1/3840 of a whole note
+  (`g_tick_quantum_note_value`, `grid_arithmetic.h`), which is 1/960 of a beat in x/4 — so stored
+  positions stay exact rationals. 3840 ticks per whole note divides every practical
+  straight/triplet/quintuplet subdivision and lands well below audible granularity. On-grid
+  placement stores the grid line itself, and every line of an odd grid (1/13, a septuplet's 1/28)
+  is the tick nearest its exact place, so a stored position is always one the lattice holds
+  (amended 2026-09-22, when the tick lattice became a validated rule rather than a stated one).
+  Both behaviors are already implemented and shared through `musicalGridPositionForX`; new
+  surfaces must use the same helper.
 - **Off-grid is a first-class state, not an error.** Imported source-derived content is largely
   off-grid; render such objects normally, with the exact position visible in readouts rather than
   warning styling.

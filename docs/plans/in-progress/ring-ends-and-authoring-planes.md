@@ -25,9 +25,10 @@ ring's end statement is DRAWN, the keys decide what reaches it, and each assumes
   plan 24's hit window target. 100 ms erased sixteenth-note ring detail above 150 BPM; 50 ms left
   about 3 px between a tail and the next head at the 2D lane's default zoom. It is confirmed, not
   re-chosen, in the display phase's sighting once the fade is built, since a fade makes a gap read
-  larger than the margin itself. The fret-hand window morphs over the same margin, deliberately: it starts
-  moving exactly where the old tail's ink stops, so the hand never leaves while a note it holds is
-  still drawn. A separate, longer approach lead was tried and reverted for that reason (2026-09-23);
+  larger than the margin itself. The fret-hand window morphs over the same margin, deliberately:
+  it starts moving exactly where the old tail's ink stops, so the hand never leaves while a note it
+  holds is still drawn. A separate, longer approach lead was tried and reverted for that reason
+  (2026-09-23);
   a morph START derived from where the ink under the old window ends is the recorded refinement if
   a margin-long morph reads as a jump (`docs/tracking/watch-items.md`).
 - **Keys.** A bare digit strictly inside a ring makes a POINT; at a ring's end or on an empty slot
@@ -235,7 +236,8 @@ reaches the cut yet; the split's behaviour is unchanged.
   fallback and the redirect.
 - Bare `Insert` gains its string-row half: a head at the fret in force, or the head selected. It
   becomes one command, "Insert at Caret", creating whatever the caret's row holds — a head on a
-  string row, a point on an automation lane — and replaces "Insert Lane Point" (`InsertLanePoint`).
+  string row, a point on an automation lane — and replaces "Insert Lane Point"
+  (`InsertLanePoint`).
 - `Alt+Insert` is renamed "Insert Ring Point", replacing "Insert Chart Statement"
   (`InsertChartStatement`), after the plan's own word for what `Alt` acts on. The three names
   outlive the change, so the naming expert checks them before they ship.

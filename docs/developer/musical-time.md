@@ -74,7 +74,10 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   every stored position passes. The lattice is the finest position a chart may store: validation
   refuses an onset, ring end or keyframe between two ticks, and every producer of an exact instant
   — the grid's lines, the editor's drawn grid, the Guitar Pro import's commit point — rounds
-  through the one rule.
+  through the one rule. Load validates without repair, so a package saved before the lattice
+  existed (exact septuplet offsets, exact bend percentages) is refused with "chart document
+  violates chart rules"; there is no migration, by the no-back-compat policy that holds until the
+  first release ships.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition`, `adjacentGridPosition` — the exact `GridPosition` ↔ beat conversions, signed
   and inverse-exact, all crossing beat, measure, and meter boundaries without floating-point
