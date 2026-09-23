@@ -28,6 +28,19 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-09-22 tick-lattice verification
+
+### The corpus census fails five fret-hand cross-check rows, and has since before 2026-09-22
+
+The local Guitar Pro census (`test_corpus_census.cpp`, `[.local-corpus]`) flags five rows against
+their signed baselines: spans crossed by an FHP shift (670 against 400), their interior shifts (769
+against 497), those arriving where nothing fretted sounds (230 against 132), windows arriving over a
+pinned finger (538 against 186) and those pinned rings (1090 against 232). The figures are identical
+at `a4bfed7b`, before that day's margin, hand-approach and tick-lattice commits, so the drift is
+older. The baseline was last set at `9a4c6ccf`; `36b6cbee` ("completed the hand window with the
+rail") and `a4bfed7b` are the commits since. Bisect those two, then either fix the regression or
+re-sign the rows with the cause stated beside them.
+
 ## Found by the 2026-09-07 curtain session
 
 - **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_seconds`
