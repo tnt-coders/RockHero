@@ -256,11 +256,11 @@ differs from the new head's it resolves as a slide-out onto the new same-string 
 that was visible becomes a zone keyframe, which is the test phase 2 pins. A cut mid-glide keeps
 the origin's fret to the cut and re-times nothing else. The cut deletes no keyframe itself; a
 later keyframe equal to the typed fret becomes silent and dissolves at settle under the commit
-law, as any silent point does. A scrape refuses, as the split does, through the pending entry's
-red box; on `Insert`, which settles in its own keystroke, the box is shown in its refused state
-for the flash and dissolves — the refusal flash's own line (`refusal-flash.md`: a red glow on the
-refused thing plus the log line, never a silent log). The walk becomes a public planner
-(`planCutRing`) so the cut is testable; whether it
+law, as any silent point does. A scrape refuses, as the split does: through the pending entry's
+red box on a digit, and with the log line alone on `Insert`, which settles in its own keystroke
+and has no box. HOW a refusal is shown is `refusal-flash.md`'s question, not this plan's: that
+plan is unbuilt, and when it ships the `Insert` cut of a scrape is one more consumer of it. The
+walk becomes a public planner (`planCutRing`) so the cut is testable; whether it
 parameterizes the walk or overwrites the second product after it is phase 2's first question, the
 simpler shape winning. `Shift+L` keeps its own job, and splitting at a typed fret is `Alt`+digit
 then `Shift+L`.
@@ -273,10 +273,10 @@ one.
 **The silent end statement.** `Alt+Insert` at a ring's end states the fret the ring already holds,
 which says nothing. It survives in focus under the keyframe commit law, like an interior silent
 point: no undo entry, dissolved when its note leaves focus, never written. Already built
-(`derived-shift-slide.md`, 2026-09-22). An `Alt` digit typing that fret there is the same press,
-and it flashes, as `refusal-flash.md`'s second consumer rules: the key does nothing for a reason
-the screen does not show. That consumer is re-keyed from the deleted `dissolveSilentRelease` to
-the commit law's own dissolve, and gains the `Insert` cut of a scrape above as a third case.
+(`derived-shift-slide.md`, 2026-09-22). An `Alt` digit typing that fret there is the same press.
+`refusal-flash.md`'s second consumer (a silent end statement flashes, since the key does nothing
+for a reason the screen does not show) still names the deleted `dissolveSilentRelease`; it is
+re-keyed to the commit law's own dissolve when that plan is built, which is outside this one.
 
 **`Alt`+digit on an open string's tail** keeps the `OpenStringSlide` refusal and its red box.
 
