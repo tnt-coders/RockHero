@@ -133,6 +133,20 @@ should be investigated whenever that code is opened.
 
 ## Shared scene models
 
+### The fret-hand window morphs over one margin — trigger: a margin-long morph reads as a jump when sighted
+
+An ordinary fret-hand placement morphs over the minimum sustain distance before its arrival
+(`makeChartViewState`, `marginBefore`), and deliberately so: that window starts exactly where the
+previous tail's ink stops, so the hand never visibly leaves while a note it holds is still drawn. A
+separate, longer approach lead was built on 2026-09-22 and reverted the next day, because a morph
+that starts before the ink ends shows the hand leaving a ringing note. The cost is that a morph as
+short as the margin may read as a snap rather than a move.
+
+Remedy: derive the morph's START from the chart instead of a constant. The window begins moving
+where the last ink under the old window ends — never earlier — and, where nothing under it rings,
+up to a capped lead before the arrival, so the morph is truthful and lengthens whenever the hand is
+actually free. The derivation belongs in `chart_projection.cpp` beside the slide-ramp table.
+
 ### The lane's two chart forms align by index only by construction — trigger: either form published without the other, or the debug assert fires
 
 `EditorViewState::tab` and `EditorViewState::tab_actual` are two whole `ChartViewState`s built by

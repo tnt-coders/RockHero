@@ -367,7 +367,7 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
    end carries the window with the gesture. That placement rides the slide-out's OWN segment and
    eases with the unpitched curve, so the window follows the drawn rail precisely instead of
    approximating it — a slide-out's curve is defined, so there is nothing to approximate. Arriving
-   through the standard approach morph instead leaves the window stationary for most of the drawn
+   through the standard margin morph instead leaves the window stationary for most of the drawn
    glide and then sprinting to catch up. The morph's own reason — stopping the window creeping from
    the note's onset on long notes — is a property of the RAIL's own span, so if the creep reads
    wrong the fix belongs to the drawn geometry rather than to the window, which simply agrees with

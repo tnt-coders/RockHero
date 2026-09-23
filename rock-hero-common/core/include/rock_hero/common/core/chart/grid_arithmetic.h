@@ -27,8 +27,8 @@ inline constexpr int g_tick_quantum_denominator = 3840;
 
 A note value like any other, so the measure-anchored lattice arithmetic walks it unchanged. It is
 never a grid the user selects or the editor draws — only a lattice positions land on: the editor's
-placement quantum falls back to it while grid snap is off, and every song-time lead floors onto it
-(\ref positionSecondsBefore).
+placement quantum falls back to it while grid snap is off, and the margin walk floors onto it
+(\ref marginBefore).
 */
 inline constexpr Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominator};
 
@@ -74,10 +74,9 @@ whose denominator does not divide the quantum has no lattice to lie on.
 \brief The minimum sustain distance: the seconds every DRAWN element keeps before a following
 event.
 
-The one settled spacing sustain tails, slide glide ends and chord/arpeggio shape spans all trim to
-— display's alone, since the stored chart holds the truth and a statement at a ring's end may sit
-exactly on the next head of its own string. A hand's visible APPROACH to an onset is motion, not
-spacing, and reads \ref g_hand_approach_seconds instead.
+The one settled spacing sustain tails, slide glide ends, chord/arpeggio shape spans, and the
+hand-window morph ramps all trim to — display's alone, since the stored chart holds the truth and a
+statement at a ring's end may sit exactly on the next head of its own string.
 
 A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
 is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
@@ -118,19 +117,6 @@ makes a tempo change inside the margin exact and the answer never shorter than t
 */
 [[nodiscard]] Fraction minimumSustainDistanceBeats(
     const TempoMap& tempo_map, const GridPosition& onset);
-
-/*!
-\brief How long before an onset a hand's visible approach to it begins, in seconds.
-
-Two readers, both the same fact about a hand moving: the fretting hand's window morphing toward a
-placement that no glide carries it to, and the picking hand's light rising toward a right-hand
-onset. MOTION, not spacing, which is why it is not the minimum sustain distance: a gap needs only
-to read as a separation, while a movement much shorter than a tenth of a second reads as a jump,
-and a real hand shift takes several times longer than any readable gap. A duration in song time
-like the margin, so it reads the same at every tempo and the meter never enters. Sighted taste;
-this initializer is the only statement of the value.
-*/
-inline constexpr double g_hand_approach_seconds{0.2};
 
 /*!
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
@@ -295,30 +281,21 @@ with a zero offset. Positions past the terminal anchor keep extending — signat
     const TempoMap& tempo_map, GridPosition position, Fraction beats);
 
 /*!
-\brief The grid position a duration before an onset.
-
-THE ONE AUTHORITY on turning a song-time lead before an onset into a position: the stretch of
-`seconds` immediately before `onset`, resolved through the tempo map's own time axis so a tempo
-anchor inside it is honoured exactly, then FLOORED onto the chart's tick lattice
-(\ref g_tick_quantum_note_value) — floored, because a lead rounded the other way would be shorter
-than the duration it names. Clamped at the grid origin like \ref advanceGridPosition, so an onset
-standing closer to the chart's start than the lead yields the origin itself.
-
-\param tempo_map Tempo map supplying the time axis and the beat grid.
-\param onset Valid grid position the lead is measured back from.
-\param seconds Non-negative song-time lead.
-\return The tick line `seconds` or more before the onset.
-*/
-[[nodiscard]] GridPosition positionSecondsBefore(
-    const TempoMap& tempo_map, GridPosition onset, double seconds);
-
-/*!
 \brief The grid position one minimum-sustain-distance margin before an onset.
 
-Where the margin begins: \ref positionSecondsBefore at \ref g_minimum_sustain_distance_seconds.
-\ref minimumSustainDistanceBeats is this position measured back in beats, and every trim and
-clearance reads one of the two rather than composing a margin of its own — every drawn element
-that must stay clear of the head that follows it.
+THE ONE AUTHORITY on where the margin begins, and the only place the margin is a length at all: the
+stretch of \ref g_minimum_sustain_distance_seconds immediately before `onset`, resolved through the
+tempo map's own time axis so a tempo anchor inside the margin is honoured exactly, then FLOORED
+onto the chart's tick lattice (\ref g_tick_quantum_note_value) — floored, because a margin rounded
+the other way would be shorter than the duration it names. \ref minimumSustainDistanceBeats is this
+position measured back in beats, and every trim, clearance and ramp reads one of the two rather
+than composing a margin of its own.
+
+Its readers: where the fretting hand begins its morph toward a placement at `onset` when no glide
+carries it there, where the picking hand's light begins its rise toward an onset there, and every
+drawn element that must stay clear of the head that follows it. Clamped at the grid origin like
+\ref advanceGridPosition, so an onset standing closer to the chart's start than the margin yields
+the origin itself.
 
 \param tempo_map Tempo map supplying the time axis and the beat grid.
 \param onset Valid grid position the margin is measured back from.

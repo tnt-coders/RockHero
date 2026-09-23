@@ -143,10 +143,10 @@ struct MeasureLattice
 }
 
 // How far past a tick line a count may sit and still be taken as ON it. The seconds round trip
-// behind positionSecondsBefore is exact to a part in about 1e15, so a lead that lands squarely on a
-// tick can come back a hair under it; flooring that raw would give a whole tick away. The window is
-// six orders of magnitude above the round trip's own error and six below one tick, so it can only
-// ever recover a line the arithmetic meant to hit.
+// behind marginBefore is exact to a part in about 1e15, so a margin that lands squarely on a tick
+// can come back a hair under it; flooring that raw would give a whole tick away. The window is six
+// orders of magnitude above the round trip's own error and six below one tick, so it can only ever
+// recover a line the arithmetic meant to hit.
 constexpr double g_tick_floor_tolerance_ticks = 1.0e-6;
 
 // The tick line at or before a fractional global-beat position: the chart's own lattice, floored so
@@ -219,24 +219,19 @@ GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition positio
     return GridPosition{.measure = measure, .beat = beat, .offset = offset};
 }
 
-// The lead is a stretch of SECONDS, so the walk leaves the beat axis for the map's time axis and
+// The margin is a stretch of SECONDS, so the walk leaves the beat axis for the map's time axis and
 // comes back: every tempo anchor between the two instants is part of the round trip, which is what
-// makes a lead spanning a tempo change exact rather than an average. The std::min is the map's own
-// clamping behaviour outside the authored anchor range showing through — an onset past the terminal
-// anchor resolves to a time the inverse cannot place any earlier — and keeps the postcondition
-// every reader relies on: the result never stands later than the onset.
-GridPosition positionSecondsBefore(
-    const TempoMap& tempo_map, const GridPosition onset, const double seconds)
-{
-    const double onset_beat_position = globalBeatPosition(tempo_map, onset);
-    const double lead_beat_position = tempo_map.beatPositionAtSeconds(
-        tempo_map.secondsAtGlobalBeatPosition(onset_beat_position) - seconds);
-    return tickPositionAtOrBefore(tempo_map, std::min(lead_beat_position, onset_beat_position));
-}
-
+// makes a margin spanning a tempo change exact rather than an average. The std::min is the map's
+// own clamping behaviour outside the authored anchor range showing through — an onset past the
+// terminal anchor resolves to a time the inverse cannot place any earlier — and keeps the
+// postcondition every reader relies on: the result never stands later than the onset.
 GridPosition marginBefore(const TempoMap& tempo_map, const GridPosition onset)
 {
-    return positionSecondsBefore(tempo_map, onset, g_minimum_sustain_distance_seconds);
+    const double onset_beat_position = globalBeatPosition(tempo_map, onset);
+    const double margin_beat_position = tempo_map.beatPositionAtSeconds(
+        tempo_map.secondsAtGlobalBeatPosition(onset_beat_position) -
+        g_minimum_sustain_distance_seconds);
+    return tickPositionAtOrBefore(tempo_map, std::min(margin_beat_position, onset_beat_position));
 }
 
 // The global beat axis makes the whole-beat part a plain index difference; song-scale indexes fit

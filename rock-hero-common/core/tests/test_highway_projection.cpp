@@ -397,9 +397,11 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    // No slide lands on this placement, so it morphs over the hand's approach lead.
+    // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
+    // margin.
     CHECK(
-        state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
+        state.chart.fret_hand_positions[0].ramp_seconds ==
+        Catch::Approx(g_minimum_sustain_distance_seconds));
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
@@ -1314,12 +1316,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(light.path[0].unpitched);
     CHECK(light.path[1].unpitched);
     CHECK(light.path[2].unpitched);
-    // The FHP on the keyframe's grid position ramps by the approach morph — a fixed duration at
-    // any tempo — not by the scrape leg's span back to the onset (which would be 0.25s).
-    static_assert(g_hand_approach_seconds < 0.25);
+    // The FHP on the keyframe's grid position ramps by the margin morph — one duration at any
+    // tempo — not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(
-        state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
+        state.chart.fret_hand_positions[0].ramp_seconds ==
+        Catch::Approx(g_minimum_sustain_distance_seconds));
 }
 
 namespace
