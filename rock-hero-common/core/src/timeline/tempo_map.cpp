@@ -62,7 +62,7 @@ TempoMap::TempoMap(
     buildDerivedIndices();
 }
 
-// Normalizes the signature list into monotonic reigns with prefix beat and quarter-note
+// Normalizes the signature list into monotonic reigns with prefix beat and whole-note
 // positions, then addresses every anchor on both axes. Runs once per construction so beat and
 // time queries stay logarithmic instead of rescanning the authored lists; the timeline grid scan
 // calls them once per line.
@@ -82,8 +82,8 @@ void TempoMap::buildDerivedIndices()
             .start_measure = 1,
             .beats_per_measure = std::max(1, first_signature.numerator),
             .start_beat_index = 0,
-            .quarters_per_beat = 4.0 / std::max(1, first_signature.denominator),
-            .start_quarter_position = 0.0,
+            .denominator = std::max(1, first_signature.denominator),
+            .start_whole_note_position = {},
         });
 
     for (std::size_t index = 1; index < m_time_signatures.size(); ++index)
@@ -103,11 +103,13 @@ void TempoMap::buildDerivedIndices()
                 .start_measure = start_measure,
                 .beats_per_measure = std::max(1, signature.numerator),
                 .start_beat_index = start_beat_index,
-                .quarters_per_beat = 4.0 / std::max(1, signature.denominator),
-                .start_quarter_position =
-                    previous.start_quarter_position +
-                    static_cast<double>(start_beat_index - previous.start_beat_index) *
-                        previous.quarters_per_beat,
+                .denominator = std::max(1, signature.denominator),
+                .start_whole_note_position =
+                    previous.start_whole_note_position +
+                    Fraction{
+                        static_cast<int>(start_beat_index - previous.start_beat_index),
+                        previous.denominator
+                    },
             });
     }
 
@@ -149,6 +151,16 @@ const TempoMap::SignatureSegment& TempoMap::segmentForBeatIndex(
     return *std::prev(after);
 }
 
+// Finds the last segment whose downbeat sits at or before a whole-note position, with the same
+// duplicate-start tie-break as the other segment lookups.
+const TempoMap::SignatureSegment& TempoMap::segmentForWholeNotePosition(
+    const Fraction whole_note_position) const noexcept
+{
+    const auto after = std::ranges::upper_bound(
+        m_segments, whole_note_position, {}, &SignatureSegment::start_whole_note_position);
+    return *std::prev(after);
+}
+
 // Finds the last segment starting at or before a quarter-note position, with the same
 // duplicate-start tie-break as the other segment lookups; positions before zero clamp to the
 // front segment.
@@ -156,7 +168,7 @@ const TempoMap::SignatureSegment& TempoMap::segmentForQuarterPosition(
     double quarter_position) const noexcept
 {
     const auto after = std::ranges::upper_bound(
-        m_segments, quarter_position, {}, &SignatureSegment::start_quarter_position);
+        m_segments, quarter_position, {}, &SignatureSegment::startQuarterPosition);
     return after == m_segments.begin() ? m_segments.front() : *std::prev(after);
 }
 
@@ -168,9 +180,9 @@ double TempoMap::quarterPositionAtBeatPosition(double global_beat_position) cons
     const double clamped_position = std::max(0.0, global_beat_position);
     const SignatureSegment& segment =
         segmentForBeatIndex(static_cast<std::int64_t>(clamped_position));
-    return segment.start_quarter_position +
+    return segment.startQuarterPosition() +
            (clamped_position - static_cast<double>(segment.start_beat_index)) *
-               segment.quarters_per_beat;
+               segment.quartersPerBeat();
 }
 
 // Creates the editor fallback grid used before imported songs receive authored timing.
@@ -304,7 +316,7 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
                                                 m_anchor_quarter_positions[span_start]);
     const SignatureSegment& segment = segmentForQuarterPosition(quarter_position);
     return static_cast<double>(segment.start_beat_index) +
-           (quarter_position - segment.start_quarter_position) / segment.quarters_per_beat;
+           (quarter_position - segment.startQuarterPosition()) / segment.quartersPerBeat();
 }
 
 // Derives the quarter-note tempo of the anchor span containing the position. Interpolation is
@@ -356,6 +368,36 @@ std::pair<int, int> TempoMap::beatAtGlobalIndex(std::int64_t global_beat_index) 
     return {
         segment.start_measure + static_cast<int>(beats_into_segment / segment.beats_per_measure),
         static_cast<int>(beats_into_segment % segment.beats_per_measure) + 1,
+    };
+}
+
+// The segment holds its own denominator, so a whole-note position is the segment's downbeat plus
+// the beats into it, each worth one signature-denominator note.
+Fraction TempoMap::wholeNotePositionAt(
+    const std::int64_t global_beat_index, const Fraction offset) const noexcept
+{
+    const std::int64_t target = normalizedGlobalBeatIndex(global_beat_index);
+    const SignatureSegment& segment = segmentForBeatIndex(target);
+    const Fraction beats_into_segment =
+        Fraction{static_cast<int>(target - segment.start_beat_index)} + offset;
+    return segment.start_whole_note_position +
+           beats_into_segment * Fraction{1, segment.denominator};
+}
+
+// Inverts the whole-note axis inside the owning segment: the whole notes past its downbeat, in that
+// segment's beats, split into the beat index and the sub-beat remainder. The clamp to the song's
+// start keeps the remainder non-negative, so plain integer division floors it.
+std::pair<std::int64_t, Fraction> TempoMap::beatAtWholeNotePosition(
+    const Fraction whole_note_position) const noexcept
+{
+    const Fraction target = std::max(whole_note_position, Fraction{});
+    const SignatureSegment& segment = segmentForWholeNotePosition(target);
+    const Fraction beats_into_segment =
+        (target - segment.start_whole_note_position) * Fraction{segment.denominator};
+    const int whole_beats = beats_into_segment.numerator / beats_into_segment.denominator;
+    return {
+        segment.start_beat_index + whole_beats,
+        beats_into_segment - Fraction{whole_beats},
     };
 }
 
@@ -473,9 +515,9 @@ double TempoMap::ForwardBeatTimeCursor::secondsAt(double global_beat_position) n
     }
     const SignatureSegment& segment = tempo_map.m_segments[m_segment];
     const double quarter_position =
-        segment.start_quarter_position +
+        segment.startQuarterPosition() +
         (global_beat_position - static_cast<double>(segment.start_beat_index)) *
-            segment.quarters_per_beat;
+            segment.quartersPerBeat();
 
     while (m_right_anchor < tempo_map.m_anchor_quarter_positions.size() &&
            tempo_map.m_anchor_quarter_positions[m_right_anchor] < quarter_position)

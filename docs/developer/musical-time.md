@@ -82,6 +82,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   neighbouring line in a direction); the adjacent line is read off the lattice rather than found by
   stepping and re-snapping, which is what keeps a step back from any line landing on the line it
   came from in every meter.
+- `wholeNotePosition`, `wholeNoteDistance`, `advanceGridPositionByWholeNotes` — the same
+  conversions on the WHOLE-NOTE axis (`TempoMap::wholeNotePositionAt`), the one axis a meter change
+  does not bend and the axis the tick lattice is ruled on. A beat count means a different duration
+  in every meter, so a verb that carries an instant across a signature change — the move verb, and
+  the rings the insert and scrape verbs author — walks here and measures the beat count the chart
+  stores from the landed onset.
 - `terminalGridPosition(tempo_map)` — the chart's closing barline as a `GridPosition`. Every
   consumer of the chart's end needs the same answer (package read closing the last tone region,
   tone-track normalization, tone-track validation, and the editor's end-of-chart navigation and
@@ -364,12 +370,13 @@ verb that quantizes a time POSITION reads it, with no per-verb modifier opt-out;
 musical DURATION keeps reading the grid VALUE, because that is the unit the user authors in
 (`docs/plans/completed/grid-snap.md`). Pointer gestures must go through
 `musicalGridPositionForX` (see \ref guide_2d_views); keyboard stepping has its own single
-primitives in the same header — `gridStepBeats(...)` (one step's size at a measure) and
-`adjacentTempoGridPosition(...)` (the next line from any position: common core's
-`adjacentGridPosition` under the editor's note-value validity policy, exact-rational, so a coarse
-step from an off-lattice start lands on the adjacent line, never overshoots, and a step back
-returns to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position back
-into seconds for geometry.
+primitive in the same header — `adjacentTempoGridPosition(...)` (the next line from any position:
+common core's `adjacentGridPosition` under the editor's note-value validity policy, exact-rational,
+so a coarse step from an off-lattice start lands on the adjacent line, never overshoots, and a step
+back returns to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position
+back into seconds for geometry. The ring a placement authors reaches the next line of the session's
+grid through the same primitive (`planInsertNote`), which is what keeps a note placed on a grid no
+tick divides — a septuplet's — ending on the tick lattice.
 
 The duration verb steps that same primitive, over the ring's END rather than a caret
 (`planAdjustSustain`, `chart_edits.h`): a step puts the end on the adjacent line of the quantum's
@@ -377,12 +384,16 @@ lattice, so a ring left between lines snaps back onto them. That is why a durati
 its steps in order — each carrying the note value it snapped by — instead of summing them: a step
 has no size until you know where the end sits.
 
-The `Alt`+arrow MOVE is a gesture of the same shape, and records its presses for a reason one step
-sideways from that one (`chartMoveGestureDelta`, `chart_edits.h`): a time step is `gridStepBeats` of
-the placement quantum at the measure the selection has REACHED, so a run that crosses a signature
-change is worth one beat per press before the boundary and two after it (a quarter note in 6/8).
-Sizing every press against the measure the run started in — which is all a summed delta could do —
-would put the whole run on a lattice it has already left.
+The `Alt`+arrow MOVE is a gesture of the same shape (`chartMoveGestureDelta`, `chart_edits.h`):
+each press carries the selection's ANCHOR onto the adjacent line from where the run has REACHED,
+and the run's delta is the sum of those distances in WHOLE NOTES — the axis a meter change does not
+bend (`advanceGridPositionByWholeNotes`, `grid_arithmetic.h`). One delta moves every selected
+object and every instant a moved note holds (its ring end, its keyframes), each measured again from
+the landed onset, so a note carried across a signature change keeps its real length and every
+landing stays on the tick lattice; a beat count carried across the change would do neither, and one
+exact step on a grid no tick divides would leave the anchor between ticks. A run that crosses a
+signature change is therefore worth a quarter-note beat per press before the boundary and two
+eighth-note beats after it, which is why the presses are kept in order rather than summed.
 
 *Design in flux: making the tempo map user-visible/editable shipped
 (`docs/plans/completed/tone-track-tempo-map-plan.md`), but tempo-anchor authoring is still an

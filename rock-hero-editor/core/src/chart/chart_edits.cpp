@@ -126,23 +126,78 @@ struct KeyedSplit
     return split;
 }
 
+// An offset along a ring — the end's, or a keyframe's — is a beat count from the onset, and a beat
+// is a different note value on either side of a meter change. Stepping the INSTANT it names by a
+// whole-note delta and measuring it again from `onset_after` keeps its musical distance from the
+// onset and keeps it on the tick lattice; adding a beat delta to the count would do neither once
+// the step crosses a denominator change.
+[[nodiscard]] common::core::Fraction carriedOffset(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset_before,
+    const common::core::Fraction offset, const common::core::Fraction whole_note_delta,
+    const common::core::GridPosition onset_after)
+{
+    return common::core::beatDistance(
+        tempo_map,
+        onset_after,
+        common::core::advanceGridPositionByWholeNotes(
+            tempo_map,
+            common::core::advanceGridPosition(tempo_map, onset_before, offset),
+            whole_note_delta));
+}
+
+// A ring a verb AUTHORS is a note value carried from the onset along the whole-note axis to a
+// lattice end, then measured back as the beat count the note stores. Stated as beats at the onset's
+// meter it would re-read as another length past a denominator change and could end between two
+// ticks there.
+[[nodiscard]] common::core::Fraction authoredRing(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset,
+    const common::core::Fraction whole_notes)
+{
+    return common::core::beatDistance(
+        tempo_map,
+        onset,
+        common::core::advanceGridPositionByWholeNotes(tempo_map, onset, whole_notes));
+}
+
+// The minimum slide window is stated in beats (common's constant, which the import reads the same
+// way), so its worth in whole notes is taken at the onset's own meter and carried from there.
+[[nodiscard]] common::core::Fraction minimumSlideWindowRing(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition onset)
+{
+    const int denominator = std::max(1, tempo_map.timeSignatureAt(onset.measure).denominator);
+    return authoredRing(
+        tempo_map,
+        onset,
+        common::core::g_minimum_slide_window * common::core::Fraction{1, denominator});
+}
+
 // Slides every note by the delta in place, or answers false and leaves them half-moved for the
 // caller to discard. Refused, never clamped: a move that would leave the neck or the grid is
 // invalid. The grid arithmetic itself clamps at the origin, so leaving the grid shows up as a move
-// that fell short of the delta asked for.
+// that fell short of the delta asked for. The ring's end and every keyframe travel as instants of
+// their own, by the same whole-note delta as the onset, and are measured again from where the
+// onset landed (carriedOffset): a note carried across a meter change keeps its real length.
 [[nodiscard]] bool moveKeyedNotes(
     const common::core::TempoMap& tempo_map, std::vector<common::core::ChartNote>& notes,
-    const common::core::Fraction beat_delta, const int string_delta, const int string_count)
+    const common::core::Fraction whole_note_delta, const int string_delta, const int string_count)
 {
     for (common::core::ChartNote& note : notes)
     {
         const common::core::GridPosition from = note.position;
-        note.position = common::core::advanceGridPosition(tempo_map, from, beat_delta);
+        note.position =
+            common::core::advanceGridPositionByWholeNotes(tempo_map, from, whole_note_delta);
         note.string += string_delta;
         if (note.string < 1 || note.string > string_count ||
-            common::core::beatDistance(tempo_map, from, note.position) != beat_delta)
+            common::core::wholeNoteDistance(tempo_map, from, note.position) != whole_note_delta)
         {
             return false;
+        }
+        note.sustain =
+            carriedOffset(tempo_map, from, note.sustain, whole_note_delta, note.position);
+        for (common::core::Keyframe& keyframe : note.keyframes)
+        {
+            keyframe.offset =
+                carriedOffset(tempo_map, from, keyframe.offset, whole_note_delta, note.position);
         }
     }
     return true;
@@ -580,13 +635,18 @@ struct AddressedStop
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    common::core::ChartNote note, const common::core::Fraction default_sustain)
+    common::core::ChartNote note, const common::core::Fraction grid_note_value)
 {
     // Every note rings, so a placement authors a duration whether the user thought about one or
-    // not, and the session's grid step is what they were looking at when they placed it. The
-    // finalize gate's same-string normalization does the clamping: a step that would ring through
-    // the next onset on the string ends exactly on it.
-    note.sustain = default_sustain;
+    // not, and the session's grid is what they were looking at when they placed it: the ring
+    // reaches its next line, a lattice position by construction where one exact step out from an
+    // onset need not be (a septuplet grid's step is not a whole number of ticks). The finalize
+    // gate's same-string normalization does the clamping: a ring that would run through the next
+    // onset on the string ends exactly on it.
+    note.sustain = common::core::beatDistance(
+        tempo_map,
+        note.position,
+        adjacentTempoGridPosition(tempo_map, grid_note_value, note.position, true));
     std::vector<common::core::ChartNote> candidate = chart.notes;
     // Placing on an occupied slot replaces the note there. Still reachable: undo and redo never
     // move the caret, so undoing a delete can put a note back under an armed caret with an empty
@@ -719,11 +779,14 @@ ChartMoveDelta chartMoveGestureDelta(
     {
         return delta;
     }
-    // Any selected object's onset answers the meter question — the step is uniform over the whole
-    // selection either way — so the front of whichever kind is present serves. A keyframe's meter
-    // is its note's, since the offset it steps is measured from there.
-    const common::core::GridPosition origin =
-        !note_keys.empty() ? note_keys.front().position : keyframe_keys.front().note.position;
+    // The ANCHOR the presses are measured at. Any selected object serves — the step is uniform over
+    // the whole selection — so the front of whichever kind is present does; a keyframe anchors at
+    // the instant it states, since that is what its step lands on a line.
+    const common::core::GridPosition anchor =
+        !note_keys.empty()
+            ? note_keys.front().position
+            : common::core::advanceGridPosition(
+                  tempo_map, keyframe_keys.front().note.position, keyframe_keys.front().offset);
     for (const ChartMoveStep& step : steps)
     {
         switch (step.direction)
@@ -731,14 +794,21 @@ ChartMoveDelta chartMoveGestureDelta(
             case ChartStepDirection::Left:
             case ChartStepDirection::Right:
             {
-                // The meter this press was taken under is the one where the run has REACHED, not
-                // the one it started in, which is the whole reason the presses are kept in order.
-                const common::core::GridPosition reference =
-                    common::core::advanceGridPosition(tempo_map, origin, delta.beats);
-                const common::core::Fraction beats =
-                    gridStepBeats(tempo_map, step.note_value, reference.measure);
-                delta.beats = step.direction == ChartStepDirection::Right ? delta.beats + beats
-                                                                          : delta.beats - beats;
+                // Each press carries the anchor from where the run has REACHED — not from where it
+                // started, which is the whole reason the presses are kept in order — onto the
+                // adjacent line of the press's own lattice, and is worth that distance in whole
+                // notes: a whole number of ticks, so every object the delta then moves lands on the
+                // tick lattice in whichever meter it arrives in.
+                const common::core::GridPosition reached =
+                    common::core::advanceGridPositionByWholeNotes(
+                        tempo_map, anchor, delta.whole_notes);
+                const common::core::GridPosition line = adjacentTempoGridPosition(
+                    tempo_map,
+                    step.note_value,
+                    reached,
+                    step.direction == ChartStepDirection::Right);
+                delta.whole_notes =
+                    delta.whole_notes + common::core::wholeNoteDistance(tempo_map, reached, line);
                 break;
             }
             case ChartStepDirection::Up:
@@ -758,9 +828,14 @@ ChartMoveDelta chartMoveGestureDelta(
 
 common::core::Fraction chartSteppedKeyframeOffset(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartKeyframeKey& keyframe, const common::core::Fraction beat_delta)
+    const ChartKeyframeKey& keyframe, const common::core::Fraction whole_note_delta)
 {
-    const common::core::Fraction stepped = keyframe.offset + beat_delta;
+    const common::core::Fraction stepped = carriedOffset(
+        tempo_map,
+        keyframe.note.position,
+        keyframe.offset,
+        whole_note_delta,
+        keyframe.note.position);
     const auto note = std::ranges::lower_bound(
         chart.notes, keyframe.note, {}, [](const common::core::ChartNote& candidate) {
             return chartSlotKeyOf(candidate);
@@ -786,10 +861,10 @@ common::core::Fraction chartSteppedKeyframeOffset(
 std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
-    common::core::Fraction beat_delta, int string_delta, std::string_view label)
+    common::core::Fraction whole_note_delta, int string_delta, std::string_view label)
 {
     if ((note_keys.empty() && keyframe_keys.empty()) ||
-        (beat_delta.numerator == 0 && string_delta == 0))
+        (whole_note_delta.numerator == 0 && string_delta == 0))
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
@@ -816,7 +891,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     // a step reads off the note it was handed is still the slide-out after it, which is what lets a
     // held run replay from its pre-gesture chart at all.
     bool stepped_keyframe = false;
-    if (beat_delta.numerator != 0)
+    if (whole_note_delta.numerator != 0)
     {
         for (common::core::ChartNote& note : notes.rest)
         {
@@ -848,7 +923,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                           chart,
                           tempo_map,
                           ChartKeyframeKey{.note = slot, .offset = slide_out->offset},
-                          beat_delta)
+                          whole_note_delta)
                     : note.sustain;
             for (common::core::Keyframe& keyframe : note.keyframes)
             {
@@ -867,7 +942,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                 }
                 else
                 {
-                    keyframe.offset = keyframe.offset + beat_delta;
+                    keyframe.offset = carriedOffset(
+                        tempo_map, note.position, keyframe.offset, whole_note_delta, note.position);
                     // Against the CLAMPED end: a step that would strand an interior point on or
                     // past the head its own ring stops at is refused, never clamped — clamping it
                     // would stack it on the slide-out, and letting it stand would leave the gate's
@@ -890,7 +966,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
         }
         return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
     }
-    if (!moveKeyedNotes(tempo_map, notes.keyed, beat_delta, string_delta, string_count))
+    if (!moveKeyedNotes(tempo_map, notes.keyed, whole_note_delta, string_delta, string_count))
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
@@ -1275,9 +1351,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
         bool floor_may_end_the_ring = false;
         if (common::core::isScrape(stepped.attack))
         {
-            if (target < common::core::g_minimum_slide_window)
+            const common::core::Fraction window =
+                minimumSlideWindowRing(tempo_map, stepped.position);
+            if (target < window)
             {
-                target = common::core::g_minimum_slide_window;
+                target = window;
             }
         }
         else if (!stepped.keyframes.empty())
@@ -1575,21 +1653,19 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
                 // (40-Q2-B) so an authored default can never ring through the string's next
                 // onset. A ring that can hold the gesture is left exactly as authored — the ring
                 // is the note's own truth, and this verb changes the attack, not the duration.
-                if (retyped.sustain < common::core::g_minimum_slide_window)
+                const common::core::Fraction window =
+                    minimumSlideWindowRing(tempo_map, note.position);
+                if (retyped.sustain < window)
                 {
-                    const common::core::TimeSignatureChange signature =
-                        tempo_map.timeSignatureAt(note.position.measure);
-                    common::core::Fraction wanted =
-                        pickSlideDefaultSustainBeats(signature.denominator);
+                    common::core::Fraction wanted = authoredRing(
+                        tempo_map, note.position, g_pick_slide_default_sustain_whole_note);
                     const std::optional<common::core::Fraction> bound =
                         common::core::sustainBoundOf(chart.notes, note, tempo_map);
                     if (bound.has_value() && *bound < wanted)
                     {
                         wanted = *bound;
                     }
-                    retyped.sustain = wanted > common::core::g_minimum_slide_window
-                                          ? wanted
-                                          : common::core::g_minimum_slide_window;
+                    retyped.sustain = wanted > window ? wanted : window;
                 }
                 // An existing slide IS the gesture's path, so converting keeps the frets and the
                 // direction the charter already drew; only a note with no slide at all takes the

@@ -455,7 +455,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
-    [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);

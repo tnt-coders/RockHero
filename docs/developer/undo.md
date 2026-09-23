@@ -85,11 +85,11 @@ only, so re-running it on an authored edit would overwrite hand positions the ch
   their STEPS rather than one summed delta: a duration step moves the ring's END onto the adjacent
   line of the placement quantum's lattice, so what it adds is whatever reaches that line (a summed
   delta carried a remainder through every later step — fixed 2026-08-23); a move step carries the
-  selection by that quantum scaled by the meter where the run has REACHED, so a run crossing a
-  signature change steps by two different amounts. The move is also the one whose steps RE-KEY what
-  they move — a note's key is its slot, a keyframe's identity is its offset — so it states where the
-  run has landed and the window's proof compares against those re-pointed keys. All three splices
-  refuse when the top entry is the reachable clean
+  selection by its anchor's distance to the adjacent line from where the run has REACHED, in whole
+  notes, so a run crossing a signature change steps by two different amounts. The move is also the
+  one whose steps RE-KEY what they move — a note's key is its slot, a keyframe's identity is its
+  offset — so it states where the run has landed and the window's proof compares against those
+  re-pointed keys. All three splices refuse when the top entry is the reachable clean
   state — the file holds what that entry produced, so rewriting or erasing it would make "return to
   clean" restore content the file does not have. A verb that must still act there pushes instead:
   the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the

@@ -117,22 +117,27 @@ using ChartFretWrite = std::variant<ChartFretSet, ChartFretShift>;
 /*!
 \brief Plans placing one note, replacing any note already on its (position, string) slot.
 
-Every note rings, so a placement authors a duration: `default_sustain` becomes the placed note's
-ring, clamped against the next onset on its own string, and any earlier same-string ring crossing
-the new onset truncates (40-Q2-B) — all in the one plan. The default is the caller's because it is
-a SESSION fact (the grid step the user is working at), not a chart one; `note.sustain` is
-overwritten rather than read, so there is only one channel for it.
+Every note rings, so a placement authors a duration: the placed ring reaches the next line of the
+session's grid, clamped against the next onset on its own string, and any earlier same-string ring
+crossing the new onset truncates (40-Q2-B) — all in the one plan. The grid is the caller's because
+it is a SESSION fact (the unit the user is working in), not a chart one; `note.sustain` is
+overwritten rather than read, so there is only one channel for it. The ring ends on a LINE rather
+than one exact grid step out, because a line is a tick-lattice position by construction and one
+step from an onset on a grid no tick divides (a septuplet's) is not: from a line the two are the
+same ring, and from between lines the ring is the rest of the step, as the duration verb's first
+press snaps an off-grid end onto the grid.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note Note to place; the caller owns position/string/fret validity.
-\param default_sustain Ring the placed note gets before the same-string clamp; the session's
-current grid step.
+\param grid_note_value The session's grid step as a fraction of a whole note — the grid itself,
+never the placement quantum: snap decides where things go, never how long they are, and a
+tick-long default ring would be absurd.
 \return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    common::core::ChartNote note, common::core::Fraction default_sustain);
+    common::core::ChartNote note, common::core::Fraction grid_note_value);
 
 /*!
 \brief The tail a caret slot rides: which note, and where along its ring.
@@ -270,8 +275,8 @@ keyframe are skipped.
 \brief One press of a move gesture: the lattice its time step is taken on, and which way it moves.
 
 A gesture records its presses rather than their sum, for the reason \ref ChartSustainStep records
-its own: a time step is the placement quantum scaled by the meter of the measure the moved object
-sits in, so what one press adds depends on where the run has already carried it. A press is
+its own: a time step carries the selection's anchor onto the adjacent line of the press's own
+lattice, so what one press adds depends on where the run has already carried it. A press is
 therefore fully described by the note value in force plus a direction. The string steps carry the
 note value too and ignore it — a string lane has no lattice — which keeps one press one record.
 */
@@ -280,9 +285,10 @@ struct ChartMoveStep
     /*!
     \brief Note value the time step quantizes to: the placement quantum at the moment of the press.
 
-    The note VALUE, never a precomputed beat amount, exactly as \ref ChartSustainStep stores one:
-    the local meter scales the value where the step lands (one 1/4 step is one beat in x/4 and two
-    in x/8), so a run that crosses a meter change steps by that meter's own amount from there on.
+    The note VALUE, never a precomputed amount, exactly as \ref ChartSustainStep stores one: the
+    replay needs the lattice to land on, and that lattice's lines sit where the meter the run has
+    reached puts them (one 1/4 step is one beat in x/4 and two in x/8), so a run that crosses a
+    meter change steps by that meter's own lines from there on.
     */
     common::core::Fraction note_value;
 
@@ -299,11 +305,18 @@ struct ChartMoveStep
         default;
 };
 
-/*! \brief What a move gesture's presses add up to: one beat delta and one string delta. */
+/*! \brief What a move gesture's presses add up to: one whole-note delta and one string delta. */
 struct ChartMoveDelta
 {
-    /*! \brief Signed exact beat delta along the time axis. */
-    common::core::Fraction beats{};
+    /*!
+    \brief Signed exact time delta, in whole notes.
+
+    Whole notes rather than beats because the delta is applied to EVERY selected object and to
+    every instant each one holds, and a beat count means a different duration in every meter: on
+    the whole-note axis one delta keeps the selection's spacing exact across a meter change and
+    keeps each landing on the tick lattice (\ref common::core::advanceGridPositionByWholeNotes).
+    */
+    common::core::Fraction whole_notes{};
 
     /*! \brief Signed string-lane delta. */
     int strings{};
@@ -321,15 +334,22 @@ struct ChartMoveDelta
 /*!
 \brief Replays a move gesture's presses into the one delta they add up to.
 
-The reference the time steps are measured at WALKS with the replay: a press moves the selection by
-the placement quantum scaled by the meter of the measure the selection has reached, so a run
-crossing a meter change adds a different amount on each side of it. Sizing every press against the
-measure the run STARTED in is what a summed delta would do, and it would place the whole run on the
-lattice of a meter it has already left.
+Each press is measured at an ANCHOR that WALKS with the replay: it carries the anchor from where the
+run has reached onto the adjacent line of the press's own lattice, and is worth that distance in
+whole notes. Measured on the lattice, a press from a line is one grid step and a press from between
+lines is the rest of one, exactly as the duration verb's first press snaps an off-grid end onto the
+grid. Measured in whole notes, a run crossing a meter change adds each side's own amount, where
+sizing every press in the meter the run STARTED in would put the whole run between that other
+meter's lines; and on a grid no tick divides (a septuplet's) the distance between two of its lines
+is a whole number of ticks, so every object the delta moves lands on the tick lattice.
 
-The reference is the front of whichever kind the selection holds, notes first: the step is uniform
-over the whole selection either way, and a keyframe's meter is its note's, since the offset it steps
-is measured from there.
+One delta for the whole selection, never a line of each object's own: two off-grid notes between
+the same two lines would otherwise land on one slot. Objects other than the anchor may therefore
+sit a tick or two off an odd grid's lines after a move — never more, since each line is rounded by
+under half a tick — and always on the lattice.
+
+The anchor is the front of whichever kind the selection holds, notes first; a keyframe anchors at
+the instant it states, since that is what its step lands on a line.
 
 \param tempo_map Tempo map supplying the beat axis and the meter each step lands in.
 \param note_keys Notes the gesture started on, sorted ascending (the ChartSelection order).
@@ -363,13 +383,13 @@ selection has to be the one the plan wrote, not the delta arithmetic the plan ma
 that is what the replay is planned against.
 \param tempo_map Tempo map supplying the beat axis the bound is measured on.
 \param keyframe Key of the keyframe stepping, naming its note's slot and its current offset.
-\param beat_delta Signed exact beat delta of the whole step.
+\param whole_note_delta Signed exact whole-note delta of the whole step (\ref ChartMoveDelta).
 
 \return The offset the keyframe lands on.
 */
 [[nodiscard]] common::core::Fraction chartSteppedKeyframeOffset(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartKeyframeKey& keyframe, common::core::Fraction beat_delta);
+    const ChartKeyframeKey& keyframe, common::core::Fraction whole_note_delta);
 
 /*!
 \brief Plans moving the selection one step in time and/or across strings: notes by their slot,
@@ -432,7 +452,9 @@ state the gesture started from on every later one.
 this precondition).
 \param keyframe_keys Keyframes to step along their rings, sorted ascending, same precondition; keys
 naming no keyframe are skipped.
-\param beat_delta Signed exact beat delta.
+\param whole_note_delta Signed exact whole-note delta (\ref ChartMoveDelta). A moved note's ring end
+and keyframes step by it as instants of their own and are measured again from the landed onset,
+so a note carried across a meter change keeps its real length and stays on the tick lattice.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing moves or changes, Invalid when a destination leaves the
@@ -441,7 +463,7 @@ naming no keyframe are skipped.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
-    common::core::Fraction beat_delta, int string_delta, std::string_view label);
+    common::core::Fraction whole_note_delta, int string_delta, std::string_view label);
 
 /*!
 \brief Plans retyping the stops a selection addresses toward a typed fret target.

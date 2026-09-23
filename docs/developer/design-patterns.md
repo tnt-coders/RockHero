@@ -88,9 +88,9 @@ Exemplars, each the *only* home of its rule:
 - `toneRegionSpanSeconds(...)` (`editor/core/src/tone/tone_track_projection.h`) — the one
   region-span rule; the tone-track projection, cursor-follow, and the active-region window all
   resolve spans through it.
-- `gridStepBeats` / `adjacentTempoGridPosition`
-  (`editor/core/include/.../timeline/tempo_grid_geometry.h`) — the one keyboard grid-step
-  primitive behind both the chart caret step and the automation-lane nudge.
+- `adjacentTempoGridPosition` (`editor/core/include/.../timeline/tempo_grid_geometry.h`) — the one
+  keyboard grid-step primitive behind the chart caret step, the automation-lane nudge, the
+  duration verb, the move verb's anchor and the ring a placement authors.
 - `chartPlacementAt(...)` (`editor/core/src/chart/chart_handlers.cpp`) — the single
   chart placement seam: caret arming and the typed entry share one snap + occupancy judgement, so a
   digit can never land somewhere the caret says something else stands.
@@ -462,11 +462,11 @@ differs, and that is the point of keeping the proof outside them:
   symmetric, so a chord member pinned at its own bound rejoins its neighbours exactly where it left
   them. The list is what a summed delta cannot be: a duration step moves the ring's END onto the
   adjacent grid line, so its size is only known once you know where that end sits, and a move step
-  is the placement quantum scaled by the meter where the run has REACHED, so a run crossing a
-  signature change steps by two different amounts. A run that RETURNS to its start ends at the
-  toggle's ending instead: there is nothing left to describe, so the entry is DROPPED and the chart
-  walked back, because an entry describing nothing is a dead Ctrl+Z on a document reported modified
-  that is identical to the saved file.
+  carries the selection's anchor onto the adjacent line from where the run has REACHED, measured in
+  whole notes, so a run crossing a signature change steps by two different amounts. A run that
+  RETURNS to its start ends at the toggle's ending instead: there is nothing left to describe, so
+  the entry is DROPPED and the chart walked back, because an entry describing nothing is a dead
+  Ctrl+Z on a document reported modified that is identical to the saved file.
 
 **One authority serves every gesture** (`commitChartGestureStep`, `chart_handlers.cpp`): the verb
 records its own step — nothing at all where a run's whole state is its latest choice — then hands

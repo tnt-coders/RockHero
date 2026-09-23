@@ -71,11 +71,11 @@ Three consequences keep the rows pixel-aligned:
   is the one authority, and `EditorView::setState` derives it once per push and hands the same
   value to every placing surface, so no view can snap by a rule the controller did not use. No
   modifier composes a second answer — grid snap (`Ctrl+G`) is the only thing that moves it. The
-  keyboard's stepping has its own single primitives next to the grid math (`gridStepBeats` and
-  `adjacentTempoGridPosition` in `editor/core/timeline/tempo_grid_geometry.h` — the one
-  step rule behind both the caret step and the lane nudge, exact-rational so a step from a
-  position between lines lands on the adjacent one). New gestures must go through these
-  helpers, or their snapping will disagree with everyone else's.
+  keyboard's stepping has its own single primitive next to the grid math
+  (`adjacentTempoGridPosition` in `editor/core/timeline/tempo_grid_geometry.h` — the one step
+  rule behind the caret step, the lane nudge and every verb that authors or moves a ring,
+  exact-rational so a step from a position between lines lands on the adjacent one). New gestures
+  must go through it, or their snapping will disagree with everyone else's.
 
 The pinned ruler stacks the **song-level** chip rows on top — sections, tempo markings, and time
 signatures on the editor chrome, with the active value pinned to the left edge while the song

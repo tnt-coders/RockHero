@@ -45,21 +45,6 @@ median and half the shortest scrape anyone charted — is wrong as a default.
 inline constexpr common::core::Fraction g_pick_slide_default_sustain_whole_note{1, 4};
 
 /*!
-\brief Returns the default scrape sustain in signature beats.
-
-\param signature_denominator Note value that represents one beat (the signature's denominator).
-\return The default as an exact beat fraction: one beat in x/4, two in x/8.
-*/
-[[nodiscard]] constexpr common::core::Fraction pickSlideDefaultSustainBeats(
-    const int signature_denominator) noexcept
-{
-    return common::core::Fraction{
-        signature_denominator * g_pick_slide_default_sustain_whole_note.numerator,
-        g_pick_slide_default_sustain_whole_note.denominator
-    };
-}
-
-/*!
 \brief Fewest frets of downward travel that still reads as a scrape rather than a stub.
 
 The flip point for the default direction. Measured against the DOWNWARD TARGET rather than the

@@ -220,10 +220,11 @@ void applyAndValidate(
 
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> moveNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
-    std::string_view label)
+    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction whole_note_delta,
+    int string_delta, std::string_view label)
 {
-    return planMoveSelection(chart, tempo_map, note_keys, {}, beat_delta, string_delta, label);
+    return planMoveSelection(
+        chart, tempo_map, note_keys, {}, whole_note_delta, string_delta, label);
 }
 
 // The SPLIT-only form of the junction toggle: keyframes alone as the operand, which is the whole
@@ -446,7 +447,7 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
         chart,
         tempo_map,
         makeTestNote({.measure = 4, .beat = 1}, 1, 5),
-        common::core::Fraction{1, 2});
+        common::core::Fraction{1, 8});
     REQUIRE(uncrowded.has_value());
     if (uncrowded.has_value())
     {
@@ -454,36 +455,55 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
         CHECK(uncrowded->inserted.front().sustain == common::core::Fraction{1, 2});
     }
 
-    // The fixture's string-1 note at measure 3 beat 1 is struck a quarter beat after this slot, so
-    // a half-beat default cannot ring through it: the finalize gate's normalization ends it there.
+    // The fixture's string-1 note at measure 3 beat 1 is struck one beat after this slot, so a
+    // half-note grid's ring cannot run through it: the finalize gate's normalization ends it there.
     const auto crowded = planInsertNote(
         chart,
         tempo_map,
-        makeTestNote({.measure = 2, .beat = 4, .offset = {3, 4}}, 1, 5),
+        makeTestNote({.measure = 2, .beat = 4}, 1, 5),
         common::core::Fraction{1, 2});
     REQUIRE(crowded.has_value());
     if (crowded.has_value())
     {
         const common::core::ChartNote* placed =
-            noteAt(crowded->inserted, {.measure = 2, .beat = 4, .offset = {3, 4}}, 1);
+            noteAt(crowded->inserted, {.measure = 2, .beat = 4}, 1);
         REQUIRE(placed != nullptr);
-        CHECK(placed->sustain == common::core::Fraction{1, 4});
+        CHECK(placed->sustain == common::core::Fraction{1});
+    }
+
+    // From between two lines the ring is the rest of the step, not a whole one: an eighth-note grid
+    // has lines every half beat, so a note a quarter beat past one reaches the next line in another
+    // quarter — exactly as the duration verb's first press snaps an off-grid end onto the grid.
+    const auto between_lines = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 4, .beat = 1, .offset = {3, 4}}, 1, 5),
+        common::core::Fraction{1, 8});
+    REQUIRE(between_lines.has_value());
+    if (between_lines.has_value())
+    {
+        REQUIRE(between_lines->inserted.size() == 1);
+        CHECK(between_lines->inserted.front().sustain == common::core::Fraction{1, 4});
     }
 }
 
 // Re-placing a note identical to the one already on the slot changes nothing, so the plan is empty.
-// The ring has to come from the DEFAULT to make that true, because the parameter overwrites the
-// handed note's own sustain — so each case passes the occupant's ring, and the two-beat note is
-// here so the case cannot pass merely because the fixture default happened to match.
+// The ring has to come from the GRID to make that true, because the placed ring overwrites the
+// handed note's own sustain — so each case passes the grid whose step is the occupant's ring (a
+// 4/4 beat is a quarter note), and the two-beat note is here so the case cannot pass merely
+// because the fixture grid happened to match.
 TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
+    const auto grid_of = [](const common::core::ChartNote& note) {
+        return note.sustain * common::core::Fraction{1, 4};
+    };
     CHECK_FALSE(
-        planInsertNote(chart, tempo_map, chart.notes[0], chart.notes[0].sustain).has_value());
+        planInsertNote(chart, tempo_map, chart.notes[0], grid_of(chart.notes[0])).has_value());
     CHECK_FALSE(
-        planInsertNote(chart, tempo_map, chart.notes[2], chart.notes[2].sustain).has_value());
+        planInsertNote(chart, tempo_map, chart.notes[2], grid_of(chart.notes[2])).has_value());
 }
 
 // 40-Q2-B: inserting on a string whose earlier note's sustain rings across the new onset truncates
@@ -763,21 +783,22 @@ TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    // One note, two beats left of beat 2: clamping would land it on beat 1 as if it had moved one.
+    // One note, a half note left of beat 2: clamping would land it on beat 1 as if it had moved a
+    // quarter note.
     CHECK_FALSE(moveNotes(
                     chart,
                     tempo_map,
                     {keyAt({.measure = 1, .beat = 2}, 1)},
-                    common::core::Fraction{-2},
+                    common::core::Fraction{-1, 2},
                     0,
                     "Move Notes")
                     .has_value());
-    // The same note one beat left lands exactly on the origin, which is a legal destination.
+    // The same note a quarter note left lands exactly on the origin, which is a legal destination.
     CHECK(moveNotes(
               chart,
               tempo_map,
               {keyAt({.measure = 1, .beat = 2}, 1)},
-              common::core::Fraction{-1},
+              common::core::Fraction{-1, 4},
               0,
               "Move Notes")
               .has_value());
@@ -786,7 +807,7 @@ TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1), keyAt({.measure = 1, .beat = 3}, 1)
     };
-    CHECK_FALSE(moveNotes(chart, tempo_map, keys, common::core::Fraction{-10}, 0, "Move Notes")
+    CHECK_FALSE(moveNotes(chart, tempo_map, keys, common::core::Fraction{-5, 2}, 0, "Move Notes")
                     .has_value());
 }
 
@@ -802,9 +823,9 @@ TEST_CASE("planMoveSelection refuses landing on an unmoved note", "[core][chart]
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
-    // The first note advanced one beat lands on the second, unmoved note's slot.
-    CHECK_FALSE(
-        moveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes").has_value());
+    // The first note advanced a quarter note lands on the second, unmoved note's slot.
+    CHECK_FALSE(moveNotes(chart, tempo_map, keys, common::core::Fraction{1, 4}, 0, "Move Notes")
+                    .has_value());
 }
 
 // A move onto a free slot plans a removal of the origin and an insertion at the destination,
@@ -815,7 +836,8 @@ TEST_CASE("planMoveSelection moves a note to a free slot", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    const auto plan = moveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes");
+    const auto plan =
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{1, 4}, 0, "Move Notes");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -837,18 +859,18 @@ TEST_CASE("planMoveSelection returns nullopt for no-op inputs", "[core][chart]")
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     CHECK_FALSE(
-        moveNotes(chart, tempo_map, {}, common::core::Fraction{1}, 0, "Move Notes").has_value());
+        moveNotes(chart, tempo_map, {}, common::core::Fraction{1, 4}, 0, "Move Notes").has_value());
     CHECK_FALSE(
         moveNotes(chart, tempo_map, keys, common::core::Fraction{}, 0, "Move Notes").has_value());
 
     // A key present in the request but absent from the chart moves nothing.
     const std::vector<ChartSlotKey> absent{keyAt({.measure = 9, .beat = 1}, 1)};
-    CHECK_FALSE(moveNotes(chart, tempo_map, absent, common::core::Fraction{1}, 0, "Move Notes")
+    CHECK_FALSE(moveNotes(chart, tempo_map, absent, common::core::Fraction{1, 4}, 0, "Move Notes")
                     .has_value());
 }
 
 // The keyframe half of the same step (W13's ruling): a selected point moves along the ring it
-// rides, by the beat delta a selected note would have moved its slot by.
+// rides, by the whole-note delta a selected note would have moved its slot by.
 TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]")
 {
     const common::core::Chart chart = makeSteppedGlideChart();
@@ -857,7 +879,7 @@ TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]
         {.measure = 2, .beat = 1}, 1, common::core::Fraction{2})};
 
     const auto plan = planMoveSelection(
-        chart, tempo_map, {}, first, common::core::Fraction{1, 2}, 0, "Move Keyframe");
+        chart, tempo_map, {}, first, common::core::Fraction{1, 8}, 0, "Move Keyframe");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -883,7 +905,7 @@ TEST_CASE("planMoveSelection steps a selected keyframe's offset", "[core][chart]
             tempo_map,
             {},
             {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{5, 2})},
-            common::core::Fraction{-1, 2},
+            common::core::Fraction{-1, 8},
             0,
             "Move Keyframe");
         REQUIRE(back.has_value());
@@ -912,21 +934,21 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
     {
         // Offsets are strictly positive: offset zero is the onset, whose facts the note carries.
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, first, common::core::Fraction{-2}, 0, "Move Keyframe");
+            chart, tempo_map, {}, first, common::core::Fraction{-1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("stepped past the ring")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, second, common::core::Fraction{2}, 0, "Move Keyframe");
+            chart, tempo_map, {}, second, common::core::Fraction{1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
     SECTION("stepped onto its neighbour")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, first, common::core::Fraction{1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, first, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -935,7 +957,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         // The one bound worth stating twice: the pair would still be legal as a SET, so what
         // refuses it is the stored order, which the planner deliberately never re-sorts.
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, first, common::core::Fraction{3, 2}, 0, "Move Keyframe");
+            chart, tempo_map, {}, first, common::core::Fraction{3, 8}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -948,7 +970,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
-            repicked, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -959,7 +981,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         // the replay reads slide-out-ness off the pre-gesture chart, where the point is still
         // interior — so the step is refused and the point stays where it is.
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -968,7 +990,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         // The bound is EXCLUSIVE and nothing else: the step before it lands where it was aimed and
         // the ring is untouched, so the point is still a point.
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, second, common::core::Fraction{3, 4}, 0, "Move Keyframe");
+            chart, tempo_map, {}, second, common::core::Fraction{3, 16}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1006,7 +1028,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         note.keyframes = {carried};
         one_point.notes = {std::move(note)};
         const auto plan = planMoveSelection(
-            one_point, tempo_map, {}, second, common::core::Fraction{1}, 0, "Move Keyframe");
+            one_point, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
         // A refused plan is not applied, so the point keeps every statement it made.
@@ -1022,7 +1044,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         common::core::Chart repicked = chart;
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 1}, 1, 12));
         const auto plan = planMoveSelection(
-            repicked, tempo_map, {}, second, common::core::Fraction{7, 8}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, second, common::core::Fraction{7, 32}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1053,7 +1075,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
     SECTION("outward lengthens the slide-out")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, slide_out, common::core::Fraction{1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1074,7 +1096,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
     SECTION("inward shortens the slide-out")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, slide_out, common::core::Fraction{-1}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{-1, 4}, 0, "Move Keyframe");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1120,17 +1142,17 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             applyAndValidate(applied, tempo_map, *plan);
         };
         // Exactly onto the head, then past it: one plan, because the clamp IS where the step lands.
-        parked(common::core::Fraction{1});
-        parked(common::core::Fraction{2});
+        parked(common::core::Fraction{1, 4});
+        parked(common::core::Fraction{1, 2});
         // A FURTHER press in the same direction is HELD, not NoChange: the plan is diffed against
         // the PRE-GESTURE chart, which still holds the four-beat ring, so the replay describes the
         // same edit the previous press did — an identical entry replacing itself, nothing visible
         // moving. NoChange is the other case, a FIRST press on a slide-out already parked there.
-        parked(common::core::Fraction{3});
+        parked(common::core::Fraction{3, 4});
         const auto past = planMoveSelection(
-            repicked, tempo_map, {}, slide_out, common::core::Fraction{2}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{1, 2}, 0, "Move Keyframe");
         const auto further = planMoveSelection(
-            repicked, tempo_map, {}, slide_out, common::core::Fraction{3}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{3, 4}, 0, "Move Keyframe");
         REQUIRE(past.has_value());
         REQUIRE(further.has_value());
         if (past.has_value() && further.has_value())
@@ -1140,7 +1162,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         }
         // A shorter step still lands where it was aimed, close to the head included.
         const auto inside = planMoveSelection(
-            repicked, tempo_map, {}, slide_out, common::core::Fraction{7, 8}, 0, "Move Keyframe");
+            repicked, tempo_map, {}, slide_out, common::core::Fraction{7, 32}, 0, "Move Keyframe");
         REQUIRE(inside.has_value());
         if (inside.has_value())
         {
@@ -1167,13 +1189,13 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         const std::vector<ChartKeyframeKey> at_head{keyframeKeyAt(
             glideOnset(), 1, common::core::Fraction{5})};
         const auto plan = planMoveSelection(
-            parked, tempo_map, {}, at_head, common::core::Fraction{1}, 0, "Move Keyframe");
+            parked, tempo_map, {}, at_head, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::NoChange);
         // And stepping BACK moves again: the ring shortens with the slide-out, which never had a
         // ceiling in that direction.
         const auto back = planMoveSelection(
-            parked, tempo_map, {}, at_head, common::core::Fraction{-1}, 0, "Move Keyframe");
+            parked, tempo_map, {}, at_head, common::core::Fraction{-1, 4}, 0, "Move Keyframe");
         REQUIRE(back.has_value());
         if (back.has_value())
         {
@@ -1206,7 +1228,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{5}),
         };
         const auto plan = planMoveSelection(
-            parked, tempo_map, {}, both, common::core::Fraction{1}, 0, "Move Selection");
+            parked, tempo_map, {}, both, common::core::Fraction{1, 4}, 0, "Move Selection");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -1220,7 +1242,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         repicked.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
         const std::vector<ChartSlotKey> landing{keyAt({.measure = 3, .beat = 2}, 1)};
         for (const common::core::Fraction step :
-             {common::core::Fraction{-1}, common::core::Fraction{-1, 2}})
+             {common::core::Fraction{-1, 4}, common::core::Fraction{-1, 8}})
         {
             const auto plan =
                 planMoveSelection(repicked, tempo_map, landing, {}, step, 0, "Move Note");
@@ -1237,7 +1259,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
     SECTION("onto the last sounded fret is refused")
     {
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, slide_out, common::core::Fraction{-2}, 0, "Move Keyframe");
+            chart, tempo_map, {}, slide_out, common::core::Fraction{-1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
@@ -1252,7 +1274,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4}),
         };
         const auto plan = planMoveSelection(
-            chart, tempo_map, {}, both, common::core::Fraction{1}, 0, "Move Selection");
+            chart, tempo_map, {}, both, common::core::Fraction{1, 4}, 0, "Move Selection");
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1277,11 +1299,11 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     // The mover stands five beats past the tail's onset, clear of its four-beat ring, and steps
-    // back two beats — landing three beats in, where that ring is still sounding.
+    // back a half note — landing three beats in, where that ring is still sounding.
     constexpr common::core::GridPosition tail_onset{.measure = 2, .beat = 1, .offset = {}};
     constexpr common::core::GridPosition mover_slot{.measure = 3, .beat = 2, .offset = {}};
     const std::vector<ChartSlotKey> mover{keyAt(mover_slot, 1)};
-    constexpr common::core::Fraction step_back{-2};
+    constexpr common::core::Fraction step_back{-1, 2};
 
     // One ringing note on string 1 carrying the statement under test, plus the mover.
     const auto figure = [&](const common::core::Keyframe carried) {
@@ -1502,7 +1524,7 @@ TEST_CASE("planMoveSelection carries a selected note's own keyframe along", "[co
         tempo_map,
         {keyAt({.measure = 2, .beat = 1}, 1)},
         {keyframeKeyAt({.measure = 2, .beat = 1}, 1, common::core::Fraction{2})},
-        common::core::Fraction{1},
+        common::core::Fraction{1, 4},
         0,
         "Move Selection");
     REQUIRE(plan.has_value());
@@ -2673,7 +2695,7 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
     {
         const common::core::ChartNote* stub = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(stub != nullptr);
-        CHECK(stub->sustain == pickSlideDefaultSustainBeats(4));
+        CHECK(stub->sustain == common::core::Fraction{1});
         CHECK(stub->sustain > common::core::g_minimum_slide_window);
         // The terminal ends the ring by definition, so the sustain above IS the gesture's
         // length: a scrape rings no longer than it travels.
@@ -4254,10 +4276,10 @@ TEST_CASE("The range verbs carry a note's held stop", "[core][chart]")
         ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 3}
     };
 
-    // A beat later, still under the chord: the tap keeps its sounding fret and its stated stop
-    // alike.
+    // A quarter note later, still under the chord: the tap keeps its sounding fret and its stated
+    // stop alike.
     const auto plan =
-        moveNotes(chart, tempo_map, tap_key, common::core::Fraction{1}, 0, "Move Note");
+        moveNotes(chart, tempo_map, tap_key, common::core::Fraction{1, 4}, 0, "Move Note");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -6187,6 +6209,196 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
     // the fret the picking hand sounds.
     CHECK(tap->fret == 12);
     CHECK(tap->attack == common::core::NoteAttack::Tap);
+}
+
+// One 4/4 measure pair, then 6/8 from measure 3: a beat is a quarter note before the change and an
+// eighth note from it, so a beat count carried across the barline is not the same duration.
+[[nodiscard]] common::core::TempoMap makeMeterChangeMap()
+{
+    return common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 31.0},
+        },
+    };
+}
+
+// EVERY VERB PRODUCES TICK-LATTICE POSITIONS. Validation refuses an instant between two ticks, so
+// a verb that authored one — a ring one exact septuplet step long, a move by one exact step, a beat
+// count carried into a meter of another denominator — would be refused on exactly the grids and
+// maps it is most needed on. Each case is a plan the gate must ACCEPT, on a position it could not
+// have reached by beat arithmetic.
+TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
+{
+    // A seventh of a 4/4 beat: 137.14 ticks, so no exact step from a line is a tick.
+    constexpr common::core::Fraction septuplet_grid{1, 28};
+    const common::core::GridPosition downbeat{.measure = 2, .beat = 1};
+
+    SECTION("a placed ring ends on the septuplet grid's next line, and the next placement touches")
+    {
+        const common::core::TempoMap tempo_map = makeTempoMap();
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        const common::core::GridPosition next_line =
+            adjacentTempoGridPosition(tempo_map, septuplet_grid, downbeat, true);
+        CHECK(common::core::isOnTickLattice(tempo_map, next_line));
+
+        const auto first =
+            planInsertNote(chart, tempo_map, makeTestNote(downbeat, 1, 5), septuplet_grid);
+        REQUIRE(first.has_value());
+        if (first.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *first);
+            CHECK(common::core::sustainEndPosition(tempo_map, chart.notes.front()) == next_line);
+        }
+        const auto second =
+            planInsertNote(chart, tempo_map, makeTestNote(next_line, 1, 7), septuplet_grid);
+        REQUIRE(second.has_value());
+        if (second.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *second);
+            REQUIRE(chart.notes.size() == 2);
+            // Entered one after another, septuplet notes touch exactly, which legato needs.
+            CHECK(
+                common::core::sustainEndPosition(tempo_map, chart.notes[0]) ==
+                chart.notes[1].position);
+        }
+    }
+
+    SECTION("a move by one septuplet step lands the note on the grid's next line")
+    {
+        const common::core::TempoMap tempo_map = makeTempoMap();
+        const common::core::GridPosition next_line =
+            adjacentTempoGridPosition(tempo_map, septuplet_grid, downbeat, true);
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {makeTestNote(
+            downbeat, 1, 5, common::core::beatDistance(tempo_map, downbeat, next_line))};
+        REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
+
+        // The press is measured at the anchor as its distance to the next line: 137 ticks, where
+        // one exact step is 137.14 and would leave every landing between two ticks.
+        const ChartMoveDelta delta = chartMoveGestureDelta(
+            tempo_map,
+            {keyAt(downbeat, 1)},
+            {},
+            {ChartMoveStep{.note_value = septuplet_grid, .direction = ChartStepDirection::Right}});
+        CHECK(delta.whole_notes == common::core::wholeNoteDistance(tempo_map, downbeat, next_line));
+        const auto plan =
+            moveNotes(chart, tempo_map, {keyAt(downbeat, 1)}, delta.whole_notes, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            CHECK(chart.notes.front().position == next_line);
+            CHECK(
+                chart.notes.front().sustain ==
+                common::core::beatDistance(tempo_map, downbeat, next_line));
+        }
+    }
+
+    SECTION("a note moved across a meter change keeps its real length and every instant on a tick")
+    {
+        const common::core::TempoMap tempo_map = makeMeterChangeMap();
+        // An odd tick of a quarter-note beat is half a tick of an eighth-note one, so a beat count
+        // carried into measure 3 lands between ticks; the whole-note delta lands on them.
+        const common::core::GridPosition onset{
+            .measure = 2, .beat = 3, .offset = common::core::Fraction{959, 960}
+        };
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1})};
+        chart.notes.front().keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        };
+        REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
+
+        // A half note right: the quarter-note ring is two eighth-note beats once it sits in 6/8,
+        // and the point half a quarter in is one eighth in — the same music, re-counted.
+        const auto plan = moveNotes(
+            chart, tempo_map, {keyAt(onset, 1)}, common::core::Fraction{1, 2}, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            const common::core::ChartNote& moved = chart.notes.front();
+            CHECK(
+                moved.position ==
+                common::core::GridPosition{
+                    .measure = 3, .beat = 2, .offset = common::core::Fraction{479, 480}
+                });
+            CHECK(moved.sustain == common::core::Fraction{2});
+            REQUIRE(moved.keyframes.size() == 1);
+            CHECK(moved.keyframes.front().offset == common::core::Fraction{1});
+        }
+    }
+
+    SECTION("a keyframe stepped by a tick across the barline lands on the new meter's tick")
+    {
+        const common::core::TempoMap tempo_map = makeMeterChangeMap();
+        const common::core::GridPosition onset{.measure = 2, .beat = 4};
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        // Three beats from the last 4/4 beat: one quarter to the barline, then two eighths.
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{3})};
+        chart.notes.front().keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 7}
+        };
+        REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
+
+        // One tick is 1/3840 of a whole note everywhere; as a 4/4 beat count (1/960) it would be
+        // half a 6/8 tick, which the gate refuses.
+        const auto plan = planMoveSelection(
+            chart,
+            tempo_map,
+            {},
+            {keyframeKeyAt(onset, 1, common::core::Fraction{1})},
+            common::core::g_tick_quantum_note_value,
+            0,
+            "Move Keyframe");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            CHECK(chart.notes.front().keyframes.front().offset == common::core::Fraction{481, 480});
+        }
+    }
+
+    SECTION("a scrape's default ring authored a tick before a meter change ends on a tick")
+    {
+        const common::core::TempoMap tempo_map = makeMeterChangeMap();
+        const common::core::GridPosition onset{
+            .measure = 2, .beat = 4, .offset = common::core::Fraction{959, 960}
+        };
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        // A one-tick ring that ends exactly on the barline: too short to scrape, and the only
+        // short ring from this onset whose end is a tick in the meter it lands in.
+        chart.notes = {makeTestNote(onset, 1, 5, common::core::Fraction{1, 960})};
+        REQUIRE(common::core::validateChartRules(chart, tempo_map).has_value());
+
+        // The quarter-note default is a note VALUE: one tick to the barline, then 959 ticks of 6/8,
+        // which is one eighth-note beat and 479/480 of the next. Stated as one BEAT at the onset's
+        // meter it would end 479.5 ticks into measure 3, between two ticks.
+        const auto plan = planSetAttack(
+            chart, tempo_map, {keyAt(onset, 1)}, common::core::NoteAttack::PickSlide, "Pick Slide");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            applyAndValidate(chart, tempo_map, *plan);
+            const common::core::ChartNote& scrape = chart.notes.front();
+            CHECK(scrape.sustain == common::core::Fraction{1919, 960});
+            CHECK(
+                common::core::sustainEndPosition(tempo_map, scrape) ==
+                common::core::GridPosition{
+                    .measure = 3, .beat = 2, .offset = common::core::Fraction{479, 480}
+                });
+        }
+    }
 }
 
 } // namespace rock_hero::editor::core

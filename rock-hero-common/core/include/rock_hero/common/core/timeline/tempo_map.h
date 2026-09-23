@@ -175,6 +175,34 @@ public:
         std::int64_t global_beat_index) const noexcept;
 
     /*!
+    \brief Converts a global beat plus a sub-beat offset to its position on the whole-note axis.
+
+    The whole-note axis is the one axis a meter change does not bend: a beat is one
+    signature-denominator note, so the same musical duration is a different beat count on either
+    side of a change but the same whole-note count throughout. It is also the axis the chart's
+    tick lattice is ruled on (a tick is 1/3840 of a whole note), which is what lets a whole-note
+    step carry a stored position from one meter into another without leaving the lattice. Exact
+    rationals throughout, unlike the metronome's quarter-note axis, which is a double for time.
+
+    \param global_beat_index Zero-based beat index counted from measure 1 beat 1.
+    \param offset Exact fraction from that beat toward the next beat.
+    \return Whole notes from measure 1 beat 1.
+    */
+    [[nodiscard]] Fraction wholeNotePositionAt(
+        std::int64_t global_beat_index, Fraction offset) const noexcept;
+
+    /*!
+    \brief Inverts the whole-note axis back to a global beat plus a sub-beat offset.
+
+    Positions before the song's start clamp to its first beat, the clamp the beat axis applies.
+
+    \param whole_note_position Whole notes from measure 1 beat 1.
+    \return Zero-based global beat index and the exact fraction from that beat toward the next.
+    */
+    [[nodiscard]] std::pair<std::int64_t, Fraction> beatAtWholeNotePosition(
+        Fraction whole_note_position) const noexcept;
+
+    /*!
     \brief Resolves an addressed beat to absolute seconds.
     \param measure One-based measure to resolve.
     \param beat One-based beat within the measure.
@@ -274,16 +302,30 @@ private:
         // Global beat index of the first beat of the segment's first measure.
         std::int64_t start_beat_index{0};
 
-        // Quarter notes per beat inside this segment (4 / denominator); exact for the power-of-two
-        // denominators the package format allows.
-        double quarters_per_beat{1.0};
+        // The signature's denominator inside this segment, clamped to at least one: the note value
+        // one beat is worth.
+        int denominator{4};
 
-        // Quarter-note position of the segment's first downbeat on the metronome timeline.
-        double start_quarter_position{0.0};
+        // Whole-note position of the segment's first downbeat, exact: the axis stored positions
+        // are held to, and the metronome's quarter-note axis below is this one scaled by four.
+        Fraction start_whole_note_position{};
 
         // Absolute second position of the segment's first downbeat, filled after the anchor
         // indices exist because it resolves through anchor interpolation.
         double start_seconds{0.0};
+
+        // Quarter notes per beat, the metronome's scale of this segment; exact for the
+        // power-of-two denominators the package format allows.
+        [[nodiscard]] double quartersPerBeat() const noexcept
+        {
+            return 4.0 / denominator;
+        }
+
+        // Quarter-note position of the segment's first downbeat on the metronome timeline.
+        [[nodiscard]] double startQuarterPosition() const noexcept
+        {
+            return 4.0 * start_whole_note_position.toDouble();
+        }
     };
 
     // Rebuilds the derived lookup tables; must run whenever the authored vectors change.
@@ -297,6 +339,11 @@ private:
     // normalized inputs always match.
     [[nodiscard]] const SignatureSegment& segmentForBeatIndex(
         std::int64_t global_beat_index) const noexcept;
+
+    // Finds the segment containing a whole-note position; the front segment starts at zero so
+    // clamped inputs always match.
+    [[nodiscard]] const SignatureSegment& segmentForWholeNotePosition(
+        Fraction whole_note_position) const noexcept;
 
     // Finds the segment containing a quarter-note position; the front segment starts at zero so
     // clamped inputs always match.

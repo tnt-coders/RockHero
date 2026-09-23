@@ -442,4 +442,45 @@ TEST_CASE("A septuplet grid's lines are ticks that step and snap exactly", "[cor
     }
 }
 
+// THE WHOLE-NOTE AXIS: the one axis a meter change does not bend. Against the 4/4-then-7/8 map a
+// beat is a quarter note before measure 3 and an eighth note from it, so one whole-note step is a
+// different beat count on each side, and a BEAT count carried across the change is not the same
+// duration at all.
+TEST_CASE("The whole-note axis measures the same duration in every meter", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    // Two 4/4 measures are two whole notes, and three and a half quarter-note beats are 7/8 of one.
+    const GridPosition late_in_two{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
+    CHECK(wholeNotePosition(map, late_in_two) == Fraction{15, 8});
+    CHECK(wholeNotePosition(map, GridPosition{.measure = 3, .beat = 1}) == Fraction{2});
+    // Past the last signature the 7/8 reign keeps going: seven more measures of 7/8.
+    CHECK(wholeNotePosition(map, GridPosition{.measure = 10, .beat = 1}) == Fraction{65, 8});
+
+    // A quarter note on from m2:4.5 lands one eighth-note beat into measure 3 — where one BEAT on
+    // lands half an eighth later, the quarter-note beat re-read as an eighth-note one.
+    const GridPosition a_quarter_on{.measure = 3, .beat = 2};
+    CHECK(advanceGridPositionByWholeNotes(map, late_in_two, Fraction{1, 4}) == a_quarter_on);
+    CHECK(
+        advanceGridPosition(map, late_in_two, Fraction{1}) ==
+        GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
+    // Distance is the inverse, both ways.
+    CHECK(wholeNoteDistance(map, late_in_two, a_quarter_on) == Fraction{1, 4});
+    CHECK(advanceGridPositionByWholeNotes(map, a_quarter_on, Fraction{-1, 4}) == late_in_two);
+
+    // A position on the lattice stays on it across the change when stepped by whole ticks, and
+    // leaves it when the same step is taken as a beat count: an odd tick of a quarter-note beat
+    // is half a tick of an eighth-note one.
+    const GridPosition odd_tick{.measure = 2, .beat = 4, .offset = Fraction{959, 960}};
+    const GridPosition carried = advanceGridPositionByWholeNotes(map, odd_tick, Fraction{1, 4});
+    CHECK(carried == GridPosition{.measure = 3, .beat = 2, .offset = Fraction{479, 480}});
+    CHECK(isOnTickLattice(map, carried));
+    CHECK_FALSE(isOnTickLattice(map, advanceGridPosition(map, odd_tick, Fraction{1})));
+
+    // The grid has nothing before its origin: a step back past it clamps there and reads as a
+    // step that fell short, exactly as the beat axis clamps.
+    const GridPosition second_beat{.measure = 1, .beat = 2};
+    CHECK(advanceGridPositionByWholeNotes(map, second_beat, Fraction{-1}) == GridPosition{});
+    CHECK(wholeNoteDistance(map, second_beat, GridPosition{}) == Fraction{-1, 4});
+}
+
 } // namespace rock_hero::common::core

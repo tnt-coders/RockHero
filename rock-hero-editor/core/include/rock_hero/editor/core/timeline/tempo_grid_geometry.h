@@ -225,20 +225,6 @@ A caller wanting the raw click time asks \ref timelinePositionForX directly.
     common::core::TimeRange visible_timeline, int timeline_width, float timeline_x);
 
 /*!
-\brief One grid step in beats at a measure: the note value scaled by the local meter's unit.
-
-The note value is a fraction of a whole note and a beat is one signature-denominator unit, so
-step_beats = note_value x denominator (a 1/8 grid in 6/8 steps one beat; in 4/4, half a beat).
-
-\param tempo_map Song tempo map supplying the local time signature.
-\param grid_note_value Grid step as a fraction of a whole note.
-\param measure One-based measure whose meter scales the step.
-\return The grid step as an exact beat fraction.
-*/
-[[nodiscard]] common::core::Fraction gridStepBeats(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value, int measure);
-
-/*!
 \brief The adjacent tempo-grid line strictly beyond a position, walked in exact rationals.
 
 The one keyboard time-step primitive shared by the marker's caret stepping, the automation point

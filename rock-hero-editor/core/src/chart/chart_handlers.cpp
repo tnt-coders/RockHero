@@ -900,16 +900,6 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     return std::pair{position, string};
 }
 
-// One GRID step in beats at a position: the session's grid note value scaled by the local meter.
-// This is the musical UNIT the user is authoring in, so it answers duration questions — the ring a
-// placement gives a new note is the standing one. It deliberately ignores grid snap: snap decides
-// where things go, never how long they are, and a tick-long default ring would be absurd.
-common::core::Fraction EditorController::Impl::chartGridStepBeats(
-    common::core::GridPosition at) const
-{
-    return gridStepBeats(session().song().tempo_map, m_grid_note_value, at.measure);
-}
-
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
 // shape; the refusal kind is not consumed here — a caller that wants to distinguish NoChange from
@@ -2077,8 +2067,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // pre-gesture chart the run replays over, which is what the landing callback is handed.
     const auto moved_slot = [this, &delta](const ChartSlotKey& slot) {
         return ChartSlotKey{
-            .position = common::core::advanceGridPosition(
-                session().song().tempo_map, slot.position, delta.beats),
+            .position = common::core::advanceGridPositionByWholeNotes(
+                session().song().tempo_map, slot.position, delta.whole_notes),
             .string = slot.string + delta.strings,
         };
     };
@@ -2096,10 +2086,11 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
             moved.emplace_back(
                 ChartKeyframeKey{
                     .note = note_moved ? moved_slot(key.note) : key.note,
-                    .offset = note_moved
-                                  ? key.offset
-                                  : chartSteppedKeyframeOffset(
-                                        pre_gesture, session().song().tempo_map, key, delta.beats),
+                    .offset =
+                        note_moved
+                            ? key.offset
+                            : chartSteppedKeyframeOffset(
+                                  pre_gesture, session().song().tempo_map, key, delta.whole_notes),
                 });
         }
         return moved;
@@ -2150,7 +2141,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
                 session().song().tempo_map,
                 gesture.note_keys,
                 gesture.keyframe_keys,
-                delta.beats,
+                delta.whole_notes,
                 delta.strings,
                 label);
         },
@@ -2333,10 +2324,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
         note.string = insert->slot.string;
         note.fret = entry.value;
         return planInsertNote(
-            *arrangement->chart,
-            session().song().tempo_map,
-            std::move(note),
-            chartGridStepBeats(insert->slot.position));
+            *arrangement->chart, session().song().tempo_map, std::move(note), m_grid_note_value);
     }
     // A typed point on a tail plans the keyframe it states — planted for real at the settle and
     // selected. The commit law is not asked here: a typed value the path already passes through is

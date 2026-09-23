@@ -60,13 +60,12 @@ and rounding from the song's start agree, every downbeat being a whole tick.
 /*!
 \brief Reports whether a position lies on the chart's tick lattice.
 
-The lattice is \ref g_tick_quantum_note_value measured from each downbeat, so a position is on it
-exactly when its sub-beat offset is a whole number of ticks at its measure's meter. A signature
-whose denominator does not divide the quantum has no lattice to lie on.
+The lattice is every multiple of \ref g_tick_quantum_note_value on the whole-note axis
+(\ref wholeNotePosition), which every downbeat of a meter the package format admits lies on.
 
-\param tempo_map Tempo map supplying the meter at the position.
+\param tempo_map Tempo map supplying the meter of every measure up to the position.
 \param position Position to test.
-\return True when the position is a whole number of ticks past its beat.
+\return True when the position is a whole number of ticks from the grid origin.
 */
 [[nodiscard]] bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position);
 
@@ -315,6 +314,53 @@ exactly. Positive when `to` is later than `from`.
 \return Signed distance in beats as an exact rational.
 */
 [[nodiscard]] Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition to);
+
+/*!
+\brief A grid position on the whole-note axis: whole notes from the grid origin.
+
+The one axis a meter change does not bend (\ref TempoMap::wholeNotePositionAt), and the axis the
+tick lattice is ruled on: a tick is \ref g_tick_quantum_note_value of a whole note, so two lattice
+positions are a whole number of ticks apart here whatever meters lie between them, where their beat
+distance re-reads in each measure's own denominator.
+
+\param tempo_map Tempo map supplying the meter of every measure up to the position.
+\param position Valid grid position.
+\return Whole notes from measure 1 beat 1, exact.
+*/
+[[nodiscard]] Fraction wholeNotePosition(const TempoMap& tempo_map, GridPosition position);
+
+/*!
+\brief Measures the signed exact whole-note distance from one grid position to another.
+
+The inverse of \ref advanceGridPositionByWholeNotes, as \ref beatDistance is of
+\ref advanceGridPosition: advancing `from` by the returned distance reaches `to` exactly.
+
+\param tempo_map Tempo map supplying the meter of every measure crossed.
+\param from Position the distance is measured from.
+\param to Position the distance is measured to.
+\return Signed distance in whole notes as an exact rational.
+*/
+[[nodiscard]] Fraction wholeNoteDistance(
+    const TempoMap& tempo_map, GridPosition from, GridPosition to);
+
+/*!
+\brief The grid position a whole-note duration after another, exact across every meter change
+between them.
+
+\ref advanceGridPosition carries a BEAT count, the right walk for a ring or a keyframe offset
+measured from its own onset. This carries MUSICAL TIME: the move verb steps every instant it moves
+by one whole-note delta, so a note keeps each instant it holds the same distance apart, and a
+lattice position stepped by whole ticks lands on the lattice in whichever meter it arrives in — the
+same beat count re-read in a larger denominator would not. Clamped at the grid origin like
+\ref advanceGridPosition, so a step back past the song's start falls short of the duration asked.
+
+\param tempo_map Tempo map supplying the meter of every measure crossed.
+\param position Valid grid position.
+\param whole_notes Signed whole-note duration.
+\return The position that far along the whole-note axis.
+*/
+[[nodiscard]] GridPosition advanceGridPositionByWholeNotes(
+    const TempoMap& tempo_map, GridPosition position, Fraction whole_notes);
 
 /*!
 \brief Resolves the grid position where a note's sustain ends.

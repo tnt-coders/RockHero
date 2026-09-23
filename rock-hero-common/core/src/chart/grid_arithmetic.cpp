@@ -243,6 +243,28 @@ Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition
     return Fraction{static_cast<int>(index_delta)} + (to.offset - from.offset);
 }
 
+Fraction wholeNotePosition(const TempoMap& tempo_map, const GridPosition position)
+{
+    return tempo_map.wholeNotePositionAt(
+        tempo_map.globalBeatIndex(position.measure, position.beat), position.offset);
+}
+
+Fraction wholeNoteDistance(
+    const TempoMap& tempo_map, const GridPosition from, const GridPosition to)
+{
+    return wholeNotePosition(tempo_map, to) - wholeNotePosition(tempo_map, from);
+}
+
+// The whole-note axis is the tempo map's own; this only addresses its answer back onto the grid.
+GridPosition advanceGridPositionByWholeNotes(
+    const TempoMap& tempo_map, const GridPosition position, const Fraction whole_notes)
+{
+    const auto [beat_index, offset] =
+        tempo_map.beatAtWholeNotePosition(wholeNotePosition(tempo_map, position) + whole_notes);
+    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
+    return GridPosition{.measure = measure, .beat = beat, .offset = offset};
+}
+
 // The margin in beats is nothing but the margin's own start measured back to the onset: one
 // authority for where it begins, and no second answer for how long it is.
 Fraction minimumSustainDistanceBeats(const TempoMap& tempo_map, const GridPosition& onset)
@@ -265,19 +287,11 @@ bool predecessorHoldReaches(
     return sustain >= beatDistance(tempo_map, predecessor, onset);
 }
 
-// A whole number of ticks past its beat, at its own measure's meter: the offset times the ticks in
-// a beat is an integer.
+// A reduced fraction of a whole note is a whole number of ticks exactly when its denominator
+// divides the tick's.
 bool isOnTickLattice(const TempoMap& tempo_map, const GridPosition& position)
 {
-    const int denominator = tempo_map.timeSignatureAt(position.measure).denominator;
-    if (denominator <= 0 || g_tick_quantum_denominator % denominator != 0)
-    {
-        return false;
-    }
-    const std::int64_t ticks_per_beat = g_tick_quantum_denominator / denominator;
-    return (static_cast<std::int64_t>(position.offset.numerator) * ticks_per_beat) %
-               position.offset.denominator ==
-           0;
+    return g_tick_quantum_denominator % wholeNotePosition(tempo_map, position).denominator == 0;
 }
 
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored

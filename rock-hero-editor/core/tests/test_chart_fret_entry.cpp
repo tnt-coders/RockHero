@@ -1187,8 +1187,10 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 }
 
 // Off-grid authoring with snap off: Alt+Left/Right moves the selection by one tick (1/3840 whole
-// note, which is 1/960 beat in x/4); grid steps with snap back on stay relative, so the offset
-// rides along, and a tick step back with snap off returns to the exact lattice slot.
+// note, which is 1/960 beat in x/4). A grid step with snap back on carries the selection onto the
+// grid's adjacent LINE rather than one step out, so the tick offset does not ride along — the same
+// snap the caret step and the duration verb's first press make — and a tick step from a line
+// lands one tick from it, on the lattice.
 TEST_CASE("EditorController moves the selection by one tick with grid snap off", "[core][chart]")
 {
     FakeTransport transport;
@@ -1218,21 +1220,22 @@ TEST_CASE("EditorController moves the selection by one tick with grid snap off",
         }));
     CHECK(chart->notes[1].string == 1);
 
-    // A grid step from the off-grid slot stays relative: the 1/960 offset rides along.
+    // A grid step from the off-grid slot lands ON the next quarter line: the press is worth the
+    // anchor's distance to that line, not a whole step, so the 1/960 residue is absorbed.
     controller.onGridSnapToggleRequested();
     controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
+
+    // A tick step back from the line lands one tick short of it, on the lattice.
+    turnGridSnapOff(controller);
+    controller.onSelectionMoveRequested(ChartStepDirection::Left);
     chart = chartOrNull(controller);
     CHECK(
         chart->notes[1].position ==
         (common::core::GridPosition{
-            .measure = 2, .beat = 2, .offset = common::core::Fraction{1, 960}
+            .measure = 2, .beat = 1, .offset = common::core::Fraction{959, 960}
         }));
-
-    // The tick step back lands exactly on the lattice again — no residue.
-    turnGridSnapOff(controller);
-    controller.onSelectionMoveRequested(ChartStepDirection::Left);
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
 }
 
 } // namespace rock_hero::editor::core

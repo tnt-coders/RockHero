@@ -1,8 +1,10 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <memory>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::core
@@ -517,8 +519,8 @@ TEST_CASE("EditorController publishes both chart forms together", "[core][chart]
 }
 
 // The quantum-versus-grid-value distinction, on one verb: with snap off a placement's POSITION
-// lands on the tick lattice, while the ring it authors stays the session GRID step. A quantum-long
-// default would be a tick of sound, which is the mistake this pins against.
+// lands on the tick lattice, while the ring it authors still reaches the next line of the session
+// GRID. A quantum-long default would be a tick of sound, which is the mistake this pins against.
 TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[core][chart]")
 {
     FakeTransport transport;
@@ -568,8 +570,9 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     CHECK(chart->notes.back().position == grid_slot);
     CHECK(chart->notes.back().sustain == grid_step_beats);
 
-    // Snap off: the same pixel arms on the TICK lattice — and the ring is unchanged, because a
-    // duration default reads the grid value, never the quantum.
+    // Snap off: the same pixel arms on the TICK lattice — and the ring still reaches the next
+    // QUARTER line, the rest of a grid step from between two lines, because a duration reads the
+    // grid value, never the quantum.
     turnGridSnapOff(controller);
     click(controller, off_grid_x, 140.0f);
     controller.onChartFretDigitTyped(3);
@@ -577,7 +580,9 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     REQUIRE(chart->notes.size() == notes_before + 2);
     const common::core::ChartNote& off_grid_note = chart->notes.back();
     CHECK(off_grid_note.position == tick_slot);
-    CHECK(off_grid_note.sustain == grid_step_beats);
+    CHECK(
+        common::core::sustainEndPosition(tempo_map, off_grid_note) ==
+        adjacentTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, tick_slot, true));
 }
 
 } // namespace rock_hero::editor::core

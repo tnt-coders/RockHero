@@ -468,16 +468,6 @@ std::optional<common::core::TimePosition> timelineCursorPlacementTime(
     return nearestTempoGridTime(tempo_map, placement_quantum, *click_time);
 }
 
-common::core::Fraction gridStepBeats(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value, int measure)
-{
-    const common::core::Fraction note_value = normalizedGridNoteValue(grid_note_value);
-    const common::core::TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
-    return common::core::Fraction{
-        note_value.numerator * signature.denominator, note_value.denominator
-    };
-}
-
 // The editor's only contribution is its note-value validity policy; the lattice walk itself is
 // common core's, where the nearest-line snap also lives, so the two can never disagree on which
 // lines exist. Never a snap-step-resnap walk here, which is not reversible: a re-snap picks the
