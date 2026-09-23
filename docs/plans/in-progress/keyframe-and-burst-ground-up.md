@@ -141,7 +141,7 @@ through that repair.
 Measured the same day: the WRITTEN material abuts more often than not — 174 of the 288 bends still
 moving at their note's end (60%) and 463 of the corpus's 977 slide-outs (47%) end exactly on the
 next head of their own string — and the imported chart holds none of them there; every one is
-pulled back. The clearance is one minimum sustain distance (0.1 s, through the tempo map) before
+pulled back. The clearance is one minimum sustain distance (through the tempo map) before
 the head, or halfway along the last leg where that would crowd it. The two branches matter in
 practice: a slide-out keeps its meaning, but a bend's moving terminal is moved back alone, so it
 becomes an interior point and the curve then holds flat to a ring end it no longer reaches — a
@@ -429,7 +429,7 @@ cannot refuse 637 abutting notes, so the squish stays in the load path and the e
 second, different answer to the same situation, against "the SAME rules". And the charter loses
 the only easy way to write what the material mostly is: 60% of end bends abut the next note, a
 ring whose end holds a statement cannot be shortened by the tail verb, so the workaround is to
-drag the end statement back by hand — a whole grid step where the repair leaves 0.1 s, or a run of
+drag the end statement back by hand — a whole grid step where the repair leaves one margin, or a run of
 tick steps with snap off. The squish is also not a breach of rule 4: that rule is about LOSS, and
 a squished statement says everything it said.
 
@@ -681,7 +681,7 @@ against the new burst and closed or restated.
 **SIGNED by the user, 2026-09-21, and the only thing here that is:** the stored chart holds the
 TRUTH — a slide-out or a bend may end exactly on the next note's head — and a statement at a
 ring's end that meets the next head is DISPLAYED, and later scored, one minimum sustain distance
-(100 ms) earlier, so note spacing looks the same everywhere. Everything else in this document is
+earlier, so note spacing looks the same everywhere. Everything else in this document is
 still proposal; in particular how a ring's end is selected and authored is explicitly NOT settled
 and nothing below depends on it. Authoring stays exactly as it is today while these steps land.
 

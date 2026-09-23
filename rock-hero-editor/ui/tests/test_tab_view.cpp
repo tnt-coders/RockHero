@@ -963,7 +963,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         arrangement, tempo_map, common::core::ChartNoteForm::Actual);
     // The fixture is only worth rendering if the derivation really did trim it.
     REQUIRE(presented.notes.size() == 2);
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.9));
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.925));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(1.0));
 
     TabView view{};
@@ -1073,7 +1073,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     // The fixture is only worth rendering if the derivation really owed a margin here.
     REQUIRE(presented.shapes.size() == 1);
     CHECK(presented.shapes[0].start_seconds == Catch::Approx(0.0));
-    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.65));
+    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
     CHECK(presented.shapes[0].close_seconds == Catch::Approx(0.75));
 
     TabView view{};

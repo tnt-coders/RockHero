@@ -42,18 +42,27 @@ spacing, and reads \ref g_hand_approach_seconds instead.
 
 A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
 is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
-a barely visible gap at 200. A tenth of a second reads the same at every tempo, and the meter never
-enters — seconds do not care about the signature's denominator.
+a barely visible gap at 200. A duration reads the same at every tempo, and the meter never enters —
+seconds do not care about the signature's denominator. The value sits in the band rhythm-game
+charting converged on for the gap before a following note. Scoring judges a sustain to its drawn
+end, so the margin must be at least the early half of the hit window, or a legal early strike cuts
+a sustain short of credit it could not have kept; roadmap plan 24 carries that invariant.
 
-It binds presentation, plus ONE derivation question founded on it deliberately: a never-restruck
-landed span is emitted only where its tenure STRICTLY EXCEEDS this distance at the closing head —
-the same quantum that makes two marks distinguishable is what makes a landed grip statable,
-referenced as a duration and never a pixel. The editor's duration verb does NOT clamp to it: growth
-stops at exact adjacency with the next onset on the note's own string (\ref sustainBoundOf),
-because a stored ring has no reason to stop short of anything, and a ring trimmed by this margin
-would leave the editor's reveal nothing to show.
+Beyond presentation it answers two questions founded on it deliberately, both asking what the
+smallest READABLE interval is: a never-restruck landed span is emitted only where its tenure
+STRICTLY EXCEEDS this distance at the closing head — the same quantum that makes two marks
+distinguishable is what makes a landed grip statable — and the Guitar Pro import caps the scoop it
+synthesizes for a bare slide-in at it, since with no duration to go on the quickest glide that
+still reads as a glide is the honest guess. So retuning this re-shapes a re-import's scoops, which
+is intended. The editor's duration verb does NOT clamp to it: growth stops at exact adjacency with
+the next onset on the note's own string (\ref sustainBoundOf), because a stored ring has no reason
+to stop short of anything, and a ring trimmed by this margin would leave the editor's reveal
+nothing to show.
+
+THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE: every other comment, guide and rule text names
+"the margin" or "the minimum sustain distance" and points here.
 */
-inline constexpr double g_minimum_sustain_distance_seconds{0.1};
+inline constexpr double g_minimum_sustain_distance_seconds{0.075};
 
 /*!
 \brief Returns the minimum sustain distance in signature beats at the onset it protects.

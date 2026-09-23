@@ -11,14 +11,20 @@ ring's end statement is DRAWN, the keys decide what reaches it, and each assumes
 ## Where we are (HEAD a4bfed7b)
 
 - **Display.** Presentation rule 1 (`chart_presentation.cpp`) trims every tail one minimum sustain
-  distance (`g_minimum_sustain_distance_seconds`, 100 ms) before the next onset on ANY string, and
+  distance (`g_minimum_sustain_distance_seconds`) before the next onset on ANY string, and
   rule 2 CARRIES the end statement back to the trimmed end, falling back to halfway along its last
   leg where the margin would crowd it (`lastStatementClearance`). Both surfaces draw the presented
   note, so the end statement is drawn early on both, and the hand window completes with the rail
   at that drawn instant.
 - **Sighting.** 2D read right; 3D read wrong (the rail and hand window complete short of where the
-  sound goes). A 50 ms trial, uncommitted, sighted better for the pulled-back keyframes, but any
-  statement drawn early will read out of sync once practice mode slows a song down.
+  sound goes). Trials at 50 and 75 ms sighted better than 100 for the pulled-back keyframes, but
+  any statement drawn early will read out of sync once practice mode slows a song down.
+- **The margin's value is settled at 75 ms** (2026-09-22), inside the 70–85 ms band rhythm-game
+  charting converged on for the gap before a following note, and at or above the early half of
+  plan 24's hit window target. 100 ms erased sixteenth-note ring detail above 150 BPM; 50 ms left
+  about 3 px between a tail and the next head at the 2D lane's default zoom. It is confirmed, not
+  re-chosen, in the phase 2 sighting once the fade is built, since a fade makes a gap read larger
+  than the margin itself. The hand's visible approach reads its own `g_hand_approach_seconds`.
 - **Keys.** A bare digit strictly inside a ring makes a POINT; at a ring's end or on an empty slot
   it makes a head (`chartCaretDigitTarget`, `chart_handlers.cpp`). `Alt+Insert`
   (`InsertChartStatement`) states the fret in force on a tail. Bare `Insert` is
@@ -164,14 +170,13 @@ Each phase ends built, with touched tests passing, sighted where it changes the 
 committed. The display comes first: it changes what the lane shows, and the keys are then sighted
 against the lane they will ship with.
 
-### Phase 1 — Sight the open display values
+### Phase 1 — Sight the same-string question
 
-On a scratch branch, no commit to master. Sight the margin at 50 ms and at 75 ms, and the trim
-binding on the same string only against any string. Cases: My Sacrifice measure 9 (the chord shift
-slide with open strings ringing through), a plain slide-out abutting a same-string head, an end
-bend abutting one, a free-ending slide-out, and a dense sixteenth passage — each in 2D, in 3D and
-under `Alt`. The retreat is still built here, so this sights spacing only; the cropped legs are
-sighted in phase 2. Revert the 50 ms working-tree trial first; the chosen value lands in phase 2.
+On a scratch branch, no commit to master. Sight the trim binding on the same string only against
+any string. Cases: My Sacrifice measure 9 (the chord shift slide with open strings ringing
+through), a plain slide-out abutting a same-string head, an end bend abutting one, a free-ending
+slide-out, and a dense sixteenth passage — each in 2D, in 3D and under `Alt`. The retreat is still
+built here, so this sights spacing only; the cropped legs are sighted in phase 2.
 
 ### Phase 2 — The display
 
@@ -191,9 +196,9 @@ sighted in phase 2. Revert the 50 ms working-tree trial first; the chosen value 
 - **Readers of the presented stream to re-verify:** the view-state projection, the highway
   projection, `chart_legato.cpp` (`presentedChartNotes` at :387) and the Guitar Pro importer's
   slide-out exit pass (`gp_chart_builder.cpp` :3861, which reads presented LENGTHS).
-- **The margin value** from phase 1, with every restatement of "a tenth of a second" reconciled
-  (`grid_arithmetic.h`, `chart_presentation.h`, `docs/developer/musical-time.md`,
-  `docs/tracking/watch-items.md`), and the same-string decision if phase 1 took it.
+- **The same-string decision** if phase 1 took it, and the margin's value confirmed against the
+  built fade (the decision test: a sixteenth-note slide or bend passage at 160–180 BPM keeps its
+  ink, and a long sustain into a same-string head reads as ending clearly short of it).
 - **Docs:** `chart_presentation.h`'s rule text, and the documents that describe the ride:
   `derived-shift-slide.md`, `keyframe-and-burst-ground-up.md`, `note-sustain-model.md`,
   `keymap-matrix.md`, `docs/developer/musical-time.md`, `docs/developer/the-project-lifecycle.md`.
@@ -238,7 +243,6 @@ reaches the cut yet; the split's behaviour is unchanged.
 
 ## Open decisions
 
-- The margin's value, 50 ms or 75 ms (phase 1).
 - Whether the trim binds only on the same string (phase 1). The ending zone is a same-string rule,
   because only a head on the ring's own string supersedes what the zone holds. A crop before a
   head on ANOTHER string would hide statements nothing supersedes, which scoring would then judge

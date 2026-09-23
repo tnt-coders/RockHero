@@ -228,7 +228,7 @@ file and from a fresh import shows the same tails, and the model behind the spli
 `docs/plans/in-progress/note-sustain-model.md`.
 
 1. **Trim to the minimum sustain distance.** A note's drawn tail ends at least the
-   minimum-sustain-distance margin — a tenth of a second, the shared constant in
+   minimum-sustain-distance margin — the shared constant in
    `grid_arithmetic.h`, measured back from the onset being protected through the tempo map and
    floored onto the chart's tick lattice, so slow and fast songs keep the same visible gap —
    before the next binding onset, which is the first later note at a different grid position on

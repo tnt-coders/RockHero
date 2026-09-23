@@ -265,7 +265,7 @@ The item was: the margin every drawn element keeps before the next event was a s
 note, lasting 75 ms at 200 BPM and 250 ms at 60, so tails ended visibly early in slow songs and
 crowded in fast ones.
 
-It is `g_minimum_sustain_distance_seconds`, a tenth of a second, held below the kept-sustain bound
+It is `g_minimum_sustain_distance_seconds`, held below the kept-sustain bound
 by a `static_assert` so every earned tail keeps ink. The remedy this item proposed — a grid ladder
 picking the smallest plain note value at least the target — was not taken: `marginBefore` walks
 back from the onset being PROTECTED through the tempo map's own time axis and floors onto the

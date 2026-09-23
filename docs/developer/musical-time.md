@@ -33,7 +33,7 @@ Exact arithmetic *on* the grid lives in one header, and it is the shared authori
 projections, the editor's duration verb, the Guitar Pro import trims, the connection resolver and
 the validation gate all resolve through — so a spacing rule cannot mean two things:
 
-- `g_minimum_sustain_distance_seconds` (a tenth of a second), with
+- `g_minimum_sustain_distance_seconds` (its initializer is the only statement of the value), with
   `marginBefore(tempo_map, onset)` and `minimumSustainDistanceBeats(tempo_map, onset)` — the one
   settled gap every element keeps before the next event. It is a **duration**, so both take the
   onset being PROTECTED, walk back through the tempo map's own time axis (a tempo change inside

@@ -185,11 +185,11 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // margin later.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
-    CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.8 * beat));
+    CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.85 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
     CHECK_FALSE(shift_slider.slides[0].slide_out);
     CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
-    CHECK(shift_slider.end_seconds == Catch::Approx(12.8 * beat));
+    CHECK(shift_slider.end_seconds == Catch::Approx(12.85 * beat));
     // The STORED ring lands on that head, which is what the band conditional keys on — and it is
     // the stored adjacency, not the drawn one: presentation has already retreated the mark.
     CHECK(shift_slider.ends_on_next_head);
@@ -347,7 +347,7 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
 
     // 120 BPM 4/4: a beat is half a second and the margin is a tenth of one, so the presented
     // tail stops at 3.8 beats and the ring runs the full four.
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.9));
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.925));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
     // A presented tail reaches every statement the note has to show — here every one stands well
@@ -430,7 +430,7 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
     // surfaces paint from: the presented form shows it as the drawn tail ends, one margin (a tenth
     // of a second) before the head that binds, while the actual form shows the ring the chart
     // stores and puts it at the ring's own end a second in.
-    CHECK(presented.notes[0].slides[1].seconds == Catch::Approx(0.9));
+    CHECK(presented.notes[0].slides[1].seconds == Catch::Approx(0.925));
     CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.0));
     // And the chart itself is untouched: the statement stays at the ring's end where it was
     // authored, which is what makes the identity above the same in both forms.
@@ -710,9 +710,9 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     CHECK(actual_glide.slides.back().offset == Fraction{4});
     REQUIRE(glideStopCount(presented_glide) == 1);
     REQUIRE(glideStopCount(actual_glide) == 1);
-    // A tenth of a second of spacing before the head in the drawn form; the whole four beats in the
-    // revealed one.
-    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.9));
+    // One margin of spacing before the head in the drawn form; the whole four beats in the revealed
+    // one.
+    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.925));
     CHECK(glideStopAt(actual_glide, 0).seconds == Catch::Approx(2.0));
     CHECK(glideStopAt(presented_glide, 0).unpitched);
 
@@ -720,8 +720,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     // still finds the ramp: the hand rides the slide-out from the note's onset to where the
     // terminal is DRAWN, and both forms agree, because the table is one table.
     REQUIRE(presented.fret_hand_positions.size() == 1);
-    CHECK(presented.fret_hand_positions[0].seconds == Catch::Approx(1.9));
-    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(1.9));
+    CHECK(presented.fret_hand_positions[0].seconds == Catch::Approx(1.925));
+    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(1.925));
     CHECK(presented.fret_hand_positions[0].unpitched_ramp);
     CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
 }
@@ -864,7 +864,7 @@ TEST_CASE(
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
-        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.65));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
         // The close is that lone note's own onset — beat 1.5, which is where both the statement's
         // reach and the closing event land — so the drawn extent stops one margin inside it.
         CHECK(state.shapes[0].close_seconds == Catch::Approx(0.75));
@@ -1129,9 +1129,9 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     const NoteViewState& shift = state.notes[5];
     REQUIRE(shift.slides.size() == 1);
     const KeyframeViewState& arrival = shift.slides.back();
-    CHECK(arrival.seconds == Catch::Approx(12.8 * beat));
+    CHECK(arrival.seconds == Catch::Approx(12.85 * beat));
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(arrival.seconds));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.8 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.85 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
@@ -1185,8 +1185,8 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
 
     // The arrival's own drawn segment: from the onset (4 beats) to the drawn arrival, one margin
     // before the 5 beats both rings end at.
-    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.8 * beat));
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.8 * beat));
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.85 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.85 * beat));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
 }
 

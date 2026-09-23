@@ -347,6 +347,15 @@ recorded as a tunable). Default onset window ±100 ms around the calibrated expe
 Clone Hero's 140 ms total is the de facto Neversoft-feel reference), so the recorded tuning
 direction once plan 23 measures detection jitter is toward ~±70 ms by ruleset version. Verdict
 timing delta always recorded signed (negative = early) for 27's tendency display.
+**Invariant with the display margin (recorded 2026-09-22):** a sustain is judged only to its drawn
+end, one minimum sustain distance (`g_minimum_sustain_distance_seconds`, `grid_arithmetic.h`)
+before a same-string head (`docs/plans/in-progress/ring-ends-and-authoring-planes.md`). A legal
+early strike on that string ends the ring up to the early half of the onset window before the
+head, so the margin must be at least that early half-window, or the player loses sustain credit
+they could not have kept. The margin is in song time and the window in real time, so the tightest
+case is 1.0× playback. The ~±70 ms target meets the settled margin; the ±100 ms default does not,
+and while it stands scoring needs a sustain-drop leniency of its own that covers the difference.
+State this as a `static_assert` or a named invariant once the window is fixed.
 **Files**: new `rock-hero-game/core/include/rock_hero/game/core/scoring/` headers +
 `rock-hero-game/core/src/scoring/` + `rock-hero-game/core/tests/` (new test target
 `rock_hero_game_core_tests`, replacing reliance on `placeholder.cpp`). Include form per

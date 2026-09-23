@@ -3104,7 +3104,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // head a beat later like every other drawn tail — its terminal is the statement at its
         // ring's end, and rule 2 carries that with the drawn end. A number of its own is what says
         // the two zeros above are the mute rather than a span that failed to cover the onset.
-        CHECK(memory_resolutions.holds[1] == Fraction{4, 5});
+        CHECK(memory_resolutions.holds[1] == Fraction{17, 20});
         CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
         CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
         CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);
