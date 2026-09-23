@@ -87,8 +87,10 @@ statement exactly on the head, and two derivations read the touch itself: the le
 (`arrivesIntoNextHead`). Spacing is display's alone.
 
 **The margin stays one constant.** With nothing moved, it only decides how early ink stops; its
-other readers (span drawn ends, the hand window's margin morph, the landed-span tenure in shape
-derivation) keep reading it. A screen-space clearance was weighed and not taken: engraving measures
+other readers (span drawn ends, the landed-span tenure in shape derivation, and the Guitar Pro
+import's scoop cap — the quickest glide that still reads as one) keep reading it. The hand's
+visible approach — the fret-hand window's morph and the tap light's rise — is motion, not spacing,
+and reads its own `g_hand_approach_seconds` (split 2026-09-22). A screen-space clearance was weighed and not taken: engraving measures
 the gap in space (MuseScore stops a slide line 0.25 staff spaces before its target), and a time gap
 varies with zoom and playback rate, but those costs bite only when a statement MOVES. A keyframe
 ban inside the margin was rejected too: the arrival must stand at the head, Guitar Pro imports

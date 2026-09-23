@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -1045,10 +1046,10 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 12}},
         });
     chart.fret_hand_positions = {
-        // Ordinary move: the margin morph (a fifth of a beat at 120 BPM).
+        // Ordinary move: the approach morph.
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
-        // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
-        // so the morph shortens against it.
+        // Crowded: a sixteenth of a beat after the previous arrival — closer than the approach
+        // lead — so the morph shortens against it.
         FretHandPosition{
             .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
             .fret = 2,
@@ -1061,8 +1062,8 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .fret = 6,
             .width = 4,
         },
-        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
-        // morph, arriving with the slide-out, never the whole-sustain segment.
+        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): it rides the
+        // slide-out's own segment, never the whole-sustain segment.
         FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
     };
 
@@ -1070,7 +1071,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     REQUIRE(state.fret_hand_positions.size() == 4);
 
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
 
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
@@ -1085,12 +1086,12 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     // pitched glide does, and carries the unpitched family so the window eases with the same curve
     // the rail is drawn with. The slide-out's segment runs from the note's onset (14 beats) to its
     // end (15 beats) because the note carries no pitched keyframes ahead of it; morphing over the
-    // metrical margin instead would leave the window stationary for most of the drawn glide and
-    // then sprinting to catch up.
+    // approach lead instead would leave the window stationary for most of the drawn glide and then
+    // sprinting to catch up.
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
     CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK(state.fret_hand_positions[3].unpitched_ramp);
-    // The two margin morphs keep the pitched family: only a slide-out ramp is unpitched.
+    // The two approach morphs keep the pitched family: only a slide-out ramp is unpitched.
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
@@ -1194,7 +1195,7 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
 // how a slide notated on a tied continuation records where it leaves from, so tying their span to
 // the window drifts the hand across the whole tied group to arrive at a fret it never left — the
 // picture at fret 11 of measure 50 of the acceptance song.
-TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][chart]")
+TEST_CASE("Chart projection gives a hold keyframe the approach morph", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -1226,8 +1227,9 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
+    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the
+    // approach lead.
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
     // The real glide that follows still rides its own one-beat segment, and an INTERIOR arrival is
     // drawn exactly where the chart states it, so the window completes there.

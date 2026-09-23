@@ -40,6 +40,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   the margin is therefore exact) and floor onto the chart's tick lattice, which keeps the answer
   from ever falling short of the duration. It must stay below the kept-sustain bound below, so
   every tail that earns one keeps some ink; a `static_assert` says so.
+- `g_hand_approach_seconds`, with `positionSecondsBefore(tempo_map, onset, seconds)` — how long
+  before an onset a hand's visible approach begins: the fret-hand window's morph toward a
+  placement no glide carries it to, and the picking hand's light rising toward a right-hand onset.
+  Motion, not spacing, so it is deliberately NOT the margin: a gap only has to read as a
+  separation, while a movement that short reads as a jump. `positionSecondsBefore` is the one walk
+  both leads share — `marginBefore` is it at the margin.
 - `g_minimum_kept_sustain_seconds` — the kept-sustain bound presentation rule 3 drops a short
   effect-free tail against, a **duration** for the same reason. Rule 3 reads each note's actual
   ring in seconds through the tempo map, from onset time to ring-end time, and only a ring running

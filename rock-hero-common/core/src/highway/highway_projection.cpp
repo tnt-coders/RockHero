@@ -55,9 +55,9 @@ HighwayViewState makeHighwayViewState(
     const Chart& chart = *arrangement.chart;
     const std::vector<NoteViewState>& notes = state.chart.notes;
 
-    // Per-note tap light-rise durations: the right-hand light rises over the fret-hand
-    // placements' own arrival margin (\ref marginBefore) before the onset; zero for
-    // fretting-hand notes. The scene's notes pair one-to-one with the chart's, and a note's
+    // Per-note tap light-rise durations: the right-hand light rises over the same hand-approach
+    // lead the fret-hand placements morph over (g_hand_approach_seconds) before the onset; zero
+    // for fretting-hand notes. The scene's notes pair one-to-one with the chart's, and a note's
     // position survives the saved-form transform, so the grid position comes straight from the
     // chart. Feeds makeHighwayTapOnsets.
     std::vector<double> tap_rise_seconds;
@@ -67,9 +67,12 @@ HighwayViewState makeHighwayViewState(
         double rise_seconds = 0.0;
         if (rightHandOnset(notes[index].attack))
         {
-            rise_seconds = notes[index].start_seconds -
-                           tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
-                               tempo_map, marginBefore(tempo_map, chart.notes[index].position)));
+            rise_seconds =
+                notes[index].start_seconds -
+                tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
+                    tempo_map,
+                    positionSecondsBefore(
+                        tempo_map, chart.notes[index].position, g_hand_approach_seconds)));
         }
         tap_rise_seconds.push_back(rise_seconds);
     }

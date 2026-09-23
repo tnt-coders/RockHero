@@ -9,6 +9,7 @@
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -396,9 +397,9 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
-    // margin (a tenth of a second — a fifth of a beat at 120 BPM).
-    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.2 * beat));
+    // No slide lands on this placement, so it morphs over the hand's approach lead.
+    CHECK(
+        state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
@@ -1313,10 +1314,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(light.path[0].unpitched);
     CHECK(light.path[1].unpitched);
     CHECK(light.path[2].unpitched);
-    // The FHP on the keyframe's grid position ramps by the margin morph — a tenth of a second at
+    // The FHP on the keyframe's grid position ramps by the approach morph — a fixed duration at
     // any tempo — not by the scrape leg's span back to the onset (which would be 0.25s).
+    static_assert(g_hand_approach_seconds < 0.25);
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
-    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.1));
+    CHECK(
+        state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(g_hand_approach_seconds));
 }
 
 namespace

@@ -94,7 +94,7 @@ struct SlideRamp
 // RESOLVED fact, read against the STORED ring: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
 // Asking position alone eases every arrival with the slide-out curve, and the stored ring is also
-// what keeps a hold keyframe the trim lands on falling through to the margin morph.
+// what keeps a hold keyframe the trim lands on falling through to the approach morph.
 //
 // `presented` and the connections' own stream are index-parallel (\ref ChartResolutions), which is
 // what lets one walk read both.
@@ -145,7 +145,7 @@ struct SlideRamp
             // pitch is pinned, which is how a slide notated on a tied continuation records where
             // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
-            // margin morph. The segment start still advances, which is what gives the following
+            // approach morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span. The slide-out's segment starts where the last sounded
             // fret left off and ends where the DRAWN ring does — exactly the span the rail is drawn
             // over — and is marked unpitched so the ease matches the slide-out.
@@ -670,9 +670,9 @@ ChartViewState makeChartViewState(
     }
 
     // Every placement gets an eased approach ramp: a slide-matched placement ramps over its glide
-    // segment so a drawn hand travels with the note, any other placement morphs over the shared
-    // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
-    // the previous arrival rather than overlapping it. The synthetic pre-first nut window
+    // segment so a drawn hand travels with the note, any other placement morphs over the hand's
+    // approach lead before the arrival (g_hand_approach_seconds), and crowded transitions shorten
+    // against the previous arrival rather than overlapping it. The synthetic pre-first nut window
     // counts as arriving at the chart origin.
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
@@ -693,8 +693,9 @@ ChartViewState makeChartViewState(
         }
         else
         {
-            ramp_start_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                globalBeatPosition(tempo_map, marginBefore(tempo_map, fhp.position)));
+            ramp_start_seconds = tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
+                tempo_map,
+                positionSecondsBefore(tempo_map, fhp.position, g_hand_approach_seconds)));
         }
         const double previous_arrival_seconds = state.fret_hand_positions.empty()
                                                     ? tempo_map.secondsAtBeat(1, 1)
