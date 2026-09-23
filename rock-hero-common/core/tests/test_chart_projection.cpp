@@ -345,8 +345,8 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
 
-    // 120 BPM 4/4: a beat is half a second and the margin is a tenth of one, so the presented
-    // tail stops at 3.8 beats and the ring runs the full four.
+    // 120 BPM 4/4: a beat is half a second and the margin is 0.075 s, 3/20 of a beat here, so the
+    // presented tail stops at 3.85 beats and the ring runs the full four.
     CHECK(presented.notes[0].end_seconds == Catch::Approx(1.925));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
@@ -427,9 +427,9 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
         CHECK(note.slides[1].slide_out);
     }
     // WHERE the slide-out's chip draws, which is the other half of the contract and the number both
-    // surfaces paint from: the presented form shows it as the drawn tail ends, one margin (a tenth
-    // of a second) before the head that binds, while the actual form shows the ring the chart
-    // stores and puts it at the ring's own end a second in.
+    // surfaces paint from: the presented form shows it as the drawn tail ends, one margin (75 ms)
+    // before the head that binds, while the actual form shows the ring the chart stores and puts
+    // it at the ring's own end a second in.
     CHECK(presented.notes[0].slides[1].seconds == Catch::Approx(0.925));
     CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.0));
     // And the chart itself is untouched: the statement stays at the ring's end where it was
@@ -809,8 +809,7 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
-    // 120 BPM 4/4 throughout: a beat is half a second and the margin is a tenth of one, a fifth of
-    // a beat.
+    // 120 BPM 4/4 throughout: a beat is half a second and the margin is 0.075 s, 3/20 of a beat.
     const auto note =
         [](const GridPosition& position, const int string, const int fret, const Fraction sustain) {
             return ChartNote{
@@ -873,7 +872,7 @@ TEST_CASE(
     SECTION("the trim never retreats behind the span's last statement")
     {
         // The same figure with the closing note a THIRTY-SECOND after the restrike: the margin
-        // alone would end the rails at 7/8 of a beat, in front of the beat-2 strum they are drawn
+        // alone would end the rails at 39/40 of a beat, in front of the beat-2 strum they are drawn
         // over. The floor keeps them on that strum, at 1.0 beat — half a second.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{1}),

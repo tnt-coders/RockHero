@@ -365,7 +365,7 @@ TEST_CASE("Rule 2's floors reach a trimmed ring-through", "[core][chart]")
         // its arrival AT the ring's end, and the trim carries it back to this very instant.
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{1}, .fret = 5},
-            Keyframe{.offset = Fraction{9, 5}, .fret = 2},
+            Keyframe{.offset = Fraction{37, 20}, .fret = 2},
         };
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
@@ -445,7 +445,7 @@ TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]
 {
     const TempoMap map = fourFourMap();
     // Two beats to the binding onset and a two-beat ring, so the ring does NOT pass the onset (that
-    // would be a deliberate hold) and the margin alone would trim it to 7/4.
+    // would be a deliberate hold) and the margin alone would trim it to 37/20.
     std::vector<ChartNote> saved = {
         note(at(1, 1), 1, Fraction{2}),
         note(at(1, 3), 2, Fraction{1}),
@@ -460,7 +460,7 @@ TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
-        // The margin alone would have stopped at 7/4; the tail runs to the last keyframe at 15/8
+        // The margin alone would have stopped at 37/20; the tail runs to the last keyframe at 15/8
         // and stops exactly there.
         CHECK(presented[0].sustain == Fraction{15, 8});
         CHECK(presented[0].keyframes.size() == 2);
@@ -546,7 +546,7 @@ TEST_CASE("Rule 2 floors the trim on the last interior keyframe", "[core][chart]
         // stopping exactly on the end — which is what makes the extra window above a property of
         // statements that leave the string shaking rather than of the vibrato channel.
         saved[0].vibrato = VibratoState::Narrow;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{9, 5}, .vibrato = VibratoState::Off}};
+        saved[0].keyframes = {Keyframe{.offset = Fraction{37, 20}, .vibrato = VibratoState::Off}};
 
         const std::vector<ChartNote> presented = presentedNotesOf(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -646,7 +646,7 @@ TEST_CASE("The store holds an abutting end statement and presentation spaces it"
     const TempoMap map = fourFourMap();
     // Three ringing notes at one onset, each on its own string, each two beats long and each
     // re-struck on its own string exactly two beats later — so every ring abuts its next head and
-    // every drawn tail is bound by that same onset, two beats out with a fifth-of-a-beat margin.
+    // every drawn tail is bound by that same onset, two beats out with a 3/20-beat margin.
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     ChartNote slides_out = note(at(1, 1), 1, Fraction{2});
@@ -1044,7 +1044,7 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
 {
     const TempoMap map = fourFourMap();
 
-    SECTION("a tie-merged chord trimmed at a changed onset presents 9/5")
+    SECTION("a tie-merged chord trimmed at a changed onset presents 37/20")
     {
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{2}),
@@ -1059,14 +1059,14 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
         CHECK(presented[1] == Fraction{37, 20});
     }
 
-    SECTION("a predecessor bound by a grace's sounding onset presents 27/40")
+    SECTION("a predecessor bound by a grace's sounding onset presents 29/40")
     {
         std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{7, 8}),
             note(at(1, 1, Fraction{7, 8}), 2, Fraction{1, 8}, 7),
             note(at(1, 2), 2, Fraction{1}, 8),
         };
-        // Vibrato only earns the group's tail (rule 3); it changes no payload offset, so the 27/40
+        // Vibrato only earns the group's tail (rule 3); it changes no payload offset, so the 29/40
         // is rule 1's arithmetic alone: 7/8 to the ornament's sounding onset, less the margin.
         saved[0].vibrato = VibratoState::Narrow;
 
@@ -1093,9 +1093,8 @@ TEST_CASE("Presented tails reproduce the import policy's pinned trims", "[core][
         // A full beat runs strictly past the ornament's sounding onset at 7/8, so that onset does
         // not bind it; the principal a beat in does, and the trim is that onset's margin. Binding
         // on the SOUNDING position is what the model buys: reading a separately notated beat
-        // instead would trim this ring to 27/40, the answer the section above pins.
+        // instead would trim this ring to 29/40, the answer the section above pins.
         CHECK(presented[0] == Fraction{17, 20});
-        CHECK(presented[0] != Fraction{27, 40});
     }
 }
 
@@ -2312,7 +2311,7 @@ TEST_CASE("A drawn keyframe is named by the stored statement at its index", "[co
         // The drawn note a rule carrying the ring's end statement back would leave: the same three
         // statements, the last one shown one margin before the stored end.
         ChartNote drawn = stored;
-        drawn.sustain = Fraction{9, 5};
+        drawn.sustain = Fraction{37, 20};
         drawn.keyframes.back().offset = drawn.sustain;
 
         const std::span<const Keyframe> identities = keyframeIdentities(stored, drawn);

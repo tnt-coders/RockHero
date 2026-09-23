@@ -928,7 +928,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is a quarter beat.
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is 3/20 of a beat.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     common::core::Chart chart;
@@ -936,7 +936,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     chart.notes = {
         // Two beats of ring on string 3, meeting the next onset on its own string exactly — the
         // furthest a stored ring may reach (sustainBoundOf). Presentation trims it one margin back
-        // to clear that head, so 1.75 to 2.0 beats is ink only the actual form has.
+        // to clear that head, so 1.85 to 2.0 beats is ink only the actual form has.
         common::core::ChartNote{
             .position = common::core::GridPosition{.measure = 1, .beat = 1},
             .string = 3,
@@ -986,25 +986,25 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         return image;
     };
 
-    // 200 px per second: the drawn tail stops at x = 175 and the ring at x = 200, where the next
-    // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 185
+    // 200 px per second: the drawn tail stops at x = 185 and the ring at x = 200, where the next
+    // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 189
     // is trimmed-away ink with nothing else over it. Row 72 is 1.5 px below string 3's lane centre.
-    CHECK(render().getPixelAt(185, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
     // Neither editing state shows it: selecting the note under scrutiny leaves its notation where
     // it was drawn, and so does standing the caret in the very stretch the trim took.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
-    CHECK(render().getPixelAt(185, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.9375, .string = 3},
         });
-    CHECK(render().getPixelAt(185, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
     // The reveal is the one ground, and what it shows is the derivation's own trim.
     view.setEditState(core::ChartEditViewState{});
     view.setActualRingReveal(true);
-    CHECK(render().getPixelAt(185, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
 }
 
 // THE SPAN ARM of the same reveal. Rule 12a stops a span's rails one margin before the head that
@@ -1021,7 +1021,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is a quarter beat.
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is 3/20 of a beat.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     const auto note = [](const common::core::GridPosition& position,
@@ -1096,7 +1096,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
         return image;
     };
 
-    // 200 px per second: the rails stop at x = 125 and the close stands at x = 150, so column 137
+    // 200 px per second: the rails stop at x = 135 and the close stands at x = 150, so column 137
     // is trimmed-away rail and column 155 is past the statement entirely. The top rail occupies
     // rows 0 to 2 of the lane, and row 1 carries nothing else — the topmost string's tail envelope
     // starts several rows below it, and this chart draws no lane chips.

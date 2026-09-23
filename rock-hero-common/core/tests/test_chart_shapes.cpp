@@ -1456,7 +1456,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // The divergence in the other direction, and the reason a witness is worse evidence than
         // the stored stream it would stand in for: string 2 is a dead click, so E25 takes its tail
         // away in presentation and a witness would see NOTHING ringing — the span would die at the
-        // margin before this re-pick (3/4 of a beat) although the hand is demonstrably still
+        // margin before this re-pick (17/20 of a beat) although the hand is demonstrably still
         // holding the shape. The stored ring says what the hand did: string 1 rings exactly into
         // its own re-pick, string 2 rings through it, so every member is continuous and the
         // statement stands through both.
@@ -3887,8 +3887,9 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
     SECTION(
         "the opening mark draws at the first sounding, never at a landing the front was dated to")
     {
-        // The sighted slide-into-chord: two glides arrive a quantum before a chord that restrikes
-        // exactly where they landed, over two open strings still ringing from the figure before.
+        // The sighted slide-into-chord: two glides arrive a quarter beat (more than the margin)
+        // before a chord that restrikes exactly where they landed, over two open strings still
+        // ringing from the figure before.
         // The chord's span fronts at the landing (the tie doctrine: the slid fingers' statements
         // began there), but nothing SOUNDS at a landing, so the bracket draws at the chord — the
         // first sounding at or after the front — where a mark at the landing framed the chord a

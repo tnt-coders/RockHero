@@ -4811,8 +4811,8 @@ TEST_CASE(
 // What the importer STORES for a note carrying a technique: the whole notated ring and the whole
 // curve mapped onto it, nothing clipped. The presented values beside them are how far that
 // information survives the margin — rule 2's arithmetic, which core owns and tests on its own; the
-// point here is that the import's synthesized geometry reaches it intact. Runs in 4/4, where the
-// margin is a quarter beat.
+// point here is that the import's synthesized geometry reaches it intact. Runs in 4/4 at 120 BPM,
+// where the margin is 3/20 of a beat.
 TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -4852,7 +4852,7 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
 
     SECTION("a bend change inside the trimmed region extends the tail to that change")
     {
-        // The destination lands at 95% of a two-beat note — past the margin limit of 7/4 — so
+        // The destination lands at 95% of a two-beat note — past the margin limit of 37/20 — so
         // the drawn tail overrides the margin, but only out to the change itself, not to the
         // stored end at two beats.
         GpScore score = makeLinearScore(1, syncs);
@@ -5901,7 +5901,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        // A half note's quarter would be a half-beat scoop; the margin caps it at 1/5.
+        // A half note's quarter would be a half-beat scoop; the margin caps it at 3/20.
         REQUIRE(chart.notes[1].keyframes.size() == 1);
         CHECK(chart.notes[1].keyframes[0].offset == Fraction{3, 20});
         CHECK(chart.notes[1].sustain == Fraction{2});
