@@ -24,7 +24,7 @@ ring's end statement is DRAWN, the keys decide what reaches it, and each assumes
   charting converged on for the gap before a following note, and at or above the early half of
   plan 24's hit window target. 100 ms erased sixteenth-note ring detail above 150 BPM; 50 ms left
   about 3 px between a tail and the next head at the 2D lane's default zoom. It is confirmed, not
-  re-chosen, in the phase 2 sighting once the fade is built, since a fade makes a gap read larger
+  re-chosen, in the display phase's sighting once the fade is built, since a fade makes a gap read larger
   than the margin itself. The fret-hand window morphs over the same margin, deliberately: it starts
   moving exactly where the old tail's ink stops, so the hand never leaves while a note it holds is
   still drawn. A separate, longer approach lead was tried and reverted for that reason (2026-09-23);
@@ -40,11 +40,18 @@ ring's end statement is DRAWN, the keys decide what reaches it, and each assumes
 
 ### The display: keyframes at their true instant, ink cropped
 
-**THE ENDING ZONE.** Where a head on the same string binds a tail, the stretch of one margin
-before that head is the ring's ending. The ink draws the stored curve toward the zone's FIRST
-keyframe, fading out as it reaches the crop, and one label there names that keyframe's value where
-the leg changes something. Later keyframes in the zone stay stored and are superseded by the head:
-never drawn, never scored. A free tail has no zone and draws in full.
+**THE ENDING ZONE.** Where a head binds a tail, the stretch of one margin before that head is the
+ring's ending. The ink draws the stored curve toward the zone's FIRST keyframe, fading out as it
+reaches the crop, and one label there names that keyframe's value where the leg changes something.
+Later keyframes in the zone stay stored and are neither drawn nor scored. A free tail has no zone
+and draws in full.
+
+**Which head binds is today's rule 1, unchanged (decided 2026-09-23):** the first later onset on ANY
+string that the ring does not run strictly past. A ring ending exactly at another string's head is
+bound by it; a ring stated to ring on past that head is not. On the ring's own string the head
+supersedes the zone's later statements outright, the string being struck again; on another string
+nothing re-strikes, and those statements are simply the ring's ending, closer to it than the
+display can show or scoring judge.
 
 What that sentence commits to:
 
@@ -58,7 +65,7 @@ What that sentence commits to:
    label, as a tab bend arrow's "full" or a slide's target fret is: the line carries the timing,
    the label names where it goes. Why the FIRST keyframe in the zone and not the last: the first is
    where the visible leg is heading, while the last is the state the string is in as the head
-   strikes, which the head already shows (its fret, its own bend state).
+   strikes, which a head on the same string already shows (its fret, its own bend state).
 4. **One rule for every case.** A free tail's ink ends on its last statement, labelled at its true
    instant. A bound tail with one end statement has first and last the same. A bound tail with
    several keyframes in the zone labels its cropped leg with the first. A flat leg crossing the
@@ -70,7 +77,9 @@ What that sentence commits to:
    hand window completes at the TRUE instant — the picture that sighted well.
 7. **A reveal adds ink, never moves a mark.** `Alt` extends every tail's ink, in the lane's quieted
    form, to its stored end, showing every stored keyframe at its true instant; the label stays at
-   the crop. Whether the caret peek (and the selection) return as reveals under this rule is open.
+   the crop. The caret peek and the selection return as reveals under this rule (decided
+   2026-09-23): they were withdrawn because revealing moved a clicked end chip, and once no reveal
+   moves a mark that reason is gone.
 
 What is lost, deliberately: a gesture that begins and ends inside the zone (a flick up and back in
 the last 50–75 ms) has no net change on the visible leg, so it is neither drawn nor scored; and a
@@ -78,12 +87,12 @@ note shorter than the margin draws no ink at all.
 
 **Scoring agrees with the display, exactly** — judging what the player cannot see is a critical
 bug. A keyframe before the zone is judged at its stored instant, which is where it is drawn; a
-sustain is held to the crop, where its ink finishes fading; everything inside the zone is
-superseded by the head, which is judged as its own onset. (No scoring code reads the chart yet;
-this is the contract it will be built against.)
+sustain is held to the crop, where its ink finishes fading; nothing inside the zone is judged — a
+same-string head is judged as its own onset, and on another string the zone is the ring's ending.
+(No scoring code reads the chart yet; this is the contract it will be built against.)
 
-**At most one keyframe in the zone is NOT a chart rule.** The zone relates a ring, the next head on
-its string and the tempo, so a tempo edit, a move of the next head, a cut or an import would each
+**At most one keyframe in the zone is NOT a chart rule.** The zone relates a ring, the head that
+binds it and the tempo, so a tempo edit, a move of the next head, a cut or an import would each
 break such a rule on notes they never touched, and each would need a repair that deletes stored
 keyframes or a refusal of an unrelated edit. The display rule already makes every later zone
 keyframe inert, so nothing needs enforcing. Nor do the keys redirect a zone slot to the zone's
@@ -173,15 +182,10 @@ Each phase ends built, with touched tests passing, sighted where it changes the 
 committed. The display comes first: it changes what the lane shows, and the keys are then sighted
 against the lane they will ship with.
 
-### Phase 1 — Sight the same-string question
+### Phase 1 — The display
 
-On a scratch branch, no commit to master. Sight the trim binding on the same string only against
-any string. Cases: My Sacrifice measure 9 (the chord shift slide with open strings ringing
-through), a plain slide-out abutting a same-string head, an end bend abutting one, a free-ending
-slide-out, and a dense sixteenth passage — each in 2D, in 3D and under `Alt`. The retreat is still
-built here, so this sights spacing only; the cropped legs are sighted in phase 2.
-
-### Phase 2 — The display
+The sighting phase that preceded this one is retired: the question it was to settle — which head
+binds a tail — was decided without one (rule 1 unchanged, see *The display*).
 
 - **Presentation keeps the stored ring and adds an ink end.** The presented note keeps the stored
   sustain and every keyframe at its stored offset, and carries the ink's end beside it — the pair
@@ -190,8 +194,11 @@ built here, so this sights spacing only; the cropped legs are sighted in phase 2
 - **Deleted:** rule 2's ride of the end statement, `lastStatementClearance` and its halfway
   fallback, and whatever of the drawn-to-stored keyframe identity mapping existed only to undo the
   ride.
-- **The ending zone** in presentation: the ink end is the crop where a same-string head binds, with
-  the zone's first keyframe published as the label's value where the leg changes something.
+- **The ending zone** in presentation: the ink end is the crop where a head binds (rule 1's binding
+  onset), with the zone's first keyframe published as the label's value where the leg changes
+  something.
+- **The caret peek and the selection reveal return**, each adding the stored tail's ink the way
+  `Alt` does and moving no mark.
 - **Painters crop at the ink end**, fade the leg crossing it, and draw the label there, the 2D lane
   and the highway alike.
 - **The hand window's slide ramp** ends at the true end (`chart_projection.cpp`, which reads the
@@ -199,33 +206,41 @@ built here, so this sights spacing only; the cropped legs are sighted in phase 2
 - **Readers of the presented stream to re-verify:** the view-state projection, the highway
   projection, `chart_legato.cpp` (`presentedChartNotes` at :387) and the Guitar Pro importer's
   slide-out exit pass (`gp_chart_builder.cpp` :3861, which reads presented LENGTHS).
-- **The same-string decision** if phase 1 took it, and the margin's value confirmed against the
-  built fade (the decision test: a sixteenth-note slide or bend passage at 160–180 BPM keeps its
-  ink, and a long sustain into a same-string head reads as ending clearly short of it).
+- **The margin's value confirmed** against the built fade (the decision test: a sixteenth-note
+  slide or bend passage at 160–180 BPM keeps its ink, and a long sustain into a same-string head
+  reads as ending clearly short of it).
 - **Docs:** `chart_presentation.h`'s rule text, and the documents that describe the ride:
   `derived-shift-slide.md`, `keyframe-and-burst-ground-up.md`, `note-sustain-model.md`,
   `keymap-matrix.md`, `docs/developer/musical-time.md`, `docs/developer/the-project-lifecycle.md`.
 - **Tests:** presentation for a free tail, a bound tail with one end statement, several keyframes
   in the zone (the first labels), a flat leg crossing the crop (no label), keyframes before the
-  zone (all inked), a note shorter than the margin, and a cross-string head; projection for the
-  ink end and the ramp. Sight the phase 1 cases again, now with cropped, fading legs, plus a
-  Guitar Pro bend-release written at 98% and 99%.
+  zone (all inked), a note shorter than the margin, a ring ending exactly at another string's head
+  (bound) and one ringing past it (not bound); projection for the ink end and the ramp. Sight My
+  Sacrifice measure 9 (the chord shift slide with open strings ringing through), a slide-out and
+  an end bend abutting a same-string head, a free-ending slide-out, a dense sixteenth passage and
+  a Guitar Pro bend-release written at 98% and 99% — each in 2D, in 3D and under `Alt`.
 
-### Phase 3 — The cut's authority
+### Phase 2 — The cut's authority
 
 Parameterize `splitNoteIntoProducts` by the new head's attack and fret, so the split and the cut
 are one walk. Tests: the cut's lossless inheritance (keyframes, channel states, end statement), a
 point exactly at the cut whose fret differs from the typed one, and a scrape's refusal. No key
 reaches the cut yet; the split's behaviour is unchanged.
 
-### Phase 4 — The keys
+### Phase 3 — The keys
 
 - The digit dispatch (`chartCaretDigitTarget` and the pending entry's targets) as operand then
   plane, with the cut for a bare digit inside a ring.
-- `Alt`+digit as new commands (the old values stay spent), with the fallback and the redirect.
-- Bare `Insert` gains its string-row half: a head at the fret in force, or the head selected. Today
-  that key is `InsertLanePoint`; whether one command keeps that name for both rows is a naming
-  question to settle in the phase.
+- `Alt`+digit as new commands (the old values stay spent), "Type Ring Digit 0–9", with the
+  fallback and the redirect.
+- Bare `Insert` gains its string-row half: a head at the fret in force, or the head selected. It
+  becomes one command, "Insert at Caret", creating whatever the caret's row holds — a head on a
+  string row, a point on an automation lane — and replaces "Insert Lane Point" (`InsertLanePoint`).
+- `Alt+Insert` is renamed "Insert Ring Point", replacing "Insert Chart Statement"
+  (`InsertChartStatement`), after the plan's own word for what `Alt` acts on. The three names
+  outlive the change, so the naming expert checks them before they ship.
+- An `Alt` key over a multi-selection acts on each selected element as it would alone (decided
+  2026-09-23), so one press may retype some heads and state end statements at others.
 - `Alt+Insert` at a ring's end leaves the silent statement standing in focus.
 - **Tests** at controller level for every cell of the table, the selection plane, the multi-digit
   window across planes, the silent end statement, and the shared-instant addressing.
@@ -246,13 +261,7 @@ reaches the cut yet; the split's behaviour is unchanged.
 
 ## Open decisions
 
-- Whether the trim binds only on the same string (phase 1). The ending zone is a same-string rule,
-  because only a head on the ring's own string supersedes what the zone holds. A crop before a
-  head on ANOTHER string would hide statements nothing supersedes, which scoring would then judge
-  where no ink reaches; so either the trim binds on the ring's own string only (recommended: other
-  strings collide on neither surface), or a cross-string crop yields to every statement.
-- Whether the caret peek, and the selection, return as reveals under "a reveal adds ink, never
-  moves a mark" (phase 2 sighting).
-- An `Alt` digit over a multi-selection mixes outcomes per element; accept that, or restrict the
-  redirect to a single selection (phase 4).
-- The bare-`Insert` command's name across rows (phase 4).
+None. Decided 2026-09-23 and recorded where they apply: the tail binds on rule 1's onset on any
+string (*The display*); the caret peek and the selection return as reveals (display item 7); an
+`Alt` key over a multi-selection acts per element (phase 3); and the command names — "Insert at
+Caret", "Insert Ring Point", "Type Ring Digit 0–9" (phase 3).
