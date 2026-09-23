@@ -447,6 +447,24 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
   exactly; time-preservation invariant: resolved seconds identical within exact fp equality
   since anchor seconds and quarter positions are untouched); terminal re-seat cases; memento
   undo restores the full song slice field-equal; UI popover tests in the harness.
+  - **The tick lattice (2026-09-23).** Every stored position must be a whole number of ticks
+    (1/3840 of a whole note) and validation refuses one that is not. A global-beat position
+    "plus fraction" re-read under a larger denominator is not: an odd tick of a quarter-note beat
+    is half a tick of an eighth-note one. The transform therefore re-addresses on the whole-note
+    axis (`wholeNotePosition` / `advanceGridPositionByWholeNotes`, `grid_arithmetic.h`), which a
+    denominator change does not bend, and rounds any residue through `nearestTick`; the
+    time-preservation invariant then holds to within half a tick rather than exactly, which the
+    property tests state. A denominator the lattice cannot hold (512 and up) is already refused
+    by the package validator.
+- **Sighting (added 2026-09-23, from the lattice follow-up's own sighting, which did not get a
+  close look at this):** with a signature change authored, look closely at content that crosses
+  the change: move a note carrying a bend or slide across the barline both ways and confirm its
+  ring length and keyframe timing stay put musically; with snap off, tick-step a keyframe that
+  sits in the later meter; convert a short note just before the change into a pick slide and
+  confirm it rings a quarter note; place notes on an odd grid (`1/28`) on both sides of the
+  change and confirm consecutive placements touch. Each of these was refused or off the lattice
+  before `a6455969`, and the meter edit is the first verb that can create such content without
+  an import.
 - **Exit criteria:** meter can be edited on a fully populated chart with zero audible/temporal
   content shift and single-step undo.
 - **Verification:** build + touched tests + clang-tidy.
