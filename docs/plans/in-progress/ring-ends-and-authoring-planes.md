@@ -213,14 +213,13 @@ a head" and "on a point" with no selection are reached only by a caret walk that
 slot; a slot holding an interior point is then a selection, and the bare digit retypes the point.
 **An `Alt` key at a ring's end ADDRESSES the statement already standing there** — retyping it, or
 overlaying the channel it states — exactly as `Alt+Insert` does today; it never creates a second
-keyframe at that offset, which `planInsertKeyframe` would refuse. With a selection, a bare digit
-retypes the selection, notes or keyframes alike; an `Alt` digit retypes a selected keyframe,
-states or retypes the end statement of a ring ending at a selected head, and retypes any other
-selected head. **One press over a mixed selection is one plan and one undo entry**: one planner
-resolves each element's target up front (retype, or end statement), builds ONE candidate chart,
-and runs `finalizePlan` once — two `ChartEditPlan`s cannot be composed, since each is a whole-note
-diff validated on its own and both may rewrite the same note. The pending entry gains a target for
-it beside `Cut`.
+keyframe at that offset, which `planInsertKeyframe` would refuse. **The redirect is a property of
+ONE SLOT** — one instant on one string — so it applies when the operand is a single slot: the
+caret's, or the one object the caret armed. With a selection of more than one element there is no
+single slot, and an `Alt` key acts exactly as the bare key does: it retypes everything selected,
+notes or keyframes alike (decided 2026-09-23, replacing the per-element rule of the same day). So
+a single selected head where a ring ends is the one case where `Alt` reaches that ring's end
+statement, and no planner ever has to compose a retype with a creation.
 
 **A bare digit on a head RETYPES it** — a behaviour change: today it replaces the note, dropping
 its techniques and keyframes. The entry routes to `Retype` over that slot.
@@ -258,8 +257,10 @@ that was visible becomes a zone keyframe, which is the test phase 2 pins. A cut 
 the origin's fret to the cut and re-times nothing else. The cut deletes no keyframe itself; a
 later keyframe equal to the typed fret becomes silent and dissolves at settle under the commit
 law, as any silent point does. A scrape refuses, as the split does, through the pending entry's
-red box; on `Insert`, which settles in its own keystroke, the refusal is the log line and the box
-is not shown. The walk becomes a public planner (`planCutRing`) so the cut is testable; whether it
+red box; on `Insert`, which settles in its own keystroke, the box is shown in its refused state
+for the flash and dissolves — the refusal flash's own line (`refusal-flash.md`: a red glow on the
+refused thing plus the log line, never a silent log). The walk becomes a public planner
+(`planCutRing`) so the cut is testable; whether it
 parameterizes the walk or overwrites the second product after it is phase 2's first question, the
 simpler shape winning. `Shift+L` keeps its own job, and splitting at a typed fret is `Alt`+digit
 then `Shift+L`.
@@ -272,9 +273,10 @@ one.
 **The silent end statement.** `Alt+Insert` at a ring's end states the fret the ring already holds,
 which says nothing. It survives in focus under the keyframe commit law, like an interior silent
 point: no undo entry, dissolved when its note leaves focus, never written. Already built
-(`derived-shift-slide.md`, 2026-09-22). An `Alt` digit typing that fret there is the same press.
-This retires the flash consumer in `refusal-flash.md`, which names a key and a function that no
-longer exist.
+(`derived-shift-slide.md`, 2026-09-22). An `Alt` digit typing that fret there is the same press,
+and it flashes, as `refusal-flash.md`'s second consumer rules: the key does nothing for a reason
+the screen does not show. That consumer is re-keyed from the deleted `dissolveSilentRelease` to
+the commit law's own dissolve, and gains the `Insert` cut of a scrape above as a third case.
 
 **`Alt`+digit on an open string's tail** keeps the `OpenStringSlide` refusal and its red box.
 
@@ -378,6 +380,10 @@ it until the single form carries one.
 
 ### Phase 2 — The keys
 
+**The rulings of this phase are PROVISIONAL** (2026-09-23): they were taken before the cropped
+lane existed, and they are re-read against phase 1's sighted lane before this phase starts.
+Nothing in phase 1 depends on any of them.
+
 - `planCutRing` in `chart_edits.h`: the split walk with a fresh head (strike defaults, typed fret,
   picked attack). Tests: lossless inheritance of keyframes, channel states and the end statement;
   a point exactly at the cut with a different fret (a slide-out); a scrape's refusal; the flags
@@ -385,13 +391,13 @@ it until the single form carries one.
   only cut (`chart_edits.cpp`, `chart_handlers.cpp`, `keyboard-input.md` step 5, the
   `keymap-matrix.md` `Shift+L` row) are rewritten.
 - The digit dispatch (`chartCaretDigitTarget` and the pending entry's targets) as operand then
-  plane. `ChartFretEntry` gains a `Cut` target and a mixed-selection target; the silent sites for
-  each are the two `std::get<Retype>` reads (`chart_handlers.cpp` ~:2345, `editor_controller.cpp`
-  ~:2998), the preview's `holds_alternative` check, and the settle's `select_exactly`. A bare
-  digit on a head routes to `Retype`; `Insert` on a head selects directly.
+  plane. `ChartFretEntry` gains a `Cut` target; its silent sites are the two `std::get<Retype>`
+  reads (`chart_handlers.cpp` ~:2345, `editor_controller.cpp` ~:2998), the preview's
+  `holds_alternative` check, and the settle's `select_exactly`. A bare digit on a head routes to
+  `Retype`; `Insert` on a head selects directly.
 - "Type Ring Digit 0–9" as new commands carrying the plane field, with the fallback, the
-  redirect, the standing-statement addressing at a ring's end, and the lanes-view try-order the
-  bare digits already follow; the one-candidate mixed-selection planner.
+  single-slot redirect, the standing-statement addressing at a ring's end, and the lanes-view
+  try-order the bare digits already follow; over a multi-selection the plane is ignored.
 - "Insert at Caret" (one action behind `0x1707`, creating whatever the caret's row holds) and
   "Insert Ring Point" (`0x171C`).
 - **Tests** at controller level for every cell of the table, the selection plane, the mixed
@@ -424,9 +430,10 @@ it until the single form carries one.
 
 ## Open decisions
 
-None. Decided 2026-09-23 and recorded where they apply: scoring is the ink (*The display*); no 3D
-label and a hard 2D crop (display items 4 and 5); the reveals return with their satellites (item
-6); `Alt`+digit stays and the uniform-scope law is amended (*The keys*); the bare digit cuts
-(*Why the bare digit cuts*); a placed head and a cut head take different rings (*A note here*);
-the command names — "Insert at Caret", "Insert Ring Point", "Type Ring Digit 0–9" — pending
-the naming expert's check.
+None open for phase 1; phase 2's rulings are provisional (see that phase). Decided 2026-09-23
+and recorded where they apply: scoring is the ink (*The display*); no 3D label and a hard 2D
+crop (display items 4 and 5); the reveals return with their satellites (item 6); `Alt`+digit
+stays and the uniform-scope law is amended (*The keys*); the bare digit cuts (*Why the bare
+digit cuts*); a placed head and a cut head take different rings (*A note here*); the command
+names — "Insert at Caret", "Insert Ring Point", "Type Ring Digit 0–9" — pending the naming
+expert's check.
