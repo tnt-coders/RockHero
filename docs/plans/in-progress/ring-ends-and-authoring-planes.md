@@ -3,7 +3,8 @@
 Status: DESIGN PROPOSED 2026-09-22, still being decided; not built. Merges and replaces
 `chart-lane-authoring-planes.md` and `ring-end-display.md`. Baseline: HEAD `a4bfed7b` (the
 arrow-and-reveal fix has landed). Re-verify every code claim below against the tree before a
-phase starts.
+phase starts. Starts after the tick-lattice follow-up lands (every editor verb producing positions
+on the lattice, which validation now requires), since phases 3 and 4 add verbs on that footing.
 
 The two halves are one design because they meet at the ring's end: the display decides where a
 ring's end statement is DRAWN, the keys decide what reaches it, and each assumes the other.
