@@ -166,8 +166,8 @@ projection reads the channel once and hands both surfaces the same regions, whic
 lane's sine and the board's wobble covering the same stretch of the same note at the same tier.
 
 A note whose shake runs end to end — every chart written before the keyframe model, and most
-written after — yields exactly one region spanning the whole presented tail, so the surfaces draw
-what they always drew without a case of their own.
+written after — yields exactly one region spanning the whole ring, so the surfaces draw what
+they always drew without a case of their own.
 */
 struct VibratoSpanViewState
 {
@@ -221,12 +221,12 @@ one sequence of stops.
 struct KeyframeViewState
 {
     /*!
-    \brief Absolute timeline position the mark is DRAWN and HIT at — the PRESENTED instant.
+    \brief Absolute timeline position of the statement: where the mark is drawn and hit.
 
-    Where the glide reaches its target fret on screen, and the only number either surface paints
-    from or hit testing measures against. It names nothing: it is a rounded double through the
-    tempo map, and presentation is free to show a statement at an instant other than the one it
-    was authored at, so a mark's place and its identity are two facts (\ref offset).
+    The STORED instant resolved to seconds — nothing presentation decides moves a statement. It
+    is a rounded double through the tempo map and names nothing; the mark's identity is
+    \ref offset. A keyframe standing past its note's \ref NoteViewState::ink_end_seconds is drawn
+    only while the note is revealed.
     */
     double seconds{0.0};
 
@@ -234,31 +234,22 @@ struct KeyframeViewState
     int fret{0};
 
     /*!
-    \brief The STORED keyframe's authored offset along the ring — its stable identity, and the ONLY
+    \brief The keyframe's authored offset along the ring — its stable identity, and the ONLY
     thing a key is ever built from.
 
-    Read off the stored note by the projection (\ref keyframeIdentities) rather than from the drawn
-    keyframe beside it, because the editor's selection keys a keyframe by (note slot, offset)
-    against the AUTHORED chart and must match `Keyframe::offset` exactly: a presentation rule that
-    drew a ring's end statement a margin early would otherwise hand click, caret and the accent
-    ring a name no stored keyframe answers to, each disagreeing in its own way.
-
-    So this and \ref seconds MAY DIFFER, and for the statement standing at a ring's end they are
-    expected to: this is what the mark IS, that is where it is shown.
-
-    Stable under sibling edits, which an index would not be: removing an earlier keyframe shifts
-    every later index and moves no offset.
+    The editor's selection keys a keyframe by (note slot, offset) against the AUTHORED chart and
+    must match `Keyframe::offset` exactly. Stable under sibling edits, which an index would not
+    be: removing an earlier keyframe shifts every later index and moves no offset.
     */
     Fraction offset{};
 
     /*!
     \brief True when this keyframe is the note's SLIDE-OUT: the fret the hand leaves toward as the
-    STORED ring ends, so unpitched travel rather than a stop the finger arrives at.
+    ring ends, so unpitched travel rather than a stop the finger arrives at.
 
-    Read off the stored ring by the projection and carried here rather than re-derived from the
-    drawn one, because the presentation trims a drawn tail back to a pitched arrival too: "the
-    keyframe at the drawn end" names a shift slide's arrival and a slide-out alike, and only the
-    stored form tells them apart. Always the last entry when true.
+    A RESOLVED fact carried from the projection rather than re-derived from position: the keyframe
+    at the ring's end names a shift slide's arrival and a slide-out alike, and only the relation to
+    the next head tells them apart (\ref arrivesIntoNextHead). Always the last entry when true.
     */
     bool slide_out{false};
 
@@ -327,32 +318,19 @@ and is never a fact this core holds.
 }
 
 /*!
-\brief One sounding note resolved to timeline seconds, in the form its \ref ChartViewState carries.
+\brief One sounding note resolved to timeline seconds: the stored note, and where its ink stops.
 
-Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
-string rings, and what a surface draws is derived from it once per chart revision by
-\ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
-says something, dropped where it was never a deliberate sustain, absent on a dead note, and
-marked RESTING from its last always-visible landmark where a span stands at its onset
-(
-ef rested). Every field here comes from
-that derivation, so `end_seconds`, the bend curve, the slide keyframes, the vibrato regions and the
-flattened slide-out all describe the presented note and nothing has to trim a second time.
+The STORED note, keyframes at their stored instants — nothing presentation decides moves a
+statement. What presentation adds (\ref chartPresentation) is \ref ink_end_seconds: a surface
+draws the ring from the onset and simply stops there, so no tail crowds the next head, and a
+reveal draws on to \ref ring_end_seconds — the same note, more of it. Keyframes standing between
+the two are in the ring's ENDING ZONE: stored, revealed at their true instants, and neither drawn
+nor judged otherwise.
 
-The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
-state carries one form throughout, and the two differ in these notes and in nothing else around
-them. Presentation touches the tail alone, so positions, strings, frets, techniques and flags read
-the same in either form; `end_seconds`, the bend curve, the slide keyframes and the vibrato
-regions are the four a reader must not assume are the presented ones — a region running to the
-ring's end runs to the end THIS form presents.
-
-**Scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4). When the scorer
-exists it reads this, not the chart: what the player is asked to hold is exactly what the board
-showed them. The contract holds structurally rather than by discipline, because
-\ref makeHighwayViewState composes \ref makeChartViewState with no form argument: every state a
-game surface can obtain is the presented one, and \ref ChartNoteForm::Actual is unreachable from
-the board, the game and the scorer. That contract is also why the derivation lives in common/core
-rather than in a painter — the game must be able to reach it without a surface.
+**Scored = drawn** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4): when the scorer
+exists it judges exactly what the board shows — every keyframe before the ink end at its instant,
+the leg crossing the ink end as far as it is drawn, and nothing past it. The derivation lives in
+common/core rather than in a painter so the game can reach it without a surface.
 */
 struct NoteViewState
 {
@@ -360,39 +338,38 @@ struct NoteViewState
     double start_seconds{0.0};
 
     /*!
-    \brief Absolute end of the tail; equals start_seconds when the note's form presents none.
+    \brief Absolute end of the STORED ring: the instant the string stops sounding.
 
-    The DRAWN and scored length, never the stored ring: a chug inside the kept-sustain bound rings
-    its notated length and presents nothing. This is the whole of what the 2D lane draws; the 3D
-    board additionally pins a span-held strum's heads past it
-    (\ref ChartViewState::display_hold_ends).
-
-    ONE end per note, and both surfaces draw to it — there is no second per-note LENGTH for a
-    surface to read differently, the tail law included: it can only MARK this (\ref rested), never
-    move or empty it, so a resting ring carries its rules-1-to-4 end here like every other and the
-    board's rest/reveal modulates alpha alone.
-
-    In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
-    strictly later than the onset for every note there (the positive-sustain invariant) and the
-    equals-the-onset case simply does not arise.
+    Strictly later than the onset for every note (the positive-sustain invariant). The furthest a
+    surface can ever draw the note, which is what a reveal draws to and what a visibility cull
+    bounds on; the length a plain paint stops at is \ref ink_end_seconds.
     */
-    double end_seconds{0.0};
+    double ring_end_seconds{0.0};
+
+    /*!
+    \brief Absolute end of the DRAWN tail: where a surface stops inking the ring unless the note
+    is revealed. Equals \ref start_seconds where the note draws no tail at all.
+
+    Within [\ref start_seconds, \ref ring_end_seconds]: the ring end for a free tail, one margin
+    before the binding head for a bound one (\ref chartPresentation rule 1), the onset for a
+    tail rules 2 and 3 emptied. This is the whole of what the 2D lane draws and the length scoring
+    judges to; the 3D board additionally pins a span-held strum's heads past it
+    (\ref ChartViewState::display_hold_ends). The tail law can only MARK this length (\ref rested),
+    never move or empty it.
+    */
+    double ink_end_seconds{0.0};
 
     /*!
     \brief True where this ribbon RESTS: the board draws its resting part only inside the reveal.
 
-    THE TAIL LAW's verdict (\ref presentedChartNotes), the curtain being UNIVERSAL, carried per note
+    THE TAIL LAW's verdict (\ref chartPresentation), the curtain being UNIVERSAL, carried per note
     because "no tail" and "a tail the curtain owns" are different facts and only the derivation can
-    tell them apart. \ref end_seconds carries the rules-1-to-4 end here like everywhere else — one
-    length, this verdict beside it. The 2D lane draws the ribbon regardless; the 3D board draws the
-    portion before \ref reveal_from_seconds always and the remainder only inside the reveal window,
-    which is the one distance-scoped draw decision the execution form admits.
-
-    False in the \ref ChartNoteForm::Actual reveal, where the whole point is the ring the chart
-    stores: nothing rests in the form that exists to show the truth. False, too, for a member
-    whose landmark is its own end — a handed-over member, whose statement finishes
-    at the takeover: the curtain owns none of its ribbon, so the projection publishes no window
-    (\ref hasRestingRemainder) and the board draws it as any unrested ribbon.
+    tell them apart. The 2D lane draws the ribbon regardless; the 3D board draws the portion before
+    \ref reveal_from_seconds always and the remainder, to \ref ink_end_seconds, only inside the
+    reveal window. False for a member whose landmark is its own ink end — a handed-over member,
+    whose statement finishes at the takeover: the curtain owns none of its ribbon, so the
+    projection publishes no window (\ref hasRestingRemainder) and the board draws it as any
+    unrested ribbon.
     */
     bool rested{false};
 
@@ -550,20 +527,21 @@ struct NoteViewState
     /*!
     \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
 
-    The slide-out terminal is the LAST of them when the note has one (\ref
-    KeyframeViewState::slide_out): the chart stores the slide-out as the keyframe at the ring's end,
-    and it rides every trim, so it sits at \ref end_seconds here. \ref glideStopCount and \ref
-    glideStopAt read the same list as the uniform sequence of stops every geometry consumer walks.
+    Every stored one, at its stored instant. The slide-out terminal is the LAST of them when the
+    note has one (\ref KeyframeViewState::slide_out): the chart stores the slide-out as the
+    keyframe at the ring's end, so it sits at \ref ring_end_seconds. \ref glideStopAt reads the
+    same list as the uniform sequence of stops every geometry consumer walks, and each consumer
+    draws a stop only within the extent it draws (\ref keyframeDrawn).
     */
     std::vector<KeyframeViewState> slides;
 
     /*!
-    \brief The stretches of the tail the string shakes over, in ascending time order.
+    \brief The stretches of the ring the string shakes over, in ascending time order.
 
     Empty when the note never shakes, which is what "is this note played with vibrato" asks now
-    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). Declared beside the
-    other two tail payloads because it is one: the regions are clipped to the tail this state's
-    FORM presents, exactly as the bend curve and the slide keyframes are.
+    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). A region the channel
+    never closes runs to \ref ring_end_seconds; a surface clips every region to the extent it
+    draws, exactly as it does the bend curve and the slide keyframes.
     */
     std::vector<VibratoSpanViewState> vibrato;
 
@@ -587,10 +565,11 @@ struct NoteViewState
     friend bool operator==(const NoteViewState& lhs, const NoteViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.rested == rhs.rested &&
-               lhs.string == rhs.string && lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
-               lhs.stop_mark == rhs.stop_mark && lhs.legato == rhs.legato &&
-               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               std::is_eq(lhs.ring_end_seconds <=> rhs.ring_end_seconds) &&
+               std::is_eq(lhs.ink_end_seconds <=> rhs.ink_end_seconds) &&
+               lhs.rested == rhs.rested && lhs.string == rhs.string && lhs.fret == rhs.fret &&
+               lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
+               lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
                lhs.vibrato == rhs.vibrato && lhs.ends_on_next_head == rhs.ends_on_next_head;
@@ -617,26 +596,17 @@ struct GlideStop
 };
 
 /*!
-\brief How many stops a note's drawn gesture has: its position keyframes, the slide-out included.
+\brief One stop of a note's gesture, by index into the uniform sequence — the position keyframes
+in time order (\ref NoteViewState::slides), the slide-out last when the note has one.
 
 The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
-camera's framing, the lane's diagonals. Paired with \ref glideStopAt, which folds the note's
-attack into each stop's pitched-ness, so no consumer restates that rule.
+camera's framing, the lane's diagonals — which folds the note's attack into each stop's
+pitched-ness so no consumer restates that rule. A consumer walks the stops up to the extent it
+draws (\ref keyframeDrawn): a stop beyond it is not drawn, but the leg TOWARD it is, on its true
+path as far as the extent.
 
 \param note Note whose gesture is being walked.
-\return Number of stops; zero for a note that never travels.
-*/
-[[nodiscard]] inline std::size_t glideStopCount(const NoteViewState& note) noexcept
-{
-    return note.slides.size();
-}
-
-/*!
-\brief One stop of a note's drawn gesture, by index into the uniform sequence — the position
-keyframes in time order, the slide-out last when the note has one.
-
-\param note Note whose gesture is being walked.
-\param index Stop index, below \ref glideStopCount for this note.
+\param index Stop index, below `note.slides.size()`.
 \return The stop's time, fret and pitched-ness.
 */
 [[nodiscard]] inline GlideStop glideStopAt(const NoteViewState& note, const std::size_t index)
@@ -655,29 +625,50 @@ keyframes in time order, the slide-out last when the note has one.
 /*!
 \brief True when the glide continues the same note at this keyframe rather than ending it.
 
-Every stated position the tail reaches is a stop the finger arrives at, and it wears the note's own
-head shape there — the slide-out alone is not one, since it is where the finger leaves toward and
-the slide line draws its slide-out chip instead. The presented tail reaches every statement the
-drawn note carries — the interior ones it floors at, and the end's own, which rides to the drawn
-end (\ref presentedChartNotes rule 2) — so the LAST keyframe is always visible: a
-shift-slide's arrival, trimmed to exactly the drawn end, draws its continuation head there with
-its fret on it, and the re-picked landing draws its own head a margin later. Being unpitched does
-not unlink a keyframe — a scrape's turnaround is one gesture continuing, and its head is what
-keeps the corner from reading as a break.
+Every stated position is a stop the finger arrives at, and it wears the note's own head shape
+there — the slide-out alone is not one, since it is where the finger leaves toward and the slide
+line draws its slide-out chip instead. Being unpitched does not unlink a keyframe — a scrape's
+turnaround is one gesture continuing, and its head is what keeps the corner from reading as a
+break. Whether the keyframe is DRAWN at all is the extent's question, not this one's: a linked
+keyframe past the ink end is drawn only while the note is revealed.
 
-A READ of shared facts, not a stored field, so the one continuation rule cannot be restated per
-surface, and correct in either \ref ChartNoteForm without a second rule: it asks the tail the note
-in front of it actually has, and the slide-out flag is the stored ring's, so a pitched arrival at
-the drawn end is never mistaken for a slide-out.
-
-\param note Note the keyframe belongs to.
-\param keyframe One of the note's \ref NoteViewState::slides entries.
+\param keyframe One of a note's \ref NoteViewState::slides entries.
 \return True when the keyframe is a continuation of the note.
 */
-[[nodiscard]] constexpr bool linkedKeyframe(
-    const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
+[[nodiscard]] constexpr bool linkedKeyframe(const KeyframeViewState& keyframe) noexcept
 {
-    return !keyframe.slide_out && keyframe.seconds <= note.end_seconds;
+    return !keyframe.slide_out;
+}
+
+/*!
+\brief The extent a surface draws a note to: its ring end while the note is revealed, its ink end
+otherwise.
+
+The one rule behind every "how far" question a 2D surface asks of a note — the tail's length,
+which keyframes draw, which are clickable — so a paint and a hit test cannot part.
+
+\param note Note being drawn.
+\param revealed True while the surface shows the note's whole ring.
+\return The absolute end, in seconds, of what is drawn.
+*/
+[[nodiscard]] inline double drawnEndSeconds(const NoteViewState& note, const bool revealed) noexcept
+{
+    return revealed ? note.ring_end_seconds : note.ink_end_seconds;
+}
+
+/*!
+\brief True when a keyframe lies within the extent a surface draws its note to, which is exactly
+when the surface draws its mark and when the mark can be reached.
+
+\param keyframe One of a note's \ref NoteViewState::slides entries.
+\param until_seconds The extent drawn (\ref drawnEndSeconds, or the ink end on a surface that never
+       reveals).
+\return True when the keyframe is at or before the extent.
+*/
+[[nodiscard]] constexpr bool keyframeDrawn(
+    const KeyframeViewState& keyframe, const double until_seconds) noexcept
+{
+    return keyframe.seconds <= until_seconds;
 }
 
 /*!
@@ -813,10 +804,9 @@ struct ShapeViewState
 
     Published beside the drawn extent because the editor's 2D lane REVEALS it: while the lane's
     reveal is held, or while the span covers a note in the selection, that span's furniture runs to
-    here instead. It is the same bargain the note reveal strikes — the drawn tail is the presented
-    one, and the reveal shows the ring the chart stores — with one difference forced by the data:
-    presentation gives a note two FORMS, while the margin here is a single display rule over one
-    span, so the two ends ride one state and the surface picks.
+    here instead. It is the same bargain the note reveal strikes — the drawn tail stops at the ink
+    end, and the reveal shows the ring the chart stores — and the same shape: both ends ride one
+    state and the surface picks.
 
     The 3D board draws no reveal and reads the drawn extent alone.
     */
@@ -957,11 +947,8 @@ resolved through the tempo map at projection time so rendering never queries mus
 frame. The 2D tablature lane renders this directly; the 3D highway composes it inside
 \ref HighwayViewState beside the board-only structure it adds. One producer, so the two surfaces
 cannot drift on a shared chart fact — where they are allowed to differ is in their painters, never
-in their data.
-
-The editor holds a SECOND state of the same chart, projected in \ref ChartNoteForm::Actual, for the
-reveal it draws while Alt is held. That is the one producer asked a different question, not a
-second projection: the two states differ in \ref notes and are equal in every other member.
+in their data. There is one state: a note carries both the extent a plain paint stops at and the
+ring a reveal draws on to, so revealing changes what a surface reads, never what it is handed.
 */
 struct ChartViewState
 {
@@ -994,8 +981,8 @@ struct ChartViewState
     /*!
     \brief Per-note hold end in seconds — the 3D board's, one entry per \ref notes entry.
 
-    How long a pinned head lasts: the note's presented end, except that a member of a two-or-more
-    onset group under a covering hand-shape span whose presented tail is empty is held to THE
+    How long a pinned head lasts: the note's ink end, except that a member of a two-or-more
+    onset group under a covering hand-shape span whose drawn tail is empty is held to THE
     SPAN'S MUSICAL CLOSE — the strum's heads stay pinned at the hit line for as long as the posture
     is held, instead of vanishing the instant it is struck, and they go on standing there while
     repeat boxes restate the same shape over them. A fully dead group is choked rather than held and
@@ -1006,8 +993,8 @@ struct ChartViewState
     onset that ended the shape, which is the honest answer and the one the rails are not the
     authority for.
 
-    **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
-    presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under chugs inside the
+    **The 2D lane does not read this.** It draws and hit-tests each note to the extent
+    \ref drawnEndSeconds names and never further, so the ribbons under chugs inside the
     kept-sustain bound are simply absent there — the chord box over the strum already states how
     long the posture is fretted, and a ribbon repeating that used the one mark that means "this
     string is still ringing" to say something else. The board has no chord box, so pinning the
@@ -1024,8 +1011,29 @@ struct ChartViewState
     */
     std::vector<double> display_hold_ends;
 
+    /*!
+    \brief Running maximum of the notes' RING ends, one entry per \ref notes entry.
+
+    The 2D lane's visible-range index (\ref makeSustainPrefixMax, \ref visibleEventRange): notes
+    ascend by onset but their rings overlap freely, so the first note that can reach a window is
+    found by binary search over this table. Built over the ring because that is the furthest a
+    note can ever be drawn, so the one table serves a plain paint and a reveal alike; each pass
+    then drops the notes that really end before its window. The board indexes by
+    \ref display_hold_ends instead, since it draws a pinned head past the ring.
+    */
+    std::vector<double> ring_end_prefix_max;
+
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<ShapeViewState> shapes;
+
+    /*!
+    \brief Running maximum of the spans' musical CLOSES, one entry per \ref shapes entry.
+
+    The same index for the span passes. Over the close rather than the drawn extent because the
+    close is the further of a span's two ends, so a rail a surface reveals to its close cannot be
+    culled away.
+    */
+    std::vector<double> shape_close_prefix_max;
 
     /*! \brief Fret-hand placements in ascending arrival order. */
     std::vector<FhpViewState> fret_hand_positions;

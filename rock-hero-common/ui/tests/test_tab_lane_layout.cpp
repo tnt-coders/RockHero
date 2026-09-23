@@ -3,6 +3,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -144,13 +145,16 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
 }
 
 // The tab surface reads the one shared visible-range search: the prefix table is the running
-// maximum of sustain ends, aligned with the note order, and the query consumes it.
+// maximum of RING ends — the furthest a note can be drawn — aligned with the note order, and the
+// query consumes it. The first note's ink stops at 3s, so only its ring keeps it in the 5-6s
+// window.
 TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][tab-layout]")
 {
     const std::vector<common::core::NoteViewState> notes{
         common::core::NoteViewState{
             .start_seconds = 1.0,
-            .end_seconds = 9.0,
+            .ring_end_seconds = 9.0,
+            .ink_end_seconds = 3.0,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -159,7 +163,8 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
         },
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 2.5,
+            .ring_end_seconds = 2.5,
+            .ink_end_seconds = 2.5,
             .string = 4,
             .fret = 7,
             .bend = {},
@@ -168,7 +173,8 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
-            .end_seconds = 12.0,
+            .ring_end_seconds = 12.5,
+            .ink_end_seconds = 12.0,
             .string = 6,
             .fret = 0,
             .bend = {},
@@ -177,11 +183,12 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
         },
     };
 
-    const std::vector<double> prefix = common::core::makeSustainPrefixMax(notes);
+    const std::vector<double> prefix = common::core::makeSustainPrefixMax(
+        notes | std::views::transform(&common::core::NoteViewState::ring_end_seconds));
     REQUIRE(prefix.size() == 3);
     CHECK_THAT(prefix[0], Catch::Matchers::WithinULP(9.0, 0));
     CHECK_THAT(prefix[1], Catch::Matchers::WithinULP(9.0, 0));
-    CHECK_THAT(prefix[2], Catch::Matchers::WithinULP(12.0, 0));
+    CHECK_THAT(prefix[2], Catch::Matchers::WithinULP(12.5, 0));
 
     // The visibility query consumes the table exactly like the paint core does.
     const auto [first, last] = common::core::visibleEventRange(notes, prefix, 5.0, 6.0);
@@ -197,7 +204,8 @@ TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]
 
     const common::core::NoteViewState sustained{
         .start_seconds = 5.0,
-        .end_seconds = 10.0,
+        .ring_end_seconds = 10.0,
+        .ink_end_seconds = 10.0,
         .string = 1,
         .fret = 3,
         .bend = {},
@@ -227,12 +235,14 @@ TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]
     CHECK(span.bottom > span.top);
     CHECK_FALSE(layout.head.contains(150.0f, 220.0f));
 
-    // A note presenting no tail lays out exactly like one that does — the case a chugged member of
-    // a strum under a hand-shape span is in. The head is what addresses it either way, so nothing
-    // about the ring can make it unreachable or make it claim pixels the lane never drew.
+    // A note drawing no tail — its ink ends at its onset while its ring runs on — lays out exactly
+    // like one that does: the case a chugged member of a strum under a hand-shape span is in. The
+    // head is what addresses it either way, so nothing about the ring can make it unreachable or
+    // make it claim pixels the lane never drew.
     const common::core::NoteViewState chug{
         .start_seconds = 5.0,
-        .end_seconds = 5.0,
+        .ring_end_seconds = 7.5,
+        .ink_end_seconds = 5.0,
         .string = 1,
         .fret = 3,
         .bend = {},
@@ -255,7 +265,8 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
     const auto tap = [](const common::core::StopMarkFace face) {
         common::core::NoteViewState note;
         note.start_seconds = 5.0;
-        note.end_seconds = 5.0;
+        note.ring_end_seconds = 5.5;
+        note.ink_end_seconds = 5.0;
         note.string = 1;
         note.fret = 12;
         note.attack = common::core::NoteAttack::Tap;

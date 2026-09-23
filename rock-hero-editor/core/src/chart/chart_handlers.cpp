@@ -93,10 +93,8 @@ template <typename... Handlers> struct Overloaded : Handlers...
 
 } // namespace
 
-// The memoized PRESENTED projection deriveViewState pushed, which is what pointer events resolve
-// against; null while no chart is displayed. It is not the whole of what the lane DRAWS: while the
-// reveal is held every note draws its longer actual ring, and that extra length is deliberately not
-// hit-testable — see EditorViewState::tab_actual.
+// The memoized projection deriveViewState pushed, which is what pointer events resolve against;
+// null while no chart is displayed.
 const common::core::ChartViewState* EditorController::Impl::displayedTabProjection() const
 {
     return m_tab_view_state.get();
@@ -107,8 +105,8 @@ const common::core::ChartViewState* EditorController::Impl::displayedTabProjecti
 // kind, which is why the hit target names its own kind rather than the caller assuming one.
 //
 // A keyframe hit is the one that cannot stop at the note: its identity is (note slot, offset), and
-// the offset comes off the DRAWN keyframe the pointer landed on rather than off the chart, because
-// the drawn list holds only the keyframes the lane actually shows.
+// the offset comes off the projected keyframe the pointer landed on, which carries it for exactly
+// this purpose.
 std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
     const ChartHitTarget& target) const
 {
@@ -1260,8 +1258,8 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         const float right = std::max(gesture.anchor_x, event.x);
         const float top = std::min(gesture.anchor_y, event.y);
         const float bottom = std::max(gesture.anchor_y, event.y);
-        const std::vector<ChartHitTarget> boxed =
-            chartTargetsInBox(*tab, gesture.geometry, left, top, right, bottom);
+        const std::vector<ChartHitTarget> boxed = chartTargetsInBox(
+            *tab, gesture.geometry, left, top, right, bottom, event.modifiers.alt);
         std::vector<ChartSelectionKey> keys;
         keys.reserve(boxed.size());
         for (const ChartHitTarget& target : boxed)
@@ -2529,8 +2527,8 @@ void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::
 // lane.
 //
 // THE REVEAL IS IN THE CHORD because the slot before a head can look blank while lying inside a
-// tail the presentation clipped, and this key states a point on exactly that tail: with `Alt` held
-// the tail is drawn, so the charter sees what they are inserting onto.
+// ring's ending zone, past its ink end, and this key states a point on exactly that stretch: with
+// `Alt` held the ring is drawn to its end, so the charter sees what they are inserting onto.
 //
 // A statement already standing at the caret's offset is ADDRESSED rather than doubled: two records
 // on one offset is a shape no chart may hold, so the press selects what is there and every

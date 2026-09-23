@@ -187,9 +187,7 @@ constexpr Fraction g_claim_ring{1, 32};
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
-    const std::vector<ChartNote> presented =
-        presentedChartNotes(chartConnections(notes, tempo_map), tempo_map).notes;
-    return chartShapeArrivals(presented, derived.shapes, tempo_map);
+    return chartShapeArrivals(notes, derived.shapes, tempo_map);
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -1388,7 +1386,7 @@ TEST_CASE("Chart shape derivation extends a shape the hand alone states", "[core
 // span already holds keeps the span while the span's own statement is still in force. This is the
 // one-note-at-a-time broken chord over a held shape, and it is DERIVED — nothing here is authored.
 //
-// The narrowing leaves no presented-ring witness in the rule: an ADJACENT re-pick is continuity
+// The narrowing leaves no drawn-ring witness in the rule: an ADJACENT re-pick is continuity
 // itself, and a GAP re-pick arrives after the statement has already ended. Two sections name the
 // divergence from a witness reading in each direction, so the narrowing is tested rather than
 // merely assumed harmless.
@@ -1431,7 +1429,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 
     SECTION("a gap on the re-picked string closes the span even while another member rings")
     {
-        // The narrowing's own population, and the first divergence from a presented-ring witness.
+        // The narrowing's own population, and the first divergence from a drawn-ring witness.
         // String 2 rings loudly through beat 2, so a WITNESS would say the hand had not left the
         // shape and would carry the span to two whole beats. The law asks the re-picked string's
         // own stored ring instead: string 1 stopped half a beat in, which is an authored
@@ -1471,7 +1469,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
         // By the absorption rule the strum the re-pick picks into does not stand alone, so it
         // states no boundary and the one span runs through. The discrimination this section exists
-        // for holds either way — a presented-ring witness sees nothing ringing and would close at
+        // for holds either way — a drawn-ring witness sees nothing ringing and would close at
         // the margin BEFORE the re-pick, while the stored rings prove the statement in force
         // through it.
         CHECK(derived.shapes.front().sustain == Fraction{2});
@@ -1683,12 +1681,12 @@ TEST_CASE("Chart shape arrival brackets a claimed member", "[core][chart]")
     // Without the claim this is one full strum of everything the posture holds: a chord box.
     const ChartResolutions box = chartResolutions(chart.notes, tempo_map);
     REQUIRE(box.shapes.size() == 1);
-    CHECK_FALSE(chartShapeArrivals(box.presented_notes, box.shapes, tempo_map).front());
+    CHECK_FALSE(chartShapeArrivals(chart.notes, box.shapes, tempo_map).front());
 
     chart.notes = streamOf({chart.notes[0], chart.notes[1], claimAt(1, Fraction{}, 3, 9)});
     const ChartResolutions bracketed = chartResolutions(chart.notes, tempo_map);
     REQUIRE(bracketed.shapes.size() == 1);
-    CHECK(chartShapeArrivals(bracketed.presented_notes, bracketed.shapes, tempo_map).front());
+    CHECK(chartShapeArrivals(chart.notes, bracketed.shapes, tempo_map).front());
 }
 
 // LAW III's CLASS rule asked of a span's INTERIOR: ARPEGGIO iff the shape's members sound
@@ -1808,9 +1806,9 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
 // THE F1 PROBE, permanent: CLASSIFICATION READS THE STORED STREAM.
 //
 // One figure, two arms of the one class law. A DEAD string carries into a chord's onset: its
-// STORED ring is real timing, its PRESENTED tail is gone (E25). The walk's fold-in asks the stored
+// STORED ring is real timing, its DRAWN tail is gone (E25). The walk's fold-in asks the stored
 // ring, so the carry joins the posture and an interior restrike classifies the span as an
-// arpeggio; re-deriving that same carry off the PRESENTED tail at the span's start would find
+// arpeggio; re-deriving that same carry off the DRAWN tail at the span's start would find
 // nothing there — same figure, same law, two answers, decided by which slot you happened to look
 // at.
 //
@@ -1839,7 +1837,7 @@ TEST_CASE("A dead string's carry classifies at a span start and inside it alike"
     {
         // Nothing restrikes, so the only slot that says anything is the span's own start — where
         // two of the shape's three sounding strings arrive and the third was already down. This is
-        // the arm a presented-tail reading would answer BOX for, because the dead note presents no
+        // the arm a drawn-tail reading would answer BOX for, because the dead note presents no
         // tail.
         const std::vector<ChartNote> notes = dead_carry(false);
         const ChartShapes derived = deriveFrom(notes);
@@ -4662,11 +4660,11 @@ TEST_CASE("An absorbed unison stroke keeps the span flowing", "[core][chart]")
         everySpanIsPositive(derived);
 
         // The long tail draws VISIBLY past the box: the span closes at the shortest member while
-        // the presented ring of the long one runs on.
+        // the drawn ring of the long one runs on.
         const TempoMap tempo_map = makeTempoMap();
-        const std::vector<ChartNote> presented =
-            presentedChartNotes(chartConnections(notes, tempo_map), tempo_map).notes;
-        CHECK(derived.shapes[1].sustain < presented[indexAt(notes, 2, 1, 1)].sustain);
+        const std::vector<Fraction> ink_end =
+            chartPresentation(chartConnections(notes, tempo_map), tempo_map).ink_end;
+        CHECK(derived.shapes[1].sustain < ink_end[indexAt(notes, 2, 1, 1)]);
     }
 
     SECTION("a CHUG CHAIN is untouched: every next event is another unison")

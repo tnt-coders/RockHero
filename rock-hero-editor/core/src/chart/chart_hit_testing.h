@@ -115,15 +115,16 @@ click. The affordance this retires is selecting a long sustain whose head has
 scrolled off-screen by clicking its tail; the marquee and the keyboard still reach it, and it is
 recorded as a sighting item (`docs/tracking/watch-items.md`).
 
-What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe carries
-a head only when it is LINKED (\ref common::core::linkedKeyframe), and one stating no fret draws
-nothing at all today — how those should draw, and therefore how a pointer should reach them, is the
-bend display study's question and not this function's.
+What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe is
+reached only while it is DRAWN (\ref common::core::keyframeDrawn): one standing past its note's ink
+end is reached only while the note is revealed, exactly as the lane draws it — a linked head at a
+junction, the slide-out's chip at its end. A keyframe stating no fret draws nothing at all today —
+how those should draw, and therefore how a pointer should reach them, is the bend display study's
+question and not this function's.
 
 A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
 exactly while the lane reveal is held: the layout manifest answers both questions from one
-rectangle, so the two cannot part. Everything else here is unaffected by the reveal — a revealed
-note's extra tail length is deliberately not hit-testable (\ref EditorViewState::tab_actual),
+rectangle, so the two cannot part. A revealed note's extra tail length is not itself a target,
 because a tail is not a target at all.
 
 \param tab Seconds-resolved tab projection being displayed.
@@ -147,10 +148,12 @@ because a tail is not a target at all.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
+\param revealed True while the lane reveal modifier is held, exactly as for \ref chartHitTarget: a
+       keyframe past its note's ink end is boxed only while it is drawn.
 \return Boxed objects: heads first, then keyframes, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom);
+    float left, float top, float right, float bottom, bool revealed = false);
 
 } // namespace rock_hero::editor::core

@@ -207,8 +207,12 @@ std::vector<double> makeHighwayTailSampleTimes(
     }
 
     // The exact times first, so the uniform grid can be budgeted against what they leave.
+    // Every stop of the gesture within the sampled extent, the slide-out terminal included: the
+    // centerline kinks at each one, so a sample has to land there whether or not the stop is a
+    // keyframe. A stop past the extent is not sampled, but the leg toward it is, since the
+    // uniform grid below runs to the extent's end.
     std::vector<double> times;
-    times.reserve(sample_cap + note.bend.size() + glideStopCount(note) + extra_times.size());
+    times.reserve(sample_cap + note.bend.size() + note.slides.size() + extra_times.size());
     for (const BendPointViewState& point : note.bend)
     {
         if (point.seconds > from_seconds && point.seconds < to_seconds)
@@ -216,14 +220,11 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(point.seconds);
         }
     }
-    // Every stop of the gesture, the slide-out terminal included: the centerline kinks at each
-    // one, so a sample has to land there whether or not the stop is a keyframe.
-    for (std::size_t index = 0; index < glideStopCount(note); ++index)
+    for (const KeyframeViewState& stop : note.slides)
     {
-        const double stop_seconds = glideStopAt(note, index).seconds;
-        if (stop_seconds > from_seconds && stop_seconds < to_seconds)
+        if (stop.seconds > from_seconds && stop.seconds < to_seconds)
         {
-            times.push_back(stop_seconds);
+            times.push_back(stop.seconds);
         }
     }
     for (const double seconds : extra_times)

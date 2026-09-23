@@ -100,11 +100,10 @@ glide accelerates into its target; an unpitched one releases early), and past th
 glide holds its target, since a gesture that has stopped travelling continues straight along the
 fret it stopped on.
 
-One caveat rides that hold, and only a mark drawn past the PRESENTED end could see it: presentation
-compresses an unpitched slide-out's terminal earlier than the stored gesture, so past the presented
-end the held position is the slide-out's compressed end fret while the pick was, in the stored form,
-still travelling. Nothing here can do better from a presented note; a second producer for the
-untrimmed path would state the glide twice.
+Every stop sits at its stored instant, including stops past the note's ink end, and the walk reads
+all of them: a time inside the drawn extent on the leg toward a stop beyond it lies on that leg's
+true path. What is DRAWN is the caller's to bound — it evaluates only times within its extent,
+so a stop past the ink end moves nothing on the board.
 
 The dim spans the whole CONSECUTIVE unpitched run rather than one segment: a scrape's chained legs
 are one continuous release, so the alpha must never snap back to full at a direction reversal —
@@ -123,9 +122,10 @@ to the original per-segment dim.
     const common::core::HighwayMetrics& metrics, bool mirrored, double seconds)
 {
     // The gesture read as one uniform sequence — the note's position keyframes, then its
-    // slide-out terminal — through the shared stop accessors, so the terminal is a segment here
-    // without being a keyframe in the projection (W9-L).
-    const std::size_t stop_count = common::core::glideStopCount(note);
+    // slide-out terminal — through the shared stop accessor. Every stop, not only those within
+    // the drawn extent: the leg an extent cuts runs toward the first stop beyond it, and an
+    // unpitched run dims across its whole stored length.
+    const std::size_t stop_count = note.slides.size();
     if (stop_count == 0 || note.fret <= 0)
     {
         return HighwaySlideState{.x_offset = 0.0, .alpha = 1.0};

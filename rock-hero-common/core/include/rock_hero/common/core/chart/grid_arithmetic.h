@@ -73,9 +73,9 @@ The lattice is every multiple of \ref g_tick_quantum_note_value on the whole-not
 \brief The minimum sustain distance: the seconds every DRAWN element keeps before a following
 event.
 
-The one settled spacing sustain tails, slide glide ends, chord/arpeggio shape spans, and the
-hand-window morph ramps all trim to — display's alone, since the stored chart holds the truth and a
-statement at a ring's end may sit exactly on the next head of its own string.
+The one settled spacing a tail's ink stops at and chord/arpeggio shape spans and the hand-window
+morph ramps trim to — display's alone, since the stored chart holds the truth and a statement at a
+ring's end may sit exactly on the next head of its own string, where it stays.
 
 A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
 is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
@@ -121,7 +121,7 @@ makes a tempo change inside the margin exact and the answer never shorter than t
 \brief The kept-sustain bound: only a ring that lasts LONGER than this many seconds earns a drawn
 sustain tail.
 
-The bound presentation rule 3 (\ref presentedChartNotes) drops a short effect-free tail against: a
+The bound presentation rule 2 (\ref chartPresentation) drops a short effect-free tail against: a
 ring no longer than this reads as a struck note, not a deliberate sustain, so no surface draws a
 tail for it. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks
 strict adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather
@@ -129,7 +129,7 @@ than by any assumption about tails.
 
 A DURATION, not a note value, because the player reads the highway in time: a note value lasts
 twice as long at half the tempo, so a note-value bound shows tails too often in fast songs and too
-rarely in slow ones. Rule 3 measures each ring through the tempo map, so the same written value
+rarely in slow ones. Rule 2 measures each ring through the tempo map, so the same written value
 earns at a slow tempo and not at a fast one — at a quarter second an eighth earns below 120 BPM and
 a quarter below 240. The meter never enters: seconds do not care about the signature's
 denominator. The verdict can change only at a tempo anchor, never inside a run, because the map's
@@ -179,21 +179,6 @@ whole note is one beat in x/4, two in x/8.
 }
 
 /*!
-\brief Sub-beat step keeping a degenerate gesture payload strictly after its predecessor.
-
-The minimum span a glide, slide-out, or scrape leg may occupy: zero-length gestures have
-nowhere to travel, so synthesis and compression floor on this window.
-
-Unlike the two bounds above this is a plain BEAT quantity, not a whole-note-referenced one: it
-bounds payload offsets, which are already stated in beats, rather than naming a note value. It
-sits here because three producers floor on it — the Guitar Pro import's gesture synthesis, the
-presented tail's reach past a statement that leaves the string shaking (\ref presentedChartNotes
-rule 2), and the editor's scrape defaults — and a window one of them measured differently would be
-a gesture the rules refuse.
-*/
-inline constexpr Fraction g_minimum_slide_window{1, 8};
-
-/*!
 \brief True when the predecessor's ring reaches the onset: strict adjacency.
 
 The legato hold test. A hammer-on or pull-off is real only while the finger that plays it is still
@@ -205,8 +190,8 @@ Neither compensation a trimmed encoding would need applies here. A kept-sustain 
 gap under a quarter note justifying a claim, on the grounds that a shorter tail was legitimately
 absent from the chart) would say nothing about the notes and everything about what an import had
 destroyed. Margin slack (a tail one minimum-sustain-distance short still counting) would only make
-sense if the stored tail WERE the drawn tail that must not crowd the next head — the margin is a
-presentation rule (\ref presentedChartNotes), and the stored ring stops short of nothing.
+sense if the stored tail stopped where the ink does — the margin is where presentation stops the
+ink (\ref chartPresentation), and the stored ring stops short of nothing.
 
 Consequence, and the point: a chug chained to its restrike justifies its hammer-on (Guitar Pro tiles
 durations, so the ring ends on the next onset), while a note followed by a REST does not — the
@@ -287,7 +272,7 @@ stretch of \ref g_minimum_sustain_distance_seconds immediately before `onset`, r
 tempo map's own time axis so a tempo anchor inside the margin is honoured exactly, then FLOORED
 onto the chart's tick lattice (\ref g_tick_quantum_note_value) — floored, because a margin rounded
 the other way would be shorter than the duration it names. \ref minimumSustainDistanceBeats is this
-position measured back in beats, and every trim, clearance and ramp reads one of the two rather
+position measured back in beats, and every ink crop, trim and ramp reads one of the two rather
 than composing a margin of its own.
 
 Its readers: where the fretting hand begins its morph toward a placement at `onset` when no glide

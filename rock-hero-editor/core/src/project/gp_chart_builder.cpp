@@ -13,7 +13,6 @@
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_legato.h>
-#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -38,10 +37,8 @@ using common::core::NoteAttack;
 using common::core::NoteEmphasis;
 using common::core::VibratoState;
 
-// The payload helpers the importer's synthesis shares with the chart rules in core: one set of
-// questions decides where a fabricated gesture may land and what a surface may draw, so the
-// importer asks the shared authority rather than carrying a private twin of it.
-using common::core::g_minimum_slide_window;
+// The ring-state reader the importer's synthesis shares with the chart rules in core, so where a
+// fabricated gesture may land is asked of the shared authority rather than of a private twin.
 using common::core::ringStateAt;
 
 // One note event on the global rational beat axis, before tie merging. The grid position is
@@ -193,10 +190,8 @@ struct MeasureGrid
     return lead;
 }
 
-// The corpus-derived default scrape lives in the shared seam so import and the editor's attack
-// verb synthesize identical defaults (pick_slide_defaults.h); the minimum gesture window sits one
-// level down in common::core (grid_arithmetic.h), beside the other shared duration bounds, because
-// the presentation rules floor on the same window.
+// The corpus-derived default scrape and the minimum gesture window live in the shared seam so
+// import and the editor's attack verb synthesize identical defaults (pick_slide_defaults.h).
 
 // A slide gesture's fret travel never shrinks below two frets — the minimum that reads as a
 // slide. Widens an agreeing hand delta to that minimum; the constant alone supplies the default
@@ -1786,8 +1781,8 @@ struct BuiltNote
 // here (which is why the notes travel out and back — that authority speaks about a note stream,
 // not about the builder's records): a re-strike stops the ring (40-Q2-B), so no stored tail
 // crosses the next onset on its own string. A slide-out or an end bend authored on a tiled ring
-// then ends EXACTLY on that head, which is what the material says the hands did; the spacing the
-// mark needs to be seen is presentation's, applied to the drawn copy alone.
+// then ends EXACTLY on that head, which is what the material says the hands did; presentation
+// stops the ink one margin before that head and leaves the mark at its stored instant.
 //
 // After it, the payload is trimmed to the ring — ONCE, and for every note. Only one producer ever
 // writes past the ring: an imported bend, whose points Guitar Pro states as percentages of the
@@ -2903,40 +2898,31 @@ void resolveSlideIns(
 // with it, and a restore placement at the next onset brings the window back for the note that
 // follows (so notes after the gesture are never stranded in the dipped window). Fabricated exits
 // yield to real placements at their instant, restores yield to anything already there, and a
-// slide-out ending at or past the next onset stays planted (no room to ride).
+// slide-out ending past the next onset stays planted (no room to ride).
 //
-// The gesture it rides is the DRAWN one, so every question here — where the slide-out ends, which
-// fret it leaves from, whether it still clears the next onset — is asked of the presented note,
-// while the resolved exit fret is written into the stored one (presentation compresses a
-// slide-out's end but never drops it, so the stored gesture is always there to write to).
+// Every question here — where the slide-out ends, which fret it leaves from, whether it still
+// clears the next onset — is asked of the STORED note, whose ring is the truth the placements are
+// written against; spacing before the next head is display's alone.
 void resolveSlideOutExits(
-    std::vector<BuiltNote>& built, const std::vector<ChartNote>& presented,
-    const std::vector<bool>& arrives_into, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid, const common::core::TempoMap& tempo_map, const int capo)
+    std::vector<BuiltNote>& built, const std::vector<bool>& arrives_into,
+    std::vector<common::core::FretHandPosition>& placements, const MeasureGrid& grid,
+    const common::core::TempoMap& tempo_map, const int capo)
 {
     std::vector<common::core::FretHandPosition> exit_placements;
     std::vector<common::core::FretHandPosition> restore_placements;
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         BuiltNote& entry = built[index];
-        const ChartNote& note = presented[index];
-        // A scrape's slide-out is authored travel, not an exit to resolve — and the
-        // scrape never anchors the hand, so there is no placement to ride. Both forms of the
-        // gesture are required up front: the drawn one is what the window rides, the stored one
-        // is what the resolved exit fret is written back into. They always agree — presentation
-        // compresses a slide-out's end and never drops it — so the second test costs nothing and
-        // makes the write below provably safe rather than safe by argument.
+        const ChartNote& note = entry.note;
+        // A scrape's slide-out is authored travel, not an exit to resolve — and the scrape never
+        // anchors the hand, so there is no placement to ride.
         //
-        // THE SLIDE-OUT IS THE RESOLVED FACT, and it is resolved on the STORED stream: a shift
-        // slide's ARRIVAL is the same statement at the same place and no exit at all — the hand is
-        // landing on the stop the next head takes, not leaving the board (\ref
-        // common::core::arrivesIntoNextHead). The presented copy's own adjacency is not the
-        // question, its ring having been trimmed, so both reads take the stored verdict, which the
-        // index-parallel streams make the same note's.
+        // THE SLIDE-OUT IS THE RESOLVED FACT: a shift slide's ARRIVAL is the same statement at
+        // the same place and no exit at all — the hand is landing on the stop the next head
+        // takes, not leaving the board (\ref common::core::arrivesIntoNextHead).
         const bool arrives = arrives_into[index];
-        const int* const drawn = common::core::slideOutFretOrNull(note, arrives);
-        if (drawn == nullptr || common::core::slideOutFretOrNull(entry.note, arrives) == nullptr ||
-            isScrape(note.attack))
+        const int* const slide_out = common::core::slideOutFretOrNull(note, arrives);
+        if (slide_out == nullptr || isScrape(note.attack))
         {
             continue;
         }
@@ -2944,7 +2930,7 @@ void resolveSlideOutExits(
         // already established that this end slides out, so the last stop stated inside the ring is
         // the fret the gesture leaves.
         const int departing = common::core::fretBeforeEnd(note);
-        const bool downward = *drawn < departing;
+        const bool downward = *slide_out < departing;
         const auto after = firstPlacementAfter(placements, note.position);
         if (after == placements.begin())
         {
@@ -2957,35 +2943,38 @@ void resolveSlideOutExits(
         {
             ++next_note;
         }
-        // The gesture ends where the DRAWN ring does, which is what a slide-out having no offset
-        // of its own means: presentation compresses that end, and the slide-out comes with it.
+        // The gesture ends where the ring does, which is what a slide-out having no offset of its
+        // own means.
         const GridPosition end_position =
             gridPositionForGlobalBeat(grid, entry.global_beat + note.sustain);
         if (!withinGrid(grid, end_position))
         {
-            // The slide-out ends past the last bar (a hold-exempt ring presentation never
-            // compressed, at the very end of the score). A placement there is not representable,
-            // and fabricating one failed validation for the whole song; the gesture keeps its
-            // default exit fret and the hand simply stays put, which is what happens anyway when
-            // there is no room to ride.
+            // The slide-out ends past the last bar, at the very end of the score. A placement
+            // there is not representable, and fabricating one failed validation for the whole
+            // song; the gesture keeps its default exit fret and the hand simply stays put, which
+            // is what happens anyway when there is no room to ride.
             continue;
         }
         const bool has_next = next_note < built.size();
-        const bool has_room = !has_next || end_position < built[next_note].note.position;
-        if (has_next && !has_room)
+        if (has_next && built[next_note].note.position < end_position)
         {
-            // The gesture reaches the next onset (a hold-exempt slide-out presentation never
-            // compressed, or a crush to exactly the gap): no room to ride, so the whole
-            // gesture stays planted — default exit fret, no fabricated placements.
+            // The gesture runs past the next onset: the whole gesture stays planted — default
+            // exit fret, no fabricated placements.
             continue;
         }
+        // A window rides the gesture only where the gesture ENDS BEFORE the next onset. One ending
+        // exactly on it — where Guitar Pro's rings end — has no instant of its own to put a window
+        // at: the next strike's window takes that instant, and a departing hand already rides the
+        // slide-out's leg toward it through the ramp the slide-out keyframe files at that onset.
+        // So exact adjacency resolves the exit fret below and fabricates nothing.
+        const bool ends_on_next = has_next && end_position == built[next_note].note.position;
 
         // Departure: the next placement's move serves the very next onset and agrees with
         // the slide-out's direction, so the window flows onward instead of returning.
         const int delta = after == placements.end() ? 0 : after->fret - active->fret;
         const bool departs = delta != 0 && (delta < 0) == downward && has_next &&
                              !(built[next_note].note.position < after->position);
-        int exit_fret = *drawn;
+        int exit_fret = *slide_out;
         if (departs)
         {
             const int travel = widenedToMinimumTravel(delta, downward);
@@ -2999,11 +2988,13 @@ void resolveSlideOutExits(
                     common::core::g_max_fret),
                 !downward,
                 capo);
-            // The resolved fret is the note's, not the picture's: it is stored, and the presented
-            // stream is derived again from it.
             common::core::setSlideOut(entry.note, exit_fret);
         }
-        else if (has_next)
+        if (ends_on_next)
+        {
+            continue;
+        }
+        if (!departs && has_next)
         {
             restore_placements.push_back(
                 common::core::FretHandPosition{
@@ -3681,9 +3672,9 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             // the next head on this string is struck at, at the same instant, is a glide into
             // position and a pick (\ref common::core::arrivesIntoNextHead). Guitar Pro states no
             // arrival time, and none is synthesized: the arrival's instant is the head's own, which
-            // is what the hands did. The landing keeps its own onset and head, and the DRAWN
-            // arrival is spaced one margin before it by the presentation rule that spaces every
-            // tail (`presentedChartNotes` rule 2).
+            // is what the hands did. The landing keeps its own onset and head; the arrival stays
+            // at its stored instant and the ink stops one margin before the head
+            // (`chartPresentation` rule 1).
             //
             // A slide-out the chain resolved earlier cannot outlive the gesture it slides out of:
             // its fret would become an interior stop once the ring grows past it, so the end's
@@ -3885,12 +3876,11 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
     }
 
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
-    // shape here — the clamp, the payload trimmed to the ring, the clearance — and then the
-    // picture the surfaces will draw. The one pass below rides that picture rather than the rings
-    // behind it — a slide-out's hand exit lands where the gesture is DRAWN to end. Hand-posture
-    // spans are NOT an import decision any more: they are derived from the finished notes
-    // wherever they are read (common/core's deriveChartShapes), so there is nothing to run here
-    // and nothing to report.
+    // shape here — the clamp and the payload trimmed to the ring — and the one pass below reads
+    // those settled rings: a slide-out's hand exit lands where the stored gesture ends.
+    // Hand-posture spans are NOT an import decision any more: they are derived from the finished
+    // notes wherever they are read (common/core's deriveChartShapes), so there is nothing to run
+    // here and nothing to report.
     clampSameStringOverlaps(built, tempo_map);
 
     // The let-ring report, now that the clamp has had its say: a ring longer than its written
@@ -3929,31 +3919,19 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             " let-ring marks kept their shipped rings (the note states its own end)");
     }
 
-    // What the surfaces will draw from the stored stream, index-aligned with the build records, and
-    // the RELATION the stored stream proves: a fret at a ring's end is a slide-out or a shift
-    // slide's arrival, and the one pass below must not ride an arrival as an exit. Both come off
-    // one connections walk, which is what keeps the drawn picture and the verdict about it the same
-    // note's.
-    //
-    // The tail law's verdict is discarded here, and that is not a shortcut: the pass below reads
-    // LENGTHS, and the law assigns none — it marks where a ribbon rests and leaves every presented
-    // tail exactly as rules 1 through 4 sized it. There is nothing to hand in either, because the
-    // curtain is universal and the law reads no spans at all, so no furniture derived from this
-    // very stream is fed back into it.
+    // The RELATION the stored stream proves: a fret at a ring's end is a slide-out or a shift
+    // slide's arrival, and the pass below must not ride an arrival as an exit.
     // RESOLVED AGAIN because two passes have since moved rings: the let-ring law lengthened every
     // marked ring to its figure's end, and `clampSameStringOverlaps` then cut each ring back to the
     // next strike on its string and trimmed the payload to it — which is exactly where a slide-out
     // or an arrival comes to stand, so no earlier walk can answer for this one.
-    const common::core::ChartConnections drawn_connections =
+    const common::core::ChartConnections connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
-    const std::vector<ChartNote> presented =
-        common::core::presentedChartNotes(drawn_connections, tempo_map).notes;
 
     // Slide-out exits follow the hand's next move where it agrees.
     resolveSlideOutExits(
         built,
-        presented,
-        drawn_connections.arrives_into,
+        connections.arrives_into,
         chart.fret_hand_positions,
         grid,
         tempo_map,

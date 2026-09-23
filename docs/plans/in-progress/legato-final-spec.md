@@ -41,7 +41,7 @@ went with the note-sustain model on 2026-08-22 — the predecessor's own stored 
 datum, so there is no derived length to pass alongside). `LeftTap` resolves to the hammer motion
 unconditionally. Resolution reads the predecessor's STORED fields only (no cascade). A shared
 helper computes per-note resolutions in one O(n) same-string walk (saved forms plus the derived
-presented forms and holds), living in common/core beside the resolver, consumed by the tab lane,
+ink ends and holds), living in common/core beside the resolver, consumed by the tab lane,
 the highway, the gameplay build, and the reader — computed per chart revision, never per frame.
 Display draws the
 RESOLVED motion with today's mark geometry; an `Unjustified` `Legato` draws and scores as a

@@ -27,8 +27,8 @@ namespace
 {
 
 // Builds a projection with three notes: a long sustain, a short note inside it, and a late note
-// the presentation rules left tail-less — its ACTUAL ring runs a second past its bare head, which
-// is the gap the Alt reveal exists to show.
+// the presentation rules left tail-less — its stored ring runs a second past its bare head, which
+// is the gap the Alt reveal exists to show. Only that note's ink end differs from its ring end.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTabState()
 {
     common::core::ChartViewState state;
@@ -36,7 +36,8 @@ namespace
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 1.0,
-            .end_seconds = 9.0,
+            .ring_end_seconds = 9.0,
+            .ink_end_seconds = 9.0,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -45,7 +46,8 @@ namespace
         },
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 2.5,
+            .ring_end_seconds = 2.5,
+            .ink_end_seconds = 2.5,
             .string = 4,
             .fret = 7,
             .bend = {},
@@ -54,7 +56,8 @@ namespace
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
-            .end_seconds = 12.0,
+            .ring_end_seconds = 13.0,
+            .ink_end_seconds = 12.0,
             .string = 6,
             .fret = 0,
             .bend = {},
@@ -65,20 +68,10 @@ namespace
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
-// The same chart in the ACTUAL form: every note at the ring the string really sounds for, which
-// the projection guarantees differs from the presented form in the notes and nothing else. Here
-// only the late note differs — its bare head becomes a one-second tail.
-[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeActualTabState()
-{
-    common::core::ChartViewState state = *makeTabState();
-    state.notes[2].end_seconds = 13.0;
-    return std::make_shared<const common::core::ChartViewState>(std::move(state));
-}
-
-// Pushes both forms of the fixture, the way the controller publishes them.
+// Pushes the fixture, the way the controller publishes it.
 void setFixtureState(TabView& view)
 {
-    view.setState(makeTabState(), makeActualTabState(), 0);
+    view.setState(makeTabState(), 0);
 }
 
 // The same tuning with no chart events at all: the control every "what does the panel let
@@ -308,7 +301,7 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
     setFixtureState(view);
 
     const juce::Image charted = renderOverCanvas(view);
-    view.setState(makeEmptyTabState(), makeEmptyTabState(), 0);
+    view.setState(makeEmptyTabState(), 0);
     const juce::Image bare = renderOverCanvas(view);
     setFixtureState(view);
 
@@ -376,7 +369,7 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    view.setState(makeFurnitureTabState(), 0);
 
     const juce::Rectangle<int> column = view.legendBounds();
     REQUIRE_FALSE(column.isEmpty());
@@ -393,7 +386,7 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     // ABSENT WHEN NO SPAN CROSSES IT: the same pixel with no shapes at all carries no rail ink,
     // which is what keeps the check above from passing on any ink that happens to be there. Not
     // pinned to the tint's exact value — that follows the sighting knob.
-    view.setState(makeEmptyTabState(), makeEmptyTabState(), 0);
+    view.setState(makeEmptyTabState(), 0);
     const juce::Image without_span = renderOverCanvas(view);
     CHECK(
         without_span.getPixelAt(inside_panel_x, rail_row) != common::ui::tabShapeMarkColor(false));
@@ -406,7 +399,7 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     // The top string's colour is a purple whose BLUE runs far ahead of its GREEN, and nothing the
     // chip draws does -- neither its flat ground nor its near-white digits -- so a pixel with that
     // signature inside the chip is the letter standing on it.
-    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    view.setState(makeFurnitureTabState(), 0);
     view.setVisibleContentLeft(60);
     const juce::Image pinned = renderOverCanvas(view);
     const juce::Rectangle<int> pinned_column = view.legendBounds();
@@ -437,7 +430,7 @@ TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    view.setState(makeFurnitureTabState(), 0);
 
     // The chip's own ground, and a probe inside it clear of everything else the column carries:
     // the row is the chip's mid-height, so the rounded corners cannot reach it, and the column is
@@ -499,7 +492,7 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
             last_phase = phase;
             ++event_count;
         });
-    view.setState(makeFurnitureTabState(), makeFurnitureTabState(), 0);
+    view.setState(makeFurnitureTabState(), 0);
     constexpr int governed_pin = 60;
     view.setVisibleContentLeft(governed_pin);
 
@@ -760,8 +753,8 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// The reveal, which is the WHOLE-LANE arm of the drawn-form pick: while it is held every visible
-// note draws in its ACTUAL form with nothing selected, so a note the presentation rules left
+// The reveal, which is the WHOLE-LANE arm of the drawn-extent pick: while it is held every visible
+// note draws to its RING end with nothing selected, so a note the presentation rules left
 // tail-less grows a real tail — notation, not an annotation over it. Probed mid-tail on its own
 // row rather than at an edge, so an outline around the same span would not pass it.
 //
@@ -793,7 +786,7 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     };
 
     const juce::Image hidden = render();
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     const juce::Image revealed = render();
 
     // The late note presents no tail, so its ring (12.0s to 13.0s, x = 120 to 130) reaches the
@@ -803,12 +796,12 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(hidden.getPixelAt(128, 12).getARGB() == 0);
     CHECK(revealed.getPixelAt(128, 12).getARGB() != 0);
 
-    // A note whose ring and presented tail coincide is untouched, because the reveal adds no mark
-    // of its own: the long sustain's tail is the same tail either way.
+    // A note whose ring and ink end coincide is untouched, because the reveal adds no mark of its
+    // own: the long sustain's tail is the same tail either way.
     CHECK(revealed.getPixelAt(50, 110) == hidden.getPixelAt(50, 110));
 
     // Releasing snaps back: the reveal is a held state, never a mode that latches.
-    view.setActualRingReveal(false);
+    view.setRingReveal(false);
     CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
@@ -821,17 +814,18 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // A trimmed note on string 3 (centre y = 70.5) whose ring runs to 8.0s while its presented tail
-    // was clipped back to 5.0s to clear what follows — so columns 50 to 80 are ink the lane hides
-    // behind a tail it does draw. And a chug on the TOP lane (string 6, centre y = 10.5) whose
-    // short ring earned no presented tail at all: a bare head at 12.0s over a string that
-    // rings to 13.0s. Onsets ascend, as every projection's notes do.
-    common::core::ChartViewState presented;
-    presented.open_strings = common::core::testing::standardTuning();
-    presented.notes = {
+    // A cropped note on string 3 (centre y = 70.5) whose ring runs to 8.0s while its ink stops at
+    // 5.0s to clear what follows — so columns 50 to 80 are ring the lane hides behind a tail it
+    // does draw. And a chug on the TOP lane (string 6, centre y = 10.5) whose short ring earned no
+    // tail at all: a bare head at 12.0s over a string that rings to 13.0s. Onsets ascend, as every
+    // projection's notes do.
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 5.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 5.0,
             .string = 3,
             .fret = 7,
             .bend = {},
@@ -840,7 +834,8 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
-            .end_seconds = 12.0,
+            .ring_end_seconds = 13.0,
+            .ink_end_seconds = 12.0,
             .string = 6,
             .fret = 0,
             .bend = {},
@@ -848,9 +843,6 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
             .vibrato = {},
         },
     };
-    common::core::ChartViewState actual = presented;
-    actual.notes[0].end_seconds = 8.0;
-    actual.notes[1].end_seconds = 13.0;
 
     TabView view{};
     view.setBounds(0, 0, 200, 120);
@@ -859,10 +851,7 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(presented),
-        std::make_shared<const common::core::ChartViewState>(actual),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(tab)), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -904,26 +893,26 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
     // and a tail presentation never earned and one the trim cut short are hidden for reasons it
     // does not ask about.
     view.setEditState(core::ChartEditViewState{});
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     {
         const juce::Image revealed = render();
         CHECK(revealed.getPixelAt(128, 12).getARGB() != 0);
         CHECK(revealed.getPixelAt(75, 72).getARGB() != 0);
     }
 
-    // And it stops at the ring the string really sounds: past the ACTUAL end there is nothing
-    // hidden to show, however much ink the note has.
+    // And it stops at the ring the string really sounds: past the RING end there is nothing
+    // hidden to show.
     CHECK(render().getPixelAt(85, 72).getARGB() == 0);
 
     // Releasing snaps back, a held state and never a mode that latches.
-    view.setActualRingReveal(false);
+    view.setRingReveal(false);
     CHECK(render().getPixelAt(75, 72).getARGB() == 0);
 }
 
-// The same rule against the REAL trim, projected by the real derivation rather than assigned into
-// a fixture: the two halves are pinned apart (the projection's forms in test_chart_projection, the
-// lane's pick above) and this is the composition, which is where a form the lane never receives
-// would hide. A ring reaching its next same-string onset is the everyday case the margin trims.
+// The same rule against the REAL crop, projected by the real derivation rather than assigned into
+// a fixture: the two halves are pinned apart (the projection's two ends in test_chart_projection,
+// the lane's pick above) and this is the composition, which is where an end the lane never reads
+// would hide. A ring reaching its next same-string onset is the everyday case the margin crops.
 TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -935,8 +924,8 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
         // Two beats of ring on string 3, meeting the next onset on its own string exactly — the
-        // furthest a stored ring may reach (sustainBoundOf). Presentation trims it one margin back
-        // to clear that head, so 1.85 to 2.0 beats is ink only the actual form has.
+        // furthest a stored ring may reach (sustainBoundOf). Presentation stops its ink one margin
+        // back to clear that head, so 1.85 to 2.0 beats is ring only the reveal draws.
         common::core::ChartNote{
             .position = common::core::GridPosition{.measure = 1, .beat = 1},
             .string = 3,
@@ -957,14 +946,12 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     common::core::Arrangement arrangement;
     arrangement.chart = std::move(chart);
 
-    const common::core::ChartViewState presented =
+    const common::core::ChartViewState tab =
         common::core::makeChartViewState(arrangement, tempo_map);
-    const common::core::ChartViewState actual = common::core::makeChartViewState(
-        arrangement, tempo_map, common::core::ChartNoteForm::Actual);
-    // The fixture is only worth rendering if the derivation really did trim it.
-    REQUIRE(presented.notes.size() == 2);
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(0.925));
-    CHECK(actual.notes[0].end_seconds == Catch::Approx(1.0));
+    // The fixture is only worth rendering if the derivation really did crop it.
+    REQUIRE(tab.notes.size() == 2);
+    CHECK(tab.notes[0].ink_end_seconds == Catch::Approx(0.925));
+    CHECK(tab.notes[0].ring_end_seconds == Catch::Approx(1.0));
 
     TabView view{};
     view.setBounds(0, 0, 400, 120);
@@ -973,10 +960,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{2.0},
         });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(presented),
-        std::make_shared<const common::core::ChartViewState>(actual),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(tab), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -988,11 +972,12 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
 
     // 200 px per second: the drawn tail stops at x = 185 and the ring at x = 200, where the next
     // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 189
-    // is trimmed-away ink with nothing else over it. Row 72 is 1.5 px below string 3's lane centre.
+    // is cropped-away ring with nothing else over it. Row 72 is 1.5 px below string 3's lane
+    // centre.
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
     // Neither editing state shows it: selecting the note under scrutiny leaves its notation where
-    // it was drawn, and so does standing the caret in the very stretch the trim took.
+    // it was drawn, and so does standing the caret in the very stretch the crop took.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
     view.setEditState(
@@ -1001,9 +986,9 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         });
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
-    // The reveal is the one ground, and what it shows is the derivation's own trim.
+    // The reveal is the one ground, and what it shows is the derivation's own crop.
     view.setEditState(core::ChartEditViewState{});
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     CHECK(render().getPixelAt(189, 72).getARGB() != 0);
 }
 
@@ -1066,15 +1051,13 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     common::core::Arrangement arrangement;
     arrangement.chart = std::move(chart);
 
-    const common::core::ChartViewState presented =
+    const common::core::ChartViewState tab =
         common::core::makeChartViewState(arrangement, tempo_map);
-    const common::core::ChartViewState actual = common::core::makeChartViewState(
-        arrangement, tempo_map, common::core::ChartNoteForm::Actual);
     // The fixture is only worth rendering if the derivation really owed a margin here.
-    REQUIRE(presented.shapes.size() == 1);
-    CHECK(presented.shapes[0].start_seconds == Catch::Approx(0.0));
-    CHECK(presented.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
-    CHECK(presented.shapes[0].close_seconds == Catch::Approx(0.75));
+    REQUIRE(tab.shapes.size() == 1);
+    CHECK(tab.shapes[0].start_seconds == Catch::Approx(0.0));
+    CHECK(tab.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
+    CHECK(tab.shapes[0].close_seconds == Catch::Approx(0.75));
 
     TabView view{};
     view.setBounds(0, 0, 400, 120);
@@ -1083,10 +1066,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{2.0},
         });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(presented),
-        std::make_shared<const common::core::ChartViewState>(actual),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(tab), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -1108,7 +1088,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     CHECK(rail_at(155) == 0);
 
     // THE WHOLE-LANE REVEAL: every visible span reads to its close while it is held.
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     CHECK(rail_at(137) != 0);
     // And stops there. The reveal shows the statement's real end, not an unbounded rail.
     CHECK(rail_at(155) == 0);
@@ -1117,7 +1097,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     CHECK(rail_at(100) != 0);
 
     // Releasing snaps back: a held state, never a mode that latches.
-    view.setActualRingReveal(false);
+    view.setRingReveal(false);
     CHECK(rail_at(137) == 0);
 
     // THE SELECTION ARM: a note the span covers reveals the span it stands in.
@@ -1160,22 +1140,23 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     CHECK(rail_at(137) == 0);
 }
 
-// A ring reaching a window its presented tail cannot: the note's tail ends long before the visible
-// span opens while the ring runs well into it. The lane culls against the ACTUAL ends, which is
-// what keeps the ring in range — index the lane by the presented ends and the note leaves the
-// range before the window opens. Both halves matter: with the reveal off the same conservative
+// A ring reaching a window its drawn tail cannot: the note's ink ends long before the visible
+// span opens while the ring runs well into it. The lane culls against the RING ends, which is
+// what keeps the ring in range — index the lane by the ink ends and the note leaves the range
+// before the window opens. Both halves matter: with the reveal off the same conservative
 // index still admits the note, and the paint pass must then drop it for ending before the span,
 // or the one table would leak a tail the picture does not have.
 TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    common::core::ChartViewState presented;
-    presented.open_strings = common::core::testing::standardTuning();
-    presented.notes = {
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 3.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = 3.0,
             .string = 6,
             .fret = 5,
             .bend = {},
@@ -1183,23 +1164,18 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
             .vibrato = {},
         },
     };
-    common::core::ChartViewState actual = presented;
-    actual.notes[0].end_seconds = 12.0;
 
     TabView view{};
     view.setBounds(0, 0, 200, 120);
     // The window opens at 10 s. Widened by the paint core's glyph slack (75 px, here 3.75 s) the
-    // visible span still starts at 6.25 s, past the presented end at 3.0 s and far short of the
-    // ring's 12.0 s.
+    // visible span still starts at 6.25 s, past the ink end at 3.0 s and far short of the ring's
+    // 12.0 s.
     view.setVisibleTimeline(
         common::core::TimeRange{
             .start = common::core::TimePosition{10.0},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(std::move(presented)),
-        std::make_shared<const common::core::ChartViewState>(std::move(actual)),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(tab)), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -1215,15 +1191,15 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
     CHECK(render().getPixelAt(39, 12).getARGB() == 0);
 
     // The cull runs inside the paint core's own pass, against the one conservative index.
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     CHECK(render().getPixelAt(39, 12).getARGB() != 0);
 }
 
-// Every editing overlay traces the note the lane drew, and the two forms share the head exactly:
-// presentation touches only the tail, so a selection ring lands on the same pixels whichever form
-// the note is in. Checked on one note selected first and then revealed, which must ring the same
-// head either way — and the selection must not have grown it a tail on the way.
-TEST_CASE("TabView keeps its overlays on the head the two forms share", "[ui][tab-view]")
+// Every editing overlay traces the note the lane drew, and the ink and the reveal share the head
+// exactly: presentation touches only the tail, so a selection ring lands on the same pixels
+// whether or not the note is revealed. Checked on one note selected first and then revealed, which
+// must ring the same head either way — and the selection must not have grown it a tail on the way.
+TEST_CASE("TabView keeps its overlays on the head the ink and the reveal share", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{};
@@ -1246,12 +1222,12 @@ TEST_CASE("TabView keeps its overlays on the head the two forms share", "[ui][ta
     const juce::Image plain = render();
     view.setEditState(core::ChartEditViewState{.selected_notes = {2}});
     const juce::Image selected = render();
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     const juce::Image revealed = render();
 
     // The accent ring straddles the late note's head edge (head centre x = 120, y = 10.5,
     // half-size ~7.2), so column 112 on the centre row changes when the note is selected — and
-    // does not change again when the reveal redraws the lane in the other form.
+    // does not change again when the reveal redraws the lane to the ring ends.
     CHECK(selected.getPixelAt(112, 10) != plain.getPixelAt(112, 10));
     CHECK(revealed.getPixelAt(112, 10) == selected.getPixelAt(112, 10));
 
@@ -1263,20 +1239,21 @@ TEST_CASE("TabView keeps its overlays on the head the two forms share", "[ui][ta
 }
 
 // THE CHORD a selection is taken from is left alone: neither the selected member nor its mate
-// grows the ring presentation clipped, and the reveal then shows both at once. The picture a
+// grows the ring presentation cropped, and the reveal then shows both at once. The picture a
 // charter is working in stays the picture they clicked into.
-TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[ui][tab-view]")
+TEST_CASE("TabView leaves a selected note beside its mate at their ink ends", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // A two-note chord at 12 s on the top two lanes, neither presenting a tail; both really ring
-    // for a second past it.
-    common::core::ChartViewState presented;
-    presented.open_strings = common::core::testing::standardTuning();
-    presented.notes = {
+    // A two-note chord at 12 s on the top two lanes, neither drawing a tail; both really ring for
+    // a second past it.
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 12.0,
-            .end_seconds = 12.0,
+            .ring_end_seconds = 13.0,
+            .ink_end_seconds = 12.0,
             .string = 6,
             .fret = 3,
             .bend = {},
@@ -1285,7 +1262,8 @@ TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
-            .end_seconds = 12.0,
+            .ring_end_seconds = 13.0,
+            .ink_end_seconds = 12.0,
             .string = 5,
             .fret = 5,
             .bend = {},
@@ -1293,9 +1271,6 @@ TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[
             .vibrato = {},
         },
     };
-    common::core::ChartViewState actual = presented;
-    actual.notes[0].end_seconds = 13.0;
-    actual.notes[1].end_seconds = 13.0;
 
     TabView view{};
     view.setBounds(0, 0, 200, 120);
@@ -1304,10 +1279,7 @@ TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(std::move(presented)),
-        std::make_shared<const common::core::ChartViewState>(std::move(actual)),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(tab)), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -1325,7 +1297,7 @@ TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[
     constexpr int upper_row = 12;
     constexpr int lower_row = 32;
 
-    // Nothing selected and nothing revealed: presentation clipped both rings off the lane.
+    // Nothing selected and nothing revealed: presentation cropped both rings off the lane.
     const juce::Image plain = render();
     CHECK(plain.getPixelAt(tail_x, upper_row).getARGB() == 0);
     CHECK(plain.getPixelAt(tail_x, lower_row).getARGB() == 0);
@@ -1342,42 +1314,37 @@ TEST_CASE("TabView leaves a selected note beside its mate in presented form", "[
 
     // The one ground covers the whole lane, selection or no selection.
     view.setEditState(core::ChartEditViewState{});
-    view.setActualRingReveal(true);
+    view.setRingReveal(true);
     const juce::Image revealed = render();
     CHECK(revealed.getPixelAt(tail_x, upper_row).getARGB() != 0);
     CHECK(revealed.getPixelAt(tail_x, lower_row).getARGB() != 0);
 }
 
-// A CLICKED END CHIP STAYS WHERE IT WAS DRAWN, which is the case the one ground exists for: the end
-// statement rides its note's form, so a ground that switched forms on selection would move the very
-// mark the pointer just landed on. The reveal moves it instead, and that key is held for every
-// gesture that moves the end.
-TEST_CASE("TabView leaves a selected end statement where presentation drew it", "[ui][tab-view]")
+// AN END CHIP IN THE ENDING ZONE IS DRAWN BY THE REVEAL ALONE, which is the case the one ground
+// exists for: the end statement keeps its stored instant past the ink end, so a ground that drew
+// it — or ringed it — on selection would put a mark on the lane the charter never saw. The reveal
+// draws it instead, and that key is held for every gesture that moves the end.
+TEST_CASE("TabView draws a selected end statement past the ink only revealed", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // A trimmed ring on string 3 carrying its slide-out: presentation retreats both the tail and
-    // the chip to 5.0s, while the stored ring runs to 8.0s and states the same fret there.
-    const common::core::KeyframeViewState presented_end{
-        .seconds = 5.0, .fret = 9, .slide_out = true
-    };
+    // A cropped ring on string 3 carrying its slide-out: the ink stops at 5.0s, while the stored
+    // ring runs to 8.0s and states the slide-out there.
     const common::core::KeyframeViewState stored_end{.seconds = 8.0, .fret = 9, .slide_out = true};
-    common::core::ChartViewState presented;
-    presented.open_strings = common::core::testing::standardTuning();
-    presented.notes = {
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 5.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 5.0,
             .string = 3,
             .fret = 7,
             .bend = {},
-            .slides = {presented_end},
+            .slides = {stored_end},
             .vibrato = {},
         },
     };
-    common::core::ChartViewState actual = presented;
-    actual.notes[0].end_seconds = 8.0;
-    actual.notes[0].slides = {stored_end};
 
     const common::core::TimeRange timeline{
         .start = common::core::TimePosition{},
@@ -1386,10 +1353,7 @@ TEST_CASE("TabView leaves a selected end statement where presentation drew it", 
     TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(timeline);
-    view.setState(
-        std::make_shared<const common::core::ChartViewState>(presented),
-        std::make_shared<const common::core::ChartViewState>(actual),
-        0);
+    view.setState(std::make_shared<const common::core::ChartViewState>(tab), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -1403,7 +1367,7 @@ TEST_CASE("TabView leaves a selected end statement where presentation drew it", 
     // probe is the mark's own extent rather than a guessed column.
     const common::ui::TabKeyframeLayout stored_chip = common::ui::tabKeyframeLayout(
         common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
-        actual.notes[0],
+        tab.notes[0],
         stored_end);
     REQUIRE(stored_chip.chip);
     const auto box_differs = [&stored_chip](const juce::Image& lhs, const juce::Image& rhs) {
@@ -1427,17 +1391,24 @@ TEST_CASE("TabView leaves a selected end statement where presentation drew it", 
     const juce::Image plain = render();
 
     // Selecting the statement — what clicking its chip publishes — leaves that stretch of lane
-    // exactly as it was: the chip is still back at 5.0s where the charter clicked it.
-    view.setEditState(
-        core::ChartEditViewState{
-            .selected_notes = {0},
-            .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
-        });
+    // exactly as it was while unrevealed: the chip past the ink end stays undrawn, and so does the
+    // selection ring that would trace it.
+    const core::ChartEditViewState statement_selected{
+        .selected_notes = {0},
+        .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
+    };
+    view.setEditState(statement_selected);
     CHECK_FALSE(box_differs(render(), plain));
 
-    // The reveal is what puts it at the instant the chart stores.
-    view.setActualRingReveal(true);
-    CHECK(box_differs(render(), plain));
+    // The reveal is what draws it, at the instant the chart stores ...
+    view.setEditState(core::ChartEditViewState{});
+    view.setRingReveal(true);
+    const juce::Image revealed = render();
+    CHECK(box_differs(revealed, plain));
+
+    // ... and, revealed, the selection rings it.
+    view.setEditState(statement_selected);
+    CHECK(box_differs(render(), revealed));
 }
 
 // THE SELECTED OBJECT DRAWS LAST. An arrival stands at the very instant the head it glides into is
@@ -1456,7 +1427,8 @@ TEST_CASE(
     const common::core::KeyframeViewState arrival{.seconds = 8.0, .fret = 9, .slide_out = false};
     const common::core::NoteViewState glide{
         .start_seconds = 2.0,
-        .end_seconds = 8.0,
+        .ring_end_seconds = 8.0,
+        .ink_end_seconds = 8.0,
         .string = 3,
         .fret = 7,
         .bend = {},
@@ -1466,7 +1438,8 @@ TEST_CASE(
     };
     const common::core::NoteViewState landing{
         .start_seconds = 8.0,
-        .end_seconds = 10.0,
+        .ring_end_seconds = 10.0,
+        .ink_end_seconds = 10.0,
         .string = 3,
         .fret = 9,
         .bend = {},
@@ -1487,7 +1460,7 @@ TEST_CASE(
         state.notes = std::move(notes);
         const auto shared_state =
             std::make_shared<const common::core::ChartViewState>(std::move(state));
-        view.setState(shared_state, shared_state, 0);
+        view.setState(shared_state, 0);
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
@@ -1643,7 +1616,7 @@ TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{10.0},
         });
-    view.setState(nullptr, nullptr, 10);
+    view.setState(nullptr, 10);
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 100, 60, true)};
     juce::Graphics graphics{image};

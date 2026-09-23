@@ -124,24 +124,22 @@ chords. Everything else is plumbing that keeps focus in the right place:
 # Held modifiers: the one key that is a state, not a chord
 
 Everything above turns a keystroke into a *verb*. One key does not: **holding `Alt` while this
-application is in the foreground reveals each visible note's actual ring in the 2D tab lane**, and
-releasing it clips every note back to its presented tail except the ones the selection names.
-Nothing is invoked, nothing is undoable, and the mapping set is not involved at all — the whole
-path is `EditorView::syncAltHeldState` → `TabView::setActualRingReveal`, repainting only on a
-change. `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is
-exactly what `Alt`+wheel edits. It is the whole-lane half of a per-note rule — a SELECTED note
-draws its ring with no key held at all — so see \ref guide_2d_views for the pick and the mark it
-makes.
+application is in the foreground draws each visible note in the 2D tab lane on to its ring end**,
+past its ink end, and releasing it stops every note at its ink end again. Nothing is invoked,
+nothing is undoable, and the mapping set is not involved at all — the whole path is
+`EditorView::syncAltHeldState` → `TabView::setRingReveal`, repainting only on a change. `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is
+exactly what `Alt`+wheel edits. The modifier alone reveals a note — a selected note draws like
+every other — so see \ref guide_2d_views for the mark it makes.
 
 There is nothing registrable beside it: the mark the reveal makes was decided on 2026-08-23 (the
-lane redraws in the actual form) and the `F6` toggle that had let the two candidates be flipped
-between is gone with the losing one. The 3D preview once had its own `F1` rig for the same datum
+lane draws each note on to its ring end) and the `F6` toggle that had let the two candidates be
+flipped between is gone with the losing one. The 3D preview once had its own `F1` rig for the same datum
 and that is gone too, so `Alt` is the whole of this idiom on either surface.
 
 `Alt`+letter chords now exist: `Alt+F`, `Alt+E`, `Alt+V` open the menu-bar menus (the platform's
 access-key convention, implemented by the app because JUCE's menu bar has no mnemonic handling).
 Pressing one flashes the reveal for the chord's duration, the same way `Alt`+arrows always have. The held-Alt poll feeds both hints from one sample: `EditorView::syncAltHeldState`
-pushes the same boolean to `TabView::setActualRingReveal` and to
+pushes the same boolean to `TabView::setRingReveal` and to
 `MenuLookAndFeel::setAccessKeysVisible`, which underlines the access letter in every menu title
 while the key is down, so the two can never disagree about whether `Alt` is held.
 

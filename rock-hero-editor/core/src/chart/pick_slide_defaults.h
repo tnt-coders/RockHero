@@ -45,6 +45,17 @@ median and half the shortest scrape anyone charted — is wrong as a default.
 inline constexpr common::core::Fraction g_pick_slide_default_sustain_whole_note{1, 4};
 
 /*!
+\brief The smallest span a glide, slide-out or scrape leg may occupy: an eighth of a beat.
+
+A zero-length gesture has nowhere to travel, so the Guitar Pro import's gesture synthesis and the
+editor's scrape defaults both floor on this one window; a window one of them measured differently
+would be a gesture the other refuses. A plain BEAT quantity, unlike the whole-note-referenced
+duration bounds in grid_arithmetic.h: it bounds payload offsets, which are already stated in
+beats, rather than naming a note value.
+*/
+inline constexpr common::core::Fraction g_minimum_slide_window{1, 8};
+
+/*!
 \brief Fewest frets of downward travel that still reads as a scrape rather than a stub.
 
 The flip point for the default direction. Measured against the DOWNWARD TARGET rather than the
@@ -101,7 +112,7 @@ moves). Turnaround keyframes are authored later, never synthesized here — a de
 straight drag.
 
 \param note Note receiving the path; the caller owns setting the attack itself, and owns a ring
-long enough to hold a gesture (\ref common::core::g_minimum_slide_window) — every note rings, so
+long enough to hold a gesture (\ref g_minimum_slide_window) — every note rings, so
 there is no zero to extend here.
 \param upward True to scrape toward the neck's high end, false toward the low end.
 \param capo The tuning's capo, which floors the low endpoint (\ref pickSlideDefaultLowFret).

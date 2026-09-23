@@ -24,7 +24,8 @@ namespace
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 10.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 10.0,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -33,7 +34,8 @@ namespace
         },
         common::core::NoteViewState{
             .start_seconds = 5.0,
-            .end_seconds = 8.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 8.0,
             .string = 1,
             .fret = 5,
             .bend = {},
@@ -42,7 +44,8 @@ namespace
         },
         common::core::NoteViewState{
             .start_seconds = 6.0,
-            .end_seconds = 6.0,
+            .ring_end_seconds = 6.5,
+            .ink_end_seconds = 6.0,
             .string = 2,
             .fret = 7,
             .bend = {},
@@ -106,8 +109,8 @@ namespace
 
 // A glide on string 3 — a lane the fixture above leaves empty, so nothing else can answer a
 // probe. The onset sits at 2s (x = 40), the junction it arrives at at 6s (x = 120), and the ring
-// ends at 10s (x = 200) where a second keyframe sits exactly at the end and therefore draws no
-// head at all.
+// ends at 10s (x = 200) where a second keyframe sits exactly at the end — inside the ink, which
+// runs the whole ring, so it draws its head like any other.
 [[nodiscard]] common::core::ChartViewState makeGlideTabState()
 {
     common::core::ChartViewState state;
@@ -115,7 +118,8 @@ namespace
     state.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 10.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 10.0,
             .string = 3,
             .fret = 5,
             .bend = {},
@@ -191,7 +195,8 @@ TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][ch
     tab.notes = {
         common::core::NoteViewState{
             .start_seconds = 2.0,
-            .end_seconds = 2.0,
+            .ring_end_seconds = 2.5,
+            .ink_end_seconds = 2.0,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -209,9 +214,10 @@ TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][ch
     CHECK_FALSE(chartHitTarget(tab, geometry, 130.0f, 220.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 155.0f, 220.0f).has_value());
 
-    // Give the same note a presented tail to 8s and nothing changes: the ribbon is testimony, so
+    // Give the same note a drawn tail to 8s and nothing changes: the ribbon is testimony, so
     // every point along it still belongs to the slot under the pointer.
-    tab.notes[0].end_seconds = 8.0;
+    tab.notes[0].ring_end_seconds = 8.0;
+    tab.notes[0].ink_end_seconds = 8.0;
     CHECK(chartHitTarget(tab, geometry, 40.0f, 220.0f) == noteTarget(0));
     CHECK_FALSE(chartHitTarget(tab, geometry, 130.0f, 220.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 155.0f, 220.0f).has_value());
@@ -249,7 +255,8 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
     // lane the fixture leaves empty so nothing else can answer the probes.
     common::core::NoteViewState tap;
     tap.start_seconds = 6.0;
-    tap.end_seconds = 6.0;
+    tap.ring_end_seconds = 6.5;
+    tap.ink_end_seconds = 6.0;
     tap.string = 5;
     tap.fret = 12;
     tap.attack = common::core::NoteAttack::Tap;
@@ -296,7 +303,8 @@ TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][c
     // the stop DERIVED: the pull-off notation states it, so the face waits for the reveal.
     common::core::NoteViewState tap;
     tap.start_seconds = 6.0;
-    tap.end_seconds = 6.0;
+    tap.ring_end_seconds = 6.5;
+    tap.ink_end_seconds = 6.0;
     tap.string = 5;
     tap.fret = 12;
     tap.attack = common::core::NoteAttack::Tap;
@@ -486,7 +494,8 @@ TEST_CASE("Chart onset group keys collect every member of the instant", "[core][
 // A junction's head is drawn ON the tail, and it is the LAST mark a pointer can reach — it loses
 // to an onset head, which is the primary affordance. The drawn extent is the clickable one in both
 // directions: the ribbon between heads is not hit-testable, and every head the lane draws is —
-// the arrival at the tail's tip included, since the last keyframe is always visible.
+// the arrival at the tail's tip included wherever the ink reaches it, and nothing past the ink
+// unless the note is revealed.
 TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
 {
     const common::core::ChartViewState tab = makeGlideTabState();
@@ -497,12 +506,20 @@ TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
     CHECK_FALSE(chartHitTarget(tab, geometry, 80.0f, 140.0f).has_value());
     // The onset head wins its own pixels: heads resolve before junctions.
     CHECK(chartHitTarget(tab, geometry, 40.0f, 140.0f) == noteTarget(0));
-    // At the ring's end the glide's arrival draws its continuation head — the last keyframe is
-    // always visible, and the re-picked landing draws its own head a margin later — so a press on
-    // it resolves to it.
+    // At the ring's end the glide's arrival draws its continuation head — the ink runs the whole
+    // ring here — so a press on it resolves to it.
     CHECK(chartHitTarget(tab, geometry, 195.0f, 140.0f) == keyframeTarget(0, 1));
     // Another string's lane answers nothing at the same instant.
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 180.0f).has_value());
+
+    // Crop the ink at 8s and the arrival at 10s stands in the ENDING ZONE: stored, undrawn, and
+    // therefore unreachable — until the reveal draws the ring to its end, when it answers again.
+    // The junction inside the ink answers either way.
+    common::core::ChartViewState cropped = tab;
+    cropped.notes[0].ink_end_seconds = 8.0;
+    CHECK_FALSE(chartHitTarget(cropped, geometry, 195.0f, 140.0f).has_value());
+    CHECK(chartHitTarget(cropped, geometry, 195.0f, 140.0f, true) == keyframeTarget(0, 1));
+    CHECK(chartHitTarget(cropped, geometry, 120.0f, 140.0f) == keyframeTarget(0, 0));
 }
 
 // The marquee reaches exactly what the click reaches, so a box drawn over a junction selects that
@@ -523,6 +540,15 @@ TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[co
     CHECK(
         whole ==
         (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0), keyframeTarget(0, 1)}));
+
+    // With the ink cropped at 8s the arrival is undrawn, so the same box leaves it out — and boxes
+    // it again only while the reveal draws it.
+    common::core::ChartViewState cropped = tab;
+    cropped.notes[0].ink_end_seconds = 8.0;
+    CHECK(
+        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f) ==
+        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
+    CHECK(chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, true) == whole);
 }
 
 // A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum

@@ -2433,13 +2433,13 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     REQUIRE(scrape != nullptr);
     if (scrape != nullptr)
     {
-        CHECK(scrape->sustain == common::core::g_minimum_slide_window);
+        CHECK(scrape->sustain == g_minimum_slide_window);
         // The turnaround is clipped away with the tail, and the terminal rides the shortening
         // ring — it is a keyframe at the end now, so the floored scrape keeps exactly one.
         REQUIRE(scrape->keyframes.size() == 1);
         if (scrape->keyframes.size() == 1)
         {
-            CHECK(scrape->keyframes[0].offset == common::core::g_minimum_slide_window);
+            CHECK(scrape->keyframes[0].offset == g_minimum_slide_window);
             CHECK(scrape->keyframes[0].fret == 12);
         }
     }
@@ -2696,7 +2696,7 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
         const common::core::ChartNote* stub = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(stub != nullptr);
         CHECK(stub->sustain == common::core::Fraction{1});
-        CHECK(stub->sustain > common::core::g_minimum_slide_window);
+        CHECK(stub->sustain > g_minimum_slide_window);
         // The terminal ends the ring by definition, so the sustain above IS the gesture's
         // length: a scrape rings no longer than it travels.
         CHECK(common::core::endStatedFretOrNull(*stub) != nullptr);
@@ -3012,12 +3012,12 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
 
     // The other half of the same rule, so the pair is stated in one place: the ring survives the
     // press and NOTHING draws it (E25 as rule 4 of the presentation).
-    const std::vector<common::core::ChartNote> presented =
-        common::core::presentedChartNotes(
+    const std::vector<common::core::Fraction> ink_end =
+        common::core::chartPresentation(
             common::core::chartConnections(chart.notes, tempo_map), tempo_map)
-            .notes;
-    REQUIRE(presented.size() == chart.notes.size());
-    CHECK(presented[held].sustain == common::core::Fraction{});
+            .ink_end;
+    REQUIRE(ink_end.size() == chart.notes.size());
+    CHECK(ink_end[held] == common::core::Fraction{});
     CHECK(chart.notes[held].sustain == ring);
 
     // And the duration verbs go on working on it: nothing about the note is frozen by the mute.
@@ -3435,7 +3435,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == common::core::g_minimum_slide_window);
+            CHECK(scrape->sustain == g_minimum_slide_window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides,
             // and it is a keyframe of its own at the floored end.
             REQUIRE(scrape->keyframes.size() == 1);
@@ -3443,7 +3443,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(slide_out != nullptr);
             if (slide_out != nullptr)
             {
-                CHECK(slide_out->offset == common::core::g_minimum_slide_window);
+                CHECK(slide_out->offset == g_minimum_slide_window);
                 CHECK(slide_out->fret == 12);
             }
         }
@@ -4449,7 +4449,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
 // An arrival that says nothing the origin's path does not already say is KEPT, where a silent
 // SLIDE-OUT is not. The difference is the FACE: a slide-out toward the fret the string already
 // holds draws nothing and wears no head, so the gate dissolves it, while an arrival wears a linked
-// head at the presented end and is ordinary visible authoring state. The join takes it straight
+// head at its stored instant and is ordinary visible authoring state. The join takes it straight
 // back over.
 TEST_CASE("planToggleJunctions keeps a silent arrival on the origin", "[core][chart]")
 {

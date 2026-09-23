@@ -51,29 +51,14 @@ concept TimedEvent = requires(const Event& event) {
 };
 
 /*!
-\brief An event occupying a timeline span: an onset and an end, both in absolute seconds.
-
-The narrower shape, required only where the end is actually read: the convenience overload of
-\ref makeSustainPrefixMax below, which builds its table off the events themselves. An event with
-more than one end names the one it means instead and uses the projecting overload.
-
-\tparam Event Seconds-resolved event type exposing `start_seconds` and `end_seconds`.
-*/
-template <typename Event>
-concept SustainedEvent = TimedEvent<Event> && requires(const Event& event) {
-    { event.end_seconds } -> std::convertible_to<double>;
-};
-
-/*!
 \brief Builds the running maximum of event end times, one entry per event.
 
 Companion table for visibleEventRange: events are sorted by onset but their spans overlap freely,
 so the range's lower bound comes from the prefix maximum of the ends rather than from the ends
-themselves. Callers whose DISPLAY end differs from the one the event carries — a strum held for a
-whole posture span, or a span whose furniture the editor's reveal runs on to its musical close —
-pass those ends in place of the events' own, and must pass the FURTHEST they may draw to: the table
-only ever tightens the range's start, so a conservative end costs candidates and a short one drops
-something on screen.
+themselves. Every caller NAMES the end it culls on — a note carries an ink end and a ring end, a
+span a drawn extent and a musical close, a pinned strum its hold — and must pass the FURTHEST it
+may draw to: the table only ever tightens the range's start, so a conservative end costs
+candidates and a short one drops something on screen.
 
 \tparam Ends Sized range of end times in seconds, ordered like the events they describe.
 \param end_seconds End times to accumulate.
@@ -92,24 +77,6 @@ template <std::ranges::sized_range Ends>
         prefix_max.push_back(running);
     }
     return prefix_max;
-}
-
-/*!
-\brief Builds the running maximum of event end times, one entry per event.
-
-Overload for the ordinary case, where the events carry the ends themselves, so no call site has to
-spell the projection out.
-
-\tparam Events Sized range of sustained events, ordered by onset.
-\param events Events whose ends to accumulate.
-\return Non-decreasing prefix maximum of the events' ends, sized like the input.
-*/
-template <std::ranges::sized_range Events>
-    requires SustainedEvent<std::ranges::range_value_t<Events>>
-[[nodiscard]] std::vector<double> makeSustainPrefixMax(const Events& events)
-{
-    using Event = std::ranges::range_value_t<Events>;
-    return makeSustainPrefixMax(events | std::views::transform(&Event::end_seconds));
 }
 
 /*!

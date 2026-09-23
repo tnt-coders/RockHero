@@ -1161,11 +1161,10 @@ handed-over keyframe fret equalling the new head's").
 the hands did. Nothing marks it as the pitched arrival the charter split at, and nothing has to: the
 chart PROVES it, the end statement naming the very stop the next product is struck at, at the same
 instant (\ref common::core::arrivesIntoNextHead). The origin's RING runs to that head, because a
-re-strike is what stops a ring, and the DRAWN arrival is spaced one minimum sustain distance before
-it by the presentation rule that spaces every tail — exactly where the trim would have put it
-anyway. So there is no retreat to compute, no crowded-leg case to repair, and no clearance authority
-in the walk at all: a grid-step ring cut at the session's default 1/16 grid — the commonest split
-there is — needs nothing said about it.
+re-strike is what stops a ring, and presentation stops the ink one minimum sustain distance before
+that head while the arrival keeps its stored instant. So there is no retreat to compute, no
+crowded-leg case to repair, and no clearance authority in the walk at all: a grid-step ring cut at
+the session's default 1/16 grid — the commonest split there is — needs nothing said about it.
 
 What the product's end may KEEP is the channel table's, asked of the one authority
 (\ref common::core::shedEndStatementShake): a SHAKE stated at the cut has no ring left to shake in

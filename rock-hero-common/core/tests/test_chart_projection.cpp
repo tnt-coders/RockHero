@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -85,9 +86,9 @@ namespace
         // Shift-slide pair, written the way the store holds it: the stop sits exactly AT the ring's
         // end, ON the re-picked landing's own onset, and what tells that statement from a slide-out
         // is the RELATION — it names the very stop the next head is struck at, at the same instant
-        // (arrivesIntoNextHead). The presented trim then carries it one margin back, so the drawn
-        // segment is LINKED — the arrival's own head at the tail's tip, the landing's head a margin
-        // later — and only the resolved relation says the slide-out flag is false.
+        // (arrivesIntoNextHead). Rule 1 then stops the ink one margin before the landing, so the
+        // arrival stands in the ending zone at its stored instant — LINKED, drawing its own head
+        // there under a reveal — and only the resolved relation says the slide-out flag is false.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
@@ -145,20 +146,38 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // Sized like the notes because both painters index it by note index; its values are the
     // span-hold rule's, pinned below.
     CHECK(state.display_hold_ends.size() == state.notes.size());
+    // The 2D lane's visible-range indexes: one entry per event, each the running maximum of the
+    // ends so far — the ring end for a note, the musical close for a span.
+    REQUIRE(state.ring_end_prefix_max.size() == state.notes.size());
+    double ring_end_max = -std::numeric_limits<double>::infinity();
+    for (std::size_t index = 0; index < state.notes.size(); ++index)
+    {
+        ring_end_max = std::max(ring_end_max, state.notes[index].ring_end_seconds);
+        CHECK_THAT(state.ring_end_prefix_max[index], Catch::Matchers::WithinULP(ring_end_max, 0));
+    }
+    REQUIRE(state.shape_close_prefix_max.size() == state.shapes.size());
+    double close_max = -std::numeric_limits<double>::infinity();
+    for (std::size_t index = 0; index < state.shapes.size(); ++index)
+    {
+        close_max = std::max(close_max, state.shapes[index].close_seconds);
+        CHECK_THAT(state.shape_close_prefix_max[index], Catch::Matchers::WithinULP(close_max, 0));
+    }
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+    // Nothing binds the pair's tails before the next onset four beats on, so both are free and
+    // draw their whole rings (the first is pinned exactly in the ring-beside-ink case below).
     CHECK(state.notes[0].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
     // Its own eighth-of-a-beat ring is far under the kept-sustain bound, but its chord partner's
-    // whole beat runs past it, and rule 3's verdict is the GROUP's — one stroke sounds every
+    // whole beat runs past it, and rule 2's verdict is the GROUP's — one stroke sounds every
     // string, so a lone tail beside partners that look unsounded is a picture no strum makes.
-    CHECK(state.notes[1].end_seconds == Catch::Approx(4.125 * beat));
+    CHECK(state.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
-    CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(sliding.ring_end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(sliding.ink_end_seconds == Catch::Approx(10.5 * beat));
     // The curve opens at the ONSET: the note's own bend value is the channel's first statement,
     // so a bent note's polyline always starts at its head and the stated point follows.
     REQUIRE(sliding.bend.size() == 2);
@@ -172,40 +191,32 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // A fret stated at exactly the STORED ring's end is the SLIDE-OUT: the hand leaves toward it,
     // so it ends the gesture rather than continuing it and no linked head renders at the tail tip.
     CHECK(sliding.slides[0].slide_out);
-    CHECK_FALSE(linkedKeyframe(sliding, sliding.slides[0]));
+    CHECK_FALSE(linkedKeyframe(sliding.slides[0]));
     // Nothing is struck on its string where its ring stops, so no mark of another note shares the
     // instant and the band conditional has nothing to do here.
     CHECK_FALSE(sliding.ends_on_next_head);
 
-    // The shift glide STATES its arrival on the landing and is DRAWN the minimum sustain distance
-    // before it, where the presented trim stops the tail. The arrival is NOT the slide-out, and the
-    // only thing that says so is the resolved relation: the fret it names is the stop the next head
-    // is struck at, at the same instant. So it is LINKED — the last keyframe is always visible, and
-    // it draws its continuation head at the tail's tip while the landing draws its own head a
-    // margin later.
+    // The shift glide STATES its arrival on the landing, and the ink stops the minimum sustain
+    // distance before it, where rule 1 crops the tail. The arrival keeps its stored instant, in the
+    // ending zone. It is NOT the slide-out, and the only thing that says so is the resolved
+    // relation: the fret it names is the stop the next head is struck at, at the same instant. So
+    // it is LINKED — under a reveal it draws its continuation head on the landing's own onset.
     const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
-    CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.85 * beat));
+    CHECK(shift_slider.slides[0].seconds == Catch::Approx(13.0 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
     CHECK_FALSE(shift_slider.slides[0].slide_out);
-    CHECK(linkedKeyframe(shift_slider, shift_slider.slides[0]));
-    CHECK(shift_slider.end_seconds == Catch::Approx(12.85 * beat));
-    // The STORED ring lands on that head, which is what the band conditional keys on — and it is
-    // the stored adjacency, not the drawn one: presentation has already retreated the mark.
+    CHECK(linkedKeyframe(shift_slider.slides[0]));
+    CHECK(shift_slider.ring_end_seconds == Catch::Approx(13.0 * beat));
+    CHECK(shift_slider.ink_end_seconds == Catch::Approx(12.85 * beat));
+    // A plain paint walks no stop — the arrival lies past the ink end — and a reveal walks it.
+    CHECK_FALSE(keyframeDrawn(shift_slider.slides[0], shift_slider.ink_end_seconds));
+    CHECK(keyframeDrawn(shift_slider.slides[0], shift_slider.ring_end_seconds));
+    // The STORED ring lands on that head, which is what the band conditional keys on.
     CHECK(shift_slider.ends_on_next_head);
-    // WHERE it draws is `seconds`; WHAT it is is `offset`, the STORED statement's own instant — the
-    // ring's end, a whole beat in, which is the one name every mapping back to the chart uses.
+    // The keyframe's own stored offset — the ring's end, a whole beat in — which is the one name
+    // every mapping back to the chart uses.
     CHECK(shift_slider.slides[0].offset == Fraction{1});
-    // The ACTUAL form draws the same statement where the chart states it, on the head, and reads it
-    // as an arrival there too.
-    const ChartViewState actual =
-        makeChartViewState(makeArrangementWithChart(), tempo_map, ChartNoteForm::Actual);
-    REQUIRE(actual.notes.size() == state.notes.size());
-    const NoteViewState& actual_shift = actual.notes[5];
-    REQUIRE(actual_shift.slides.size() == 1);
-    CHECK(actual_shift.slides[0].seconds == Catch::Approx(13.0 * beat));
-    CHECK(actual_shift.slides[0].offset == Fraction{1});
-    CHECK_FALSE(actual_shift.slides[0].slide_out);
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
@@ -276,46 +287,43 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
 }
 
-// The ACTUAL form draws each note at the ring the string really sounds for — the editor reveal's
-// whole picture. Where no rule trimmed anything the two forms agree; where presentation dropped a
-// tail outright, this form is the only one that has it.
-TEST_CASE("Chart projection draws the actual form at each note's ring", "[core][chart]")
+// Each note carries its two lengths: the ring the string really sounds for, which a reveal draws
+// to, and the ink a plain paint stops at. Where no rule touched a tail the two are one number;
+// where presentation dropped a tail outright, the ink stops on the onset and the ring stays.
+TEST_CASE("Chart projection publishes each note's ring beside its ink", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    const ChartViewState presented = makeChartViewState(makeArrangementWithChart(), tempo_map);
-    const ChartViewState actual =
-        makeChartViewState(makeArrangementWithChart(), tempo_map, ChartNoteForm::Actual);
+    const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
 
-    REQUIRE(actual.notes.size() == 7);
-    REQUIRE(presented.notes.size() == actual.notes.size());
+    REQUIRE(state.notes.size() == 7);
 
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
 
-    // The fixture's last note is a lone eighth with no technique, so rule 3 presents it no tail at
-    // all — bit-exactly its own onset, the way the projection assigns it across — while the actual
-    // form draws the eighth it rings for.
+    // The fixture's last note is a lone eighth with no technique, so rule 2 draws it no tail at
+    // all — bit-exactly its own onset, the way the projection assigns it across — while its ring
+    // is the eighth it sounds for.
     CHECK_THAT(
-        presented.notes[6].end_seconds,
-        Catch::Matchers::WithinULP(presented.notes[6].start_seconds, 0));
-    CHECK(actual.notes[6].end_seconds == Catch::Approx(13.125 * beat));
+        state.notes[6].ink_end_seconds,
+        Catch::Matchers::WithinULP(state.notes[6].start_seconds, 0));
+    CHECK(state.notes[6].ring_end_seconds == Catch::Approx(13.125 * beat));
 
-    // A note no rule trimmed is the same note in both forms.
-    CHECK(actual.notes[0].end_seconds == Catch::Approx(5.0 * beat));
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+    // A note no rule cropped draws its whole ring, and the two ends are one number exactly.
+    CHECK(state.notes[0].ring_end_seconds == Catch::Approx(5.0 * beat));
+    CHECK_THAT(
+        state.notes[0].ink_end_seconds,
+        Catch::Matchers::WithinULP(state.notes[0].ring_end_seconds, 0));
 }
 
-// Payload is what a view-side end swap could never restore, and the reason the reveal asks for a
-// whole projected form: the presentation trim CLIPS the points its shortened tail no longer
-// contains, so the presented note is missing them for good. A trailing bend point and a trailing
-// hold keyframe, both past the margin trim and neither changing anything, are exactly that case.
-TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", "[core][chart]")
+// The crop stops the ink and touches nothing else: every statement the note stores reaches the
+// projection at its stored instant, whether it stands before the ink end or past it.
+TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // Four beats of ring reaching exactly the next onset (so rule 1 trims to the margin rather
-        // than presenting it whole), its statements all early enough for the trim to clear them.
+        // Four beats of ring reaching exactly the next onset (so rule 1 crops to the margin rather
+        // than drawing it whole), with statements before the crop and one past it.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
@@ -325,9 +333,11 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
                 {
                     Keyframe{.offset = Fraction{1}, .bend = 2.0},
                     Keyframe{.offset = Fraction{2}, .fret = 7},
+                    // Past the crop at 77/20, in the ending zone.
+                    Keyframe{.offset = Fraction{39, 10}, .bend = 1.0},
                 },
         },
-        // The binding onset the trim measures against.
+        // The binding onset the crop measures against.
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
@@ -340,36 +350,33 @@ TEST_CASE("Chart projection trims the presented tail and keeps every keyframe", 
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
-    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
-    REQUIRE(presented.notes.size() == 2);
-    REQUIRE(actual.notes.size() == 2);
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.notes.size() == 2);
+    const NoteViewState& ringing = state.notes[0];
 
     // 120 BPM 4/4: a beat is half a second and the margin is 0.075 s, 3/20 of a beat here, so the
-    // presented tail stops at 3.85 beats and the ring runs the full four.
-    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.925));
-    CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
+    // ink stops at 3.85 beats and the ring runs the full four.
+    CHECK(ringing.ink_end_seconds == Catch::Approx(1.925));
+    CHECK(ringing.ring_end_seconds == Catch::Approx(2.0));
 
-    // A presented tail reaches every statement the note has to show — here every one stands well
-    // inside the trimmed ring — so both forms carry the same statements.
-    // Both curves carry the onset point in front, which is the channel's opening value.
-    CHECK(presented.notes[0].bend.size() == 2);
-    CHECK(actual.notes[0].bend.size() == 2);
-    REQUIRE(presented.notes[0].slides.size() == 1);
-    REQUIRE(actual.notes[0].slides.size() == 1);
+    // The curve carries the onset point in front, which is the channel's opening value, and then
+    // every stated point — the last at its stored 3.9 beats, past the ink end.
+    REQUIRE(ringing.bend.size() == 3);
+    CHECK(ringing.bend[2].seconds == Catch::Approx(1.95));
+    CHECK(ringing.bend[2].seconds > ringing.ink_end_seconds);
+    REQUIRE(ringing.slides.size() == 1);
     // Each keyframe carries the AUTHORED offset it was projected from, which is the identity the
-    // editor's selection keys it by, in both forms.
-    CHECK(presented.notes[0].slides[0].offset == Fraction{2});
-    CHECK(actual.notes[0].slides[0].offset == Fraction{2});
+    // editor's selection keys it by.
+    CHECK(ringing.slides[0].offset == Fraction{2});
+    CHECK(ringing.slides[0].seconds == Catch::Approx(1.0));
 }
 
 // A drawn keyframe's `offset` is its IDENTITY — the STORED statement's own offset, which the
-// editor keys a click, a caret and the accent ring by — while `seconds` alone says where the mark
-// is drawn. Both forms therefore report the offsets the chart states, and the fixture's note
-// carries a statement AT its ring's end (a slide-out), the one statement a presentation rule is
-// allowed to move: the head on another string binds the drawn tail, so rule 2 carries that
-// statement one margin earlier. This is that split measured — one identity, two instants.
-TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[core][chart]")
+// editor keys a click, a caret and the accent ring by — and its `seconds` is that same statement's
+// instant, since nothing presentation decides moves a statement. The fixture's note carries a
+// statement AT its ring's end (a slide-out) bound by a head on another string: the ink stops one
+// margin before that head and the slide-out stays where the chart states it, past the ink end.
+TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
@@ -390,8 +397,8 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
                     Keyframe{.offset = Fraction{2}, .fret = 9},
                 },
         },
-        // A head on another string, exactly where the ring ends, so rule 1 binds on it and rule 2
-        // carries the ring's end statement one margin earlier in the PRESENTED form alone.
+        // A head on another string, exactly where the ring ends, so rule 1 binds on it and the ink
+        // stops one margin earlier.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 2,
@@ -404,99 +411,60 @@ TEST_CASE("Chart projection names each drawn keyframe by its stored offset", "[c
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
-    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
-    REQUIRE(presented.notes.size() == 2);
-    REQUIRE(actual.notes.size() == 2);
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.notes.size() == 2);
+    const NoteViewState& note = state.notes[0];
 
-    // The two fret-stating keyframes above, in the order the chart states them — the same two names
-    // in both forms, because a name is what the CHART states and no rule here invents or drops a
-    // statement.
+    // The two fret-stating keyframes above, in the order the chart states them.
     const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{2}};
-    for (const NoteViewState& note : {presented.notes[0], actual.notes[0]})
+    REQUIRE(note.slides.size() == stored_offsets.size());
+    for (std::size_t index = 0; index < stored_offsets.size(); ++index)
     {
-        REQUIRE(note.slides.size() == stored_offsets.size());
-        for (std::size_t index = 0; index < stored_offsets.size(); ++index)
-        {
-            CHECK(note.slides[index].offset == stored_offsets[index]);
-        }
-        // 120 BPM 4/4: the stop at half a beat draws a quarter second in, unmoved in either form —
-        // it stands strictly inside the ring, and only the END's statement travels.
-        CHECK(note.slides[0].seconds == Catch::Approx(0.25));
-        CHECK_FALSE(note.slides[0].slide_out);
-        CHECK(note.slides[1].slide_out);
+        CHECK(note.slides[index].offset == stored_offsets[index]);
     }
-    // WHERE the slide-out's chip draws, which is the other half of the contract and the number both
-    // surfaces paint from: the presented form shows it as the drawn tail ends, one margin (75 ms)
-    // before the head that binds, while the actual form shows the ring the chart stores and puts
-    // it at the ring's own end a second in.
-    CHECK(presented.notes[0].slides[1].seconds == Catch::Approx(0.925));
-    CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.0));
-    // And the chart itself is untouched: the statement stays at the ring's end where it was
-    // authored, which is what makes the identity above the same in both forms.
-    REQUIRE(arrangement.chart.has_value());
-    if (arrangement.chart.has_value())
-    {
-        const ChartNote& stored = arrangement.chart->notes.front();
-        CHECK(stored.sustain == Fraction{2});
-        CHECK(stored.keyframes.back().offset == Fraction{2});
-    }
+    CHECK_FALSE(note.slides[0].slide_out);
+    CHECK(note.slides[1].slide_out);
+    // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out at the
+    // ring's own end a second in — the ring the chart stores — while the ink stops one margin
+    // (75 ms) before the head that binds.
+    CHECK(note.slides[0].seconds == Catch::Approx(0.25));
+    CHECK(note.slides[1].seconds == Catch::Approx(1.0));
+    CHECK(note.ring_end_seconds == Catch::Approx(1.0));
+    CHECK(note.ink_end_seconds == Catch::Approx(0.925));
+    // A plain paint walks the stop before the ink end and the leg toward the slide-out as far as
+    // the ink end; a reveal walks both stops.
+    CHECK(keyframeDrawn(note.slides[0], note.ink_end_seconds));
+    CHECK_FALSE(keyframeDrawn(note.slides[1], note.ink_end_seconds));
+    CHECK(keyframeDrawn(note.slides[1], note.ring_end_seconds));
 }
 
-// The form contract: the two states differ in their NOTES and in nothing else. Everything a
-// surface draws besides the notes — the holds, the hand-shape spans and their arrival kinds, the
-// fret-hand placements and their approach ramps, the string count, the capo — is derived from the
-// presented stream whichever form is asked for, so the editor's reveal swaps note tails and moves
-// no other mark on the lane.
-TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][chart]")
+// The ink never runs past the ring: presentation only ever stops drawing early, so every note's
+// ink end lies within its onset and its stored ring end.
+TEST_CASE("Chart projection keeps every ink end within its ring", "[core][chart]")
 {
-    const TempoMap tempo_map = makeTempoMap();
-    const Arrangement arrangement = makeArrangementWithChart();
+    const ChartViewState state = makeChartViewState(makeArrangementWithChart(), makeTempoMap());
+    REQUIRE(state.notes.size() == 7);
 
-    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
-    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
-
-    CHECK(presented.stringCount() == actual.stringCount());
-    CHECK(presented.capo == actual.capo);
-    CHECK(presented.shapes == actual.shapes);
-    CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
-    CHECK(presented.display_hold_ends == actual.display_hold_ends);
-    // ... and the notes are genuinely a different picture, or the fixture would prove nothing.
-    CHECK_FALSE(presented.notes == actual.notes);
-
-    REQUIRE(presented.notes.size() == actual.notes.size());
-    for (std::size_t index = 0; index < presented.notes.size(); ++index)
+    std::size_t cropped = 0;
+    std::size_t emptied = 0;
+    for (const NoteViewState& note : state.notes)
     {
-        const NoteViewState& drawn = presented.notes[index];
-        const NoteViewState& ring = actual.notes[index];
-        // Presentation touches the tail alone, so every other per-note fact — the resolved legato
-        // motion included, which is read off the saved stream in both forms — comes through equal.
-        CHECK_THAT(ring.start_seconds, Catch::Matchers::WithinULP(drawn.start_seconds, 0));
-        CHECK(ring.string == drawn.string);
-        CHECK(ring.fret == drawn.fret);
-        CHECK(ring.attack == drawn.attack);
-        CHECK(ring.legato == drawn.legato);
-        CHECK(ring.palm_mute == drawn.palm_mute);
-        CHECK(ring.dead == drawn.dead);
-        CHECK(ring.harmonic_node == drawn.harmonic_node);
-        CHECK(ring.tremolo == drawn.tremolo);
-        CHECK(ring.emphasis == drawn.emphasis);
-        // No presentation rule ever lengthens a tail past its stored ring.
-        CHECK(ring.end_seconds >= drawn.end_seconds);
-        // The vibrato regions are tail payload like the bend curve and the slide keyframes, so
-        // they belong to the FORM rather than to the invariant group above — a region running to
-        // the ring's end runs to the end THIS form presents. What holds in both is that no region
-        // leaves the tail it was clipped to.
-        const auto regions_inside_tail = [](const NoteViewState& note) {
-            for (const VibratoSpanViewState& span : note.vibrato)
-            {
-                CHECK(span.start_seconds >= note.start_seconds);
-                CHECK(span.end_seconds <= note.end_seconds);
-            }
-        };
-        regions_inside_tail(drawn);
-        regions_inside_tail(ring);
+        CHECK(note.ring_end_seconds > note.start_seconds);
+        CHECK(note.ink_end_seconds >= note.start_seconds);
+        CHECK(note.ink_end_seconds <= note.ring_end_seconds);
+        if (note.ink_end_seconds < note.ring_end_seconds)
+        {
+            ++cropped;
+        }
+        if (note.ink_end_seconds <= note.start_seconds)
+        {
+            ++emptied;
+        }
     }
+    // The fixture holds a cropped tail (the shift glide) and an emptied one (the lone eighth), so
+    // the bounds above are asked of both kinds rather than only of whole rings.
+    CHECK(cropped >= 1);
+    CHECK(emptied >= 1);
 }
 
 // The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: it
@@ -507,7 +475,7 @@ TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][cha
 TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    // Alone on the chart, so no binding onset trims the tail and the region ends are the channel's
+    // Alone on the chart, so no binding onset crops the tail and the region ends are the channel's
     // own. 120 BPM 4/4: the onset sits at 0.0s, a beat lasts half a second, and four beats of ring
     // end at 2.0s.
     const auto project =
@@ -530,17 +498,18 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
             return makeChartViewState(arrangement, tempo_map);
         };
 
-    SECTION("a shake stated at the onset alone covers the whole presented tail")
+    SECTION("a shake stated at the onset alone covers the whole ring")
     {
         const ChartViewState state = project(VibratoState::Narrow, {});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
-        // Exactly the tail's own two ends, which is what makes this the drawing both surfaces
+        // Exactly the ring's own two ends, which is what makes this the drawing both surfaces
         // produced when the channel was one boolean.
         CHECK_THAT(
             view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
-        CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.end_seconds, 0));
+        CHECK_THAT(
+            view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
     }
 
     SECTION("a shake stated mid-ring begins at the statement, not at the onset")
@@ -567,7 +536,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         CHECK_THAT(
             view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
         CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
-        CHECK(view.vibrato[0].end_seconds < view.end_seconds);
+        CHECK(view.vibrato[0].end_seconds < view.ring_end_seconds);
     }
 
     SECTION("a channel that starts, stops and starts again states two regions")
@@ -601,7 +570,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         REQUIRE(view.vibrato.size() == 1);
         CHECK_THAT(
             view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
-        CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.end_seconds, 0));
+        CHECK_THAT(
+            view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
     }
 
     SECTION("a step between the widths closes one region and opens the other")
@@ -622,7 +592,8 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         // regions, no gap the surfaces would draw as a pause in the shake.
         CHECK(view.vibrato[1].state == VibratoState::Wide);
         CHECK(view.vibrato[1].start_seconds == Catch::Approx(1.0));
-        CHECK_THAT(view.vibrato[1].end_seconds, Catch::Matchers::WithinULP(view.end_seconds, 0));
+        CHECK_THAT(
+            view.vibrato[1].end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
     }
 
     SECTION("every region carries the width it was stated at")
@@ -649,22 +620,20 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     }
 }
 
-// The hand's approach ramps are the derivation most exposed to the swap, because a placement can
-// be slide-locked to a gesture end that PRESENTATION MOVED: rule 2 carries a slide-out's terminal
-// back with the trimmed tail, so the instant it DRAWS at is not the instant the chart states it —
-// and a placement is authored at the instant the chart states. So the ramp table keys on the
-// STORED offset, an identity, and is built from the presented stream in either form: both answer
-// with one ramp over the drawn slide-out. Keyed on the drawn offset instead, the lookup misses
-// entirely and this placement silently falls back to the metrical margin morph.
-TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[core][chart]")
+// A placement is authored at the instant the chart states a gesture end, and the ramp table files
+// each glide's segment under that same stored instant — nothing presentation decides moves a
+// statement, so a slide-out whose ink the crop stops a margin early is still ridden to where the
+// chart states it. Every stored glide keyframe files a ramp, the one past the ink end included:
+// the hand completes where the sound goes, not where the ink stops.
+TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
         // Four beats of ring ending exactly on the next onset — on ANOTHER string — trailing off
-        // unpitched at its very end, so that head binds the drawn tail and the terminal draws one
-        // margin earlier than the four beats the chart states it at.
+        // unpitched at its very end, so that head binds the drawn tail and the ink stops one
+        // margin before the four beats the chart states the terminal at.
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
@@ -682,48 +651,36 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .keyframes = {},
         },
     };
-    // Exactly where the chart states the terminal — which is what a placement is authored against,
-    // in either form.
+    // Exactly where the chart states the terminal, which is what a placement is authored against.
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .width = 4},
     };
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
-    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
-    // The terminal is NAMED by the four beats the chart states in both forms, and DRAWN a margin
-    // earlier in the presented one.
-    REQUIRE(presented.notes.size() == 2);
-    REQUIRE(actual.notes.size() == 2);
-    // Each note bound once, so a count check and the access after it are provably the same object.
-    const NoteViewState& presented_glide = presented.notes[0];
-    const NoteViewState& actual_glide = actual.notes[0];
-    REQUIRE(presented_glide.slides.size() == 1);
-    REQUIRE(actual_glide.slides.size() == 1);
-    CHECK(presented_glide.slides.back().slide_out);
-    CHECK(actual_glide.slides.back().slide_out);
-    CHECK(presented_glide.slides.back().fret == 12);
-    CHECK(actual_glide.slides.back().fret == 12);
-    CHECK(presented_glide.slides.back().offset == Fraction{4});
-    CHECK(actual_glide.slides.back().offset == Fraction{4});
-    REQUIRE(glideStopCount(presented_glide) == 1);
-    REQUIRE(glideStopCount(actual_glide) == 1);
-    // One margin of spacing before the head in the drawn form; the whole four beats in the revealed
-    // one.
-    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.925));
-    CHECK(glideStopAt(actual_glide, 0).seconds == Catch::Approx(2.0));
-    CHECK(glideStopAt(presented_glide, 0).unpitched);
+    REQUIRE(state.notes.size() == 2);
+    // Bound once, so a count check and the access after it are provably the same object.
+    const NoteViewState& glide = state.notes[0];
+    REQUIRE(glide.slides.size() == 1);
+    CHECK(glide.slides.back().slide_out);
+    CHECK(glide.slides.back().fret == 12);
+    CHECK(glide.slides.back().offset == Fraction{4});
+    // The terminal stands at the ring's end, two seconds in, past the ink end one margin earlier:
+    // a plain paint walks no stop, a reveal walks the terminal.
+    CHECK(glide.ink_end_seconds == Catch::Approx(1.925));
+    CHECK_FALSE(keyframeDrawn(glide.slides[0], glide.ink_end_seconds));
+    REQUIRE(keyframeDrawn(glide.slides[0], glide.ring_end_seconds));
+    CHECK(glideStopAt(glide, 0).seconds == Catch::Approx(2.0));
+    CHECK(glideStopAt(glide, 0).unpitched);
 
-    // The placement is authored at the instant the chart states the terminal, so the identity key
-    // still finds the ramp: the hand rides the slide-out from the note's onset to where the
-    // terminal is DRAWN, and both forms agree, because the table is one table.
-    REQUIRE(presented.fret_hand_positions.size() == 1);
-    CHECK(presented.fret_hand_positions[0].seconds == Catch::Approx(1.925));
-    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(1.925));
-    CHECK(presented.fret_hand_positions[0].unpitched_ramp);
-    CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
+    // The identity key finds the ramp: the hand rides the slide-out from the note's onset to the
+    // terminal's stored instant, easing with the unpitched family.
+    REQUIRE(state.fret_hand_positions.size() == 1);
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(2.0));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(2.0));
+    CHECK(state.fret_hand_positions[0].unpitched_ramp);
 }
 
 TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
@@ -737,17 +694,13 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     CHECK(state.display_hold_ends.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
-
-    // The form does not reach the no-chart exit, so the reveal's state is empty exactly when the
-    // lane's is — the editor publishes them together and neither can be the odd one out.
-    CHECK(makeChartViewState(arrangement, makeTempoMap(), ChartNoteForm::Actual) == state);
 }
 
-// The two lengths a note has on screen, and where each comes from: `end_seconds` is the PRESENTED
+// The two lengths a note has on screen, and where each comes from: `ink_end_seconds` is the DRAWN
 // tail (what is drawn and scored) and `display_hold_ends` is the hold (how long the hand stays
 // down, which a hand-shape span can outlive the tail by). Both are resolved from the one
 // resolutions pass, so this pins the projection's wiring as much as the values.
-TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "[core][chart]")
+TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][chart]")
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -779,19 +732,19 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 4);
     REQUIRE(state.display_hold_ends.size() == 4);
-    // Every chug at or under the bound presents no tail at all.
-    CHECK(state.notes[0].end_seconds == Catch::Approx(0.0));
-    CHECK(state.notes[1].end_seconds == Catch::Approx(0.0));
-    CHECK(state.notes[2].end_seconds == Catch::Approx(0.5));
-    // The one ring that runs longer than the kept-sustain bound draws its tail, trimmed by nothing
+    // Every chug at or under the bound draws no tail at all: its ink stops on its onset.
+    CHECK(state.notes[0].ink_end_seconds == Catch::Approx(0.0));
+    CHECK(state.notes[1].ink_end_seconds == Catch::Approx(0.0));
+    CHECK(state.notes[2].ink_end_seconds == Catch::Approx(0.5));
+    // The one ring that runs longer than the kept-sustain bound draws its tail, cropped by nothing
     // (no later onset binds it).
-    CHECK(state.notes[3].end_seconds == Catch::Approx(2.0));
+    CHECK(state.notes[3].ink_end_seconds == Catch::Approx(2.0));
 
     // The strum's members are held while the shape is — capped at each one's own ring, which is
     // shorter than both the span's remainder and the restrike a beat later.
     CHECK(state.display_hold_ends[0] == Catch::Approx(0.25));
     CHECK(state.display_hold_ends[1] == Catch::Approx(0.25));
-    // A single note is not a strum, so nothing extends it: it holds exactly what it presents.
+    // A single note is not a strum, so nothing extends it: it holds exactly to its ink end.
     CHECK(state.display_hold_ends[2] == Catch::Approx(0.5));
     CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));
 }
@@ -1008,13 +961,15 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides.back().slide_out);
     CHECK(view.slides.back().fret == 9);
-    REQUIRE(glideStopCount(view) == 2);
-    for (std::size_t index = 0; index < glideStopCount(view); ++index)
+    // Alone on the chart, so nothing crops it and the ink runs the whole ring.
+    CHECK_THAT(view.ink_end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
+    REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
+    for (std::size_t index = 0; index < 2; ++index)
     {
         CHECK(glideStopAt(view, index).unpitched);
     }
-    CHECK(linkedKeyframe(view, view.slides[0]));
-    CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.end_seconds));
+    CHECK(linkedKeyframe(view.slides[0]));
+    CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.ring_end_seconds));
 }
 
 // Ramp derivation for the fretting hand's approach: a placement landing exactly on a keyframe's
@@ -1097,11 +1052,10 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
-// A shift slide's ARRIVAL is pitched even when the presentation trim lands the drawn tail exactly
-// on it, and only the STORED ring says so. Asking the presented note for its slide-out read that
-// arrival as a slide-out, which eased the window — and every open-string band behind it — with the
-// slide-out curve instead of the glide's.
-TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched", "[core][chart]")
+// A shift slide's ARRIVAL is pitched even where the crop stops the ink before it, and only the
+// resolved relation says so. Reading it as a slide-out eased the window — and every open-string
+// band behind it — with the slide-out curve instead of the glide's.
+TEST_CASE("Chart projection keeps a cropped shift slide's arrival ramp pitched", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -1111,7 +1065,7 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
     // Exactly on the fixture's shift-slide arrival, which the store places at the ring's END — the
-    // landing's own onset — while the trim stops the DRAWN tail one margin earlier. A placement is
+    // landing's own onset — while the crop stops the ink one margin earlier. A placement is
     // authored against the chart, so it is the stored instant a ramp is filed under.
     chart.fret_hand_positions.push_back(
         FretHandPosition{
@@ -1123,16 +1077,17 @@ TEST_CASE("Chart projection keeps a trimmed shift slide's arrival ramp pitched",
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 2);
 
-    // The window completes WITH THE RAIL: the glide segment starts at the onset (12 beats) and ends
-    // where the arrival is DRAWN, one margin before the 13 beats the chart states it at, so the
-    // ramp spans that drawn segment. It stays PITCHED, which is the other thing this case is about.
+    // The window completes WITH THE ARRIVAL: the glide segment starts at the onset (12 beats) and
+    // ends at the 13 beats the chart states the arrival at, past the ink end a margin earlier. It
+    // stays PITCHED, which is the other thing this case is about.
     REQUIRE(state.notes.size() == 7);
     const NoteViewState& shift = state.notes[5];
     REQUIRE(shift.slides.size() == 1);
     const KeyframeViewState& arrival = shift.slides.back();
-    CHECK(arrival.seconds == Catch::Approx(12.85 * beat));
+    CHECK(arrival.seconds == Catch::Approx(13.0 * beat));
+    CHECK(arrival.seconds > shift.ink_end_seconds);
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(arrival.seconds));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.85 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
@@ -1184,10 +1139,10 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 1);
 
-    // The arrival's own drawn segment: from the onset (4 beats) to the drawn arrival, one margin
-    // before the 5 beats both rings end at.
-    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.85 * beat));
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.85 * beat));
+    // The arrival's own segment: from the onset (4 beats) to the arrival's stored instant, the
+    // 5 beats both rings end at.
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
 }
 
@@ -1233,8 +1188,8 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
         state.fret_hand_positions[0].ramp_seconds ==
         Catch::Approx(g_minimum_sustain_distance_seconds));
     CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
-    // The real glide that follows still rides its own one-beat segment, and an INTERIOR arrival is
-    // drawn exactly where the chart states it, so the window completes there.
+    // The real glide that follows still rides its own one-beat segment, and the arrival is drawn
+    // exactly where the chart states it, so the window completes there.
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(8.0 * beat));
     CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);

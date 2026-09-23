@@ -2825,24 +2825,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
                 common::core::makeChartViewState(*arrangement, state.tempo_map));
-            // The lane's actual-ring reveal draws the SAME chart with every note at its stored
-            // ring, so it needs a whole second projection rather than a swapped end: the
-            // presented state has already dropped the payload points its trims clipped, and no
-            // view-side transform can put those back.
-            //
-            // Built eagerly, under the same key. Building it only while the reveal is on would
-            // mean this derivation knew the reveal is on, and the reveal is a fact about which
-            // key is physically down in one window (tab_view.h: "the controller never learns of
-            // it"). The cost is real and accepted: a sustain gesture bumps the chart revision on
-            // every wheel notch, and each notch already projected the chart twice — here and
-            // again inside the highway projection below — so this makes three. The shape that
-            // removes it is one producer returning both forms from a single chartResolutions
-            // pass, which would also make the two forms' index alignment — which the lane's
-            // per-note pick reads on the paint path — structural rather than asserted. Tracked
-            // in docs/tracking/watch-items.md; unbuilt.
-            m_tab_actual_view_state = std::make_shared<const common::core::ChartViewState>(
-                common::core::makeChartViewState(
-                    *arrangement, state.tempo_map, common::core::ChartNoteForm::Actual));
         }
         // The highway state carries the display options the renderer applies per frame (the
         // displayed-string minimum among them — the scene itself is never padded), so it is
@@ -2865,7 +2847,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_arrangement_id = arrangement->id;
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
-        state.tab_actual = m_tab_actual_view_state;
         // A typed value that would CREATE something — a note at an empty caret, a point on a
         // tail — draws as the thing it creates the moment the digit lands: the plan is applied to
         // a copy and projected, so the marks the settle will leave are the ordinary ones, while
@@ -2885,9 +2866,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
             {
                 state.tab = std::make_shared<const common::core::ChartViewState>(
                     common::core::makeChartViewState(preview, state.tempo_map));
-                state.tab_actual = std::make_shared<const common::core::ChartViewState>(
-                    common::core::makeChartViewState(
-                        preview, state.tempo_map, common::core::ChartNoteForm::Actual));
             }
         }
         state.highway = m_highway_view_state;
@@ -2899,10 +2877,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
-            // Resolved against the PRESENTED projection pushed above, which is the one the lane
-            // hit-tested and the one whose keyframe heads it draws rings on. A key the trim
-            // clipped out of the drawn tail resolves to nothing here and simply wears no ring,
-            // the same drop-when-it-does-not-draw rule the note indices follow.
+            // Resolved against the projection pushed above, which is the one the lane hit-tested
+            // and the one whose keyframe heads it draws rings on. Every stored keyframe is in it,
+            // so every key resolves; whether the lane DRAWS the mark — and so rings it — is the
+            // lane's own extent question, since only it knows whether the note is revealed.
             if (m_tab_view_state != nullptr)
             {
                 state.chart_edit.selected_keyframes = selectedKeyframeIndices(
@@ -3022,7 +3000,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
     else
     {
         m_tab_view_state.reset();
-        m_tab_actual_view_state.reset();
         m_highway_view_state.reset();
         m_tab_arrangement_id.clear();
     }

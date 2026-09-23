@@ -170,14 +170,14 @@ is bookkeeping about that tenure.
     needed for the verdict at all: **EVERY technique-free fretting-hand tail RESTS, from its own
     last always-visible landmark, unless it is still STATING at its end.** Judged per member, over
     open board exactly as under a bracket. Coverage is not part of the verdict, so
-    `presentedChartNotes` takes no spans.
+    `chartPresentation` takes no spans.
 
-    WHERE THE VERDICT BINDS — THE EXECUTION FORM. Resting is the HIGHWAY'S form, not the presented
-    stream's. The law judges and publishes the verdict but EMPTIES nothing: the presented stream
-    carries every member's rules-1-to-4 tail — the EXECUTION FORM, literally the normal note
-    presentation (rings not LONGER than the kept-sustain bound clipped by rule 3, which measures the
-    ring in seconds through the tempo map and states its value once at
-    `g_minimum_kept_sustain_seconds`; margin-trimmed). The 2D lane draws that form ALWAYS — the lane
+    WHERE THE VERDICT BINDS — THE EXECUTION FORM. Resting is the HIGHWAY'S form, not the ink's. The
+    law judges and publishes the verdict but EMPTIES nothing: every member keeps the ink end rules 1
+    to 3 gave it — the EXECUTION FORM, literally the normal note presentation (rings not LONGER than
+    the kept-sustain bound dropped by rule 2, which measures the ring in seconds through the tempo
+    map and states its value once at `g_minimum_kept_sustain_seconds`; margin-cropped). The 2D lane
+    draws that form ALWAYS — the lane
     is the charter's exact-duration surface. The 3D board suppresses resting ribbons at rest —
     structure reads at distance — and draws each only inside a SLIDING WINDOW rising from the hit
     line,

@@ -1,19 +1,15 @@
 #include "span_cover.h"
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <cstddef>
-#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
-#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -22,436 +18,209 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Rules 3 and 4 END a tail rather than shortening it, and a presented note must still keep the
-// model's shape — payload offsets lie within the sustain — because the painters read it as an
-// ordinary note. Nothing actually survives the clip under either rule: any payload at all earns
-// the group its tail, and a dead note carrying a slide keeps its own. The clip is here so that
-// invariant holds by construction rather than by that argument, which spans two rules and would
-// quietly stop being true if either moved.
-void dropPresentedTail(ChartNote& note)
+// Rule 1 for one note whose ring the onset `gap` beats ahead binds: the ink stops one margin
+// before that onset and never before the note's own onset. The margin belongs to the BINDING
+// ONSET, not to the ringing note: it is that head's spacing being kept, and the margin is a
+// duration, so a tempo change between the two would otherwise measure it at the wrong rate. A ring
+// that ends at or before the crop is free and keeps its whole length.
+[[nodiscard]] Fraction croppedInkEnd(
+    const ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
 {
-    clipPayloadsToSustain(note, Fraction{});
+    const Fraction margin =
+        minimumSustainDistanceBeats(tempo_map, advanceGridPosition(tempo_map, note.position, gap));
+    return std::min(note.sustain, std::max(gap - margin, Fraction{}));
 }
 
-// Rule 4 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
-// sound. The two things that keep a dead string making noise or travelling are what keep its tail:
-// repeated raking (a chug), or a dragged mute. A scrape always carries a slide-out, so a scrape
-// with a dead flag keeps its gesture.
-//
-// Applied to the PRESENTED note only. The stored ring is untouched by design (plan ruling 5): it
-// is the timing information the legato adjacency test reads, and pinning a dead note at zero
-// breaks every claim after a muted cluck.
-[[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
+// Rule 1 for one note: the binding onset is the first later onset the ring does not run STRICTLY
+// past, so a ring ending exactly on an onset binds there — the ordinary let-ring collision. The
+// scan starts where the note's own onset group ends and stops at the first onset that binds, so an
+// ordinary tail reads a single onset and only a ring reaching past a head walks further. Passing
+// an onset at all — a tie merged across a neighbour, a cross-voice hold — is reported through
+// `deliberate_hold`, which rule 2 reads as a statement without switching the crop off.
+[[nodiscard]] Fraction inkEndOf(
+    const std::vector<ChartNote>& notes, const std::size_t index, const std::size_t group_end,
+    const TempoMap& tempo_map, bool& deliberate_hold)
 {
-    return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes) &&
-           note.sustain.numerator > 0;
-}
-
-// Rule 1's own comparison: a ring PASSES a head when it runs strictly past it. Any overhang at
-// all means the head does not bind, which is what makes a ring ending exactly on an onset the
-// ordinary let-ring collision.
-[[nodiscard]] bool ringPassesHead(const Fraction ring, const Fraction gap)
-{
-    return gap < ring;
-}
-
-// Where a RUN of statements stops having something to show: its last one's own offset, or zero for
-// an empty run. A stored note's last keyframe always says something — the keyframe commit law
-// (keyframeSaysNothingNew) sheds one that does not — so no change detection is asked here; the
-// commit law is the one authority on silence. A fret and a bend value are POINTS, complete at the
-// instant they are reached, so ink may stop exactly there. A statement that leaves the string
-// SHAKING is an interval STATE: ink ending on it would show the shake for no time at all and read
-// as no shake, so it reaches one minimum gesture window past the statement (a tail is never
-// lengthened past its ring by it — the ring is the ceiling of every rule here). A statement that
-// ends the shake is a point again.
-[[nodiscard]] Fraction statementsEnd(const std::span<const Keyframe> statements)
-{
-    if (statements.empty())
+    const ChartNote& note = notes[index];
+    deliberate_hold = false;
+    for (std::size_t ahead = group_end; ahead < notes.size(); ++ahead)
     {
-        return Fraction{};
+        const Fraction gap = beatDistance(tempo_map, note.position, notes[ahead].position);
+        if (!(gap < note.sustain))
+        {
+            return croppedInkEnd(note, gap, tempo_map);
+        }
+        deliberate_hold = true;
     }
-    const Keyframe& last = statements.back();
-    return isShaking(last.vibrato.value_or(VibratoState::Off))
-               ? last.offset + g_minimum_slide_window
-               : last.offset;
+    return note.sustain;
 }
 
-// RULE 2's FLOOR: the last statement standing strictly INSIDE the ring. The statement AT a ring's
-// end is the END's own — its moment is the end by definition — so it rides wherever the end goes
-// and can never hold the drawn tail open against the margin; that is the whole of what makes a tail
-// ending in a slide-out or a bend keep the same spacing before the next head as a bare one. Offsets
-// ascend strictly within the sustain, so at most one statement stands at the end and dropping it is
-// the whole of "interior" (endStatement).
-[[nodiscard]] Fraction lastInteriorStatementEnd(const ChartNote& note)
-{
-    const std::span<const Keyframe> statements{note.keyframes};
-    return statementsEnd(
-        endStatement(note) != nullptr ? statements.first(statements.size() - 1) : statements);
-}
-
-// THE TAIL LAW's landmark: the end of the note's last statement, the one AT the ring's end
-// INCLUDED — the curtain owns everything past the last always-visible ink, and an end statement is
-// ink. Asked of the note as DRAWN, because where a statement is SHOWN is presentation's answer and
-// the trim may have carried the end's own statement earlier; that is what keeps the verdict at or
-// inside the presented tail's end for every note (\ref ChartPresentation::rested_from).
-[[nodiscard]] Fraction lastStatementEnd(const ChartNote& note)
-{
-    return statementsEnd(std::span<const Keyframe>{note.keyframes});
-}
-
-// How long a note's ACTUAL ring lasts, in seconds, read through the tempo map from the onset to the
-// ring's end so a ring crossing a tempo anchor is measured exactly. Rule 3's input: the
-// kept-sustain bound is a duration, so this is the one number it compares.
-[[nodiscard]] double ringSeconds(const ChartNote& note, const TempoMap& tempo_map)
+// Rule 2's per-member earning: any keyframe at all, whichever channel it states — a mid-ring curl
+// and a delayed shake ride the tail exactly as a glide does — or a ring longer than the
+// kept-sustain bound. The ring is measured in SECONDS through the tempo map, because the bound is
+// a duration: the same written value earns at a slow tempo and not at a fast one. Whole-note
+// techniques (muting, emphasis, harmonics) are deliberately absent: they say the same thing with or
+// without a tail.
+[[nodiscard]] bool earnsTail(const ChartNote& note, const TempoMap& tempo_map)
 {
     const double onset =
         tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, note.position));
     const double end = tempo_map.secondsAtGlobalBeatPosition(
         globalBeatPosition(tempo_map, sustainEndPosition(tempo_map, note)));
-    return end - onset;
+    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || isShaking(note.vibrato) ||
+           note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }
 
-// WHERE A NOTE'S LAST STATEMENT IS DRAWN when it must keep clear of the strike ahead of it: one
-// margin before that strike, or halfway along its own last leg where the margin would crowd the
-// leg's start. DISPLAY'S ALONE, and the whole reason this lives here rather than in a shared
-// header: the stored chart keeps what the hands did — an end statement sitting exactly on the next
-// head included — and nothing but the drawn copy ever wants this number.
-//
-// The leg reading is the whole of what makes the split safe: the last leg starts at the statement
-// before the last one — the onset where there is none — and the clearance never takes that start,
-// so the result always leaves both a leg and a gap however crowded the passage. `note` must carry
-// at least one keyframe, and `gap` — the beats to the strike — must lie strictly past the statement
-// before the last.
-[[nodiscard]] Fraction lastStatementClearance(
-    const ChartNote& note, const Fraction gap, const Fraction margin)
+// Rule 3 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
+// sound. Repeated raking (a chug) or a dragged mute keeps a dead string making noise or
+// travelling, and keeps its tail; a scrape always carries a slide-out, so a dead scrape keeps its
+// gesture.
+[[nodiscard]] bool drawsNoDeadTail(const ChartNote& note)
 {
-    const std::size_t count = note.keyframes.size();
-    const Fraction leg_start = count > 1 ? note.keyframes[count - 2].offset : Fraction{};
-    const Fraction clear = gap - margin;
-    return leg_start < clear ? clear : leg_start + ((gap - leg_start) * Fraction{1, 2});
+    return note.dead && !note.tremolo && !anyKeyframeStatesFret(note.keyframes);
 }
 
-// Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
-// tail trims to the margin, never past the note's last INTERIOR statement, and carries the
-// statement standing at the ring's end to wherever the drawn end lands.
+// THE TAIL LAW's landmark, for one member: the curtain owns everything past a note's last
+// always-visible landmark. The verdict is the OFFSET that landmark sits at — the cases are stated
+// once, at ChartPresentation::rested_from — or nothing for a tail that never rests.
 //
-// Preconditions the caller owns: `gap` is the distance to the BINDING onset — the first sounding
-// onset the ring does not run strictly past — and the sustain is strictly positive. The tail law
-// needs no second entry here and never will: it MARKS where a tail this trim already sized rests
-// and never resizes one, so no span-scoped rule ever hands a length to these rules.
-void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map)
-{
-    // The margin belongs to the BINDING ONSET, not to the ringing note: it is that head's spacing
-    // being kept, and the margin is a duration, so a tempo change between the two would otherwise
-    // measure it at the wrong rate.
-    const Fraction margin =
-        minimumSustainDistanceBeats(tempo_map, advanceGridPosition(tempo_map, note.position, gap));
-    // Rule 2, in its two cases. A ring whose END carries a statement: that statement IS the end, so
-    // it rides to where the end goes and the tail is spaced like every other — the clearance a last
-    // statement takes before a strike (lastStatementClearance: one margin back, or halfway along
-    // its own last leg where the margin would crowd the leg's start). This is the ONE place that
-    // spacing is applied: the stored chart holds the truth — a slide-out or a bend may end exactly
-    // on the next head of its own string — and display alone moves the mark back so it can be seen
-    // and reached. It never lands ON the last interior statement either — the split always
-    // leaves a leg — which is what keeps the drawn keyframes index-parallel to the stored ones
-    // (keyframeIdentities); the interior statement's own floor therefore never enters, and flooring
-    // on it would put the drawn end back on the head this trim exists to clear.
-    //
-    // Every other ring: the margin, yielding to the last statement standing INSIDE the ring and no
-    // further.
-    const Fraction limit = gap - margin;
-    const Fraction target =
-        endStatement(note) != nullptr
-            ? lastStatementClearance(note, gap, margin)
-            : std::max(limit.numerator < 0 ? Fraction{} : limit, lastInteriorStatementEnd(note));
-    if (target < note.sustain)
-    {
-        clipPayloadsToSustain(note, target);
-    }
-}
-
-// THE TAIL LAW's landmark, for one member's stored ring: the curtain owns everything past a
-// note's last always-visible landmark. The verdict is the OFFSET that landmark sits at — the
-// cases are stated once, at \ref ChartPresentation::rested_from — or nothing for a tail that
-// never rests. This is the WHOLE verdict: the curtain being universal, there is no coverage half
-// to take the later of, so what this returns is what the law marks.
-//
-// What never rests is a ring still STATING at its own end — a bend held to the end, a shake
-// that never stops, tremolo, a slide-out's travel: the curtain owns only what the ribbon has
-// stopped saying anything with, with no
-// vocabulary for a statement in progress. A statement that FINISHES is the split the user asked
-// for: the stated portion stays always visible, and the plain remainder joins the curtain where
-// the statement ended (lastStatementEnd of the DRAWN note — rule 2 floors the presented tail at
-// the last INTERIOR statement and carries an end statement to the drawn end, so the offset lies at
-// or inside the drawn ribbon's end under either case).
-//
-// A ring whose string a later strike takes over (\ref ChartConnections::hands_over) is a
-// TRANSFER of the sound — a statement with no vocabulary of its own either, but one that
-// FINISHES: it completes at the takeover, where the successor picks the sound up. So it is the
-// finished-statement split with an EMPTY remainder — the whole drawn ribbon is the stated
-// portion, and the landmark is the ribbon's own end.
-// A ring whose end ARRIVES into the next head (\ref ChartConnections::arrives_into) finishes the
-// same way and for the same reason: the glide completes exactly where the strike takes the stop, so
-// the whole ribbon is the statement and its landmark is the ribbon's end. Read as a statement still
-// in progress — which is what the SLIDE-OUT beside it is — an arrival would refuse to rest at all
-// and draw its ribbon in front of the curtain that owns it.
-// BOTH ARE ASKED FIRST, deliberately: either event terminates whatever the ring was still
-// stating — a shake or a bend into a pull-off ends where the successor takes the string — so such a
-// ring is a finished statement whether or not its channels were quiet at its end,
-// and its landmark is the ribbon's end either way. The branch is what keeps a plain handed-over
-// ring resting from its own end.
+// What never rests is a ring still STATING at its own end — a bend held to the end, a shake that
+// never stops, tremolo, a slide-out's travel: the curtain owns only what the ribbon has stopped
+// saying anything with. A statement that FINISHES is the split: the stated portion stays always
+// visible, and the plain remainder joins the curtain where the statement ended — held to the ink
+// end, since a statement standing in the ending zone is never drawn and the curtain starts where
+// the ink is. A ring whose string a later strike takes over, or whose end arrives into the next
+// head, is a transfer that FINISHES at the takeover: the whole drawn ribbon is the stated portion
+// and the landmark is the ink end. Both are asked first, because either event terminates whatever
+// the ring was still stating.
 [[nodiscard]] std::optional<Fraction> restedOffsetOf(
-    const ChartConnections& connections, const std::size_t index, const ChartNote& presented)
+    const ChartConnections& connections, const std::size_t index, const Fraction ink_end)
 {
-    const ChartNote& stored = connections.saved_notes[index];
+    const ChartNote& note = connections.saved_notes[index];
     if (connections.hands_over[index] || connections.arrives_into[index])
     {
-        return presented.sustain;
+        return ink_end;
     }
     // Still stating at the ring's end: tremolo and a SLIDE-OUT run to the end by construction, and
     // with the arrival taken above an end fret statement here IS the slide-out, while the state in
     // force at the ring's own end says whether the bend and vibrato channels ever go quiet.
-    if (stored.tremolo || endStatedFretOrNull(stored) != nullptr)
+    if (note.tremolo || endStatedFretOrNull(note) != nullptr)
     {
         return std::nullopt;
     }
-    const RingState state = ringStateAt(stored, stored.sustain);
+    const RingState state = ringStateAt(note, note.sustain);
     if (std::is_neq(state.bend <=> 0.0) || isShaking(state.vibrato))
     {
         return std::nullopt;
     }
-    // The landmark is read off the DRAWN note while the judgment above is read off the stored one,
-    // and the split is the point: whether a ring is still stating at its end is a fact about the
-    // CHART, while where its last statement is SHOWN is presentation's own answer — rule 2 may have
-    // carried the end's statement earlier than the chart states it, and the curtain starts where
-    // the ink does.
-    return lastStatementEnd(presented);
-}
-
-// Rule 3 is its one asker — the tail law keys on the finished-statement split instead — so this is
-// a file-local classifier. Any keyframe at all, whichever channel it states: a mid-ring curl and a
-// delayed shake ride the tail exactly as a glide does, and dropping the tail would drop the
-// statement with it. Whole-note techniques (muting, emphasis, harmonics) are deliberately absent:
-// they say the same thing with or without a tail.
-[[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
-{
-    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || isShaking(note.vibrato) ||
-           note.tremolo;
+    const Fraction last_statement =
+        note.keyframes.empty() ? Fraction{} : note.keyframes.back().offset;
+    return std::min(last_statement, ink_end);
 }
 
 } // namespace
 
-// One walk over the onset groups carries rules 1 through 3, because they share a partition — every
-// note at one grid position — and rule 3's verdict needs its members already trimmed. Rule 4 runs
-// last over the whole stream, as the plan's ordering states, so a tail that rules 1 to 3 left
-// standing is still judged as a dead note's. THE TAIL LAW runs after all four, per NOTE rather than
-// per group since the atom became the member, and only ever MARKS what they left standing.
-ChartPresentation presentedChartNotes(
-    const ChartConnections& connections, const TempoMap& tempo_map)
+// One walk over the onset groups — every note at one grid position, contiguous in the sorted
+// stream — because rule 2's verdict is the GROUP's: every string of a chord rings from one stroke,
+// so a tail any member earned keeps every member's and a group that earned none draws none. Rules
+// 1 and 3 are per member and need no order; THE TAIL LAW (rule 4) reads each member's final ink end
+// and only ever MARKS what the first three left standing. THE CURTAIN IS UNIVERSAL: a chart with
+// no furniture at all rests exactly the same tails as one full of it.
+ChartPresentation chartPresentation(const ChartConnections& connections, const TempoMap& tempo_map)
 {
-    const std::vector<ChartNote>& saved_notes = connections.saved_notes;
+    const std::vector<ChartNote>& notes = connections.saved_notes;
     ChartPresentation presentation;
-    presentation.notes = saved_notes;
-    presentation.rested_from.assign(saved_notes.size(), std::nullopt);
-    std::vector<ChartNote>& presented = presentation.notes;
+    presentation.ink_end.reserve(notes.size());
+    presentation.rested_from.reserve(notes.size());
     std::size_t group_begin = 0;
-    while (group_begin < presented.size())
+    while (group_begin < notes.size())
     {
-        // The stream is sorted by (position, string), so notes sharing an onset are contiguous.
         std::size_t group_end = group_begin + 1;
-        while (group_end < presented.size() &&
-               presented[group_end].position == presented[group_begin].position)
+        while (group_end < notes.size() && notes[group_end].position == notes[group_begin].position)
         {
             ++group_end;
         }
         bool group_earned = false;
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
-            ChartNote& note = presented[index];
-            // Rule 1: the onset that binds the trim is the first onset the ring does not PASS,
-            // where passing means running strictly past it. A ring ending exactly ON an onset binds
-            // there and trims — the common let-ring collision, because a notated ring ends on a
-            // musical boundary and the next note starts from one, so a ring left whole there would
-            // die on a later head with no gap at all. A ring no onset binds presents whole, which
-            // is what a last note has always done.
-            //
-            // The scan is the note's own and starts where the group ends, never a cursor shared
-            // across the walk — one member's ring must not move where the next member starts
-            // looking. It stops at the first onset that binds, so an ordinary tail reads a single
-            // onset and only a ring reaching past a head walks any further.
             bool deliberate_hold = false;
-            if (note.sustain.numerator > 0)
-            {
-                for (std::size_t ahead = group_end; ahead < presented.size(); ++ahead)
-                {
-                    const Fraction gap =
-                        beatDistance(tempo_map, note.position, presented[ahead].position);
-                    if (!ringPassesHead(note.sustain, gap))
-                    {
-                        trimToMargin(note, gap, tempo_map);
-                        break;
-                    }
-                    // Passing an onset is a statement — a tie merged across a neighbour, a
-                    // cross-voice hold — so it earns the group its tails under rule 3 below, but
-                    // it does not switch the trim off. Deliberately the STRICT reading, so a
-                    // near-miss still trims while a tail rule 3 earns still earns.
-                    deliberate_hold = true;
-                }
-            }
-            // Rule 3's per-member earning, asked of the note as rules 1 and 2 leave it (its
-            // statements are all still there: every interior one stands strictly inside the last
-            // leg the trim keeps, and the end's own rides to the new end) but of the
-            // note's ACTUAL ring, which
-            // is the length the source or the charter stated and the only one that can say whether
-            // a deliberate sustain was meant. That read is exact because the tail law runs LAST
-            // and only marks: `saved_notes` is the stored stream itself, never a rewritten copy
-            // under its own name, so nothing reaches here but the chart's own rings.
-            //
-            // The ring is measured in SECONDS: the bound is a duration, stated once at
-            // g_minimum_kept_sustain_seconds, so the same written value earns at a slow tempo and
-            // not at a fast one.
-            group_earned =
-                group_earned || deliberate_hold || hasSustainTechnique(note) ||
-                ringSeconds(saved_notes[index], tempo_map) > g_minimum_kept_sustain_seconds;
+            const Fraction ink_end = inkEndOf(notes, index, group_end, tempo_map, deliberate_hold);
+            presentation.ink_end.push_back(drawsNoDeadTail(notes[index]) ? Fraction{} : ink_end);
+            group_earned = group_earned || deliberate_hold || earnsTail(notes[index], tempo_map);
         }
-
-        // Rule 3's verdict is the GROUP's: every string of a chord rings from one stroke, so a tail
-        // any member earned keeps every member's, and a group that earned none presents none.
-        if (!group_earned)
+        for (std::size_t index = group_begin; index < group_end; ++index)
         {
-            for (std::size_t index = group_begin; index < group_end; ++index)
+            if (!group_earned)
             {
-                if (presented[index].sustain.numerator > 0)
-                {
-                    dropPresentedTail(presented[index]);
-                }
+                presentation.ink_end[index] = Fraction{};
             }
+            // The tail law's SCOPE: judged of fretting-hand members alone — a right-hand onset
+            // joins no posture and extends no ring (\ref deriveChartShapes), so it is no member of
+            // what a grip states — and of tails that still draw, so a tail rules 2 and 3 emptied
+            // never rests and the hold channel never claims a length those rules judged away.
+            const Fraction ink_end = presentation.ink_end[index];
+            presentation.rested_from.push_back(
+                rightHandOnset(notes[index].attack) || ink_end.numerator <= 0
+                    ? std::nullopt
+                    : restedOffsetOf(connections, index, ink_end));
         }
         group_begin = group_end;
-    }
-
-    // Rule 4 (E25), over the whole stream last, so a tail rules 1 to 3 left standing is still
-    // judged as a dead note's.
-    for (ChartNote& note : presented)
-    {
-        if (presentsNoDeadTail(note))
-        {
-            dropPresentedTail(note);
-        }
-    }
-
-    // THE TAIL LAW (\ref presentedChartNotes rule 5, the one authority): a tail that shows no
-    // technique information RESTS, and the curtain owns it from its last always-visible landmark.
-    // VERDICT-ONLY, AND LAST: it reads the STORED rings, judges, and MARKS where each tail rests,
-    // inventing and erasing no length. Running last is what makes three things true by
-    // construction rather than by argument: rules 1 to 3 see the chart's real rings, so a resting
-    // member cannot reach through rule 3's group earning and delete a partner's ribbon; a tail
-    // rule 3 or rule 4 already emptied never RESTS, so the hold channel never claims a length
-    // those rules judged away; and the verdict still exists when the holds are answered.
-    //
-    // THE CURTAIN IS UNIVERSAL. There is no coverage question — neither whether a span stands at
-    // the onset, nor where the ribbon first runs under one — so a chart with no furniture at all
-    // rests exactly the same tails as one full of it: the span is not what makes a plain ribbon
-    // uninformative. The per-member landmark is the whole verdict.
-    for (std::size_t index = 0; index < presented.size(); ++index)
-    {
-        const ChartNote& note = presented[index];
-        // SCOPE, and it is scope rather than an exception list: the law is judged of fretting-hand
-        // members alone. A right-hand onset is the other hand's — it joins no posture and extends
-        // no ring (\ref deriveChartShapes) — so it is no member of what a grip states, and the hold
-        // rule below takes exactly the same scope for exactly this reason.
-        if (rightHandOnset(note.attack) || note.sustain.numerator <= 0)
-        {
-            continue;
-        }
-        // THE ATOM IS THE MEMBER. Each member is judged on its own: a member still stating at its
-        // end draws, and every other tail rests from wherever its last statement ends — zero for
-        // a plain ring.
-        //
-        // VERDICT ONLY: the tail is judged and marked, never emptied — the presented stream carries
-        // every member's rules-1-to-4 tail, and the hold extension keys on the verdict rather than
-        // on tail emptiness.
-        presentation.rested_from[index] = restedOffsetOf(connections, index, note);
     }
     return presentation;
 }
 
-bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const ChartNote& presented)
+bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Fraction& ink_end)
 {
-    return rested_from.has_value() && *rested_from < presented.sustain;
+    return rested_from.has_value() && *rested_from < ink_end;
 }
 
-// The identity mapping lives here because presentation is what makes the question exist: it is the
-// only thing that can draw a statement anywhere but where the chart states it, so the rule about
-// what a drawn mark is NAMED by belongs beside the rules that move it.
-std::span<const Keyframe> keyframeIdentities(const ChartNote& stored, const ChartNote& drawn)
-{
-    // No rule here invents a keyframe, so a drawn note can never carry more than the chart states.
-    // Asserted rather than clamped: a drawn keyframe with no stored twin has no identity at all,
-    // and answering with some other keyframe's offset would key a chip to a neighbouring
-    // statement, which every mapping downstream would then edit instead.
-    assert(
-        drawn.keyframes.size() <= stored.keyframes.size() &&
-        "a drawn note carries no keyframe the chart does not state");
-    return std::span<const Keyframe>{stored.keyframes}.first(drawn.keyframes.size());
-}
-
-// The span convention IS the hold, and there is one rule: a LIVE fretting-hand member with no DRAWN
-// tail, covered by a span, is held to the span's reach — while the grip is held, the board pins
-// what is held. The hidden and the rule-3-emptied member take the same extension because they are
-// the same physical fact: under grip tenure a covered member's un-renewed death would have BROKEN
-// the span, so coverage past a member's ring IS the record that the finger never lifted (the
-// restrike replaced the sound, not the hand). Two arms — a strum extension for emptied tails and
-// the stored ring for hidden ones — would agree only while a hidden ring provably died at the
-// close, and under the covered tail form they part: a repeated chord's pin would release at every
-// restrike while a faster chug's held.
+// The span convention IS the hold, and there is one rule: a LIVE fretting-hand member whose tail
+// draws nothing or RESTS, covered by a span, is held to the span's reach — while the grip is held,
+// the board pins what is held. Both take the same extension because they are the same physical
+// fact: under grip tenure a covered member's un-renewed death would have BROKEN the span, so
+// coverage past a member's ring IS the record that the finger never lifted (the restrike replaced
+// the sound, not the hand).
 //
-// Dead members (a dead chug is choked, not held), the other hand's onsets, and members whose
-// tails stand AT REST state their own hold. "At rest" is the VERDICT's question, not tail
-// emptiness, because a hidden member carries its presented tail as the board's near-line reveal:
-// its hold is still the tenure, and keying on the tail would release those pins. Coverage is
-// positional only, with no posture matching.
+// Dead members (a dead chug is choked, not held), the other hand's onsets, and members whose tails
+// are still stating at their end state their own hold — their ribbon already says where the ring
+// ends. "At rest" is the VERDICT's question, not tail emptiness: a resting member still draws its
+// tail, and keying on the tail would release its pin.
 //
 // UNDER THE UNIVERSAL CURTAIN resting says nothing about a span, so the tenure floor is keyed on
 // COVERAGE and not on the verdict: a covered resting member raises to its stored ring and then to
 // the span's reach, while a lone resting note — every plain note on open board is one — holds for
-// the tail it presents.
+// the tail it draws.
 std::vector<Fraction> chartHolds(
     const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
-    const std::vector<ChartNote>& saved_notes = connections.saved_notes;
-    const std::vector<ChartNote>& presented_notes = presentation.notes;
+    const std::vector<ChartNote>& notes = connections.saved_notes;
 
     std::vector<Fraction> held;
-    held.reserve(presented_notes.size());
-    for (std::size_t index = 0; index < presented_notes.size(); ++index)
+    held.reserve(notes.size());
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
         // The FLOOR, keyed on the HANDOVER alone. A handed-over member pins for exactly its stored
         // ring, because a pinned head reflects the current SOUNDING state: the next strike on its
         // string takes the sound, and the same-string clamp (\ref sustainBoundOf) plus the
         // adjacency the claim itself required (\ref predecessorHoldReaches) make the stored ring
-        // end exactly on that takeover — the ring IS the takeover instant, stated once. Everyone
-        // else starts from the tail they present.
+        // end exactly on that takeover. Everyone else starts from the tail they draw.
         //
         // THE RESTING member deliberately does NOT floor here on its stored ring: under the
         // universal curtain every plain note rests, so such a floor would run a LONE note's head
-        // pin out to its untrimmed stored ring and into the next note's margin. The floor a
-        // resting member needs is SPAN COVERAGE, so it lives in the covered-group loop below,
-        // where a covered member raises to its stored ring before the span's reach and a lone one
-        // is never reached — a lone resting note holds for its presented tail.
+        // pin out to its stored ring and into the next note's margin. The floor a resting member
+        // needs is SPAN COVERAGE, so it lives in the covered-group loop below.
         held.push_back(
-            connections.hands_over[index] ? saved_notes[index].sustain
-                                          : presented_notes[index].sustain);
+            connections.hands_over[index] ? notes[index].sustain : presentation.ink_end[index]);
     }
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
     const SpanCover cover{shapes, tempo_map};
-    for (std::size_t index = 0; index < presented_notes.size();)
+    for (std::size_t index = 0; index < notes.size();)
     {
-        const GridPosition onset = presented_notes[index].position;
+        const GridPosition onset = notes[index].position;
         std::size_t group_end = index;
-        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
+        while (group_end < notes.size() && notes[group_end].position == onset)
         {
             ++group_end;
         }
@@ -466,40 +235,24 @@ std::vector<Fraction> chartHolds(
             const Fraction span_hold = beatDistance(tempo_map, onset, covering->end);
             for (std::size_t member = index; member < group_end; ++member)
             {
-                const ChartNote& note = presented_notes[member];
-                // A DEAD member is choked, never held. Its fate is decided by the mute at either
-                // end of rule 4: a plain dead tail is emptied there, and one rule 4 spares (a raked
-                // or dragged mute) is still standing, so the empty-tail gate below would take the
-                // first and pass over the second — a percussive choke pinned as if the finger
-                // stayed down.
-                //
-                // A RIGHT-HAND onset is skipped: its head is no part of what the grip states, so
-                // the span's reach is not its to inherit.
-                //
-                // A member whose tail stands and never rests states its own hold — its ribbon
-                // already says where its ring ends. A RESTING member is keyed by the VERDICT, not
-                // by tail emptiness: it carries its presented tail, but that ribbon is the board's
-                // near-line reveal, and the pin states the grip for the whole tenure regardless. A
-                // HANDED-OVER member is excluded whole: its sound ends at its own stored ring,
+                const ChartNote& note = notes[member];
+                // A HANDED-OVER member is excluded whole: its sound ends at its own stored ring,
                 // where the next strike on its string takes over (floored above), so the grip's
-                // tenure is not its to inherit — that strike owns the display from there. Its tail
-                // verdict says the same thing from the other side (it rests from its ribbon's end),
-                // so the exclusion reads the handover itself rather than a verdict that would pass
-                // it through.
+                // tenure is not its to inherit.
                 const bool rests = presentation.rested_from[member].has_value();
                 if (rightHandOnset(note.attack) || note.dead || connections.hands_over[member] ||
-                    (note.sustain.numerator > 0 && !rests))
+                    (presentation.ink_end[member].numerator > 0 && !rests))
                 {
                     continue;
                 }
                 // THE RESTING member's own floor, and it lives HERE because span coverage is what
                 // earns it: a covered resting member holds at least its own stored ring, which
                 // MAY exceed the span's reach — the honest hold, because the string genuinely
-                // rings there. A rule-3 or rule-4 emptied member carries no verdict and takes the
+                // rings there. A rule-2 or rule-3 emptied member carries no verdict and takes the
                 // reach alone.
-                if (rests && held[member] < saved_notes[member].sustain)
+                if (rests && held[member] < note.sustain)
                 {
-                    held[member] = saved_notes[member].sustain;
+                    held[member] = note.sustain;
                 }
                 if (held[member] < span_hold)
                 {

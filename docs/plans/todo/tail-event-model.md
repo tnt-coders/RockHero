@@ -229,7 +229,7 @@ outright.
   kinds and branch on the alternative. This is a design-time performance decision, not a later
   tuning knob.
 - Largest reshape by far: chart types, reader, writer, `file-formats.md`, the normalizer, the
-  validator's structural refusals, `presentedChartNotes` and all four of its rules, the projection,
+  validator's structural refusals, `chartPresentation` and all four of its rules, the projection,
   both renderers, hit-testing, every editor planner, the importer, and the scoring plan.
 
 **Honest merit.** It is the only shape where *"what happens along the ring"* has literally one

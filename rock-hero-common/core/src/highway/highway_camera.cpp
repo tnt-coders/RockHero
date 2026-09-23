@@ -252,9 +252,15 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // framing must cover every neck position the path reaches, not just the start.
         if (isScrape(note.attack))
         {
-            for (std::size_t index = 0; index < glideStopCount(note); ++index)
+            // The stops the board draws; a stop past the ink end is nothing the framing has to
+            // cover.
+            for (std::size_t index = 0; index < note.slides.size(); ++index)
             {
                 const GlideStop stop = glideStopAt(note, index);
+                if (!keyframeDrawn(note.slides[index], note.ink_end_seconds))
+                {
+                    break;
+                }
                 if (stop.fret <= 0)
                 {
                     continue;

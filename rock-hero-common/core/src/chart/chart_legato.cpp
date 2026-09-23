@@ -377,23 +377,22 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
     // IT: the tail law is class-blind, so nothing downstream has to re-read the class.
     resolutions.arrivals = chartShapeArrivals(saved_notes, derived.shapes, tempo_map);
-    // What the surfaces draw, derived here so a chart revision pays for it once and no consumer can
-    // derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION: the
-    // presentation rules and the tail law come out together, so there is no ordering contract
-    // between two rules and no rewritten copy of the stream under the saved stream's name (\ref
-    // presentedChartNotes). The spans do not go in at all — the curtain is universal — but the
-    // connections go in whole, because the law reads the same-string relation this walk
-    // established: the handover a figure cannot state.
-    ChartPresentation presentation = presentedChartNotes(resolutions.connections, tempo_map);
+    // Where each ring's ink stops, derived here so a chart revision pays for it once and no
+    // consumer can derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION:
+    // the presentation rules and the tail law come out together, so there is no ordering contract
+    // between two rules (\ref chartPresentation). The spans do not go in at all — the curtain is
+    // universal — but the connections go in whole, because the law reads the same-string relation
+    // this walk established: the handover a figure cannot state.
+    ChartPresentation presentation = chartPresentation(resolutions.connections, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.claim_shapes = std::move(derived.claim_shapes);
-    // The holds read the presented picture AND the law's verdict, which is what makes the two
+    // The holds read the drawn lengths AND the law's verdict, which is what makes the two
     // complementary by construction: presentation only RESTS a member's ribbon, and the hold
     // hands a resting member its own stored ring.
     resolutions.holds =
         chartHolds(presentation, resolutions.connections, resolutions.shapes, tempo_map);
-    resolutions.presented_notes = std::move(presentation.notes);
+    resolutions.ink_end = std::move(presentation.ink_end);
     resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;
 }

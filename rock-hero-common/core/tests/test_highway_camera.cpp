@@ -105,7 +105,8 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 0.6,
-            .end_seconds = 0.7,
+            .ring_end_seconds = 0.7,
+            .ink_end_seconds = 0.7,
             .fret = 20,
             .bend = {},
             .slides = {},
@@ -132,7 +133,8 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 0.5,
-            .end_seconds = 0.6,
+            .ring_end_seconds = 0.6,
+            .ink_end_seconds = 0.6,
             .fret = 20,
             .bend = {},
             .slides = {},
@@ -141,7 +143,8 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 1.4,
-            .end_seconds = 1.4,
+            .ring_end_seconds = 1.4,
+            .ink_end_seconds = 1.4,
             .fret = 0,
             .bend = {},
             .slides = {},
@@ -150,7 +153,8 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 1.5,
-            .end_seconds = 1.5,
+            .ring_end_seconds = 1.5,
+            .ink_end_seconds = 1.5,
             .fret = 15,
             .bend = {},
             .slides = {},
@@ -185,7 +189,8 @@ TEST_CASE(
     state.chart.notes.push_back(
         NoteViewState{
             .start_seconds = 1.0,
-            .end_seconds = 1.0,
+            .ring_end_seconds = 1.0,
+            .ink_end_seconds = 1.0,
             .fret = 0,
             .attack = NoteAttack::Tap,
             .harmonic_node = 12.0,

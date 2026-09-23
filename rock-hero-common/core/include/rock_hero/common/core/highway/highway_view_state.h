@@ -613,7 +613,9 @@ tap onset's release.
         // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
         // the board while the head it belongs to is held at the edge.
         double previous_fret = highwayStopPosition(highwayDrawnStop(note, note.fret));
-        for (std::size_t index = 0; index < glideStopCount(note); ++index)
+        // Every stop: the asking is bounded by the release below, which never reaches past the
+        // ink end, so a leg the ink end cuts is followed exactly as far as the rail draws it.
+        for (std::size_t index = 0; index < note.slides.size(); ++index)
         {
             const GlideStop stop = glideStopAt(note, index);
             if ((stop.unpitched && !scrape) || stop.fret <= 0)
@@ -636,11 +638,15 @@ tap onset's release.
         }
         return previous_fret;
     };
-    // When the member's hand leaves: the last pitched keyframe when an unpitched slide-out
-    // follows (pressure is already coming off), otherwise the sustain end — which for a
-    // scrape is the path's end, where the pick lifts.
+    // When the member's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
+    // follows (pressure is already coming off), otherwise the drawn tail's end — which for a
+    // scrape is the path's end, where the pick lifts. A slide-out past the ink end is not drawn,
+    // so the tail it would have released early simply ends where its ink does.
     const auto member_release_at = [](const NoteViewState& note) {
-        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().slide_out)
+        const bool drawn_slide_out = !isScrape(note.attack) && !note.slides.empty() &&
+                                     note.slides.back().slide_out &&
+                                     keyframeDrawn(note.slides.back(), note.ink_end_seconds);
+        if (drawn_slide_out)
         {
             double last_pitched = note.start_seconds;
             for (const KeyframeViewState& keyframe : note.slides)
@@ -652,7 +658,7 @@ tap onset's release.
             }
             return last_pitched;
         }
-        return std::max(note.end_seconds, note.start_seconds);
+        return note.ink_end_seconds;
     };
 
     std::vector<HighwayTapOnsetViewState> onsets;
@@ -707,8 +713,12 @@ tap onset's release.
             for (const NoteViewState* const tap : taps)
             {
                 hold_end = std::max(hold_end, member_release_at(*tap));
-                for (std::size_t stop_index = 0; stop_index < glideStopCount(*tap); ++stop_index)
+                for (std::size_t stop_index = 0; stop_index < tap->slides.size(); ++stop_index)
                 {
+                    if (!keyframeDrawn(tap->slides[stop_index], tap->ink_end_seconds))
+                    {
+                        break;
+                    }
                     const GlideStop stop = glideStopAt(*tap, stop_index);
                     if ((!stop.unpitched || isScrape(tap->attack)) && stop.fret > 0)
                     {
@@ -1003,9 +1013,8 @@ whatever window a renderer happens to be drawing.
             {
                 continue;
             }
-            has_tails = has_tails || note.end_seconds > note.start_seconds ||
-                        !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
-                        glideStopCount(note) > 0;
+            has_tails = has_tails || note.ink_end_seconds > note.start_seconds ||
+                        !note.vibrato.empty() || note.tremolo || !note.bend.empty();
             // What is DRAWN, not what is stored: inside the connection family the mark is the
             // note's RESOLVED motion, so a claim nothing justifies carries no mark and must not
             // hold the repeat box off — it is pixel-identical to the plain pick beside it. Every

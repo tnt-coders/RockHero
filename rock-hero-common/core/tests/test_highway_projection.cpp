@@ -349,15 +349,17 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
     CHECK(state.chart.notes[0].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.chart.notes[0].ring_end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    // Rule 3's verdict is the GROUP's: its chord partner's whole-beat ring runs longer than the
+    // Rule 2's verdict is the GROUP's: its chord partner's whole-beat ring runs longer than the
     // kept-sustain bound, so this member draws its own eighth-of-a-beat tail rather than none.
-    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(4.125 * beat));
+    CHECK(state.chart.notes[1].ink_end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.chart.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
-    CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(sliding.ring_end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(sliding.ink_end_seconds == Catch::Approx(10.5 * beat));
     // The curve opens at the ONSET: the note's own bend value is the channel's first statement,
     // so a bent note's polyline always starts at its head and the stated point follows.
     REQUIRE(sliding.bend.size() == 2);
@@ -467,9 +469,9 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     REQUIRE(scrape.slides.size() == 2);
     CHECK(scrape.slides.back().slide_out);
-    CHECK(linkedKeyframe(scrape, scrape.slides[0]));
-    CHECK_FALSE(linkedKeyframe(scrape, scrape.slides[1]));
-    CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.end_seconds));
+    CHECK(linkedKeyframe(scrape.slides[0]));
+    CHECK_FALSE(linkedKeyframe(scrape.slides[1]));
+    CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.ring_end_seconds));
 
     // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
     // picking-hand light the scrape drives — derived beside the scene, never inside it.
@@ -674,7 +676,8 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     const auto add_note = [&notes](double start, double end) {
         NoteViewState note;
         note.start_seconds = start;
-        note.end_seconds = end;
+        note.ring_end_seconds = end;
+        note.ink_end_seconds = end;
         notes.push_back(std::move(note));
     };
     add_note(0.0, 5.0); // Long sustain spanning most of the timeline.
@@ -683,7 +686,7 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     add_note(10.0, 11.0);
 
     const std::vector<double> prefix_max =
-        makeSustainPrefixMax(notes | std::views::transform(&NoteViewState::end_seconds));
+        makeSustainPrefixMax(notes | std::views::transform(&NoteViewState::ring_end_seconds));
     REQUIRE(prefix_max.size() == 4);
     CHECK(prefix_max[2] == Catch::Approx(5.0));
 
@@ -713,7 +716,8 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
         [&notes](double start, std::optional<double> node, NoteAttack attack, int fret) {
             NoteViewState note;
             note.start_seconds = start;
-            note.end_seconds = start + 0.1;
+            note.ring_end_seconds = start + 0.1;
+            note.ink_end_seconds = start + 0.1;
             note.harmonic_node = node;
             note.attack = attack;
             note.fret = fret;
@@ -751,7 +755,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .string = string,
             .fret = 5,
             // Half a beat, which at this tempo lasts exactly the kept-sustain bound and no longer,
-            // so rule 3 drops it. The pair presents no tail, and the span rule is what answers how
+            // so rule 2 drops it. The pair presents no tail, and the span rule is what answers how
             // long the hand stays down.
             .sustain = Fraction{1, 2},
             .bend = {},
@@ -794,7 +798,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     REQUIRE(state.chart.notes.size() == 5);
     // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
     // actually ring: half a beat, which the span outlasts.
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
     CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.25));
     CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.25));
     // The late pair is held to the span's musical close at 4.125 seconds, which is where the
@@ -804,7 +808,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 
     // One authority, resolved identically for either surface: the 2D projection answers the same
     // seconds. What differs is how each SPENDS it — the board pins the heads here, while the lane
-    // draws every tail to the note's presented end and so draws none for these chugs at all (the
+    // draws every tail to the note's ink end and so draws none for these chugs at all (the
     // chord box over the strum is what states the posture there). That division is ruling 3 of
     // `docs/plans/in-progress/note-sustain-model.md`; the lane's side is pinned in the tab paint
     // core's own suite.
@@ -824,7 +828,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     for (std::size_t index = 0; index < 4; ++index)
     {
         CAPTURE(index);
-        CHECK(lane.display_hold_ends[index] > lane.notes[index].end_seconds);
+        CHECK(lane.display_hold_ends[index] > lane.notes[index].ink_end_seconds);
     }
 
     // And the board's visible-range index is built from the holds, so a pinned strum stays in range
@@ -840,10 +844,11 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
 
 // SURFACES MUST NOT DIVERGE, and the tail law is what makes that structural for a tail: there is
 // one end per note and one verdict per note, and both surfaces can only read them — no second
-// length anywhere. The law empties nothing: a taken member's end_seconds is still its rules-1-to-4
-// end, and `rested` is what tells the board to REST that ribbon at distance while the lane draws
-// it. The law's own arithmetic is pinned in the core presentation suite; what is pinned here is
-// that the board and the lane resolve the same seconds, and the same verdict, from one derivation.
+// length anywhere. The law empties nothing: a taken member's ink_end_seconds is still its
+// rules-1-to-3 end, and `rested` is what tells the board to REST that ribbon at distance while the
+// lane draws it. The law's own arithmetic is pinned in the core presentation suite; what is pinned
+// here is that the board and the lane resolve the same seconds, and the same verdict, from one
+// derivation.
 TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -896,24 +901,24 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     CHECK(state.chart.shapes[0].arpeggio);
     REQUIRE(state.chart.notes.size() == 4);
     // The carry runs from the span's front to its close, so the span accounts for the whole of it
-    // and the board RESTS the ribbon. The verdict empties no tail: the end stays the rules-1-to-4
-    // end rather than collapsing onto the onset. The carry passes both strum heads and nothing
-    // binds it after, so its four beats run from 0.0 s to 2.0 s at this map's 120 BPM.
+    // and the board RESTS the ribbon. The verdict empties no tail: the ink end stays the
+    // rules-1-to-3 end rather than collapsing onto the onset. The carry passes both strum heads
+    // and nothing binds it after, so its four beats run from 0.0 s to 2.0 s at this map's 120 BPM.
     CHECK(state.chart.notes[0].rested);
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
     // The strum's own rings die at that same close, so they go with it: a span that accounts for a
     // member's whole ring rests it whether or not anything sounds inside. Rested, not shortened —
     // struck at 1.0 s with nothing after them, both present their notated two beats out to 2.0 s.
     CHECK(state.chart.notes[2].rested);
     CHECK(state.chart.notes[3].rested);
-    CHECK(state.chart.notes[2].end_seconds == Catch::Approx(2.0));
-    CHECK(state.chart.notes[3].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[2].ink_end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.notes[3].ink_end_seconds == Catch::Approx(2.0));
     // And the member that OUTLIVES the span rests too, its whole ring the reveal's to show: the
-    // resting remainder starts at its own head, and the end stays the rules-1-to-4 end — nothing
-    // shortened.
+    // resting remainder starts at its own head, and the ink end stays the rules-1-to-3 end —
+    // nothing shortened.
     CHECK(state.chart.notes[1].rested);
     CHECK(state.chart.notes[1].reveal_from_seconds == Catch::Approx(0.5));
-    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(2.5));
+    CHECK(state.chart.notes[1].ink_end_seconds == Catch::Approx(2.5));
 
     // The 2D lane resolves the identical seconds, to the bit: one derivation, one end, no per-note
     // fact left for a surface to spend differently.
@@ -923,20 +928,17 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
     {
         CAPTURE(index);
         CHECK_THAT(
-            lane.notes[index].end_seconds,
-            Catch::Matchers::WithinULP(state.chart.notes[index].end_seconds, 0));
+            lane.notes[index].ink_end_seconds,
+            Catch::Matchers::WithinULP(state.chart.notes[index].ink_end_seconds, 0));
         CHECK(lane.notes[index].rested == state.chart.notes[index].rested);
     }
 
-    // And the editor's reveal is untouched, which is its whole point: the ACTUAL form draws the
-    // ring the span is carrying — the carry's stored four beats — and nothing in that form rests.
-    // The two forms agree on every LENGTH in this figure (rule 1 binds none of these rings), so the
-    // verdict is the whole of what the reveal changes here.
-    const ChartViewState actual = makeChartViewState(arrangement, map, ChartNoteForm::Actual);
-    REQUIRE(actual.notes.size() == 4);
-    CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
-    CHECK_FALSE(actual.notes[0].rested);
-    CHECK_FALSE(actual.notes[2].rested);
+    // And the reveal reads the same note: rule 1 binds none of these rings, so each ink end IS the
+    // ring end the reveal draws to — the carry's stored four beats — and the verdict is the whole
+    // of what differs between a plain paint and a reveal here.
+    CHECK_THAT(
+        state.chart.notes[0].ring_end_seconds,
+        Catch::Matchers::WithinULP(state.chart.notes[0].ink_end_seconds, 0));
 }
 
 // The repeat chain's pinned heads. A stored chug chain is strike-into-strike — every member's ring
@@ -1016,7 +1018,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // resolves to that same one end. The value that would drop the shape mid-chain is 0.25 s —
     // the first strum's own ring, which stops exactly where the second box begins.
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
-    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(0.0));
+    CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(0.0));
     CHECK(state.chart.notes[2].start_seconds == Catch::Approx(0.25));
     for (std::size_t index = 0; index < 6; ++index)
     {
@@ -1033,13 +1035,13 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // strum RESTS RIBBONLESS. That is what grip tenure buys — at distance the box states the tenure
     // and no tail duplicates it.
     CHECK(state.chart.notes[6].rested);
-    // The verdict empties no tail: the end stays the rules-1-to-4 end rather than collapsing onto
-    // the onset. Nothing is struck after this chord, so rule 1 binds it nowhere and its two beats
-    // run from 2.0 s out to 3.0 s — the ribbon the board reveals as the head nears the line, and
-    // the one the lane draws throughout.
-    CHECK(state.chart.notes[6].end_seconds == Catch::Approx(3.0));
+    // The verdict empties no tail: the ink end stays the rules-1-to-3 end rather than collapsing
+    // onto the onset. Nothing is struck after this chord, so rule 1 binds it nowhere and its two
+    // beats run from 2.0 s out to 3.0 s — the ribbon the board reveals as the head nears the line,
+    // and the one the lane draws throughout.
+    CHECK(state.chart.notes[6].ink_end_seconds == Catch::Approx(3.0));
     // It is still the control arm this chain needs, because the two emptinesses remain different
-    // things: the chain's members were emptied by RULE 3 before the law could look at them, so they
+    // things: the chain's members were emptied by RULE 2 before the law could look at them, so they
     // carry no verdict at all, while this chord's tail was judged and left standing. The hold and
     // the ribbon happen to agree here — a RESTED member holds its own stored ring — so the board
     // pins these heads for the whole two beats, while the chain's are held by the span rule
@@ -1059,7 +1061,8 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     const auto add_note = [&notes](double start, int fret, NoteAttack attack = NoteAttack::Pick) {
         NoteViewState note;
         note.start_seconds = start;
-        note.end_seconds = start;
+        note.ring_end_seconds = start;
+        note.ink_end_seconds = start;
         note.fret = fret;
         note.attack = attack;
         notes.push_back(std::move(note));
@@ -1119,7 +1122,8 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 {
     NoteViewState tap;
     tap.start_seconds = 1.0;
-    tap.end_seconds = 1.0;
+    tap.ring_end_seconds = 1.0;
+    tap.ink_end_seconds = 1.0;
     tap.string = 3;
     tap.fret = 0;
     tap.attack = NoteAttack::Tap;
@@ -1154,7 +1158,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // Held tap: sounding from 1.0 to 2.0 at fret 12, no glide.
     NoteViewState held;
     held.start_seconds = 1.0;
-    held.end_seconds = 2.0;
+    held.ring_end_seconds = 2.0;
+    held.ink_end_seconds = 2.0;
     held.fret = 12;
     held.attack = NoteAttack::Tap;
     notes.push_back(held);
@@ -1162,7 +1167,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // Tapped slide: fret 12 at 3.0 gliding to fret 15 at 4.0 (the sustain end).
     NoteViewState sliding;
     sliding.start_seconds = 3.0;
-    sliding.end_seconds = 4.0;
+    sliding.ring_end_seconds = 4.0;
+    sliding.ink_end_seconds = 4.0;
     sliding.fret = 12;
     sliding.attack = NoteAttack::Tap;
     // Hand-built view states carry no authored offset: these fixtures resolve no tempo map, and
@@ -1174,7 +1180,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // is already releasing pressure, so the light must not follow it.
     NoteViewState trailing;
     trailing.start_seconds = 5.0;
-    trailing.end_seconds = 6.5;
+    trailing.ring_end_seconds = 6.5;
+    trailing.ink_end_seconds = 6.5;
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
     trailing.slides = {
@@ -1233,7 +1240,8 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     const auto add_tap = [&notes](double start, double end, int fret) {
         NoteViewState note;
         note.start_seconds = start;
-        note.end_seconds = end;
+        note.ring_end_seconds = end;
+        note.ink_end_seconds = end;
         note.fret = fret;
         note.attack = NoteAttack::Tap;
         notes.push_back(std::move(note));
@@ -1298,7 +1306,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(view.bend.empty());
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides.back().slide_out);
-    REQUIRE(glideStopCount(view) == 2);
+    REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
     CHECK(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);
     // The right-hand light rides the scrape: one onset whose path stations follow the
@@ -1334,7 +1342,8 @@ namespace
 {
     NoteViewState note;
     note.start_seconds = onset;
-    note.end_seconds = onset;
+    note.ring_end_seconds = onset;
+    note.ink_end_seconds = onset;
     note.string = string;
     note.fret = fret;
     note.attack = attack;
@@ -1392,7 +1401,8 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
 {
     NoteViewState note;
     note.start_seconds = 1.0;
-    note.end_seconds = 2.0;
+    note.ring_end_seconds = 2.0;
+    note.ink_end_seconds = 2.0;
     note.string = 1;
     note.fret = 5;
     note.attack = NoteAttack::Tap;
@@ -1634,7 +1644,8 @@ TEST_CASE("Highway chord groups read the fretting hand alone", "[core][highway]"
             deadened(chordNote(2.0, 2, 5)),
             chordNote(2.0, 3, 12, NoteAttack::Tap),
         };
-        notes[4].end_seconds = 2.5;
+        notes[4].ring_end_seconds = 2.5;
+        notes[4].ink_end_seconds = 2.5;
 
         const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
 
@@ -1706,8 +1717,10 @@ TEST_CASE("Highway chord groups gate a returning chord and an unspanned pair", "
             chordNote(2.0, 1, 3),
             chordNote(2.0, 2, 5),
         };
-        notes[2].end_seconds = 3.5;
-        notes[3].end_seconds = 3.5;
+        notes[2].ring_end_seconds = 3.5;
+        notes[2].ink_end_seconds = 3.5;
+        notes[3].ring_end_seconds = 3.5;
+        notes[3].ink_end_seconds = 3.5;
         const std::vector<ShapeViewState> shapes{chordShape(1.0, 4.0, posture)};
 
         const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
@@ -1718,8 +1731,10 @@ TEST_CASE("Highway chord groups gate a returning chord and an unspanned pair", "
         CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Full);
 
         // The discriminator: the SAME return with no tail repeats, wearing its own plain profile.
-        notes[2].end_seconds = 2.0;
-        notes[3].end_seconds = 2.0;
+        notes[2].ring_end_seconds = 2.0;
+        notes[2].ink_end_seconds = 2.0;
+        notes[3].ring_end_seconds = 2.0;
+        notes[3].ink_end_seconds = 2.0;
         const HighwayChordGrouping tailless = makeHighwayChordGroups(notes, shapes);
         REQUIRE(tailless.groups.size() == 2);
         CHECK(tailless.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);

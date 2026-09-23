@@ -628,8 +628,9 @@ whole amendment, not a note stacked on top of them.
    the point where the division belongs; `Shift+L` splits it there. The point becomes the new
    head, the original note ends exactly on it, the new note opens in the state the hand holds — its
    stated fret, a bend in force as its onset bend, a shake in force opening it shaking — every
-   keyframe after it rides the new note, a slide-out included, and the first note's arrival retreats
-   one margin before the new head. That segment walk now has ONE caller, so there is one rule in one
+   keyframe after it rides the new note, a slide-out included, and the first note's arrival stands
+   AT the cut, on the new head (the retreat is retired: presentation now stops only the ink, one
+   margin before the head). That segment walk now has ONE caller, so there is one rule in one
    place; the same chord on a selected HEAD runs it backward, joining the head onto its
    predecessor's path as the split's exact inverse (2026-09-12). Because the digit alone plants a silent point, typing the same fret on a tail and stopping
    there leaves nothing behind: the split is the two keystrokes together.

@@ -1,3 +1,5 @@
+#include "chart/pick_slide_defaults.h"
+
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -892,7 +894,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(3, 1) == common::core::g_minimum_slide_window);
+    CHECK(fixture.ringAt(3, 1) == g_minimum_slide_window);
     chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
     if (chart != nullptr)
@@ -903,8 +905,8 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
         {
-            CHECK(slid.sustain == common::core::g_minimum_slide_window);
-            CHECK(slide_out->offset == common::core::g_minimum_slide_window);
+            CHECK(slid.sustain == g_minimum_slide_window);
+            CHECK(slide_out->offset == g_minimum_slide_window);
         }
     }
 

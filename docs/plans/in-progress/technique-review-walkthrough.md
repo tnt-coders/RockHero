@@ -124,7 +124,7 @@ Keep this list and the session task list in step.
     their own notice surface. The pending box carries a typed value, not a report; their entries
     below stay open for exactly that surface.
 - [x] **W4 — E25's muted-tail rules (D16 below).** E25 is a PRESENTATION rule: it is rule 4 of
-  `presentedChartNotes`, so the drawn tail goes and the STORED ring stays. Nothing trims a stored
+  `chartPresentation`, so the drawn tail goes and the STORED ring stays. Nothing trims a stored
   ring, and a dead note therefore keeps the duration of its damped stroke — which is the timing a
   legato claim after the cluck reads. The load policy is the other half: load NORMALIZES and never
   refuses, so repairs live in `normalizeChart` (the one normalizer every load path calls, with
@@ -420,7 +420,7 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   hand-shape span pins a member's head, and `ChartViewState::display_hold_ends` is resolved from it
   rather than recomputed anywhere — so no third implementation exists. It is the board's value
   alone: the 2D lane states a span-held strum as the CHORD BOX and draws every tail to the note's
-  presented end, which is why the two surfaces cannot disagree about a hold. The alternative
+  ink end, which is why the two surfaces cannot disagree about a hold. The alternative
   considered and rejected was a second derivation for the tab projection, which is precisely the
   copy this option exists to avoid.
 - [x] **W9-B — Should the two projections become one? RULED: FOLD, and the shipped shape went one
@@ -532,7 +532,7 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   so it reads as part of the tail rather than as an event, which moves the strike/no-strike
   distinction onto the size channel instead of fill darkness alone (`headShapeFor`'s
   plectrum-at-turnarounds behaviour must survive it). Being linked is already a shared READ,
-  `linkedKeyframe(note, keyframe)` — the keyframe's time against the note's presented end — rather
+  `linkedKeyframe(keyframe)` — every stated stop but the slide-out is linked — rather
   than a stored per-surface flag, and the view state mirrors the domain (keyframes plus an optional
   terminal) rather than flattening the slide-out in among them. 3D needs the counterpart glyph or
   the no-surface-divergence law is broken.
@@ -714,9 +714,9 @@ amendment at the top of this section). Three things the build settled or exposed
 - **The arrival STANDS where the split does** *(restated 2026-09-22; the retreat below is
   retired)*. The origin's arrival sits AT the cut, on the new head itself, and what tells it from
   the product's own fall is the RELATION rather than its place: it names the very stop the new head
-  is struck at, at the same instant (`arrivesIntoNextHead`). Presentation spaces the DRAWN arrival
-  one margin before that head, as it spaces every tail, so the look is unchanged and no authored
-  instant moves, which retires the sighting concern this bullet carried.
+  is struck at, at the same instant (`arrivesIntoNextHead`). Presentation stops the ink one margin
+  before that head and moves no authored instant (the arrival draws at its stored instant under the
+  reveal), which retires the sighting concern this bullet carried.
   — *Superseded:* "a fret-stating keyframe may never sit on a later sounding onset of its own
     string, so the origin's arrival retreats by the minimum-sustain-distance margin". The stored
     clearance law went on 2026-09-21 (`keyframe-and-burst-ground-up.md` step 3) and the retreat with

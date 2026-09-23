@@ -142,13 +142,13 @@ ONE PRODUCER, TWO WAYS TO ASK. The connections walk resolves it once per revisio
 
 What the connection rules need, and nothing more. \ref resolveLegato reads a predecessor's stored
 position, ring, fret at the ring's end and attack class, so the saved stream plus one forward walk
-answers every claim in the chart; nothing presentation derives — the drawn tails, the hand-posture
+answers every claim in the chart; nothing presentation derives — the ink ends, the hand-posture
 spans, the holds — can change a verdict here.
 
 That is why this is asked on its own rather than through \ref ChartResolutions. The settle sweep
 and the editor's legato verb want only these three vectors, and they run at every caret move,
-selection change, seek and playback start; deriving a whole song's presented stream, spans and
-holds to read one flag was a full pass over the chart thrown away on every keystroke.
+selection change, seek and playback start; deriving a whole song's ink ends, spans and holds to
+read one flag was a full pass over the chart thrown away on every keystroke.
 
 Every vector is index-parallel to the note stream it was built from.
 */
@@ -157,9 +157,9 @@ struct ChartConnections
     /*!
     \brief Each note in its saved form (\ref savedChartNote): in-memory latents stripped.
 
-    What the RULES judge, and what the presentation is derived from. Its `sustain` is the actual
-    duration the string rings, which is what the connection resolver reads and what no surface
-    draws directly.
+    What the RULES judge, what the presentation is derived from, and what every surface draws. Its
+    `sustain` is the actual duration the string rings, which is what the connection resolver reads;
+    a surface draws that ring only as far as its ink end (\ref ChartResolutions::ink_end).
     */
     std::vector<ChartNote> saved_notes;
 
@@ -188,7 +188,7 @@ struct ChartConnections
 
     A TRANSFER rather than a slide-out — the finger stays down and the next strike takes the sound
     off it — which is why it lives beside the relation that answers it rather than inside the
-    span-scoped display rules that read it (\ref presentedChartNotes and \ref chartHolds: furniture
+    span-scoped display rules that read it (\ref chartPresentation and \ref chartHolds: furniture
     states GRIP, and a handover is sound moving from one strike to the next, which no furniture on
     the lane states — so the ring keeps its whole ribbon, its statement finishing at the takeover,
     and its head pins only until then).
@@ -438,15 +438,16 @@ into, where a derived one refuses.
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
 The per-note facts each surface needs and none may restate: the connections the saved stream
-justifies, the presented form every surface DRAWS and the scorer will read, and how long each note
-is held — plus the hand-posture spans the notes imply, which are not per-note but are derived from
-the same two streams and are what the holds are answered against.
+justifies, where each note's ink stops — how far every surface DRAWS the stored note and the
+scorer will judge it — and how long each note is held — plus the hand-posture spans the notes
+imply, which are not per-note but are derived from the same stream and are what the holds are
+answered against.
 
 What is added here over \ref ChartConnections travels together because it is computed together —
-the holds need both the saved and the presented forms AND the spans to be answered at all — and
-because computing them separately is exactly how the tab lane, the highway, the gameplay build, and
-the reader came to disagree about the same chart. The connections are carried rather than restated,
-so a consumer of the whole picture still reads them from one place.
+the holds need the saved stream, the ink ends, the tail law's verdict AND the spans to be answered
+at all — and because computing them separately is exactly how the tab lane, the highway, the
+gameplay build, and the reader came to disagree about the same chart. The connections are
+carried rather than restated, so a consumer of the whole picture still reads them from one place.
 
 Every per-note vector is index-parallel to the note stream it was built from. Consumed once per
 chart revision, never per frame.
@@ -486,32 +487,14 @@ struct ChartResolutions
     std::vector<std::optional<int>> planted_stops;
 
     /*!
-    \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
-
-    The tail rules applied to the saved stream: what both painters, hit testing, and the future
-    scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
-    \ref ChartConnections::saved_notes; only tails and the payload riding them differ.
-
-    ALL the tail rules, the span-scoped one included: \ref presentedChartNotes is handed the spans
-    and owns every decision about what a tail draws, so there is one pass and no ordering contract
-    between two of them.
+    \brief Where each note's ink stops, as a note-relative offset: \ref ChartPresentation::ink_end,
+    carried here. Same order and size as \ref ChartConnections::saved_notes.
     */
-    std::vector<ChartNote> presented_notes;
+    std::vector<Fraction> ink_end;
 
     /*!
-    \brief Where each note's tail RESTS — a note-relative offset — or nothing where it never does.
-
-    THE TAIL LAW'S published verdict (\ref presentedChartNotes), the curtain being UNIVERSAL: a tail
-    that shows no technique information RESTS, span or no span, and the curtain owns everything past
-    a note's last always-visible landmark. The landmark's cases are stated once, at \ref
-    ChartPresentation::rested_from — this is that table, copied. The 3D board suppresses the resting
-    remainder at distance and reveals it near the hit line (where one exists, \ref
-    hasRestingRemainder), while the 2D lane draws the execution form always — and the verdict is
-    what the hold extension keys on, so a resting ribbon's return never re-released the pins.
-
-    Absent for every tail rules 3 and 4 emptied, by construction rather than by a test: the law
-    runs LAST and skips a tail that is already empty, so a staccato member and a dead chug enter
-    this set never.
+    \brief Where each tail RESTS, or nothing where it never does:
+    \ref ChartPresentation::rested_from, carried here beside \ref ink_end.
     */
     std::vector<std::optional<Fraction>> rested_from;
 
@@ -575,7 +558,7 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole note stream once: connections, presented form, spans, holds.
+\brief Resolves a whole note stream once: connections, ink ends, spans, holds.
 
 The connections come from \ref chartConnections, so the walk that answers them is stated once for
 both the callers that want the whole picture and the callers that want a claim.

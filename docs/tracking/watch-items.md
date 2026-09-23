@@ -147,9 +147,16 @@ where the last ink under the old window ends — never earlier — and, where no
 up to a capped lead before the arrival, so the morph is truthful and lengthens whenever the hand is
 actually free. The derivation belongs in `chart_projection.cpp` beside the slide-ramp table.
 
-### The lane's two chart forms align by index only by construction — trigger: either form published without the other, or the debug assert fires
+### ~~The lane's two chart forms align by index only by construction~~ — RETIRED 2026-09-23: there is one form
 
-`EditorViewState::tab` and `EditorViewState::tab_actual` are two whole `ChartViewState`s built by
+**Retired 2026-09-23.** `ring-ends-and-authoring-planes.md` deleted the second form outright:
+presentation publishes no note of its own, only each ring's ink end, so every note in the one
+projection carries both its stored end and its ink end (`NoteViewState::ring_end_seconds`,
+`ink_end_seconds`) and the lane's reveal is a per-index answer to how far to draw. `tab_actual`,
+`ChartNoteForm`, the second `shared_ptr` in `TabView` and its size assert are gone, so there is no
+pair left to align. The history below stands as it was written.
+
+`EditorViewState::tab` and `EditorViewState::tab_actual` were two whole `ChartViewState`s built by
 two `makeChartViewState` calls under one memo key (`editor_controller.cpp`, arrangement id + chart
 revision). Since the per-note form pick shipped (2026-08-23) the 2D lane reads
 `m_actual->notes[index]` at a PRESENTED note's index on the paint path, so the two note vectors
@@ -261,9 +268,9 @@ and belongs to the user rather than to a patch.
 ### The kept-sustain bound is one duration for every song — trigger: a song whose tails read wrong at a quarter second
 
 The bound that earns a drawn tail is a real duration, `g_minimum_kept_sustain_seconds` in
-`grid_arithmetic.h`, read by rule 3 of `presentedChartNotes` against each ring's length through the
+`grid_arithmetic.h`, read by rule 2 of `chartPresentation` against each ring's length through the
 tempo map. Signed on sighting at 250 ms: an eighth earns below 120 BPM and drops above, a quarter
-earns below 240, and the corpus census stands at 65,196 tails after rules 1 to 4. The tempo map is
+earns below 240, and the corpus census stood at 65,196 tails after the tail rules. The tempo map is
 constant between anchors, so a verdict can only change at an anchor. Perception literature puts the
 short-versus-held boundary at 200 to 300 ms, so the value has a band to move in.
 
@@ -345,8 +352,8 @@ from motion timing, still open.
 RE-SCOPED 2026-08-29 (user: "rescope to that residual"). The dangerous half of this item is dead:
 rule 1's hold exemption was deleted outright (commit 71162316 — the trim now binds on the first
 onset a ring does not pass), so a manufactured "deliberate hold" can no longer draw a whole ring
-uncut through later heads. What survives is rule 3's EARNING only: `presentedChartNotes` still
-asks whether the stored ring passes the next onset to decide whether a group's tails present at
+uncut through later heads. What survives is rule 2's EARNING only: `chartPresentation` still
+asks whether the stored ring passes the next onset to decide whether a group's tails draw at
 all, and the importer's `resolveSlideIns` / slide-out synthesis can **extend** a stored ring,
 floored at `g_minimum_slide_window`. If that extension is what carries the ring past the onset,
 importer-fabricated geometry earns a short chug group tails the source never notated — a cosmetic
@@ -360,11 +367,11 @@ Re-aimed 2026-08-22 when the tail rules moved to the read side (stage A2): the i
 move intact, and the grace-lead protection it used to cite is gone — binding is now decided on the
 sounding position, which the note-sustain-model plan lists as an accepted deviation.
 
-Two smaller relatives of the same family, also left: `hasSustainTechnique` tests
+A smaller relative of the same family, also left: `hasSustainTechnique` tests
 `!note.slides.empty()`, so a trailing equal-fret hold still exempts a note from the *drop* rule when
-the trim does not fire; and below-margin crowding still leaves a chord's bent string with a stub its
-unbent partner does not get, which is the minimum-distance rule behaving as specified rather than a
-defect.
+the crop does not fire. (A second relative — below-margin crowding leaving a chord's bent string a
+stub its unbent partner did not get — went with the crop's payload floor on 2026-09-23: every
+member's ink now stops at the same margin.)
 
 ### Any score using repeats or jump directions is refused outright — trigger: a user reports a real song that will not import
 

@@ -145,7 +145,7 @@ std::vector<std::size_t> selectedNoteIndices(
 // lookup inside the note it lands on.
 std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
     const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::NoteViewState>& drawn,
+    const std::vector<common::core::NoteViewState>& projected,
     const std::span<const ChartKeyframeKey> keys)
 {
     std::vector<ChartKeyframeRef> located;
@@ -158,11 +158,12 @@ std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
             ++note_index;
         }
         if (note_index >= notes.size() || !(chartSlotKeyOf(notes[note_index]) == key.note) ||
-            note_index >= drawn.size())
+            note_index >= projected.size())
         {
             continue;
         }
-        const std::vector<common::core::KeyframeViewState>& keyframes = drawn[note_index].slides;
+        const std::vector<common::core::KeyframeViewState>& keyframes =
+            projected[note_index].slides;
         const auto found =
             std::ranges::find(keyframes, key.offset, &common::core::KeyframeViewState::offset);
         if (found == keyframes.end())
@@ -181,9 +182,9 @@ std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
 
 std::vector<ChartKeyframeRef> selectedKeyframeIndices(
     const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection)
+    const std::vector<common::core::NoteViewState>& projected, const ChartSelection& selection)
 {
-    return keyframeIndicesForKeys(notes, drawn, selection.keyframes());
+    return keyframeIndicesForKeys(notes, projected, selection.keyframes());
 }
 
 // The stream is sorted by (position, string), so an onset group is one contiguous run and this is

@@ -25,7 +25,7 @@ namespace
 // Mirrors the paint core's drawNoteHead geometry: a square of note_height + 1 centered on
 // (onset_x, laneY). No TAIL rectangle stands beside it, because heads are targets and tails are
 // testimony — and because a tail rectangle would be the one rectangle in this manifest that does
-// not bound what the lane draws: it spans the whole presented ring while a member under a span's
+// not bound what the lane draws: it spans the whole inked ring while a member under a span's
 // ink draws no ribbon at all, so it would claim pixels nothing painted.
 TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept

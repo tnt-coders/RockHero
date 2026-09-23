@@ -14,7 +14,7 @@ What follows is the design record that produced it.
 
 **Superseded in part 2026-08-22 by the note-sustain model**
 (`docs/plans/in-progress/note-sustain-model.md`): E25 is now presentation rule 4 in
-`presentedChartNotes` rather than a repair of the stored field, so a dead note keeps the ring it
+`chartPresentation` rather than a repair of the stored field, so a dead note keeps the ring it
 was notated with (that ring is the timing a legato claim after the cluck reads) and only its DRAWN
 tail goes. The rule's substance — a dead string presents no tail unless tremolo or a slide keeps it
 making noise or travelling — is unchanged. Two code citations below went with that change and are

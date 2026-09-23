@@ -191,9 +191,10 @@ Where the gesture has TRAVELLED to at an instant is the companion in the same he
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the unpitched slide-out's alpha dim, holding the
 last target past the last STOP. Stop and not keyframe: the gesture is read as one uniform sequence —
-the note's position keyframes, the slide-out last — through `glideStopCount` / `glideStopAt` in
-`chart_view_state.h`, which fold the note's attack and the slide-out flag into each stop's
-pitched-ness so no consumer restates that rule. Both live out here rather than inline in `draw()`, which is what
+the note's position keyframes, the slide-out last — through `glideStopAt` in
+`chart_view_state.h`, which folds the note's attack and the slide-out flag into each stop's
+pitched-ness so no consumer restates that rule, bounded by `keyframeDrawn` where a consumer draws
+only to the ink end. Both live out here rather than inline in `draw()`, which is what
 lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
 glide lambda declared after every floor pass is reachable by no floor pass. `highwayGlideSliceCount`
 rides along as the one density policy every glide-following mark subdivides an eased segment by, so
@@ -277,21 +278,23 @@ The **span-implied hold** is the board's alone, which is worth knowing before to
 surface. `ChartViewState::display_hold_ends` is resolved from the `chartHolds` authority and rides
 the projection both surfaces read, but only the highway spends it: for a strum a hand-shape span
 holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
-lane draws every tail to the note's own presented end and nothing further, so those chugs wear bare
+lane draws every tail to the note's own ink end and nothing further, so those chugs wear bare
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
 repeating that reads as sustain (`docs/plans/in-progress/note-sustain-model.md` ruling 3).
 Per-surface idiom for one fact again: one hold, a pinned head here and a chord box there.
 
-The TAIL's LENGTH is not per-surface in any way: one presented end (`NoteViewState::end_seconds`,
-the rules-1-to-4 execution form) with one verdict beside it (`NoteViewState::rested` and its
-`reveal_from_seconds` landmark), and no surface may compute a different length. What IS per-surface
+The TAIL's LENGTH is not per-surface in any way: every surface draws the stored note to one ink end
+(`NoteViewState::ink_end_seconds`, beside the stored `ring_end_seconds`; keyframes keep their stored
+instants) with one verdict beside it (`NoteViewState::rested` and its `reveal_from_seconds`
+landmark), and no surface may compute a different length. The 3D board keeps its tip fade over the
+drawn extent. What IS per-surface
 is where a resting ribbon RESTS: the 2D lane draws it always, while the board draws the part past
 the note's landmark only inside the CURTAIN — a fixed window rising from the hit line, one lead deep
 (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own meter and tempo), whose
 fade an in-flight note carries as an IDENTICAL local copy anchored at its RESTING LANDMARK: the head
-for a plain tail, the last DRAWN statement's end where a technique plays out, and the ribbon's
-own end for a handed-over member, whose statement finishes at the takeover so the curtain owns none
-of it and the board publishes no window at all (`hasRestingRemainder`). The local copy fades in
+for a plain tail, the last statement's offset (held to the ink end) where a technique plays out,
+and the ribbon's own ink end for a handed-over member, whose statement finishes at the takeover
+so the curtain owns none of it and the board publishes no window at all (`hasRestingRemainder`). The local copy fades in
 linearly across the approach and is full by the time that anchor reaches the fixed window's outer
 edge, so the hand-off at the line is an identity.
 **THE CURTAIN IS UNIVERSAL**: it owns everything past the last always-visible landmark, on every
@@ -301,13 +304,13 @@ re-admits, and it modulates alpha only, never length — the verdict is publishe
 surfaces, so neither decides tail suppression at its own draw site.
 
 **THE HOLD IS THE TENURE**: every live fretting-hand member covered by a span, whose tail rests or
-was never earned, is held to the span's reach — resting and rule-3-emptied members alike, because
+was never earned, is held to the span's reach — resting and rule-2-emptied members alike, because
 under grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces the
 sound, never the finger, so the note's own ring never cuts the hold short. (Keying on the ring
 instead releases the pins at every slow restrike while the faster chugs hold — a hold that works
 only sometimes.) A member whose tail STANDS — still stating at its own end — states its own hold,
-and so does one no span covers: every plain note outside any furniture rests, and it is held for the
-tail it presents rather than for its stored ring. Dead members and the other hand's onsets are never
+and so does one no span covers: every plain note outside any furniture rests, and it is held to its
+ink end rather than for its stored ring. Dead members and the other hand's onsets are never
 held at all. A HANDED-OVER member is the one exception the tenure carves out
 (`ChartConnections::hands_over`; pinned heads reflect the current SOUNDING state): a pull-off or
 hammer-on source's head pins only until its takeover — the next strike on its string, which sounds

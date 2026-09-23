@@ -26,23 +26,8 @@ namespace
                               static_cast<double>(left_x) * seconds_per_pixel - slack_seconds;
     const double span_end = geometry.visible_timeline.start.seconds +
                             static_cast<double>(right_x) * seconds_per_pixel + slack_seconds;
-    // The prefix table is rebuilt per query: hit resolution runs once per pointer event, not per
-    // frame, and the controller does not retain a per-projection index the way the lane view
-    // does for painting. Built from the notes' own presented ends, exactly as the paint core's
-    // index is, so the candidate window covers what the lane drew and no more.
-    const std::vector<double> prefix = common::core::makeSustainPrefixMax(tab.notes);
-    return common::core::visibleEventRange(tab.notes, prefix, span_start, span_end);
-}
-
-// True when the lane draws a mark at this keyframe, which is exactly when it is clickable: a
-// linked head along the tail, or the slide-out's chip at its end. An unlinked keyframe
-// that is not the slide-out sits at the presented tail's end where the re-picked landing draws its
-// own head, and is no target. The same reads the paint core gates its passes on.
-[[nodiscard]] bool keyframeHasHead(
-    const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe) noexcept
-{
-    return common::core::linkedKeyframe(note, keyframe) || keyframe.slide_out;
+    return common::core::visibleEventRange(
+        tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 }
 
 } // namespace
@@ -119,9 +104,12 @@ std::optional<ChartHitTarget> chartHitTarget(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
+        // A mark is clickable exactly where the lane draws it: within the extent the note is
+        // drawn to, the same rule the paint core draws by.
+        const double drawn_end = common::core::drawnEndSeconds(note, revealed);
         for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
-            if (!keyframeHasHead(note, note.slides[keyframe]))
+            if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
             {
                 continue;
             }
@@ -158,7 +146,7 @@ std::optional<ChartHitTarget> chartHitTarget(
 
 std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom)
+    float left, float top, float right, float bottom, const bool revealed)
 {
     const auto intersects = [left, top, right, bottom](const common::ui::TabLayoutRect& box) {
         return box.x < right && box.x + box.width > left && box.y < bottom &&
@@ -182,9 +170,10 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
+        const double drawn_end = common::core::drawnEndSeconds(note, revealed);
         for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
-            if (!keyframeHasHead(note, note.slides[keyframe]))
+            if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
             {
                 continue;
             }

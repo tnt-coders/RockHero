@@ -12,7 +12,7 @@ the other.
 
 ## Where we are (HEAD ce0db3a2)
 
-- **Display.** Presentation rule 1 (`presentedChartNotes`, `chart_presentation.cpp`) trims every
+- **Display.** Presentation rule 1 (`chartPresentation`, `chart_presentation.cpp`) trims every
   tail one minimum sustain distance before the next onset on ANY string that the ring does not run
   strictly past (`ringPassesHead`), and rule 2 (`trimToMargin`) CARRIES the end statement back to
   the trimmed end through `clipPayloadsToSustain` → `setEndStatement` (`chart_rules.cpp`), with a
@@ -116,7 +116,7 @@ judged as its own onset, and on another string the zone is the ring's ending. (N
 reads the chart yet; this is the contract it will be built against.)
 
 **No presented note, one ink end.** With nothing moved, the "presented note" is a byte copy of
-the stored one: `presentedChartNotes` only ever changed it through the trim and the dropped
+the stored one: `chartPresentation` only ever changed it through the trim and the dropped
 tail, and both go. So presentation publishes no note copy at all. `ChartPresentation::notes` and
 `ChartResolutions::presented_notes` are deleted, and presentation publishes per note an INK END —
 set by rule 1 (the crop) and by rules 3 and 4 (a dropped ring's ink end is its onset), exactly as
@@ -315,10 +315,10 @@ slide diagonals, the projection's vibrato regions closing at the ink end, the 3D
 sample times and scrape framing), and deleting the second projection takes the `Alt` reveal with
 it until the single form carries one.
 
-- `presentedChartNotes` publishes the ink end per note (a parallel vector in `ChartPresentation`,
+- `chartPresentation` publishes the ink end per note (a parallel vector in `ChartPresentation`,
   like `rested_from`) and NO note copy; rule 1 sets the ink end to the crop, rules 3 and 4 to the
   onset. **Deleted:** `ChartPresentation::notes`, `ChartResolutions::presented_notes`, the
-  importer's `presentedChartNotes` call, `trimToMargin`'s ride (`clipPayloadsToSustain` stays for
+  importer's `chartPresentation` call, `trimToMargin`'s ride (`clipPayloadsToSustain` stays for
   the store's own clamp), `lastStatementClearance`, `lastInteriorStatementEnd`, `statementsEnd`'s
   shake window, `keyframeIdentities`. Every reader in the table above then chooses its length.
 - The crossing-leg helper beside `glideStopAt`.

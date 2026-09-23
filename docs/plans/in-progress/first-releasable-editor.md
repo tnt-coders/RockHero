@@ -195,7 +195,8 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   depth).
 - **The keyframe ruling bundle** (task #262), signed in one pass with the anchor since both decide
   drawn bend geometry. No other document enumerates the eight, so they are listed here: (1) the trim
-  floor's value, still borrowing `g_minimum_slide_window` in `chart_presentation.cpp`; (2) the
+  floor's value (the floor itself is gone with the ring-ends plan; `g_minimum_slide_window` now
+  lives in the editor's `pick_slide_defaults.h`); (2) the
   coincident-onset vibrato overwrite; (3) the importer's vibrato-anchor wording; (4) the
   disconnect's unstruck-tie default, marked UNSIGNED in `chart_edits.cpp` (the same ruling Phase 2
   names); (5) W9-F; (6) W9-G; (7) legato-merged bend chains gain the onset chip; (8) a bend across a

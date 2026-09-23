@@ -563,20 +563,19 @@ at its end carries that statement with the end (\ref endStatement, \ref clipPayl
 whatever it states, since its moment IS the end), a ring lengthened past it leaves the statement
 where it was as the pitched stop it has become — the ribbon runs on and the slide-out is a regular
 slide — and a ring pulled back exactly onto its last stated fret makes that fret a slide-out.
-Presentation carries the end's statement the same way, to the instant the DRAWN tail ends
-(\ref presentedChartNotes rule 2), so every tail keeps the same spacing before the next head
-whatever it ends in. The slide-out's
-own length is the end statement's to change: moving it moves the ring's end with it, and no OTHER
-point becomes one by moving — an interior point lives strictly inside the ring at both ends, so the
-only verb that changes a point's kind is the one that moves the ring's end onto it.
+Presentation never moves the end's statement: it only stops the ink (\ref chartPresentation
+rule 1), so an end statement past the ink end stays at its stored instant, shown only under a
+reveal. The slide-out's own length is the end statement's to change: moving it moves the ring's
+end with it, and no OTHER point becomes one by moving — an interior point lives strictly inside the
+ring at both ends, so the only verb that changes a point's kind is the one that moves the ring's
+end onto it.
 
 A KEYFRAME MAY SIT EXACTLY ON A LATER ONSET OF ITS OWN STRING: the stored chart holds the truth,
 and a slide-out or a bend that completes as the next note is struck is what the hands did. Nothing
-in the store spaces it. The spacing a mark needs to be seen and reached is presentation's, applied
-to the DRAWN copy alone: a statement at the ring's end rides to one minimum sustain distance before
-the onset that binds the drawn tail, or halfway along its own last leg where that margin would crowd
-the leg's start (\ref presentedChartNotes rule 2). Both surfaces and scoring read the presented
-note, so they agree by construction.
+in the store spaces it, and presentation does not move it either: the ink stops one margin before
+the binding onset (\ref chartPresentation rule 1), leaving such a keyframe in the ring's ending
+zone, drawn only under a reveal. Both surfaces and scoring read the same ink end, so what is drawn
+is what is judged.
 
 On a pick slide the keyframes are optional direction turnarounds — unpitched right-hand travel,
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
@@ -737,10 +736,10 @@ struct ChartNote
     \brief The ACTUAL duration the string rings, in beats. Strictly positive.
 
     Guitar Pro's notated duration at import, what the editor's verbs author, and what playback will
-    sound. Not what any surface draws: the drawn tail is derived from this once per chart revision
-    by \ref presentedChartNotes, so a chug inside the kept-sustain bound rings its notated length
-    and shows nothing, and a dead note carries the duration of its damped stroke while presenting
-    no tail at all (E25).
+    sound. Every surface draws this ring, but only as far as its ink end, derived once per chart
+    revision by \ref chartPresentation: a chug inside the kept-sustain bound rings its notated
+    length and shows nothing, and a dead note carries the duration of its damped stroke while
+    drawing no tail at all (E25).
     Storing the truth once is what keeps the readability policy from being destruction that every
     later reader then has to guess back (`docs/plans/in-progress/note-sustain-model.md`).
 
@@ -1066,8 +1065,8 @@ and nowhere else.
 A statement standing exactly AT the instant counts, which is what makes a channel's value at a
 keyframe the value that keyframe states rather than the one it replaces.
 
-Readers that need every keyframe's before-and-after — the change detection the presentation trim
-runs, the regions the vibrato channel states — fold \ref ringStateAtOnset and \ref
+Readers that need every keyframe's before-and-after — the regions the vibrato channel states —
+fold \ref ringStateAtOnset and \ref
 RingState::advance themselves rather than sampling this per keyframe, which would walk the array
 once per entry to learn what one pass already knows.
 
@@ -1166,10 +1165,11 @@ THE END'S OWN STATEMENT, and the one spelling of "something stands there". Offse
 within the sustain (\ref validateChartNoteAlone), so at most one keyframe can sit at the end and it
 is the last: the question is one comparison, asked here rather than restated by every rule that
 moves an end. The end's statement belongs to the END — a ring resized under it carries it along
-(\ref clipPayloadsToSustain) and presentation carries it to wherever the drawn end goes
-(\ref presentedChartNotes rule 2) — so what it STATES is a separate question: a fret there is the
-SLIDE-OUT or the shift slide's pitched ARRIVAL, which the chart PROVES rather than stores
-(\ref slideOutKeyframe, \ref arrivesIntoNextHead); a bend value there is the curve's last value.
+(\ref clipPayloadsToSustain), while presentation leaves it at its stored instant and only stops
+the ink (\ref chartPresentation rule 1) — so what it STATES is a separate question: a fret
+there is the SLIDE-OUT or the shift slide's pitched ARRIVAL, which the chart PROVES rather than
+stores (\ref slideOutKeyframe, \ref arrivesIntoNextHead); a bend value there is the curve's last
+value.
 
 \param note Note whose tail is inspected.
 \return The keyframe at the ring's end, or nullptr.
@@ -1677,7 +1677,7 @@ by the one after, or trailing, since the curve holds past its last point — jud
 equality, so a point on a sloped segment is always kept. A vibrato width the string already shakes
 at, since a discrete channel holds its last statement. What this buys every reader: a stored
 note's LAST keyframe is always a statement, so "the last keyframe" and "the last thing the tail
-says" are one offset (\ref presentedChartNotes rule 2). Such a point is AUTHORING STATE, never
+says" are one offset (\ref chartPresentation rule 4). Such a point is AUTHORING STATE, never
 document: the editor plants one as the start of a
 slide before the landing exists and a charter gives it its meaning second, while the document
 writer sheds it (\ref documentChart) and the load repair sheds one that arrives

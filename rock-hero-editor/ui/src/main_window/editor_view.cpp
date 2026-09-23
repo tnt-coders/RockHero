@@ -739,7 +739,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setState(m_state.arrangement);
     m_arrangement_view.setWaveformVisible(m_state.waveform_visible);
 
-    m_tab_view.setState(m_state.tab, m_state.tab_actual, m_state.tab_minimum_displayed_strings);
+    m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
     m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
@@ -1089,7 +1089,7 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
 
 // Sampled every frame by m_vblank_attachment: asks the operating system whether this process is in
 // the foreground and whether Alt is down, and hands the conjunction to both consumers — the lane's
-// actual-ring reveal and the menu titles' access-key underlines — each of which repaints only on a
+// ring reveal and the menu titles' access-key underlines — each of which repaints only on a
 // change, in the same frame, since JUCE runs vblank listeners before it flushes repaints. One
 // sample, two pushes: a second poll could disagree with this one mid-frame. See the header for why
 // both halves are process-wide queries and why no callback feeds this.
@@ -1097,7 +1097,7 @@ void EditorView::syncAltHeldState()
 {
     const bool alt_held = juce::Process::isForegroundProcess() &&
                           juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown();
-    m_tab_view.setActualRingReveal(alt_held);
+    m_tab_view.setRingReveal(alt_held);
     m_menu_look_and_feel->setAccessKeysVisible(alt_held);
 }
 

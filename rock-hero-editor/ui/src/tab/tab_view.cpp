@@ -12,7 +12,6 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/shared/displayed_strings.h>
-#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -71,9 +70,7 @@ void TabView::setContextMenuCallback(ContextMenuCallback callback)
     m_context_menu_callback = std::move(callback);
 }
 
-// Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap. The
-// repaint covers the notation too, not only the overlays: the selection is one of the two inputs
-// to the drawn-form pick, so a selection change re-cuts the tails it names.
+// Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
 void TabView::setEditState(core::ChartEditViewState edit)
 {
     if (edit == m_edit)
@@ -88,17 +85,17 @@ void TabView::setEditState(core::ChartEditViewState edit)
     publishCaretMask();
 }
 
-// Holds or releases the actual-ring reveal. A repaint only on a genuine change, because the
+// Holds or releases the ring reveal. A repaint only on a genuine change, because the
 // editor re-asserts its foreground-and-Alt predicate every frame for its whole life, so nearly
 // every call says what the lane already shows.
-void TabView::setActualRingReveal(bool revealed)
+void TabView::setRingReveal(bool revealed)
 {
-    if (revealed == m_actual_ring_reveal)
+    if (revealed == m_ring_reveal)
     {
         return;
     }
 
-    m_actual_ring_reveal = revealed;
+    m_ring_reveal = revealed;
     repaint();
 }
 
@@ -106,14 +103,10 @@ void TabView::setActualRingReveal(bool revealed)
 // (which IS the play-from-here position), and while playing the controller turns lane clicks
 // into plain seeks, so seeking through the lane keeps working. Without a chart the lane is
 // pointer-transparent.
-//
-// The pointer path reads the PRESENTED projection throughout, because that is the one the
-// controller resolves clicks against; an actual ring is drawn and nothing more.
 bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 {
-    return m_on_pointer_event != nullptr && m_presented != nullptr &&
-           m_presented->stringCount() > 0 && getLocalBounds().contains(local_point) &&
-           m_visible_timeline.duration().seconds > 0.0;
+    return m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->stringCount() > 0 &&
+           getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0;
 }
 
 // THE STRING LEGEND IS INERT CHROME (the pointer half of its ruling): the lane keeps CLAIMING its
@@ -149,7 +142,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int displayed_count =
-        common::core::displayedStringCount(m_presented->stringCount(), m_minimum_displayed_strings);
+        common::core::displayedStringCount(m_tab->stringCount(), m_minimum_displayed_strings);
     return core::ChartPointerEvent{
         .geometry = common::ui::makeTabLaneGeometry(
             static_cast<float>(bounds.getX()),
@@ -158,7 +151,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             static_cast<float>(bounds.getHeight()),
             m_visible_timeline,
             displayed_count,
-            m_presented->stringCount()),
+            m_tab->stringCount()),
         .x = event.position.x,
         .y = event.position.y,
         .modifiers =
@@ -202,7 +195,7 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 {
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
     // pointer travels outside it, exactly like any JUCE drag capture.
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
+    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Drag, makePointerEvent(event));
     }
@@ -210,7 +203,7 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 
 void TabView::mouseUp(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_presented != nullptr && m_presented->stringCount() > 0)
+    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->stringCount() > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
     }
@@ -266,36 +259,19 @@ void TabView::setVisibleContentLeft(int content_left_x)
     repaint(pinnedChromeBounds());
 }
 
-// Applies the current tab projections and lane-count preference; the projection pointers only
-// change when the displayed arrangement or the chart revision does, so pointer identity gates the
-// index rebuild. The two forms are published together and tested together — the controller derives
-// them in one step, so one changing without the other would be a defect upstream, not a case to
-// handle here.
+// Applies the current tab projection and lane-count preference; the projection pointer only
+// changes when the displayed arrangement or the chart revision does, so pointer identity is the
+// change test.
 void TabView::setState(
-    std::shared_ptr<const common::core::ChartViewState> tab,
-    std::shared_ptr<const common::core::ChartViewState> tab_actual, int minimum_displayed_strings)
+    std::shared_ptr<const common::core::ChartViewState> tab, int minimum_displayed_strings)
 {
-    const bool tab_changed = tab != m_presented || tab_actual != m_actual;
-    const bool lanes_changed = minimum_displayed_strings != m_minimum_displayed_strings;
-    if (!tab_changed && !lanes_changed)
+    if (tab == m_tab && minimum_displayed_strings == m_minimum_displayed_strings)
     {
         return;
     }
 
-    m_presented = std::move(tab);
-    m_actual = std::move(tab_actual);
-    // The pick in paint reads the actual form AT A PRESENTED NOTE'S INDEX, which the one
-    // derivation behind both forms guarantees: presentedChartNotes returns one note per input
-    // note in the same order. A mismatch could only be an upstream defect, and this is the seam
-    // it would enter through, so it is caught here rather than as an out-of-range read per frame.
-    assert(
-        m_presented == nullptr || m_actual == nullptr ||
-        m_presented->notes.size() == m_actual->notes.size());
+    m_tab = std::move(tab);
     m_minimum_displayed_strings = minimum_displayed_strings;
-    if (tab_changed)
-    {
-        rebuildVisibilityIndex();
-    }
 
     // A lane-count change moves the legend panel — the count sets the font its width is measured
     // in — and a projection change decides whether there is a tuning to name at all. The panel's
@@ -309,15 +285,10 @@ void TabView::setState(
 
 // Guards the empty cases, derives the shared metrics, and delegates the drawing to the shared
 // notation paint core.
-//
-// The presented projection is what everything but the notes reads — string count, capo, spans,
-// placements are equal in the two forms — and drawn_note below is the ONE place that decides
-// which form a note itself is drawn in. Every overlay reads it too, so nothing can trace a head
-// the lane did not draw.
 void TabView::paint(juce::Graphics& g)
 {
     // Bound to a local so the presence test and every read are provably one object. The answer
-    // carries the chart it was derived from, so nothing here re-dereferences m_presented on the
+    // carries the chart it was derived from, so nothing here re-dereferences m_tab on the
     // strength of this call having succeeded.
     const std::optional<DrawableLane> lane = laneMetrics();
     if (!lane.has_value())
@@ -328,23 +299,14 @@ void TabView::paint(juce::Graphics& g)
     const common::core::ChartViewState& tab = lane->tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
-    // Which form one note draws in, and the only statement of that rule: its ACTUAL ring while the
-    // whole-lane reveal is held, its presented tail otherwise. The modifier is the WHOLE of it — a
-    // selected note and the caret's own note draw like every other one — so a chip a click just
-    // selected stays where it was drawn, and the stored position shows under the key that is also
-    // held for every move of it (setActualRingReveal carries the argument for the modifier itself).
-    //
-    // ONE ANSWER, and everything the reveal decides reads it: which form a note draws in, and
-    // whether its reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing
-    // a note shows the whole truth about it at once, so the two cannot be separate questions — and
-    // the hit test is handed the same answer, so the drawn picture and the reachable one agree.
-    const bool revealed = m_actual_ring_reveal;
-    const auto drawn_note =
-        [this, &tab, revealed](std::size_t index) -> const common::core::NoteViewState& {
-        // The ACTUAL form is what a revealed note draws in: setState pins the two tables to one
-        // length and one order, so the index names the same note in either.
-        return m_actual != nullptr && revealed ? m_actual->notes[index] : tab.notes[index];
-    };
+    // Whether a note is revealed, and the only statement of that rule: every visible note while
+    // the whole-lane reveal is held, none otherwise (setRingReveal carries the argument for
+    // the modifier itself). ONE ANSWER, and everything the reveal decides reads it: how far a
+    // note is drawn — to its ring's end, every keyframe at its true instant — and whether its
+    // reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing a note
+    // shows the whole truth about it at once, so the two cannot be separate questions — and the
+    // hit test is handed the same answer, so the drawn picture and the reachable one agree.
+    const bool revealed = m_ring_reveal;
 
     // THE SPAN'S OWN REVEAL, stated beside the note's because it is the same held modifier
     // answering for a different subject: while it is on, while a span covers a selected note, or
@@ -356,9 +318,6 @@ void TabView::paint(juce::Graphics& g)
     // What the lane hands the paint core is therefore the answer rather than a note, and the core
     // reads whichever of the span's two ends that answer names. The rule itself lives in the editor
     // core (core::chartSpanRevealed), so the lane never spells it.
-    //
-    // Reads the PRESENTED notes for the coverage test, which is exact in either form — presentation
-    // moves no onset — and keeps the lambda off m_actual, which may be absent.
     const auto revealed_shape = [this, &tab](std::size_t index) {
         // Bound once so the presence test and the read are provably the same object.
         const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
@@ -368,11 +327,7 @@ void TabView::paint(juce::Graphics& g)
             caret_seconds = caret->seconds;
         }
         return core::chartSpanRevealed(
-            tab.shapes[index],
-            m_actual_ring_reveal,
-            tab.notes,
-            m_edit.selected_notes,
-            caret_seconds);
+            tab.shapes[index], m_ring_reveal, tab.notes, m_edit.selected_notes, caret_seconds);
     };
 
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, and this is where the whole of that
@@ -404,15 +359,8 @@ void TabView::paint(juce::Graphics& g)
         g.excludeClipRegion(panel);
     }
 
-    common::ui::paintTabLane(
-        g,
-        metrics,
-        tab,
-        m_prefix_max_end_seconds,
-        m_prefix_max_shape_end_seconds,
-        drawn_note,
-        // The core asks per note; this host's answer is the lane's, every note alike.
-        [revealed](std::size_t) { return revealed; });
+    // The core asks per note; this host's answer is the lane's, every note alike.
+    common::ui::paintTabLane(g, metrics, tab, [revealed](std::size_t) { return revealed; });
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -431,7 +379,7 @@ void TabView::paint(juce::Graphics& g)
         {
             continue;
         }
-        const common::core::NoteViewState& note = drawn_note(index);
+        const common::core::NoteViewState& note = tab.notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
@@ -443,10 +391,11 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
-    // The linked head a published keyframe ref names, resolved once for every keyframe overlay —
-    // the selection ring here and the pending box below. A ref addresses drawn positions and the
-    // published lists hold only keyframes that still draw, so a mark can never appear where no
-    // head is; a ref the projection has since outrun simply yields nothing.
+    // The head a published keyframe ref names, resolved once for every keyframe overlay — the
+    // selection ring here and the pending box below — and only where the lane DRAWS it: a
+    // keyframe past its note's ink end is drawn while the note is revealed and not otherwise, so
+    // an overlay on it follows the same rule and a mark can never appear where no head is. A ref
+    // the projection has since outrun simply yields nothing.
     const auto for_each_drawn_keyframe = [&](const std::vector<core::ChartKeyframeRef>& refs,
                                              const auto& draw) {
         for (const core::ChartKeyframeRef& ref : refs)
@@ -455,12 +404,17 @@ void TabView::paint(juce::Graphics& g)
             {
                 continue;
             }
-            const common::core::NoteViewState& note = drawn_note(ref.note_index);
+            const common::core::NoteViewState& note = tab.notes[ref.note_index];
             if (ref.keyframe_index >= note.slides.size())
             {
                 continue;
             }
             const common::core::KeyframeViewState& keyframe = note.slides[ref.keyframe_index];
+            if (!common::core::keyframeDrawn(
+                    keyframe, common::core::drawnEndSeconds(note, revealed)))
+            {
+                continue;
+            }
             draw(note, keyframe, common::ui::tabKeyframeLayout(metrics, note, keyframe));
         }
     };
@@ -556,7 +510,7 @@ void TabView::paint(juce::Graphics& g)
                 {
                     continue;
                 }
-                const common::core::NoteViewState& note = drawn_note(index);
+                const common::core::NoteViewState& note = tab.notes[index];
                 // An entry on the HELD channel wears its box on the satellite, which is where the
                 // value it is typing will print — no head sits there, so the box carries none,
                 // exactly as the empty-slot insert case does. A held stop whose satellite is not
@@ -633,8 +587,7 @@ void TabView::paint(juce::Graphics& g)
     // rail cut out of the column would say it had ended; the same goes for a placement whose chip
     // lands in the column. It is ONE pass called once per paint; only where it sits in the
     // composition distinguishes it from the lane content.
-    common::ui::paintTabLaneFurniture(
-        g, metrics, tab, m_prefix_max_shape_end_seconds, revealed_shape);
+    common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
@@ -667,12 +620,12 @@ void TabView::paint(juce::Graphics& g)
 // from — or nothing when there is nothing to draw with: no chart, an empty lane, or a timeline with
 // no duration to map. THE ONE derivation — paint, the caret mask and the legend column all ask
 // this — so a geometry the mask reports can never be one the paint did not draw with, and the
-// chart travelling with it is what makes "laneMetrics answered, so m_presented is live" a fact the
+// chart travelling with it is what makes "laneMetrics answered, so m_tab is live" a fact the
 // type carries instead of a guard every caller must remember.
 std::optional<TabView::DrawableLane> TabView::laneMetrics() const
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
-    const common::core::ChartViewState* const tab = m_presented.get();
+    const common::core::ChartViewState* const tab = m_tab.get();
     if (tab == nullptr || tab->stringCount() <= 0 || bounds.isEmpty() ||
         m_visible_timeline.duration().seconds <= 0.0)
     {
@@ -883,38 +836,6 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
     }
     const float size = metrics.headSize();
     return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
-}
-
-// Rebuilds the prefix-maximum end table the paint core culls against, after the projections
-// change.
-//
-// The ACTUAL form's ends, because a lane that draws both forms at once needs a bound that holds
-// for either, and presentation only ever trims: every presented end falls at or before its own
-// note's ring. Culling against the rings keeps a note in the candidate range for as long as ANY
-// form of it could be drawn, and the paint passes drop each one whose drawn end really precedes
-// the window, so the picture stays exact. The span-implied hold that outlasts both belongs to the
-// 3D board and is still not indexed here — this surface does not draw it.
-void TabView::rebuildVisibilityIndex()
-{
-    const common::core::ChartViewState* const furthest_reaching =
-        m_actual != nullptr ? m_actual.get() : m_presented.get();
-    m_prefix_max_end_seconds = furthest_reaching == nullptr
-                                   ? std::vector<double>{}
-                                   : common::core::makeSustainPrefixMax(furthest_reaching->notes);
-    // The spans' own table, for the paint core's two span passes. Either form serves it — the
-    // forms differ in their notes alone — and without it those passes walk the song's whole span
-    // prefix on every repaint.
-    //
-    // Built over the MUSICAL CLOSES for the notes' reason exactly: this lane reveals spans, so the
-    // close is the furthest its rails can reach and a table on the drawn extents would cull away a
-    // revealed rail still on screen. Named rather than taken off the events, because a span carries
-    // two ends and letting the table pick by spelling is how a cull comes to disagree with a paint.
-    m_prefix_max_shape_end_seconds =
-        furthest_reaching == nullptr
-            ? std::vector<double>{}
-            : common::core::makeSustainPrefixMax(
-                  furthest_reaching->shapes |
-                  std::views::transform(&common::core::ShapeViewState::close_seconds));
 }
 
 } // namespace rock_hero::editor::ui

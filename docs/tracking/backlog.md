@@ -45,10 +45,10 @@ re-sign the rows with the cause stated beside them.
 
 - **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_seconds`
   (grid_arithmetic.h) is the ring duration that earns a drawn tail on both surfaces, read by rule 3
-  of `presentedChartNotes` and nothing else. The value is a taste, not a law, and belongs beside the
+  of `chartPresentation` and nothing else. The value is a taste, not a law, and belongs beside the
   other user options when those land (`docs/plans/todo/`, the user-color customization family) —
   the option exposes that duration in seconds. The plumbing is small: a presentation options value
-  carrying the bound, threaded `presentedChartNotes` → `chartResolutions` → the two callers (the
+  carrying the bound, threaded `chartPresentation` → `chartResolutions` → the two callers (the
   editor controller's resolve and the game's chart load), read from the per-app settings store;
   tests and the census keep the default. Until then every comment and doc names the bound
   generically and states its value only at the constant — keep it that way.
@@ -440,12 +440,11 @@ remains:
   (`advanceGridPosition` extends the final signature, `gridPositionForGlobalBeat` clamps the
   measure and emits an out-of-range beat). Making the latter extend like the tempo map deletes
   `withinGrid` and both call-site guards; short of that, call the authority.
-- **Two payload-clip helpers for one rule**: `clipPayloadsTo` (`chart_presentation.h`) and
-  `clipPayloadsToSustain` (`chart_rules.h`) overlap, and the importer's shift-slide junction
-  hand-restates the slide-out clip immediately after calling the narrower one. Both now live in
-  `common/core`, so the consolidation is a one-file edit: give the shared helper the slide-out clip
-  behind its target parameter, or state why the presentation trim deliberately owns a narrower
-  rule (it is still choosing where its end goes when it clips, which is the current answer).
+- ~~**Two payload-clip helpers for one rule**~~ — **GONE 2026-09-23** with
+  `ring-ends-and-authoring-planes.md`: presentation no longer clips a payload (it only stops the
+  ink), so `clipPayloadsTo` is deleted and `clipPayloadsToSustain` (`chart_rules.h`) is the one
+  clip. The item was: the two overlapped, and the importer's shift-slide junction hand-restated the
+  slide-out clip after calling the narrower one.
 - **The tone automation lane's state-snap math is stated twice** (found by the 2026-08-23
   tone-automation review; the curve-evaluator half of it was fixed 2026-08-25 by the lane anchor,
   which put the whole evaluation — hold-vs-ramp included — behind one
@@ -719,7 +718,7 @@ Each re-verified against the code before being written down.
   single onset and only a ring reaching past a head walks further — so this is recorded, not
   urgent. Measure before reshaping it; the cost is a function of the corpus, not of the code.
 
-- **`presentedChartNotes` runs the tail law during import and discards the verdict.** The
+- **`chartPresentation` runs the tail law during import and discards the verdict.** The
   importer's `presentedNotes` (`gp_chart_builder.cpp` ~:1736) takes only `.notes` off the
   `ChartPresentation`, so rule 5's per-note `rested_from` marking is computed and dropped on every
   import. Recorded so the discard stays DELIBERATE rather than becoming an accident nobody

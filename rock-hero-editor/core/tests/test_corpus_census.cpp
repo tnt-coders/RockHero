@@ -883,7 +883,7 @@ struct StreamIndex
 // under it, which is the failure mode the rig exists to catch rather than to reproduce — an
 // instrument that re-derives its subject stops being able to disagree with it.
 void countDerivation(
-    const std::vector<ChartNote>& saved, const std::vector<ChartNote>& presented,
+    const std::vector<ChartNote>& saved, const std::vector<Fraction>& ink_end,
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
     const std::vector<common::core::FretHandPosition>& hand_positions, const TempoMap& tempo_map,
@@ -1259,7 +1259,7 @@ void countDerivation(
                 continue;
             }
             const std::size_t ringing = *carried;
-            if (index.onset[ringing] + presented[ringing].sustain <= start)
+            if (index.onset[ringing] + ink_end[ringing] <= start)
             {
                 continue;
             }
@@ -1396,8 +1396,8 @@ void countDerivation(
                     continue;
                 }
                 const std::size_t witness_note = *witness;
-                sound_witness = sound_witness ||
-                                now < index.onset[witness_note] + presented[witness_note].sustain;
+                sound_witness =
+                    sound_witness || now < index.onset[witness_note] + ink_end[witness_note];
             }
 
             ++out.ii_slots;
@@ -1642,7 +1642,7 @@ struct Census
     long long letring_marks_at_written{0};
 
     // THE TAIL LAW's reach on real material, own-span-scoped and read off the production verdict
-    // (`ChartResolutions::rested_from` against the presented ring, through `hasRestingRemainder`)
+    // (`ChartResolutions::rested_from` against the ink end, through `hasRestingRemainder`)
     // rather than re-derived — the census measures the shipped law, it never re-implements it. A
     // ring is HIDDEN where the curtain owns part of it; a resting ring whose landmark is its own
     // end shows every pixel and counts as standing. The denominator is every tail rules 1 through
@@ -2343,7 +2343,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                         stroke_hidden = false;
                     }
                     if (common::core::hasRestingRemainder(
-                            resolutions.rested_from[note], resolutions.presented_notes[note]))
+                            resolutions.rested_from[note], resolutions.ink_end[note]))
                     {
                         ++census.hidden_rings;
                         ++census.tails_after_rules;
@@ -2352,7 +2352,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                             static_cast<double>(saved[note].sustain.numerator) /
                             static_cast<double>(saved[note].sustain.denominator);
                     }
-                    else if (resolutions.presented_notes[note].sustain.numerator > 0)
+                    else if (resolutions.ink_end[note].numerator > 0)
                     {
                         ++census.tails_after_rules;
                     }
@@ -2360,15 +2360,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 census.hidden_strokes += stroke_hidden ? 1 : 0;
             }
 
-            const std::vector<bool> arrivals = common::core::chartShapeArrivals(
-                resolutions.presented_notes, resolutions.shapes, built->tempo_map);
             countDerivation(
                 resolutions.connections.saved_notes,
-                resolutions.presented_notes,
+                resolutions.ink_end,
                 resolutions.connections.arrives_into,
                 resolutions.shapes,
                 resolutions.postures,
-                arrivals,
+                resolutions.arrivals,
                 chart.fret_hand_positions,
                 built->tempo_map,
                 census.derivation);

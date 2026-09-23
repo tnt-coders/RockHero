@@ -5,8 +5,8 @@
 Private to rock_hero_common_core. Two rules are measured against this same coverage and neither may
 answer it differently: a span member with no tail of its own is HELD to the span's reach (\ref
 chartHolds), and a bare tap's held stop DEFAULTS to the grip the covering span states (\ref
-chartHeldStops). The TAIL LAW asks nothing here: the curtain is UNIVERSAL (\ref presentedChartNotes
-rule 5), so a tail showing no technique rests whether or not a span stands over it. Two walks over
+chartHeldStops). The TAIL LAW asks nothing here: the curtain is UNIVERSAL (\ref chartPresentation
+rule 4), so a tail showing no technique rests whether or not a span stands over it. Two walks over
 the same spans would be one rule spelled twice and free to drift, which is why the walk lives here
 rather than in the files that ask.
 */

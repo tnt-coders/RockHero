@@ -281,11 +281,11 @@ private:
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
 
     // Held-Alt is one predicate with two consumers, sampled here once and pushed to both: the tab
-    // lane's actual-ring reveal and the menu titles' underlined access letters. It is true exactly
-    // while this process is the foreground application AND Alt is physically down. Alt is already
-    // the chart's authoring gate — it is what the sustain wheel gesture rides — so holding it
-    // shows the ring being authored: every visible note in the 2D lane draws its actual duration
-    // in place of the presented tail. The menu bar's half is the platform convention, mnemonics
+    // lane's ring reveal and the menu titles' underlined access letters. It is true exactly while
+    // this process is the foreground application AND Alt is physically down. Alt is already the
+    // chart's authoring gate — it is what the sustain wheel gesture rides — so holding it shows
+    // the ring being authored: every visible note in the 2D lane draws to its ring end rather than
+    // stopping at its ink end. The menu bar's half is the platform convention, mnemonics
     // hidden until Alt is down, and it is drawn from the SAME sample so the two hints can never
     // disagree about whether the key is held. Nothing below this view learns of the key; both are
     // UI facts and the editor core never sees them.

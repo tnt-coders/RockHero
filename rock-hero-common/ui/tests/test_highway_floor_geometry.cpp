@@ -21,7 +21,8 @@ namespace
     note.string = 1;
     note.fret = 5;
     note.start_seconds = start_seconds;
-    note.end_seconds = end_seconds;
+    note.ring_end_seconds = end_seconds;
+    note.ink_end_seconds = end_seconds;
     return note;
 }
 

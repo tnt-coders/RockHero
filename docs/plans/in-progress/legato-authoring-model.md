@@ -77,8 +77,8 @@ is editor-only by the charting-mark law (it states editor-verb behavior, never p
 
 `chartResolutions(notes, shapes, tempo_map)` answers it for a whole stream in one forward walk
 carrying the most recent note per string, and returns the per-note facts that travel together
-because they are computed together: `saved_notes` (`savedChartNote`), `presented_notes` and
-`holds` (the note-sustain model's derived forms, which replaced this walk's `effective_sustains`
+because they are computed together: `saved_notes` (`savedChartNote`), `ink_end` and
+`holds` (the note-sustain model's derived facts, which replaced this walk's `effective_sustains`
 on 2026-08-22), `legato`, and `predecessors` — the same-string predecessor index the walk
 established, handed out rather than kept private so the `L` toggle asks its own hypothetical against
 the same relation instead of re-deriving it with a backward scan per selected note. The tab lane, the
@@ -261,8 +261,8 @@ stay derived. **The W9-A divergence is closed display-side:** the tab lane carri
 
 **Superseded on the 2D side, 2026-08-22 (note-sustain model ruling 3, stage D1):** the lane no
 longer draws a hold ribbon at all — it draws, lays out, hit-tests and culls by each note's
-presented tail, and a chugged span member wears a bare head, because the chord box over the strum
-already states how long the posture is fretted. The hold is the board's pinned head. What survives
+own ring and ink end, and a chugged span member wears a bare head, because the chord box over the
+strum already states how long the posture is fretted. The hold is the board's pinned head. What survives
 of W9-A is its actual content: one authority, resolved once, spent per surface in that surface's
 idiom.
 
@@ -277,7 +277,8 @@ note's own ACTUAL ring, which normalization already holds inside that bound, so 
 hold once instead of twice. Neither cap can change `predecessorHoldReaches`, which reads the stored
 ring directly. Hit testing was the other half — `tabNoteLayout` took the note's `end_seconds` while
 the paint pass drew to `display_hold_ends`, so every span-extended ribbon was drawn and unclickable;
-since D1 both read the note's presented end, so there is no second value to keep in step.
+since D1 both read the note's own ends (today its ink end, and its ring end under the reveal),
+so there is no second value to keep in step.
 
 ## Tail lock
 

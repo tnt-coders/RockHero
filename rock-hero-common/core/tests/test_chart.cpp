@@ -205,8 +205,7 @@ constexpr Fraction g_fixture_ring{1, 8};
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
     const ChartResolutions resolved = chartResolutions(notes, tempo_map);
-    const std::vector<bool> arrivals =
-        chartShapeArrivals(resolved.presented_notes, resolved.shapes, tempo_map);
+    const std::vector<bool> arrivals = chartShapeArrivals(notes, resolved.shapes, tempo_map);
     REQUIRE(arrivals.size() == resolved.shapes.size());
     // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE puts a span's
     // FRONT at its earliest uncovered member onset, so a strum that picks around a still-ringing
@@ -2278,7 +2277,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     {
         // E25 lives outside the stored form: a dead note's damped stroke has a duration like any
         // other, and that duration is the timing the legato adjacency test reads. What it does NOT
-        // have is a drawn tail — that is presentedChartNotes rule 4, covered in
+        // have is a drawn tail — that is chartPresentation rule 4, covered in
         // test_chart_presentation.cpp — so nothing here refuses or trims one.
         ChartNote plain_tail = make_note(1, 1, 5);
         plain_tail.dead = true;

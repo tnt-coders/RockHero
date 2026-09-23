@@ -122,7 +122,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     chart.notes = {
         common::core::NoteViewState{
             .start_seconds = 0.0,
-            .end_seconds = 0.0,
+            .ring_end_seconds = 0.5,
+            .ink_end_seconds = 0.0,
             .string = 1,
             .fret = 3,
             .bend = {},
@@ -1784,7 +1785,8 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
     tab->notes = {
         common::core::NoteViewState{
             .start_seconds = 1.0,
-            .end_seconds = 1.0,
+            .ring_end_seconds = 1.5,
+            .ink_end_seconds = 1.0,
             .string = 1,
             .fret = 3,
             .bend = {},

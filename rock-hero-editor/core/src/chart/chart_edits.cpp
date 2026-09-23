@@ -159,16 +159,14 @@ struct KeyedSplit
         common::core::advanceGridPositionByWholeNotes(tempo_map, onset, whole_notes));
 }
 
-// The minimum slide window is stated in beats (common's constant, which the import reads the same
-// way), so its worth in whole notes is taken at the onset's own meter and carried from there.
+// The minimum slide window is stated in beats (the import reads the same constant), so its worth
+// in whole notes is taken at the onset's own meter and carried from there.
 [[nodiscard]] common::core::Fraction minimumSlideWindowRing(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition onset)
 {
     const int denominator = std::max(1, tempo_map.timeSignatureAt(onset.measure).denominator);
     return authoredRing(
-        tempo_map,
-        onset,
-        common::core::g_minimum_slide_window * common::core::Fraction{1, denominator});
+        tempo_map, onset, g_minimum_slide_window * common::core::Fraction{1, denominator});
 }
 
 // Slides every note by the delta in place, or answers false and leaves them half-moved for the
@@ -1446,7 +1444,7 @@ ChartLegatoPlan planSetLegato(
     // (choked, no span extension) in memory where the saved chart reads it as held — which would
     // have the verb deny a connection the gate, the sweep, and both surfaces all agree exists.
     // Connections rather than the whole resolutions: the hypothetical below reads stored fields
-    // only, so the presented stream, the spans and the holds would all be derived and discarded.
+    // only, so the ink ends, the spans and the holds would all be derived and discarded.
     const common::core::ChartConnections connections =
         common::core::chartConnections(chart.notes, tempo_map);
     std::vector<common::core::ChartNote> candidate = chart.notes;

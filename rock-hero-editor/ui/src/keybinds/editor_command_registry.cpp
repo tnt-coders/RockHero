@@ -407,7 +407,7 @@ constexpr int g_add_lane_key = 'a';
         {chord(juce::KeyPress::downKey, alt | shift)});
     // Two verbs on one key, because each lane's insert answers to its own chord: bare on an
     // automation lane, and with the lane reveal held on the chart lane, where a slot before a head
-    // can look blank while lying inside a tail the presentation clipped — `Alt` draws that tail
+    // can look blank while lying inside a ring's ending zone — `Alt` draws the ring to its end
     // while the statement lands on it.
     add(EditorCommandId::InsertLanePoint,
         "Insert Lane Point",

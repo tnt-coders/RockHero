@@ -754,8 +754,8 @@ public:
     there, and a statement already standing at the offset is selected rather than doubled.
 
     Its chord carries the lane reveal (`Alt+Insert`) because the slot before a head can look blank
-    while lying inside a tail the presentation clipped: under the reveal the charter sees the tail
-    they are inserting onto.
+    while lying inside a ring's ending zone, past its ink end: under the reveal the ring is drawn to
+    its end, so the charter sees what they are inserting onto.
     */
     virtual void onChartStatementInsertRequested() = 0;
 

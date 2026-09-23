@@ -51,7 +51,7 @@ under the caret").
 The rule is UNIFORM: a VISIBLE tail does not select either, not only ink a covering span's
 furniture owns. That is what lets this manifest publish head rectangles alone — a tail rectangle
 would be a target nothing may resolve against, and it would not bound what the lane draws: it spans
-the whole presented ring while a member under a span's ink draws no ribbon at all.
+the whole inked ring while a member under a span's ink draws no ribbon at all.
 
 Hit testing resolves pointer positions against these rectangles instead of duplicating glyph
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks
@@ -167,7 +167,7 @@ instant and the same head size the paint core draws with. A slide-out (\ref
 common::core::KeyframeViewState::slide_out) has no head: the slide line ends in its slide-out chip,
 above the tail when the last leg rises and below it when it falls, so its box is the chip's ground
 — the fret-text height plus the chip's padding, wide enough for two digits — on the chip's own
-line. A keyframe the lane draws NO mark for — one at the presented tail's end that is not the
+line. A keyframe the lane draws NO mark for — one at the ring's end that is not the
 slide-out, where the re-picked landing draws its own head — is still laid out here; asking whether
 a mark exists there is the caller's job, exactly as the paint core asks before drawing.
 

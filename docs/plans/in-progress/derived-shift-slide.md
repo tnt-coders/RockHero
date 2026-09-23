@@ -18,10 +18,11 @@ the store still says something the hands did not do.
 
 ## What is ruled
 
-- **The store holds the truth; presentation spaces it** (user, 2026-09-21). The arrival sits on the
-  head and is drawn one minimum sustain distance early, exactly as today.
-- **A bend and the arrival coexist** at the end moment, one keyframe stating both, both drawn
-  retreated together.
+- **The store holds the truth** (user, 2026-09-21). The arrival sits on the head. Presentation
+  moves it nowhere: the ink stops one minimum sustain distance before the head, and the arrival
+  stands at its stored instant in the ring's ending zone, drawn under the reveal
+  (`ring-ends-and-authoring-planes.md` replaced the drawn retreat this ruling first described).
+- **A bend and the arrival coexist** at the end moment, one keyframe stating both.
 - **A next head struck by the picking hand is not arrived into**, except a tapped harmonic, whose
   fretting-hand stop is the fret slid into (refused by validation today; recorded for its return).
 
@@ -131,11 +132,10 @@ twenty-five call sites move from a local helper to a resolved read.
 the bend (see the amendment above). The coexistence ruling holds for arrivals and slide-outs alike.
 
 **No display change.** One flag, `KeyframeViewState::slide_out`, isolates every surface: false draws
-a linked arrival head at the presented end, true draws a floating fall chip. The projection fills
-it from the resolved answer instead of from position, and the presented instant is already the
-trim's. Both surfaces keep drawing what they draw; the signed P8 look is reproduced pixel for
-pixel, and the sighting concern recorded against it ("it MOVES an authored instant") retires,
-because nothing moves an authored instant any more.
+a linked arrival head, true draws a floating fall chip, each at the keyframe's stored instant. The
+projection fills it from the resolved answer instead of from position. The sighting concern
+recorded against the signed P8 look ("it MOVES an authored instant") retires, because nothing moves
+an authored instant any more.
 
 ## What it deletes
 
@@ -145,8 +145,9 @@ because nothing moves an authored instant any more.
 - The `Shift+L` split's retreat and the join's "did this point retreat?" equality test. The join
   stays an exact inverse through the merge path it already has, and the fragile spelling-based
   distinction between a retreated arrival and a charter's own point at the clearance goes with it.
-- `latestStatementBeforeStrike` is left with one caller, presentation's `lastStatementClearance`;
-  it folds into `chart_presentation.cpp` as a file-local and leaves the shared header.
+- `latestStatementBeforeStrike` leaves the shared header. Its one remaining caller was
+  presentation's `lastStatementClearance`, and both are gone since
+  `ring-ends-and-authoring-planes.md` deleted the drawn retreat.
 - Two presentation cases: the rest landmark's slide-out branch (an arrival is a finished
   statement, like a handover) and the trim's interior-arrival case (the arrival is the end).
 
@@ -172,7 +173,8 @@ relational clause stands in one function); the strip narrowed to `shedEndStateme
 importer's shift branch collapsed to "grow the ring to the gap and state the landing's fret at the
 end"; the `Shift+L` split's retreat and the join's equality test deleted, with a scrape now refused
 outright; `latestStatementBeforeStrike` folded into `chart_presentation.cpp` as
-`lastStatementClearance`; the projection's `slide_out` flag read from the fact; `deriveChartShapes`
+`lastStatementClearance` (since deleted by `ring-ends-and-authoring-planes.md`); the projection's
+`slide_out` flag read from the fact; `deriveChartShapes`
 taking the connections.
 
 ### The four findings, and how each was settled
@@ -239,9 +241,10 @@ folds it with the head's own demand, which restores rule 9 exactly. What does no
 hull-exact reshape for a shift slide: at the arrival's instant a chord partner's ring has just
 ended, so nothing pins an edge and the window translates at the four-fret width. Reading the
 relation inside `coverageEventsOf` was tried and reverted: there the landing head itself counts as
-the planted finger, and the reshape collapses to a one-fret window. The window now COMPLETES with
-the rail: a matched ramp carries the drawn segment's own end, so an FHP authored at the arrival
-resolves to the instant the rail arrives at rather than the stored one a margin later.
+the planted finger, and the reshape collapses to a one-fret window. The window COMPLETES at the
+arrival's true instant: every hand ramp is filed at its keyframe's stored instant (since
+`ring-ends-and-authoring-planes.md`; before it, a matched ramp carried the drawn segment's retreated
+end).
 
 ## Order
 

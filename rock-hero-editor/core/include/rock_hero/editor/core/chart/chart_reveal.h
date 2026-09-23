@@ -2,11 +2,10 @@
 \file chart_reveal.h
 \brief The tablature lane's reveal: whether the whole truth about one drawn thing is on show.
 
-A NOTE is revealed by the lane reveal modifier ALONE — a selected note and the caret's own note
-draw like every other, so a clicked chip stays where it was drawn and the stored position shows
-under the modifier that is held for every move of it. That answer is the lane's own and needs no
-spelling here. A SPAN's furniture reads to its musical close on three grounds, the modifier and two
-positional ones (\ref chartSpanRevealed), because a span has no second form to jump between.
+A NOTE is revealed by the lane reveal modifier ALONE, and a revealed note draws to its ring end —
+a selected note and the caret's own note draw like every other. That answer is the lane's own and
+needs no spelling here. A SPAN's furniture reads to its musical close on three grounds, the
+modifier and two positional ones (\ref chartSpanRevealed).
 
 Spelled here because two layers ask it, the lane that paints and the controller that hit-tests and
 types, and a second spelling is how the drawn picture and the reachable one come apart.
@@ -50,8 +49,7 @@ verdict its rule names for the boundary instant.
 
 \param span The span whose furniture is being drawn.
 \param lane_reveal True while the whole-lane reveal modifier is held.
-\param notes The projection's notes, in the order \p selected_notes indexes; either form serves,
-       since presentation moves no onset.
+\param notes The projection's notes, in the order \p selected_notes indexes.
 \param selected_notes Ascending indices of the selected notes.
 \param caret_seconds Where the caret stands on the arrangement timeline, when it stands in this
        lane at all.

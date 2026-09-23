@@ -344,37 +344,38 @@ way — one authority, where a per-caller copy would be the same walk written th
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
 
 /*!
-\brief Resolves a selection's keyframe keys to the DRAWN keyframes they name.
+\brief Resolves a selection's keyframe keys to the projected keyframes they name.
 
-Two steps, because a keyframe's identity and its drawn place are two different things: the note
-slot resolves against the authored stream exactly as a note key does, and the offset then picks the
-projected entry out of that note's drawn keyframes. The offset is what makes the second step
+Two steps, because a keyframe's identity and its projected place are two different things: the
+note slot resolves against the authored stream exactly as a note key does, and the offset then
+picks the entry out of that note's projected keyframes. The offset is what makes the second step
 possible at all — it is carried into \ref common::core::KeyframeViewState precisely so a selection
-can point at a drawn mark without counting indices that shift.
+can point at a mark without counting indices that shift.
 
-Keys resolving to nothing are skipped, which covers both a keyframe an edit removed and one the
-presentation trim clipped out of the drawn tail.
+Keys resolving to nothing are skipped, which covers a keyframe an edit removed; every stored
+keyframe has its projected entry.
 
 \param notes Chart note stream sorted by (position, string).
-\param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
+\param projected The projected notes, in the chart's own order (one to one with `notes`).
 \param keys Keyframe keys to resolve, sorted-unique in (note slot, offset) order.
 \return The located keyframes, in the keys' own order.
 */
 [[nodiscard]] std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
     const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::NoteViewState>& drawn, std::span<const ChartKeyframeKey> keys);
+    const std::vector<common::core::NoteViewState>& projected,
+    std::span<const ChartKeyframeKey> keys);
 
 /*!
 \brief Locates every selected keyframe in the tab projection — \ref keyframeIndicesForKeys over
        the selection's keyframe keys, the keyframe sibling of \ref selectedNoteIndices.
 \param notes Chart note stream sorted by (position, string).
-\param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
+\param projected The projected notes, in the chart's own order (one to one with `notes`).
 \param selection Selection whose keyframe keys are resolved.
 \return The located keyframes, in the selection's own (note slot, offset) order.
 */
 [[nodiscard]] std::vector<ChartKeyframeRef> selectedKeyframeIndices(
     const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection);
+    const std::vector<common::core::NoteViewState>& projected, const ChartSelection& selection);
 
 /*!
 \brief Copies the notes that sorted keys still name, in chart order.

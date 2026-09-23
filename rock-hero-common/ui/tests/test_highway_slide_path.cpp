@@ -20,7 +20,8 @@ namespace
     note.string = 1;
     note.fret = 5;
     note.start_seconds = 1.0;
-    note.end_seconds = 4.0;
+    note.ring_end_seconds = 4.0;
+    note.ink_end_seconds = 4.0;
     return note;
 }
 
@@ -104,7 +105,8 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
     // so the ring is shortened to the instant the pitched arm's keyframe arrives at, and the two
     // segments span exactly the same time.
     common::core::NoteViewState unpitched = frettedNote();
-    unpitched.end_seconds = 2.0;
+    unpitched.ring_end_seconds = 2.0;
+    unpitched.ink_end_seconds = 2.0;
     unpitched.slides = {slideOutKeyframe(2.0, 9)};
 
     const double base_x = highwayNoteFretboardX(pitched, pitched.fret, metrics, false);
@@ -146,6 +148,26 @@ TEST_CASE("Past the last keyframe the glide holds its final target", "[ui][highw
     }
 }
 
+// A tail whose ink stops short of the ring still draws the leg its ink end cuts on that leg's TRUE
+// path: the keyframe past the ink end is not drawn, but the travel toward it is, so the drawn part
+// of the leg is neither frozen at the onset nor bent onto a shortened glide.
+TEST_CASE("A leg the ink end cuts is drawn on its true path", "[ui][highway]")
+{
+    const common::core::HighwayMetrics metrics;
+    common::core::NoteViewState note = frettedNote();
+    note.ink_end_seconds = 2.5;
+    note.slides = {keyframe(3.0, 9)};
+    REQUIRE_FALSE(common::core::keyframeDrawn(note.slides[0], note.ink_end_seconds));
+    const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
+    const double travel = highwayNoteFretboardX(note, 9, metrics, false) - base_x;
+
+    // Halfway along the stored leg (1.0 to 3.0), inside the drawn extent.
+    CHECK_THAT(
+        highwaySlideStateAt(note, base_x, metrics, false, 2.0).x_offset,
+        Catch::Matchers::WithinAbs(
+            travel * common::core::highwaySlideEaseWeight(0.5, false), 1e-12));
+}
+
 // A harmonic's node RIDES its stop: fret spacing is logarithmic, so the node keeps a constant
 // offset in fret units above whatever the glide has travelled to. One rule places the onset and
 // every station of the glide, which is why the anchor takes the stop as a parameter.
@@ -174,7 +196,8 @@ TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][high
     // is the run's last leg — so the run is the turnaround at 2.0 plus the pick lifting at 3.0.
     common::core::NoteViewState scrape = frettedNote();
     scrape.attack = common::core::NoteAttack::PickSlide;
-    scrape.end_seconds = 3.0;
+    scrape.ring_end_seconds = 3.0;
+    scrape.ink_end_seconds = 3.0;
     scrape.slides = {keyframe(2.0, 10), slideOutKeyframe(3.0, 3)};
     const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
     const auto alpha_at = [&](const double seconds) {

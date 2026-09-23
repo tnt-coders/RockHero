@@ -312,53 +312,20 @@ juce::Rectangle<float> paintTabPendingEntryBox(
     juce::Colour text_color, juce::Colour border_color);
 
 /*!
-\brief Answers which note the lane draws at one index, for a host composing two projected forms.
+\brief Answers whether one event, by its index, is REVEALED, for a host that reveals.
 
-The editor's actual-ring reveal is the one caller: it draws each note in the chart's presented or
-its \ref common::core::ChartNoteForm::Actual form, decided per note, and the two forms of one chart
-align by index because presentation trims tails and never adds or removes a note. Handing the
-choice in as an accessor keeps the composition rule wholly in the host — this core is given the
-note to draw and never the reason.
-
-An empty accessor is the ordinary case: every note draws from the state's own
-\ref common::core::ChartViewState::notes.
-
-It is asked once per VISIBLE note in each of the two note passes — the range cull runs first, on
-the state's own onsets — so the indirection costs a call per note drawn, never one per glyph.
-*/
-using TabDrawnNote = std::function<const common::core::NoteViewState&(std::size_t index)>;
-
-/*!
-\brief Answers whether one note's whole truth is on show, for a host that reveals notes.
-
-The OTHER half of the one per-note pick \ref TabDrawnNote answers: the same reveal that hands this
-core a note's real ring is what brings its reveal-only marks in (\ref common::core::stopMarkShown),
-because revealing a note shows the whole truth about it at once. A host derives both from ONE
-predicate of its own — this core is told the answer and never the reason, exactly as it is for the
-form.
-
-An empty accessor is the ordinary case and means nothing is revealed, which is the whole answer for
-a surface with no reveal at all: the game's tab strips, and any host drawing one form throughout.
-*/
-using TabRevealedNote = std::function<bool(std::size_t index)>;
-
-/*!
-\brief Answers whether one span's furniture runs to its musical close, for a host that reveals.
-
-The SPAN arm of the same reveal, and the same bargain: a span's furniture always draws to
-\ref common::core::ShapeViewState::drawn_end_seconds, the extent rule 12a trimmed, and a host that
-reveals it draws to \ref common::core::ShapeViewState::close_seconds instead — the instant the
-statement really ended. As with the note accessors, this core is told the answer and never the
-reason.
-
-Both ends ride ONE state here rather than two projected forms, because the margin is a display rule
-over one span and not a second projection of it. That is why the span's pick is a bare answer where
-a note's is an accessor handing a whole note across.
+THE ONE pick a reveal makes, asked per note by \ref paintTabLane and per span by
+\ref paintTabLaneFurniture. A revealed note is drawn to its ring's end
+(\ref common::core::drawnEndSeconds), so every keyframe it stores shows at its true instant, and
+its reveal-only marks come in with it (\ref common::core::stopMarkShown); a revealed span's
+furniture runs to its musical close (\ref common::core::ShapeViewState::close_seconds) instead of
+the extent rule 12a trimmed. A host derives the answer from a predicate of its own — this core is
+told the answer and never the reason.
 
 An empty accessor is the ordinary case and reveals nothing, which is the whole answer for a surface
-with no reveal at all: the game's tab strips, and the 3D board, which draws no reveal either.
+with no reveal at all: the game's tab strips.
 */
-using TabRevealedShape = std::function<bool(std::size_t index)>;
+using TabRevealed = std::function<bool(std::size_t index)>;
 
 /*!
 \brief Returns the panel \ref drawTabStringLegend would fill, empty when no legend is drawn.
@@ -497,33 +464,17 @@ each pass in turn.
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
-\param tab Seconds-resolved tab projection; it must name at least one string. Its notes order and
-       count the lane's notes, and supply every one of them unless `drawn_note` picks another
-       form's. Every tail is drawn to the DRAWN note's own end (NoteViewState::end_seconds); the
-       span-implied hold (ChartViewState::display_hold_ends) is the 3D board's and is not read
-       here.
-\param prefix_max_end_seconds Running maximum of note ends (common::core::makeSustainPrefixMax)
-       bounding the visible range. It must reach at least as far as every end DRAWN or a tail on
-       screen is culled away, so a host composing two forms passes the table of the form whose
-       tails run longest — conservative for both, since the passes below drop each note that
-       really ends before the span.
-\param prefix_max_shape_end_seconds The same running maximum over `tab.shapes`, bounding the two
-       span passes. Nothing orders spans by END, so without it those passes start at the first span
-       in the song and walk the whole prefix on every repaint. A span carries TWO ends, so this is
-       built over the further one a host may draw to — its musical close where the host reveals
-       spans at all, the drawn extent where it never does. An EMPTY table is legal and means exactly
-       that — the index only ever tightens the start, never changes which spans draw — so a caller
-       with no reason to build one simply does not.
-\param drawn_note Per-index choice of which form's note to draw; empty draws `tab.notes`
-       throughout.
-\param revealed Per-index answer to whether that note's whole truth is on show, which is what a
-       reveal-only held-stop satellite waits for; empty reveals nothing.
+\param tab Seconds-resolved tab projection; it must name at least one string. Every tail is drawn
+       to the extent \ref common::core::drawnEndSeconds names; the span-implied hold
+       (ChartViewState::display_hold_ends) is the 3D board's and is not read here. The visible
+       range is bounded by the projection's own prefix tables (ChartViewState::ring_end_prefix_max,
+       ChartViewState::shape_close_prefix_max).
+\param revealed Per-note answer to whether that note's whole truth is on show: it then draws to
+       its ring end and its reveal-only held-stop satellite comes in; empty reveals nothing.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds,
-    const std::vector<double>& prefix_max_shape_end_seconds = {},
-    const TabDrawnNote& drawn_note = {}, const TabRevealedNote& revealed = {});
+    const TabRevealed& revealed = {});
 
 /*!
 \brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.
@@ -540,16 +491,11 @@ host that narrowed the clip for the content pass gets the matching furniture for
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
 \param tab Seconds-resolved tab projection supplying the spans, the capo and the placements.
-\param prefix_max_shape_end_seconds Running maximum over `tab.shapes` bounding the rail pass, with
-       the same meaning it has for \ref paintTabLane: an empty table starts the pass at the first
-       span in the song rather than changing which spans draw, and a host that reveals spans builds
-       it over their musical closes so a revealed rail cannot be culled away.
-\param revealed_shape Per-index answer to whether that span's rails run to its musical close instead
+\param revealed_shape Per-span answer to whether that span's rails run to its musical close instead
        of to the drawn extent; empty reveals nothing.
 */
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_shape_end_seconds = {},
-    const TabRevealedShape& revealed_shape = {});
+    const TabRevealed& revealed_shape = {});
 
 } // namespace rock_hero::common::ui

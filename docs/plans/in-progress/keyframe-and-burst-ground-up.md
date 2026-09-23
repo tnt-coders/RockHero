@@ -253,6 +253,11 @@ What else the study settled:
   always the next note" with no new clause and makes the end chip click-only — the gap the
   through-the-note proposal below closes.
 
+*Superseded 2026-09-23 by `ring-ends-and-authoring-planes.md`.* The presentation carry studied
+above was built and then deleted: presentation moves no statement and publishes only each ring's
+ink end, one margin before the binding head. An end statement past it stays at its stored instant,
+drawn only under the reveal, so `offset` and `seconds` never differ and no chip shifts.
+
 **The user's lean on authoring at the end, 2026-09-21 (later the same day): `Alt`.** "`Alt`+digit
 and `Alt+B` being the authoring verb for slide outs and bends that would otherwise conflict with a
 note head ... simpler than adding selection to the end of the note tail (which comes with its own
@@ -301,9 +306,10 @@ importer (`latestStatementBeforeStrike`), because a fret exactly at the end woul
 unpitched release. With the truth stored it is simply the fret statement AT the end, landing on
 the next head — and what tells a shift slide from a slide-out is relational and derivable: the
 statement at the end names the SAME fret the next head on that string is struck at, at the same
-instant. That is a slide into position and a pick; anything else at the end falls away. It is
-presented exactly as today, pitched and arriving one margin early, by the presentation rule that
-already spaces every tail. What it would delete: the importer's arrival placement and its
+instant. That is a slide into position and a pick; anything else at the end falls away. It was
+then drawn as before, pitched and arriving one margin early (a drawn retreat
+`ring-ends-and-authoring-planes.md` has since deleted: the arrival now draws at its stored instant
+under the reveal). What it would delete: the importer's arrival placement and its
 `clearSlideOut`-then-arrive dance, and `latestStatementBeforeStrike`'s importer use. What must be
 checked first: span rule 6's emit test is calibrated to the synthesized arrival sitting exactly one
 quantum before the onset and would re-key to the derived fact; the signed shift-slide look (P8);
@@ -417,11 +423,11 @@ made the "arming selects a slide-out's chip" clause deletable. The AltGr collisi
 answer the rules give: the head wins and the end comes back to it. The insert is legal — a digit at
 a ring's exact end is the next note — and the plan gate's ring clamp shortens the ring to the
 landing with its end statement still AT the end, ON the new head. The bend still completes as the
-ring ends; one undo entry holds both, and the DRAWN bend point then prints one margin before the
-head like every other tail's. *Restated 2026-09-21 once step 3 landed: the clearance repair this
-paragraph originally invoked is gone, so the squish is the truncation's alone and the spacing is
-presentation's.* It is exactly what import does to an abutting bend, which is the point of "the
-SAME rules". A head on another string changes nothing.
+ring ends; one undo entry holds both, and the ink then stops one margin before the head like every
+other tail's while the bend point keeps its stored instant, drawn under the reveal. *Restated
+2026-09-21 once step 3 landed, and again 2026-09-23: the clearance repair this paragraph originally
+invoked is gone, so the squish is the truncation's alone, and presentation spaces only the ink.*
+It is exactly what import does to an abutting bend, which is the point of "the SAME rules". A head on another string changes nothing.
 
 Weighed the same day and not recommended: REFUSING the head instead. It is shorter to say — no
 statement ever moves except under the move verb — but it is not simpler to build or to use. Import
@@ -648,7 +654,8 @@ hold is a fret AND a bend at the end: the bend is destroyed at load (`ReleasePay
 No note in the corpus needs both — so that collision is a hole in the model, not yet in the data.
 
 One side effect to carry into either set: the presentation trim never trims past a note's last
-keyframe, so an end-of-ring bend pins the DRAWN tail to the full stored ring.
+keyframe, so an end-of-ring bend pins the DRAWN tail to the full stored ring. *(Gone since
+`ring-ends-and-authoring-planes.md`: no payload floors the crop any more.)*
 
 ## 3. Why silent points stay in the document
 
@@ -681,9 +688,11 @@ against the new burst and closed or restated.
 **SIGNED by the user, 2026-09-21, and the only thing here that is:** the stored chart holds the
 TRUTH — a slide-out or a bend may end exactly on the next note's head — and a statement at a
 ring's end that meets the next head is DISPLAYED, and later scored, one minimum sustain distance
-earlier, so note spacing looks the same everywhere. Everything else in this document is
-still proposal; in particular how a ring's end is selected and authored is explicitly NOT settled
-and nothing below depends on it. Authoring stays exactly as it is today while these steps land.
+earlier, so note spacing looks the same everywhere. *(The display half is superseded by
+`ring-ends-and-authoring-planes.md`: the statement is no longer moved; the ink stops one margin
+before the head and the statement is drawn at its stored instant only under a reveal.)* Everything
+else in this document is still proposal; in particular how a ring's end is selected and authored
+is explicitly NOT settled and nothing below depends on it. Authoring stays exactly as it is today while these steps land.
 
 The user asked whether the store could change first and presentation follow. It cannot do so
 cleanly: with the stored clearance gone and presentation unchanged, an end statement draws ON the
@@ -706,7 +715,7 @@ step is shippable on its own and the last one changes nothing the eye can see:
    almost all of them comments and header docs restated, and 294 test lines deleted against 275
    re-added (one whole `test_chart.cpp` case, 141 lines, retired outright; one 93-line acceptance
    case added). `lastStatementClearance` moved into `chart_presentation.cpp` as a file-local:
-   presentation is its only caller and its only authority now.
+   presentation was its only caller (since deleted by `ring-ends-and-authoring-planes.md`).
 
    *The corpus acceptance measurement, the same day.* 113 corpus packages, 245 866 imported notes,
    presented streams dumped from a build at `0ee88bd3` and from the deletion and diffed note for

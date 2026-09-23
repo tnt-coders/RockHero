@@ -488,7 +488,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             }));
         CHECK(
             std::ranges::any_of(families.chart.notes, [](const common::core::NoteViewState& note) {
-                return note.end_seconds > note.start_seconds;
+                return note.ink_end_seconds > note.start_seconds;
             }));
         CHECK(
             std::ranges::any_of(families.chart.notes, [](const common::core::NoteViewState& note) {

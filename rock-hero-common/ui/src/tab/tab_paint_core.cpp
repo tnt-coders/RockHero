@@ -727,19 +727,18 @@ void drawAccentTailGlow(
 // mark riding the tail, clipped against arpeggio brackets where the body is not.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float onset_x, float center_y)
+    const common::core::NoteViewState& note, float onset_x, float center_y, const double drawn_end)
 {
-    // The PRESENTED tail and nothing else, so a note that presents none draws none — including a
-    // chugged member of a strum a hand-shape span holds, which the span-implied hold
-    // (ChartViewState::display_hold_ends) does extend on the 3D board. This lane says the same
-    // thing in its own idiom: the shape's own rails over the strum already state how long the
-    // posture is fretted, and a ribbon under every chug restated it in the one mark that means
-    // "this string is still ringing".
+    // The DRAWN extent and nothing else — the ink end, or the ring end under a reveal — so a note
+    // that draws no tail draws none, including a chugged member of a strum a hand-shape span
+    // holds, which the span-implied hold (ChartViewState::display_hold_ends) does extend on the 3D
+    // board. This lane says the same thing in its own idiom: the shape's own rails over the strum
+    // already state how long the posture is fretted, and a ribbon under every chug restated it in
+    // the one mark that means "this string is still ringing".
     //
     // `onset_x` is the head's own column, and the tail's ink begins there exactly as every other
-    // mark on the note does — no ribbon this lane draws can begin anywhere but at a head, because
-    // presentation only ever SHORTENS a tail and never moves its start.
-    const float end_x = metrics.x(note.end_seconds);
+    // mark on the note does — no ribbon this lane draws can begin anywhere but at a head.
+    const float end_x = metrics.x(drawn_end);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
     {
@@ -818,6 +817,23 @@ struct TailInterior
     float bottom;
 };
 
+// How far along a leg toward a stop past the drawn extent the extent falls, so the leg is drawn on
+// its true path and cut there: a slide or bend written to land on the next head slopes toward it
+// and simply ends. A leg of no width is complete.
+[[nodiscard]] float cutLegProgress(const float from_x, const float to_x, const float end_x)
+{
+    return to_x > from_x ? std::clamp((end_x - from_x) / (to_x - from_x), 0.0f, 1.0f) : 1.0f;
+}
+
+// Whether a keyframe wears a head on the lane: a linked one (the slide-out draws its chip
+// instead) within the extent the note is drawn to.
+[[nodiscard]] bool keyframeHeadDrawn(
+    const common::core::KeyframeViewState& keyframe, const double drawn_end)
+{
+    return common::core::linkedKeyframe(keyframe) &&
+           common::core::keyframeDrawn(keyframe, drawn_end);
+}
+
 [[nodiscard]] TailInterior tailInterior(const TabLaneMetrics& metrics, const float center_y)
 {
     const TailSpan span = tailSpan(metrics, center_y);
@@ -840,7 +856,7 @@ struct TailInterior
 // step rather than as a note-wide setting.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float center_y)
+    const common::core::NoteViewState& note, float center_y, const double drawn_end)
 {
     if (note.vibrato.empty())
     {
@@ -871,8 +887,14 @@ void drawVibratoSine(
             span.state == common::core::VibratoState::Wide
                 ? interior_swing
                 : interior_swing / g_wide_vibrato_swing_multiplier);
+        // Regions ascend, so the first one opening past the drawn extent ends the walk; a region
+        // crossing the extent is drawn as far as it.
+        if (span.start_seconds >= drawn_end)
+        {
+            break;
+        }
         const float from_x = metrics.x(span.start_seconds);
-        const float length = metrics.x(span.end_seconds) - from_x;
+        const float length = metrics.x(std::min(span.end_seconds, drawn_end)) - from_x;
         if (length <= 0.0f)
         {
             continue;
@@ -1074,16 +1096,12 @@ constexpr float g_technique_line_thickness = 2.0f;
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& slide_labels, const float opacity)
+    std::vector<LabelChip>& slide_labels, const float opacity, const double drawn_end)
 {
-    // The gesture as one uniform sequence: the position keyframes, the slide-out last when the
-    // note has one.
-    const std::size_t stop_count = common::core::glideStopCount(note);
-    if (stop_count == 0)
+    if (note.slides.empty())
     {
         return;
     }
-
     constexpr float line_thickness = g_technique_line_thickness;
     // Diagonals span the tail's INTERIOR, endpoint stroke included: anchored a half-thickness
     // inside the rails' inner boundaries, so the line meets the tail's edge without ever riding
@@ -1091,16 +1109,23 @@ void drawSlideLines(
     const TailInterior interior = tailInterior(metrics, center_y);
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
-    for (std::size_t index = 0; index < stop_count; ++index)
+    // The gesture as one uniform sequence — the position keyframes, the slide-out last when the
+    // note has one. A stop within the drawn extent gets a leg and its mark; the leg toward the
+    // first stop BEYOND the extent is drawn too, on its true path as far as the extent
+    // (cutLegProgress), and that stop nothing draws, so no head and no chip.
+    for (std::size_t index = 0; index < note.slides.size(); ++index)
     {
         const common::core::GlideStop stop = common::core::glideStopAt(note, index);
+        const bool drawn = common::core::keyframeDrawn(note.slides[index], drawn_end);
         // Every junction insets its endpoint by one stroke width, which opens a hairline gap
         // between consecutive diagonals so a multi-stop glide reads as separate legs. The LAST
         // one takes no inset: its inset existed only to meet the tail's end cap, and with the cap
         // gone (see drawNoteTail) it would leave a stub of bare ribbon past the mark's tip rather
         // than separate anything.
-        const bool final_leg = index + 1 == stop_count;
-        const float to_x = metrics.x(stop.seconds) - (final_leg ? 0.0f : line_thickness);
+        const bool final_leg = index + 1 == note.slides.size();
+        const float stop_x = metrics.x(stop.seconds);
+        const float to_x =
+            drawn ? stop_x - (final_leg ? 0.0f : line_thickness) : metrics.x(drawn_end);
         const bool upward = stop.fret >= previous_fret;
         // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
         // the keyframe renders the continuation, and the next segment's line leaves from here. The
@@ -1112,9 +1137,14 @@ void drawSlideLines(
                                         : interior.top + line_thickness / 2.0f;
             const float to_y = upward ? interior.top + line_thickness / 2.0f
                                       : interior.bottom - line_thickness / 2.0f;
+            const float progress = drawn ? 1.0f : cutLegProgress(from_x, stop_x, to_x);
 
             g.setColour(style[Ink::TechniqueLine]);
-            g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
+            g.drawLine(from_x, from_y, to_x, from_y + ((to_y - from_y) * progress), line_thickness);
+        }
+        if (!drawn)
+        {
+            return;
         }
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
@@ -1199,11 +1229,11 @@ void drawKeyframeFretNumber(
 // Draws only the shapes so a ghost can flatten them into its translucent note group.
 void drawKeyframeHeadShapes(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const float center_y)
+    const common::core::NoteViewState& note, const float center_y, const double drawn_end)
 {
     for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedKeyframe(note, keyframe))
+        if (!keyframeHeadDrawn(keyframe, drawn_end))
         {
             continue;
         }
@@ -1215,11 +1245,11 @@ void drawKeyframeHeadShapes(
 // Draws the fully opaque fret numbers that ride linked slide keyframe heads.
 void drawKeyframeFretNumbers(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float center_y)
+    const common::core::NoteViewState& note, float center_y, const double drawn_end)
 {
     for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedKeyframe(note, keyframe))
+        if (!keyframeHeadDrawn(keyframe, drawn_end))
         {
             continue;
         }
@@ -1231,11 +1261,11 @@ void drawKeyframeFretNumbers(
 // Draws a normal linked keyframe head in its established shape-then-number order.
 void drawKeyframeHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const float center_y)
+    const common::core::NoteViewState& note, const float center_y, const double drawn_end)
 {
     for (const common::core::KeyframeViewState& keyframe : note.slides)
     {
-        if (!common::core::linkedKeyframe(note, keyframe))
+        if (!keyframeHeadDrawn(keyframe, drawn_end))
         {
             continue;
         }
@@ -1251,7 +1281,7 @@ void drawKeyframeHeads(
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, const float opacity)
+    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end)
 {
     if (note.bend.empty())
     {
@@ -1272,14 +1302,24 @@ void drawBendLines(
     };
 
     const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
-    // The flat run ends where the ribbon it rides does: the note's presented tail, read from the
-    // note itself so the polyline cannot outlast the tail under it.
-    const float end_x = metrics.x(note.end_seconds);
+    // The polyline ends where the ribbon it rides does — the drawn extent — so it cannot outlast
+    // the tail under it.
+    const float end_x = metrics.x(drawn_end);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::BendPointViewState& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
+        // A point past the extent is not drawn, but the leg TOWARD it is, on its true path as far
+        // as the extent: a bend written to land on the next head rises toward it and stops. That
+        // leg is the last ink, so there is no flat run after it and no chip on it.
+        if (point.seconds > drawn_end)
+        {
+            const float progress = cutLegProgress(last.x, to.x, end_x);
+            g.drawLine(
+                last.x, last.y, end_x, last.y + ((to.y - last.y) * progress), line_thickness);
+            return;
+        }
         g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
         if (metrics.draw_text)
         {
@@ -1288,7 +1328,7 @@ void drawBendLines(
             // conditional's (endMarkYAtSharedInstant): a chip left on the curve there would sit
             // over that head's top.
             const bool over_head = to.x <= onset_x + metrics.note_height / 2.0f;
-            const bool at_ring_end = std::is_eq(point.seconds <=> note.end_seconds);
+            const bool at_ring_end = std::is_eq(point.seconds <=> note.ring_end_seconds);
             const float chip_y =
                 endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head && at_ring_end)
                     .value_or(
@@ -1836,11 +1876,10 @@ void drawNoteHead(
 // INDICES rather than a subrange, matching the note passes: a host that reveals spans is asked
 // about one by its index in `tab.shapes`, so the pass that draws it has to know that number.
 [[nodiscard]] std::pair<std::size_t, std::size_t> visibleShapeRange(
-    const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_shape_end_seconds, const common::core::TimeRange span)
+    const common::core::ChartViewState& tab, const common::core::TimeRange span)
 {
     return common::core::visibleEventRange(
-        tab.shapes, prefix_max_shape_end_seconds, span.start.seconds, span.end.seconds);
+        tab.shapes, tab.shape_close_prefix_max, span.start.seconds, span.end.seconds);
 }
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
@@ -1850,7 +1889,7 @@ void drawNoteHead(
 // draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
 //
 // WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
-// and the caller has already picked between them (TabRevealedShape). One rail length reaches both
+// and the caller has already picked between them (TabRevealed). One rail length reaches both
 // the cull and this drawing, so a rail cannot be culled on one end and drawn to the other.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape,
@@ -2164,7 +2203,7 @@ void paintTabKeyframeHead(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe)
 {
-    if (!common::core::linkedKeyframe(note, keyframe))
+    if (!common::core::linkedKeyframe(keyframe))
     {
         return;
     }
@@ -2371,9 +2410,7 @@ void drawTabFhpChip(
 // floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds,
-    const std::vector<double>& prefix_max_shape_end_seconds, const TabDrawnNote& drawn_note,
-    const TabRevealedNote& revealed)
+    const TabRevealed& revealed)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.stringCount() > 0);
@@ -2405,8 +2442,7 @@ void paintTabLane(
     // are drawn either side of whatever chrome the host lays between them and so cannot share one
     // walk. It is one helper called twice over one table, not a second rule about which spans are
     // visible.
-    const auto [first_shape, last_shape] =
-        visibleShapeRange(tab, prefix_max_shape_end_seconds, span);
+    const auto [first_shape, last_shape] = visibleShapeRange(tab, span);
 
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
@@ -2498,14 +2534,14 @@ void paintTabLane(
     const LaneStyles lane_styles = makeLaneStyles(metrics);
 
     const auto [first, last] =
-        common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
+        common::core::visibleEventRange(tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 
-    // The note each pass below draws, resolved once for the whole call so no pass restates the
-    // fallback: the host's choice where it composes two forms of one chart, the state's own note
-    // otherwise. The index range above stays the state's own either way — presentation moves no
-    // onset and adds or removes no note, so the forms align by index and share these search keys.
-    const auto note_at = [&](std::size_t index) -> const common::core::NoteViewState& {
-        return drawn_note ? drawn_note(index) : tab.notes[index];
+    // Whether one note's whole truth is on show, asked once per note per pass so no pass restates
+    // the fallback; a host with no reveal at all reveals nothing.
+    const auto is_revealed = [&revealed](std::size_t index) { return revealed && revealed(index); };
+    // HOW FAR one note is drawn, read by every mark on the note (\ref drawnEndSeconds).
+    const auto drawn_end_of = [&](std::size_t index) {
+        return common::core::drawnEndSeconds(tab.notes[index], is_revealed(index));
     };
 
     // Floating labels collected during the note passes and drawn above every head.
@@ -2516,11 +2552,12 @@ void paintTabLane(
     // instead draws its head here inside the same flattened group as its tail.
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::NoteViewState& note = note_at(index);
+        const common::core::NoteViewState& note = tab.notes[index];
         // The index range above is a tight superset, never a verdict: its start comes from the
-        // running maximum of ENDS, so a note inside it can still have finished before the window
-        // opened.
-        if (note.end_seconds < span_start)
+        // running maximum of RING ends, so a note inside it can still have finished before the
+        // window opened. Tested against the ring rather than the ink because a reveal may draw
+        // that far; an unrevealed note whose ink ended earlier simply draws nothing here.
+        if (note.ring_end_seconds < span_start)
         {
             continue;
         }
@@ -2528,6 +2565,7 @@ void paintTabLane(
         const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
+        const double drawn_end = drawn_end_of(index);
 
         // A ghost's opaque tail, marks and head are flattened together, then the finished note is
         // composited once. Per-ink alpha would let the already-drawn tail show through the head.
@@ -2537,7 +2575,7 @@ void paintTabLane(
         const juce::Rectangle<int> group_bounds{
             juce::roundToInt(onset_x - metrics.headSize()),
             juce::roundToInt(center_y - metrics.lane_height),
-            juce::roundToInt(metrics.x(note.end_seconds) - onset_x + (2.0f * metrics.headSize())),
+            juce::roundToInt(metrics.x(drawn_end) - onset_x + (2.0f * metrics.headSize())),
             juce::roundToInt(2.0f * metrics.lane_height)
         };
         std::optional<ScopedTransparencyLayer> group;
@@ -2546,12 +2584,11 @@ void paintTabLane(
             group.emplace(g, group_bounds, note_opacity);
         }
 
-        // Every note's tail, unconditionally: the presented end is the whole answer. Where the
-        // FIGURE above a member accounts for its whole ring the presentation has already emptied
-        // that end (the tail law, common::core::presentedChartNotes), so this draws nothing and no
-        // suppression is tested here — the one shape in which two surfaces could spend a hiding
-        // rule differently.
-        drawNoteTail(g, metrics, style, note, onset_x, center_y);
+        // Every note's tail, unconditionally: the drawn extent is the whole answer. Where rules 2
+        // and 3 emptied a tail the ink end is the onset, so this draws nothing and no suppression
+        // is tested here — the one shape in which two surfaces could spend a hiding rule
+        // differently.
+        drawNoteTail(g, metrics, style, note, onset_x, center_y, drawn_end);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand
@@ -2593,17 +2630,26 @@ void paintTabLane(
                         });
                 }
             }
-            drawVibratoSine(g, metrics, style, note, center_y);
+            drawVibratoSine(g, metrics, style, note, center_y, drawn_end);
             // An unpitched slide label states a fret, so its box uses the plate weight while its
             // text stays fully opaque.
             drawSlideLines(
-                g, metrics, style, note, onset_x, center_y, slide_labels, fret_plate_opacity);
-            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips, note_opacity);
+                g,
+                metrics,
+                style,
+                note,
+                onset_x,
+                center_y,
+                slide_labels,
+                fret_plate_opacity,
+                drawn_end);
+            drawBendLines(
+                g, metrics, style, note, onset_x, center_y, bend_chips, note_opacity, drawn_end);
         }
 
         if (grouped)
         {
-            drawKeyframeHeadShapes(g, metrics, style, note, center_y);
+            drawKeyframeHeadShapes(g, metrics, style, note, center_y, drawn_end);
             drawNoteHeadBase(g, metrics, style, note, onset_x, center_y);
             // Attack badges remain in the ghost group. Their placement explicitly clears the fret
             // window, so the later fret overlays cannot obscure them.
@@ -2612,7 +2658,7 @@ void paintTabLane(
             // Close the note group before drawing fret plates at their middle weight and fret
             // numbers fully opaque.
             group.reset();
-            drawKeyframeFretNumbers(g, metrics, style, note, center_y);
+            drawKeyframeFretNumbers(g, metrics, style, note, center_y, drawn_end);
             drawNoteHeadFretPlate(g, metrics, style, note, onset_x, center_y, fret_plate_opacity);
             drawNoteHeadFretNumber(g, metrics, style, note, onset_x, center_y);
         }
@@ -2738,7 +2784,7 @@ void paintTabLane(
     {
         for (std::size_t index = first; index < last; ++index)
         {
-            const common::core::NoteViewState& note = note_at(index);
+            const common::core::NoteViewState& note = tab.notes[index];
             // Each bound to a local so its presence test and its reads are provably one object.
             const std::optional<int>& held = note.held;
             const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
@@ -2746,9 +2792,9 @@ void paintTabLane(
             // is a tight superset, so each pass still drops the notes that really end before it.
             // The face this pass draws sits at its note's own onset, so the note's own window
             // bounds it.
-            if (!held.has_value() || !mark.has_value() || note.end_seconds < span_start ||
+            if (!held.has_value() || !mark.has_value() || note.ring_end_seconds < span_start ||
                 mark->face == common::core::StopMarkFace::Posture ||
-                !common::core::stopMarkShown(*mark, revealed && revealed(index)))
+                !common::core::stopMarkShown(*mark, is_revealed(index)))
             {
                 continue;
             }
@@ -2770,9 +2816,9 @@ void paintTabLane(
 
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::NoteViewState& note = note_at(index);
+        const common::core::NoteViewState& note = tab.notes[index];
         // The tails pass's own left cull: the index range is a superset of what the window shows.
-        if (note.end_seconds < span_start)
+        if (note.ring_end_seconds < span_start)
         {
             continue;
         }
@@ -2785,7 +2831,7 @@ void paintTabLane(
 
         const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
-        drawKeyframeHeads(g, metrics, style, note, center_y);
+        drawKeyframeHeads(g, metrics, style, note, center_y, drawn_end_of(index));
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
     }
 
@@ -2833,7 +2879,7 @@ void paintTabLane(
 // Rationale lives on the declaration in tab_paint_core.h.
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_shape_end_seconds, const TabRevealedShape& revealed_shape)
+    const TabRevealed& revealed_shape)
 {
     // The visible span, derived exactly as the content pass derives it — from the context's own
     // clip, held to the lane's bounds — so a host repainting a strip gets the furniture that
@@ -2843,15 +2889,14 @@ void paintTabLaneFurniture(
     const double span_start = span.start.seconds;
     const double span_end = span.end.seconds;
 
-    const auto [first_shape, last_shape] =
-        visibleShapeRange(tab, prefix_max_shape_end_seconds, span);
+    const auto [first_shape, last_shape] = visibleShapeRange(tab, span);
     for (std::size_t shape_index = first_shape; shape_index < last_shape; ++shape_index)
     {
         const common::core::ShapeViewState& shape = tab.shapes[shape_index];
         // WHERE THIS SPAN'S RAILS STOP, resolved once for the cull and the drawing alike: the drawn
-        // extent rule 12a trimmed, or the musical close where the host reveals this span. The same
-        // shape the note passes take, one layer up — there the host hands a whole note across, here
-        // it answers a question, because a span's two ends ride one state rather than two forms.
+        // extent rule 12a trimmed, or the musical close where the host reveals this span — the
+        // same shape the note passes take, a note drawing to its ink end or, revealed, its ring
+        // end.
         const double end_seconds = revealed_shape && revealed_shape(shape_index)
                                        ? shape.close_seconds
                                        : shape.drawn_end_seconds;

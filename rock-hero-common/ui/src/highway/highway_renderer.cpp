@@ -39,6 +39,18 @@ namespace rock_hero::common::ui
 namespace
 {
 
+// Whether the board marks a keyframe: a pitched linked keyframe within the note's ink end. An
+// unpitched slide-out is a pressure release with no target to mark, a scrape's stops are the
+// PICKING hand's travel, and a keyframe past the ink end is in the ring's ending zone — this board
+// draws no reveal, so no mark of it appears. One predicate, asked by every consumer that draws or
+// pops a keyframe's fret, so none of them can disagree about which keyframes exist on the board.
+[[nodiscard]] bool marksKeyframe(
+    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe)
+{
+    return !common::core::isScrape(note.attack) && common::core::linkedKeyframe(keyframe) &&
+           keyframe.fret > 0 && common::core::keyframeDrawn(keyframe, note.ink_end_seconds);
+}
+
 // The shared resource table this renderer is built against. Pulled in unqualified because the draw
 // and creation code names a program or texture asset by enumerator many times over.
 using common::core::g_highway_shader_programs;
@@ -3548,7 +3560,7 @@ void HighwayRenderer::Impl::draw(
         {
             if (batch.submitted || batch.lane >= note_lane ||
                 note.start_seconds > batch.span_end_seconds ||
-                note.end_seconds < batch.span_start_seconds)
+                note.ink_end_seconds < batch.span_start_seconds)
             {
                 continue;
             }
@@ -3906,15 +3918,19 @@ void HighwayRenderer::Impl::draw(
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
         // finished head fades out in place at the hit line — consumed, never passing through
         // the board — over the passed fade that runs from the hold end. The hold
-        // end is the sustain end — or, for a sustainless strum under a hand-shape span, the
-        // span end (the span reads as the chord's hold even though no tail is drawn, and the
-        // pin persists while repeat boxes restate the chord underneath), released early when
-        // a later strum re-shows the chord and takes over the pinned display. For a plain
-        // sustainless note it is the onset, the original behavior.
+        // end is the drawn tail's end (the ink end) — or, for a sustainless strum under a
+        // hand-shape span, the span end (the span reads as the chord's hold even though no tail
+        // is drawn, and the pin persists while repeat boxes restate the chord underneath),
+        // released early when a later strum re-shows the chord and takes over the pinned
+        // display. For a note that draws no tail it is the onset, the original behavior.
         const double hold_end_seconds = std::max(
-            note.end_seconds,
+            note.ink_end_seconds,
             std::min(state.chart.display_hold_ends[index], group.hold_cap_seconds));
         const double head_seconds = std::clamp(now_seconds, note.start_seconds, hold_end_seconds);
+        // The gesture is drawn only as far as the ink end, so a head pinned past it holds the
+        // state the tail stops at: a keyframe, bend point or vibrato region in the ring's ending
+        // zone moves nothing on this board.
+        const double head_gesture_seconds = std::min(head_seconds, note.ink_end_seconds);
         const double fade =
             hold_end_seconds >= now_seconds
                 ? 1.0
@@ -3935,7 +3951,7 @@ void HighwayRenderer::Impl::draw(
                 : highwayNoteFretboardX(note, note.fret, metrics, mirrored),
             metrics,
             mirrored,
-            head_seconds);
+            head_gesture_seconds);
 
         // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted on the upper
         // displayed half toward the roomier side, and holds the result inside the string grid --
@@ -3964,10 +3980,10 @@ void HighwayRenderer::Impl::draw(
         // swing scaled to the head's half depth — the head breathes with the wobble instead
         // of bouncing at the tail's full swing or sitting pinned, both of which read as odd.
         // A pre-bent curve is already lifted at the onset, so this sits off the lane for the
-        // entire approach. A head pinned past the tail's end sits outside every region and holds
-        // still, which is where the region envelope leaves it anyway.
+        // entire approach. A head pinned past the tail's end holds still at the value the tail
+        // stops at, since a region the ink end cuts runs on into the ending zone.
         const double chart_head_y =
-            note_y_at(head_seconds, common::core::g_highway_vibrato_head_depth_fraction);
+            note_y_at(head_gesture_seconds, common::core::g_highway_vibrato_head_depth_fraction);
         // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
         // shares it: 0 once the art lies flat (g_flip_flat_lead_seconds before the hit line),
         // 1 at the visibility edge.
@@ -3988,7 +4004,7 @@ void HighwayRenderer::Impl::draw(
                                   ? lane_y + ((chart_head_y - lane_y) * (1.0 - flip_remaining))
                                   : chart_head_y;
 
-        // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
+        // Sustain tail: from the hit line (while sounding) or the onset to the ink end, as
         // Charter's three-band ribbon (solid edges around a translucent core). Technique
         // notes modulate the centerline, sampled adaptively in screen space.
         //
@@ -3996,9 +4012,10 @@ void HighwayRenderer::Impl::draw(
         // conditions in one — a tail with no length, one already behind the hit line, and one
         // clamped to nothing at the horizon all report the same empty span.
         //
-        // The note's own end is the whole of what bounds it, on this board and on the 2D lane
-        // alike: one presented length (the rules-1-to-4 execution form) with the tail law's verdict
-        // published beside it, never a second length. WHERE THE VERDICT BINDS is here (the
+        // The note's ink end is the whole of what bounds it, on this board and on the 2D lane's
+        // plain paint alike: one drawn length (the rules-1-to-4 execution form) with the tail law's
+        // verdict published beside it, never a second length. This board draws no reveal, so it
+        // never draws on toward the stored ring end. WHERE THE VERDICT BINDS is here (the
         // execution-form amendment): a ribbon the law marked RESTING draws its resting remainder
         // only inside the CURTAIN, which exists in two coinciding forms: the FIXED curtain at the
         // fretboard — one published lead deep (g_tail_reveal_lead_whole_note at the note's own
@@ -4047,7 +4064,7 @@ void HighwayRenderer::Impl::draw(
                 ? std::clamp((span_end_seconds - reveal_anchor) / fade_room, 0.0, 1.0)
                 : 1.0;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
-                note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
+                note.start_seconds, note.ink_end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())
         {
             const double tail_from = tail_span->from;
@@ -4057,7 +4074,7 @@ void HighwayRenderer::Impl::draw(
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
             // Tip: alpha dissolves over the sustain's last fraction (the glow posts' fade,
-            // mirrored), anchored to the full note duration so the fading tip stays put while
+            // mirrored), anchored to the full drawn duration so the fading tip stays put while
             // the hit line consumes the body.
             //
             // Onset: the tail rises from nothing over a FIXED span of its own time, the way the
@@ -4073,14 +4090,14 @@ void HighwayRenderer::Impl::draw(
             // A ghosted note's ribbon quiets with its head, at the one ghost alpha: a
             // full-strength tail under a quieted head reads as a rendering fault rather than as
             // a note played softly.
-            const double duration = note.end_seconds - note.start_seconds;
+            const double duration = note.ink_end_seconds - note.start_seconds;
             const double ghost_tail_alpha = emphasisAlpha(note.emphasis);
             // ...and the loud end lights it, for the same reason and on the same surface. An
             // accent stopping at the head would make the axis say different things at its two ends.
             const bool tail_lit = common::core::isAccented(note.emphasis);
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
-                    (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
+                    (note.ink_end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
                 // The curtain's own fade — the same shape for the fixed curtain and every
                 // local copy: a STEEP POWER CURVE over a faint LINEAR SKIRT, full at and
@@ -4162,8 +4179,10 @@ void HighwayRenderer::Impl::draw(
             const double base_x = tail_footprint.center_x;
             const std::array<double, 4> band = band_stations(tail_footprint);
 
-            const bool modulated = !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
-                                   common::core::glideStopCount(note) > 0;
+            // Any stop at all, not only those within the drawn extent: the leg toward a stop past
+            // the ink end still travels across the drawn part of the tail.
+            const bool modulated =
+                !note.vibrato.empty() || note.tremolo || !note.bend.empty() || !note.slides.empty();
             // An open band whose window moves under it must sample its stations along the tail
             // (the tail travels with the hand — fhp-window-motion plan). The one scan that
             // answers whether it moves also leaves the ramp samples the wobble times take below.
@@ -4193,7 +4212,7 @@ void HighwayRenderer::Impl::draw(
                 const double body_begin =
                     std::clamp(note.start_seconds + g_tail_onset_fade_seconds, tail_from, tail_to);
                 const double fade_begin_seconds =
-                    note.end_seconds - (duration * g_tail_tip_fade_fraction);
+                    note.ink_end_seconds - (duration * g_tail_tip_fade_fraction);
                 const double body_end = std::clamp(fade_begin_seconds, body_begin, tail_to);
                 const auto push_cell = [&](const double a_seconds, const double b_seconds) {
                     pushRibbonSegment(
@@ -4428,7 +4447,7 @@ void HighwayRenderer::Impl::draw(
                 if (common::core::openString(note) || tail_lit)
                 {
                     const double modulated_fade_begin =
-                        note.end_seconds - (duration * g_tail_tip_fade_fraction);
+                        note.ink_end_seconds - (duration * g_tail_tip_fade_fraction);
                     const auto push_ramp_times = [&](const double from_seconds,
                                                      const double to_seconds) {
                         const int steps =
@@ -4446,7 +4465,7 @@ void HighwayRenderer::Impl::draw(
                     };
                     push_ramp_times(
                         note.start_seconds, note.start_seconds + g_tail_onset_fade_seconds);
-                    push_ramp_times(modulated_fade_begin, note.end_seconds);
+                    push_ramp_times(modulated_fade_begin, note.ink_end_seconds);
                 }
                 if (open_band_moves)
                 {
@@ -4654,8 +4673,9 @@ void HighwayRenderer::Impl::draw(
             continue;
         }
         // Consumed at the line: a passed head keeps the hit-line station while its fade runs.
-        // head_seconds itself stays clamped at the hold end so slide, bend, taper, and
-        // hand-window sampling hold the note's final state instead of extrapolating past it.
+        // head_seconds itself stays clamped at the hold end so hand-window sampling holds the
+        // note's final state instead of extrapolating past it; slide and bend read
+        // head_gesture_seconds, clamped further to the ink end.
         const double z = time_to_z(std::max(head_seconds, now_seconds));
 
         // Marker quads composite over the head base exactly like Charter's CPU-composited
@@ -5408,14 +5428,13 @@ void HighwayRenderer::Impl::draw(
                 tint);
         }
 
-        // Each pitched slide keyframe gets its own post and line; an unpitched slide-out
-        // is a pressure release with no target to mark, so it gets no board furniture — only the
-        // rail's own dimming trail. A keyframe carries its own time, which can sit well past its
-        // note's onset, so each marker culls to the same upcoming window as its floor fret
-        // number below: past span_end it would float beyond the board's far edge, and behind the
-        // hit line it would stand at full alpha after its number vanished. Keyframe and
-        // tapped-note fret numbers ride the board floor with the scrolling numbers, pushed in
-        // that pass below.
+        // Each marked keyframe (marksKeyframe) gets its own post and line; an unmarked one gets
+        // no board furniture — only the rail's own dimming trail.
+        // A keyframe carries its own time, which can sit well past its note's onset, so each
+        // marker culls to the same upcoming window as its floor fret number below: past span_end
+        // it would float beyond the board's far edge, and behind the hit line it would stand at
+        // full alpha after its number vanished. Keyframe and tapped-note fret numbers ride the
+        // board floor with the scrolling numbers, pushed in that pass below.
         // Stacked chord slides dedup: members sliding together land keyframes on the same fret
         // at the same instant, and their markers would pile up in one slot — only the member on
         // the lowest displayed lane (nearest the floor, so its post overlaps nothing above it)
@@ -5430,13 +5449,11 @@ void HighwayRenderer::Impl::draw(
                 {
                     continue;
                 }
-                if (common::core::isScrape(other.attack))
-                {
-                    continue;
-                }
+                // Only a marker the other member actually draws can stand in for this one.
                 for (const common::core::KeyframeViewState& other_keyframe : other.slides)
                 {
-                    if (other_keyframe.fret == keyframe.fret &&
+                    if (marksKeyframe(other, other_keyframe) &&
+                        other_keyframe.fret == keyframe.fret &&
                         std::abs(other_keyframe.seconds - keyframe.seconds) < g_onset_match_epsilon)
                     {
                         return true;
@@ -5445,18 +5462,12 @@ void HighwayRenderer::Impl::draw(
             }
             return false;
         };
-        // A scrape's stops are the PICKING hand's travel, so none of them earns a fret-hand
-        // marker; the slide-out terminal never earns one either, and it is not in this list to be
-        // filtered out (W9-L).
-        if (!common::core::isScrape(note.attack))
+        for (const common::core::KeyframeViewState& keyframe : note.slides)
         {
-            for (const common::core::KeyframeViewState& keyframe : note.slides)
+            if (marksKeyframe(note, keyframe) && keyframe.seconds > now_seconds &&
+                keyframe.seconds <= span_end_seconds && !stacked_below(keyframe))
             {
-                if (keyframe.fret > 0 && keyframe.seconds > now_seconds &&
-                    keyframe.seconds <= span_end_seconds && !stacked_below(keyframe))
-                {
-                    push_keyframe_marker(keyframe.fret, keyframe.seconds);
-                }
+                push_keyframe_marker(keyframe.fret, keyframe.seconds);
             }
         }
     }
@@ -6639,10 +6650,8 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         const common::core::NoteViewState& note = state.chart.notes[index];
         for (const common::core::KeyframeViewState& keyframe : note.slides)
         {
-            // A scrape's stops are unpitched pick travel and pop no fret line; the slide-out
-            // terminal is not in this list at all (W9-L), which is the same exclusion it always
-            // had through the flag.
-            if (common::core::isScrape(note.attack) || keyframe.fret <= 0)
+            // Exactly the keyframes the board marks pop a fret line: nothing undrawn is scored.
+            if (!marksKeyframe(note, keyframe))
             {
                 continue;
             }
@@ -6658,6 +6667,10 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         {
             const common::core::BendPointViewState& segment_from = note.bend[point - 1];
             const common::core::BendPointViewState& arrival = note.bend[point];
+            if (arrival.seconds > note.ink_end_seconds)
+            {
+                break; // the curve's remaining points lie in the ring's ending zone
+            }
             if (std::is_eq(arrival.semitones <=> segment_from.semitones))
             {
                 continue; // a flat hold segment ends in no arrival

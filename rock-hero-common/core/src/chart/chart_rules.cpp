@@ -299,7 +299,7 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     // statement past the new end — and re-attaches at the end the clip settles, so no keyframe ever
     // sits past the ring and no two sit at one offset. A ring ending at ZERO carries nothing: an
     // offset is strictly positive, so there is no end for a statement to stand at, and the erase
-    // below takes every keyframe with the dropped tail (dropPresentedTail).
+    // below takes every keyframe with the dropped tail.
     std::optional<Keyframe> ridden;
     if (const Keyframe* const end = endStatement(note);
         end != nullptr && sustain.numerator > 0 && (shortening || isScrape(note.attack)))
@@ -320,9 +320,9 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     // The bound is inclusive for every channel: a statement standing exactly at the new end
     // survives, whatever it states — and the end's own statement, arriving back on top of it,
     // overlays it (setEndStatement). Where that end is a head of the note's own string the
-    // statement STANDS on it, which is what the store says the hands did; the spacing a mark needs
-    // to be seen and reached is presentation's (presentedChartNotes rule 2). Heads are no business
-    // of a clip.
+    // statement STANDS on it, which is what the store says the hands did; presentation only stops
+    // the ink one margin before that head (chartPresentation rule 1). Heads are no business of a
+    // clip.
     std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
         return note.sustain < keyframe.offset;
     });

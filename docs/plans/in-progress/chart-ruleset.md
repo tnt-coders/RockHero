@@ -739,7 +739,7 @@ question in that comparison is asked of the FRETTING HAND's members alone. The P
 plain chord's first dead chug is an X'd repeat box wearing its own mark; what a repeat box may not
 do is drop information it cannot draw, so it renders only the mute profiles it wears a mark for —
 plain, palm-muted, dead, or both, each composed with its emphasis — and any other profile, or any
-presented tail, falls back to the full box that keeps its heads. Only the board draws boxes; the 2D
+drawn tail, falls back to the full box that keeps its heads. Only the board draws boxes; the 2D
 lane says the same thing with the span's rails and its name.
 
 **THE COINCIDENCE RULE.** Where a chord box and an arpeggio box would coincide, the chord box is
@@ -768,7 +768,7 @@ The board reveals nothing and reads the drawn extent.
 **THE TAIL LAW — SPAN FURNITURE MAY HIDE A TAIL, NEVER SHORTEN ONE. THE CURTAIN IS UNIVERSAL.**
 EVERY fretting-hand tail RESTS, from its own last always-visible landmark, unless it is still
 stating at its end — over open board exactly as under a bracket. It runs LAST inside
-`presentedChartNotes`, is VERDICT-ONLY (it reads the STORED rings, judges, and MARKS where each tail
+`chartPresentation`, is VERDICT-ONLY (it reads the STORED rings, judges, and MARKS where each tail
 rests, inventing and erasing no length), and it computes nothing: no length, no endpoint, no
 threshold, no constant of its own, and no span CLASS. That is what ends the argument a
 neighbour-dependent length kept having — once one ribbon's length is a function of a neighbour's
@@ -799,13 +799,13 @@ length.
 - **SCOPE, on both sides of the judgment**: right-hand onsets are neither members
   nor witnesses. That fixes a live defect — a tap must not cut the fretting hand's ring underneath
   it — and it is the one place this law moves ink UP.
-- **THE EXECUTION FORM.** The presented stream keeps every member's rules-1-to-4 tail; the 2D lane
-  draws it always, and the 3D board rests hidden ribbons at distance, drawing each only inside the
+- **THE EXECUTION FORM.** Every member keeps the ink end rules 1 to 3 gave it; the 2D lane draws
+  to it always, and the 3D board rests hidden ribbons at distance, drawing each only inside the
   sliding reveal window rising from the hit line (`g_tail_reveal_lead_whole_note`, whose initializer
   is the one statement of its value, fully lit at the line and fading to nothing at the window's
-  outer edge). Rule-3 and rule-4 emptiness never enters the resting set. The verdict is PUBLISHED
-  rather than inferred (`ChartResolutions::rested_from` → `NoteViewState::rested`), says only WHERE
-  a ribbon rests and never how long one is, and is never set in the ACTUAL reveal.
+  outer edge). Rule-2 and rule-3 emptiness never enters the resting set. The verdict is PUBLISHED
+  rather than inferred (`ChartResolutions::rested_from` → `NoteViewState::rested`), and says only
+  WHERE a ribbon rests and never how long one is.
 - **WHAT IT COSTS**, and it is the headline visual change: plain sustained chords, quarter-note chug
   chains, dry arpeggios and co-terminating let-ring figures go RIBBONLESS, and so does every lone
   plain note over open board. Rails, repeat boxes and 3D hold-pinning are what state the tenure
@@ -816,12 +816,11 @@ held to the span's reach — while the grip is held, the board pins what is held
 strum-size gate: under grip tenure a covered member's un-renewed death would have BROKEN the span,
 so coverage past a member's ring IS the record that the finger never lifted. Dead members (a dead
 chug is choked, not held), the other hand's onsets, and members whose tails stand and never rest
-state their own hold. Resting is keyed by the VERDICT and not by tail emptiness, since the execution
-form restored hidden members' presented tails and keying on the tail again would release the very
-pins this fixed. **The floor is keyed on SPAN COVERAGE**, not on the verdict: a COVERED resting
-member raises to its own stored ring — which may exceed the span's reach, the honest hold, because
+state their own hold. Resting is keyed by the VERDICT and not by tail emptiness, since resting
+members keep their ink ends and keying on the tail again would release the very pins this fixed.
+**The floor is keyed on SPAN COVERAGE**, not on the verdict: a COVERED resting member raises to its own stored ring — which may exceed the span's reach, the honest hold, because
 the string genuinely rings there — and then to the span's reach; a LONE resting note is never
-reached and holds for the tail it presents. A HANDED-OVER member is excluded whole and pins for
+reached and holds to its ink end. A HANDED-OVER member is excluded whole and pins for
 exactly its stored ring, where the next strike takes the string. Coverage is positional only, from
 the one authority both span-scoped display rules ask (`SpanCover::reaching`, the furthest-reaching
 span already started when the instant arrives, an onset at a seam standing in the grip that
@@ -856,8 +855,8 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
   no text at all — the node states itself by SITTING ON ITS OWN WIRE (`highwayStopX`), with the same
   label authority reaching that board through the floor numbers. Node text, no diamond.
 - Pending statements are visibly pending (the ghost head through the honesty gate); the Alt reveal
-  is the universal actual-truth escape, and it shows the ACTUAL STORED ring rather than the
-  presented tail.
+  is the universal actual-truth escape, and it draws the STORED ring on to its end rather than
+  stopping at the ink end.
 - **THE LANE'S HIT MODEL: HEADS ARE TARGETS; TAILS ARE TESTIMONY.** Clicks move the caret; heads
   select; tails never select, visible and hidden alike. If the clicked slot lies inside ink that is
   not drawn, that ink REVEALS while the caret sits within the ring — a deterministic peek keyed on
@@ -865,7 +864,7 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
   REASON, one condition: the caret sits inside the note's ACTUAL ring beyond its drawn ink. The
   warrant is authoring: techniques can be authored on presentation-hidden tails, so authoring there
   must function exactly as it would on any tail, and the reveal must not care why the ink is absent.
-- **DRAWN = SCORED.** The presented tail is the surface and the scorer reads it; there is ONE end
+- **DRAWN = SCORED.** The ink end is the surface and the scorer reads it; there is ONE ink end
   per note and both surfaces draw to it. Scoring for arpeggio spans is to be revisited definitively
   in the note-detection plan — possibly awarding extra points for HOLDING THE HANDSHAPE, diverging
   somewhat from display because the bracket displays that everything is held — and until that plan

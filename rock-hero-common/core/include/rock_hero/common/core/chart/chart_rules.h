@@ -312,7 +312,7 @@ void dropNotePath(ChartNote& note);
 
 /*!
 \brief Resizes a note's ring to `sustain` and clips its payload back inside it — THE ONE WAY a
-stored or presented ring changes length once it carries a payload.
+stored ring changes length once it carries a payload.
 
 The consequence every shortening of a tail owes, so the payload rule "offsets lie within the
 sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit the
@@ -332,15 +332,14 @@ compression makes its fret meet the fret it now follows, the nearest earlier dif
 over, including one this clip removes, so the path never sits still.
 
 A ring ending at ZERO carries nothing: an offset is strictly positive, so there is no end for a
-statement to stand at, and every keyframe leaves with the dropped tail (\ref presentedChartNotes
-rules 3 and 4).
+statement to stand at, and every keyframe leaves with the dropped tail.
 
 The bound is inclusive for every channel: a statement standing exactly at the new end survives, a
 bend point arriving there included — and the end's own statement, arriving back on top of it,
 overlays it rather than doubling the offset. Where the new end is a following onset on the note's
-string, that statement STANDS on the head, which is the truth the store holds: the spacing a mark
-needs to be seen and reached is presentation's (\ref presentedChartNotes rule 2), and this clip
-knows nothing about heads.
+string, that statement STANDS on the head, which is the truth the store holds: presentation stops
+the ink one margin before that head and leaves the statement where it stands
+(\ref chartPresentation rule 1), and this clip knows nothing about heads.
 
 \param note Note whose ring is resized and whose payload is clipped in place.
 \param sustain The ring's new length.
@@ -354,7 +353,7 @@ void clipPayloadsToSustain(ChartNote& note, Fraction sustain);
 bounds it — a re-strike stops the ring, so a tail may reach the next onset on its OWN string
 exactly and never pass it (exact adjacency is what lets a slide reach its landing, and what a
 legato claim reads as a hold that still reaches). Every other length a surface shows is derived
-(\ref presentedChartNotes), never stored.
+(\ref chartPresentation), never stored.
 
 Stated once here because two rules need the same answer and disagreeing would be the defect:
 \ref normalizeSustainOverlaps truncates to it, and the editor's duration verbs grow toward it.
@@ -380,8 +379,9 @@ placement asks the same question.
 the defect: \ref normalizeSustainOverlaps truncates a stored ring to it, the editor's duration verb
 grows a ring toward it, and its move verb steps a slide-out toward it — so "a ring's end reaching
 the next head on its string" has ONE answer wherever it is asked. Exact adjacency is legal, which is
-what lets a slide reach its landing and a slide-out complete on the head it goes out on; the spacing
-that mark then needs to be seen is presentation's (\ref presentedChartNotes rule 2).
+what lets a slide reach its landing and a slide-out complete on the head it goes out on; the ink
+then stops one margin before that head (\ref chartPresentation rule 1), and the mark stays at
+its stored instant.
 
 A clamp rather than a refusal, and it needs no direction test: a ring already at its bound reports
 the bound for every target past it, and leaves it the moment the target falls back inside.
@@ -443,7 +443,7 @@ runs first). That is the cost of storing the moment once — and the point of it
 alternative silently deletes statements that share an offset with the one a rule refused.
 
 A dead note's tail is deliberately NOT here (E25). It is a presentation rule
-(\ref presentedChartNotes rule 4): a dead note carries its actual ring like any other — that ring
+(\ref chartPresentation rule 3): a dead note carries its actual ring like any other — that ring
 is the timing information the legato adjacency test reads — and no surface draws it.
 
 What it deliberately does NOT own stays a refusal in \ref validateChartNoteAlone, because no

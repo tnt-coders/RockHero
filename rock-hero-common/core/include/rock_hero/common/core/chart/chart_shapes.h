@@ -515,8 +515,8 @@ where the fingers are, and which of them the pick reached. The carry in (a) is t
 fold-in, which has always asked the stored ring, so a dead string's carry now classifies at a span's
 START exactly as it already did at an interior slot. E25 is untouched by this and stays what it
 always was — a DISPLAY rule, about what a surface draws of a ring nobody hears. What (d) reads off
-the note stream is positions and attacks alone, which presentation carries through unchanged — so
-the rule takes the stored stream, and \ref chartResolutions can answer the class before the bracket
+the note stream is positions and attacks alone, which presentation never touches — so the rule
+takes the stored stream, and \ref chartResolutions can answer the class before the bracket
 re-read that consumes it runs.
 
 A posture string is either SOUNDED by the span or CLAIMED by it, which is why "merely silent at the
@@ -532,8 +532,7 @@ One forward cursor over the sorted notes serves every shape. No backward look is
 here reads a posture string's most recent earlier note, which would mean walking back to the first
 note in the song whenever a posture string had none.
 
-\param notes Note stream sorted by (position, string); only positions and attacks are read, which
-             presentation never moves, so the stored and the presented form answer identically.
+\param notes Note stream sorted by (position, string); only positions and attacks are read.
 \param shapes Hand-posture spans, sorted by position (\ref ChartResolutions::shapes).
 \param tempo_map Song tempo map, for the signature-exact span end.
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.

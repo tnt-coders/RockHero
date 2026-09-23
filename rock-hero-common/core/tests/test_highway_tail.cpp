@@ -506,7 +506,8 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
 {
     NoteViewState note;
     note.start_seconds = 10.0;
-    note.end_seconds = 14.0;
+    note.ring_end_seconds = 14.0;
+    note.ink_end_seconds = 14.0;
     note.bend = {
         BendPointViewState{.seconds = 11.3, .semitones = 1.0},
         BendPointViewState{.seconds = 9.0, .semitones = 0.5},  // outside: dropped
@@ -544,7 +545,8 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
 {
     NoteViewState note;
     note.start_seconds = 10.0;
-    note.end_seconds = 11.0;
+    note.ring_end_seconds = 11.0;
+    note.ink_end_seconds = 11.0;
 
     const std::vector<double> extra{10.13, 10.42, 10.87};
     const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, extra, 256);
@@ -580,7 +582,8 @@ TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highwa
 {
     NoteViewState note;
     note.start_seconds = 10.0;
-    note.end_seconds = 20.0;
+    note.ring_end_seconds = 20.0;
+    note.ink_end_seconds = 20.0;
 
     // Forty exact times under a cap of 64: the grid shrinks to 24 and the list holds the cap.
     std::vector<double> extra;

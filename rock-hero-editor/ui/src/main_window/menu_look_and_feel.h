@@ -28,7 +28,7 @@ public:
     \brief Shows or hides the underlined access letter in every menu title; repaints on a change.
 
     Windows hides menu mnemonics until Alt is held, so the editor pushes the same held-Alt
-    predicate that drives the tab lane's actual-ring reveal in here once per frame. While it is on,
+    predicate that drives the tab lane's ring reveal in here once per frame. While it is on,
     each menu title underlines its first character, which is the letter its Alt chord matches.
 
     \param visible True while Alt is held with this application in the foreground.

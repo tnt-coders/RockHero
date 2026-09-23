@@ -29,7 +29,7 @@ judged against that one note value; nothing about how a tail is drawn, rested or
 - **No per-section, per-region or per-note value.** One value per song, by ruling (§7 decision 2).
 - **No change to the minimum sustain distance** (`g_minimum_sustain_distance_seconds`), the
   reveal lead, or any other presentation constant. Each is its own question.
-- **No new tail rule.** Rule 3 of `presentedChartNotes` reads a value instead of a constant; its
+- **No new tail rule.** Rule 3 of `chartPresentation` reads a value instead of a constant; its
   comparison and its group verdict are untouched.
 
 ## 4. Constraints
@@ -56,15 +56,15 @@ judged against that one note value; nothing about how a tail is drawn, rested or
   in `rock-hero-common/core/include/rock_hero/common/core/chart/grid_arithmetic.h`. Its doc block
   already says it is "headed for a user-tunable option" and that the initializer is the only
   statement of the value.
-- **The one reader**: rule 3's per-member earning in `presentedChartNotes`
+- **The one reader**: rule 3's per-member earning in `chartPresentation`
   (`rock-hero-common/core/src/chart/chart_presentation.cpp`, the `kept_bound` local),
   `saved_notes[index].sustain > kept_bound`. Nothing else reads the constant.
-- **The pass's signature**: `presentedChartNotes(const ChartConnections&, const TempoMap&)`
+- **The pass's signature**: `chartPresentation(const ChartConnections&, const TempoMap&)`
   (`chart_presentation.h`), called from `chartResolutions(notes, tempo_map)`
   (`chart_legato.cpp`), which is the one derivation every surface reads. Production callers of
   `chartResolutions`: the projection (`chart_projection.cpp`, `makeChartViewState`), the editor's
   verbs (`rock-hero-editor/core/src/chart/chart_edits.cpp`, two sites), and the importer's
-  `presentedNotes` in `gp_chart_builder.cpp` (which calls `presentedChartNotes` directly and reads
+  `presentedNotes` in `gp_chart_builder.cpp` (which calls `chartPresentation` directly and reads
   only `.notes`). Tests call both with the default.
 - **The song**: `Song` carries the arrangements and the tempo map; `song.json` is the package's
   song-level document (plan 43 owns its metadata fields and the Song Information dialog). There is
@@ -97,7 +97,7 @@ judged against that one note value; nothing about how a tail is drawn, rested or
    displaying tails on shorter notes." A per-song value cannot flip inside a song.
 3. **Absent means the default, and the default is the constant.** The constant's initializer stays
    the one place the default's value is spelled; the policy value's default is read from it.
-4. **The pass takes the value as a parameter.** `presentedChartNotes` and `chartResolutions` gain a
+4. **The pass takes the value as a parameter.** `chartPresentation` and `chartResolutions` gain a
    presentation-policy argument carrying the bound; the constant is that argument's default. No
    global, no singleton, no reading a settings store from core.
 5. **The value travels with the song.** It is the charter's statement about the song, so it lives
@@ -130,7 +130,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ### Phase 1 — The policy value, threaded, default only
 
 A presentation-policy value carrying the kept-sustain bound as a whole-note fraction, defaulted from
-the constant; `presentedChartNotes` and `chartResolutions` take it; every production caller passes
+the constant; `chartPresentation` and `chartResolutions` take it; every production caller passes
 the default. Behaviour identical, census identical. Tests: the default equals the constant; a
 non-default value changes rule 3's verdict for a ring between the two values and nothing else.
 

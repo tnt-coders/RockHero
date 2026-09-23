@@ -10,12 +10,14 @@ dictionary, and the converter default of ruling 7.
 
 `ChartNote::sustain` is the **actual duration the string rings** — Guitar Pro's notated duration at
 import, what the editor's verbs author. It is strictly positive on EVERY note, with no exception —
-every note sounds, and a dead note's damped stroke has a duration too. What a surface
-**draws** and what the game will **score** is the **presented** form, derived once per chart
-revision by `presentedChartNotes` in common/core from the tail rules, which are a pure read-side
-derivation rather than import-time destruction. The legato resolver reads the actual duration under
-strict adjacency. The span-implied hold the 3D board pins heads for is derived from the presented
-form and the hand-shape spans. Nothing that is drawn is stored; nothing that is stored is a guess.
+every note sounds, and a dead note's damped stroke has a duration too. Every surface **draws** the
+stored note, and what the game will **score** is what is drawn: presentation publishes only the
+**ink end** — where a surface stops drawing each ring — derived once per chart revision by
+`chartPresentation` in common/core from the tail rules, a pure read-side derivation rather than
+import-time destruction. Nothing moves: every keyframe keeps its stored instant. The legato
+resolver reads the actual duration under strict adjacency. The span-implied hold the 3D board pins
+heads for is derived from the ink ends, the tail law's verdict and the hand-shape spans. Nothing
+that is drawn is stored; nothing that is stored is a guess.
 
 ## Why
 
@@ -28,59 +30,50 @@ and MIDI playback would need a fourth guess. That is the rule-stated-in-N-places
 Storing the truth once moves the only unavoidable guess to where the information genuinely does not
 exist — a lossy source format's import (ruling 7) — and deletes the rest.
 
-## Three forms of a note
+## Two forms of a note, and one drawn length
 
 | Form | Produced by | Read by |
 |---|---|---|
 | **memory** | the editor's verbs, the importer | everything below |
-| **saved** (`savedChartNote`) | memory with a scrape's latent overrides stripped | the document writer, the validator, the resolver |
-| **presented** (`presentedChartNotes`) | saved notes through the tail rules | both painters, hit testing, the future scorer |
+| **saved** (`savedChartNote`) | memory with a scrape's latent overrides stripped | the document writer, the validator, the resolver, both painters, hit testing, the future scorer |
 
-`ChartResolutions` carries the connections (`ChartConnections`, which owns `saved_notes`),
-`presented_notes`, and the per-note `holds`, computed together once per chart revision; the
-projection builds `NoteViewState` from the presented note and `display_hold_ends` from the holds.
+`ChartResolutions` carries the connections (`ChartConnections`, which owns `saved_notes`), the
+per-note `ink_end` and the tail law's verdict, and the per-note `holds`, computed together once per
+chart revision; the projection publishes each note's stored end and ink end
+(`NoteViewState::ring_end_seconds`, `ink_end_seconds`) and `display_hold_ends` from the holds.
 
 ## The presentation rules (stated once in core, not at import)
 
-Input: the saved stream in chart order; the tempo map. Output: one presented note per input note,
-and the tail law's verdict beside it.
+Input: the saved stream in chart order; the tempo map. Output: per input note, the ink end and the
+tail law's verdict beside it. No note of its own, and nothing moved.
 
-1. **Trim to the margin.** The *binding* onset is the first later sounding onset — a different
+1. **Crop to the margin.** The *binding* onset is the first later sounding onset — a different
    grid position on any string — that the ring does not *pass*, passing meaning running *strictly
-   past* it. The presented tail ends at least one minimum-sustain margin (at the note's own
-   measure) before that onset; a ring ending exactly *on* an onset passes nothing and binds there.
-   A ring no later onset binds presents whole. **Deliberate hold:** a ring that passes an onset (a
-   tie merged across a neighbour, a cross-voice hold) still earns its group's tails under rule 3,
-   but does not skip this trim — leaving it whole lets a ring-through die on a later head with no
-   gap at all.
-2. **A statement INSIDE the ring floors the trim; the statement AT its end rides with the end.**
-   The tail extends to the last payload point standing strictly inside the ring and stops exactly
-   there; trailing points leave with the tail (clipped in the presented note, never rescaled: GP's
-   bend curve is anchored to the notated ring). Silence is the keyframe commit law's to shed, never
-   the trim's to judge. A statement standing exactly at the ring's END — a slide-out's fall, a bend
-   curve's last value, a scrape's terminal — belongs to the end, so it floors nothing and is carried
-   to the presented end: one margin back from the strike ahead of it, or halfway along its own last
-   leg where the margin line would fall on or before that leg's start
-   (`lastStatementClearance`, presentation's own file-local). Every drawn tail is therefore spaced
-   alike whatever it ends in
-   (user ruling, 2026-09-21), and this trim is the ONLY place that spacing lives — the stored chart
-   may end a fall or a bend exactly ON the next head of its own string, because the store holds
-   what the hands did (same ruling; the stored clearance repair was deleted for it).
-3. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
+   past* it. The ink stops one minimum-sustain margin before that onset, floored onto the tick
+   lattice and never before the note's own onset; a ring ending exactly *on* an onset passes
+   nothing and binds there. A ring no later onset binds draws whole. **Deliberate hold:** a ring
+   that passes an onset (a tie merged across a neighbour, a cross-voice hold) still earns its
+   group's tails under rule 2, but does not skip this crop — leaving it whole lets a ring-through
+   die on a later head with no gap at all. The stretch from the crop to the ring's end is the
+   ENDING ZONE: its keyframes keep their stored instants and are neither drawn nor judged except
+   under a reveal, and the leg crossing the crop is drawn on its true path and stops there. So the
+   stored chart may end a fall or a bend exactly ON the next head of its own string, because the
+   store holds what the hands did (user ruling, 2026-09-21).
+2. **Drop short effect-free tails, per onset group.** A group that carries no sustain technique
    (bend, slide, slide-out, vibrato, tremolo) on any member, no deliberate hold, and no member whose
    *actual* ring runs LONGER than the kept-sustain bound (`g_minimum_kept_sustain_seconds`, which is
    the one place its value is stated — a duration, read in seconds through the tempo map, so the
-   same written value earns a tail below a crossover tempo and drops it above) presents no tail on
+   same written value earns a tail below a crossover tempo and drops it above) draws no tail on
    any member. Any member earning a tail keeps every member's.
-4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
+3. **A dead note draws no tail** unless tremolo or a slide payload keeps it making noise or
    travelling (E25). This is a presentation rule, not a stored-field repair: the stored ring is the
    timing the legato adjacency test reads.
-5. **A tail that shows no technique information RESTS** — the tail law. A verdict-only filter, run
+4. **A tail that shows no technique information RESTS** — the tail law. A verdict-only filter, run
    last: it reads the stored stream, judges, and MARKS where each tail rests
-   (`ChartPresentation::rested_from`), inventing and erasing no length, so every tail rules 1 to 4
-   left standing keeps its exact length. The verdict is an OFFSET — the last always-visible
-   landmark, past which the curtain owns the ribbon: zero for a plain ring, the informative
-   payload's end for a ring that finishes stating and goes plain, and the presented end for a
+   (`ChartPresentation::rested_from`), inventing and erasing no length, so every ink end rules 1 to
+   3 left standing is unchanged. The verdict is an OFFSET — the last always-visible landmark, past
+   which the curtain owns the ribbon: zero for a plain ring, the last statement's offset (held to
+   the ink end) for a ring that finishes stating and goes plain, and the ink end for a
    handed-over member, whose transfer finishes at the takeover. A ring still stating at its own end
    — a bend held to the end, a shake that never stops, tremolo, a slide-out's travel — rests
    nothing, because the curtain has no vocabulary for a statement in progress. THE CURTAIN IS
@@ -89,9 +82,9 @@ and the tail law's verdict beside it.
    own. Scope binds both sides of the judgment — right-hand onsets are neither
    members nor witnesses. The 3D board suppresses the resting remainder at distance and reveals it
    near the hit line; the 2D lane draws the execution form always. The full statement, with its
-   cases, lives at `presentedChartNotes` in `chart_presentation.h` and is not restated here.
+   cases, lives at `chartPresentation` in `chart_presentation.h` and is not restated here.
 
-Rules are applied in the order written; rule 3's verdict is shared per group, every other rule is
+Rules are applied in the order written; rule 2's verdict is shared per group, every other rule is
 per note.
 
 ## Invariants on the stored form
@@ -121,7 +114,7 @@ reports it.
 
 ## The hold (3D pinned heads)
 
-`holds[i]` starts at the presented end, with one exception: a HANDED-OVER member starts at its
+`holds[i]` starts at the ink end, with one exception: a HANDED-OVER member starts at its
 STORED ring, because the next strike on its string takes the sound there and the same-string clamp
 puts the stored ring exactly on that takeover.
 
@@ -134,20 +127,20 @@ derived chart a lone tail-less note a span covers past was necessarily renewed, 
 death would have broken the grip.
 
 Four members are passed over inside a covered group. A DEAD member is choked, never held — its fate
-belongs to rule 4's mute at either end, which is what chokes a wholly dead group with no unanimity
+belongs to rule 3's mute at either end, which is what chokes a wholly dead group with no unanimity
 rule. The OTHER HAND's onsets are passed over because a tap is a member of nothing the grip states.
 A HANDED-OVER member is excluded whole: its sound ends at its own stored ring, and the strike that
 takes the string owns the display from there. And a member whose tail STANDS AND NEVER RESTS states
 its own hold — its ribbon already says where its ring ends. That last test reads the tail law's
-VERDICT and NOT tail emptiness: the presented stream carries the resting members' tails, so keying
-on an empty tail would release the very pins the span convention exists to set.
+VERDICT and NOT tail emptiness: resting members keep their ink ends, so keying on an empty tail
+would release the very pins the span convention exists to set.
 
 A member no span covers — every plain note on open board, now that the curtain rests them all —
-holds for the tail it presents.
+holds to its ink end.
 
 Structurally this is the span convention unchanged: `chartHolds` IS that convention, asked of the
-presented stream. It extends the members whose tails rest as well as the ones rules 3 and 4
-emptied. The span engine is private to `chart_presentation.cpp`, since nothing resolves holds from
+ink ends and the verdict. It extends the members whose tails rest as well as the ones rules 2 and
+3 emptied. The span engine is private to `chart_presentation.cpp`, since nothing resolves holds from
 a trimmed stored form.
 
 **The span is the whole answer, and the note's own ring does not cap it.** The dichotomy the cap
@@ -165,51 +158,51 @@ the whole point of the boxes is to say it is still held. The ring is what the TA
 is what the pinned head draws; one fact each.
 
 The hold is the BOARD's alone. The 2D lane draws, lays out, hit-tests and culls by each note's
-presented tail, so a chug under a span wears a bare head there: the chord box already states how
-long the posture is fretted, and repeating that as a ribbon spends the one mark that means "this
-string is still ringing". The board, having no chord box, pins the heads to say the same thing.
+own ring and ink end, so a chug under a span wears a bare head there: the chord box already
+states how long the posture is fretted, and repeating that as a ribbon spends the one mark that
+means "this string is still ringing". The board, having no chord box, pins the heads to say the
+same thing.
 
 ## What the importer keeps deciding (meaning, not presentation)
 
 Tie merges and legato merges (the canonical long actual durations), grace leads and on-beat shifts
 (sounding truth, including the before-beat steal), the scrape gesture's path, the shift-slide
-arrival keyframe at `gap − margin` (synthesis: GP states no arrival time), the slide-in scoop
-window, dead notes, open-string floors. It does not trim, drop, clip payload, or ASSIGN the arrival
-window to the sustain. Synthesis may still GROW a ring too short to carry the keyframe it just
+arrival keyframe ON the landing's own instant (synthesis: GP states no arrival time), the slide-in
+scoop window, dead notes, open-string floors. It does not trim, drop, clip payload, or ASSIGN the
+arrival window to the sustain. Synthesis may still GROW a ring too short to carry the keyframe it just
 fabricated — payload has to lie inside the ring, and the note sounds while it travels — but never
 shorten one; growing to the landing instead would be inventing a ring the source never notated, and
 would turn every such origin into a rule-1 deliberate hold wherever another string sounds inside
 the gap. It runs the same-string clamp after every pass that can lengthen a ring (a re-strike stops
-the ring) and feeds its one presentation-riding pass — hand-placement generation at trail-off ends
-(`resolveSlideOutExits`) — the presented notes, so a trail-off's hand exit lands where the gesture
-is DRAWN to end. Hand-posture spans are not an import decision: they are derived wherever they are
-read.
+the ring), and hand-placement generation at trail-off ends (`resolveSlideOutExits`) reads the
+stored ring it settles, so a trail-off's hand exit lands where the gesture really ends.
+Hand-posture spans are not an import decision: they are derived wherever they are read.
 
 ## Accepted deviations from what the old import policy drew
 
 Each of these is a consequence of deriving presentation from the stored ring, and each is accepted:
 
-- A grace note's own lead-length tail (≈60 ms) does not present: its principal binds it at the
+- A grace note's own lead-length tail (≈60 ms) does not draw: its principal binds it at the
   sounding position, which the notated grouping used to exempt. Its hold goes with it.
-- An on-beat grace that delays only some members of a strum leaves the other members presented in
-  full rather than margin-trimmed (their ring strictly passes the fabricated onset).
+- An on-beat grace that delays only some members of a strum leaves the other members drawn in
+  full rather than margin-cropped (their ring strictly passes the fabricated onset).
 - Claims after a rest flatten under strict adjacency.
 - The 2D lane draws no derived sub-quarter hold ribbons; the lane does not read the hold at all.
 
-Two more come from the same root — the presented rules partition and bind on the SOUNDING position
-because the saved form is all they have, where the import policy read each event's NOTATED beat:
+Two more come from the same root — the presentation rules partition and bind on the SOUNDING
+position because the saved form is all they have, where the import policy read each event's NOTATED beat:
 
 - **A ring ending on a graced beat is an importer defect, not a rule-1 case.** A before-beat grace
   fabricates an onset one lead (a 32nd) ahead of its principal, and an importer that left the
   preceding beat's notes ringing to the principal stored a ring overlapping the grace, which is not
   what the score sounds like: Guitar Pro plays a before-beat grace by stealing its lead from the
   preceding beat. The fix is the importer's — the notes of the voice's preceding beat end at the
-  run's first onset. The predecessor then ends exactly on the grace's onset, rule 1 trims it to the
+  run's first onset. The predecessor then ends exactly on the grace's onset, rule 1 crops it to the
   margin as the import policy did, and a tied predecessor still merges past the principal (the tie
-  merge keys on the tie flag, not adjacency) and presents as the genuine hold it is. Rule 1 keeps
+  merge keys on the tie flag, not adjacency) and draws as the genuine hold it is. Rule 1 keeps
   its wording; a margin-wide overrun threshold was considered as an alternative and declined — a
   heuristic over a wrong datum.
-- **Rule 3's tail verdict is per sounding position.** The import policy keyed the verdict by
+- **Rule 2's tail verdict is per sounding position.** The import policy keyed the verdict by
   notated beat, which put a grace and its principal's whole strum in one bucket. Now a before-beat
   grace carrying a slide does not earn its chord's tails (the chord drops them, the grace keeps its
   own), and an on-beat grace splits the delayed member out of its strum. Both are the sounding
@@ -218,11 +211,12 @@ because the saved form is all they have, where the import policy read each event
 
 And one from rule 1's own reading:
 
-- **A tie-merged shift-slide origin crossing another string's onset presents to its landing.** Its
-  stored ring reaches the landing that re-picks it; that ring runs strictly past an intervening
-  onset on another string, so rule 1 presents it whole and the tail runs the last margin into the
-  landing's head instead of stopping at the arrival keyframe (the keyframe itself is unmoved). The
-  same rule as any cross-voice hold.
+- **A tie-merged shift-slide origin crossing another string's onset is bound by its landing, not
+  by the onset it crosses.** Its stored ring runs strictly past the intervening onset on another
+  string, so that onset does not bind it; the landing that re-picks it does, since the ring ends
+  exactly there. The ink stops one margin before the landing, and the leg toward the arrival —
+  which keeps its stored instant at the landing, as every keyframe does — is drawn on its true path
+  as far as the crop. The same rule as any cross-voice hold.
 
 **Fret-hand positions and span geometry are unaffected by the model**, and the strict hold test
 changes no resolved legato motion on the local corpus: Guitar Pro tiles durations, so an imported
@@ -234,21 +228,20 @@ and has no instances on that material.
 
 - **A** — the data model: A1 core (`chart_presentation.h/.cpp`, the hold, the validator and
   document rules, tests); A2 importer (emit actual, no trimming, tests migrated); A3 readers
-  (projection on presented, `display_hold_ends` on holds, the shared arrival rule
-  `chartShapeArrivals` on presented as well, resolver strict); A4 editor verbs (growth clamps at
-  adjacency, shrink refuses zero, insert default one grid step, assist to the onset); **D1** — the
-  2D lane draws, lays out, hit-tests and culls by each note's presented tail
-  (`NoteViewState::end_seconds`), the hold parameters are absent from the paint core and the layout
+  (projection on the stored notes and their ink ends, `display_hold_ends` on holds, the shared
+  arrival rule `chartShapeArrivals` on the stored stream, resolver strict); A4 editor verbs (growth
+  clamps at adjacency, shrink refuses zero, insert default one grid step, assist to the onset);
+  **D1** — the 2D lane draws each note to its ink end (`NoteViewState::ink_end_seconds`), the hold
+  parameters are absent from the paint core and the layout
   manifest, and `display_hold_ends` is the 3D board's field alone. That retires the watch item on
   the two surfaces' holds diverging: with no 2D hold there is nothing left to diverge.
-- **B — the editor's Alt reveal, on the real-tails mark.** While Alt is held the 2D lane redraws
-  the whole chart in its ACTUAL form — every note's tail is the ring the string really sounds for,
-  techniques riding it and the payload presentation clipped restored; release snaps back to the
-  presented form. The mark was chosen over a hairline outline drawn on top of the presented
-  notation, and the notation swap won: the ring should simply BE the notation, so the lane draws
-  the whole chart in a second projected form rather than annotating the presented one. What the
-  mark needs is exactly the shared machinery below — the form parameter, the `tab_actual`
-  publication, the lane's cull index over the actual ends, and the foreground-and-Alt predicate.
+- **B — the editor's Alt reveal, on the real-tails mark.** While Alt is held the 2D lane draws
+  every note on to its ring end — the ring the string really sounds for, techniques riding it and
+  the ending zone's keyframes shown at their stored instants; release stops every note at its ink
+  end again. The mark was chosen over a hairline outline drawn on top of the cropped notation: the
+  ring should simply BE the notation. Since `ring-ends-and-authoring-planes.md` it needs no second
+  projection: every note carries both ends, so the reveal is a per-index answer to how far a paint
+  reads, the lane culls on the ring ends, and the foreground-and-Alt predicate below drives it.
 
   **Tracking.** The reveal is on exactly while `juce::Process::isForegroundProcess() &&
   juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()` — "the app" is the PROCESS, so
@@ -265,53 +258,19 @@ and has no instances on that material.
   where the pointer is. A gate on the editor WINDOW's focus is likewise wrong, and for a precise
   reason: the preview grabs focus, which is exactly why the test is the process.
 
-  - **One producer, a form parameter.** `makeChartViewState(arrangement, tempo_map, form)` with
-    `ChartNoteForm{Presented, Actual}`. The form selects ONE source reference for the per-note view
-    fields inside the note loop and nothing else in the function reads it: holds, spans and their
-    arrival kinds, fret-hand placements and their ramps, string count and capo all keep reading the
-    presented stream, so **the two forms differ in `notes` and in nothing else** — a contract the
-    projection's tests pin member by member. The slide-ramp table lives outside the note loop in
-    its own pass (`makeSlideRampStarts`) to make that structural rather than careful: the ramps are
-    the presented stream's answer, and a hand marker that jumped when the reveal was held would be
-    reporting the swap rather than the chart. A view-side end swap is rejected — the presented
-    state has already clipped the payload its trims removed, and no lengthening puts that back.
-  - **Scored = presented stays structural.** `makeHighwayViewState` composes the projection with no
-    form argument, so `ChartNoteForm::Actual` is unreachable from the board, the game and the
-    scorer. The reveal is also NON-hit-testable by ruling: hit testing, selection and the typed
-    entry — the digits, which are the whole of chart entry since 2026-09-11 — read the presented
-    projection the controller published (Alt+wheel already acts on the selection), and the 3D
-    preview keeps the presented form.
-  - **The cost, accepted and still open.** `EditorViewState::tab_actual` is memoized beside `tab`
-    under the same key (arrangement id + chart revision), so a sustain gesture projects the chart
-    THREE times per wheel notch — it was already two, because `makeHighwayViewState` composes its
-    own `makeChartViewState` under the same key. Building it lazily would require the controller to
-    learn that the reveal is on, which `tab_view.h` forbids ("the controller never learns of it").
-    The shape that removes both the cost and the form parameter is one producer returning both
-    forms from a single `chartResolutions` pass, which would make "equal outside `notes`" a fact of
-    construction rather than a test — worth doing, not yet done. With the per-note pick reading one
-    form at the other's index, the index alignment rides on it too, so it is a standing entry in
-    `docs/tracking/watch-items.md` rather than a note in this stage.
-  - **Two glyph consequences of drawing a form no rule touches, both accepted.** A DEAD note grows
-    a tail (rule 4 is a presentation rule and the actual form has none) — Alt shows what is STORED,
-    and that tail reads as how long the mute is held. And a shift-slide's arrival keyframe, which
-    sits exactly at the presented end and so draws no glyph, sits strictly inside the real ring and
-    draws a mid-tail linked continuation head — a mark that appears only under the reveal
-    (`linkedKeyframe` is form-relative and correct in both, which its doc states).
-  - **The reveal is a PER-NOTE pick.** A note draws its actual form when the whole-lane Alt reveal
-    is held OR when that note is SELECTED, presented otherwise — one lambda in `TabView::paint`,
-    read by the notation (through the paint core's `TabDrawnNote` per-index accessor, which keeps
-    the composition rule wholly in the host) and by every overlay, so there is no second statement
-    of the rule. The selection is the thing under scrutiny and every verb already settles on a
-    selection change, so deselecting IS the moment presentation clips the tail back. Alt is KEPT
-    because the selection cannot serve the insertion lookahead: with a selection standing, typing a
-    digit RETYPES those notes instead of inserting one, so a charter placing notes holds no
-    selection at all. There is ONE cull index, over the ACTUAL ends — presentation only ever trims,
-    so those ends bound either form, and a per-form table could not be indexed by a per-note pick
-    anyway, since one member of a chord can draw actual beside a presented neighbour.
+  - **Drawn = judged stays structural.** The board, the game and the scorer draw and judge to the
+    ink end; only the 2D lane reveals. Hit testing and the marquee reach a keyframe past its ink
+    end only while the reveal is held, exactly as it is drawn, and no tail is ever a target.
+  - **One glyph consequence of drawing past every rule, accepted.** A DEAD note grows a tail under
+    the reveal (rule 3 is a presentation rule) — Alt shows what is STORED, and that tail reads as
+    how long the mute is held.
+  - **The modifier alone reveals.** A selected note draws like every other: Alt is the insertion
+    lookahead the selection cannot serve, since with a selection standing a typed digit RETYPES
+    those notes instead of inserting one.
 - **C — shape spans and their postures are DERIVED from the notes**, per chart revision, in core:
   `deriveChartShapes(saved_notes, claimed_stops, planted_stops, tempo_map)` (`chart/chart_shapes.h`)
   reads the stored stream and the resolved claim tables, and `ChartResolutions` carries `shapes` and
-  `postures` beside the two note forms. The shared arrival rule `chartShapeArrivals` lives in the
+  `postures` beside the ink ends. The shared arrival rule `chartShapeArrivals` lives in the
   same header: with the span rules gone from the validator it was the last thing making
   `chart_rules` know spans exist, and both halves of one derivation belong in one file. Item #59
   (should a span's end stop obeying the margin) is untouched and still open. The derivation's own
@@ -346,7 +305,7 @@ and has no instances on that material.
   equally unvalidated at that point. And `ChartConnections`/`chartConnections` are separate from
   `ChartResolutions`: `resolveLegato` reads the saved stream alone, so the settle sweep and the `H`
   verb — which run at every caret move, seek and selection change, and read nothing else — would
-  otherwise derive the whole song's presented stream, spans and holds on every keystroke and throw
+  otherwise derive the whole song's ink ends, spans and holds on every keystroke and throw
   all three away. `ChartResolutions` carries the connections rather than restating them.
 - **D — the highway carries no mark for a short note's length.** The candidate was a floor mark
   under each marked note running from its onset to the ring's end, cyclable through filled,
@@ -374,13 +333,13 @@ and has no instances on that material.
 1. Held = strict adjacency.
 2. No back-compat: every existing chart is re-imported.
 3. The 2D hold ribbons change lands as its own commit after A.
-4. Scored = presented, a contract recorded here and exposed through the projection; the scorer
-   reads it when it exists.
+4. What is drawn is what is judged, a contract recorded here and exposed through the projection
+   (`NoteViewState::ink_end_seconds`); the scorer reads it when it exists.
 5. Every note's sustain is positive; a dead note carries its notated duration and E25 is a
    presentation rule (the "except dead" wording was serving the same end, and pinning dead at zero
    would re-break every legato claim after a muted cluck). A quarter-note cap on a dead note's
    stored sustain was considered and declined: nothing visible or audible changes with the length
-   (rule 4 presents no tail, playback clucks), the length is exactly the timing information and the
+   (rule 3 draws no tail, playback clucks), the length is exactly the timing information and the
    legato adjacency the stored form exists to carry, and the cap would be one more bound stated in
    three places for a value no surface shows. The same-string clamp is the only bound on any note's
    sustain, and no note stores a zero.
@@ -390,9 +349,9 @@ and has no instances on that material.
    held. The plan puts the one unavoidable guess at that import, in the external converter: *a
    source note with no sustain rings to the next onset on ANY string, capped at half the
    kept-sustain bound; a note with a sustain rings for it.* Any string, not its own: rule 1
-   presents a ring running strictly past the first binding onset in full, so a chug defaulting to
+   draws a ring running strictly past the first binding onset in full, so a chug defaulting to
    its own string's re-strike would draw through every alternating-string riff. Capped below the
-   kept bound: a default running longer than it would earn a tail under rule 3 that the source never
+   kept bound: a default running longer than it would earn a tail under rule 2 that the source never
    showed. Consequence to accept with eyes open: the source's holds inside the bound stop drawing,
    because
    presentation is one rule for every chart where the package path used to skip the Guitar Pro

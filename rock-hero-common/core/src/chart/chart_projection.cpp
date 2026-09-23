@@ -2,12 +2,13 @@
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
-#include <span>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <utility>
 #include <vector>
 
@@ -20,8 +21,7 @@ namespace
 // Whether this note's end statement is a SLIDE-OUT rather than a shift slide's arrival, from the
 // RESOLVED relation and never from position: the two are one statement at the ring's end, and what
 // tells them apart is the stop the next head takes (\ref arrivesIntoNextHead). Asked by both walks
-// here, so the flag the surfaces key on cannot be derived two ways. The end statement rides every
-// trim, so when the stored note has one it is the last keyframe of the drawn one.
+// here, so the flag the surfaces key on cannot be derived two ways.
 [[nodiscard]] bool noteSlidesOut(const ChartConnections& connections, const std::size_t index)
 {
     return slideOutFretOrNull(connections.saved_notes[index], connections.arrives_into[index]) !=
@@ -69,44 +69,32 @@ namespace
     return Fraction{} < trimmed ? trimmed : shape.sustain;
 }
 
-// The DRAWN segment a fret-hand placement's approach rides when the placement lands exactly on a
-// glide arrival, keyed by the keyframe's advanced grid position. Both ends are the drawn ones —
-// presentation may show a ring's end a margin before the chart states it — so the hand travels with
-// the rail instead of on an unrelated metrical margin, easing with the rail's own family.
+// The approach a fret-hand placement rides when the placement lands exactly on a glide arrival,
+// keyed by the keyframe's grid position: where the leg into that arrival starts, and whether it
+// eases like unpitched travel. The arrival itself is the placement's own instant — nothing
+// presentation decides moves a statement — so the hand travels with the rail and completes where
+// the sound goes.
 struct SlideRamp
 {
     double start_seconds{0.0};
-    double end_seconds{0.0};
     bool unpitched{false};
 };
 
-// Walks every glide in a note stream once and records the drawn segment each arrival rides.
+// Walks every glide in the stored stream once and records the segment each arrival rides. A pass
+// of its own rather than a table filled inside the note loop below, because the key is a grid
+// position the fret-hand pass looks a ramp up by, and the note loop resolves seconds.
 //
-// A pass of its own rather than a table filled inside the note loop below, because the ramps are
-// the PRESENTED stream's answer whichever form that loop projects (chart_projection.h): when the
-// fretting hand starts moving is a fact about the chart, and a hand marker that shifted the
-// instant the editor's Alt reveal swapped note forms would be reporting the swap rather than the
-// chart. Separating it is what lets the note loop read exactly one stream.
-//
-// The keyframes walked are the PRESENTED note's, so a keyframe the trim clipped past the drawn
-// ring registers no ramp — but each ramp is FILED under its stored offset, because the key is an
-// identity the fret-hand pass looks up by the placement's authored position. The SLIDE-OUT is the
-// RESOLVED fact, read against the STORED ring: a slide-out and a shift slide's arrival are the same
+// The SLIDE-OUT is the RESOLVED fact: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
-// Asking position alone eases every arrival with the slide-out curve, and the stored ring is also
-// what keeps a hold keyframe the trim lands on falling through to the margin morph.
-//
-// `presented` and the connections' own stream are index-parallel (\ref ChartResolutions), which is
-// what lets one walk read both.
+// Asking position alone would ease every arrival with the slide-out curve.
 [[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
-    const std::vector<ChartNote>& presented, const ChartConnections& connections,
-    const TempoMap& tempo_map)
+    const ChartConnections& connections, const TempoMap& tempo_map)
 {
-    const std::vector<ChartNote>& saved = connections.saved_notes;
+    const std::vector<ChartNote>& notes = connections.saved_notes;
     std::map<GridPosition, SlideRamp> starts;
-    for (std::size_t index = 0; index < presented.size(); ++index)
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        const ChartNote& note = presented[index];
+        const ChartNote& note = notes[index];
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
@@ -115,18 +103,10 @@ struct SlideRamp
             continue;
         }
         const bool slides_out = noteSlidesOut(connections, index);
-        // The STORED statement behind each drawn one: this map's KEY is an identity — the fret-hand
-        // pass looks a ramp up by the placement's AUTHORED position — while its value is the drawn
-        // segment itself. Presentation may show the end's statement earlier than the chart
-        // states it (\ref presentedChartNotes rule 2), so keying on the drawn offset would file the
-        // ramp under an instant no placement is written at.
-        const std::span<const Keyframe> identities = keyframeIdentities(saved[index], note);
 
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
         int segment_start_fret = note.fret;
-        // Walked by INDEX, because each drawn keyframe is paired with the stored statement standing
-        // at the same index (`identities` above).
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
         {
@@ -147,8 +127,8 @@ struct SlideRamp
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span. The slide-out's segment starts where the last sounded
-            // fret left off and ends where the DRAWN ring does — exactly the span the rail is drawn
-            // over — and is marked unpitched so the ease matches the slide-out.
+            // fret left off and ends where the ring does, and is marked unpitched so the ease
+            // matches the slide-out.
             const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
             const double keyframe_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
@@ -156,7 +136,6 @@ struct SlideRamp
             {
                 const SlideRamp ramp{
                     .start_seconds = segment_start_seconds,
-                    .end_seconds = keyframe_seconds,
                     .unpitched = unpitched,
                 };
                 // A PITCHED ramp outranks an unpitched one at a shared key: a slide-out on one
@@ -166,9 +145,7 @@ struct SlideRamp
                 SlideRamp& filed =
                     starts
                         .try_emplace(
-                            advanceGridPosition(
-                                tempo_map, note.position, identities[keyframe_index].offset),
-                            ramp)
+                            advanceGridPosition(tempo_map, note.position, keyframe.offset), ramp)
                         .first->second;
                 if (filed.unpitched && !unpitched)
                 {
@@ -184,8 +161,7 @@ struct SlideRamp
 
 } // namespace
 
-ChartViewState makeChartViewState(
-    const Arrangement& arrangement, const TempoMap& tempo_map, ChartNoteForm form)
+ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
 {
     ChartViewState state;
     if (!arrangement.chart.has_value())
@@ -197,29 +173,17 @@ ChartViewState makeChartViewState(
     state.open_strings = chart.tuning.strings;
     state.capo = chart.tuning.capo;
 
-    // Every per-note fact this projection derives comes from the one resolutions pass: the
-    // PRESENTED stream it draws, each note's resolved connection motion, and each note's hold. The
-    // presented form is the whole of what a surface shows — the stored ring is the actual duration
-    // the string sounds, and drawing it directly would run tails through the heads that follow
-    // (`docs/plans/in-progress/note-sustain-model.md`). It is derived from the saved form, so a
-    // pick slide's in-memory overrides (chart.h) are already stripped and the scrape draws as the
-    // scrape it is.
+    // Every per-note fact this projection derives comes from the one resolutions pass: the stored
+    // stream it draws, where each ring's ink stops, each note's resolved connection motion, and
+    // each note's hold. It is derived from the saved form, so a pick slide's in-memory overrides
+    // (chart.h) are already stripped and the scrape draws as the scrape it is.
     const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
-    const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
+    const std::vector<ChartNote>& notes = resolutions.connections.saved_notes;
 
-    // The ONE place the form is read. It selects the stream the per-note VIEW fields below come
-    // from and nothing else in this function: the holds, the ramps, the span arrivals and their
-    // postures all keep reading the presented stream, which is what makes the two forms differ in
-    // `notes` alone. The editor's actual-ring reveal is the only caller asking for the saved form,
-    // and it draws that form as ordinary notation — techniques riding the real ring, with the
-    // payload presentation clipped restored, which a view-side end swap could not put back.
-    const std::vector<ChartNote>& drawn_notes =
-        form == ChartNoteForm::Actual ? resolutions.connections.saved_notes : presented_notes;
-
-    // Where each fret-hand placement's approach ramp begins, from the presented stream in either
-    // form; asked once for the whole chart and read by the placement pass at the bottom.
+    // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
+    // read by the placement pass at the bottom.
     const std::map<GridPosition, SlideRamp> slide_ramp_starts =
-        makeSlideRampStarts(presented_notes, resolutions.connections, tempo_map);
+        makeSlideRampStarts(resolutions.connections, tempo_map);
 
     // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
     // into, so the note loop below reads the answer this pass publishes rather than deciding it a
@@ -227,10 +191,7 @@ ChartViewState makeChartViewState(
     state.shapes.reserve(resolutions.shapes.size());
     // The shared arrival rule, answered for every span once per chart revision beside the spans
     // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
-    // so deriving it here as well would be the class asked twice. It reads the presented stream for
-    // the attacks it still derives (the right-hand onsets inside a span) and takes the rest off the
-    // spans, where the walk recorded it against the STORED rings — the class is a fact about the
-    // hands, and E25 governs what a surface draws of a ring rather than what the hands did.
+    // so deriving it here as well would be the class asked twice.
     const std::vector<bool>& arrivals = resolutions.arrivals;
 
     // WHERE a posture string states its fret, decided per string by what heads that string AT THE
@@ -271,19 +232,17 @@ ChartViewState makeChartViewState(
     // prints nothing on that string, so exactly one ink states it. A fretting-hand head holding no
     // second stop states the hand's presence with its own number, which is the place test above.
     //
-    // Asked of the PRESENTED stream in either form, for the arrival rule's own reason: whether a
-    // string sounds is a fact about the chart, not about which tails the caller drew. The held
-    // table is index-parallel to it, as every resolution is.
-    const auto digit_slot = [&presented_notes, &resolutions](
+    // The held table is index-parallel to the stream, as every resolution is.
+    const auto digit_slot = [&notes, &resolutions](
                                 const GridPosition& at,
                                 const int string,
                                 const ChartStop& stop) -> std::optional<StopMarkSlot> {
         // The ONE head this string can carry here: the stream is sorted by (position, string) and
         // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
         // match is the only match and there is never a second answer to reconcile with it.
-        for (auto head = std::ranges::lower_bound(
-                 presented_notes, at, std::ranges::less{}, &ChartNote::position);
-             head != presented_notes.end() && head->position == at;
+        for (auto head =
+                 std::ranges::lower_bound(notes, at, std::ranges::less{}, &ChartNote::position);
+             head != notes.end() && head->position == at;
              ++head)
         {
             if (head->string != string)
@@ -309,7 +268,7 @@ ChartViewState makeChartViewState(
             // the span — the bracket keeps its digit, so both are published and neither is
             // silenced.
             // Bound once so the presence test and the read are provably the same object.
-            const auto index = static_cast<std::size_t>(head - presented_notes.begin());
+            const auto index = static_cast<std::size_t>(head - notes.begin());
             const std::optional<int>& held = resolutions.held_stops[index];
             if (!rightHandOnset(head->attack) && held.has_value() && frettedStop(*held) == stop)
             {
@@ -413,22 +372,26 @@ ChartViewState makeChartViewState(
             });
     }
 
-    // Note onsets ascend — presentation moves no note, so they ascend in either form — and the
-    // forward cursor resolves them in amortized constant time. Sustain ends and intra-note payload
-    // offsets can jump past later onsets, so those use the plain resolver instead of a second
-    // cursor.
+    // Note onsets ascend, and the forward cursor resolves them in amortized constant time. Ring
+    // ends and intra-note payload offsets can jump past later onsets, so those use the plain
+    // resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
-    state.notes.reserve(drawn_notes.size());
-    state.display_hold_ends.reserve(drawn_notes.size());
-    for (std::size_t note_index = 0; note_index < drawn_notes.size(); ++note_index)
+    state.notes.reserve(notes.size());
+    state.display_hold_ends.reserve(notes.size());
+    for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
-        const ChartNote& note = drawn_notes[note_index];
+        const ChartNote& note = notes[note_index];
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
-        view.end_seconds =
-            note.sustain.numerator > 0
-                ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
+        view.ring_end_seconds =
+            tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble());
+        // Resolved through the same expression as the ring end so a free tail's two ends are one
+        // number, which is what lets a surface test "draws in full" exactly.
+        const Fraction& ink_end = resolutions.ink_end[note_index];
+        view.ink_end_seconds =
+            ink_end.numerator > 0
+                ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + ink_end.toDouble())
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
@@ -436,11 +399,10 @@ ChartViewState makeChartViewState(
         // owns PART of and from where (\ref NoteViewState::rested): the one reading both
         // distance-scoped consumers share (\ref hasRestingRemainder), so a member resting at its
         // own end — a handover — publishes no window and the board draws it as any unrested
-        // ribbon. Never set in the ACTUAL reveal: that form exists to show the ring the chart
-        // stores, so nothing in it rests.
+        // ribbon.
         // Bound once so the presence test and the read below are provably the same object.
         const std::optional<Fraction>& rested_from = resolutions.rested_from[note_index];
-        view.rested = form == ChartNoteForm::Presented && hasRestingRemainder(rested_from, note);
+        view.rested = hasRestingRemainder(rested_from, ink_end);
         if (view.rested)
         {
             // The resting remainder's start on the clock — the landmark whose cases
@@ -573,22 +535,12 @@ ChartViewState makeChartViewState(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
         view.slides.reserve(note.keyframes.size());
-        // THE STORED NOTE this drawn one shows, index-parallel by construction
-        // (\ref ChartResolutions). What only it can say is read off it below: what each drawn
-        // keyframe is NAMED by.
-        const ChartNote& stored = resolutions.connections.saved_notes[note_index];
         // THE ONE FLAG that isolates every surface (noteSlidesOut): false draws a linked arrival
-        // head at the presented end; true draws a floating slide-out chip.
+        // head at the ring's end; true draws a floating slide-out chip.
         const bool slides_out = noteSlidesOut(resolutions.connections, note_index);
         // The pair fact the surfaces need for the band a mark at the END takes, carried per note
-        // from the walk that resolved it (\ref ChartConnections::ends_on_next_head). It is the
-        // STORED ring's adjacency: presentation spaces the mark, and where the band belongs is
-        // decided by the instant the chart states it at.
+        // from the walk that resolved it (\ref ChartConnections::ends_on_next_head).
         view.ends_on_next_head = resolutions.connections.ends_on_next_head[note_index];
-        // The stored statement behind each drawn one, asked once per note: the mark's IDENTITY is
-        // the stored keyframe's offset while its `seconds` is where presentation puts it, so the
-        // two are read from two places on purpose (\ref keyframeIdentities).
-        const std::span<const Keyframe> identities = keyframeIdentities(stored, note);
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
@@ -599,13 +551,11 @@ ChartViewState makeChartViewState(
         //
         // Old content falls out of the same walk with no case of its own, which is what makes the
         // two surfaces draw it exactly as they always did: a shake stated at the onset and never
-        // restated opens here and closes at `end_seconds`, one region covering the whole presented
-        // tail. A region opening exactly at that end is kept — degenerate, drawing nothing, and
-        // still the honest answer that this channel says the string shakes.
+        // restated opens here and closes at the ring's end, one region covering the whole ring. A
+        // region opening exactly at that end is kept — degenerate, drawing nothing, and still the
+        // honest answer that this channel says the string shakes.
         RingState ring = ringStateAtOnset(note);
         double shake_start_seconds = view.start_seconds;
-        // Walked by INDEX rather than by reference, because each drawn keyframe is paired with the
-        // stored statement standing at the same index (`identities` above).
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
         {
@@ -649,10 +599,7 @@ ChartViewState makeChartViewState(
                     KeyframeViewState{
                         .seconds = keyframe_seconds,
                         .fret = *fret,
-                        // WHERE the mark draws is `seconds`; WHAT it is is this — the stored
-                        // statement's own offset, the one name every mapping back to the chart
-                        // uses.
-                        .offset = identities[keyframe_index].offset,
+                        .offset = keyframe.offset,
                         .slide_out = slides_out && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
@@ -662,7 +609,7 @@ ChartViewState makeChartViewState(
             view.vibrato.push_back(
                 VibratoSpanViewState{
                     .start_seconds = shake_start_seconds,
-                    .end_seconds = view.end_seconds,
+                    .end_seconds = view.ring_end_seconds,
                     .state = ring.vibrato,
                 });
         }
@@ -677,18 +624,14 @@ ChartViewState makeChartViewState(
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
-        double arrival_seconds =
+        const double arrival_seconds =
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
         if (const auto slide = slide_ramp_starts.find(fhp.position);
             slide != slide_ramp_starts.end())
         {
-            // BOTH ends come from the drawn segment: a ring's end statement is drawn a margin
-            // before the chart states it, and a hand that completed at the stored instant finished
-            // after the rail it rides and eased slower to get there.
             ramp_start_seconds = slide->second.start_seconds;
-            arrival_seconds = slide->second.end_seconds;
             unpitched_ramp = slide->second.unpitched;
         }
         else
@@ -696,13 +639,11 @@ ChartViewState makeChartViewState(
             ramp_start_seconds = tempo_map.secondsAtGlobalBeatPosition(
                 globalBeatPosition(tempo_map, marginBefore(tempo_map, fhp.position)));
         }
+        // A ramp never reaches back past the previous arrival: crowded transitions shorten
+        // against it rather than overlapping it.
         const double previous_arrival_seconds = state.fret_hand_positions.empty()
                                                     ? tempo_map.secondsAtBeat(1, 1)
                                                     : state.fret_hand_positions.back().seconds;
-        // Every consumer binary-searches this stream by `seconds`, so a drawn arrival never
-        // precedes the one before it: a placement crowded closer than the margin would otherwise
-        // sort behind its predecessor once the drawn instant pulled it back.
-        arrival_seconds = std::max(arrival_seconds, previous_arrival_seconds);
         ramp_start_seconds =
             std::clamp(ramp_start_seconds, previous_arrival_seconds, arrival_seconds);
         state.fret_hand_positions.push_back(
@@ -715,6 +656,12 @@ ChartViewState makeChartViewState(
             });
     }
 
+    // The 2D lane's visible-range indexes, over the further of each event's two ends
+    // (\ref ChartViewState::ring_end_prefix_max).
+    state.ring_end_prefix_max =
+        makeSustainPrefixMax(state.notes | std::views::transform(&NoteViewState::ring_end_seconds));
+    state.shape_close_prefix_max =
+        makeSustainPrefixMax(state.shapes | std::views::transform(&ShapeViewState::close_seconds));
     return state;
 }
 

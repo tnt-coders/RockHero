@@ -463,12 +463,11 @@ TEST_CASE("EditorController clears chart selection on project load", "[core][cha
     CHECK(state->chart_edit.selected_notes.empty());
 }
 
-// The lane is handed BOTH forms of the chart — the presented projection it draws and the
-// controller hit-tests against, and the actual-ring form the Alt reveal swaps to — published
-// together and rebuilt together under the one memo key. Rebuilding only the first is the silent
-// failure this pins: the reveal would then show a stale picture of exactly the ring the verb in
-// the user's hand is changing.
-TEST_CASE("EditorController publishes both chart forms together", "[core][chart]")
+// The lane is handed ONE projection that carries both lengths of every note — the ink it draws
+// and the controller hit-tests against, and the stored ring the Alt reveal draws to — so a chart
+// edit rebuilds them together under the one memo key. A reveal reading a length the rebuild left
+// stale would show a wrong picture of exactly the ring the verb in the user's hand is changing.
+TEST_CASE("EditorController publishes the ink and the ring in one projection", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -488,34 +487,25 @@ TEST_CASE("EditorController publishes both chart forms together", "[core][chart]
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->tab != nullptr);
-    REQUIRE(state->tab_actual != nullptr);
     REQUIRE(state->tab->notes.size() == 3);
-    REQUIRE(state->tab_actual->notes.size() == state->tab->notes.size());
 
     // The measure-2 pair is a chug — an eighth of a beat each — so presentation drops both tails
-    // and the lane draws bare heads at 2.0s, while the actual form draws the ring itself.
+    // and the lane draws a bare head at 2.0s, while the ring the reveal draws is still stored.
     CHECK_THAT(
-        state->tab->notes[0].end_seconds,
+        state->tab->notes[0].ink_end_seconds,
         Catch::Matchers::WithinULP(state->tab->notes[0].start_seconds, 0));
-    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.0625));
+    CHECK(state->tab->notes[0].ring_end_seconds == Catch::Approx(2.0625));
 
-    // Everything but the notes is the same answer in both forms, which is the projection's own
-    // contract; here it pins that the editor asked ONE producer twice rather than deriving a
-    // second scene some other way.
-    CHECK(state->tab->display_hold_ends == state->tab_actual->display_hold_ends);
-    CHECK(state->tab->shapes == state->tab_actual->shapes);
-    CHECK(state->tab->fret_hand_positions == state->tab_actual->fret_hand_positions);
-
-    // A chart edit rebuilds both: one grid step of the sustain verb moves the clicked note's ring
-    // END onto the next grid line — the chug's eighth of a beat ends between lines, so the step
-    // snaps it to the beat at 2.5s rather than adding half a second to it — and the reveal must
-    // show that immediately.
-    const std::shared_ptr<const common::core::ChartViewState> before = state->tab_actual;
+    // A chart edit rebuilds the projection: one grid step of the sustain verb moves the clicked
+    // note's ring END onto the next grid line — the chug's eighth of a beat ends between lines, so
+    // the step snaps it to the beat at 2.5s rather than adding half a second to it — and the
+    // reveal must show that immediately.
+    const std::shared_ptr<const common::core::ChartViewState> before = state->tab;
     click(controller, 40.0f, 220.0f);
     controller.onChartSustainAdjustRequested(1);
-    REQUIRE(state->tab_actual != nullptr);
-    CHECK(state->tab_actual != before);
-    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.5));
+    REQUIRE(state->tab != nullptr);
+    CHECK(state->tab != before);
+    CHECK(state->tab->notes[0].ring_end_seconds == Catch::Approx(2.5));
 }
 
 // The quantum-versus-grid-value distinction, on one verb: with snap off a placement's POSITION
