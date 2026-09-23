@@ -384,12 +384,12 @@ restarting at the next downbeat, every downbeat is a line even when the measure 
 multiple of the step, and ties resolve to the earlier line. Every line is ROUNDED onto the tick
 lattice (\ref nearestTick), so a grid no tick divides — a septuplet's — still yields only positions
 a chart may store. Callers own note-value validity policy (the editor validates with
-`isValidTempoGridNoteValue` and falls back to 1/4); a non-positive note value or degenerate
-signature returns the position unchanged.
+`isValidTempoGridNoteValue` and falls back to 1/4); a note value under a tick, which has no lattice
+of distinct lines, or a degenerate signature returns the position unchanged.
 
 \param tempo_map Tempo map supplying signatures and the beat grid.
 \param position Valid grid position to snap (offset in [0, 1)).
-\param note_value Grid step as a fraction of a whole note; must be positive and at least a tick.
+\param note_value Grid step as a fraction of a whole note, at least a tick.
 \return The position of the nearest grid line, on the tick lattice.
 */
 [[nodiscard]] GridPosition snapGridPosition(
@@ -409,12 +409,12 @@ the last line an odd half-step short of the next downbeat (a 1/4 grid in 7/8).
 
 The grid origin has no earlier line, so stepping earlier from it returns the position unchanged;
 callers treat a result equal to the input as a refusal. Note-value validity policy stays with the
-caller as for \ref snapGridPosition: a non-positive note value or a degenerate signature also
+caller as for \ref snapGridPosition: a note value under a tick or a degenerate signature also
 returns the position unchanged.
 
 \param tempo_map Tempo map supplying signatures and the beat grid.
 \param position Valid grid position to step from (offset in [0, 1)), on- or off-grid.
-\param note_value Grid step as a fraction of a whole note; must be positive and at least a tick.
+\param note_value Grid step as a fraction of a whole note, at least a tick.
 \param later True to step later in time, false earlier.
 \return The position of the adjacent grid line in the step direction, on the tick lattice.
 */

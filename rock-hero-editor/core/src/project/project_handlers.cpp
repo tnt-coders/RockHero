@@ -7,6 +7,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
@@ -1485,23 +1486,28 @@ void EditorController::Impl::restoreProjectMarker(const EditorProjectCursor& cur
 }
 
 // Restores a stored armed marker: the transport seeks to the slot's musical time and the
-// caret re-arms on the exact stored grid address. When the stored string no longer exists on
-// the loaded chart (or the project is chartless) the marker demotes to a passive cursor at
-// that same time instead — never a clamp onto a wrong string; the stored string stays as the
+// caret re-arms on the stored grid address, snapped onto the tick lattice — a settings file is
+// taken on trust, and one written before the lattice existed can hold an address between two
+// ticks, where every verb the caret feeds would be refused. When the stored string no longer
+// exists on the loaded chart (or the project is chartless) the marker demotes to a passive cursor
+// at that same time instead — never a clamp onto a wrong string; the stored string stays as the
 // arming memory, which itself clamps against the displayed chart.
 void EditorController::Impl::restoreProjectMarker(const EditorProjectCaret& caret)
 {
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const common::core::GridPosition position = common::core::snapGridPosition(
+        tempo_map, caret.position, common::core::g_tick_quantum_note_value);
     m_transport.seek(
         session().timeline().clamp(
-            common::core::TimePosition{session().song().tempo_map.secondsAtNote(
-                caret.position.measure, caret.position.beat, caret.position.offset)}));
+            common::core::TimePosition{tempo_map.secondsAtNote(
+                position.measure, position.beat, position.offset)}));
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const bool string_exists =
         arrangement != nullptr && arrangement->chart.has_value() &&
         std::cmp_less_equal(caret.string, arrangement->chart->tuning.strings.size());
     if (string_exists)
     {
-        armChartCaret(caret.position, caret.string);
+        armChartCaret(position, caret.string);
     }
     else
     {

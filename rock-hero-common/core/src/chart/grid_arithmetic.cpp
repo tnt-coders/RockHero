@@ -74,7 +74,7 @@ struct MeasureLattice
     Fraction length;
 
     // Ticks in one beat at this measure's meter.
-    std::int64_t ticks_per_beat{0};
+    std::int64_t ticks_per_beat;
 
     // Index of the last line at or before a beat count from the downbeat. The exact quotient names
     // the last EXACT line at or before it; rounding can carry that line past the count, or carry
@@ -114,12 +114,13 @@ struct MeasureLattice
     }
 };
 
-// The lattice at a measure, or nothing when there is none to address — a non-positive note value
-// or a degenerate signature — in which case every lattice query returns its input unchanged.
+// The lattice at a measure, or nothing when there is none to address — a note value under a tick,
+// whose rounded lines would collapse onto one another, or a degenerate signature — in which case
+// every lattice query returns its input unchanged. Guarded here, once, for the two queries.
 [[nodiscard]] std::optional<MeasureLattice> measureLatticeAt(
     const TempoMap& tempo_map, int measure, Fraction note_value)
 {
-    if (note_value <= Fraction{})
+    if (note_value < g_tick_quantum_note_value)
     {
         return std::nullopt;
     }

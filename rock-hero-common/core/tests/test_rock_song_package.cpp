@@ -977,6 +977,10 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         R"(
             "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 3 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 4.000 } ] },
 )",
+        // Denominators must be a whole number of ticks: a 512th-note beat has no lattice.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 512 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 4.000 } ] },
+)",
         // timeSignatures measures must be strictly increasing.
         R"(
             "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 }, { "measure": 1, "numerator": 3, "denominator": 4 } ], "anchors": [ { "position": "1:1", "seconds": 0.000 }, { "position": "3:1", "seconds": 4.000 } ] },

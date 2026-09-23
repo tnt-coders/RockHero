@@ -198,6 +198,51 @@ TEST_CASE("EditorController open restores settings cursor", "[core][editor-contr
     CHECK(state->project_load_id == 1);
 }
 
+// A settings file is taken on trust, and one written before the tick lattice existed can hold a
+// caret between two ticks — an address every verb the caret feeds would refuse. The restore snaps
+// it onto the nearest tick before seeking or arming.
+TEST_CASE(
+    "EditorController open snaps a stored caret onto the tick lattice", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"open_snaps_settings_caret"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    // A third of a tick past the half beat: the nearest tick is the half beat itself, which at the
+    // default map's 120 BPM 4/4 puts measure 2 beat 2 and a half at 2.75 seconds.
+    REQUIRE(
+        settings
+            .saveProjectMarker(
+                files.projectFile(),
+                EditorProjectMarker{EditorProjectCaret{
+                    .position =
+                        common::core::GridPosition{
+                            .measure = 2, .beat = 2, .offset = common::core::Fraction{1441, 2880}
+                        },
+                    .string = 3,
+                }})
+            .has_value());
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    common::core::Song song = makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    song.tempo_map = common::core::TempoMap::defaultMap(loadedTimelineRange(6.0).duration());
+    project_services.next_song = std::move(song);
+    controller.onOpenRequested(files.projectFile());
+
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.75}});
+}
+
 // Close stops playback, clears backend audio, and returns the view to an empty project state.
 TEST_CASE("EditorController close clears loaded project", "[core][editor-controller]")
 {

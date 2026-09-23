@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <set>
@@ -57,9 +58,13 @@ constexpr double g_timing_epsilon = 1.0e-9;
     return std::abs(value - grid_value) <= g_timing_epsilon;
 }
 
-[[nodiscard]] bool isPowerOfTwoDenominator(int denominator) noexcept
+// A meter's beat is a power-of-two note value, as notation writes meters, and one that is a whole
+// number of ticks: a 512th-note beat would leave every position in its measure, downbeats
+// included, between two ticks, which the chart rules refuse.
+[[nodiscard]] bool isRepresentableDenominator(int denominator) noexcept
 {
-    return denominator > 0 && (denominator & (denominator - 1)) == 0;
+    return denominator > 0 && (denominator & (denominator - 1)) == 0 &&
+           g_tick_quantum_denominator % denominator == 0;
 }
 
 } // namespace
@@ -92,11 +97,12 @@ constexpr double g_timing_epsilon = 1.0e-9;
     for (const TimeSignatureChange& signature : time_signatures)
     {
         if (signature.measure <= previous_measure || signature.numerator <= 0 ||
-            !isPowerOfTwoDenominator(signature.denominator))
+            !isRepresentableDenominator(signature.denominator))
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "tempoMap.timeSignatures must be strictly ordered valid meters",
+                "tempoMap.timeSignatures must be strictly ordered meters with a power-of-two "
+                "denominator of at most 256",
             }};
         }
         previous_measure = signature.measure;

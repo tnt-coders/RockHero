@@ -271,6 +271,24 @@ TEST_CASE("Grid snapping keeps on-line positions", "[core][chart]")
             Fraction{1, 12}) == GridPosition{.measure = 1, .beat = 1, .offset = Fraction{2, 3}});
 }
 
+// A step under a tick has no lattice of distinct lines to read — rounded onto ticks, its lines
+// would collapse onto one another — so both lattice queries return the position unchanged, the
+// same refusal a non-positive note value gets.
+TEST_CASE("Grid queries refuse a note value under a tick", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    const GridPosition between_lines{.measure = 1, .beat = 2, .offset = Fraction{1, 3}};
+    const Fraction half_tick = g_tick_quantum_note_value * Fraction{1, 2};
+
+    CHECK(snapGridPosition(map, between_lines, half_tick) == between_lines);
+    CHECK(adjacentGridPosition(map, between_lines, half_tick, true) == between_lines);
+    CHECK(snapGridPosition(map, between_lines, Fraction{}) == between_lines);
+    // A tick itself is the finest grid there is, and it still answers.
+    CHECK(
+        snapGridPosition(map, between_lines, g_tick_quantum_note_value) ==
+        GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 3}});
+}
+
 // In 7/8 a 1/4-note grid steps every two eighth-note beats, so the measure length is not a
 // multiple of the step; the next downbeat is still a line and wins when it is nearest.
 TEST_CASE("Grid snapping treats every downbeat as a line", "[core][chart]")
