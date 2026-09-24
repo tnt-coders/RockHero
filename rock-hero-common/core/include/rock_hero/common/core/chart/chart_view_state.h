@@ -803,10 +803,10 @@ struct ShapeViewState
     abutting spans tile at.
 
     Published beside the drawn extent because the editor's 2D lane REVEALS it: while the lane's
-    reveal is held, or while the span covers a note in the selection, that span's furniture runs to
-    here instead. It is the same bargain the note reveal strikes — the drawn tail stops at the ink
-    end, and the reveal shows the ring the chart stores — and the same shape: both ends ride one
-    state and the surface picks.
+    reveal is held, while the span covers a note in the selection, or while the caret stands
+    inside its tenure, that span's furniture runs to here instead. It is the same bargain the note
+    reveal strikes — the drawn tail stops at the ink end, and the reveal shows the ring the chart
+    stores — and the same shape: both ends ride one state and the surface picks.
 
     The 3D board draws no reveal and reads the drawn extent alone.
     */

@@ -375,21 +375,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool dissolveSilentKeyframes(const std::function<bool(const ChartSlotKey&)>& keeps);
     [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
 
-    // The chart selection resolved against the displayed projection, the ONE resolver behind the
-    // published overlay (ChartEditViewState) and the pointer hit test's reveal: selection keys
-    // re-resolve to indices on every ask, so keys whose notes vanished simply drop out instead of
-    // pointing at the wrong glyph. Every stored keyframe is in the projection, so every keyframe
-    // key resolves; whether the lane DRAWS the mark is the lane's own extent question.
-    struct ResolvedChartSelection
-    {
-        std::vector<std::size_t> notes;
-        std::vector<ChartKeyframeRef> keyframes;
-    };
-    [[nodiscard]] ResolvedChartSelection resolvedChartSelection() const;
+    // The reveal's grounds resolved against the displayed projection — the selection as indices,
+    // and the armed caret — the ONE resolver behind the published overlay (ChartEditViewState)
+    // and the pointer hit test's reveal. Selection keys re-resolve to indices on every ask, so
+    // keys whose notes vanished simply drop out instead of pointing at the wrong glyph; every
+    // stored keyframe is in the projection, so every keyframe key resolves, and whether the lane
+    // DRAWS the mark is the lane's own extent question. The caret publishes whenever armed, empty
+    // slot or note alike — its presence is the armed signal that hides the paused playhead — while
+    // a lane-riding caret publishes through the tone-automation state instead (§9b), so the tab
+    // lane draws no square for it. The overlay's other fields (marquee, pending entry) are the
+    // publisher's alone.
+    [[nodiscard]] ChartEditViewState resolvedChartEdit() const;
 
     // The per-note reveal a pointer event's hit test reads, from the modifier it carries and the
-    // selection standing when the event arrives (chartNoteRevealed).
-    [[nodiscard]] common::ui::TabRevealed chartRevealFor(const ChartPointerEvent& event) const;
+    // grounds standing when the event arrives (chartNoteRevealed), answered for the displayed
+    // projection the event is resolved against.
+    [[nodiscard]] common::ui::TabRevealed chartRevealFor(
+        const ChartPointerEvent& event, const common::core::ChartViewState& tab) const;
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
     void clearChartEditingState();

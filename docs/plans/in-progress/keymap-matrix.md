@@ -104,7 +104,8 @@
 stored duration `Alt`+wheel edits, which the ink may stop short of or not draw at all — and
 releasing stops every note at its ink end again (stage B of
 `docs/plans/in-progress/note-sustain-model.md`, shipped 2026-08-22). Global while held, never
-selection-scoped; the SELECTION is the reveal's other ground (`chartNoteRevealed`, 2026-09-23).
+selection-scoped; the SELECTION and the CARET's peek are the reveal's other grounds
+(`chartNoteRevealed`, 2026-09-23).
 Clicks and marquees reach what is drawn and nothing more: a keyframe past its note's ink end is a
 target only while its note is revealed, and a tail never is. The mark it makes is
 the notation itself: the same notes, drawn further (ruled 2026-08-23; the outline candidate and its
@@ -381,7 +382,7 @@ chip scrolling in.
 | **Edge-drag extent** | `✗` — chart sustain is `Alt`+wheel | `—` (no extent) | resize region | Live (tone) · chart uses `Alt`+wheel |
 | **Drag from empty (marquee)** | marquee select — plain **replaces** (the multi-object form of the plain click), `Shift` **extends**, `Ctrl` **toggles the boxed set as one unit** (the box form of `Ctrl`+click: all in → all out, else all in; user ruled 2026-09-09) | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
 | **`Alt`+drag from empty** | `✗` — the press-drag-release form of the retired `Alt`+click authoring, gone with it 2026-09-11 | insert + place point | split + drag boundary | Live · **chart retired 2026-09-11** |
-| **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — the lane draws each note on to its ring end, so each ring is an ordinary tail and the ending zone's keyframes show at their stored instants. The lane-wide ground; the SELECTION is the other (`chartNoteRevealed`, 2026-09-23), and the caret's position is not yet one | `✗` | `✗` | Live 2026-08-22 (chart only; mark signed 2026-08-23) |
+| **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — the lane draws each note on to its ring end, so each ring is an ordinary tail and the ending zone's keyframes show at their stored instants. The lane-wide ground; the SELECTION and the CARET standing inside a ring are the others (`chartNoteRevealed`, 2026-09-23) | `✗` | `✗` | Live 2026-08-22 (chart only; mark signed 2026-08-23) |
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |
 | **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | **Retired 2026-08-23** — snap off + `Alt`+wheel |
 | **`Shift+Alt`+wheel** | fret shift ±1 | `✗` | `✗` | Live (chart only) |

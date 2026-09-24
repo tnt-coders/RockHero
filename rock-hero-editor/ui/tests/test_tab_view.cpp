@@ -829,9 +829,9 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
 
 // THE REVEAL IS THE RING, and it reveals a tail hidden for ANY reason because no reason is one of
 // its inputs — which is why the two figures here are the two reasons that exist: presentation never
-// earned the tail, and the trim cut it short. An editing POSITION shows neither of them: the caret
-// the charter is moving must not move ink under their pointer, so standing it in a ring leaves the
-// picture exactly as it was. (Selecting a note is a ground of its own, pinned further down.)
+// earned the tail, and the trim cut it short. The CARET PEEK shows either of them one note at a
+// time: the caret standing on a note's string inside its stored ring reveals that note and no
+// other. (Selecting a note is a ground of its own, pinned further down.)
 TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -894,22 +894,28 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
         CHECK(quiet.getPixelAt(128, 12).getARGB() == 0);
     }
 
-    // The caret inside a ring changes nothing: an edit position is not a reason to redraw the
-    // notation around it, whichever of the two hidden tails it stands in.
+    // The caret on a note's string inside its stored ring reveals THAT note, whichever of the two
+    // hidden tails it stands in — and only that one: the other note's tail stays hidden, the peek
+    // being the note's answer rather than the lane's. The square itself is an outline, so neither
+    // probe falls on its stroke.
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 6},
         });
     {
         const juce::Image with_caret = render();
-        CHECK(with_caret.getPixelAt(128, 12).getARGB() == 0);
+        CHECK(with_caret.getPixelAt(128, 12).getARGB() != 0);
         CHECK(with_caret.getPixelAt(75, 72).getARGB() == 0);
     }
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 6.0, .string = 3},
         });
-    CHECK(render().getPixelAt(75, 72).getARGB() == 0);
+    {
+        const juce::Image with_caret = render();
+        CHECK(with_caret.getPixelAt(75, 72).getARGB() != 0);
+        CHECK(with_caret.getPixelAt(128, 12).getARGB() == 0);
+    }
 
     // The reveal shows BOTH, on both lanes at once: it is the lane's answer rather than one note's,
     // and a tail presentation never earned and one the trim cut short are hidden for reasons it
@@ -998,15 +1004,24 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     // centre.
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
-    // Selecting the note under scrutiny shows it — the selection is a ground of the reveal — while
-    // standing the caret in the very stretch the crop took does not: a position is not a ground.
+    // Selecting the note under scrutiny shows it — the selection is a ground of the reveal — and so
+    // does standing the caret on its string in the very stretch the crop took: the peek reads the
+    // stored ring, not the drawn one.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
     CHECK(render().getPixelAt(189, 72).getARGB() != 0);
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.9375, .string = 3},
         });
-    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
+
+    // A grid-snapped caret on the ring's END — the next head's own onset — is inside the ring too:
+    // the peek includes both ends.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 1.0, .string = 3},
+        });
+    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
 
     // The lane reveal shows it too, and what either shows is the derivation's own crop.
     view.setEditState(core::ChartEditViewState{});

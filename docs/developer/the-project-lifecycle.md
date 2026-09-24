@@ -1058,8 +1058,9 @@ neighbours.
     Because the margin is display and not truth, the view state publishes BOTH instants —
     `ShapeViewState::drawn_end_seconds`, which is what draws everywhere, and
     `ShapeViewState::close_seconds`, the close itself — and the editor's 2D lane REVEALS the second:
-    while the lane's reveal modifier is held, or while the selection holds
-    a note the span covers, that span's furniture runs on to the close in the ink it already had,
+    while the lane's reveal modifier is held, while the selection holds a note the span covers,
+    or while the caret stands inside its tenure (`core::chartSpanRevealed`), that span's
+    furniture runs on to the close in the ink it already had,
     and snaps back when the ground goes away. It is the note reveal's own bargain applied to the
     other subject, so the trim is a display convenience the reader can always see past rather than
     information the surface withholds. Where no margin was owed — a reach close, a held-finger

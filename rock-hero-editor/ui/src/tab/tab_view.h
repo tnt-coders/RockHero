@@ -112,11 +112,10 @@ public:
     void setContextMenuCallback(ContextMenuCallback callback);
 
     /*!
-    \brief Applies the chart-editing overlay state (selection, marquee).
+    \brief Applies the chart-editing overlay state (selection, caret, marquee, pending entry).
 
-    The selection is more than an overlay here: a SELECTED note is revealed
-    (core::chartNoteRevealed), so a selection change redraws the tails it names to their ring
-    ends and back.
+    The overlay also feeds the reveal: a SELECTED note and the note the CARET stands in draw to
+    their ring ends (core::chartNoteRevealed), so a selection or caret change redraws those tails.
 
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
@@ -125,13 +124,14 @@ public:
     /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
 
-    The lane-wide ground of the reveal (core::chartNoteRevealed carries the selection's). While
-    it is on, EVERY visible note draws to its ring's end — the ring the string really sounds for,
-    every keyframe at its true instant — instead of stopping at its ink end. The editor holds it
-    on exactly while the application is in the foreground and the Alt key — the sustain gesture's
-    own modifier — is down, so the length being authored is visible while it is authored, and
-    releasing crops every note back to its ink end. A reveal never moves a target
-    (chart_reveal.h), so nothing a charter did a moment ago moves a mark under their pointer.
+    The lane-wide ground of the reveal (core::chartNoteRevealed carries the selection's and the
+    caret's). While it is on, EVERY visible note draws to its ring's end — the ring the string
+    really sounds for, every keyframe at its true instant — instead of stopping at its ink end.
+    The editor holds it on exactly while the application is in the foreground and the Alt key —
+    the sustain gesture's own modifier — is down, so the length being authored is visible while
+    it is authored, and releasing crops every note back to its ink end. A reveal never moves a
+    target (chart_reveal.h), so nothing a charter did a moment ago moves a mark under their
+    pointer.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
     operating system every frame for its whole life, so a slide-out nothing delivered cannot strand

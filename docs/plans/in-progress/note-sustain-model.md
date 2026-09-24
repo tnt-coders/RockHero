@@ -264,10 +264,11 @@ and has no instances on that material.
   - **One glyph consequence of drawing past every rule, accepted.** A DEAD note grows a tail under
     the reveal (rule 3 is a presentation rule) — Alt shows what is STORED, and that tail reads as
     how long the mute is held.
-  - **The modifier and the selection reveal** (`chartNoteRevealed`, re-ruled 2026-09-23 once a
-    reveal moved no mark): Alt is the insertion lookahead the selection cannot serve, since with a
-    selection standing a typed digit RETYPES those notes instead of inserting one, and the
-    selection reveals the thing under scrutiny so a selected zone keyframe always has a ring.
+  - **The modifier, the selection and the caret peek reveal** (`chartNoteRevealed`, re-ruled
+    2026-09-23 once a reveal moved no target): Alt is the insertion lookahead the selection cannot
+    serve, since with a selection standing a typed digit RETYPES those notes instead of inserting
+    one; the selection reveals the thing under scrutiny so a selected zone keyframe always has a
+    ring; and the caret inside a ring answers "is something here?".
 - **C — shape spans and their postures are DERIVED from the notes**, per chart revision, in core:
   `deriveChartShapes(saved_notes, claimed_stops, planted_stops, tempo_map)` (`chart/chart_shapes.h`)
   reads the stored stream and the resolved claim tables, and `ChartResolutions` carries `shapes` and

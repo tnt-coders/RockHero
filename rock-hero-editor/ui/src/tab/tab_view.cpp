@@ -299,36 +299,22 @@ void TabView::paint(juce::Graphics& g)
     const common::core::ChartViewState& tab = lane->tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
-    // Whether a note is revealed — while the whole-lane reveal is held or while it is selected —
-    // and the rule lives in the editor core beside the hit test that must agree with it
-    // (core::chartNoteRevealed). ONE ANSWER, and everything the reveal decides reads it: how far
-    // a note is drawn — to its ring's end, every keyframe at its true instant — and whether its
-    // reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing a note
-    // shows the whole truth about it at once, so the two cannot be separate questions.
-    const auto revealed = [this](std::size_t index) {
-        return core::chartNoteRevealed(
-            index, m_ring_reveal, m_edit.selected_notes, m_edit.selected_keyframes);
+    // Whether a note is revealed: the rule lives in the editor core beside the hit test that must
+    // agree with it (core::chartNoteRevealed), and this lane only routes its overlay through it.
+    // ONE ANSWER, and everything the reveal decides reads it: how far a note is drawn — to its
+    // ring's end, every keyframe at its true instant — and whether its reveal-only held-stop
+    // satellite is there at all (THE SATELLITE REVEAL). Revealing a note shows the whole truth
+    // about it at once, so the two cannot be separate questions.
+    const auto revealed = [this, &tab](std::size_t index) {
+        return core::chartNoteRevealed(tab.notes, index, m_ring_reveal, m_edit);
     };
 
-    // THE SPAN'S OWN REVEAL, stated beside the note's because it is the same held modifier
-    // answering for a different subject: while it is on, while a span covers a selected note, or
-    // while the caret stands inside its tenure, that span's furniture runs to its MUSICAL CLOSE
-    // instead of to the extent rule 12a trimmed for display: three grounds
-    // (core::chartSpanRevealed) where the note has two (core::chartNoteRevealed).
-    //
-    // What the lane hands the paint core is therefore the answer rather than a note, and the core
-    // reads whichever of the span's two ends that answer names. The rule itself lives in the editor
-    // core (core::chartSpanRevealed), so the lane never spells it.
+    // THE SPAN'S OWN REVEAL (core::chartSpanRevealed), the same grounds answering for a different
+    // subject: a revealed span's furniture runs to its MUSICAL CLOSE instead of to the extent rule
+    // 12a trimmed for display. What the lane hands the paint core is the answer rather than a
+    // span, and the core reads whichever of the span's two ends that answer names.
     const auto revealed_shape = [this, &tab](std::size_t index) {
-        // Bound once so the presence test and the read are provably the same object.
-        const std::optional<core::ChartCaretViewState>& caret = m_edit.caret;
-        std::optional<double> caret_seconds;
-        if (caret.has_value())
-        {
-            caret_seconds = caret->seconds;
-        }
-        return core::chartSpanRevealed(
-            tab.shapes[index], m_ring_reveal, tab.notes, m_edit.selected_notes, caret_seconds);
+        return core::chartSpanRevealed(tab.shapes[index], m_ring_reveal, tab.notes, m_edit);
     };
 
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, and this is where the whole of that

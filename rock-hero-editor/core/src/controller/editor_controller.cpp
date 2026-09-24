@@ -2871,28 +2871,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.highway = m_highway_view_state;
 
         // Chart-editing overlays resolve against exactly the projection instance pushed above
-        // (resolvedChartSelection), which is the one the lane hit-tests and the one whose
-        // keyframe heads it draws rings on.
+        // (resolvedChartEdit), which is the one the lane hit-tests and the one whose keyframe
+        // heads it draws rings on.
         if (arrangement->chart.has_value())
         {
-            ResolvedChartSelection selected = resolvedChartSelection();
-            state.chart_edit.selected_notes = std::move(selected.notes);
-            state.chart_edit.selected_keyframes = std::move(selected.keyframes);
-            // The marker publishes plainly from its state — armed ⟹ paused is structural
-            // (play and the transport listener demote), so no transport check re-derives it
-            // here. The caret publishes whenever armed, empty slot or note alike: the square
-            // stays visible through a single selection, and its presence is the armed signal
-            // that hides the paused playhead. A lane-riding caret publishes through the
-            // tone-automation state instead (§9b), so the tab lane draws no square for it.
-            if (const ChartCaret* const caret = armedChartCaret();
-                caret != nullptr && !caret->lane.has_value())
-            {
-                state.chart_edit.caret = ChartCaretViewState{
-                    .seconds = secondsAtGridPosition(session().song().tempo_map, caret->position),
-                    .string = caret->string,
-                    .channel = chartCaretChannel(),
-                };
-            }
+            state.chart_edit = resolvedChartEdit();
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)

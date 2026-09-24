@@ -102,34 +102,46 @@ const common::core::ChartViewState* EditorController::Impl::displayedTabProjecti
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
-EditorController::Impl::ResolvedChartSelection EditorController::Impl::resolvedChartSelection()
-    const
+ChartEditViewState EditorController::Impl::resolvedChartEdit() const
 {
-    ResolvedChartSelection resolved;
+    ChartEditViewState edit;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return resolved;
+        return edit;
     }
     const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-    resolved.notes = selectedNoteIndices(notes, chartSelection());
+    edit.selected_notes = selectedNoteIndices(notes, chartSelection());
     if (m_tab_view_state != nullptr)
     {
-        resolved.keyframes =
+        edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    return resolved;
+    // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
+    // check re-derives it here.
+    if (const ChartCaret* const caret = armedChartCaret();
+        caret != nullptr && !caret->lane.has_value())
+    {
+        edit.caret = ChartCaretViewState{
+            .seconds = secondsAtGridPosition(session().song().tempo_map, caret->position),
+            .string = caret->string,
+            .channel = chartCaretChannel(),
+        };
+    }
+    return edit;
 }
 
 // The reveal a pointer event resolves against, spelled from the grounds the lane paints by
 // (chartNoteRevealed). A mark the reveal brought in is reachable while it is drawn, which is the
-// whole of "nothing undrawn is clickable".
-common::ui::TabRevealed EditorController::Impl::chartRevealFor(const ChartPointerEvent& event) const
+// whole of "nothing undrawn is clickable". The answer is consumed by the event's own resolution
+// against `tab`, which outlives it.
+common::ui::TabRevealed EditorController::Impl::chartRevealFor(
+    const ChartPointerEvent& event, const common::core::ChartViewState& tab) const
 {
-    return [lane_reveal = event.modifiers.alt,
-            selected = resolvedChartSelection()](std::size_t index) {
-        return chartNoteRevealed(index, lane_reveal, selected.notes, selected.keyframes);
-    };
+    return
+        [lane_reveal = event.modifiers.alt, edit = resolvedChartEdit(), &tab](std::size_t index) {
+            return chartNoteRevealed(tab.notes, index, lane_reveal, edit);
+        };
 }
 
 // Each authored array is sorted by (position, string) and the tab projection preserves that order
@@ -500,8 +512,10 @@ void EditorController::Impl::dropChartSelectionKeysNamingNothing()
 // dissolves the caret: a point under scrutiny keeps its note in focus exactly as the caret on it
 // would.
 //
-// Attention, deliberately not the lane's reveal, which only the held modifier raises now: what a
-// silent point may outlive is the charter still working on the note, never what is drawn.
+// Attention, which is the reveal's grounds minus the modifier (chartNoteRevealed): what a silent
+// point may outlive is the charter still working on the note, never what is drawn. Spelled again
+// here, in grid space, because it is asked mid-edit against the live chart, before the projection
+// the reveal reads is rebuilt.
 bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -606,12 +620,13 @@ bool EditorController::Impl::dissolveSilentKeyframes(
 // off a mark the charter can see.
 //
 // THE CARET IS ITSELF A REVEAL, which is why the terms below are met rather than computed. Every
-// reader of this predicate is a caret standing on the note or moving onto it, and arming a caret
-// SELECTS what sits under it — one of the reveal's own grounds — so a reveal-only satellite is
-// drawn exactly because of the act that asks. Asking the note's current reveal instead would demote
-// a caret off the mark the press itself brings in, since the press resolves this before the
-// selection it derives. The presence rule is still spelled through its one authority rather than
-// short-circuited here, so a face with different terms would be answered rather than assumed.
+// reader of this predicate is a caret standing on the note or moving onto it, and a caret inside
+// a note's ring is one of the reveal's own grounds (chartNoteRevealed) — as is the selection the
+// arming makes — so a reveal-only satellite is drawn exactly because of the act that asks. Asking
+// the note's current reveal instead would demote a caret off the mark the press itself brings in,
+// since the press resolves this before the caret it arms. The presence rule is still spelled
+// through its one authority rather than short-circuited here, so a face with different terms
+// would be answered rather than assumed.
 bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1103,7 +1118,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     gesture.current_x = event.x;
     gesture.current_y = event.y;
     gesture.hit_target =
-        chartHitTarget(*tab, event.geometry, event.x, event.y, chartRevealFor(event));
+        chartHitTarget(*tab, event.geometry, event.x, event.y, chartRevealFor(event, *tab));
     m_chart_gesture = gesture;
 
     if (!gesture.hit_target.has_value())
@@ -1288,7 +1303,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         const float top = std::min(gesture.anchor_y, event.y);
         const float bottom = std::max(gesture.anchor_y, event.y);
         const std::vector<ChartHitTarget> boxed = chartTargetsInBox(
-            *tab, gesture.geometry, left, top, right, bottom, chartRevealFor(event));
+            *tab, gesture.geometry, left, top, right, bottom, chartRevealFor(event, *tab));
         std::vector<ChartSelectionKey> keys;
         keys.reserve(boxed.size());
         for (const ChartHitTarget& target : boxed)

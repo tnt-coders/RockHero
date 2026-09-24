@@ -770,11 +770,12 @@ PULL-OFF plants another beneath it: the press is what the pitch is measured from
 plant, and the plant reaches the picture through the covering span's posture instead of through this
 note's face. A stop a PULL-OFF **derives** is already printed by that notation, so
 it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
-note's real ring is (`core::chartNoteRevealed`: the lane reveal, or the note selected). Revealing
-a note shows the whole truth about it at once, so a satellite that waits is reached by a press
-holding `Alt` or a press on a selected note; the caret reaches it from the keyboard whatever is
-drawn, arming being itself a reveal. And a **tap fronting a bracket** stands whatever its
-authorship, because there the bracket owes the statement: the tap's head holds the string's centre,
+note's real ring is (`core::chartNoteRevealed`: the lane reveal, the note selected, or the caret
+inside its ring). Revealing a note shows the whole truth about it at once, so a satellite that
+waits is reached by a press holding `Alt`, a press on a selected note, or a press with the caret
+in the ring; the caret reaches it from the keyboard whatever is drawn, arming being itself a
+reveal. And a **tap fronting a bracket** stands whatever its authorship, because there the bracket
+owes the statement: the tap's head holds the string's centre,
 so the posture's digit is displaced into the satellite column and IS that tap's face ([D2]).
 
 **AND EVERY ONSET THE PICKING HAND STOPS THE STRING FOR HAS ONE, because every one of them has a
@@ -817,11 +818,11 @@ a disagreeing derived member still rejects the whole plan, an agreeing one simpl
 and the entry's default and authored satellites are written as ever.
 
 **One reveal, one predicate.** A note is revealed while the lane reveal modifier is held
-(`TabView::setRingReveal`) or while it is SELECTED — the note itself or any keyframe of it — and
-`core::chartNoteRevealed` is the one spelling of that, read by the lane that paints and by the
-controller's hit test. Everything downstream reads that one answer: how far the note draws,
-whether the paint core draws its satellite, and whether the layout manifest bounds a click target
-for it. The projection stays selection-agnostic: it publishes the face and its terms
+(`TabView::setRingReveal`), while it is SELECTED — the note itself or any keyframe of it — or
+while the CARET stands inside its ring, and `core::chartNoteRevealed` is the one spelling of that,
+read by the lane that paints and by the controller's hit test. Everything downstream reads that
+one answer: how far the note draws, whether the paint core draws its satellite, and whether the
+layout manifest bounds a click target for it. The projection stays selection-agnostic: it publishes the face and its terms
 (`common::core::StopMarkFace`), and the editor layers apply the reveal. The CARET's own reach is
 untouched by this, because it never went through the reveal: `chartSlotShowsHeldStop` asks the
 projection whether the note has a face at all, so arrows step onto a satellite and a digit at it
@@ -831,13 +832,13 @@ is refused in red whether or not anything is drawn.
 a span's rails one minimum-sustain-distance margin before the head that closed it, so the drawn
 extent is short of the musical close by design; while the reveal is held, while the selection
 holds a note the span covers, or while the caret stands inside its tenure, that span's furniture
-runs to the close instead — three grounds where the note has two. The visual language is the note
-reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes away —
-because a reveal shows the truth in the notation's own terms rather than annotating it. Both reach
-the paint core as a bare per-index answer (`common::ui::TabRevealed`, asked per note by
+runs to the close instead — the note's three grounds, read for a span. The visual language is the
+note reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes
+away — because a reveal shows the truth in the notation's own terms rather than annotating it. Both
+reach the paint core as a bare per-index answer (`common::ui::TabRevealed`, asked per note by
 `paintTabLane` and per span by `paintTabLaneFurniture`), since each projected event already
-carries both of its ends. Spans are not selectable in their own right yet; that
-arrives with the span-marker work.
+carries both of its ends. Spans are not selectable in their own right yet; that arrives with the
+span-marker work.
 
 **SATELLITES ARE NOTE-SCOPED, ALWAYS.** A satellite is its note's held FACE and nothing else: a
 press on one addresses that note's held stop, whatever the selection is. There is deliberately no
@@ -885,9 +886,10 @@ regions meeting at an instant, so the wave changes height where the chart says i
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —
 is invisible past that crop, and wherever rules 2 and 3 emptied a tail. One rule decides how far
 the lane draws (`core::chartNoteRevealed`): a note draws on to its **ring end** while the
-whole-lane `Alt` reveal is held or while it is selected, and to its ink end otherwise.
+whole-lane `Alt` reveal is held, while it is selected, or while the caret stands inside its ring,
+and to its ink end otherwise.
 
-Two grounds, and what each is for:
+Three grounds, and what each is for:
 
 - **`Alt` is the lookahead, and nothing else can serve it.** With a selection standing, typing a
   digit RETYPES those notes instead of inserting one, so a charter placing notes holds no selection
@@ -901,9 +903,13 @@ Two grounds, and what each is for:
   legitimate ground is the invariant `chart_reveal.h` states: A REVEAL NEVER MOVES A TARGET. The
   one mark that changes place under it, the destination chip, is never a target, so nothing a
   click lands on moves because the click landed.
-- **The CARET's position is not yet a ground.** The caret peek — a caret standing inside a ring
-  revealing that note — returns on the same terms in the next phase of
-  `docs/plans/in-progress/ring-ends-and-authoring-planes.md`.
+- **THE CARET'S PEEK answers "is something here?"** A click on a tail is not a selection (tails
+  are not targets): it moves the caret to the slot under the pointer, and if that slot lies on the
+  note's string inside its stored ring, ends included, the note reveals for as long as the caret
+  stays there. Deterministic and keyed on the edit position alone — no timer, nothing latched,
+  and the peek selects nothing — so the caret leaving is the whole of what hides it again, and the
+  reveal-only held-stop satellite comes in with it, so the caret steps onto a satellite it can
+  see.
 
 **The mark is the notation itself.** A revealed note is the same stored note drawn further: its
 tail runs to the real ring end, with its techniques and its payload riding it. Nothing is
