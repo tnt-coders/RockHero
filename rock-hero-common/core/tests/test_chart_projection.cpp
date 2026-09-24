@@ -560,10 +560,10 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         CHECK(view.vibrato[1].end_seconds == Catch::Approx(1.5));
     }
 
-    SECTION("adjacent legs at one width are one region")
+    SECTION("a width equal to the leg before it is no boundary")
     {
-        // Each leg states its own width, and two legs vibrating at the same one draw as one region
-        // rather than being cut in two at an instant where the vibrato does not change.
+        // Restating the width the leg before already vibrates at says nothing, so the region stays
+        // whole rather than being cut in two at an instant where the vibrato does not change.
         const ChartViewState state = project(
             VibratoState::Narrow,
             {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
@@ -586,6 +586,22 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
         CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
+    }
+
+    SECTION("a bare keyframe ends the vibrato there")
+    {
+        // The stored form of vibrato ending mid-hold (the importer's tie): the point states no
+        // channel, but it begins an unvibrated leg.
+        const ChartViewState state =
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}}});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK_THAT(
+            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
+        // It states no position, so it draws no stop.
+        CHECK(view.slides.empty());
     }
 
     SECTION("a step between the widths closes one region and opens the other")

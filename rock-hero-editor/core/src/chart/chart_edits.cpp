@@ -662,12 +662,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     }
     // Inserted at its sorted place and never merged onto a record already there: a second keyframe
     // on one offset leaves the note's offsets no longer strictly ascending, which is the rule
-    // authority's refusal and not one this planner restates.
+    // authority's refusal and not one this planner restates. The point carries the width of the
+    // leg it divides, so planting it never ends a vibrato.
     const auto at = std::ranges::upper_bound(
         target->keyframes, offset, {}, [](const common::core::Keyframe& keyframe) {
             return keyframe.offset;
         });
-    target->keyframes.insert(at, common::core::Keyframe{.offset = offset, .fret = fret});
+    common::core::Keyframe point = common::core::keyframeInLeg(*target, offset);
+    point.fret = fret;
+    target->keyframes.insert(at, std::move(point));
 
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
 }
@@ -755,9 +758,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     KeyedSplit notes = splitByKeys(chart.notes, note_keys);
     const std::size_t deleted_notes = notes.keyed.size();
     // Keyframes go from the notes that SURVIVE: one whose note this call deletes needs no removal
-    // of its own, and the strip runs over `rest` for exactly that reason. Delete takes every
-    // statement a keyframe makes, so the keyframe always empties and always goes — which is the
-    // strip authority's own removal rule rather than a second one written here.
+    // of its own. Delete takes the keyframe ITSELF — its statements and the leg boundary it is —
+    // so it is an erase and never a strip: a stripped keyframe would stay as a bare boundary, and
+    // where the leg before it vibrates that boundary would still end the vibrato.
     std::size_t deleted_keyframes = 0;
     for (common::core::ChartNote& note : notes.rest)
     {
@@ -767,19 +770,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         {
             continue;
         }
-        const std::size_t before = note.keyframes.size();
-        static_cast<void>(common::core::stripKeyframeChannels(
-            note.keyframes, [&offsets](common::core::Keyframe& keyframe) {
-                if (!std::ranges::binary_search(offsets, keyframe.offset))
-                {
-                    return false;
-                }
-                keyframe.fret.reset();
-                keyframe.bend.reset();
-                keyframe.vibrato = common::core::VibratoState::None;
-                return true;
-            }));
-        deleted_keyframes += before - note.keyframes.size();
+        deleted_keyframes +=
+            std::erase_if(note.keyframes, [&offsets](const common::core::Keyframe& keyframe) {
+                return std::ranges::binary_search(offsets, keyframe.offset);
+            });
     }
     if (deleted_notes == 0 && deleted_keyframes == 0)
     {
@@ -1888,28 +1882,30 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             {
                 written.vibrato = set;
             }
-            // A width is the leg's own statement and a leg without one omits it, so clearing is
-            // the channel taken off the point — through the strip authority, so a point whose
-            // only statement was the width goes with it: it lingers as a selection key (which is
-            // what a second press inside the verb window reverses through) while the chart, which
-            // may never hold a keyframe stating nothing, simply does not have it.
-            const std::vector<common::core::Fraction> offsets =
-                selectedOffsetsOn(keyframe_keys, slot);
-            static_cast<void>(common::core::stripKeyframeChannels(
-                written.keyframes, [&offsets, set](common::core::Keyframe& keyframe) {
-                    if (!std::ranges::binary_search(offsets, keyframe.offset))
-                    {
-                        return false;
-                    }
-                    if (common::core::hasVibrato(set))
-                    {
-                        keyframe.vibrato = set;
-                        return false;
-                    }
-                    const bool cleared = common::core::hasVibrato(keyframe.vibrato);
-                    keyframe.vibrato = common::core::VibratoState::None;
-                    return cleared;
-                }));
+            // A width is the leg's own statement. Clearing ends the vibrato at the point through
+            // the one authority for that ending's stored form (endVibratoAt): the point stays as
+            // the bare beginning of an unvibrated leg, which ends the vibrato before it, and where
+            // that leg was not vibrated the point is silent authoring state the commit law
+            // sweeps when the note leaves focus. A key naming no keyframe (one an earlier sweep
+            // dissolved) writes nothing: this verb states the channel on keyframes the chart
+            // holds and never authors one.
+            for (const common::core::Fraction& offset : selectedOffsetsOn(keyframe_keys, slot))
+            {
+                const auto standing =
+                    std::ranges::find(written.keyframes, offset, &common::core::Keyframe::offset);
+                if (standing == written.keyframes.end())
+                {
+                    continue;
+                }
+                if (common::core::hasVibrato(set))
+                {
+                    standing->vibrato = set;
+                }
+                else
+                {
+                    common::core::endVibratoAt(written, offset);
+                }
+            }
             return true;
         });
 }

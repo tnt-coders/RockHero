@@ -5,9 +5,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <span>
@@ -541,7 +543,12 @@ Each channel reads independently along the ring:
   Nothing carries: each keyframe states its own leg's width, so a delayed start, an end where
   the next keyframe begins an unvibrated leg, a step from the ordinary vibrato to the wide one,
   several regions, and vibrato through a glide are all just the legs that state one. A vibrated
-  leg with no keyframe after it vibrates to the ring's end: a width ends only where a leg begins.
+  leg with no keyframe after it vibrates to the ring's end: a width ends only where a leg begins,
+  and where nothing else changes there the leg is begun by a keyframe carrying no channel at all,
+  kept because the leg it begins is its statement (\ref endVibratoAt,
+  \ref keyframeSaysNothingNew). The other way round, a keyframe planted inside
+  a vibrated leg for its fret or bend carries the leg's width, so planting never ends a vibrato by
+  accident (\ref keyframeInLeg).
 
 **A keyframe that says nothing the path does not already say is never written**
 (\ref keyframeSaysNothingNew): it is authoring state — the editor plants a slide's start before
@@ -583,9 +590,11 @@ On a pick slide the keyframes are optional direction turnarounds — unpitched r
 which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
 is its required slide-out keyframe.
 
-A keyframe stating NOTHING is not a record at all but a location with no fact attached;
-\ref keyframeStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
-such a keyframe.
+A keyframe is the boundary of a LEG and may carry any subset of its channels, none included: a
+bare keyframe begins an unvibrated leg, which is the stored form of vibrato ending where nothing
+else changes. What a keyframe SAYS is the commit law's question (\ref keyframeSaysNothingNew), and
+one that says nothing is swept, never refused; the only structural fact is that a bare keyframe at
+the ring's END, where no leg begins, is nothing (\ref keyframeStatesNothing).
 */
 struct Keyframe
 {
@@ -625,63 +634,23 @@ struct Keyframe
 };
 
 /*!
-\brief Reports whether a keyframe states no channel at all — the one shape no chart may hold.
+\brief Reports whether a keyframe carries no channel at all: no fret, no bend, no width.
 
-A keyframe IS its statements: a location carrying none says nothing that could be drawn, played,
-or edited, and it would still shift every neighbour's index and survive every edit. Refused by
-\ref validateChartNoteAlone, and asked by \ref stripKeyframeChannels for every rule that sheds a
-channel.
+Not a shape the chart refuses. A keyframe is the boundary of a leg, and a bare one begins an
+UNVIBRATED leg — the stored form of vibrato ending where nothing else changes (\ref endVibratoAt).
+Whether it says anything is the commit law's question (\ref keyframeSaysNothingNew): after a
+vibrated leg it does, after an unvibrated one it is silent and swept like any silent point. Asked
+where a bare keyframe can only be silent — at the ring's END, which begins no leg — by the helpers
+that leave a statement there.
 
 \param keyframe Keyframe to classify.
 
-\return True when no channel is stated.
+\return True when no channel is carried.
 */
 [[nodiscard]] inline bool keyframeStatesNothing(const Keyframe& keyframe) noexcept
 {
     return !keyframe.fret.has_value() && !keyframe.bend.has_value() &&
            !hasVibrato(keyframe.vibrato);
-}
-
-/*!
-\brief Clears channels across a note's keyframes and drops only the ones the clearing emptied.
-
-Every rule that sheds a channel needs this, and needs it to be exactly this. Such a rule clears
-CHANNELS rather than whole keyframes — a capo floor takes the fret, not the bend authored at the
-same instant — so a keyframe it empties is no record at all and must go. A keyframe that ARRIVED
-stating nothing is a different thing entirely: illegal data \ref validateChartNoteAlone refuses,
-and \ref normalizeChart runs before \ref validateChartRules on every load, so a strip that dropped
-every empty keyframe it found would quietly repair that refusal out of existence. Removing what
-the strip itself emptied is the only reading that does neither, and it is spelled once because
-every shedding rule asks it.
-
-\param keyframes Keyframes to strip in place, left in order.
-\param strip Applied to each keyframe in turn: clears whatever channels the caller's rule owns and
-       returns whether it cleared any.
-
-\return True when the strip cleared a channel anywhere — what a caller reports as its repair.
-*/
-template <typename Strip>
-[[nodiscard]] bool stripKeyframeChannels(std::vector<Keyframe>& keyframes, const Strip& strip)
-{
-    bool stripped = false;
-    std::size_t kept = 0;
-    for (std::size_t index = 0; index < keyframes.size(); ++index)
-    {
-        Keyframe& keyframe = keyframes[index];
-        const bool cleared = strip(keyframe);
-        stripped = stripped || cleared;
-        if (cleared && keyframeStatesNothing(keyframe))
-        {
-            continue;
-        }
-        if (kept != index)
-        {
-            keyframes[kept] = keyframe;
-        }
-        ++kept;
-    }
-    keyframes.resize(kept);
-    return stripped;
 }
 
 /*!
@@ -1098,6 +1067,123 @@ once per entry to learn what one pass already knows.
 }
 
 /*!
+\brief The vibrato width of the leg an instant lies in, read with no keyframe standing AT it: the
+leg a keyframe inserted there would divide, and the leg BEFORE a keyframe already standing there.
+
+\param note Note whose legs are read.
+\param offset Beat offset from the onset.
+\return The width of the leg the instant lies in, ignoring any keyframe at the instant itself.
+*/
+[[nodiscard]] inline VibratoState vibratoBefore(
+    const ChartNote& note, const Fraction offset) noexcept
+{
+    VibratoState width = note.vibrato;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (!(keyframe.offset < offset))
+        {
+            break;
+        }
+        width = keyframe.vibrato;
+    }
+    return width;
+}
+
+/*!
+\brief A fresh keyframe at `offset` carrying the width of the leg it divides — THE one way a
+producer begins a keyframe inside a ring.
+
+A width is a leg's own, so a keyframe stating none begins an unvibrated leg: a point planted
+inside a vibrated leg for its fret or its bend would end the vibrato there unless it carried the
+leg's width, which is what this hands it. Every creator of a mid-ring keyframe starts from this
+record and states its own channels on top.
+
+\param note Note the keyframe is planted in.
+\param offset Beat offset from the onset, strictly inside the ring.
+\return A keyframe stating only the leg's width.
+*/
+[[nodiscard]] inline Keyframe keyframeInLeg(const ChartNote& note, const Fraction offset)
+{
+    return Keyframe{
+        .offset = offset,
+        .fret = std::nullopt,
+        .bend = std::nullopt,
+        .vibrato = vibratoBefore(note, offset),
+    };
+}
+
+/*!
+\brief Clears channels across a note's keyframes, spelled once for every rule that sheds one.
+
+Such a rule clears CHANNELS rather than whole keyframes — a capo floor takes the fret, not the
+bend authored at the same instant — and a keyframe the clearing empties inside the ring stays: it
+begins a leg like any bare keyframe, and whether it then says anything is the commit law's
+question (\ref keyframeSaysNothingNew), which sweeps a silent one exactly as it sweeps a silent
+fret. One emptied AT the ring's end goes with its last channel: no leg begins there, so a bare
+keyframe at the end is nothing (\ref keyframeStatesNothing).
+
+\param note Note whose keyframes are stripped in place, left in order.
+\param strip Applied to each keyframe in turn: clears whatever channels the caller's rule owns and
+       returns whether it cleared any.
+
+\return True when the strip cleared a channel anywhere — what a caller reports as its repair.
+*/
+template <typename Strip>
+[[nodiscard]] bool stripKeyframeChannels(ChartNote& note, const Strip& strip)
+{
+    bool stripped = false;
+    for (Keyframe& keyframe : note.keyframes)
+    {
+        stripped = strip(keyframe) || stripped;
+    }
+    if (stripped && !note.keyframes.empty())
+    {
+        const Keyframe& end = note.keyframes.back();
+        if (!(end.offset < note.sustain) && keyframeStatesNothing(end))
+        {
+            note.keyframes.pop_back();
+        }
+    }
+    return stripped;
+}
+
+/*!
+\brief Leaves the keyframe at `offset` beginning an UNVIBRATED leg — the vibrato ending there —
+creating a bare one where none stands after a vibrated leg.
+
+The one place a vibrato ending is written. A keyframe carrying nothing else is the ending's whole
+stored form: the path is untouched, which no fret restatement could promise inside a glide. What
+it says is the commit law's question (\ref keyframeSaysNothingNew) — after a vibrated leg it ends
+the vibrato and is kept, after an unvibrated one it is silent and swept — so nothing is dropped
+here; after an unvibrated leg nothing is created either, there being nothing to end.
+
+\param note Note whose vibrato ends at the instant.
+\param offset Beat offset from the onset, strictly inside the ring.
+*/
+inline void endVibratoAt(ChartNote& note, const Fraction offset)
+{
+    const auto at =
+        std::ranges::lower_bound(note.keyframes, offset, std::ranges::less{}, &Keyframe::offset);
+    if (at != note.keyframes.end() && at->offset == offset)
+    {
+        at->vibrato = VibratoState::None;
+        return;
+    }
+    if (!hasVibrato(vibratoBefore(note, offset)))
+    {
+        return;
+    }
+    note.keyframes.insert(
+        at,
+        Keyframe{
+            .offset = offset,
+            .fret = std::nullopt,
+            .bend = std::nullopt,
+            .vibrato = VibratoState::None,
+        });
+}
+
+/*!
 \brief Reports whether the note's bend channel says anything at all.
 
 The onset value is always a statement, so "is this note bent" is not "are there bend keyframes":
@@ -1364,8 +1450,8 @@ inline bool shedEndStatementVibrato(ChartNote& note) noexcept
         return false;
     }
     end->vibrato = VibratoState::None;
-    // A statement of the vibrato alone then says nothing, and a keyframe stating nothing is a shape
-    // no chart may hold (\ref validateChartNoteAlone).
+    // A statement of the vibrato alone then says nothing at the end, where no leg begins, so the
+    // bare keyframe goes with it.
     if (keyframeStatesNothing(*end))
     {
         note.keyframes.pop_back();
@@ -1705,8 +1791,12 @@ through: between two stating points the position interpolates, so a value on tha
 neither where the hand is at any instant nor when travel resumes, and past the last point the path
 holds. A bend value on a flat stretch of the curve — repeating the statement before it and repeated
 by the one after, or trailing, since the curve holds past its last point — judged by exact
-equality, so a point on a sloped segment is always kept. Never a vibrato width: it is its own leg's
-statement, so any width says something new. What this buys every reader: a stored
+equality, so a point on a sloped segment is always kept. A vibrato width equal to the leg before
+it: with the point gone that leg would cover the stretch at the same width, so nothing changes —
+while a point beginning an UNVIBRATED leg after a vibrated one says something whatever else it
+states — so a keyframe carrying no channel at all is the stored form of vibrato ending where
+nothing else changes, and a bare keyframe after an unvibrated leg is silent like any other silent
+point. What this buys every reader: a stored
 note's LAST keyframe is always a statement, so "the last keyframe" and "the last thing the tail
 says" are one offset (\ref chartPresentation rule 4). Such a point is AUTHORING STATE, never
 document: the editor plants one as the start of a

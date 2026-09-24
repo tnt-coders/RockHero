@@ -17,9 +17,12 @@
 #include <ranges>
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
@@ -380,13 +383,19 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[3].string == 2);
     CHECK(chart.notes[3].sustain == Fraction{4});
     CHECK(ink_end[3] == Fraction{39, 10});
-    // The score marks the vibrato on the tie's ORIGIN and not on its continuation. A width is its
-    // leg's own, and the continuation begins no leg — a tie states no new position and the
-    // continuation no width — so the origin's vibrato runs across the whole merged ring.
+    // The score marks the vibrato on the tie's ORIGIN and not on its continuation, so the merged
+    // ring vibrates from its onset and stops where the continuation begins — two beats in, on a
+    // bare keyframe: nothing else changes there, and the unvibrated leg it begins is its whole
+    // statement.
     // The score's word is `Slight`, which is Guitar Pro's house label for the ORDINARY vibrato
     // and resolves onto the chart's narrow tier — the tier mapping read at its own seam.
+    CHECK(chart.notes[3].fret == 4);
     CHECK(chart.notes[3].vibrato == common::core::VibratoState::Narrow);
-    CHECK(chart.notes[3].keyframes.empty());
+    REQUIRE(chart.notes[3].keyframes.size() == 1);
+    CHECK(chart.notes[3].keyframes[0].offset == Fraction{2});
+    CHECK_FALSE(chart.notes[3].keyframes[0].fret.has_value());
+    CHECK_FALSE(chart.notes[3].keyframes[0].bend.has_value());
+    CHECK(chart.notes[3].keyframes[0].vibrato == common::core::VibratoState::None);
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
     // a local so the node check and its reads are provably the same object.
@@ -4267,6 +4276,33 @@ enum class SegmentJoin : std::uint8_t
     return statements;
 }
 
+// One string, one tie chain: a quarter at fret 5 per entry of `widths`, each tied to the next and
+// carrying that entry as its own vibrato flag, so the whole chain merges into one ring whose
+// segments begin a beat apart.
+[[nodiscard]] GpScore tiedVibratoChainScore(const std::vector<common::core::VibratoState>& widths)
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    std::vector<GpBeat> beats;
+    beats.reserve(widths.size());
+    for (std::size_t index = 0; index < widths.size(); ++index)
+    {
+        const GpNote segment{
+            .string = 0,
+            .fret = 5,
+            .tie_origin = index + 1 < widths.size(),
+            .tie_destination = index > 0,
+            .vibrato = widths[index],
+            .harmonic_type = ""
+        };
+        beats.push_back(GpBeat{.duration_whole = Fraction{1, 4}, .notes = {segment}});
+    }
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(GpBar{.voices = {std::move(beats)}});
+    return score;
+}
+
 } // namespace
 
 // Guitar Pro states vibrato per NOTE and names no instant inside it, so a segment folded into a
@@ -4275,8 +4311,9 @@ enum class SegmentJoin : std::uint8_t
 // landing's vibrato backward over the origin's onset and giving a landing without any vibrato it
 // never played. The keyframe model gives the flag a place to land, and the import anchors it where
 // the folded segment BEGINS: the junction the glide arrives at (the carried sign-off's last
-// keyframe) or the continuation's own onset. A width is its leg's own, so a ring that vibrates end
-// to end states it at the onset and again at every junction.
+// keyframe) or the continuation's own onset. A width is its leg's own, so a glide's junction — a
+// keyframe that begins a leg whatever it says — carries the landing's width, None included, while
+// a tie writes one only where the continuation's width differs from the leg before it.
 TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-import]")
 {
     const auto merged_note = [](const GpScore& score) {
@@ -4351,29 +4388,34 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
     }
 
-    SECTION("a plain tie continuation begins no leg, so the origin's vibrato runs on")
+    SECTION("a plain tie continuation ends the vibrato at the tie")
     {
-        // A tie states no new position and the continuation states no width, so nothing begins a
-        // leg at its onset: the first leg, and the origin's vibrato with it, runs to the ring's
-        // end.
+        // Guitar Pro marks the vibrato on the origin alone, so it ends where the continuation
+        // begins. Nothing else changes there, so the keyframe that begins the unvibrated leg is
+        // bare — the one stored form of vibrato ending mid-hold.
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::Tie,
             common::core::VibratoState::Narrow,
             common::core::VibratoState::None));
-        CHECK(common::core::hasVibrato(note.vibrato));
-        CHECK(note.keyframes.empty());
+        CHECK(note.vibrato == common::core::VibratoState::Narrow);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK_FALSE(note.keyframes[0].fret.has_value());
+        CHECK_FALSE(note.keyframes[0].bend.has_value());
+        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::None);
+        CHECK_FALSE(common::core::hasVibrato(common::core::ringStateAt(note, Fraction{1}).vibrato));
     }
 
-    SECTION("a tie chain that vibrates throughout states the width at the junction")
+    SECTION("a tie chain that vibrates throughout stores only its onset flag")
     {
+        // The continuation's width equals the leg before it, which already covers it: a tie
+        // stores nothing, the onset flag alone vibrating the whole ring.
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::Tie,
             common::core::VibratoState::Narrow,
             common::core::VibratoState::Narrow));
         CHECK(note.vibrato == common::core::VibratoState::Narrow);
-        REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{1});
-        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
+        CHECK(note.keyframes.empty());
     }
 
     SECTION("a landing that widens the vibrato states the wider tier at the junction")
@@ -4402,6 +4444,80 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         CHECK_FALSE(common::core::hasVibrato(note.vibrato));
         CHECK(note.keyframes.empty());
     }
+}
+
+// A tie chain whose vibrato stops and starts again: each tie writes only what changes against the
+// leg before it, so the stop is a bare keyframe beginning the unvibrated leg and the restart a
+// width on a keyframe stating nothing else, beginning the vibrated one — two keyframes, one per
+// change, and none for the flag the onset already states.
+TEST_CASE("Guitar Pro import ends and restarts vibrato along a tie chain", "[core][gp-import]")
+{
+    const auto built = buildGpSong(tiedVibratoChainScore(
+        {common::core::VibratoState::Narrow,
+         common::core::VibratoState::None,
+         common::core::VibratoState::Narrow}));
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+
+    CHECK(note.vibrato == common::core::VibratoState::Narrow);
+    CHECK(note.sustain == Fraction{3});
+    REQUIRE(note.keyframes.size() == 2);
+    // The stop: a bare keyframe, stating no fret, no bend and no width.
+    CHECK(note.keyframes[0].offset == Fraction{1});
+    CHECK_FALSE(note.keyframes[0].fret.has_value());
+    CHECK_FALSE(note.keyframes[0].bend.has_value());
+    CHECK(note.keyframes[0].vibrato == common::core::VibratoState::None);
+    // The restart: a width on a bare keyframe, since a tie states no new position.
+    CHECK(note.keyframes[1].offset == Fraction{2});
+    CHECK_FALSE(note.keyframes[1].fret.has_value());
+    CHECK_FALSE(note.keyframes[1].bend.has_value());
+    CHECK(note.keyframes[1].vibrato == common::core::VibratoState::Narrow);
+}
+
+// The bare keyframe that ends a tie's vibrato is DOCUMENT, not authoring state: the commit law
+// keeps it for the unvibrated leg it begins, so the written chart carries it — as an entry naming
+// its offset and nothing else — reads back with it, and passes the rules the load applies.
+TEST_CASE("Guitar Pro import writes a tie's vibrato stop into the document", "[core][gp-import]")
+{
+    const auto built = buildGpSong(tiedVibratoChainScore(
+        {common::core::VibratoState::Narrow,
+         common::core::VibratoState::None,
+         common::core::VibratoState::Narrow}));
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+
+    const common::core::Chart written = common::core::documentChart(chart, built->tempo_map);
+    REQUIRE(written.notes.size() == 1);
+    CHECK(written.notes.front() == chart.notes.front());
+
+    const std::string text = common::core::chartDocumentText(chart, built->tempo_map);
+    // The stop is written as its offset alone: no channel is stated, and the leg it begins is
+    // unvibrated, which the document spells by omitting the width.
+    CHECK(
+        text.find(
+            R"({ "offset": ")" + common::core::formatBeatFractionToken(Fraction{1}) + R"(" })") !=
+        std::string::npos);
+    const auto reparsed = common::core::parseChartDocument(text);
+    REQUIRE(reparsed.has_value());
+    if (!reparsed.has_value())
+    {
+        return;
+    }
+    CHECK(common::core::validateChartRules(*reparsed, built->tempo_map).has_value());
+    REQUIRE(reparsed->notes.size() == 1);
+    const common::core::ChartNote& note = reparsed->notes.front();
+    CHECK(note.vibrato == common::core::VibratoState::Narrow);
+    REQUIRE(note.keyframes.size() == 2);
+    CHECK(note.keyframes[0].offset == Fraction{1});
+    CHECK_FALSE(note.keyframes[0].fret.has_value());
+    CHECK_FALSE(note.keyframes[0].bend.has_value());
+    CHECK(note.keyframes[0].vibrato == common::core::VibratoState::None);
+    CHECK(note.keyframes[1].offset == Fraction{2});
+    CHECK_FALSE(note.keyframes[1].fret.has_value());
+    CHECK(note.keyframes[1].vibrato == common::core::VibratoState::Narrow);
 }
 
 // A width is its leg's own, and a middle segment that vibrates and then glides on is the corpus's
@@ -4648,6 +4764,15 @@ namespace
     return beat;
 }
 
+// The imported chart as both surfaces draw it, through the one projection.
+[[nodiscard]] common::core::ChartViewState drawnChart(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
+{
+    common::core::Arrangement arrangement{};
+    arrangement.chart = chart;
+    return common::core::makeChartViewState(arrangement, tempo_map);
+}
+
 } // namespace
 
 // Guitar Pro places bend points at percentages of the note, which land between the chart's tick
@@ -4691,6 +4816,163 @@ TEST_CASE("Guitar Pro import rounds bend points onto the tick lattice", "[core][
     CHECK(curve[2].semitones == Catch::Approx(2.0));
     CHECK(curve[3].offset == Fraction{60, 960});
     CHECK(curve[3].semitones == Catch::Approx(0.0));
+}
+
+// Where a bend point has no tick left inside the ring, the lattice folds it into the keyframe
+// before it. The same 64th as above with its points crowded to the end — 98%, 99% and 99.5%, which
+// is 58.8, 59.4 and 59.7 ticks: the first takes tick 59, the second is pushed to tick 60, the
+// ring's end, and the release has nowhere left and folds into that end statement. The note's
+// vibrato still runs from its onset to the end of its ring.
+TEST_CASE("Guitar Pro import folds a crowded bend point on a vibrated note", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    GpNote bent;
+    bent.string = 5;
+    bent.fret = 9;
+    bent.vibrato = common::core::VibratoState::Narrow;
+    bent.bend = GpBend{
+        .origin_value = 0.0,
+        .middle_value = 100.0,
+        .destination_value = 0.0,
+        .origin_offset = 0.0,
+        .middle_offset1 = 98.0,
+        .middle_offset2 = 99.0,
+        .destination_offset = 99.5,
+    };
+    GpNote plain;
+    plain.string = 5;
+    plain.fret = 9;
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{beatOf(Fraction{1, 64}, {bent}), beatOf(Fraction{1, 64}, {plain})}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+    // The release folded into the end statement at tick 60: its value won, and no keyframe stands
+    // past the ring.
+    const std::vector<BendReading> curve = bendCurve(chart.notes[0]);
+    REQUIRE(curve.size() == 3);
+    CHECK(curve[1].offset == Fraction{59, 960});
+    CHECK(curve[1].semitones == Catch::Approx(2.0));
+    CHECK(curve[2].offset == Fraction{60, 960});
+    CHECK(curve[2].semitones == Catch::Approx(0.0));
+    CHECK(chart.notes[0].vibrato == common::core::VibratoState::Narrow);
+    for (const common::core::Keyframe& keyframe : chart.notes[0].keyframes)
+    {
+        CHECK_FALSE(chart.notes[0].sustain < keyframe.offset);
+    }
+
+    const common::core::ChartViewState view = drawnChart(chart, built->tempo_map);
+    REQUIRE_FALSE(view.notes.empty());
+    const common::core::NoteViewState& drawn = view.notes.front();
+    REQUIRE(drawn.vibrato.size() == 1);
+    CHECK(drawn.vibrato[0].state == common::core::VibratoState::Narrow);
+    CHECK_THAT(
+        drawn.vibrato[0].start_seconds, Catch::Matchers::WithinAbs(drawn.start_seconds, 1e-9));
+    CHECK_THAT(
+        drawn.vibrato[0].end_seconds, Catch::Matchers::WithinAbs(drawn.ring_end_seconds, 1e-9));
+}
+
+// A width is its leg's own, so a bend point the import plants inside a vibrated note has to carry
+// the width of the leg it divides, or the vibrato would stop at the first point of the curve.
+// Guitar Pro marks one note vibrating and bending 0 -> 50 -> 100 over its two beats: the whole ring
+// vibrates, one region from the onset to the ring's end.
+TEST_CASE("Guitar Pro import vibrates a bent note through its bend points", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    GpNote bent = bentNote(0, 5, 50.0, 100.0, 50.0, 100.0);
+    bent.vibrato = common::core::VibratoState::Narrow;
+    score.tracks[0].bars.push_back(GpBar{.voices = {{beatOf(Fraction{1, 2}, {bent})}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+    CHECK(note.vibrato == common::core::VibratoState::Narrow);
+    CHECK(note.sustain == Fraction{2});
+    const std::vector<BendReading> curve = bendCurve(note);
+    REQUIRE(curve.size() == 3);
+    CHECK(curve[1].offset == Fraction{1});
+    CHECK(curve[1].semitones == Catch::Approx(1.0));
+    CHECK(curve[2].offset == Fraction{2});
+    CHECK(curve[2].semitones == Catch::Approx(2.0));
+    // Every bend point inside the ring carries the note's width. The one at the ring's end is the
+    // end statement, which sheds its vibrato: there is no ring left for it to sound in.
+    for (const common::core::Keyframe& keyframe : note.keyframes)
+    {
+        if (keyframe.offset < note.sustain)
+        {
+            CHECK(keyframe.vibrato == common::core::VibratoState::Narrow);
+        }
+    }
+
+    const common::core::ChartViewState view = drawnChart(chart, built->tempo_map);
+    REQUIRE(view.notes.size() == 1);
+    const common::core::NoteViewState& drawn = view.notes.front();
+    REQUIRE(drawn.vibrato.size() == 1);
+    CHECK(drawn.vibrato[0].state == common::core::VibratoState::Narrow);
+    CHECK_THAT(
+        drawn.vibrato[0].start_seconds, Catch::Matchers::WithinAbs(drawn.start_seconds, 1e-9));
+    CHECK_THAT(
+        drawn.vibrato[0].end_seconds, Catch::Matchers::WithinAbs(drawn.ring_end_seconds, 1e-9));
+    CHECK_THAT(drawn.ring_end_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
+}
+
+// A tie continuation's own bend points rebase onto the merged ring after its width is stated, so
+// each one it plants inside the vibrated continuation carries that width rather than ending it.
+// An unvibrated quarter ties into a vibrating quarter that bends 0 -> 50 -> 100: the ring is still
+// for its first beat and vibrates, as one region, from the tie to the ring's end.
+TEST_CASE("Guitar Pro import vibrates a tie continuation through its bend", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    GpNote origin;
+    origin.string = 0;
+    origin.fret = 5;
+    origin.tie_origin = true;
+    GpNote continuation = bentNote(0, 5, 50.0, 100.0, 50.0, 100.0);
+    continuation.tie_destination = true;
+    continuation.vibrato = common::core::VibratoState::Narrow;
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {{beatOf(Fraction{1, 4}, {origin}), beatOf(Fraction{1, 4}, {continuation})}}
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+    CHECK(note.vibrato == common::core::VibratoState::None);
+    CHECK(note.sustain == Fraction{2});
+    // The continuation begins its vibrated leg at the tie, on the keyframe its curve's unbent
+    // onset lands on, and the point halfway through it carries the same width.
+    REQUIRE(note.keyframes.size() == 3);
+    CHECK(note.keyframes[0].offset == Fraction{1});
+    CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
+    CHECK(note.keyframes[1].offset == Fraction{3, 2});
+    CHECK(note.keyframes[1].vibrato == common::core::VibratoState::Narrow);
+    CHECK(note.keyframes[2].offset == Fraction{2});
+
+    const common::core::ChartViewState view = drawnChart(chart, built->tempo_map);
+    REQUIRE(view.notes.size() == 1);
+    const common::core::NoteViewState& drawn = view.notes.front();
+    REQUIRE(drawn.vibrato.size() == 1);
+    CHECK(drawn.vibrato[0].state == common::core::VibratoState::Narrow);
+    CHECK_THAT(drawn.vibrato[0].start_seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
+    CHECK_THAT(
+        drawn.vibrato[0].end_seconds, Catch::Matchers::WithinAbs(drawn.ring_end_seconds, 1e-9));
+    CHECK_THAT(drawn.ring_end_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
 }
 
 // A septuplet run sits on sevenths of a beat, which no tick divides. The import rounds each onto

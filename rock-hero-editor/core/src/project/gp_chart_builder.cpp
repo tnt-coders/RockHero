@@ -420,23 +420,18 @@ struct BendCurvePoint
 
 // Finds or creates the keyframe at `offset`, keeping the array ascending. Every statement at one
 // instant shares ONE keyframe — that is the model's whole point — so a producer that would have
-// written a second entry beside an existing moment merges into it instead.
-[[nodiscard]] Keyframe& keyframeAt(std::vector<Keyframe>& keyframes, const Fraction offset)
+// written a second entry beside an existing moment merges into it instead. A created keyframe
+// carries the width of the leg it divides (chart.h keyframeInLeg), so a bend point inside a
+// vibrated segment keeps the segment vibrating.
+[[nodiscard]] Keyframe& keyframeAt(ChartNote& note, const Fraction offset)
 {
     const auto at =
-        std::ranges::lower_bound(keyframes, offset, std::ranges::less{}, &Keyframe::offset);
-    if (at != keyframes.end() && at->offset == offset)
+        std::ranges::lower_bound(note.keyframes, offset, std::ranges::less{}, &Keyframe::offset);
+    if (at != note.keyframes.end() && at->offset == offset)
     {
         return *at;
     }
-    return *keyframes.insert(
-        at,
-        Keyframe{
-            .offset = offset,
-            .fret = std::nullopt,
-            .bend = std::nullopt,
-            .vibrato = VibratoState::None,
-        });
+    return *note.keyframes.insert(at, keyframeInLeg(note, offset));
 }
 
 // The offset of the last keyframe that states a bend, or zero — the onset, which always states
@@ -474,10 +469,13 @@ struct BendCurvePoint
 }
 
 // States a folded-in segment's Guitar Pro vibrato WIDTH at `offset` — the instant that segment
-// BEGINS on the ring that absorbed it. A width is the leg's own (chart.h): a segment that vibrates
-// states its width at the keyframe its leg begins at, and one that does not states nothing, the
-// leg being unvibrated by default — so a chain vibrating end to end states the width at every
-// junction, and one that stops vibrating at a junction simply says nothing there.
+// BEGINS on the ring that absorbed it. A width is the leg's own (chart.h), so the import writes
+// exactly what the score says: a keyframe already standing at the instant (a legato junction)
+// takes the segment's width, None included; where none stands, a segment whose width differs
+// from the leg before it begins a leg of its own — a keyframe carrying the width, or, for a
+// segment WITHOUT the flag after a vibrated one, a bare keyframe, the one stored form of vibrato
+// ending where nothing else changes (a tie). A segment whose width equals the leg before it
+// states nothing, the leg already covering it.
 //
 // Guitar Pro writes the mark per note and names no instant inside it, so the import picks one (the
 // carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
@@ -506,19 +504,23 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState v
         note.vibrato = vibrato;
         return;
     }
-    // Two segments can fold onto a single offset (a tie continuation whose legato glide lands on
-    // a second voice's note at that very beat), and the LATER one's flag is the leg's — None
-    // included, exactly as their shared keyframe's fret already takes the later value. A segment
-    // without the flag creates nothing: its leg is unvibrated by default, and a keyframe stating
-    // only that would state nothing.
-    const auto standing = std::ranges::find(note.keyframes, offset, &Keyframe::offset);
-    if (standing != note.keyframes.end())
+    // A segment without the flag ends the vibrato at its start, through the one authority for a
+    // vibrato ending's stored form (chart.h endVibratoAt): nothing where the leg before was not
+    // vibrated, a keyframe stating nothing else where the ending is all that changes there.
+    if (!hasVibrato(vibrato))
     {
-        standing->vibrato = vibrato;
+        endVibratoAt(note, offset);
+        return;
     }
-    else if (hasVibrato(vibrato))
+    // Two segments can fold onto a single offset (a tie continuation whose legato glide lands on
+    // a second voice's note at that very beat), and the LATER one's width is the leg's, exactly
+    // as their shared keyframe's fret already takes the later value. Where no keyframe stands, a
+    // width equal to the leg before it states nothing — that leg already covers the segment.
+    const bool standing =
+        std::ranges::find(note.keyframes, offset, &Keyframe::offset) != note.keyframes.end();
+    if (standing || vibrato != vibratoBefore(note, offset))
     {
-        keyframeAt(note.keyframes, offset).vibrato = vibrato;
+        keyframeAt(note, offset).vibrato = vibrato;
     }
 }
 
@@ -558,7 +560,7 @@ void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
             note.bend = point.semitones;
             continue;
         }
-        keyframeAt(note.keyframes, point.offset).bend = point.semitones;
+        keyframeAt(note, point.offset).bend = point.semitones;
     }
 }
 
@@ -2869,7 +2871,7 @@ void resolveSlideIns(
         // The arrival is a fret STATEMENT at the scoop's end, merged into whatever already stands
         // at that instant rather than inserted beside it — a bend the source wrote there is the
         // same moment, not a competing one.
-        keyframeAt(note.keyframes, window).fret = note.fret;
+        keyframeAt(note, window).fret = note.fret;
         note.fret = start;
     }
     // Merge the fabricated windows: dips own their instant, restores yield to real placements.
@@ -3093,10 +3095,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 {
                     kept.bend = keyframe.bend;
                 }
-                if (hasVibrato(keyframe.vibrato))
-                {
-                    kept.vibrato = keyframe.vibrato;
-                }
+                // The kept keyframe's leg is the one that sounds, so its width stands.
                 continue;
             }
             Keyframe rounded = keyframe;
@@ -3209,7 +3208,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                         // its origin's onset.
                         if (point.offset > lastBendOffset(origin.note))
                         {
-                            keyframeAt(origin.note.keyframes, point.offset).bend = point.semitones;
+                            keyframeAt(origin.note, point.offset).bend = point.semitones;
                         }
                     }
                 }
@@ -3596,7 +3595,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             const Fraction hold_offset = *entry.slide_from_beat - entry.global_beat;
             if (hold_offset.numerator > 0)
             {
-                keyframeAt(note.keyframes, hold_offset).fret = note.fret;
+                keyframeAt(note, hold_offset).fret = note.fret;
             }
         }
 
@@ -3638,14 +3637,14 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             {
                 // Legato: the landing continues this note. Keyframe at the junction, sustain
                 // through the target's notated end, techniques folded, chain continued.
-                keyframeAt(note.keyframes, gap).fret = next->note.fret;
+                keyframeAt(note, gap).fret = next->note.fret;
                 if (ringEndOf(entry) < ringEndOf(*next))
                 {
                     note.sustain = ringEndOf(*next) - entry.global_beat;
                 }
                 // The landing's vibrato lands ON the junction it arrives at — the same coupling the
                 // bend fold below relies on, and the sign-off's anchor for Guitar Pro's anchorless
-                // flag. A landing that does NOT vibrate states nothing: its leg is unvibrated.
+                // flag. A landing that does NOT vibrate begins an unvibrated leg there.
                 stateVibratoAt(note, gap, next->note.vibrato);
                 note.tremolo = note.tremolo || next->note.tremolo;
                 // The merged note's own bend curve, rebased onto the junction. Its onset value
@@ -3656,7 +3655,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                     point.offset = point.offset + gap;
                     if (point.offset > lastBendOffset(note))
                     {
-                        keyframeAt(note.keyframes, point.offset).bend = point.semitones;
+                        keyframeAt(note, point.offset).bend = point.semitones;
                     }
                 }
                 merged_away[next_index] = true;

@@ -303,8 +303,9 @@ geometry that would be a fiction as a pitched glide.
 
 Per CHANNEL, which is the whole reason it is one function. A bend or a vibrato change authored at
 the same instant as a glide target is a different statement about the same moment, and forgetting
-it because the path had to go would delete something the rule never judged. Only a keyframe THIS
-strip leaves stating nothing goes with its last statement (\ref stripKeyframeChannels).
+it because the path had to go would delete something the rule never judged. A keyframe the strip
+leaves bare stays as the leg boundary it is — the terminal alone, at the ring's end where no leg
+begins, goes with its fret (\ref stripKeyframeChannels).
 
 \param note Note whose path is removed in place.
 */
@@ -468,10 +469,10 @@ travels after all of that, which becomes the plain pick it sounds like.
 
 Every strip is per CHANNEL, not per keyframe: a capo floor takes a keyframe's fret and leaves the
 bend authored at the same instant, an open string loses its path and keeps its vibrato, and a
-keyframe the strip ITSELF left stating nothing is then dropped (\ref stripKeyframeChannels — a
-keyframe that arrived empty is a refusal this normalizer must not quietly repair away, since it
-runs first). That is the cost of storing the moment once — and the point of it, since the
-alternative silently deletes statements that share an offset with the one a rule refused.
+keyframe the strip leaves bare inside the ring stays as the leg boundary it is, swept by the
+silent-keyframe sweep where it says nothing (\ref stripKeyframeChannels). That is the cost of
+storing the moment once — and the point of it, since the alternative silently deletes statements
+that share an offset with the one a rule refused.
 
 A dead note's tail is deliberately NOT here (E25). It is a presentation rule
 (\ref chartPresentation rule 3): a dead note carries its actual ring like any other — that ring

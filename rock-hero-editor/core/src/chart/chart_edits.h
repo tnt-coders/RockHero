@@ -302,12 +302,10 @@ that would leave the chart invalid. A survivor whose CONNECTION the deletion bro
 and simply plays as a pick until the next settle flattens it (\ref planSettleChart) — relational
 truths are not the burst's business.
 
-Deleting a selected KEYFRAME is the same verb one level in: it takes every statement the keyframe
-makes, so the keyframe itself always goes — an emptied keyframe is no record at all
-(\ref common::core::keyframeStatesNothing), and the removal rides
-\ref common::core::stripKeyframeChannels, the one authority every channel-shedding rule uses. A
-keyframe whose note this same call deletes needs no separate care: the note takes its whole ring
-with it.
+Deleting a selected KEYFRAME is the same verb one level in: it takes the keyframe itself — every
+statement it makes and the leg boundary it is, so a vibrato ending deleted lets the vibrato before
+it run on. A keyframe whose note this same call deletes needs no separate care: the note takes its
+whole ring with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -1330,10 +1328,11 @@ press that replaces one tier with the other is one write of the new width and no
 by a set. Nothing here knows which key was pressed.
 
 The caller has already decided the direction under the uniform-scope law, so this writes the width
-at every selected anchor, or takes it off — through \ref common::core::stripKeyframeChannels, the
-one strip authority, so a keyframe whose only statement was the width dissolves with it (a leg
-without vibrato is `None`, which states nothing). The point lingers as a
-selection key, which is what a second press inside the verb window reverses through.
+at every selected anchor, or ends the vibrato there through \ref common::core::endVibratoAt, the
+one authority for a vibrato ending's stored form: the point stays as the bare beginning of an
+unvibrated leg, ending the vibrato before it, and where that leg was not vibrated it is silent
+authoring state that dissolves when the note leaves focus — lingering as a selection key
+meanwhile, which is what a second press inside the verb window reverses through.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.

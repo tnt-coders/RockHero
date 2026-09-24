@@ -770,6 +770,44 @@ TEST_CASE("planInsertKeyframe states a point along the path", "[core][chart]")
     }
 }
 
+// A width is its leg's own, so a point stating only a fret would begin an unvibrated leg and end
+// the vibrato wherever it was planted. The planted point carries the width of the leg it divides,
+// so the vibrato runs on through it as one region.
+TEST_CASE("planInsertKeyframe inside a vibrated leg keeps the vibrato running", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    note.vibrato = common::core::VibratoState::Narrow;
+    chart.notes = {std::move(note)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan =
+        planInsertKeyframe(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 9);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    common::core::Chart applied = chart;
+    applyAndValidate(applied, tempo_map, *plan);
+    REQUIRE(applied.notes.size() == 1);
+    REQUIRE(applied.notes[0].keyframes.size() == 1);
+    CHECK(applied.notes[0].keyframes[0].offset == common::core::Fraction{2});
+    CHECK(applied.notes[0].keyframes[0].fret == 9);
+    CHECK(applied.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+    // Drawn, one region from the onset (2.0s) across the point (3.0s) to the ring's end (4.0s).
+    const std::vector<common::core::VibratoSpanViewState> regions =
+        vibratoRegionsOf(applied, tempo_map, 0);
+    REQUIRE(regions.size() == 1);
+    CHECK(regions[0].state == common::core::VibratoState::Narrow);
+    CHECK_THAT(regions[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+
+    REQUIRE(applyChartChange(applied, plan->reversed()).has_value());
+    CHECK(applied == chart);
+}
+
 // Every refusal is the rule authority's, reached through the finalize gate: the planner states
 // none of them, so it cannot drift from what the document itself would reject.
 TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
@@ -3712,9 +3750,12 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     REQUIRE(scrape != nullptr);
     // The glide's single keyframe was its whole path, so it becomes the terminal: fret 9 kept
     // from the charter's own glide rather than the synthesized default's far endpoint. The
-    // statement MOVES to the ring's end, where it is the slide-out, so the note still carries
-    // exactly one keyframe.
-    REQUIRE(scrape->keyframes.size() == 1);
+    // statement MOVES to the ring's end, where it is the slide-out; the keyframe it left stays
+    // as a bare leg boundary, silent here (nothing vibrated before it) and the commit law's to
+    // sweep.
+    REQUIRE(scrape->keyframes.size() == 2);
+    CHECK(scrape->keyframes.front().offset == common::core::Fraction{1, 2});
+    CHECK(common::core::keyframeStatesNothing(scrape->keyframes.front()));
     const int* const terminal = common::core::endStatedFretOrNull(*scrape);
     REQUIRE(terminal != nullptr);
     if (terminal != nullptr)
@@ -3734,8 +3775,70 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(restored != nullptr);
     CHECK(restored->tremolo);
-    CHECK(restored->keyframes.empty());
+    // Only the silent bare boundary remains, and the sweep takes it.
+    REQUIRE(restored->keyframes.size() == 1);
+    CHECK(common::core::keyframeStatesNothing(restored->keyframes.front()));
+    common::core::ChartNote swept = *restored;
+    CHECK(common::core::stripSilentKeyframes(swept));
+    CHECK(swept.keyframes.empty());
     CHECK(common::core::endStatedFretOrNull(*restored) == nullptr);
+}
+
+// The glide's fret leaves its instant for the scrape's terminal, but a vibrated note's keyframe
+// there is also the vibrato's ending: the fret goes and the bare keyframe stays, so the round trip
+// back to a pick still ends the vibrato where the charter ended it.
+TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    chart.notes[2].vibrato = common::core::VibratoState::Narrow;
+    chart.notes[2].keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .fret = 9}
+    };
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto enter =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(enter.has_value());
+    if (!enter.has_value())
+    {
+        return;
+    }
+    // The vibrato latent makes the in-memory chart deliberately dirty, as in the glide case above.
+    REQUIRE(applyChartChange(chart, *enter).has_value());
+    const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(scrape != nullptr);
+    REQUIRE(scrape->keyframes.size() == 2);
+    CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+    CHECK(common::core::keyframeStatesNothing(scrape->keyframes[0]));
+    const int* const terminal = common::core::endStatedFretOrNull(*scrape);
+    REQUIRE(terminal != nullptr);
+    if (terminal != nullptr)
+    {
+        CHECK(*terminal == 9);
+    }
+
+    const auto exit =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+    REQUIRE(exit.has_value());
+    if (!exit.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *exit);
+    const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(restored != nullptr);
+    CHECK(restored->vibrato == common::core::VibratoState::Narrow);
+    REQUIRE(restored->keyframes.size() == 1);
+    CHECK(restored->keyframes[0].offset == common::core::Fraction{1, 2});
+    CHECK(common::core::keyframeStatesNothing(restored->keyframes[0]));
+    // Drawn, the region runs from the onset (4.0s) to the ending half a beat in (4.25s).
+    const std::vector<common::core::VibratoSpanViewState> regions =
+        vibratoRegionsOf(chart, tempo_map, 2);
+    REQUIRE(regions.size() == 1);
+    CHECK(regions[0].state == common::core::VibratoState::Narrow);
+    CHECK_THAT(regions[0].start_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+    CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.25, 1e-9));
 }
 
 // The press writes a CLAIM and nothing more: no direction is stored, and both directions resolve
@@ -5986,17 +6089,27 @@ TEST_CASE("planSetVibrato states the vibrato at a selected keyframe", "[core][ch
     CHECK(chart == original);
 }
 
-// A width is its leg's own statement, so no width is ever redundant — a repeated one is what
-// vibrates the next leg. What dissolves is only a point the CLEAR empties: taking the width off a
-// keyframe that stated nothing else leaves no record, through the one strip authority.
-TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][chart]")
+// The planner writes the width at every anchor it points at, or ends the vibrato there
+// (endVibratoAt), and never dissolves a point itself: the commit law judges what is left. A width
+// equal to the leg before it, or a bare point after an unvibrated leg, is silent authoring state
+// the history and the writer shed like any silent point; a bare point after a vibrated leg is the
+// one stored form of the vibrato ending there, and is document.
+TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("a width repeated at a keyframe is its own leg's statement")
+    SECTION("a width repeated at a keyframe is silent authoring state")
     {
-        common::core::Chart chart = makeGlideChart();
-        chart.notes[0].vibrato = common::core::VibratoState::Narrow;
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        note.vibrato = common::core::VibratoState::Narrow;
+        // A point restating the fret begins an unvibrated leg two beats in, so the vibrato ends
+        // there while the point also states a fret.
+        note.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+        };
+        chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
         const auto plan = planSetVibrato(
             chart,
@@ -6011,14 +6124,39 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
             return;
         }
         applyAndValidate(chart, tempo_map, *plan);
-        REQUIRE(chart.notes[0].keyframes.size() == 2);
+        // The planner still writes the width: in memory the point stands and carries it.
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].fret == 7);
         CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+
+        // It says nothing: with it gone the onset's leg vibrates the same stretch, so the ring
+        // draws one region from the onset (2.0s) to its end (4.0s) either way.
+        common::core::Chart dissolved = chart;
+        CHECK(common::core::stripSilentKeyframes(dissolved.notes[0]));
+        CHECK(dissolved.notes[0].keyframes.empty());
+        const std::vector<common::core::VibratoSpanViewState> regions =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(regions.size() == 1);
+        CHECK_THAT(regions[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+        const std::vector<common::core::VibratoSpanViewState> dissolved_regions =
+            vibratoRegionsOf(dissolved, tempo_map, 0);
+        REQUIRE(dissolved_regions.size() == 1);
+        CHECK(dissolved_regions[0].state == regions[0].state);
+        CHECK_THAT(dissolved_regions[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(dissolved_regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+
+        // The HISTORY records the written form, which has no point at all.
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        CHECK(written.inserted[0].keyframes.empty());
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
         CHECK(chart == original);
     }
 
-    SECTION("clearing the vibrato from a point whose only job it was dissolves the point")
+    SECTION("clearing a width-only point after an unvibrated leg leaves it bare and silent")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -6045,9 +6183,256 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
         }
         applyAndValidate(chart, tempo_map, *plan);
         REQUIRE(chart.notes.size() == 1);
-        // The chart may never hold a keyframe stating nothing, so the point goes with the
-        // statement — through the one strip authority, not a removal rule written here.
-        CHECK(chart.notes[0].keyframes.empty());
+        // The leg before the point does not vibrate, so with the width gone the point says
+        // nothing. It stays in the plan as a bare leg boundary — authoring state, which the
+        // history sheds and the note's leaving focus dissolves.
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK(common::core::keyframeStatesNothing(chart.notes[0].keyframes[0]));
+        CHECK(vibratoRegionsOf(chart, tempo_map, 0).empty());
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        CHECK(written.inserted[0].keyframes.empty());
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("clearing the onset's vibrato before a bare ending leaves the ending silent")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        // The ordinary vibrato from the onset, ended two beats in by a bare point.
+        note.vibrato = common::core::VibratoState::Narrow;
+        note.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{2}}};
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {keyAt(glideOnset(), 1)},
+            {},
+            common::core::VibratoState::None,
+            "Remove Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // The ending now follows an unvibrated leg, so it says nothing: legal in the plan, shed by
+        // the history.
+        CHECK_FALSE(common::core::hasVibrato(chart.notes[0].vibrato));
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(common::core::keyframeStatesNothing(chart.notes[0].keyframes[0]));
+        CHECK(vibratoRegionsOf(chart, tempo_map, 0).empty());
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        CHECK(written.inserted[0].keyframes.empty());
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("setting a width equal to the leg before it plans a silent repeat")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        // The ordinary vibrato from the onset, stepping to the wide one two beats in.
+        note.vibrato = common::core::VibratoState::Narrow;
+        note.keyframes = {common::core::Keyframe{
+            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Wide
+        }};
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            common::core::VibratoState::Narrow,
+            "Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // The width is written, and repeats the onset's leg: the point is silent, so the ring
+        // draws one ordinary region from the onset (2.0s) to its end (4.0s) and the history keeps
+        // no point at all.
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+        const std::vector<common::core::VibratoSpanViewState> regions =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(regions.size() == 1);
+        CHECK(regions[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(regions[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        CHECK(written.inserted[0].keyframes.empty());
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("clearing a width before a bare ending leaves both points silent")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        // A still onset, the wide vibrato from one beat in, ended by a bare point at two.
+        note.keyframes = {
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Wide
+            },
+            common::core::Keyframe{.offset = common::core::Fraction{2}},
+        };
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+            common::core::VibratoState::None,
+            "Remove Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // Both points are bare after unvibrated legs now: legal in the plan, silent, and shed by
+        // the history.
+        REQUIRE(chart.notes[0].keyframes.size() == 2);
+        CHECK(common::core::keyframeStatesNothing(chart.notes[0].keyframes[0]));
+        CHECK(common::core::keyframeStatesNothing(chart.notes[0].keyframes[1]));
+        CHECK(vibratoRegionsOf(chart, tempo_map, 0).empty());
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        CHECK(written.inserted[0].keyframes.empty());
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("clearing a width-only point after a vibrated leg ends the vibrato there")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        // The ordinary vibrato from the onset, stepping to the wide one two beats in.
+        note.vibrato = common::core::VibratoState::Narrow;
+        note.keyframes = {common::core::Keyframe{
+            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Wide
+        }};
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            common::core::VibratoState::None,
+            "Remove Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // Dissolving the point would let the onset's leg run on to the ring's end, so it stays
+        // bare: the stored form of vibrato ending where nothing else does.
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
+        CHECK_FALSE(chart.notes[0].keyframes[0].bend.has_value());
+        CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::None);
+        // Drawn, the onset's region ends at the point (3.0s) instead of running to 4.0s.
+        const std::vector<common::core::VibratoSpanViewState> regions =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(regions.size() == 1);
+        CHECK(regions[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(regions[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        // The bare ending is document, not authoring state: the history keeps it.
+        const ChartEditPlan written = writtenChartPlan(*plan);
+        REQUIRE(written.inserted.size() == 1);
+        REQUIRE(written.inserted[0].keyframes.size() == 1);
+        CHECK(written.inserted[0].keyframes[0] == chart.notes[0].keyframes[0]);
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("clearing a width-only point in the middle of a glide leaves the glide's path alone")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{4});
+        // A glide from 5 to 7 over two beats, the ordinary vibrato stepping to the wide one halfway
+        // along it.
+        note.vibrato = common::core::VibratoState::Narrow;
+        note.keyframes = {
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Wide
+            },
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+        };
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+            common::core::VibratoState::None,
+            "Remove Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // The point stays bare: a fret restated there would have split the glide into a hold and
+        // a glide from beat 1.
+        REQUIRE(chart.notes[0].keyframes.size() == 2);
+        CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
+        CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
+        CHECK_FALSE(chart.notes[0].keyframes[0].bend.has_value());
+        CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::None);
+        CHECK(chart.notes[0].keyframes[1] == original.notes[0].keyframes[1]);
+
+        // Drawn, the slide still runs from the onset (2.0s) to its one stop at beat 2 (3.0s): the
+        // bare keyframe draws no stop, while the vibrato region closes at it (2.5s).
+        common::core::Arrangement arrangement{};
+        arrangement.chart = chart;
+        const common::core::ChartViewState state =
+            common::core::makeChartViewState(arrangement, tempo_map);
+        REQUIRE(state.notes.size() == 1);
+        const common::core::NoteViewState& view = state.notes.front();
+        CHECK_THAT(view.start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        REQUIRE(view.slides.size() == 1);
+        CHECK(view.slides[0].offset == common::core::Fraction{2});
+        CHECK(view.slides[0].fret == 7);
+        CHECK_THAT(view.slides[0].seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK(view.vibrato[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinAbs(2.5, 1e-9));
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
         CHECK(chart == original);
@@ -6280,11 +6665,88 @@ TEST_CASE("planSetVibrato through a slide stop is one press per leg", "[core][ch
     CHECK(chart == original);
 }
 
-// Delete is the same verb one level in: it takes every statement the selected keyframe makes, so
-// the keyframe always empties and always goes. The label names what was actually deleted.
+// Delete is the same verb one level in: it takes the selected keyframe itself — every statement it
+// makes and the leg boundary it is. The label names what was actually deleted.
 TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // A four-beat fret-7 hold vibrating from its onset, carrying `keyframe` two beats in.
+    const auto vibrated_hold = [](const common::core::Keyframe& keyframe) {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        note.vibrato = common::core::VibratoState::Narrow;
+        note.keyframes = {keyframe};
+        chart.notes = {std::move(note)};
+        return chart;
+    };
+
+    SECTION("a deleted vibrato ending lets the vibrato before it run on")
+    {
+        // The bare keyframe is the vibrato's ending, so the region stops there (3.0s) until the
+        // boundary is deleted, and then runs to the ring's end (4.0s).
+        common::core::Chart chart =
+            vibrated_hold(common::core::Keyframe{.offset = common::core::Fraction{2}});
+        const common::core::Chart original = chart;
+        const std::vector<common::core::VibratoSpanViewState> before =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(before.size() == 1);
+        CHECK_THAT(before[0].end_seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+
+        const auto plan = planDeleteSelection(
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan->label == "Delete Keyframe");
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].keyframes.empty());
+        CHECK(chart.notes[0].vibrato == common::core::VibratoState::Narrow);
+        const std::vector<common::core::VibratoSpanViewState> after =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(after.size() == 1);
+        CHECK(after[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(after[0].start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(after[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("a keyframe carrying a fret and a width loses both")
+    {
+        common::core::Chart chart = vibrated_hold(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{2},
+                .fret = 9,
+                .vibrato = common::core::VibratoState::Wide,
+            });
+        const common::core::Chart original = chart;
+        const auto plan = planDeleteSelection(
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // Erased whole: no bare boundary stays behind to end the onset's vibrato.
+        CHECK(chart.notes[0].keyframes.empty());
+        CHECK(chart.notes[0].fret == 7);
+        const std::vector<common::core::VibratoSpanViewState> regions =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(regions.size() == 1);
+        CHECK(regions[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
 
     SECTION("one keyframe leaves the note and its siblings standing")
     {

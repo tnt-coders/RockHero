@@ -228,6 +228,30 @@ constexpr Fraction g_fixture_ring{1, 8};
     return found.has_value() && *found;
 }
 
+// A four-beat fret-5 hold on the low E opening at `onset`'s width, for the per-leg vibrato cases:
+// long enough that a keyframe one, two or three beats in lies strictly inside the ring.
+[[nodiscard]] ChartNote vibratoLegNote(
+    const VibratoState onset, const std::vector<Keyframe>& keyframes)
+{
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1};
+    note.string = 1;
+    note.fret = 5;
+    note.sustain = Fraction{4};
+    note.vibrato = onset;
+    note.keyframes = keyframes;
+    return note;
+}
+
+// Whether the whole-chart gate accepts `note` alone on a one-string chart.
+[[nodiscard]] bool acceptedAlone(const ChartNote& note)
+{
+    Chart chart;
+    chart.tuning.strings = {"E2"};
+    chart.notes = {note};
+    return validateChartRules(chart, makeTempoMap()).has_value();
+}
+
 } // namespace
 
 TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
@@ -1058,9 +1082,12 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             note.fret = 5;
             note.sustain = Fraction{2};
             note.vibrato = width;
-            // The keyframe's leg states the same width, spelled exactly as the onset spells it.
+            // The keyframe's leg steps to the OTHER width, so across the loop each word is also
+            // spelled on a keyframe: a repeated width would be silent, and the writer drops it.
+            const VibratoState other =
+                width == VibratoState::Narrow ? VibratoState::Wide : VibratoState::Narrow;
             note.keyframes = {
-                Keyframe{.offset = Fraction{1}, .vibrato = width},
+                Keyframe{.offset = Fraction{1}, .vibrato = other},
             };
             chart.notes = {note};
 
@@ -1074,7 +1101,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             REQUIRE(reparsed->notes.size() == 1);
             CHECK(reparsed->notes[0].vibrato == width);
             REQUIRE(reparsed->notes[0].keyframes.size() == 1);
-            CHECK(reparsed->notes[0].keyframes[0].vibrato == width);
+            CHECK(reparsed->notes[0].keyframes[0].vibrato == other);
         }
     }
 
@@ -1155,10 +1182,299 @@ TEST_CASE("Chart vibrato classifies every width as vibrating", "[core][chart]")
     CHECK_FALSE(hasVibrato(ChartNote{}.vibrato));
 }
 
-// A keyframe IS its statements: a location carrying none says nothing that could be drawn,
-// played, or edited, yet it would shift every neighbour's index and survive every edit. The
-// channels it may state are bounded too — a fret is a real position, and a bend is a PUSH, which
-// a finger cannot make downward (W9-K).
+// The leg an instant lies in, read as a keyframe inserted there would divide it: a keyframe
+// standing AT the instant begins the leg after it, so the answer is the leg before that one.
+TEST_CASE("vibratoBefore reads the leg an instant lies in", "[core][chart]")
+{
+    const ChartNote note = vibratoLegNote(
+        VibratoState::Narrow,
+        {Keyframe{.offset = Fraction{1}, .fret = 7, .vibrato = VibratoState::Wide},
+         Keyframe{.offset = Fraction{2}, .fret = 7}});
+
+    // The onset's leg.
+    CHECK(vibratoBefore(note, Fraction{1, 2}) == VibratoState::Narrow);
+    // A keyframe's leg, and the unvibrated leg the last one begins.
+    CHECK(vibratoBefore(note, Fraction{3, 2}) == VibratoState::Wide);
+    CHECK(vibratoBefore(note, Fraction{3}) == VibratoState::None);
+    // A keyframe AT the instant is ignored: the answer is the leg it ends, the onset's at the first
+    // and the first keyframe's at the second.
+    CHECK(vibratoBefore(note, Fraction{1}) == VibratoState::Narrow);
+    CHECK(vibratoBefore(note, Fraction{2}) == VibratoState::Wide);
+}
+
+// Every creator of a mid-ring keyframe starts from this record, so a point planted for its fret or
+// its bend continues the leg it divides instead of beginning an unvibrated one.
+TEST_CASE("keyframeInLeg carries the width of the leg it divides", "[core][chart]")
+{
+    const ChartNote note =
+        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 5}});
+
+    SECTION("inside a vibrated leg it carries that leg's width and states nothing else")
+    {
+        const Keyframe point = keyframeInLeg(note, Fraction{1});
+        CHECK(point.offset == Fraction{1});
+        CHECK_FALSE(point.fret.has_value());
+        CHECK_FALSE(point.bend.has_value());
+        CHECK(point.vibrato == VibratoState::Narrow);
+
+        // Stating a fret on top plants a legal point that leaves the vibrato running through it.
+        ChartNote planted = note;
+        Keyframe stated = point;
+        stated.fret = 9;
+        planted.keyframes.insert(planted.keyframes.begin(), stated);
+        CHECK(acceptedAlone(planted));
+        CHECK(ringStateAt(planted, Fraction{3, 2}).vibrato == VibratoState::Narrow);
+    }
+
+    SECTION("inside an unvibrated leg it carries None")
+    {
+        const Keyframe point = keyframeInLeg(note, Fraction{3});
+        CHECK(point.offset == Fraction{3});
+        CHECK_FALSE(point.fret.has_value());
+        CHECK_FALSE(point.bend.has_value());
+        CHECK(point.vibrato == VibratoState::None);
+    }
+}
+
+// The one stored form of a vibrato ending: the keyframe at the instant takes width None, bare
+// where it states nothing else, and none is created where the leg before it did not vibrate.
+// Nothing is ever erased here — a silent point is the commit law's to sweep.
+TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]")
+{
+    SECTION("no keyframe after a vibrated leg: a bare keyframe is created")
+    {
+        ChartNote note = vibratoLegNote(VibratoState::Narrow, {});
+        endVibratoAt(note, Fraction{2});
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK_FALSE(note.keyframes[0].fret.has_value());
+        CHECK_FALSE(note.keyframes[0].bend.has_value());
+        CHECK(note.keyframes[0].vibrato == VibratoState::None);
+        CHECK(acceptedAlone(note));
+    }
+
+    SECTION("the path is untouched: a bare ending inside a glide leaves the glide whole")
+    {
+        // A glide from 5 to 7 over two beats. A fret restated at one beat would have split it into
+        // a hold and a glide; the bare ending states no position, so the path is the same stops.
+        const ChartNote gliding =
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 7}});
+        ChartNote ending = gliding;
+        endVibratoAt(ending, Fraction{1});
+        REQUIRE(ending.keyframes.size() == 2);
+        CHECK(ending.keyframes[0].offset == Fraction{1});
+        CHECK_FALSE(ending.keyframes[0].fret.has_value());
+        CHECK(ending.keyframes[0].vibrato == VibratoState::None);
+        CHECK(acceptedAlone(ending));
+
+        const TempoMap tempo_map = makeTempoMap();
+        const auto project = [&tempo_map](const ChartNote& note) {
+            Chart chart;
+            chart.tuning.strings = {"E2"};
+            chart.notes = {note};
+            Arrangement arrangement;
+            arrangement.chart = std::move(chart);
+            return makeChartViewState(arrangement, tempo_map);
+        };
+        const ChartViewState with = project(ending);
+        const ChartViewState without = project(gliding);
+        REQUIRE(with.notes.size() == 1);
+        REQUIRE(without.notes.size() == 1);
+        const std::vector<KeyframeViewState>& stops = with.notes.front().slides;
+        const std::vector<KeyframeViewState>& reference = without.notes.front().slides;
+        REQUIRE(stops.size() == 1);
+        REQUIRE(reference.size() == 1);
+        CHECK(stops[0].offset == reference[0].offset);
+        CHECK(stops[0].fret == 7);
+        CHECK(stops[0].fret == reference[0].fret);
+        CHECK_THAT(stops[0].seconds, Catch::Matchers::WithinULP(reference[0].seconds, 0));
+        // What the ending DOES change is the vibrato: one region, closed at the bare keyframe.
+        REQUIRE(with.notes.front().vibrato.size() == 1);
+        CHECK(with.notes.front().vibrato[0].end_seconds == Catch::Approx(0.5));
+    }
+
+    SECTION("no keyframe after an unvibrated leg: nothing is created")
+    {
+        // The leg before the instant is the one the stop at 1 begins, not the vibrated onset's.
+        ChartNote note =
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1}, .fret = 5}});
+        const ChartNote before = note;
+        endVibratoAt(note, Fraction{2});
+        CHECK(note == before);
+        CHECK(acceptedAlone(note));
+
+        ChartNote plain = vibratoLegNote(VibratoState::None, {});
+        endVibratoAt(plain, Fraction{2});
+        CHECK(plain.keyframes.empty());
+        CHECK(acceptedAlone(plain));
+    }
+
+    SECTION("a width-only keyframe after a vibrated leg becomes bare")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}});
+        endVibratoAt(note, Fraction{2});
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK_FALSE(note.keyframes[0].fret.has_value());
+        CHECK_FALSE(note.keyframes[0].bend.has_value());
+        CHECK(note.keyframes[0].vibrato == VibratoState::None);
+        CHECK(acceptedAlone(note));
+    }
+
+    SECTION("a width-only keyframe after an unvibrated leg stays bare, and is silent")
+    {
+        // endVibratoAt never erases: the point stays as the bare beginning of a leg, and whether
+        // it says anything is the commit law's question, which calls it silent here.
+        ChartNote note = vibratoLegNote(
+            VibratoState::None, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
+        endVibratoAt(note, Fraction{2});
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(keyframeStatesNothing(note.keyframes[0]));
+        CHECK(keyframeSaysNothingNew(vibratoLegNote(VibratoState::None, {}), note.keyframes[0]));
+        CHECK(acceptedAlone(note));
+        CHECK(stripSilentKeyframes(note));
+        CHECK(note.keyframes.empty());
+    }
+
+    SECTION("a keyframe stating a fret loses its width and keeps its fret")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::Narrow,
+            {Keyframe{.offset = Fraction{2}, .fret = 7, .vibrato = VibratoState::Wide}});
+        endVibratoAt(note, Fraction{2});
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK_FALSE(note.keyframes[0].bend.has_value());
+        CHECK(note.keyframes[0].vibrato == VibratoState::None);
+        CHECK(acceptedAlone(note));
+    }
+}
+
+// Structural and nothing more: whether a keyframe carries a channel at all, asked of the keyframe
+// alone. Whether a bare one SAYS anything is the commit law's question, tested below.
+TEST_CASE("keyframeStatesNothing reports a keyframe carrying no channel", "[core][chart]")
+{
+    CHECK(keyframeStatesNothing(Keyframe{.offset = Fraction{2}}));
+    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .fret = 7}));
+    CHECK_FALSE(keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .bend = 1.0}));
+    CHECK_FALSE(
+        keyframeStatesNothing(Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}));
+}
+
+// The strip clears channels, and a keyframe it empties INSIDE the ring stays as a bare leg
+// boundary, left to the commit law to judge like any other point. One it empties AT the ring's
+// end goes: no leg begins there, so a bare keyframe at the end is nothing.
+TEST_CASE("stripKeyframeChannels clears channels and keeps an emptied keyframe", "[core][chart]")
+{
+    const auto strip_fret = [](Keyframe& keyframe) {
+        const bool had_fret = keyframe.fret.has_value();
+        keyframe.fret.reset();
+        return had_fret;
+    };
+
+    SECTION("an emptied keyframe inside the ring is kept")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None,
+            {
+                Keyframe{.offset = Fraction{1}, .fret = 7},
+                Keyframe{.offset = Fraction{2}, .fret = 9, .bend = 1.0},
+                Keyframe{.offset = Fraction{3}, .bend = 0.5},
+            });
+        CHECK(stripKeyframeChannels(note, strip_fret));
+        REQUIRE(note.keyframes.size() == 3);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(keyframeStatesNothing(note.keyframes[0]));
+        CHECK_FALSE(note.keyframes[1].fret.has_value());
+        CHECK(note.keyframes[1].bend.has_value());
+        CHECK(note.keyframes[2].bend.has_value());
+
+        // A strip that clears nothing reports nothing.
+        CHECK_FALSE(stripKeyframeChannels(note, [](Keyframe&) { return false; }));
+        CHECK(note.keyframes.size() == 3);
+    }
+
+    SECTION("an emptied keyframe at the ring's end is dropped")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None,
+            {
+                Keyframe{.offset = Fraction{2}, .fret = 7},
+                Keyframe{.offset = Fraction{4}, .fret = 9},
+            });
+        CHECK(stripKeyframeChannels(note, strip_fret));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(keyframeStatesNothing(note.keyframes[0]));
+    }
+
+    SECTION("a keyframe at the ring's end that keeps a channel stays")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None, {Keyframe{.offset = Fraction{4}, .fret = 9, .bend = 1.0}});
+        CHECK(stripKeyframeChannels(note, strip_fret));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{4});
+        CHECK(note.keyframes[0].bend.has_value());
+    }
+}
+
+// The vibrato channel's statement is the LEG a keyframe begins, so whether a keyframe carrying no
+// fret and no bend says anything is a question about the leg before it — and at the ring's end,
+// where no leg begins, it never does. The law is asked of the note WITHOUT the point.
+TEST_CASE("keyframeSaysNothingNew judges a width against the leg before it", "[core][chart]")
+{
+    const Keyframe bare{.offset = Fraction{2}};
+
+    SECTION("a bare keyframe after a vibrated leg ends the vibrato and says so")
+    {
+        CHECK_FALSE(keyframeSaysNothingNew(vibratoLegNote(VibratoState::Narrow, {}), bare));
+        CHECK(acceptedAlone(vibratoLegNote(VibratoState::Narrow, {bare})));
+    }
+
+    SECTION("a bare keyframe after an unvibrated leg says nothing, and is still legal")
+    {
+        CHECK(keyframeSaysNothingNew(vibratoLegNote(VibratoState::None, {}), bare));
+        CHECK(acceptedAlone(vibratoLegNote(VibratoState::None, {bare})));
+
+        // The leg before is the one the stop at 1 begins, not the vibrated onset's.
+        const ChartNote stopped =
+            vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{1}, .fret = 7}});
+        CHECK(keyframeSaysNothingNew(stopped, bare));
+    }
+
+    SECTION("a width equal to the leg before it says nothing, a different one begins a leg")
+    {
+        const ChartNote narrow = vibratoLegNote(VibratoState::Narrow, {});
+        CHECK(keyframeSaysNothingNew(
+            narrow, Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}));
+        CHECK_FALSE(keyframeSaysNothingNew(
+            narrow, Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}));
+    }
+
+    SECTION("at the ring's end no leg begins, so no width says anything there")
+    {
+        const Keyframe end_bare{.offset = Fraction{4}};
+        for (const VibratoState onset : {VibratoState::None, VibratoState::Narrow})
+        {
+            CHECK(keyframeSaysNothingNew(vibratoLegNote(onset, {}), end_bare));
+        }
+        CHECK(keyframeSaysNothingNew(
+            vibratoLegNote(VibratoState::None, {}),
+            Keyframe{.offset = Fraction{4}, .vibrato = VibratoState::Wide}));
+        // A fret there is the slide-out, a statement whatever the leg before.
+        CHECK_FALSE(keyframeSaysNothingNew(
+            vibratoLegNote(VibratoState::Narrow, {}), Keyframe{.offset = Fraction{4}, .fret = 7}));
+    }
+}
+
+// A keyframe is a leg boundary and may carry any subset of its channels, none included: a bare
+// one is legal, and where it says nothing the commit law sweeps it. The channels it may state are
+// bounded — a fret is a real position, and a bend is a PUSH, which a finger cannot make downward
+// (W9-K).
 TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1181,22 +1497,18 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         CHECK(result.error().code == ChartErrorCode::InvalidNotePayload);
     };
 
-    SECTION("a keyframe stating nothing is refused; one channel is enough")
+    SECTION("a keyframe carrying no channel is legal, and any one channel is too")
     {
-        refuses(Keyframe{.offset = Fraction{1, 2}});
-        // The same location, one channel at a time: each is a legal record on its own, which is
-        // what makes the refusal above about emptiness rather than about the offset.
+        CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}}, 0.0).has_value());
         CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .fret = 7}, 0.0).has_value());
         CHECK(validate_with(Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}, 0.0).has_value());
         CHECK(
             validate_with(Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}, 0.0)
                 .has_value());
 
-        // And refused where it has to be: on the LOAD path, which normalizes before it validates
-        // (rock_song_package_read.cpp). Every strip arm in the normalizer clears channels and then
-        // drops what it emptied, so a normalizer that instead swept up every empty keyframe it
-        // found would repair this refusal out of existence for every document that carries one —
-        // the assertion above would still pass and nothing would ever refuse the record.
+        // On the LOAD path, which normalizes before it validates (rock_song_package_read.cpp),
+        // a bare keyframe after an unvibrated leg says nothing, so the commit law sweeps it and
+        // says so; the note that remains validates.
         Chart loaded;
         loaded.tuning.strings = {"E2"};
         ChartNote empty_statement;
@@ -1206,12 +1518,12 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         empty_statement.sustain = Fraction{1};
         empty_statement.keyframes = {Keyframe{.offset = Fraction{1, 2}}};
         loaded.notes = {empty_statement};
-        static_cast<void>(normalizeChart(loaded, tempo_map));
+        const std::vector<ChartConversion> conversions = normalizeChart(loaded, tempo_map);
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
         REQUIRE(loaded.notes.size() == 1);
-        CHECK(loaded.notes[0].keyframes.size() == 1);
-        const auto after_normalize = validateChartRules(loaded, tempo_map);
-        REQUIRE_FALSE(after_normalize.has_value());
-        CHECK(after_normalize.error().code == ChartErrorCode::InvalidNotePayload);
+        CHECK(loaded.notes[0].keyframes.empty());
+        CHECK(validateChartRules(loaded, tempo_map).has_value());
     }
 
     SECTION("offsets are strictly inside the ring, and offset zero is the onset's own")
@@ -1429,11 +1741,14 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(std::is_eq(*kept_bend <=> 1.0));
         }
 
-        // The discriminating twin: the same below-floor fret with nothing else stated leaves with
-        // the keyframe, because a location with no statement left is no record at all.
+        // The discriminating twin: the same below-floor fret with nothing else stated leaves its
+        // keyframe bare — the strip drops nothing — and the commit law then sweeps it as silent.
         ChartNote bare = note_with({Keyframe{.offset = Fraction{1, 2}, .fret = 2}});
         bare.fret = 7;
         CHECK(normalizeChartNote(bare, capo_tuning).size() == 1);
+        REQUIRE(bare.keyframes.size() == 1);
+        CHECK(keyframeStatesNothing(bare.keyframes[0]));
+        CHECK(stripSilentKeyframes(bare));
         CHECK(bare.keyframes.empty());
     }
 
@@ -1447,7 +1762,8 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::OpenStringSlide);
         // The slide-out went with the rest of the path: its keyframe stated a fret and nothing
-        // else, so stripping the channel left no record at all.
+        // else, so it goes with that fret — bare at the ring's end, where no leg begins, it is
+        // nothing. The mid-ring keyframe keeps its width.
         CHECK(endStatedFretOrNull(note) == nullptr);
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].fret.has_value());
@@ -1526,18 +1842,87 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(normalizeChart(sloped, makeTempoMap()).empty());
     }
 
-    SECTION("a vibrato width is never silent, a repeated one included")
+    SECTION("a vibrato width equal to the leg before it says nothing")
     {
-        // Each width is its own leg's statement and nothing carries, so the second `Narrow` is
-        // what vibrates the leg from 1/2 on: without it that leg would not vibrate.
+        // With the point at 1/2 gone, the `Narrow` leg begun at 1/4 covers its stretch at the same
+        // width, so nothing changes: beside a fret the path already holds there the point goes,
+        // and the step to `Wide` is a statement and stays.
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
             {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 2}, .fret = 5, .vibrato = VibratoState::Narrow},
              Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Wide}})};
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(chart.notes.front().keyframes.size() == 2);
+        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
+        // Alone, the repeated width is silent too: legal in memory, swept on load like any
+        // silent point, never refused.
+        Chart repeated;
+        repeated.tuning = tuning;
+        repeated.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow}})};
+        CHECK(validateChartRules(repeated, makeTempoMap()).has_value());
+        const std::vector<ChartConversion> swept = normalizeChart(repeated, makeTempoMap());
+        REQUIRE(swept.size() == 1);
+        CHECK(swept.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(repeated.notes.front().keyframes.size() == 1);
+        CHECK(repeated.notes.front().keyframes[0].offset == Fraction{1, 4});
+        CHECK(validateChartRules(repeated, makeTempoMap()).has_value());
+        // Judged per channel: a repeated width beside a fret the path does not pass through is a
+        // statement, and the keyframe stays whole.
+        Chart stepped;
+        stepped.tuning = tuning;
+        stepped.notes = {note_with(
+            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
+             Keyframe{.offset = Fraction{1, 2}, .fret = 9, .vibrato = VibratoState::Narrow}})};
+        CHECK(normalizeChart(stepped, makeTempoMap()).empty());
+    }
+
+    SECTION("a bare keyframe after a vibrated leg ends the vibrato and is kept")
+    {
+        // The stored form of vibrato ending where nothing else changes: the point states no
+        // channel, but it begins an UNVIBRATED leg after a vibrated one, and without it the
+        // onset's leg would vibrate to the ring's end.
+        ChartNote ending = note_with({Keyframe{.offset = Fraction{1, 2}}});
+        ending.vibrato = VibratoState::Narrow;
+        CHECK_FALSE(stripSilentKeyframes(ending));
+        REQUIRE(ending.keyframes.size() == 1);
+        CHECK_FALSE(ending.keyframes[0].fret.has_value());
+        CHECK_FALSE(ending.keyframes[0].bend.has_value());
+        CHECK(ending.keyframes[0].vibrato == VibratoState::None);
+        Chart chart;
+        chart.tuning = tuning;
+        chart.notes = {ending};
+        const Chart written = documentChart(chart, makeTempoMap());
+        REQUIRE(written.notes.size() == 1);
+        CHECK(written.notes.front().keyframes.size() == 1);
         CHECK(normalizeChart(chart, makeTempoMap()).empty());
-        CHECK(chart.notes.front().keyframes.size() == 3);
+        REQUIRE(chart.notes.front().keyframes.size() == 1);
+        CHECK(validateChartRules(chart, makeTempoMap()).has_value());
+
+        // The discriminating twin: after an unvibrated leg the same point says nothing. It is
+        // still legal, but silent — the sweep takes it, the load reports it, the writer sheds it.
+        Chart plain;
+        plain.tuning = tuning;
+        plain.notes = {note_with({Keyframe{.offset = Fraction{1, 2}}})};
+        CHECK(validateChartRules(plain, makeTempoMap()).has_value());
+        ChartNote swept_note = plain.notes.front();
+        CHECK(stripSilentKeyframes(swept_note));
+        CHECK(swept_note.keyframes.empty());
+        const Chart plain_written = documentChart(plain, makeTempoMap());
+        REQUIRE(plain_written.notes.size() == 1);
+        CHECK(plain_written.notes.front().keyframes.empty());
+        const std::vector<ChartConversion> conversions = normalizeChart(plain, makeTempoMap());
+        REQUIRE(conversions.size() == 1);
+        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
+        REQUIRE(plain.notes.size() == 1);
+        CHECK(plain.notes.front().keyframes.empty());
+        CHECK(validateChartRules(plain, makeTempoMap()).has_value());
     }
 
     SECTION("a slide-out states its fret and nothing else")
@@ -1586,6 +1971,26 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
 
+    SECTION("a dead note's vibrato ending is swept once the vibrato goes, and the chart loads")
+    {
+        // The repair clears the onset's width, which leaves the bare ending after an UNVIBRATED
+        // leg: silent, so the commit law sweeps it rather than any rule refusing the note.
+        ChartNote note = note_with({Keyframe{.offset = Fraction{1, 2}}});
+        note.dead = true;
+        note.vibrato = VibratoState::Narrow;
+        Chart chart;
+        chart.tuning = tuning;
+        chart.notes = {note};
+        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
+        REQUIRE(conversions.size() == 2);
+        CHECK(conversions[0].repair == ChartRepair::DeadNoteModulation);
+        CHECK(conversions[1].repair == ChartRepair::SilentKeyframe);
+        REQUIRE(chart.notes.size() == 1);
+        CHECK_FALSE(hasVibrato(chart.notes.front().vibrato));
+        CHECK(chart.notes.front().keyframes.empty());
+        CHECK(validateChartRules(chart, makeTempoMap()).has_value());
+    }
+
     SECTION("a saved scrape keeps its path and sheds the channels it overrides")
     {
         // savedChartNote is the memory-to-document seam: a scrape's turnarounds are pick travel,
@@ -1598,8 +2003,9 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         setSlideOut(note, 12);
         const ChartNote saved = savedChartNote(note);
         // The turnaround and the terminal survive — both are fret statements, which are the path —
-        // while the vibrato-only keyframe leaves with the channel it carried.
-        REQUIRE(saved.keyframes.size() == 2);
+        // while the vibrato-only keyframe is left bare after an unvibrated leg: silent, so the
+        // commit law's sweep takes it.
+        REQUIRE(saved.keyframes.size() == 3);
         const std::optional<int>& path_fret = saved.keyframes[0].fret;
         REQUIRE(path_fret.has_value());
         if (path_fret.has_value())
@@ -1607,7 +2013,12 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(*path_fret == 9);
         }
         CHECK_FALSE(saved.keyframes[0].bend.has_value());
+        CHECK(keyframeStatesNothing(saved.keyframes[1]));
         CHECK(endStatedFretOrNull(saved) != nullptr);
+        ChartNote swept = saved;
+        CHECK(stripSilentKeyframes(swept));
+        REQUIRE(swept.keyframes.size() == 2);
+        CHECK(swept.keyframes[1].offset == saved.keyframes[2].offset);
         // In memory the latents are untouched, which is what makes toggling the attack back
         // restore them.
         CHECK(note.keyframes.size() == 3);
@@ -2085,8 +2496,9 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
     SECTION("an open string cannot slide")
     {
         // Nothing is pressed to travel, so a fret-0 glide or slide-out refuses, and the normalizer
-        // drops the path whole — the refusal IS the fixpoint of that repair, which is what lets a
-        // load repair the form the gate refuses.
+        // strips the path whole — the refusal IS the fixpoint of that repair, which is what lets a
+        // load repair the form the gate refuses. The keyframe the strip empties stays as a bare,
+        // silent leg boundary for the commit law to sweep.
         ChartNote open_slide = make_note(1, 1, 0);
         open_slide.sustain = Fraction{1};
         open_slide.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 5}};
@@ -2095,8 +2507,11 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(
             normalizeChartNote(shed_slide, ChartTuning{}) ==
             std::vector<ChartRepair>{ChartRepair::OpenStringSlide});
-        CHECK(shed_slide.keyframes.empty());
+        REQUIRE(shed_slide.keyframes.size() == 1);
+        CHECK(keyframeStatesNothing(shed_slide.keyframes[0]));
         CHECK(validate({shed_slide}).has_value());
+        CHECK(stripSilentKeyframes(shed_slide));
+        CHECK(shed_slide.keyframes.empty());
 
         ChartNote open_exit = make_note(1, 1, 0);
         open_exit.sustain = Fraction{1};
@@ -2492,12 +2907,13 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(valid(past));
     }
 
-    SECTION("slide positions on or below the capo lift above it, keyframes drop")
+    SECTION("slide positions on or below the capo lift above it, keyframe stops drop")
     {
         // A glide's stops are pressed positions and a scrape's turnarounds are pick travel, so
         // neither may name the open string or a capo'd fret: a PITCHED keyframe there names
-        // nothing pressed and drops, while the slide-out is a direction as much as a fret — a
-        // slide-out toward the floor is still a slide-out — so it lifts onto the floor instead.
+        // nothing pressed and loses its fret, while the slide-out is a direction as much as a
+        // fret — a slide-out toward the floor is still a slide-out — so it lifts onto the floor
+        // instead.
         ChartNote glide = make_note(1, 1, 9);
         glide.sustain = Fraction{1};
         glide.keyframes = {
@@ -2510,10 +2926,11 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         CHECK(
             normalizeChartNote(glide, tuning) ==
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo});
-        // The surviving stop and the lifted slide-out: the dropped one stated nothing else, so it
-        // left with its fret.
-        REQUIRE(glide.keyframes.size() == 2);
+        // The surviving stop and the lifted slide-out: the dropped one stated nothing else, so its
+        // fret leaves it bare — a silent leg boundary the commit law sweeps.
+        REQUIRE(glide.keyframes.size() == 3);
         CHECK(glide.keyframes.front().fret == 7);
+        CHECK(keyframeStatesNothing(glide.keyframes[1]));
         const int* const lifted_slide_out = endStatedFretOrNull(glide);
         REQUIRE(lifted_slide_out != nullptr);
         if (lifted_slide_out != nullptr)
@@ -2521,6 +2938,8 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             CHECK(*lifted_slide_out == tuning.capo + 1);
         }
         CHECK(valid(glide));
+        CHECK(stripSilentKeyframes(glide));
+        CHECK(glide.keyframes.size() == 2);
 
         // A scrape has no open form, so its START lifts too — the pick travels the sounding
         // string, and a scrape at the nut is no scrape.
@@ -2556,6 +2975,8 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             normalizeChartNote(scrape, tuning) ==
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo, ChartRepair::StilledScrape});
         CHECK(scrape.attack == NoteAttack::Pick);
+        // The terminal's fret is gone and its keyframe with it: bare at the ring's end, where no
+        // leg begins, it is nothing.
         CHECK(scrape.keyframes.empty());
         CHECK(endStatedFretOrNull(scrape) == nullptr);
         CHECK(scrape.sustain == Fraction{1});

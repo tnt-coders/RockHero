@@ -29,10 +29,10 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         return true;
     }
     // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
-    // statement leaves its own instant — with its keyframe when nothing else was stated there, and
-    // only that one — to be restated at the ring's end. A keyframe that ARRIVED stating nothing is
-    // illegal data the rules refuse rather than litter to sweep up, which is the same reading
-    // stripKeyframeChannels takes (chart.h).
+    // statement leaves its own instant — never the end itself, which the early return above
+    // handles — to be restated at the ring's end. A keyframe left bare stays as the leg boundary
+    // it is: it ends a vibrato where one ran into it, and the commit law sweeps it where it says
+    // nothing.
     for (auto keyframe = note.keyframes.rbegin(); keyframe != note.keyframes.rend(); ++keyframe)
     {
         // Bound to a local so the optional check and the access are provably the same object.
@@ -43,10 +43,6 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         }
         const int terminal = *fret;
         fret.reset();
-        if (common::core::keyframeStatesNothing(*keyframe))
-        {
-            note.keyframes.erase(std::next(keyframe).base());
-        }
         common::core::setSlideOut(note, terminal);
         break;
     }

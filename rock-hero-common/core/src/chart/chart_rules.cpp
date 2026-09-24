@@ -101,7 +101,7 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
 
 void dropNotePath(ChartNote& note)
 {
-    static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
+    static_cast<void>(stripKeyframeChannels(note, [](Keyframe& keyframe) {
         const bool stated = keyframe.fret.has_value();
         keyframe.fret.reset();
         return stated;
@@ -426,10 +426,11 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    lift to the first playable fret, because the pick travels the sounding string and a
     //    "scrape at the nut" is no scrape, and a slide-out names a direction as much as a fret — a
     //    slide-out toward the floor is still a slide-out; a PITCHED keyframe on or below the floor
-    // loses its    position instead, since a stop there is nothing pressed — stripped per channel,
-    // so a bend    or vibrato change authored at the same instant survives the lift and only a
-    // keyframe left    stating nothing goes. A pressed NOTE on a capo'd fret is not repaired here:
-    // no lift can    know the pitch the author meant, so it stays a refusal.
+    //    loses its position instead, since a stop there is nothing pressed — stripped per channel,
+    //    so a bend or vibrato change authored at the same instant survives the lift, and a
+    //    keyframe left bare stays as the beginning of the leg it was (the commit law sweeps it
+    //    where that says nothing). A pressed NOTE on a capo'd fret is not repaired here: no lift
+    //    can know the pitch the author meant, so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
     if (isScrape(note.attack) && note.fret < floor)
@@ -437,22 +438,21 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         below_capo = true;
         note.fret = floor;
     }
-    const bool lifted_a_keyframe =
-        stripKeyframeChannels(note.keyframes, [floor, &note](Keyframe& keyframe) {
-            // Bound to a local so the optional check and the access are provably the same object.
-            std::optional<int>& fret = keyframe.fret;
-            if (!fret.has_value() || *fret >= floor)
-            {
-                return false;
-            }
-            if (keyframe.offset == note.sustain)
-            {
-                fret = floor;
-                return true;
-            }
-            fret.reset();
+    const bool lifted_a_keyframe = stripKeyframeChannels(note, [floor, &note](Keyframe& keyframe) {
+        // Bound to a local so the optional check and the access are provably the same object.
+        std::optional<int>& fret = keyframe.fret;
+        if (!fret.has_value() || *fret >= floor)
+        {
+            return false;
+        }
+        if (keyframe.offset == note.sustain)
+        {
+            fret = floor;
             return true;
-        });
+        }
+        fret.reset();
+        return true;
+    });
     below_capo = below_capo || lifted_a_keyframe;
     if (below_capo)
     {
@@ -472,7 +472,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         note.vibrato = VibratoState::None;
         // The modulation CHANNELS go; the position channel stays, because a dead string still
         // travels — a dragged mute is exactly that.
-        static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
+        static_cast<void>(stripKeyframeChannels(note, [](Keyframe& keyframe) {
             const bool modulated = keyframe.bend.has_value() || hasVibrato(keyframe.vibrato);
             keyframe.bend.reset();
             keyframe.vibrato = VibratoState::None;
@@ -830,8 +830,8 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "bend amount must not be negative at " + positionText(note.position),
         }};
     }
-    // Payload geometry no repair can express: a statement outside the sustain, out of order, or
-    // stating nothing at all is incoherent data, not a technique to shed. Where a keyframe sits on
+    // Payload geometry no repair can express: a statement outside the sustain or out of order is
+    // incoherent data, not a technique to shed. Where a keyframe sits on
     // the NECK is the normalizer's (the board clamp and the capo floor), asked as the fixpoint
     // below.
     //
@@ -859,14 +859,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
                 .code = ChartErrorCode::InvalidNotePayload,
                 .message =
                     "keyframe must lie on the tick lattice at " + positionText(note.position),
-            }};
-        }
-        if (keyframeStatesNothing(keyframe))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNotePayload,
-                .message = "keyframe must state a fret, a bend, or a vibrato width at " +
-                           positionText(note.position),
             }};
         }
         // Bound to locals so each optional check and its access are provably the same object.

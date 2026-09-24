@@ -165,9 +165,13 @@ bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
     {
         return false;
     }
-    // A width is its own leg's statement, so any stated width says something: without it the leg
-    // is not vibrated.
-    return !hasVibrato(point.vibrato);
+    // The leg this point begins says something exactly when its width differs from the leg
+    // before it: with the point gone that leg would cover this stretch, so a repeated width
+    // changes nothing, and beginning an unvibrated leg after a vibrated one changes everything.
+    // At the ring's end no leg begins, so no width says anything there. `note` is the path
+    // WITHOUT the point, so the state at its offset is the leg before.
+    return !(point.offset < note.sustain) ||
+           point.vibrato == ringStateAt(note, point.offset).vibrato;
 }
 
 bool stripSilentKeyframes(ChartNote& note)
@@ -179,14 +183,6 @@ bool stripSilentKeyframes(ChartNote& note)
     kept.reserve(note.keyframes.size());
     for (const Keyframe& keyframe : note.keyframes)
     {
-        // A keyframe stating NO channel is LAW II's — refused, never swept (validateChartNoteAlone)
-        // — so it passes through here untouched: a sweep that took it would repair that refusal
-        // out of existence for every document carrying one.
-        if (keyframeStatesNothing(keyframe))
-        {
-            kept.push_back(keyframe);
-            continue;
-        }
         ChartNote without = note;
         std::erase_if(without.keyframes, [&keyframe](const Keyframe& other) {
             return other.offset == keyframe.offset;
@@ -244,9 +240,9 @@ ChartNote savedChartNote(const ChartNote& note)
         saved.bend = 0.0;
         // The pitched CHANNELS go with the pitched fields: a scrape's turnarounds are pick travel,
         // so a bend or vibrato statement riding one is exactly as latent as the note's own. What
-        // survives is the fret channel, which is the path itself; a keyframe left stating nothing
-        // is no record at all and leaves with them.
-        static_cast<void>(stripKeyframeChannels(saved.keyframes, [](Keyframe& keyframe) {
+        // survives is the fret channel, which is the path itself; a keyframe left bare begins an
+        // unvibrated leg, and the commit law sweeps it where that says nothing.
+        static_cast<void>(stripKeyframeChannels(saved, [](Keyframe& keyframe) {
             const bool latent = keyframe.bend.has_value() || hasVibrato(keyframe.vibrato);
             keyframe.bend.reset();
             keyframe.vibrato = VibratoState::None;
