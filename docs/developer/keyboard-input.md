@@ -377,11 +377,11 @@ cut, on the new head itself, which the chart proves is an arrival and not a slid
 that head's own stop at that same instant (`arrivesIntoNextHead`) — so nothing retreats, a
 grid-step ring splits with no crowded case, and a silent arrival is kept as the visible authoring
 state it is. That segment walk has ONE caller, so there is one rule
-and one place it lives. A SCRAPE is refused: one picking-hand gesture has no junction. NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
-remains the authority for load, for import, and for the MOVE verb — the
-one editing gesture that re-strikes by truncation and can clip payload, deliberately, since a moved
-note brings its own payload and there is nothing coherent to merge. Even it never DELETES a
-statement: a landing that would clip any other keyframe off the tail is refused whole.
+and one place it lives. A SCRAPE is refused: one picking-hand gesture has no junction. NOTHING
+SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp remains the authority for load,
+for import, and for the plan gate every verb passes, which truncates a ring a head lands inside
+and refuses the plan where that truncation would lose an authored statement
+(\ref guide_2d_views).
 THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
 bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. The history records
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a

@@ -201,44 +201,6 @@ struct KeyedSplit
     return true;
 }
 
-// Whether any landing would ERASE a statement — the refusal that keeps the move verb's truncation
-// honest. A note moved back onto an earlier note's tail re-strikes it, so the gate truncates that
-// ring at the landing (normalizeSustainOverlaps) and the clip drops every keyframe past the new
-// end: something the charter authored, on a note they never touched, gone with no record. A move
-// may SHORTEN a ring and ride its slide-out back with the end; it may not delete a statement, so a
-// landing that would is refused whole.
-//
-// `landings` are the moved notes at their new slots, still in slot order — one uniform delta moves
-// every one of them, so their order cannot change — which lets each unmoved note read the end the
-// gate would settle on as the distance to the NEAREST landing that strikes its string
-// (sustainBoundOf, exactly as the truncation does).
-//
-// Two statements survive the clip and are therefore no reason to refuse: the END's own fret
-// statement, whose moment IS the ring's end so it rides back to the new one — a slide-out and a
-// shift slide's arrival alike, which is why the question here is note-local and asks nothing of the
-// relation — and a statement standing exactly ON the landing, which the inclusive bound keeps where
-// it stands.
-[[nodiscard]] bool moveErasesStatement(
-    const common::core::TempoMap& tempo_map, const std::vector<common::core::ChartNote>& unmoved,
-    const std::vector<common::core::ChartNote>& landings)
-{
-    return std::ranges::any_of(unmoved, [&](const common::core::ChartNote& note) {
-        const std::optional<common::core::Fraction> bound =
-            common::core::sustainBoundOf(landings, note, tempo_map);
-        if (!bound.has_value() || !(*bound < note.sustain))
-        {
-            return false;
-        }
-        // Bound to a plain value so the presence test and every read are provably one object.
-        const common::core::Fraction landing = *bound;
-        const common::core::Keyframe* const end = common::core::endFretStatement(note);
-        return std::ranges::any_of(
-            note.keyframes, [landing, end](const common::core::Keyframe& keyframe) {
-                return landing < keyframe.offset && &keyframe != end;
-            });
-    });
-}
-
 // The one repair a plan carries with it rather than refusing over: an attack that STRIKES from
 // nowhere needs somewhere to land (E4). It rides the entry that produced it because the truth it
 // repairs is the note's OWN — retyping a tap down to the open string leaves nothing to strike — so
@@ -257,11 +219,12 @@ enum class StrandedStrikeRepair : std::uint8_t
 };
 
 // Finalizes a candidate chart: restores each authored array's slot order, applies the 40-Q2-B
-// overlap normalization and the one in-plan repair, gates the result through the whole technique
-// matrix, and diffs against `base`. The gate is what makes authoring an invalid chart impossible by
-// construction — a plan whose candidate the document reader would reject refuses here, for every
-// present and future verb, with no per-verb guard to forget. It validates the SAVED form, because a
-// scrape's latent overrides are legal in memory and stripped by the writer.
+// overlap normalization — refusing where it lost an authored statement — and the one in-plan
+// repair, gates the result through the whole technique matrix, and diffs against `base`. The gate
+// is what makes authoring an invalid chart impossible by construction — a plan whose candidate the
+// document reader would reject refuses here, for every present and future verb, with no per-verb
+// guard to forget. It validates the SAVED form, because a scrape's latent overrides are legal in
+// memory and stripped by the writer.
 // The two emptinesses are distinct on purpose: the gate's refusal is Invalid, an empty diff is
 // NoChange — conflating them is what made every refusal in the editor silent.
 //
@@ -281,12 +244,17 @@ enum class StrandedStrikeRepair : std::uint8_t
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
     // The one rule a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
-    // stops the ring, so a note inserted into a ring truncates it and the statement at that ring's
-    // end rides back with the end — onto the new head itself, which is where the store says the
-    // hands left it; the spacing the mark needs to be seen is presentation's. The repaired indices
-    // are the load path's business (it names what it changed); a producer that only needs the
-    // invariant ignores them, which is why the rule is not [[nodiscard]].
-    common::core::normalizeSustainOverlaps(candidate, tempo_map);
+    // stops the ring, so a note landing inside a ring truncates it and the statement at that
+    // ring's end rides back with the end — onto the new head itself, which is where the store says
+    // the hands left it; the spacing the mark needs to be seen is presentation's. A truncation may
+    // SHORTEN a ring; it may not DELETE a statement the charter authored on a note the edit may
+    // never have touched, so a plan whose truncation reports a loss is refused whole.
+    const std::vector<common::core::TailTruncation> truncated =
+        common::core::normalizeSustainOverlaps(candidate, tempo_map);
+    if (std::ranges::any_of(truncated, &common::core::TailTruncation::statement_lost))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
     // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
@@ -609,7 +577,9 @@ struct AddressedStop
         // doubling its offset — a second record on one offset is a shape no chart may hold. The
         // merge is the overlay law's (common::core::overlayKeyframe): a channel the point does not
         // state is left exactly as the arrival had it, which is what `at` just read as in force.
-        common::core::overlayKeyframe(predecessor.keyframes.back(), point);
+        // What the head's own onset states — its bend, its shake — is meant to overwrite the
+        // arrival's there: the join is the charter folding the head in, not a truncation.
+        static_cast<void>(common::core::overlayKeyframe(predecessor.keyframes.back(), point));
     }
     else
     {
@@ -944,8 +914,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                         tempo_map, note.position, keyframe.offset, whole_note_delta, note.position);
                     // Against the CLAMPED end: a step that would strand an interior point on or
                     // past the head its own ring stops at is refused, never clamped — clamping it
-                    // would stack it on the slide-out, and letting it stand would leave the gate's
-                    // truncation to clip a statement away with no record.
+                    // would stack it on the slide-out.
                     if (!(keyframe.offset < end))
                     {
                         return std::unexpected{ChartPlanRefusal::Invalid};
@@ -990,13 +959,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // A landing inside a tail may shorten that ring and ride its slide-out back, but never delete a
-    // statement standing past it — so a landing that would is refused instead.
-    if (moveErasesStatement(tempo_map, notes.rest, notes.keyed))
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-
     notes.rest.insert(notes.rest.end(), notes.keyed.begin(), notes.keyed.end());
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }
@@ -1381,7 +1343,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
             // scrape's compressed path. A scrape needs no clause of its own: its terminal rides
             // the end, so a gesture grown onto the next head ends exactly there with its terminal
             // on it, which is what the store holds and what presentation then spaces.
-            common::core::clipPayloadsToSustain(stepped, target);
+            static_cast<void>(common::core::clipPayloadsToSustain(stepped, target));
             note = std::move(stepped);
         }
         else if (floor == target && common::core::endStatedFretOrNull(stepped) != nullptr)
@@ -1512,8 +1474,8 @@ ChartLegatoPlan planSetLegato(
                 common::core::slideOutFretOrNull(
                     *predecessor, connections.arrives_into[predecessor_index]) == nullptr)
             {
-                common::core::clipPayloadsToSustain(
-                    candidate[predecessor_index], still_ringing.sustain);
+                static_cast<void>(common::core::clipPayloadsToSustain(
+                    candidate[predecessor_index], still_ringing.sustain));
                 resolved = if_held;
                 changed = true;
             }

@@ -1747,7 +1747,7 @@ struct BuiltNote
         return candidate;
     }
     ChartNote trial = note;
-    common::core::clipPayloadsToSustain(trial, gap);
+    static_cast<void>(common::core::clipPayloadsToSustain(trial, gap));
     common::core::setSlideOut(trial, candidate);
     if (!common::core::arrivesIntoNextHead(trial, *next_head, tempo_map))
     {
@@ -1794,10 +1794,10 @@ struct BuiltNote
 void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     std::vector<ChartNote> stored = storedNotes(built);
-    common::core::normalizeSustainOverlaps(stored, tempo_map);
+    static_cast<void>(common::core::normalizeSustainOverlaps(stored, tempo_map));
     for (ChartNote& note : stored)
     {
-        common::core::clipPayloadsToSustain(note, note.sustain);
+        static_cast<void>(common::core::clipPayloadsToSustain(note, note.sustain));
     }
     for (std::size_t index = 0; index < built.size(); ++index)
     {
@@ -3691,8 +3691,8 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             {
                 note.sustain = gap;
             }
-            common::core::setEndStatement(
-                note, Keyframe{.offset = {}, .fret = next->note.fret, .bend = {}, .vibrato = {}});
+            static_cast<void>(common::core::setEndStatement(
+                note, Keyframe{.offset = {}, .fret = next->note.fret, .bend = {}, .vibrato = {}}));
             flags = 0;
             break;
         }

@@ -292,7 +292,7 @@ bool flattenStrandedStrike(ChartNote& note)
 // the ring rather than letting a step change what a point is. A scrape's terminal rides both ways,
 // because a scrape rings exactly as long as the pick travels and its terminal is required at the
 // end.
-void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
+bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
 {
     const bool shortening = sustain < note.sustain;
     // The end's statement detaches WHOLE — the keyframe carrying it is about to be clipped like any
@@ -323,17 +323,18 @@ void clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     // statement STANDS on it, which is what the store says the hands did; presentation only stops
     // the ink one margin before that head (chartPresentation rule 1). Heads are no business of a
     // clip.
-    std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
-        return note.sustain < keyframe.offset;
-    });
+    bool lost = std::erase_if(note.keyframes, [&note](const Keyframe& keyframe) {
+                    return note.sustain < keyframe.offset;
+                }) != 0;
     if (ridden.has_value())
     {
-        setEndStatement(note, *ridden);
+        lost = setEndStatement(note, *ridden) || lost;
     }
     // Whatever stands at the end leaves no SHAKE: a state stated where the ring stops has no ring
     // left to shake in. Its BEND stays, the curve's last value shaping the final leg — the channel
-    // table decides, and it asks nothing about the gesture the fret beside it proves.
-    static_cast<void>(shedEndStatementShake(note));
+    // table decides, and it asks nothing about the gesture the fret beside it proves. A shake shed
+    // here was a point's own, standing at the new end: an authored statement lost.
+    return shedEndStatementShake(note) || lost;
 }
 
 // The one walk that answers "when is this string struck again", which the truncation below, the
@@ -368,10 +369,10 @@ Fraction ringEndWithinBound(
 }
 
 // A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
-std::vector<std::size_t> normalizeSustainOverlaps(
+std::vector<TailTruncation> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    std::vector<std::size_t> truncated;
+    std::vector<TailTruncation> truncated;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
@@ -380,8 +381,11 @@ std::vector<std::size_t> normalizeSustainOverlaps(
         {
             continue;
         }
-        clipPayloadsToSustain(note, end);
-        truncated.push_back(index);
+        truncated.push_back(
+            TailTruncation{
+                .index = index,
+                .statement_lost = clipPayloadsToSustain(note, end),
+            });
     }
     return truncated;
 }
@@ -629,13 +633,13 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // rather than at each producer, so a chart written before the rule — or by a converter that
     // never learned it — is truncated and REPORTED on load instead of drawing a tail through a
     // later head.
-    for (const std::size_t index : normalizeSustainOverlaps(chart.notes, tempo_map))
+    for (const TailTruncation& truncation : normalizeSustainOverlaps(chart.notes, tempo_map))
     {
+        const ChartNote& note = chart.notes[truncation.index];
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::OverlappingTail,
-                .where = positionText(chart.notes[index].position) + " string " +
-                         std::to_string(chart.notes[index].string),
+                .where = positionText(note.position) + " string " + std::to_string(note.string),
             });
     }
     for (FretHandPosition& position : chart.fret_hand_positions)

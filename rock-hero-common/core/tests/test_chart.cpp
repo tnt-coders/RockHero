@@ -1277,7 +1277,9 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
             Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
             Keyframe{.offset = Fraction{3}, .bend = 0.0},
         };
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(
+            normalizeSustainOverlaps(notes, tempo_map) ==
+            std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = false}});
         CHECK(notes[0].sustain == Fraction{2});
         REQUIRE(notes[0].keyframes.size() == 2);
         // Bound once so every read below is provably the same object.
@@ -1306,7 +1308,9 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // where the material says the slide-out completes. Here it names 7 and the head is struck
         // at 5, so the relation refuses the arrival reading (arrivesIntoNextHead, clause 5).
         notes[0].keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7}};
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(
+            normalizeSustainOverlaps(notes, tempo_map) ==
+            std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = false}});
         CHECK(notes[0].sustain == Fraction{2});
         REQUIRE(notes[0].keyframes.size() == 1);
         CHECK(notes[0].keyframes.front().offset == Fraction{2});
@@ -1327,7 +1331,9 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
             Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
             Keyframe{.offset = Fraction{3}, .fret = 9},
         };
-        CHECK(normalizeSustainOverlaps(notes, tempo_map) == std::vector<std::size_t>{0});
+        CHECK(
+            normalizeSustainOverlaps(notes, tempo_map) ==
+            std::vector<TailTruncation>{TailTruncation{.index = 0, .statement_lost = true}});
         REQUIRE(notes[0].keyframes.size() == 1);
         const Keyframe& merged = notes[0].keyframes.front();
         CHECK(merged.offset == Fraction{2});
@@ -2733,7 +2739,8 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
     {
         ChartNote bends_out = glide_to(9);
         clearSlideOut(bends_out);
-        setEndStatement(bends_out, Keyframe{.offset = {}, .fret = {}, .bend = 1.0, .vibrato = {}});
+        static_cast<void>(setEndStatement(
+            bends_out, Keyframe{.offset = {}, .fret = {}, .bend = 1.0, .vibrato = {}}));
         CHECK_FALSE(pair_with(bends_out, head_at(9)));
     }
     SECTION("clause 2: adjacency is exact, and a slide-out that merely abuts is a slide-out")
@@ -2862,7 +2869,8 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
 
     SECTION("a fret and a bend stand together at the end, whichever gesture the fret proves")
     {
-        setEndStatement(note, Keyframe{.offset = {}, .fret = 9, .bend = 1.0, .vibrato = {}});
+        static_cast<void>(
+            setEndStatement(note, Keyframe{.offset = {}, .fret = 9, .bend = 1.0, .vibrato = {}}));
         REQUIRE(note.keyframes.size() == 1);
         // Bound once, with the explicit guard the CI-only optional checker needs.
         const std::optional<double>& reached = note.keyframes[0].bend;
@@ -2875,7 +2883,7 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
         // Through the normalizer, which is the load path's own half of the law.
         CHECK(normalizeChartNote(note, tuning).empty());
         // And through a clip, which carries the end's statement to the new end whole.
-        clipPayloadsToSustain(note, Fraction{1, 2});
+        static_cast<void>(clipPayloadsToSustain(note, Fraction{1, 2}));
         REQUIRE(note.keyframes.size() == 1);
         const std::optional<double>& carried = note.keyframes[0].bend;
         CHECK(note.keyframes[0].offset == Fraction{1, 2});
@@ -2888,8 +2896,8 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
     }
     SECTION("a shake at the end is shed, and a statement that said only the shake goes whole")
     {
-        setEndStatement(
-            note, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = VibratoState::Narrow});
+        static_cast<void>(setEndStatement(
+            note, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = VibratoState::Narrow}));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 9);
         CHECK_FALSE(note.keyframes[0].vibrato.has_value());
@@ -2900,6 +2908,149 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
         };
         CHECK(shedEndStatementShake(note));
         CHECK(note.keyframes.empty());
+    }
+}
+
+// A CLIP REPORTS WHAT IT LOST. Shortening a ring may carry the end's statement back and may land it
+// on a point standing at the new end; what it may not do unannounced is erase a point past that
+// end, overwrite a value the standing point stated, or shed a shake stated where the ring now
+// stops, because the plan gate refuses exactly on this report (finalizePlan). The end's own writer,
+// landing on a standing statement, reports an overwrite or a shed shake the same way.
+TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][chart]")
+{
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1};
+    note.string = 3;
+    note.fret = 5;
+    note.sustain = Fraction{4};
+
+    SECTION("an end statement riding back alone loses nothing")
+    {
+        note.keyframes = {
+            Keyframe{.offset = Fraction{1, 2}, .fret = {}, .bend = 1.0, .vibrato = {}},
+            Keyframe{.offset = Fraction{4}, .fret = 7, .bend = {}, .vibrato = {}},
+        };
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{1}));
+        REQUIRE(note.keyframes.size() == 2);
+        CHECK(note.keyframes[1].offset == Fraction{1});
+        CHECK(note.keyframes[1].fret == 7);
+    }
+    SECTION("an interior point past the new end is erased, and that is a loss")
+    {
+        note.keyframes = {
+            Keyframe{.offset = Fraction{3, 2}, .fret = {}, .bend = 1.0, .vibrato = {}},
+            Keyframe{.offset = Fraction{4}, .fret = {}, .bend = 0.0, .vibrato = {}},
+        };
+        CHECK(clipPayloadsToSustain(note, Fraction{1}));
+        // The end statement still rides back; only the bend point past the end is gone.
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+    }
+    SECTION("a ridden end statement overwriting a standing value is a loss")
+    {
+        note.keyframes = {
+            Keyframe{.offset = Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}},
+        };
+        CHECK(clipPayloadsToSustain(note, Fraction{3}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{3});
+        // The 9 the point stated is gone under the carried slide-out.
+        CHECK(note.keyframes[0].fret == 3);
+    }
+    SECTION("a ridden end statement restating the standing value loses nothing")
+    {
+        note.keyframes = {
+            Keyframe{.offset = Fraction{3}, .fret = 3, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{4}, .fret = 3, .bend = {}, .vibrato = {}},
+        };
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{3}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{3});
+        CHECK(note.keyframes[0].fret == 3);
+    }
+    SECTION("an origin junction past the new end is erased, and the slide-out rides regardless")
+    {
+        // The slide-out toward 5 travels from the junction at 7. The cut erases that junction and
+        // the slide-out still rides back, now toward the fret the onset already holds.
+        note.keyframes = {
+            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = {}},
+            Keyframe{.offset = Fraction{4}, .fret = 5, .bend = {}, .vibrato = {}},
+        };
+        CHECK(clipPayloadsToSustain(note, Fraction{3, 2}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{3, 2});
+        CHECK(note.keyframes[0].fret == 5);
+        CHECK(endStatedFretOrNull(note) != nullptr);
+    }
+    SECTION("a shake stated exactly at the new end is shed, and that is a loss")
+    {
+        // The end is bare, so nothing rides: the point at 2 survives the inclusive bound and
+        // becomes the end statement, which leaves no shake.
+        note.keyframes = {
+            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+        };
+        CHECK(clipPayloadsToSustain(note, Fraction{2}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+    }
+    SECTION("a fret stated exactly at the new end loses nothing")
+    {
+        note.keyframes = {Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = {}}};
+        CHECK_FALSE(clipPayloadsToSustain(note, Fraction{2}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{2});
+        CHECK(note.keyframes[0].fret == 7);
+    }
+    SECTION("the end's writer landing on a standing shake sheds it, and that is a loss")
+    {
+        note.keyframes = {
+            Keyframe{.offset = Fraction{4}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+        };
+        // The written fret equals the standing one, so the shed shake is the only loss.
+        CHECK(setEndStatement(note, Keyframe{.offset = {}, .fret = 7, .bend = {}, .vibrato = {}}));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{4});
+        CHECK(note.keyframes[0].fret == 7);
+        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+    }
+}
+
+// THE OVERLAY LAW'S REPORT, which the clip's and the end writer's overwrite reports rest on: a
+// channel both keyframes state with DIFFERENT values is an authored value gone, while an equal
+// value, or a channel the standing keyframe never stated, loses nothing.
+TEST_CASE(
+    "The overlay reports a stated channel overwritten with a different value", "[core][chart]")
+{
+    const Keyframe standing{.offset = Fraction{1}, .fret = 9, .bend = 1.0, .vibrato = {}};
+
+    Keyframe differing_fret = standing;
+    CHECK(overlayKeyframe(
+        differing_fret, Keyframe{.offset = {}, .fret = 3, .bend = {}, .vibrato = {}}));
+    CHECK(differing_fret.fret == 3);
+
+    Keyframe equal_fret = standing;
+    CHECK_FALSE(
+        overlayKeyframe(equal_fret, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = {}}));
+    CHECK(equal_fret.fret == 9);
+
+    // The standing keyframe never stated a shake, so stating one there overwrites nothing.
+    Keyframe unstated_channel = standing;
+    CHECK_FALSE(overlayKeyframe(
+        unstated_channel,
+        Keyframe{.offset = {}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow}));
+    CHECK(unstated_channel.vibrato == VibratoState::Narrow);
+
+    Keyframe differing_bend = standing;
+    CHECK(overlayKeyframe(
+        differing_bend, Keyframe{.offset = {}, .fret = {}, .bend = 0.5, .vibrato = {}}));
+    const std::optional<double>& pushed = differing_bend.bend;
+    REQUIRE(pushed.has_value());
+    if (pushed.has_value())
+    {
+        CHECK_THAT(*pushed, Catch::Matchers::WithinULP(0.5, 0));
     }
 }
 
@@ -3362,7 +3513,7 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     // outrunning its gesture cannot be written down. Resized through the one way a ring changes
     // length, which is what carries the terminal along.
     Chart longer_ring = makeFullChart();
-    clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 2});
+    static_cast<void>(clipPayloadsToSustain(longer_ring.notes[scrape], Fraction{3, 2}));
     CHECK(longer_ring.notes[scrape].sustain == Fraction{3, 2});
     CHECK(validateChartRules(longer_ring, tempo_map).has_value());
 

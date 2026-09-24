@@ -233,14 +233,16 @@ HEAD back onto its predecessor's path**, written as this walk's exact inverse �
 already standing at the junction and the merge takes it over — so split and join round-trip byte
 for byte. NOTHING SINGLE-PRESS TRUNCATES A
 RING OR CLIPS A KEYFRAME. The ring clamp still
-exists — for load, for import, and for the MOVE verb: a note moved onto another's tail is the ONE
-editing gesture that re-strikes by truncation, deliberately, since a moved note brings its own
-payload and there is nothing coherent to merge. That truncation SHORTENS the ring and rides its
-end's own statement back to the new end — onto the landing itself, which is where the chart then
-says the slide-out or the bend completes; it never DELETES a statement, so a landing that would clip any
-other keyframe off that tail is refused whole (`planMoveSelection`) — the statement belongs to a
-note the charter never touched, and the clip would leave no record of it. A keyframe standing
-exactly ON the landing survives the clip and stands there, so that landing is allowed.
+exists — for load, for import, and for every editing verb whose result lands a head inside a
+ring, which the plan gate normalizes exactly as a loaded chart is (`finalizePlan`). That
+truncation SHORTENS the ring and rides its end's own statement back to the new end — onto the
+landing itself, which is where the chart then says the slide-out or the bend completes; it never
+DELETES a statement. The clip reports an authored statement lost — a keyframe past the landing
+erased, a stated value the ridden end statement overwrote, a shake a point on the landing stated
+and shed (`clipPayloadsToSustain`, `TailTruncation`) — and the gate refuses the whole plan on
+that report, for every verb and in both directions: the statement belongs to a note the charter
+may never have touched, and the clip would leave no record of it. A keyframe standing exactly ON
+the landing survives the clip and stands there, so that landing is allowed.
 
 Four consequences worth knowing before touching this:
 
@@ -316,9 +318,8 @@ Four consequences worth knowing before touching this:
   ruling, 2026-09-21 — kind is not the move verb's to change). A STATEMENT AT A RING'S END MAY SIT
   EXACTLY ON THE NEXT HEAD OF ITS OWN STRING (user ruling, 2026-09-21): the chart holds the truth,
   and nothing stored spaces it — a note moved onto a slide-out truncates that ring to the landing and
-  the slide-out rides onto it. The MOVE is the one editing gesture that truncates, and the one that
-  may CLIP payload doing it — deliberately, since a moved note brings its own payload and there is
-  nothing coherent to merge. No entry gesture truncates: a digit on a
+  the slide-out rides onto it. A truncation may SHORTEN a ring and never lose a statement: the plan
+  gate refuses any that would (above). No entry gesture truncates: a digit on a
   covered slot states a POINT and never a head, and `Shift+L`'s disconnect makes an existing point
   the new head, carrying every later one onto the new note. Stepping a point (`Alt+←/→` on a chip)
   gives the SAME answer as growing a ring into that head (user ruling, 2026-09-21): the SLIDE-OUT — the

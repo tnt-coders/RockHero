@@ -122,8 +122,8 @@ head can never match (a keyframe at fret 0 is refused). A tied next note was mer
 any pair exists.
 
 **The slide-out follows.** `slideOutKeyframe` — and with it `slideOutFretOrNull`, the strip
-`stripReleaseChannels`, `dissolveSilentRelease`, `ringEndMayLandOnLastKeyframe`,
-`moveErasesStatement`'s exemption, `fretAtRingEnd`, `statedStopFrom` and the FHP generator's skip —
+`stripReleaseChannels`, `ringEndMayLandOnLastKeyframe`, `fretAtRingEnd`, `statedStopFrom` and the
+FHP generator's skip —
 means "an end statement whose fret does not travel into the next head". Each consumer reads the
 resolved answer instead of asking position alone. This is the whole cost of the change: about
 twenty-five call sites move from a local helper to a resolved read.

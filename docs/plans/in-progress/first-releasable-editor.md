@@ -133,11 +133,10 @@ unenforced rulings, and a set of defects on supported material.
   Both now hold the ring at the nearest grid line above the keyframe (user ruling, 2026-09-21),
   under one predicate the move verb can ask the same way
   (`common::core::ringEndMayLandOnLastKeyframe`).
-- **To verify: the same hole one verb over.** `moveErasesStatement` exempts a keyframe standing
-  exactly ON the landing, so a ring truncated by a MOVE can still end on a keyframe carrying a
-  shake or a bend, which becomes the release and is stripped by the bare-fret law the same way.
-  That half stands: confirm with a test before fixing; the fix is the predicate the resize now asks
-  (`endStatementWouldShedShake`).
+- **Closed 2026-09-23: the same hole one verb over.** A ring truncated onto a keyframe carrying a
+  shake sheds that shake by the channel table; the clip now reports the shed as a lost statement
+  and the plan gate refuses (`clipPayloadsToSustain`, `finalizePlan`), for every verb. A bend
+  there stays, the curve's last value.
   The three SILENT-release routes beside it are CLOSED (user ruling, 2026-09-21): a landing on a
   keyframe repeating the fret in force, a `clipPayloadsToSustain` that turns a TRAVELLING release
   silent by erasing the junction it travelled from, and a digit typed under `Alt` at a ring's exact
@@ -145,14 +144,12 @@ unenforced rulings, and a set of defects on supported material.
   face and no handle — unlike an interior point, which the charter can see and reach — so the plan
   gate dissolves it in the edit that made it (`common::core::dissolveSilentRelease`): the first two
   now come out with no release at all, and the third is a `NoChange` no-op that authors nothing.
-- **Inserting a note can still clip a neighbour's keyframes, silently.** The one real loss path
-  the W6 check turned up. `planInsertNote` has no guard and leaves the overlap to the gate's
-  `normalizeSustainOverlaps`, which truncates the earlier ring and drops every statement past the
-  new end (pinned as today's behaviour in `test_chart_edits.cpp`, the insert-truncation case, where
-  a bend at offset 3/2 is lost). The move verb already refuses exactly this through
-  `moveErasesStatement`; insert is the asymmetry. Corollary 1's case. The shape to rule: insert
-  asks the move verb's own guard and refuses — a refusal the screen does not explain, so it
-  flashes the neighbour it would have clipped.
+- **Inserting a note can no longer clip a neighbour's keyframes silently** (closed 2026-09-23):
+  the plan gate's `normalizeSustainOverlaps` reports a truncation that lost an authored statement
+  and `finalizePlan` refuses on it for every verb, insert and move alike, in both directions
+  (`ring-ends-and-authoring-planes.md`, the alongside item). What remains is the screen's half: a
+  refusal the screen does not explain, which is `refusal-flash.md`'s (the flash lights the refused
+  selection).
 - **The tap-at-claimed-stop refusal** (task #277) — ruled invalid by construction, enforced
   nowhere: `chart_rules.cpp` never consults `chartClaimedStops`, so the state can be authored and
   saved. The open design call is placement (validator, load repair, or planner refusal).

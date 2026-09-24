@@ -488,10 +488,11 @@ ruled by the user on 2026-09-21 and both sets keep it):
 | Push | pushes the end one step ahead of itself | moving a slide's landing changes the note's DURATION, which the legato hold test and the drawn tail read; with snap off the pushed tail is a one-tick sliver. The small upgrade if the wall proves obstructive in the hand |
 | Ripple | carries every later statement and the end | a head move moves ONE object whose statements ride with it; statements are siblings, each pinned to its own musical moment. The useful half already exists: select the figure and it moves whole |
 
-What is open against rule 4 under EITHER set, and gets built whichever is chosen: a note INSERT
-truncates with no guard at all where the move verb has `moveErasesStatement`; and a statement
+What is open against rule 4 under EITHER set, and gets built whichever is chosen: a statement
 standing exactly ON a truncation landing is kept by the inclusive clip and then bared, with no
-refusal and no test (Set B closes this one by construction — no point can stand at the end).
+refusal and no test (Set B closes this one by construction — no point can stand at the end). The
+insert's unguarded truncation is closed (2026-09-23): the plan gate refuses any truncation that
+loses an authored statement, for every verb.
 
 ## 1. The undo burst
 
@@ -579,9 +580,8 @@ because the ring's end moved:
 | the detach / clip / re-attach dance in `clipPayloadsToSustain` | the release must be lifted off, the ring cut, and the release put back at the new end |
 | `ringEndMayLandOnLastKeyframe` | a shrink may only land where becoming the release costs and hides nothing |
 | the move verb's end bound (`9312840c`) | a stepped point must not become the release mid-gesture |
-| `dissolveSilentRelease` and its copy-pop-ask helper | a release is judged by the keyframe commit law, which is defined on the note WITHOUT the point |
-| `&keyframe != release` exclusions in shapes, the importer (three sites), `releasedFret`, `moveErasesStatement` | every walk of "the statements a hand makes" must remember to skip the last one |
-| **still open** | a keyframe with a shake or bend exactly ON a truncation landing survives the inclusive clip and is then bared: a statement deleted with no refusal, and no test |
+| `&keyframe != release` exclusions in shapes, the importer (three sites), `releasedFret` | every walk of "the statements a hand makes" must remember to skip the last one |
+| closed 2026-09-23 | a keyframe with a shake exactly ON a truncation landing survives the inclusive clip and is then bared: the clip now reports the shed shake as a lost statement and the plan gate refuses (`clipPayloadsToSustain`, `finalizePlan`); a bend there stays, the curve's last value |
 
 Six user rulings in eleven days converge on one sentence — *kind never changes by position* — which
 is the property a stated release has by construction.

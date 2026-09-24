@@ -418,20 +418,16 @@ Nothing in phase 1 depends on any of them.
 
 ### Alongside, any time
 
-- **The move's end-statement overlay.** A move that lands a note on an earlier note's tail
-  truncates that ring, and `clipPayloadsToSustain` carries the end statement back onto whatever
-  stands at the landing through `overlayKeyframe`, which overwrites every channel the carried
-  statement also states: a point at fret 9 on the landing and a slide-out at fret 3 leave one
-  keyframe at 3, the authored 9 gone. `moveErasesStatement` exists to refuse exactly that loss
-  and misses it; it exempts only the end FRET statement while the clip carries any end
-  statement; and it checks only unmoved rings against landings, while a MOVED note whose own
-  ring now runs through an unmoved head is truncated by `normalizeSustainOverlaps` with the same
-  silent loss. Fix, in one authority: the clip and the normalizer report the authored channels
-  they erased or overwrote — a channel both statements state with DIFFERENT values, never an
-  equal one — and `finalizePlan` refuses on that report; the restated predicate is deleted. One
-  plan-level test per direction in `test_chart_edits.cpp`; every existing move fixture carries a
-  single keyframe. This is store law, not display: the ridden end statement lands on the landing
-  head and is a zone keyframe from then on.
+- **The truncation's loss report — built 2026-09-23.** A truncation may shorten a ring and never
+  silently delete a statement: `overlayKeyframe`, `setEndStatement` and `clipPayloadsToSustain`
+  report an authored statement lost (a keyframe past the landing erased, a stated value the
+  ridden end statement overwrote — never an equal one — or a shake a point on the landing stated
+  and shed), `normalizeSustainOverlaps` carries it per truncation (`TailTruncation`), and
+  `finalizePlan` refuses on it for every verb in both directions; `moveErasesStatement` is
+  deleted. Store law, not display: the ridden end statement lands on the landing head and is a
+  zone keyframe from then on. The same gate refuses an INSERT whose truncation would lose a
+  statement, and a scrape's turnaround counts as a statement (an insert landing exactly on it,
+  which would ride the terminal's fret over the turnaround's, refuses).
 
 ## Open decisions
 

@@ -341,10 +341,17 @@ string, that statement STANDS on the head, which is the truth the store holds: p
 the ink one margin before that head and leaves the statement where it stands
 (\ref chartPresentation rule 1), and this clip knows nothing about heads.
 
+REPORTS AN AUTHORED STATEMENT LOST: a keyframe past the new end erased, a channel the ridden end
+statement overwrote with a different value on landing (\ref overlayKeyframe — a point at fret 9
+under a slide-out to fret 3 leaves one keyframe at 3, the 9 gone), or a shake a point standing at
+the new end stated and shed (\ref shedEndStatementShake). The ridden end statement itself rides,
+and a scrape's terminal re-aimed is the path's own rule; neither is a loss.
+
 \param note Note whose ring is resized and whose payload is clipped in place.
 \param sustain The ring's new length.
+\return True when an authored statement was erased, overwritten or shed by the clip.
 */
-void clipPayloadsToSustain(ChartNote& note, Fraction sustain);
+bool clipPayloadsToSustain(ChartNote& note, Fraction sustain);
 
 /*!
 \brief The one bound on a note's ring: how far it may sound before its string is struck again.
@@ -399,6 +406,29 @@ are read, so a candidate placement asks the same question.
     Fraction target);
 
 /*!
+\brief One tail \ref normalizeSustainOverlaps truncated: which note, and whether the clip lost an
+authored statement doing it.
+*/
+struct TailTruncation
+{
+    /*! \brief Index of the truncated note in the stream. */
+    std::size_t index{};
+
+    /*! \brief True when the clip erased, overwrote or shed an authored statement
+    (\ref clipPayloadsToSustain). */
+    bool statement_lost{false};
+
+    /*!
+    \brief Compares two truncations by their stored values.
+    \param lhs Left-hand truncation.
+    \param rhs Right-hand truncation.
+    \return True when both name the same note with the same report.
+    */
+    friend constexpr bool operator==(
+        const TailTruncation& lhs, const TailTruncation& rhs) noexcept = default;
+};
+
+/*!
 \brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
@@ -409,15 +439,16 @@ to the new end whatever it states — a slide-out, or the bend curve's last valu
 Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
 import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it on
 its built stream before the passes that read the stream's picture, and the editor's plan gate
-normalizes a candidate stream through it before validating. The returned indices exist so the
-load path can name the notes it changed; a producer that only needs the invariant ignores them.
+normalizes a candidate stream through it before validating — and refuses the plan where a
+truncation LOST an authored statement, which each entry reports (\ref TailTruncation). The load
+path names the notes it changed; a producer that only needs the invariant ignores the result.
 
 \param notes Note stream to normalize in place, sorted by (position, string).
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 
-\return Indices of the notes whose tails were truncated, ascending; empty when none were.
+\return The truncated tails in ascending note order, each with its loss report; empty when none.
 */
-std::vector<std::size_t> normalizeSustainOverlaps(
+std::vector<TailTruncation> normalizeSustainOverlaps(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!

@@ -507,49 +507,144 @@ TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][c
 }
 
 // 40-Q2-B: inserting on a string whose earlier note's sustain rings across the new onset truncates
-// that sustain to end exactly at the onset, clipping payload points beyond the shortened tail.
-TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload", "[core][chart]")
+// that sustain to end exactly at the onset, the statement at the ring's end riding back with it. A
+// truncation may SHORTEN a ring but never DELETE a statement: an insert that would erase a point
+// standing past the landing, or shed a shake stated on it, is refused whole by the plan gate
+// (finalizePlan).
+TEST_CASE(
+    "planInsertNote truncates an overlapped sustain and refuses to erase a statement",
+    "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {
-        common::core::ChartNote{
-            .position = {.measure = 1, .beat = 1},
-            .string = 1,
-            .fret = 5,
-            .sustain = common::core::Fraction{2},
-            .keyframes = {
-                common::core::Keyframe{.offset = common::core::Fraction{1, 2}, .bend = 0.5},
-                common::core::Keyframe{.offset = common::core::Fraction{3, 2}, .bend = 1.0},
+    const auto ring_with = [&chart](std::vector<common::core::Keyframe> keyframes) {
+        chart.notes = {
+            common::core::ChartNote{
+                .position = {.measure = 1, .beat = 1},
+                .string = 1,
+                .fret = 5,
+                .sustain = common::core::Fraction{2},
+                .keyframes = std::move(keyframes),
             },
-        },
+        };
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-
     // The new onset lands one beat into the two-beat sustain.
-    const auto plan = planInsertNote(
-        chart, tempo_map, makeTestNote({.measure = 1, .beat = 2}, 1, 7), g_fixture_sustain);
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
+    const auto insert = [&chart, &tempo_map] {
+        return planInsertNote(
+            chart, tempo_map, makeTestNote({.measure = 1, .beat = 2}, 1, 7), g_fixture_sustain);
+    };
+
+    SECTION("an end statement rides back to the landing and nothing is lost")
     {
-        // The earlier note is re-emitted with its sustain cut to the onset distance and the bend
-        // statement past the new tail dropped.
-        REQUIRE(plan->removed.size() == 1);
-        CHECK(plan->removed.front().sustain == common::core::Fraction{2});
-        CHECK(plan->removed.front().keyframes.size() == 2);
+        ring_with({
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1, 2}, .fret = {}, .bend = 0.5, .vibrato = {}
+            },
+            common::core::Keyframe{
+                .offset = common::core::Fraction{2}, .fret = {}, .bend = 1.0, .vibrato = {}
+            },
+        });
+        const auto plan = insert();
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            // The earlier note is re-emitted with its sustain cut to the onset distance and its end
+            // statement carried to the new end.
+            REQUIRE(plan->removed.size() == 1);
+            CHECK(plan->removed.front().sustain == common::core::Fraction{2});
+            CHECK(plan->removed.front().keyframes.size() == 2);
 
-        const common::core::ChartNote* truncated =
-            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
-        REQUIRE(truncated != nullptr);
-        CHECK(truncated->sustain == common::core::Fraction{1});
-        REQUIRE(truncated->keyframes.size() == 1);
-        CHECK(truncated->keyframes.front().offset == common::core::Fraction{1, 2});
+            const common::core::ChartNote* truncated =
+                noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+            REQUIRE(truncated != nullptr);
+            CHECK(truncated->sustain == common::core::Fraction{1});
+            REQUIRE(truncated->keyframes.size() == 2);
+            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1, 2});
+            CHECK(truncated->keyframes[1].offset == common::core::Fraction{1});
+            // Bound once, with the explicit guard the CI-only optional checker needs.
+            const std::optional<double>& carried = truncated->keyframes[1].bend;
+            REQUIRE(carried.has_value());
+            if (carried.has_value())
+            {
+                CHECK_THAT(*carried, Catch::Matchers::WithinULP(1.0, 0));
+            }
 
-        // The placed note is inserted alongside the truncated one.
-        const common::core::ChartNote* placed =
-            noteAt(plan->inserted, {.measure = 1, .beat = 2}, 1);
-        REQUIRE(placed != nullptr);
-        CHECK(placed->fret == 7);
+            // The placed note is inserted alongside the truncated one.
+            const common::core::ChartNote* placed =
+                noteAt(plan->inserted, {.measure = 1, .beat = 2}, 1);
+            REQUIRE(placed != nullptr);
+            CHECK(placed->fret == 7);
+        }
+    }
+
+    SECTION("an interior point past the landing refuses the insert")
+    {
+        // The bend at 3/2 is no end statement (the ring runs on to 2), so the cut to 1 would erase
+        // it: something the charter authored on a note the insert never touched.
+        ring_with({
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1, 2}, .fret = {}, .bend = 0.5, .vibrato = {}
+            },
+            common::core::Keyframe{
+                .offset = common::core::Fraction{3, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+            },
+        });
+        const auto plan = insert();
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].sustain == common::core::Fraction{2});
+        CHECK(chart.notes[0].keyframes.size() == 2);
+    }
+
+    SECTION("a shake stated exactly at the landing refuses the insert")
+    {
+        // The point at 1 survives the cut (the bound is inclusive) and becomes the end statement,
+        // which leaves no shake: the vibrato it states would be shed on a note the insert never
+        // touched.
+        ring_with({
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1},
+                .fret = {},
+                .bend = {},
+                .vibrato = common::core::VibratoState::Narrow
+            },
+        });
+        const auto plan = insert();
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].sustain == common::core::Fraction{2});
+        CHECK(chart.notes[0].keyframes.size() == 1);
+    }
+
+    SECTION("a bend stated exactly at the landing stays as the end statement's value")
+    {
+        // A bend at the end is the curve's last value, so the point survives the cut whole.
+        ring_with({
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1}, .fret = {}, .bend = 1.0, .vibrato = {}
+            },
+        });
+        const auto plan = insert();
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* truncated =
+                noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+            REQUIRE(truncated != nullptr);
+            CHECK(truncated->sustain == common::core::Fraction{1});
+            REQUIRE(truncated->keyframes.size() == 1);
+            CHECK(truncated->keyframes[0].offset == common::core::Fraction{1});
+            // Bound once, with the explicit guard the CI-only optional checker needs.
+            const std::optional<double>& kept = truncated->keyframes[0].bend;
+            REQUIRE(kept.has_value());
+            if (kept.has_value())
+            {
+                CHECK_THAT(*kept, Catch::Matchers::WithinULP(1.0, 0));
+            }
+        }
     }
 }
 
@@ -1212,9 +1307,8 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
     {
         // The clamp lands the END, never an interior point: a junction stepped onto or past the
         // head its own ring stops at has nowhere legal to stand, and clamping it would stack it on
-        // the slide-out. Refused rather than left for the gate's truncation to clip it away with no
-        // record. The ring already ends ON the head here, so the slide-out's own step is a no-op
-        // and only the junction is asking to move.
+        // the slide-out, so it is refused rather than clamped. The ring already ends ON the head
+        // here, so the slide-out's own step is a no-op and only the junction is asking to move.
         common::core::Chart parked;
         parked.tuning.strings = chart.tuning.strings;
         common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{5});
@@ -1293,8 +1387,11 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
 // note's tail re-strikes it, so the gate truncates that ring at the landing and rides its slide-out
 // back with the end — both the move's to do, a ring's length and the slide-out it goes out on being
 // exactly what this verb changes. What the clip would ALSO do is drop every other keyframe past
-// the landing, erasing something the charter wrote on a note they never touched and leaving no
-// record of it, so a landing that would is refused whole instead.
+// the landing, or overwrite a value standing on it — a statement the charter wrote, lost on a note
+// they never touched — so a landing that would is refused whole. The
+// refusal is the plan gate's (finalizePlan), not the move verb's own, so it holds in both
+// directions: an unmoved ring a landing shortens, and a moved ring that now runs through an unmoved
+// head.
 TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -1433,81 +1530,78 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             }
         }
     }
-}
 
-// The other route a truncation reaches a slide-out by: the clip ERASES the statement the slide-out
-// travelled from, and the slide-out it re-attaches at the new end then goes toward the fret the
-// SURVIVING path already holds. It stays exactly where the end put it — three halves of a beat —
-// because a slide-out toward the fret in force draws its chip like any silent point's mark: the
-// edit deletes no statement, and the note's own focus decides how long one that says nothing lives.
-TEST_CASE("A clip leaves a slide-out that says nothing standing", "[core][chart]")
-{
-    const common::core::TempoMap tempo_map = makeTempoMap();
-    // One four-beat glide from fret 5 on string 1, stating `path` along the way and sliding out to
-    // `slides_out_toward` at its end. Every statement says something while the whole ring stands.
-    const auto figure = [](std::vector<common::core::Keyframe> path, const int slides_out_toward) {
-        common::core::Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        common::core::ChartNote glide =
-            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
-        glide.keyframes = std::move(path);
-        common::core::setSlideOut(glide, slides_out_toward);
-        chart.notes = {std::move(glide)};
-        return chart;
-    };
-    const auto junction = [](const common::core::Fraction offset, const int fret) {
-        return common::core::Keyframe{.offset = offset, .fret = fret, .bend = {}, .vibrato = {}};
-    };
+    SECTION("a slide-out riding onto a point stating another fret refuses the move")
+    {
+        // The point three beats in states fret 9 and the slide-out at the ring's end goes toward 3.
+        // The landing pulls the end back onto the point, and the slide-out arriving there would
+        // overwrite the 9 with its 3 (overlayKeyframe) — as much a lost statement as an erased one.
+        common::core::Chart chart = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{3}, .fret = 9, .bend = {}, .vibrato = {}
+            });
+        common::core::setSlideOut(chart.notes.front(), 3);
+        const auto refused = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE_FALSE(refused.has_value());
+        CHECK(refused.error() == ChartPlanRefusal::Invalid);
 
-    // What the ring states before the clip, the fret it slides out toward, and the statements that
-    // survive the clip. Either way the slide-out re-attaches onto a path that already holds its
-    // fret, at the new end (three halves of a beat).
-    std::vector<common::core::Keyframe> path;
-    int slides_out_toward{};
-    std::vector<common::core::Keyframe> surviving;
-    SECTION("the slide-out falls back onto the onset's own fret")
-    {
-        path = {junction(common::core::Fraction{2}, 7)};
-        slides_out_toward = 5;
-        surviving = {junction(common::core::Fraction{3, 2}, 5)};
-    }
-    SECTION("or onto a junction the clip leaves standing")
-    {
-        // The statement the clip exposes stands STRICTLY inside the new ring — a keyframe under the
-        // slide-out is under the ring's end, which the truncation has already pulled back to the
-        // head — so the silenced slide-out keeps an ordinary interior point before it.
-        path = {junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{2}, 5)};
-        slides_out_toward = 7;
-        surviving = {
-            junction(common::core::Fraction{1}, 7), junction(common::core::Fraction{3, 2}, 7)
-        };
-    }
-    const common::core::Chart chart = figure(path, slides_out_toward);
-    REQUIRE(common::core::endStatedFretOrNull(chart.notes.front()) != nullptr);
-
-    // A note struck on the string a beat and a half in re-strikes it, so the ring ends there: every
-    // statement past the landing is clipped and the slide-out rides back onto what is left.
-    const auto plan = planInsertNote(
-        chart,
-        tempo_map,
-        makeTestNote({.measure = 2, .beat = 2, .offset = {1, 2}}, 1, 3),
-        g_fixture_sustain);
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
-    {
-        const common::core::ChartNote* const clipped =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1, .offset = {}}, 1);
-        REQUIRE(clipped != nullptr);
-        if (clipped != nullptr)
+        // The same landing onto a point already stating the slide-out's fret overwrites nothing:
+        // the two statements of one instant say the same, and the shortened tail keeps one of them.
+        common::core::Chart restated = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{3}, .fret = 3, .bend = {}, .vibrato = {}
+            });
+        common::core::setSlideOut(restated.notes.front(), 3);
+        const auto plan = moveNotes(restated, tempo_map, mover, step_back, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
         {
-            // The ring ends on the landing itself, and what is left is exactly what survived the
-            // clip with the slide-out riding back onto that end; nothing else moved.
-            CHECK(clipped->sustain == common::core::Fraction{3, 2});
-            CHECK(clipped->keyframes == surviving);
-            CHECK(common::core::endStatedFretOrNull(*clipped) != nullptr);
+            const common::core::ChartNote* const tail = shortened(*plan);
+            REQUIRE(tail != nullptr);
+            if (tail != nullptr)
+            {
+                CHECK(tail->sustain == common::core::Fraction{3});
+                REQUIRE(tail->keyframes.size() == 1);
+                CHECK(tail->keyframes.front().offset == common::core::Fraction{3});
+                CHECK(tail->keyframes.front().fret == 3);
+            }
         }
-        common::core::Chart applied = chart;
-        applyAndValidate(applied, tempo_map, *plan);
+    }
+
+    SECTION("a moved ring running through an unmoved head refuses to erase its own point")
+    {
+        // The other direction: the RINGING note moves, forward a half note to three beats before
+        // the head that stays put, so its own four-beat ring now runs through that head and is
+        // truncated there. A point past the head would be erased from the note being moved.
+        const std::vector<ChartSlotKey> ringing{keyAt(tail_onset, 1)};
+        constexpr common::core::Fraction step_forward{1, 2};
+        constexpr common::core::GridPosition moved_onset{.measure = 2, .beat = 3, .offset = {}};
+        const common::core::Chart erasing = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{7, 2}, .fret = {}, .bend = 1.0, .vibrato = {}
+            });
+        const auto refused = moveNotes(erasing, tempo_map, ringing, step_forward, 0, "Move Note");
+        REQUIRE_FALSE(refused.has_value());
+        CHECK(refused.error() == ChartPlanRefusal::Invalid);
+
+        // With nothing standing past the head, the moved ring simply ends on it.
+        const common::core::Chart clear = figure(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{1}, .fret = 9, .bend = {}, .vibrato = {}
+            });
+        const auto plan = moveNotes(clear, tempo_map, ringing, step_forward, 0, "Move Note");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const moved = noteAt(plan->inserted, moved_onset, 1);
+            REQUIRE(moved != nullptr);
+            if (moved != nullptr)
+            {
+                CHECK(moved->sustain == common::core::Fraction{3});
+                REQUIRE(moved->keyframes.size() == 1);
+                CHECK(moved->keyframes.front().offset == common::core::Fraction{1});
+            }
+        }
     }
 }
 
@@ -3495,19 +3589,22 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
 
 // A note placed on a scrape's path re-strikes the string, so the scrape ends there like any ring
 // (40-Q2-B) — and its terminal, which rides the end, lands on the new head, where the store says
-// the pick stopped. One normalization for every producer, not a refusal; the spacing that keeps the
-// chip reachable is presentation's, so the drawn gesture still ends one margin short.
+// the pick stopped. One normalization for every producer; the spacing that keeps the chip reachable
+// is presentation's, so the drawn gesture still ends one margin short. A scrape's turnaround is an
+// authored statement, so a landing whose terminal would ride over it refuses: landing exactly ON
+// the turnaround, the terminal's fret would overwrite the turnaround's (overlayKeyframe).
 TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // Turnaround at fret 3 half a beat in, terminal at fret 12 on the one-beat ring's end.
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planInsertNote(
         chart,
         tempo_map,
-        makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5),
+        makeTestNote({.measure = 1, .beat = 1, .offset = {3, 4}}, 1, 5),
         g_fixture_sustain);
     REQUIRE(plan.has_value());
     if (plan.has_value())
@@ -3517,20 +3614,31 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
             common::core::GridPosition{.measure = 1, .beat = 1},
             &common::core::ChartNote::position);
         REQUIRE(scrape != plan->inserted.end());
-        // Half a beat to the new head, exactly: the terminal rides onto it and re-aims onto the
-        // fret it still travels toward.
-        CHECK(scrape->sustain == common::core::Fraction{1, 2});
+        // Three quarters of a beat to the new head, exactly: the terminal rides onto it, past the
+        // turnaround it still travels away from.
+        CHECK(scrape->sustain == common::core::Fraction{3, 4});
         CHECK(common::core::isScrape(scrape->attack));
-        REQUIRE_FALSE(scrape->keyframes.empty());
-        CHECK(scrape->keyframes.back().offset == common::core::Fraction{1, 2});
+        REQUIRE(scrape->keyframes.size() == 2);
+        CHECK(scrape->keyframes[0].offset == common::core::Fraction{1, 2});
+        CHECK(scrape->keyframes[0].fret == 3);
+        CHECK(scrape->keyframes[1].offset == common::core::Fraction{3, 4});
         const int* const terminal = common::core::endStatedFretOrNull(*scrape);
         REQUIRE(terminal != nullptr);
         if (terminal != nullptr)
         {
             CHECK(*terminal == 12);
         }
-        applyAndValidate(chart, tempo_map, *plan);
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
     }
+
+    const auto onto_turnaround = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5),
+        g_fixture_sustain);
+    REQUIRE_FALSE(onto_turnaround.has_value());
+    CHECK(onto_turnaround.error() == ChartPlanRefusal::Invalid);
 }
 
 // A slide that HOLDS a fret cannot become a scrape. The rule authority requires a scrape's whole

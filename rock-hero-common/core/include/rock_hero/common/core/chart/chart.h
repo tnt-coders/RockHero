@@ -1377,23 +1377,30 @@ is how a fret riding back onto a ring shortened exactly onto a bend point states
 
 The standing keyframe keeps its own OFFSET: its moment is not the arriving statement's to change.
 
+Reports a channel both statements state with DIFFERENT values, which is an authored value gone;
+an equal value, or a channel the standing statement never stated, loses nothing.
+
 \param standing Keyframe already at the moment, overwritten channel by channel.
 \param arriving What is stated there; its `offset` is ignored.
+\return True when a channel the standing keyframe stated was overwritten with a different value.
 */
-inline void overlayKeyframe(Keyframe& standing, const Keyframe& arriving) noexcept
+inline bool overlayKeyframe(Keyframe& standing, const Keyframe& arriving) noexcept
 {
-    if (arriving.fret.has_value())
-    {
-        standing.fret = arriving.fret;
-    }
-    if (arriving.bend.has_value())
-    {
-        standing.bend = arriving.bend;
-    }
-    if (arriving.vibrato.has_value())
-    {
-        standing.vibrato = arriving.vibrato;
-    }
+    bool overwrote = false;
+    // One rule per channel: the arriving statement speaks where it states, and the compare is the
+    // optionals' own, which is exact for every channel.
+    const auto overlay = [&overwrote](auto& standing_channel, const auto& arriving_channel) {
+        if (arriving_channel.has_value())
+        {
+            overwrote =
+                overwrote || (standing_channel.has_value() && standing_channel != arriving_channel);
+            standing_channel = arriving_channel;
+        }
+    };
+    overlay(standing.fret, arriving.fret);
+    overlay(standing.bend, arriving.bend);
+    overlay(standing.vibrato, arriving.vibrato);
+    return overwrote;
 }
 
 /*!
@@ -1412,19 +1419,29 @@ the end gets the same answer.
 
 \param note Note whose ring's end takes the statement.
 \param statement What is stated there; its own `offset` is ignored.
+\return True when an authored statement was lost writing it: a channel the standing end
+        statement stated overwritten with a different value (\ref overlayKeyframe), or a shake
+        the standing statement stated shed (\ref shedEndStatementShake); false where the end was
+        bare.
 */
-inline void setEndStatement(ChartNote& note, Keyframe statement)
+inline bool setEndStatement(ChartNote& note, Keyframe statement)
 {
     statement.offset = note.sustain;
+    bool lost = false;
     if (Keyframe* const standing = endStatement(note); standing != nullptr)
     {
-        overlayKeyframe(*standing, statement);
+        // A standing statement's shake goes with the end whichever statement arrives, so it is
+        // lost before the overlay decides what else is; the arriving statement's own shake is the
+        // writer's to give up and never a loss.
+        const bool sheds = endStatementWouldShedShake(*standing);
+        lost = overlayKeyframe(*standing, statement) || sheds;
     }
     else
     {
         note.keyframes.push_back(statement);
     }
     static_cast<void>(shedEndStatementShake(note));
+    return lost;
 }
 
 /*!
@@ -1443,7 +1460,8 @@ What makes the fret a SLIDE-OUT rather than an arrival is the relation and not t
 */
 inline void setSlideOut(ChartNote& note, const int fret)
 {
-    setEndStatement(note, Keyframe{.offset = {}, .fret = fret, .bend = {}, .vibrato = {}});
+    static_cast<void>(
+        setEndStatement(note, Keyframe{.offset = {}, .fret = fret, .bend = {}, .vibrato = {}}));
 }
 
 /*!
