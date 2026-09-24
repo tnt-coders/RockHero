@@ -161,13 +161,12 @@ HighwayCameraTarget makeHighwayCameraTarget(
     double low_line = 0.0;
     double high_line = metrics.camera_reference_span;
     const auto after_now = std::ranges::upper_bound(
-        state.chart.fret_hand_positions, now_seconds, std::ranges::less{}, &FhpViewState::seconds);
-    if (!state.chart.fret_hand_positions.empty())
+        state.fret_hand, now_seconds, std::ranges::less{}, &HighwayHandArrival::seconds);
+    if (!state.fret_hand.empty())
     {
-        const auto active =
-            after_now == state.chart.fret_hand_positions.begin() ? after_now : after_now - 1;
-        low_line = static_cast<double>(active->fret - 1);
-        high_line = static_cast<double>(active->fret + active->width - 1);
+        const auto active = after_now == state.fret_hand.begin() ? after_now : after_now - 1;
+        low_line = active->low_line;
+        high_line = active->high_line;
     }
 
     // The scan window is quantized to the derived camera framing zones: everything defined
@@ -191,16 +190,16 @@ HighwayCameraTarget makeHighwayCameraTarget(
                                                          : std::numeric_limits<double>::infinity();
 
     const auto scan_begin = std::ranges::lower_bound(
-        state.chart.fret_hand_positions, window_start, std::ranges::less{}, &FhpViewState::seconds);
-    for (auto it = scan_begin; it != state.chart.fret_hand_positions.end(); ++it)
+        state.fret_hand, window_start, std::ranges::less{}, &HighwayHandArrival::seconds);
+    for (auto it = scan_begin; it != state.fret_hand.end(); ++it)
     {
-        const FhpViewState& fhp = *it;
-        if (fhp.seconds >= horizon)
+        const HighwayHandArrival& arrival = *it;
+        if (arrival.seconds >= horizon)
         {
             break;
         }
-        low_line = std::min(low_line, static_cast<double>(fhp.fret - 1));
-        high_line = std::max(high_line, static_cast<double>(fhp.fret + fhp.width - 1));
+        low_line = std::min(low_line, arrival.low_line);
+        high_line = std::max(high_line, arrival.high_line);
     }
 
     // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting

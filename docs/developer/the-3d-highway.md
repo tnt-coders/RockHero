@@ -176,6 +176,25 @@ and the fret-span furniture under it. (A fret-0 note takes the open-string bar t
 hand window instead and never asks it.) The stop is a parameter because one gesture sounds from
 more than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
+**BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light patch
+are two tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand`, an
+arrival per placement; `HighwayTapOnsetViewState::path`, an arrival per stop of the taps' travel),
+resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's passes
+only decide where to sample it. Each arrival carries its ramp, the ease family the rail draws with,
+and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the approach
+leaves the leg's curve where the rail is cut and comes to rest at the arrival with a continuous
+slope (`cubicHermite`, the one cubic the bend curve is also built from). The settle is a fact
+about the rail, so the chart projection derives it once beside the ramp
+(`FhpViewState::settle_seconds`) and the board copies it; the tap path derives its own from the
+same ink end (`makeHighwayTapOnsets`, `highway_projection.cpp`). A left-hand slide-out into the
+next head and a pick slide cut at its crop therefore look the same underneath: the light rides
+the rail's own curve to the crop and settles over the last margin.
+
+**A TAIL'S TIP FADE NEVER SPANS LESS THAN A FIXED STRETCH OF BOARD** (`g_tail_tip_fade_min_seconds`,
+`highway_renderer.cpp`), clamped to the tail: the last 35% of a member cropped one margin before
+the next chord was a few frames of fade beside the open strings ringing through it, and the two
+ends read as two rules.
+
 **AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT.** An open string has no position
 of its own, so its bar and its tail band span the hand window and follow it as it slides — the band
 samples the window per station along its length wherever a placement ramp overlaps the visible tail
@@ -429,9 +448,12 @@ position cannot sum toward white the way the additive accent batch's halos do.
 - **`drawHandWindowLight`** — the fretting hand's backlight, the window sliding over the board.
   Per-slice brightness lives in one field, `WindowLightSlice::dim`, dimmed by the motion dim across
   a placement's morph.
-- **`drawTappingHandLight`** — one patch per picking-hand onset over the fret SLOTS it presses,
-  leaning toward the FHP orange so the two hands read apart. Its soft ends take
-  `g_floor_light_release_seconds`, named for the plane rather than for the hand.
+- **`drawTappingHandLight`** — one patch per picking-hand onset over the fret SLOTS it presses:
+  the light's envelope (`tapLightEnvelope`, rising over the onset's rise and fading from its
+  `release_seconds`) laid over the same morph the window moves by (`highwayHandWindowAt` over
+  the onset's path), sampled at one list of instants. It leans toward the FHP orange so the two
+  hands read apart. Its fade takes `g_floor_light_release_seconds`, named for the plane rather
+  than for the hand.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
 the next statement — is **TABLED**: removed rather than left switched off, with the revisit recorded

@@ -478,6 +478,9 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // reporting green.
         CHECK_FALSE(families.chart.notes.empty());
         CHECK_FALSE(families.chart.fret_hand_positions.empty());
+        // The hand window, its light and the camera move by the fretting hand's track, not the
+        // placements the board labels, so both must be present.
+        CHECK_FALSE(families.fret_hand.empty());
         CHECK_FALSE(families.chord_groups.empty());
         CHECK_FALSE(families.tap_onsets.empty());
         CHECK_FALSE(families.beats.empty());

@@ -154,43 +154,71 @@ rounding of any kind here.
     return highwayNoteCenterX(stop.fret, metrics, mirrored);
 }
 
-/*! \brief One station along a tapping-hand light path: the tapped fret extent at an instant. */
-struct HighwayTapLightStation
+/*!
+\brief One arrival of a hand's window on the board: the extent the hand settles on, and the eased
+approach ending there.
+
+THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
+fretting hand's track (\ref HighwayViewState::fret_hand) is an arrival per placement, and the
+picking hand's light path (\ref HighwayTapOnsetViewState::path) is an arrival per stop of the taps'
+travel. Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window
+covering frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
+*/
+struct HighwayHandArrival
 {
-    /*! \brief Absolute position of this station. */
+    /*! \brief Absolute position the hand arrives; arrivals ascend by this. */
     double seconds{0.0};
 
-    /*! \brief Lowest tapped fret at this instant; fractional mid-glide. */
-    double fret_low{0.0};
+    /*! \brief Fret-line coordinate of the settled window's low-fret edge. */
+    double low_line{0.0};
 
-    /*! \brief Highest tapped fret at this instant; fractional mid-glide. */
-    double fret_high{0.0};
+    /*! \brief Fret-line coordinate of the settled window's high-fret edge. */
+    double high_line{4.0};
 
     /*!
-    \brief True when the glide arriving at this station is unpitched pick travel.
+    \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
-    A scrape's keyframes move the picking hand with the unpitched slide ease, so the light
-    renderer sweeps toward this station with that profile; tapped pitched glides keep the
-    pitched ease. An onset station never arrives from a glide, so its flag is never read.
+    A placement's is \ref FhpViewState::ramp_seconds; a light path's arrival ramps over the leg
+    from the arrival before it.
     */
-    bool unpitched{false};
+    double ramp_seconds{0.0};
 
     /*!
-    \brief Compares two stations by their stored fields.
-    \param lhs Left-hand station.
-    \param rhs Right-hand station.
-    \return True when both stations store equal values.
+    \brief True when the ramp spans an UNPITCHED glide (\ref FhpViewState::unpitched_ramp), so
+    the approach eases with the unpitched curve instead of the pitched one.
+    */
+    bool unpitched_ramp{false};
 
-    Exact field equality: stations are compared against values the projection produced, so is_eq
+    /*!
+    \brief The final stretch of the ramp over which the approach settles into the arrival with a
+    continuous slope; zero settles on the ramp's own curve.
+
+    THE CROP ZONE: from the rail's ink end to the arrival. A leg the ink end cuts is drawn to the
+    crop and no further while the hand completes at the true instant, so over this stretch the
+    window leaves the leg's curve where the rail stops and comes to rest exactly at the arrival,
+    in place of the curve's stop with slope. Zero where the rail reaches the arrival.
+    */
+    double settle_seconds{0.0};
+
+    /*!
+    \brief Compares two arrivals by their stored fields.
+    \param lhs Left-hand arrival.
+    \param rhs Right-hand arrival.
+    \return True when both arrivals store equal values.
+
+    Exact field equality: arrivals are compared against values the projection produced, so is_eq
     keeps GCC's -Wfloat-equal satisfied that the exactness is intended. Callers checking an eased
-    mid-glide station compare with a tolerance instead.
+    mid-glide extent compare with a tolerance instead.
     */
     friend constexpr bool operator==(
-        const HighwayTapLightStation& lhs, const HighwayTapLightStation& rhs) noexcept
+        const HighwayHandArrival& lhs, const HighwayHandArrival& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.fret_low <=> rhs.fret_low) &&
-               std::is_eq(lhs.fret_high <=> rhs.fret_high) && lhs.unpitched == rhs.unpitched;
+               std::is_eq(lhs.low_line <=> rhs.low_line) &&
+               std::is_eq(lhs.high_line <=> rhs.high_line) &&
+               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
+               lhs.unpitched_ramp == rhs.unpitched_ramp &&
+               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
     }
 };
 
@@ -210,16 +238,19 @@ struct HighwayTapOnsetViewState
     int count{0};
 
     /*!
-    \brief Light path from the onset through any pitched glides to the fingers' release.
-
-    The first station sits at the onset with the onset extent; later stations land on the taps'
-    pitched slide keyframes (the light morphs with the glide) — or, for a scrape, on every
-    keyframe of the pick's travel, flagged unpitched — and on the hold end (sustained contact
-    keeps the light on through the sustain). Unpitched slide-outs contribute nothing —
-    pressure is already releasing, so the light decays from the last pitched station instead.
-    Never empty; a sustainless tap has exactly one station.
+    \brief The picking hand's window track for this onset, in the board's one motion element
+    (\ref makeHighwayTapOnsets). Never empty; a sustainless tap has exactly one arrival.
     */
-    std::vector<HighwayTapLightStation> path;
+    std::vector<HighwayHandArrival> path;
+
+    /*!
+    \brief When the hand leaves: the light's decay begins here.
+
+    The hold end — the drawn tail's end, or the last pitched keyframe when a drawn unpitched
+    slide-out follows, pressure already coming off. The path may run past it: a leg the ink end
+    cuts settles to its arrival while the light is already fading.
+    */
+    double release_seconds{0.0};
 
     /*!
     \brief Duration of the light's rise ending at \ref seconds.
@@ -229,7 +260,7 @@ struct HighwayTapOnsetViewState
     previous tap onset's release crowds closer than the margin so envelopes never reach backward
     through an earlier hold.
     */
-    double ramp_seconds{0.0};
+    double rise_seconds{0.0};
 
     /*!
     \brief Compares two tap-onset views by their stored fields.
@@ -237,16 +268,17 @@ struct HighwayTapOnsetViewState
     \param rhs Right-hand view.
     \return True when both views store equal values.
 
-    Exact second equality for the same reason as the station's: these are compared against values
+    Exact second equality for the same reason as the arrival's: these are compared against values
     the projection produced. The scalars are tested before the path so an unequal onset rejects
-    without walking the station vector.
+    without walking the path.
     */
     friend bool operator==(
         const HighwayTapOnsetViewState& lhs, const HighwayTapOnsetViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
                lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
-               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) && lhs.path == rhs.path;
+               std::is_eq(lhs.rise_seconds <=> rhs.rise_seconds) &&
+               std::is_eq(lhs.release_seconds <=> rhs.release_seconds) && lhs.path == rhs.path;
     }
 };
 
@@ -515,6 +547,16 @@ struct HighwayViewState
     ChartViewState chart;
 
     /*!
+    \brief The fretting hand's window track: an arrival per placement
+    (\ref ChartViewState::fret_hand_positions), in the board's one motion element.
+
+    What the board's window motion reads — the window edges, the morph dim, the camera's framing
+    — through the one resolver both hands share (\ref highwayHandWindowAt). The chart's placements
+    stay the authority for what a placement IS (the 2D lane draws them, the board labels them).
+    */
+    std::vector<HighwayHandArrival> fret_hand;
+
+    /*!
     \brief Tapping-hand onsets in ascending order, derived from the notes' picking-hand-at-the-neck
     attacks — taps AND pick slides, per \ref rightHandOnset.
 
@@ -571,206 +613,6 @@ struct HighwayViewState
     */
     friend bool operator==(const HighwayViewState& lhs, const HighwayViewState& rhs) = default;
 };
-
-/*!
-\brief Derives the picking-hand onsets: one entry per onset group with taps or pick slides.
-
-Right-hand presentation is derived, never authored: each entry carries the fret extent and
-count of the right-hand notes struck together at that onset — feeding, for two or more
-simultaneous taps, the tapped chord box — plus the light path the envelope follows: from the
-onset through the hand's travel (a tap's pitched glides, or a scrape's whole keyframe path —
-the light rides the slide either way) to the release: the sustain end for held contact and for
-scrapes (the pick leaves at the path's end), or the last pitched station when an unpitched
-slide-out is already releasing pressure. Fretting-hand notes sharing the onset contribute
-nothing. Notes are judged on where they SOUND, not on `fret`: an open-string tap harmonic strikes
-its node, and reading `fret` instead dropped the light from a note the rules explicitly allow.
-A sounding place at or below the nut is skipped, and one past the last fret is held at the board's
-edge by \ref highwayDrawnStop, so a malformed chart cannot place a light off the board at either
-end.
-
-Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
-rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance
-margin before the note, in seconds — zero for non-tap notes), the onset takes the
-widest member's, and crowding clamps the rise so it never reaches backward past the previous
-tap onset's release.
-
-\param notes Seconds-resolved notes sorted by start time.
-\param note_rise_seconds Per-note margin rise duration in seconds, sized and ordered like notes.
-\return Tap onsets in ascending time order, each with at least one path station.
-*/
-[[nodiscard]] inline std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
-    const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
-{
-    // A member's hand position at an instant: its own fret before any glide, linear between
-    // its path stops, and the last station afterwards. A slide-out's unpitched terminal
-    // never moves the light; a scrape's unpitched stops ARE the hand's
-    // travel.
-    const auto member_fret_at = [](const NoteViewState& note, const double seconds) {
-        const bool scrape = isScrape(note.attack);
-        double previous_seconds = note.start_seconds;
-        // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
-        // string that node is the only position it has. Keyframes ride the same rule, since a node
-        // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
-        // the board while the head it belongs to is held at the edge.
-        double previous_fret = highwayStopPosition(highwayDrawnStop(note, note.fret));
-        // Every stop: the asking is bounded by the release below, which never reaches past the
-        // ink end, so a leg the ink end cuts is followed exactly as far as the rail draws it.
-        for (std::size_t index = 0; index < note.slides.size(); ++index)
-        {
-            const GlideStop stop = glideStopAt(note, index);
-            if ((stop.unpitched && !scrape) || stop.fret <= 0)
-            {
-                continue;
-            }
-            // The station is the stop's DRAWN sounding position, exactly like the seed above:
-            // a node rides the stop it glides with, so a tapped harmonic's light walks the node
-            // path, not the stop path underneath it. Identity for a node-less note.
-            const double stop_position = highwayStopPosition(highwayDrawnStop(note, stop.fret));
-            if (seconds <= stop.seconds)
-            {
-                const double span = stop.seconds - previous_seconds;
-                const double weight =
-                    span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
-                return previous_fret + ((stop_position - previous_fret) * weight);
-            }
-            previous_seconds = stop.seconds;
-            previous_fret = stop_position;
-        }
-        return previous_fret;
-    };
-    // When the member's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
-    // follows (pressure is already coming off), otherwise the drawn tail's end — which for a
-    // scrape is the path's end, where the pick lifts. A slide-out past the ink end is not drawn,
-    // so the tail it would have released early simply ends where its ink does.
-    const auto member_release_at = [](const NoteViewState& note) {
-        const bool drawn_slide_out = !isScrape(note.attack) && !note.slides.empty() &&
-                                     note.slides.back().slide_out &&
-                                     keyframeDrawn(note.slides.back(), note.ink_end_seconds);
-        if (drawn_slide_out)
-        {
-            double last_pitched = note.start_seconds;
-            for (const KeyframeViewState& keyframe : note.slides)
-            {
-                if (!keyframe.slide_out && keyframe.fret > 0)
-                {
-                    last_pitched = keyframe.seconds;
-                }
-            }
-            return last_pitched;
-        }
-        return note.ink_end_seconds;
-    };
-
-    std::vector<HighwayTapOnsetViewState> onsets;
-    std::vector<const NoteViewState*> taps;
-    std::vector<double> station_times;
-    std::vector<double> scrape_times;
-    for (std::size_t index = 0; index < notes.size();)
-    {
-        const double onset = notes[index].start_seconds;
-        std::size_t group_end = index + 1;
-        while (group_end < notes.size() &&
-               std::abs(notes[group_end].start_seconds - onset) < g_onset_match_epsilon)
-        {
-            ++group_end;
-        }
-        HighwayTapOnsetViewState view{.seconds = onset, .path = {}};
-        taps.clear();
-        for (std::size_t member = index; member < group_end; ++member)
-        {
-            const NoteViewState& note = notes[member];
-            // Judged on where the note SOUNDS, so an open-string tap HARMONIC lights its node. The
-            // guard exists to keep a malformed chart from putting a light off the board, and the
-            // sounding position is what has to be on the board — reading `fret` instead dropped the
-            // light from a note the rules explicitly allow, since E4 accepts a tap that strikes a
-            // node in place of a fret. Asking for the DRAWN position closes the other end of that
-            // guard: the zero test below catches a light below the nut, and the board cap catches
-            // one past the last fret, which a node legally can be.
-            // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
-            // node at 12.0 lies in fret 12, one at 2.669 in fret 3 — the one ceil law.
-            const int sounding_fret = handFretOf(highwayDrawnStop(note, note.fret));
-            if (!rightHandOnset(note.attack) || sounding_fret <= 0)
-            {
-                continue;
-            }
-            view.fret_low =
-                view.count == 0 ? sounding_fret : std::min(view.fret_low, sounding_fret);
-            view.fret_high = std::max(view.fret_high, sounding_fret);
-            ++view.count;
-            view.ramp_seconds = std::max(
-                view.ramp_seconds,
-                member < note_rise_seconds.size() ? note_rise_seconds[member] : 0.0);
-            taps.push_back(&note);
-        }
-        if (!taps.empty())
-        {
-            // Path stations: the onset, every pitched keyframe, and the hold end, deduplicated;
-            // the extent at each station spans every member's fret at that instant.
-            double hold_end = onset;
-            station_times.clear();
-            scrape_times.clear();
-            station_times.push_back(onset);
-            for (const NoteViewState* const tap : taps)
-            {
-                hold_end = std::max(hold_end, member_release_at(*tap));
-                for (std::size_t stop_index = 0; stop_index < tap->slides.size(); ++stop_index)
-                {
-                    if (!keyframeDrawn(tap->slides[stop_index], tap->ink_end_seconds))
-                    {
-                        break;
-                    }
-                    const GlideStop stop = glideStopAt(*tap, stop_index);
-                    if ((!stop.unpitched || isScrape(tap->attack)) && stop.fret > 0)
-                    {
-                        station_times.push_back(stop.seconds);
-                        if (isScrape(tap->attack))
-                        {
-                            scrape_times.push_back(stop.seconds);
-                        }
-                    }
-                }
-            }
-            station_times.push_back(hold_end);
-            std::ranges::sort(station_times);
-            for (const double seconds : station_times)
-            {
-                if (!view.path.empty() &&
-                    seconds - view.path.back().seconds < g_onset_match_epsilon)
-                {
-                    continue;
-                }
-                const double first_fret = member_fret_at(*taps.front(), seconds);
-                HighwayTapLightStation station{
-                    .seconds = seconds,
-                    .fret_low = first_fret,
-                    .fret_high = first_fret,
-                    .unpitched = std::ranges::any_of(scrape_times, [&](const double time) {
-                        return std::abs(time - seconds) < g_onset_match_epsilon;
-                    }),
-                };
-                for (std::size_t tap = 1; tap < taps.size(); ++tap)
-                {
-                    const double fret = member_fret_at(*taps[tap], seconds);
-                    station.fret_low = std::min(station.fret_low, fret);
-                    station.fret_high = std::max(station.fret_high, fret);
-                }
-                view.path.push_back(station);
-            }
-            // Crowding clamp, mirroring the fret-hand ramps: the rise never reaches backward
-            // past the previous tap onset's release, so a dense run keeps its per-tap dips.
-            if (!onsets.empty())
-            {
-                view.ramp_seconds = std::clamp(
-                    view.ramp_seconds,
-                    0.0,
-                    std::max(0.0, onset - onsets.back().path.back().seconds));
-            }
-            onsets.push_back(std::move(view));
-        }
-        index = group_end;
-    }
-    return onsets;
-}
 
 /*!
 \brief Groups simultaneous notes and classifies each group's chord-box treatment.

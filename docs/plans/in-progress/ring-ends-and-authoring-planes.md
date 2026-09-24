@@ -88,11 +88,17 @@ What that commits to:
    bend line as every bend chip does, bend points never being targets. When the crop is clamped
    to the onset the chip would sit on the head, and is suppressed.
 4. **3D has no label.** The rail and the bend curve run their true path to the crop and the hand
-   window completes at the TRUE instant — the picture that sighted well. Every hand ramp is filed
+   window completes at the TRUE instant — the picture that sighted well — and SETTLES over the
+   crop zone: from the ink end to the arrival the approach leaves the leg's curve where the rail
+   is cut and comes to rest with a continuous slope, both hands moving by the one morph
+   (`highwayHandWindowAt`; the settle derived once beside the ramp as
+   `FhpViewState::settle_seconds`; sighted 2026-09-23 as a corner without it). Every hand ramp
+   is filed
    at its keyframe's stored instant, zone keyframes included, so the hand travels with the rail
    and completes where the sound goes; the ramp walk reads the stored notes directly. The
-   highway's existing tail tip fade (the last 35% of the drawn extent) applies to the cropped
-   extent; "ink" in the scoring contract means the geometric extent, not the fade.
+   highway's existing tail tip fade (the last 35% of the drawn extent, floored to a fixed span
+   since the 2026-09-23 sighting, `g_tail_tip_fade_min_seconds`) applies to the cropped extent;
+   "ink" in the scoring contract means the geometric extent, not the fade.
 5. **2D is a hard crop.** No fade: the lane records "the bare end is chosen over both a cap and a
    dissolve" (`tab_paint_core.cpp`, the tail painter), and that stands. No new ink primitive.
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend

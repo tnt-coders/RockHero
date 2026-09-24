@@ -100,13 +100,13 @@ double highwayBendSemitonesAt(
         return point_semitones(segment + 1);
     }
     const double mix = std::clamp((seconds - point_seconds(segment)) / span, 0.0, 1.0);
-    // Cubic Hermite basis over the segment with the Fritsch–Carlson endpoint tangents.
-    const double mix2 = mix * mix;
-    const double mix3 = mix2 * mix;
-    return (point_semitones(segment) * ((2.0 * mix3) - (3.0 * mix2) + 1.0)) +
-           (tangent(segment) * span * (mix3 - (2.0 * mix2) + mix)) +
-           (point_semitones(segment + 1) * ((-2.0 * mix3) + (3.0 * mix2))) +
-           (tangent(segment + 1) * span * (mix3 - mix2));
+    // The Fritsch–Carlson endpoint tangents, scaled into the segment's own unit.
+    return cubicHermite(
+        point_semitones(segment),
+        tangent(segment) * span,
+        point_semitones(segment + 1),
+        tangent(segment + 1) * span,
+        mix);
 }
 
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept
@@ -124,6 +124,28 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     }
     const double eased = std::sin(p * std::numbers::pi / 2.0);
     return eased * eased * eased;
+}
+
+double cubicHermite(
+    const double from, const double from_slope, const double to, const double to_slope,
+    const double t) noexcept
+{
+    const double t2 = t * t;
+    const double t3 = t2 * t;
+    return (from * ((2.0 * t3) - (3.0 * t2) + 1.0)) + (from_slope * (t3 - (2.0 * t2) + t)) +
+           (to * ((-2.0 * t3) + (3.0 * t2))) + (to_slope * (t3 - t2));
+}
+
+double highwaySlideEaseSlope(const double progress, const bool unpitched) noexcept
+{
+    const double p = std::clamp(progress, 0.0, 1.0);
+    const double half_pi = std::numbers::pi / 2.0;
+    if (unpitched)
+    {
+        return half_pi * std::cos((1.0 - p) * half_pi);
+    }
+    const double eased = std::sin(p * half_pi);
+    return 3.0 * eased * eased * std::cos(p * half_pi) * half_pi;
 }
 
 // Onset-phased sine at the caller-derived period.

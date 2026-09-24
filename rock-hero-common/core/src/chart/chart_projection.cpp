@@ -78,6 +78,8 @@ struct SlideRamp
 {
     double start_seconds{0.0};
     bool unpitched{false};
+    // The note whose rail the ramp follows: its ink end is where the settle begins.
+    std::size_t note{0};
 };
 
 // Walks every glide in the stored stream once and records the segment each arrival rides. A pass
@@ -137,6 +139,7 @@ struct SlideRamp
                 const SlideRamp ramp{
                     .start_seconds = segment_start_seconds,
                     .unpitched = unpitched,
+                    .note = index,
                 };
                 // A PITCHED ramp outranks an unpitched one at a shared key: a slide-out on one
                 // string and a shift slide's arrival on another can end on the same head, and the
@@ -628,11 +631,16 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
         bool unpitched_ramp = false;
+        // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
+        // the crop, the hand completes at the arrival, and the board eases the difference.
+        double settle_seconds = 0.0;
         if (const auto slide = slide_ramp_starts.find(fhp.position);
             slide != slide_ramp_starts.end())
         {
             ramp_start_seconds = slide->second.start_seconds;
             unpitched_ramp = slide->second.unpitched;
+            settle_seconds =
+                std::max(0.0, arrival_seconds - state.notes[slide->second.note].ink_end_seconds);
         }
         else
         {
@@ -653,6 +661,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 .width = fhp.width,
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
                 .unpitched_ramp = unpitched_ramp,
+                .settle_seconds = settle_seconds,
             });
     }
 

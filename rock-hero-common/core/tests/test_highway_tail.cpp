@@ -230,6 +230,46 @@ TEST_CASE("Highway slide easing spans its endpoints", "[core][highway][tail]")
         Catch::Approx(std::pow(std::sin(std::numbers::pi / 4.0), 3.0)));
 }
 
+// The slope is the curve's own derivative for both families: a central finite difference of the
+// weight matches it, which is what lets the window's settle join the curve without a kink.
+TEST_CASE("Highway slide ease slope is the weight's derivative", "[core][highway][tail]")
+{
+    constexpr double step = 1.0e-6;
+    for (const bool unpitched : {false, true})
+    {
+        for (const double progress : {0.1, 0.35, 0.6, 0.85})
+        {
+            const double difference = (highwaySlideEaseWeight(progress + step, unpitched) -
+                                       highwaySlideEaseWeight(progress - step, unpitched)) /
+                                      (2.0 * step);
+            CHECK(
+                highwaySlideEaseSlope(progress, unpitched) ==
+                Catch::Approx(difference).margin(1.0e-4));
+        }
+    }
+}
+
+// The Hermite basis passes through both endpoint values with both endpoint slopes, which a
+// one-sided finite difference at each end confirms.
+TEST_CASE("Cubic Hermite meets its endpoint values and slopes", "[core][highway][tail]")
+{
+    // From 2 with slope -3 to 7 with slope 0.5.
+    const auto curve = [](const double t) { return cubicHermite(2.0, -3.0, 7.0, 0.5, t); };
+
+    CHECK(curve(0.0) == Catch::Approx(2.0).margin(1.0e-12));
+    CHECK(curve(1.0) == Catch::Approx(7.0).margin(1.0e-12));
+
+    constexpr double step = 1.0e-6;
+    CHECK((curve(step) - curve(0.0)) / step == Catch::Approx(-3.0).margin(1.0e-4));
+    CHECK((curve(1.0) - curve(1.0 - step)) / step == Catch::Approx(0.5).margin(1.0e-4));
+
+    // Equal values with zero slopes hold flat across the whole span.
+    for (const double t : {0.25, 0.5, 0.75})
+    {
+        CHECK(cubicHermite(4.0, 0.0, 4.0, 0.0, t) == Catch::Approx(4.0).margin(1.0e-12));
+    }
+}
+
 // Wobbles are onset-phased pure functions: vibrato starts on the string line, tremolo peaks at
 // the onset and swings the full depth each way.
 TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]")

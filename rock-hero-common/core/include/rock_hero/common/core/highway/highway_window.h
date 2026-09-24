@@ -49,26 +49,29 @@ struct HighwayHandWindow
 };
 
 /*!
-\brief Returns the eased hand-window extent at an absolute time.
+\brief Returns the eased extent of a hand's window at an absolute time.
 
-Placements are step values whose approaches ramp: inside a placement's
-[seconds - ramp_seconds, seconds] span both edges ease from the previous settled window toward
-the arriving one, so the window travels in lockstep with a gliding note and morphs smoothly for
-ordinary moves. Which easing applies is the placement's own `unpitched_ramp`: a pitched approach
-takes the slide curve, an unpitched one the slide-out curve, which starts slowly because a hand
-letting go does not accelerate the way one arriving does. Outside every ramp the settled window
-holds, and
-arrivals are inclusive: at exactly \p seconds the placement has arrived. The first placement's
-settled window already holds from the start of time — the opening scroll shows where the hand
-belongs before the first note arrives — and the reference nut window (lines 0 to 4) applies
-only when there are no placements at all.
+THE ONE MORPH both hands move by. A track is arrivals in ascending order
+(\ref HighwayHandArrival): the fretting hand's placements, or the picking hand's light path.
+Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ease from the previous
+settled window toward the arriving one, so the window travels in lockstep with a gliding note and
+morphs smoothly for ordinary moves. Which easing applies is the arrival's own `unpitched_ramp`: a
+pitched approach takes the slide curve, an unpitched one the slide-out curve, which starts slowly
+because a hand letting go does not accelerate the way one arriving does. An arrival's
+`settle_seconds` is the crop zone: over that final stretch the approach leaves its curve — where
+the rail it follows is cut — and comes to rest at the arrival with a continuous slope, in place of
+the unpitched curve's stop with slope. Outside every ramp the settled window holds, and arrivals
+are inclusive: at exactly \p seconds the arrival has arrived. The first arrival's settled window
+already holds from the start of time — the opening scroll shows where the hand belongs before the
+first note arrives — and the reference nut window (lines 0 to 4) applies only when there are no
+arrivals at all.
 
-\param fret_hand_positions Placements in ascending arrival order (HighwayViewState order).
+\param track Arrivals in ascending order.
 \param seconds Absolute time to evaluate at.
 \return Fractional window extent at the time.
 */
 [[nodiscard]] HighwayHandWindow highwayHandWindowAt(
-    const std::vector<FhpViewState>& fret_hand_positions, double seconds) noexcept;
+    const std::vector<HighwayHandArrival>& track, double seconds) noexcept;
 
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.

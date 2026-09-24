@@ -909,7 +909,8 @@ struct FhpViewState
     pitched glide or unpitched slide-out end alike — ramps over that glide's own segment so a
     drawn hand travels with the drawn rail, and every other placement morphs over the
     minimum-sustain-distance margin before it (shortened when placements crowd closer than the
-    ramp). The board's hand window animates it; the lane's static marker draws the arrival alone.
+    ramp). The board's window track animates it (\ref HighwayHandArrival); the lane's static
+    marker draws the arrival alone.
     */
     double ramp_seconds{0.0};
 
@@ -919,11 +920,19 @@ struct FhpViewState
 
     The hand follows whatever the rail draws, and the two families are different functions of
     progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
-    window and the rail sharing only their endpoints. Note the consequence: the unpitched curve
-    arrives at full travel with nonzero slope, so the window stops abruptly at the slide-out — which
-    is exactly what the drawn rail does at the same instant.
+    window and the rail sharing only their endpoints.
     */
     bool unpitched_ramp{false};
+
+    /*!
+    \brief The stretch of the ramp past the rail's ink end — the crop zone — over which an animated
+    hand settles into the arrival instead of finishing the glide's curve; zero where the rail
+    reaches the arrival.
+
+    A slide-matched placement whose glide the ink end cuts: the rail is drawn to the crop while
+    the hand completes at the arrival (\ref HighwayHandArrival::settle_seconds).
+    */
+    double settle_seconds{0.0};
 
     /*!
     \brief Compares two placements by their stored fields.
@@ -935,7 +944,8 @@ struct FhpViewState
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
                lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp;
+               lhs.unpitched_ramp == rhs.unpitched_ramp &&
+               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
     }
 };
 
