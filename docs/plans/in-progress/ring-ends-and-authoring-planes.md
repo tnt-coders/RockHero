@@ -26,9 +26,17 @@ the other.
   to stored ones. Both surfaces draw the presented note, so the end statement is drawn early on
   both, and the hand window completes with the rail at that drawn instant (`makeSlideRampStarts`,
   `chart_projection.cpp`).
-- **The margin.** `g_minimum_sustain_distance_seconds` is 75 ms (2026-09-22, inside the 70–85 ms
-  band rhythm-game charting converged on; 100 ms erased sixteenth-note ring detail above 150 BPM,
-  50 ms left about 3 px at the 2D lane's default zoom), floored onto the tick lattice through
+- **The margin.** `g_minimum_sustain_distance_seconds` is 50 ms (re-ruled at the 2026-09-23
+  sighting, from the 75 ms of 2026-09-22: with the highway's tip fade floored to a fixed stretch
+  of board the last quarter second of every tail already dissolves, the 75 ms cut landed inside
+  that fade and read as a second, harder end, and a shorter crop keeps more of a glide's arrival
+  bend; 2D reads alright at 50 ms. 100 ms erased sixteenth-note ring detail above 150 BPM. The
+  consequence for scoring is recorded in `roadmap/24-scoring-star-power-failure.md`: 50 ms is
+  under the ~±70 ms hit window's early half, so the sustain-drop leniency plan 24 already needs
+  for the ±100 ms default is needed at every window; and the Guitar Pro importer's slide-in scoop
+  window, a quarter of the note capped at the margin and floored at `g_minimum_slide_window`
+  (an eighth of a beat), is now the floor at every tempo below 150 BPM, where 50 ms is under the
+  eighth — the cap decides only above it), floored onto the tick lattice through
   `marginBefore`. Its readers today: rule 1's trim, the span drawn ends (`drawnShapeExtent`), the
   fret-hand window's margin morph (`chart_projection.cpp`), the landed-span tenure in shape
   derivation (`chart_shapes.cpp`), the highway's tap light-rise (`highway_projection.cpp`), and the
@@ -101,6 +109,12 @@ What that commits to:
    "ink" in the scoring contract means the geometric extent, not the fade.
 5. **2D is a hard crop.** No fade: the lane records "the bare end is chosen over both a cap and a
    dissolve" (`tab_paint_core.cpp`, the tail painter), and that stands. No new ink primitive.
+   **Proposed 2026-09-23 (user, at the 50 ms sighting): give 2D the same tip fade as 3D**, to
+   consolidate the two views into one shared representation — the fade is what made 50 ms read
+   right on the highway, and the lane ends dead where the highway dissolves. One authority for
+   where the fade starts (a `fade_start_seconds` derived once beside `ink_end_seconds` in the
+   projection, both painters reading it) rather than a second fade rule in the lane. To build
+   after phase 2 lands.
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
    a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note
    layer, which names a technique), to its stored end, showing every stored keyframe at its true
@@ -114,7 +128,7 @@ What that commits to:
    once no reveal moves a mark that reason is gone (decided 2026-09-23).
 
 What is lost, deliberately: a gesture that begins and ends inside the zone (a flick up and back
-in the last 75 ms) has no visible leg, so it is neither drawn nor scored; a shake switched on
+inside the margin) has no visible leg, so it is neither drawn nor scored; a shake switched on
 just before the crop shows only the sliver before it (the deleted shake window's job); and a
 note whose binding onset lies within a margin of its own onset draws no ink at all. A short FREE
 ring is unchanged: it draws in full, and a vibrato end statement cannot stand on it
@@ -270,8 +284,8 @@ that was visible becomes a zone keyframe, which is the test phase 2 pins. A cut 
 the origin's fret to the cut and re-times nothing else. The cut deletes no keyframe itself; a
 later keyframe equal to the typed fret becomes silent and dissolves at settle under the commit
 law, as any silent point does. A scrape refuses, as the split does: through the pending entry's
-red box on a digit, and with the log line alone on `Insert`, which settles in its own keystroke
-and has no box. HOW a refusal is shown is `refusal-flash.md`'s question, not this plan's: that
+red box on a digit, and silently on `Insert`, which settles in its own keystroke and has no box
+(no line either until `refusal-flash.md` ships). HOW a refusal is shown is `refusal-flash.md`'s question, not this plan's: that
 plan is unbuilt, and when it ships the `Insert` cut of a scrape is one more consumer of it. The
 walk becomes a public planner (`planCutRing`) so the cut is testable; whether it
 parameterizes the walk or overwrites the second product after it is phase 2's first question, the
@@ -305,8 +319,8 @@ lane may not show. In `keymap-matrix.md` this supersedes the digit, `Alt`+digit,
 where they rule on these keys, and the surface summary.
 
 **Commands.** `InsertLanePoint` (`0x1707`) becomes "Insert at Caret" and `InsertChartStatement`
-(`0x171C`) becomes "Insert Ring Point", both keeping their ids: keymap persistence keys on the hex
-id, so a new id would silently drop a user's custom binding. "Type Ring Digit 0–9" takes the next
+(`0x171C`) becomes "Insert Point on Ring", both keeping their ids: keymap persistence keys on the hex
+id, so a new id would silently drop a user's custom binding. "Type Digit 0–9 on Ring" takes the next
 free block `0x1815`–`0x181E`; `0x180B`–`0x1814` stay spent, and the spent-values comment in
 `editor_command_id.h` (which credits the end statement to `Insert`) is rewritten. The naming
 expert checks the three names before they ship. `Alt`+numpad digit never reaches the editor on
@@ -393,9 +407,19 @@ it until the single form carries one.
 
 ### Phase 2 — The keys
 
-**The rulings of this phase are PROVISIONAL** (2026-09-23): they were taken before the cropped
-lane existed, and they are re-read against phase 1's sighted lane before this phase starts.
-Nothing in phase 1 depends on any of them.
+**Built 2026-09-23, awaiting its sighting.** The rulings were re-read against phase 1's sighted
+lane before the build and stand as written above. The cut parameterizes nothing: `planCutRing` runs
+the split walk and replaces its second product with a struck head. The names the naming expert
+ruled are "Insert at Caret" (`InsertAtCaret`, `0x1707`), "Insert Point on Ring" (`InsertRingPoint`,
+`0x171C`) and "Type Digit N on Ring" (`TypeRingDigit0`–`9`, `0x1815`–`0x181E`). The digit
+dispatch reads operand then plane in `performActionImpl(TypeChartFretDigit)` and
+`chartEntryTarget(plane)`, pure — a target that addresses what stands is a retype over it, and the
+settle selects what every entry addressed or made, which is what gives `Insert` its "select where
+the digit would retype" rule. The simplicity review's findings were taken the same day: the note
+plane asks `chartObjectAt` (an interior point put back under the caret by undo is retyped, not
+cut), the ring redirect requires the caret armed on the one selected head, `planInsertNote` lost
+its replace-on-occupied path, and the entry beginnings are visited, so a fifth one fails to
+compile at every site.
 
 - `planCutRing` in `chart_edits.h`: the split walk with a fresh head (strike defaults, typed fret,
   picked attack). Tests: lossless inheritance of keyframes, channel states and the end statement;
@@ -408,11 +432,11 @@ Nothing in phase 1 depends on any of them.
   reads (`chart_handlers.cpp` ~:2345, `editor_controller.cpp` ~:2998), the preview's
   `holds_alternative` check, and the settle's `select_exactly`. A bare digit on a head routes to
   `Retype`; `Insert` on a head selects directly.
-- "Type Ring Digit 0–9" as new commands carrying the plane field, with the fallback, the
+- "Type Digit 0–9 on Ring" as new commands carrying the plane field, with the fallback, the
   single-slot redirect, the standing-statement addressing at a ring's end, and the lanes-view
   try-order the bare digits already follow; over a multi-selection the plane is ignored.
 - "Insert at Caret" (one action behind `0x1707`, creating whatever the caret's row holds) and
-  "Insert Ring Point" (`0x171C`).
+  "Insert Point on Ring" (`0x171C`).
 - **Tests** at controller level for every cell of the table, the selection plane, the mixed
   selection, the multi-digit window across planes, the silent end statement, the shared-instant
   addressing, the locked command table and the default-chord collision test.
@@ -444,5 +468,5 @@ and recorded where they apply: scoring is the ink (*The display*); no 3D label a
 crop (display items 4 and 5); the reveals return with their satellites (item 6); `Alt`+digit
 stays and the uniform-scope law is amended (*The keys*); the bare digit cuts (*Why the bare
 digit cuts*); a placed head and a cut head take different rings (*A note here*); the command
-names — "Insert at Caret", "Insert Ring Point", "Type Ring Digit 0–9" — pending the naming
-expert's check.
+names — "Insert at Caret", "Insert Point on Ring", "Type Digit 0–9 on Ring" — as the naming
+expert ruled them.

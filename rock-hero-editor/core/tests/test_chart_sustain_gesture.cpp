@@ -539,10 +539,10 @@ TEST_CASE("A ring holds above a last keyframe whose fret says nothing", "[core][
     const bool loaded = fixture.load(std::move(chart));
     REQUIRE(loaded);
 
-    // Four beats in — 4.0s at the fixture geometry's 20 px/s — where a typed digit plants a point
-    // on the path, selected, and the duration verb then reaches the ring that point rides.
+    // Four beats in — 4.0s at the fixture geometry's 20 px/s — where a typed ring digit plants a
+    // point on the path, selected, and the duration verb then reaches the ring that point rides.
     click(fixture.controller, 80.0f, 140.0f);
-    fixture.controller.onChartFretDigitTyped(typed);
+    fixture.controller.onChartRingDigitTyped(typed);
     const auto path_intact = [&fixture, points] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
@@ -642,9 +642,10 @@ TEST_CASE("A ring lands on a last keyframe that travels back", "[core][chart]")
     CHECK(slides_out_toward().has_value());
 }
 
-// The defect end to end, by the route that authored it: a digit typed on a tail plants a point, and
-// a digit repeating the note's own fret plants one that says nothing. Shrinking onto it would have
-// made it an invisible slide-out, after which the ring refused to shorten from the head either —
+// The defect end to end, by the route that authored it: a ring digit typed on a tail plants a
+// point, and one repeating the note's own fret plants a point that says nothing. Shrinking onto
+// it would have made it an invisible slide-out, after which the ring refused to shorten from the
+// head either —
 // the charter's tail stuck on a mark nothing draws. The ring now floors one step above the point
 // the charter CAN see, from the point's selection and from the head alike; and once the point
 // dissolves at the settle, the floor falls back to the onset and the tail moves again.
@@ -660,7 +661,7 @@ TEST_CASE("A typed point that says nothing never pins the ring", "[core][chart]"
     // Four beats into the eight-beat ring — 4.0s at the fixture geometry's 20 px/s — and the note's
     // own fret typed there, which states nothing the path does not already say.
     click(fixture.controller, 80.0f, 140.0f);
-    fixture.controller.onChartFretDigitTyped(5);
+    fixture.controller.onChartRingDigitTyped(5);
     const auto point_at = [&fixture](const common::core::Fraction offset) {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&

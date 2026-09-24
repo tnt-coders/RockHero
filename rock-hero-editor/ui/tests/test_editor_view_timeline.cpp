@@ -1509,6 +1509,38 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
     CHECK(controller.last_chart_fret_digit == 5);
 }
 
+// The entry keys' two planes: `Alt`+digit and `Alt+Insert` reach the ring-plane intents, their bare
+// twins the note-plane ones, and neither plane's press is counted by the other.
+TEST_CASE("EditorView routes the ring-plane entry keys to their own intents", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::ChartViewState>();
+    tab->open_strings = common::core::testing::standardTuning();
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    const juce::ModifierKeys alt{juce::ModifierKeys::altModifier};
+    CHECK(mappings->keyPressed(juce::KeyPress{'7', alt, 0}, &view));
+    CHECK(controller.chart_ring_digit_count == 1);
+    CHECK(controller.last_chart_ring_digit == 7);
+    CHECK(controller.chart_fret_digit_count == 0);
+
+    CHECK(mappings->keyPressed(juce::KeyPress{juce::KeyPress::insertKey}, &view));
+    CHECK(controller.insert_at_caret_call_count == 1);
+    CHECK(controller.ring_point_insert_call_count == 0);
+
+    CHECK(mappings->keyPressed(juce::KeyPress{juce::KeyPress::insertKey, alt, 0}, &view));
+    CHECK(controller.ring_point_insert_call_count == 1);
+    CHECK(controller.insert_at_caret_call_count == 1);
+}
+
 // Up and Down walk the focus rows one row at a time, and Ctrl+Up/Down reach the adjacent group:
 // both ride the one caret-step intent, told apart only by its reach flag.
 TEST_CASE("EditorView routes Ctrl+Up and Ctrl+Down to the reaching row step", "[ui][editor-view]")

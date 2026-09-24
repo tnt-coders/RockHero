@@ -266,7 +266,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
 
     conditions.has_chart = true;
 
@@ -291,9 +291,9 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 
     conditions.has_armed_caret = true;
-    CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));
     // Both inserts answer to the armed caret; which row it rides is each verb's own question.
-    CHECK(isActionAvailable(ActionId::InsertChartStatement, conditions));
+    CHECK(isActionAvailable(ActionId::InsertRingPoint, conditions));
 
     // The caret moves are paused-only, and so are the editor-wide move and delete, which dispatch
     // over the marker plane. The typed and technique verbs are not gated on the transport because
@@ -306,7 +306,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::DeleteSelection, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
 
@@ -340,7 +340,7 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::MoveToneBoundary, conditions));
     CHECK(isActionAvailable(ActionId::CreateNewTone, conditions));
     CHECK(isActionAvailable(ActionId::SetToneAutomationPoints, conditions));
-    CHECK(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK(isActionAvailable(ActionId::SelectSongSection, conditions));
@@ -358,7 +358,7 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
     CHECK_FALSE(isActionAvailable(ActionId::MoveToneBoundary, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::CreateNewTone, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetToneAutomationPoints, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertLanePoint, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectSongSection, conditions));

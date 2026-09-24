@@ -81,10 +81,9 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes.size() == 4);
 }
 
-// A digit at a caret a ring covers STATES A POINT on that ring's path: a fret at an instant
-// the string is already sounding is a stop the hand takes, never a second onset, and nothing
-// single-press cuts a ring.
-TEST_CASE("EditorController digit inside a sustain states a point on the path", "[core][chart]")
+// A bare digit at a caret a ring covers says "a note here": a fresh head struck at the typed fret
+// CUTS the ring, the origin ending where it starts and the head taking the ring's remainder.
+TEST_CASE("EditorController digit inside a sustain cuts the ring", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -110,6 +109,51 @@ TEST_CASE("EditorController digit inside a sustain states a point on the path", 
     controller.onChartFretDigitTyped(5);
 
     const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 4);
+    CHECK(chart->notes[2].fret == 7);
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1});
+    CHECK(chart->notes[2].keyframes.empty());
+    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 3, .beat = 2});
+    CHECK(chart->notes[3].string == 1);
+    CHECK(chart->notes[3].fret == 5);
+    CHECK(chart->notes[3].sustain == common::core::Fraction{1});
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
+
+    controller.onUndoRequested();
+    CHECK(*chartOrNull(controller) == original);
+}
+
+// The ring digit at the same caret STATES A POINT on that ring's path: a fret at an instant the
+// string is already sounding, stated on the ring rather than struck.
+TEST_CASE(
+    "EditorController ring digit inside a sustain states a point on the path", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const common::core::Chart original = *chartOrNull(controller);
+
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat ring on
+    // string 1. Reach it via the empty string-2 lane and an arrow down, so the click itself
+    // selects nothing.
+    click(controller, 90.0f, 180.0f);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartRingDigitTyped(5);
+
+    const auto* chart = chartOrNull(controller);
     // No new note, and the ring is untouched: the digit landed as a keyframe one beat along it.
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].fret == 7);
@@ -124,8 +168,8 @@ TEST_CASE("EditorController digit inside a sustain states a point on the path", 
 
 // At the ring's EXACT END a digit places the ADJACENT head, and nothing is truncated: the
 // ring already stops where the new onset starts, so the two stand side by side and sequential
-// entry never trips. ALWAYS the next note there, whatever that ring's end states and with no
-// modifier that says otherwise — the end's own statement is `Insert`'s and the walk's.
+// entry never trips. ALWAYS the next note there, whatever that ring's end states — the end's own
+// statement is the ring plane's and the walk's.
 TEST_CASE("EditorController digit at a ring's end places an adjacent note", "[core][chart]")
 {
     FakeTransport transport;
@@ -770,11 +814,11 @@ TEST_CASE("EditorController projects nothing for a refused pending insert", "[co
     CHECK(chart->notes.back().fret == 12);
 }
 
-// An insert that REPLACES the note already at its slot is pending the same way: the box at the
-// slot, over the head the projection redraws at the typed value. The slot is reachable without
-// contrivance — a caret does not move on undo, so undoing a delete leaves one armed over a restored
-// note with an empty selection, and the next digit takes the insert flow and replaces.
-TEST_CASE("EditorController boxes a pending insert that would replace", "[core][chart]")
+// A bare digit on a head under an unselected caret RETYPES it, never replaces it: the entry opens
+// over the head, so its techniques survive, and the settle leaves it selected. The slot is
+// reachable without contrivance — a caret does not move on undo, so undoing a delete leaves one
+// armed over a restored note with an empty selection.
+TEST_CASE("EditorController retypes the head under a bare caret", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -793,15 +837,17 @@ TEST_CASE("EditorController boxes a pending insert that would replace", "[core][
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     static_cast<void>(pending.scheduler.runDelayed());
 
-    // Plant a note at the empty caret (measure 4 beat 1, string 1), then delete it and undo: the
-    // note is back under the caret, and the selection the delete emptied does not come back with
-    // it — which is exactly the state that routes the next digit into the insert flow.
+    // Plant a palm-muted note at the empty caret (measure 4 beat 1, string 1), then delete it and
+    // undo: the note is back under the caret, and the selection the delete emptied does not come
+    // back with it.
     click(controller, 120.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(2);
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     const std::size_t occupied = chartOrNull(controller)->notes.size();
+    REQUIRE(chartOrNull(controller)->notes.back().palm_mute);
     controller.onSelectionDeleteRequested();
     REQUIRE(chartOrNull(controller)->notes.size() == occupied - 1);
     controller.onUndoRequested();
@@ -811,25 +857,31 @@ TEST_CASE("EditorController boxes a pending insert that would replace", "[core][
     // the count below is this entry's own timer and nothing else.
     static_cast<void>(pending.scheduler.runDelayed());
 
-    // The value is valid — it would land, replacing — so this is not the refusal case: the box
-    // draws in its ordinary (non-red) form, and the head beneath it already shows the typed value.
+    // The digit boxes the head as a retype target, in its ordinary (non-red) form; the selection
+    // follows at the settle.
     controller.onChartFretDigitTyped(1);
-    CHECK(drawnFretAt(*state, 6.0, 1) == std::optional{1});
+    CHECK(state->chart_edit.selected_notes.empty());
     REQUIRE(state->chart_edit.pending_fret.has_value());
     if (state->chart_edit.pending_fret.has_value())
     {
         CHECK(state->chart_edit.pending_fret->text == "1");
         CHECK(state->chart_edit.pending_fret->valid);
-        CHECK(std::holds_alternative<ChartSlotViewState>(state->chart_edit.pending_fret->at));
+        CHECK(
+            state->chart_edit.pending_fret->at ==
+            decltype(state->chart_edit.pending_fret->at){
+                ChartPendingFretTargets{.notes = {occupied - 1}}
+            });
     }
 
-    // And it really does replace when it settles: one note at the slot, at the typed fret.
+    // The settle retypes — one note at the slot, at the typed fret, its mute kept — and selects it.
     CHECK(pending.scheduler.runDelayed() == 1);
     CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{occupied - 1});
     const auto* const chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == occupied);
     CHECK(chart->notes.back().position == common::core::GridPosition{.measure = 4, .beat = 1});
     CHECK(chart->notes.back().fret == 1);
+    CHECK(chart->notes.back().palm_mute);
 }
 
 // The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret

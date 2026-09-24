@@ -276,13 +276,13 @@ namespace
         {
             return "DeleteSelection";
         }
-        case EditorAction::Id::InsertLanePoint:
+        case EditorAction::Id::InsertAtCaret:
         {
-            return "InsertLanePoint";
+            return "InsertAtCaret";
         }
-        case EditorAction::Id::InsertChartStatement:
+        case EditorAction::Id::InsertRingPoint:
         {
-            return "InsertChartStatement";
+            return "InsertRingPoint";
         }
         case EditorAction::Id::TypeChartFretDigit:
         {
@@ -398,8 +398,8 @@ namespace
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
-            case EditorAction::Id::InsertLanePoint:
-            case EditorAction::Id::InsertChartStatement:
+            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::InsertRingPoint:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -531,8 +531,8 @@ namespace
         {
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
-        case EditorAction::Id::InsertLanePoint:
-        case EditorAction::Id::InsertChartStatement:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertRingPoint:
         {
             if (!conditions.has_loaded_arrangement)
             {
@@ -1101,7 +1101,14 @@ void EditorController::onSelectionDeleteRequested()
 
 void EditorController::onChartFretDigitTyped(int digit)
 {
-    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit});
+    m_impl->runAction(
+        EditorAction::TypeChartFretDigit{.digit = digit, .plane = ChartEntryPlane::Note});
+}
+
+void EditorController::onChartRingDigitTyped(int digit)
+{
+    m_impl->runAction(
+        EditorAction::TypeChartFretDigit{.digit = digit, .plane = ChartEntryPlane::Ring});
 }
 
 void EditorController::onChartFretShiftRequested(int direction)
@@ -1248,14 +1255,14 @@ void EditorController::onToneAutomationPointSelectRequested(
         std::move(instance_id), std::move(param_id), position);
 }
 
-void EditorController::onLanePointInsertRequested()
+void EditorController::onInsertAtCaretRequested()
 {
-    m_impl->runAction(EditorAction::InsertLanePoint{});
+    m_impl->runAction(EditorAction::InsertAtCaret{});
 }
 
-void EditorController::onChartStatementInsertRequested()
+void EditorController::onRingPointInsertRequested()
 {
-    m_impl->runAction(EditorAction::InsertChartStatement{});
+    m_impl->runAction(EditorAction::InsertRingPoint{});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(
@@ -2847,18 +2854,17 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_arrangement_id = arrangement->id;
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
-        // A typed value that would CREATE something — a note at an empty caret, a point on a
-        // tail — draws as the thing it creates the moment the digit lands: the plan is applied to
-        // a copy and projected, so the marks the settle will leave are the ordinary ones, while
-        // the stored chart and the history stay untouched until the entry settles. The pending box
-        // published below is what says "provisional". A refused value projects nothing and keeps
-        // only its red box, and discarding the entry drops this one-push projection. Clicks are
-        // unaffected: a press settles the entry before the controller hit-tests it, and a settle
-        // stores exactly this plan.
+        // A typed value that would CREATE something — every beginning but a retype: a note at an
+        // empty caret, a point on a ring, a head cutting one — draws as the thing it creates the
+        // moment the digit lands: the plan is applied to a copy and projected, so the marks the
+        // settle will leave are the ordinary ones, while the stored chart and the history stay
+        // untouched until the entry settles. The pending box published below is what says
+        // "provisional". A refused value projects nothing and keeps only its red box, and
+        // discarding the entry drops this one-push projection. Clicks are unaffected: a press
+        // settles the entry before the controller hit-tests it, and a settle stores exactly this
+        // plan.
         if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value() &&
-            (std::holds_alternative<Impl::ChartFretEntry::InsertAt>(m_chart_fret_entry->target) ||
-             std::holds_alternative<Impl::ChartFretEntry::CreateKeyframe>(
-                 m_chart_fret_entry->target)))
+            !std::holds_alternative<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target))
         {
             common::core::Arrangement preview = *arrangement;
             if (preview.chart.has_value() &&
@@ -2922,26 +2928,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 const std::string text = std::to_string(entry.value);
                 const bool valid =
                     entry.plan.has_value() || entry.plan.error() != ChartPlanRefusal::Invalid;
-                if (const auto* const insert =
-                        std::get_if<Impl::ChartFretEntry::InsertAt>(&entry.target))
+                if (const std::optional<ChartSlotKey> slot =
+                        chartFretEntryCreationSlot(entry.target);
+                    slot.has_value())
                 {
+                    // A creating entry wears its box at the slot its product lands on, red where
+                    // the gate refuses the fret; the product itself is in the projection above.
                     state.chart_edit.pending_fret = ChartPendingFretViewState{
-                        .at = chartSlotViewState(session().song().tempo_map, insert->slot),
-                        .text = text,
-                        .valid = valid,
-                    };
-                }
-                else if (
-                    const auto* const create =
-                        std::get_if<Impl::ChartFretEntry::CreateKeyframe>(&entry.target)
-                )
-                {
-                    // A typed POINT on a tail wears its box at the slot too, red where the gate
-                    // refuses the fret; the point itself is in the projection above.
-                    state.chart_edit.pending_fret = ChartPendingFretViewState{
-                        .at = chartSlotViewState(
-                            session().song().tempo_map,
-                            chartRingSiteSlot(create->note, create->offset)),
+                        .at = chartSlotViewState(session().song().tempo_map, *slot),
                         .text = text,
                         .valid = valid,
                     };

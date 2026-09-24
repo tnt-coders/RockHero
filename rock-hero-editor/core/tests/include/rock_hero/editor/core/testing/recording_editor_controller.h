@@ -293,6 +293,13 @@ public:
         chart_fret_digit_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartRingDigitTyped */
+    void onChartRingDigitTyped(int digit) override
+    {
+        last_chart_ring_digit = digit;
+        chart_ring_digit_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override
     {
@@ -483,16 +490,16 @@ public:
         selection_delete_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onLanePointInsertRequested */
-    void onLanePointInsertRequested() override
+    /*! \copydoc IEditorController::onInsertAtCaretRequested */
+    void onInsertAtCaretRequested() override
     {
-        lane_point_insert_call_count += 1;
+        insert_at_caret_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartStatementInsertRequested */
-    void onChartStatementInsertRequested() override
+    /*! \copydoc IEditorController::onRingPointInsertRequested */
+    void onRingPointInsertRequested() override
     {
-        chart_statement_insert_call_count += 1;
+        ring_point_insert_call_count += 1;
     }
 
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
@@ -891,6 +898,12 @@ public:
     /*! \brief Number of onChartFretDigitTyped() intents received. */
     int chart_fret_digit_count{0};
 
+    /*! \brief Last ring-plane fret digit received. */
+    int last_chart_ring_digit{-1};
+
+    /*! \brief Number of onChartRingDigitTyped() intents received. */
+    int chart_ring_digit_count{0};
+
     /*! \brief Last sustain-adjust direction received. */
     int last_chart_sustain_direction{0};
 
@@ -1029,11 +1042,11 @@ public:
     /*! \brief Number of onSelectionDeleteRequested() calls received. */
     int selection_delete_call_count{0};
 
-    /*! \brief Number of onLanePointInsertRequested() calls received. */
-    int lane_point_insert_call_count{0};
+    /*! \brief Number of onInsertAtCaretRequested() calls received. */
+    int insert_at_caret_call_count{0};
 
-    /*! \brief Number of onChartStatementInsertRequested() calls received. */
-    int chart_statement_insert_call_count{0};
+    /*! \brief Number of onRingPointInsertRequested() calls received. */
+    int ring_point_insert_call_count{0};
 
     /*! \brief Last plugin instance id reported through onToneAutomationLaneCaretRequested(). */
     std::string last_lane_caret_instance_id{};

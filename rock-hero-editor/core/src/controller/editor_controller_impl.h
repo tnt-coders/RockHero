@@ -255,13 +255,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Defined with its state below; forward-declared so armChartFretEntry can take the entry by
     // value.
     struct ChartFretEntry;
-    // The typing rule's three flows, split from the digit dispatcher: combining into the pending
-    // entry (false = no live entry claimed the digit — an expired one settled and the digit
-    // falls through to a fresh flow), starting an insert entry at the armed caret, and starting a
-    // retype entry over the selection.
+    // Combining a digit into the pending entry: false = no live entry claimed it — an expired one
+    // settled and the digit falls through to a fresh entry.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
-    void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
-    void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // The `Insert` chords on a string row: the entry keys' route with the digit SUPPLIED — the
+    // fret in force at the slot the entry creates on — on the chord's plane, settled in the
+    // keystroke. Where the digit would retype what stands, `Insert` selects it instead.
+    void insertAtChartCaret(ChartEntryPlane plane);
     // The harmonic node picker over the current selection: the node rows of the member whose label
     // names the most nodes (which member that was, so the view can anchor on it), each marked when
     // it is where that member already touches, plus whether a clear is among the changes and
@@ -280,6 +280,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // stores a fresh entry and schedules its wake; the wake settles the entry when the injected
     // clock agrees the window has elapsed.
     void settleChartFretEntry();
+    // The settle of an entry that never became the pending one — `Insert`'s whole value, an
+    // immediate digit — so no round trip through the member.
+    void settleChartFretEntry(ChartFretEntry entry);
     void discardChartFretEntry();
     void armChartFretEntry(ChartFretEntry entry);
     // The disposition rule for a freshly planned entry: invalid values pend sticky (the red box
@@ -1053,10 +1056,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
-        // An entry begun by a digit where nothing rings THROUGH the slot — an empty one, or
-        // one at a ring's exact end, where the new head simply stands adjacent: settling applies
-        // ONE insert carrying the combined fret at the slot (undo removes the note), and the
-        // pending box draws there.
+        // An entry begun on the NOTE plane where nothing rings THROUGH the slot — an empty one,
+        // or one at a ring's exact end, where the new head simply stands adjacent: settling
+        // applies ONE insert carrying the combined fret at the slot (undo removes the note), and
+        // the pending box draws there.
         struct InsertAt
         {
             ChartSlotKey slot{};
@@ -1067,8 +1070,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         //
         // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does
         // (W13's ruling): the entry carries the two key lists and the snapshot of every note it
-        // writes THROUGH, which for a keyframe is the note that stores it. No third target kind
-        // and no third channel — the selection kind is what says which stop a digit reached.
+        // writes THROUGH, which for a keyframe is the note that stores it. No third channel — the
+        // selection kind is what says which stop a digit reached.
         //
         // The channel is the entry's, not the keystroke's: it is fixed when the entry opens and
         // every digit that widens it states the same stop, which is what makes the satellite click
@@ -1081,17 +1084,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             std::vector<common::core::ChartNote> base_notes{};
             common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
-        // An entry begun at a caret a ring covers: the tail's own value, where an empty slot's
-        // would be a note. Settling plants one point at `offset` along `note`'s ring carrying the
-        // entry's value, selected — from there it is any keyframe, the commit law included. Reached
-        // by a digit strictly inside the ring (every note is typed, and a digit inside a ring
-        // states the path rather than cutting it), and by `Insert` anywhere on the tail — its exact
-        // END included, where the value is the fret already in force rather than one typed.
+        // An entry begun on the RING plane where no statement stands yet: settling plants one
+        // point at `offset` along `note`'s ring carrying the entry's value, selected — from there
+        // it is any keyframe, the commit law included. Reached by `Alt`+digit and `Alt+Insert`
+        // on a ring, its exact END included, where the point is the end's own statement.
         //
-        // A third beginning rather than a Retype naming the point, because the point does not
-        // exist yet: a retype addresses stops the chart holds, and there is nothing here to
+        // A beginning of its own rather than a Retype naming the point, because the point does
+        // not exist yet: a retype addresses stops the chart holds, and there is nothing here to
         // address until the settle makes one.
         struct CreateKeyframe
+        {
+            ChartSlotKey note{};
+            common::core::Fraction offset{};
+        };
+        // An entry begun on the NOTE plane at a slot a ring rings THROUGH: settling divides the
+        // ring at `offset` and strikes a fresh head there at the entry's value, which takes the
+        // ring's remainder (planCutRing), selected. The same site as a CreateKeyframe with the
+        // other plane's meaning, so the two stay two beginnings.
+        struct Cut
         {
             ChartSlotKey note{};
             common::core::Fraction offset{};
@@ -1111,7 +1121,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // enclosing class completes -- so libstdc++, which constrains that constructor on
         // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
         // accepted it. With no initializer, no such constructor is ever instantiated here.
-        std::variant<InsertAt, Retype, CreateKeyframe> target;
+        std::variant<InsertAt, Retype, CreateKeyframe, Cut> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
@@ -1125,16 +1135,42 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // Declared here rather than beside the other chart helpers above, because it names the entry
-    // type defined just above it.
+    // Declared here rather than beside the other chart helpers above, because they name the entry
+    // type defined just above them.
     //
-    // THE one rule for which object a fresh insert-flow digit addresses at the armed caret,
-    // expressed as the entry beginning it would open — a point on the path of a ring RINGING
-    // THROUGH the slot, or a head at the slot otherwise — or nothing where no caret can take a
-    // digit at all (a passive marker, or a caret riding an automation lane row, where typing is the
-    // lane's own value editor). Asked only by the FIRST digit of an entry: every digit after it
-    // widens the value rather than re-deciding the target.
-    [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartCaretDigitTarget() const;
+    // THE one rule for what a fresh entry addresses, as the beginning it would open — the rule
+    // ChartEntryPlane's doc states, for the digits and the `Insert` chords alike. The operand's
+    // one slot is the caret's, armed on nothing or on the one selected head; a wider selection
+    // has none. Asked only by the FIRST key of an entry: every digit after it widens the value
+    // rather than re-deciding the target. Pure: a target that ADDRESSES what stands is a Retype
+    // over it, and the settle (or `Insert`) is what selects it.
+    [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartEntryTarget(
+        ChartEntryPlane plane) const;
+    // The note plane at one slot: the object standing there retyped (chartObjectAt), a ring rung
+    // through cut, an empty slot or a ring's end given a head.
+    [[nodiscard]] decltype(ChartFretEntry::target) chartCaretEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const;
+    // The ring plane at one slot: the statement already standing at the slot's instant on the
+    // ring that covers or ends there, retyped rather than doubled, or the point to create; nothing
+    // where no ring reaches the slot.
+    [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartRingEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const;
+    // A retype over the given keys: both lists, the snapshot of every note the entry writes
+    // through, and the verb scope's channel.
+    [[nodiscard]] ChartFretEntry::Retype chartRetypeTarget(
+        std::vector<ChartSlotKey> keys, std::vector<ChartKeyframeKey> keyframe_keys) const;
+    // The objects a retype addresses, as one selection.
+    [[nodiscard]] static std::vector<ChartSelectionKey> chartRetypeKeys(
+        const ChartFretEntry::Retype& retype);
+    // A fresh entry over its target, planned in full: the one constructor every flow opens
+    // through, whether it then arms the window or settles in the keystroke.
+    [[nodiscard]] ChartFretEntry plannedChartFretEntry(
+        int value, decltype(ChartFretEntry::target) target, std::uint32_t now_ms) const;
+    // The slot a CREATING target's product lands on — where its box draws, and where `Insert`
+    // reads the fret in force: an insert's slot, or the ring site of a point or a cut; nothing for
+    // a retype, whose box rides what it retypes.
+    [[nodiscard]] std::optional<ChartSlotKey> chartFretEntryCreationSlot(
+        const decltype(ChartFretEntry::target)& target) const;
     // The slot an offset along a ring lands on — the inverse of the `beatDistance` that measured
     // it, so a site named as (note, offset) can name its own slot for the selection it plants and
     // the box it draws without either re-deriving it.
@@ -1275,6 +1311,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Returns the armed caret, or null while the marker is passive.
     [[nodiscard]] const ChartCaret* armedChartCaret() const noexcept;
+    // The armed caret when it rides a string row — where the chart's entry keys act — else null.
+    [[nodiscard]] const ChartCaret* armedChartStringCaret() const noexcept;
 
     // Returns the marker's remembered string in either state.
     [[nodiscard]] int chartMarkerString() const noexcept;
@@ -1570,13 +1608,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // landed point; a press that never moved selects the pressed point. A no-op without a drag.
     void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
 
-    // The Insert key's create: an on-curve point at an armed automation-lane slot. A no-op without
-    // an armed marker and on a string row, whose own insert is the verb below.
-    void performActionImpl(const EditorAction::InsertLanePoint& action);
+    // The Insert key's create: whatever the armed caret's row holds — the lane's on-curve point,
+    // or the string row's note at the fret in force (insertAtChartCaret). A no-op without an
+    // armed marker.
+    void performActionImpl(const EditorAction::InsertAtCaret& action);
+    // The lane half: this lane's own on-curve point at the caret's slot.
+    void insertLanePointAtCaret(const ChartCaret& armed_caret);
 
-    // The chart lane's insert (Alt+Insert): the statement at the caret's offset along its ring,
-    // carrying the fret in force there. A no-op without a caret armed on a string row.
-    void performActionImpl(const EditorAction::InsertChartStatement& action);
+    // The chart lane's ring-plane insert (Alt+Insert): the point at the caret's instant on the
+    // ring there, carrying the fret in force. A no-op without a caret armed on a string row.
+    void performActionImpl(const EditorAction::InsertRingPoint& action);
 
     // The resolved ingredients for planting a point at an armed lane caret's slot: the lane's
     // existing points, the on-curve landing value at the caret, and the parameter's value

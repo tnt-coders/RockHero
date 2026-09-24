@@ -28,6 +28,23 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-09-24 phase 2 review
+
+### An undo transition can leave an armed caret over an unselected object
+
+Arming the caret on an object selects it, and every entry key reads "armed means the selection is
+what sits under the caret" — but undo and redo never move the caret, so undoing a delete puts the
+object back under an armed caret with an empty selection, and `chartCaretEntryTarget` carries a
+branch (`chartObjectAt` → retype) that exists only for that state. Re-derive the selection from
+`chartObjectAt` in the transition's selection repair (`dropChartSelectionKeysNamingNothing`) when
+an armed caret is left with nothing selected, then delete that branch.
+
+### The "caret armed on a string row" test is written at about ten sites
+
+`caret != nullptr && !caret->lane.has_value()` appears across `chart_handlers.cpp` (~:123, :539,
+:668, :2153, and the entry sites) and `project_handlers.cpp` (~:1577). `armedChartStringCaret()`
+(added 2026-09-24 for the entry keys) is the one authority; sweep the rest onto it.
+
 ## Found by the 2026-09-22 tick-lattice verification
 
 ### The corpus census fails five fret-hand cross-check rows, and has since before 2026-09-22

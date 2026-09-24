@@ -418,7 +418,9 @@ TEST_CASE("planInsertNote adds a note on an empty slot", "[core][chart]")
 
 // Placing a note on an occupied slot replaces the note there: the old full value is removed and
 // the new one inserted in one plan.
-TEST_CASE("planInsertNote replaces a note on an occupied slot", "[core][chart]")
+// An occupied slot is the gate's refusal, never a replace: the entry keys address the head that
+// stands there instead of placing over it.
+TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -426,13 +428,10 @@ TEST_CASE("planInsertNote replaces a note on an occupied slot", "[core][chart]")
     // Slot measure 2 beat 1 / string 1 already holds fret 3.
     const auto plan = planInsertNote(
         chart, tempo_map, makeTestNote({.measure = 2, .beat = 1}, 1, 9), g_fixture_sustain);
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
+    REQUIRE_FALSE(plan.has_value());
+    if (!plan.has_value())
     {
-        REQUIRE(plan->removed.size() == 1);
-        CHECK(plan->removed.front().fret == 3);
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted.front().fret == 9);
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
     }
 }
 
@@ -4604,6 +4603,296 @@ TEST_CASE("planToggleJunctions keeps a silent arrival on the origin", "[core][ch
     }
     applyAndValidate(chart, tempo_map, joined->plan);
     CHECK(chart == original);
+}
+
+// THE CUT: a note struck inside a ring divides it losslessly. The origin keeps its path to the
+// cut, every keyframe past the cut rides the fresh head rebased onto its onset, and the end
+// statement stays at the end of the whole ring — now the new head's end. One entry, reversed
+// exactly.
+TEST_CASE("planCutRing strikes a fresh head on the ring's remainder", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // Three beats in: past the arrival at 9, a beat short of the slide-out at the ring's end.
+    const auto plan =
+        planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{3}, 10);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    CHECK(plan->label == "Cut Ring");
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    const common::core::ChartNote& origin = chart.notes[0];
+    CHECK(origin.position == glideOnset());
+    CHECK(origin.fret == 7);
+    CHECK(origin.sustain == common::core::Fraction{3});
+    REQUIRE(origin.keyframes.size() == 1);
+    CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(origin.keyframes[0].fret == 9);
+
+    const common::core::ChartNote& head = chart.notes[1];
+    CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 4, .offset = {}});
+    CHECK(head.string == 1);
+    CHECK(head.fret == 10);
+    CHECK(head.sustain == common::core::Fraction{1});
+    CHECK(head.attack == common::core::NoteAttack::Pick);
+    // The slide-out rides over, rebased (4 - 3 = 1): still at the end of the whole ring.
+    REQUIRE(head.keyframes.size() == 1);
+    CHECK(head.keyframes[0].offset == common::core::Fraction{1});
+    CHECK(head.keyframes[0].fret == 12);
+
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// A statement standing exactly at the cut becomes the origin's END statement, and the chart then
+// proves what it is against the new head: a slide-out onto it where the frets differ — a point
+// that was visible becomes a zone keyframe — and an arrival where the head is struck at its stop.
+TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a different fret slides out onto the new head")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan =
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 5);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& origin = chart.notes[0];
+        const common::core::ChartNote& head = chart.notes[1];
+        CHECK(origin.sustain == common::core::Fraction{2});
+        REQUIRE(origin.keyframes.size() == 1);
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(origin.keyframes[0].fret == 9);
+        CHECK(head.fret == 5);
+        CHECK(head.sustain == common::core::Fraction{2});
+        REQUIRE(head.keyframes.size() == 1);
+        CHECK(head.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(head.keyframes[0].fret == 12);
+
+        const bool arrives = common::core::arrivesIntoNextHead(origin, head, tempo_map);
+        CHECK_FALSE(arrives);
+        const int* const slide_out = common::core::slideOutFretOrNull(origin, arrives);
+        REQUIRE(slide_out != nullptr);
+        if (slide_out != nullptr)
+        {
+            CHECK(*slide_out == 9);
+        }
+    }
+
+    SECTION("the head's own fret arrives")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan =
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{2}, 9);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& origin = chart.notes[0];
+        REQUIRE(origin.keyframes.size() == 1);
+        CHECK(origin.keyframes[0].offset == common::core::Fraction{2});
+        CHECK(origin.keyframes[0].fret == 9);
+        const bool arrives = common::core::arrivesIntoNextHead(origin, chart.notes[1], tempo_map);
+        CHECK(arrives);
+        CHECK(common::core::slideOutFretOrNull(origin, arrives) == nullptr);
+    }
+}
+
+// The channel states in force at the cut open the head, so the sound does not change across it:
+// a bend reached before the cut is the head's onset bend, a shake begun before it the head's
+// shake. Neither needs a keyframe of its own on the head.
+TEST_CASE("planCutRing opens the head on the channel states in force", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote ringing =
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{4});
+    ringing.keyframes = {
+        common::core::Keyframe{.offset = common::core::Fraction{1}, .bend = 1.0},
+        common::core::Keyframe{
+            .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Narrow
+        },
+    };
+    chart.notes = {std::move(ringing)};
+
+    const auto plan = planCutRing(
+        chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 2), common::core::Fraction{3}, 7);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    CHECK(chart.notes[0].keyframes.size() == 2);
+    const common::core::ChartNote& head = chart.notes[1];
+    CHECK(head.fret == 7);
+    CHECK_THAT(head.bend, Catch::Matchers::WithinAbs(1.0, 1e-9));
+    CHECK(head.vibrato == common::core::VibratoState::Narrow);
+    CHECK(head.keyframes.empty());
+}
+
+// The head is STRUCK: none of the origin's strike facts ride over — attack, node, mute, dead,
+// tremolo, emphasis, held stop — where the split's severed head keeps them all. The origin keeps
+// its own.
+TEST_CASE("planCutRing strikes the head with strike defaults", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const auto check_struck = [](const common::core::ChartNote& head) {
+        CHECK(head.attack == common::core::NoteAttack::Pick);
+        CHECK_FALSE(head.harmonic_node.has_value());
+        CHECK_FALSE(head.palm_mute);
+        CHECK_FALSE(head.dead);
+        CHECK_FALSE(head.tremolo);
+        CHECK(head.emphasis == common::core::NoteEmphasis::Normal);
+        CHECK_FALSE(head.held.has_value());
+    };
+
+    SECTION("a tapped, muted, tremolo, accented ring")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote ringing =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{4});
+        ringing.attack = common::core::NoteAttack::Tap;
+        ringing.palm_mute = true;
+        ringing.tremolo = true;
+        ringing.emphasis = common::core::NoteEmphasis::Accent;
+        chart.notes = {std::move(ringing)};
+
+        const auto plan = planCutRing(
+            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{2}, 7);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& origin = chart.notes[0];
+        CHECK(origin.attack == common::core::NoteAttack::Tap);
+        CHECK(origin.palm_mute);
+        CHECK(origin.tremolo);
+        CHECK(origin.emphasis == common::core::NoteEmphasis::Accent);
+        check_struck(chart.notes[1]);
+    }
+
+    SECTION("a natural harmonic's ring")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        // The open string touched at the twelfth fret.
+        common::core::ChartNote ringing =
+            makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{4});
+        ringing.harmonic_node = 12.0;
+        chart.notes = {std::move(ringing)};
+
+        const auto plan = planCutRing(
+            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{2}, 7);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].harmonic_node.has_value());
+        check_struck(chart.notes[1]);
+    }
+}
+
+// What the cut refuses, whole: a scrape, which is one picking-hand gesture with no junction; an
+// offset at the ring's end or its onset, which has nothing to divide; and a slot holding no note.
+TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a scrape")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {makeScrape({.measure = 2, .beat = 1}, 1)};
+        const auto plan = planCutRing(
+            chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{1, 4}, 5);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("an offset at the ring's end")
+    {
+        const common::core::Chart chart = makeGlideChart();
+        const auto plan =
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{4}, 5);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("an offset at the onset")
+    {
+        const common::core::Chart chart = makeGlideChart();
+        const auto plan =
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{0}, 5);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a slot holding no note")
+    {
+        const common::core::Chart chart = makeGlideChart();
+        const auto plan =
+            planCutRing(chart, tempo_map, keyAt(glideOnset(), 2), common::core::Fraction{1}, 5);
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// The fret a key carrying no value states: the stated stop inside a ring (never the travel toward
+// the next), the last pitched stop at and past a ring's end (never a slide-out's target), and the
+// open string where nothing sounded before.
+TEST_CASE("chartFretInForceAt reads the stop the string already holds", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::Chart chart = makeGlideChart();
+    const auto in_force = [&chart, &tempo_map](common::core::GridPosition position, int string) {
+        return chartFretInForceAt(chart.notes, tempo_map, keyAt(position, string));
+    };
+
+    // One beat in, travelling from 7 toward the arrival at 9: the stop stated last is 7.
+    CHECK(in_force({.measure = 2, .beat = 2}, 1) == 7);
+    // Three beats in, past the arrival.
+    CHECK(in_force({.measure = 2, .beat = 4}, 1) == 9);
+    // At the ring's end, where the slide-out states 12: the last pitched stop, never the target.
+    CHECK(in_force({.measure = 3, .beat = 1}, 1) == 9);
+    // Past it too, so a head placed after a slide-out never manufactures a shift slide.
+    CHECK(in_force({.measure = 3, .beat = 3}, 1) == 9);
+    // Before the string's first note, and on a string with none at all: the open string.
+    CHECK(in_force({.measure = 1, .beat = 1}, 1) == 0);
+    CHECK(in_force({.measure = 2, .beat = 2}, 4) == 0);
+
+    // A plain note that has stopped ringing hands its own fret on.
+    const common::core::Chart plain = makeSingleNoteChart(5);
+    CHECK(chartFretInForceAt(plain.notes, tempo_map, keyAt({.measure = 3, .beat = 1}, 1)) == 5);
 }
 
 // What a note's own fret NAMES, and what it can reach — the operand both the picker and the

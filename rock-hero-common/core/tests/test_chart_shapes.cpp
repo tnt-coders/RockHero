@@ -22,7 +22,7 @@ namespace
 {
 
 // Sixteen seconds of default 4/4, which is what every case here needs from the map: a stable beat
-// axis and a minimum sustain distance of three twentieths of a beat (75 ms at 120 BPM).
+// axis and a minimum sustain distance of a tenth of a beat (50 ms at 120 BPM).
 [[nodiscard]] TempoMap makeTempoMap()
 {
     return TempoMap::defaultMap(TimeDuration{16.0});
@@ -1454,7 +1454,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // The divergence in the other direction, and the reason a witness is worse evidence than
         // the stored stream it would stand in for: string 2 is a dead click, so E25 takes its tail
         // away in presentation and a witness would see NOTHING ringing — the span would die at the
-        // margin before this re-pick (17/20 of a beat) although the hand is demonstrably still
+        // margin before this re-pick (9/10 of a beat) although the hand is demonstrably still
         // holding the shape. The stored ring says what the hand did: string 1 rings exactly into
         // its own re-pick, string 2 rings through it, so every member is continuous and the
         // statement stands through both.
@@ -2621,9 +2621,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // LANDED grip does not close the successor at all — it restates it, so it rides inside it,
         // which the section below pins.
         const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{37, 20}, 11}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{19, 10}, 11}}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
         });
@@ -2633,7 +2633,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         // The departing grip covers its own glide, ending exactly at the landing it never gets to
         // state.
-        CHECK(derived.shapes[0].sustain == Fraction{37, 20});
+        CHECK(derived.shapes[0].sustain == Fraction{19, 10});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
@@ -2643,16 +2643,16 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // The discrimination, one field apart: the same glide with a ring that BREATHES past its
         // landing does re-open, because there the grip is heard on its own.
         const std::vector<ChartNote> breathing = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{3}), {{Fraction{37, 20}, 11}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{3}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{3}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{3}), {{Fraction{19, 10}, 11}}),
         });
         const ChartShapes landed = deriveFrom(breathing);
         REQUIRE(landed.shapes.size() == 2);
         CHECK(
             landed.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{17, 20}});
-        CHECK(landed.shapes[1].sustain == Fraction{23, 20});
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{9, 10}});
+        CHECK(landed.shapes[1].sustain == Fraction{11, 10});
     }
 
     SECTION("THE LANDING PIN: a landing met by a restrike emits the departing grip and the chord")
@@ -2668,9 +2668,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // drops), and the restrike's own statement stands on its own. A SHIFT SLIDE reaches none of
         // this, which the case below pins.
         const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{37, 20}, 11}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{19, 10}, 11}}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
         });
@@ -2682,7 +2682,7 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // the absence of any landing-opened span below states.
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(derived.shapes[0].sustain == Fraction{37, 20});
+        CHECK(derived.shapes[0].sustain == Fraction{19, 10});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK(std::ranges::none_of(derived.shapes, [](const ChartShape& shape) {
@@ -2744,9 +2744,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // statement it was actually made in, and no entry in the ledger names an index the emitted
         // spans do not have.
         const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 4, 11, Fraction{2}), {{Fraction{37, 20}, 13}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 4, 11, Fraction{2}), {{Fraction{19, 10}, 13}}),
             claimAt(1, Fraction{}, 3, 9),
             noteAt(3, Fraction{}, 1, 3, Fraction{1}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1}),
@@ -2773,9 +2773,9 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         // The suppression for want of room (edge (b)) applies to a FOREIGN chord alone — the
         // section above is that control.
         const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{37, 20}, 11}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{19, 10}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
             noteAt(3, Fraction{}, 2, 10, Fraction{1}),
             noteAt(3, Fraction{}, 3, 11, Fraction{1}),
@@ -2783,12 +2783,12 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         const ChartShapes derived = deriveFrom(notes);
 
         REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[0].sustain == Fraction{37, 20});
+        CHECK(derived.shapes[0].sustain == Fraction{19, 10});
         // ONE successor, opened at the landing and carried through the restrike's own ring.
         CHECK(
             derived.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{17, 20}});
-        CHECK(derived.shapes[1].sustain == Fraction{23, 20});
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{9, 10}});
+        CHECK(derived.shapes[1].sustain == Fraction{11, 10});
         CHECK(derived.shapes[1].landing_opened);
         // THE SIGHTING FIGURE, BOX CLASS END TO END: a chord sliding into chords is not an
         // arpeggio. The landing fires no trigger — a landing is not a sounding — and the restrike
@@ -3328,7 +3328,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         //
         // The arrival sits one margin before the closing chord, which is how the chart states
         // "glides into that note". At this map's one quarter-note rate a 6/8 eighth-note beat lasts
-        // two thirds of a second, so the margin measures 9/80 of a beat there. The closing chord
+        // two thirds of a second, so the margin measures 3/40 of a beat there. The closing chord
         // has to be a FOREIGN grip (rule 11, corollary 2): a restrike of the LANDED grip restates
         // the successor and rides inside it, so it would close nothing and this figure would stop
         // asking its question.
@@ -3339,9 +3339,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
              BeatAnchor{.measure = 5, .beat = 1, .seconds = 20.0}},
         };
         const std::vector<ChartNote> glide_into_chord = streamOf({
-            travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{2}), {{Fraction{151, 80}, 8}}),
-            travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{2}), {{Fraction{151, 80}, 10}}),
-            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{2}), {{Fraction{151, 80}, 11}}),
+            travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{2}), {{Fraction{77, 40}, 8}}),
+            travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{2}), {{Fraction{77, 40}, 10}}),
+            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{2}), {{Fraction{77, 40}, 11}}),
             inMeasure(2, noteAt(1, Fraction{}, 1, 3, Fraction{1})),
             inMeasure(2, noteAt(1, Fraction{}, 2, 5, Fraction{1})),
         });
@@ -3349,7 +3349,7 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 5});
-        CHECK(derived.shapes[0].sustain == Fraction{151, 80});
+        CHECK(derived.shapes[0].sustain == Fraction{77, 40});
         CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 1});
         everySpanIsPositive(derived);
 
@@ -3357,27 +3357,27 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         // landing left to breathe. It re-opens, and the successor's own position is resolved on
         // the changed axis.
         const std::vector<ChartNote> breathing_glide = streamOf({
-            travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{3}), {{Fraction{151, 80}, 8}}),
-            travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{3}), {{Fraction{151, 80}, 10}}),
-            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{3}), {{Fraction{151, 80}, 11}}),
+            travellingAt(noteAt(5, Fraction{}, 1, 5, Fraction{3}), {{Fraction{77, 40}, 8}}),
+            travellingAt(noteAt(5, Fraction{}, 2, 7, Fraction{3}), {{Fraction{77, 40}, 10}}),
+            travellingAt(noteAt(5, Fraction{}, 3, 9, Fraction{3}), {{Fraction{77, 40}, 11}}),
         });
         const ChartShapes landed = deriveWith(breathing_glide, meter_change);
         REQUIRE(landed.shapes.size() == 2);
         CHECK(
             landed.shapes[1].position ==
-            GridPosition{.measure = 1, .beat = 6, .offset = Fraction{71, 80}});
-        CHECK(landed.shapes[1].sustain == Fraction{89, 80});
+            GridPosition{.measure = 1, .beat = 6, .offset = Fraction{37, 40}});
+        CHECK(landed.shapes[1].sustain == Fraction{43, 40});
         everySpanIsPositive(landed);
     }
 
     SECTION("THE CROSS-TEMPO TENURE READ: the quantum comes from the CLOSING onset")
     {
         // The one figure that actually discriminates the read point. The quantum is a DURATION, so
-        // in beats it is whatever the tempo THERE makes it — 3/40 of a beat at 60 BPM, 3/8 of one
+        // in beats it is whatever the tempo THERE makes it — 1/20 of a beat at 60 BPM, 1/4 of one
         // at 300 — and a glide whose landing straddles a tempo change has two candidate answers.
         //
         // A glide landing on the downbeat of a bar five times the speed of the one before it, with
-        // the landed grip holding 3/8 of a beat: five times the quantum it landed under, exactly
+        // the landed grip holding 1/4 of a beat: five times the quantum it landed under, exactly
         // the quantum it closes under. Read at the arrival it would EMIT; read at the closing
         // onset — the convention — it is dropped by the strict test. Two spans is the pinned
         // answer; three would mean the read point had moved.
@@ -3392,8 +3392,8 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
             travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{9, 2}), {{Fraction{4}, 8}}),
             travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{9, 2}), {{Fraction{4}, 10}}),
             travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{9, 2}), {{Fraction{4}, 11}}),
-            inMeasure(2, noteAt(1, Fraction{3, 8}, 1, 3, Fraction{1})),
-            inMeasure(2, noteAt(1, Fraction{3, 8}, 2, 5, Fraction{1})),
+            inMeasure(2, noteAt(1, Fraction{1, 4}, 1, 3, Fraction{1})),
+            inMeasure(2, noteAt(1, Fraction{1, 4}, 2, 5, Fraction{1})),
         });
         const ChartShapes dropped = deriveWith(glide_into_the_fast_bar, into_a_fast_bar);
         REQUIRE(dropped.shapes.size() == 2);
@@ -3401,20 +3401,20 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         CHECK(dropped.shapes[0].sustain == Fraction{4});
         CHECK(
             dropped.shapes[1].position ==
-            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{3, 8}});
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}});
         CHECK(std::ranges::none_of(dropped.shapes, [](const ChartShape& shape) {
             return shape.landing_opened;
         }));
         everySpanIsPositive(dropped);
 
-        // The control, the SAME notes on a map that never leaves 120 BPM: 3/8 of a beat strictly
-        // exceeds the 3/20 the quantum measures there, so the landed grip has a moment
+        // The control, the SAME notes on a map that never leaves 120 BPM: 1/4 of a beat strictly
+        // exceeds the 1/10 the quantum measures there, so the landed grip has a moment
         // of its own and is emitted. The notes are identical, so only the closing onset's tempo can
         // be what moved.
         const ChartShapes emitted = deriveWith(glide_into_the_fast_bar, makeTempoMap());
         REQUIRE(emitted.shapes.size() == 3);
         CHECK(emitted.shapes[1].landing_opened);
-        CHECK(emitted.shapes[1].sustain == Fraction{3, 8});
+        CHECK(emitted.shapes[1].sustain == Fraction{1, 4});
         everySpanIsPositive(emitted);
     }
 
@@ -3441,9 +3441,9 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
                 {{Fraction{1}, 11}, {Fraction{2}, 11}, {Fraction{3}, 13}}),
         })));
         everySpanIsPositive(deriveFrom(streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{37, 20}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{37, 20}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{37, 20}, 11}}),
+            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{2}), {{Fraction{19, 10}, 8}}),
+            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{2}), {{Fraction{19, 10}, 10}}),
+            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{2}), {{Fraction{19, 10}, 11}}),
             noteAt(3, Fraction{}, 1, 8, Fraction{1}),
             noteAt(3, Fraction{}, 2, 10, Fraction{1}),
             noteAt(3, Fraction{}, 3, 11, Fraction{1}),

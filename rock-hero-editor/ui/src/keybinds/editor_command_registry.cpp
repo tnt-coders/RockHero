@@ -405,16 +405,16 @@ constexpr int g_add_lane_key = 'a';
         "Shift Frets Down",
         "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
-    // Two verbs on one key, because each lane's insert answers to its own chord: bare on an
-    // automation lane, and with the lane reveal held on the chart lane, where a slot before a head
-    // can look blank while lying inside a ring's ending zone — `Alt` draws the ring to its end
-    // while the statement lands on it.
-    add(EditorCommandId::InsertLanePoint,
-        "Insert Lane Point",
+    // The two planes of one key: bare, the note (or the lane's point) at the caret; with `Alt`,
+    // the point on the ring there. `Alt` is the lane reveal as well, so a slot before a head that
+    // looks blank while lying inside a ring's ending zone is drawn to its end while the point
+    // lands on it.
+    add(EditorCommandId::InsertAtCaret,
+        "Insert at Caret",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    add(EditorCommandId::InsertChartStatement,
-        "Insert Chart Statement",
+    add(EditorCommandId::InsertRingPoint,
+        "Insert Point on Ring",
         "Authoring",
         {chord(juce::KeyPress::insertKey, alt)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
@@ -509,8 +509,9 @@ constexpr int g_add_lane_key = 'a';
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
-    // first-class alias of the same command. One verb per digit — `Alt` states nothing on this
-    // lane, so a digit has no second chord.
+    // first-class alias of the same command. The ring plane is the same digit under `Alt`, from
+    // the top row only: Windows composes `Alt`+numpad digits into an Alt code and never delivers
+    // the chord (keyboard-input.md), so a numpad alias would be a lying entry.
     for (int digit = 0; digit <= 9; ++digit)
     {
         static constexpr std::array<const char*, 10> g_digit_names{
@@ -525,10 +526,26 @@ constexpr int g_add_lane_key = 'a';
             "Type Digit 8",
             "Type Digit 9",
         };
+        static constexpr std::array<const char*, 10> g_ring_digit_names{
+            "Type Digit 0 on Ring",
+            "Type Digit 1 on Ring",
+            "Type Digit 2 on Ring",
+            "Type Digit 3 on Ring",
+            "Type Digit 4 on Ring",
+            "Type Digit 5 on Ring",
+            "Type Digit 6 on Ring",
+            "Type Digit 7 on Ring",
+            "Type Digit 8 on Ring",
+            "Type Digit 9 on Ring",
+        };
         add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeDigit0) + digit),
             g_digit_names.at(static_cast<std::size_t>(digit)),
             "Value Entry",
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
+        add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeRingDigit0) + digit),
+            g_ring_digit_names.at(static_cast<std::size_t>(digit)),
+            "Value Entry",
+            {chord('0' + digit, alt)});
     }
 
     // Grid & zoom. The numpad add/subtract keys arrive as their character key codes on

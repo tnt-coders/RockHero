@@ -166,11 +166,11 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Delete the editor-wide selection, whatever its kind. */
     DeleteSelection,
 
-    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
-    InsertLanePoint,
+    /*! \brief The Insert key's create: whatever the armed caret's row holds. */
+    InsertAtCaret,
 
-    /*! \brief The chart lane's create: the statement at an armed caret's offset along its ring. */
-    InsertChartStatement,
+    /*! \brief The chart lane's ring-plane create: the point on the ring at the armed caret. */
+    InsertRingPoint,
 
     /*! \brief Type one digit into the chart's fret entry. */
     TypeChartFretDigit,

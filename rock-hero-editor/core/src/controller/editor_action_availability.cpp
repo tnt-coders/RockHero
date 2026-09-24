@@ -47,8 +47,8 @@ namespace
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
-        case EditorAction::Id::InsertLanePoint:
-        case EditorAction::Id::InsertChartStatement:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertRingPoint:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
@@ -160,8 +160,8 @@ namespace
             case EditorAction::Id::ExtendTimeSelection:
             case EditorAction::Id::MoveSelection:
             case EditorAction::Id::DeleteSelection:
-            case EditorAction::Id::InsertLanePoint:
-            case EditorAction::Id::InsertChartStatement:
+            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::InsertRingPoint:
             case EditorAction::Id::TypeChartFretDigit:
             case EditorAction::Id::ShiftChartFrets:
             case EditorAction::Id::AdjustChartSustain:
@@ -323,8 +323,8 @@ namespace
         // flag: the verb already reads the caret it needs.
         // Paused-only with the rest of the marker plane, stated here rather than left to the armed
         // caret's own paused-only lifetime, so the table answers for every marker verb alike.
-        case EditorAction::Id::InsertLanePoint:
-        case EditorAction::Id::InsertChartStatement:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertRingPoint:
         {
             return conditions.has_loaded_arrangement && conditions.has_armed_caret &&
                    !conditions.transport_playing;
@@ -423,8 +423,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
-        case EditorAction::Id::InsertLanePoint:
-        case EditorAction::Id::InsertChartStatement:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertRingPoint:
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:

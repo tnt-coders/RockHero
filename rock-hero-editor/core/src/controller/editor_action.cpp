@@ -207,13 +207,13 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::DeleteSelection;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::InsertLanePoint>)
+    else if constexpr (std::is_same_v<A, EditorAction::InsertAtCaret>)
     {
-        return EditorAction::Id::InsertLanePoint;
+        return EditorAction::Id::InsertAtCaret;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::InsertChartStatement>)
+    else if constexpr (std::is_same_v<A, EditorAction::InsertRingPoint>)
     {
-        return EditorAction::Id::InsertChartStatement;
+        return EditorAction::Id::InsertRingPoint;
     }
     else if constexpr (std::is_same_v<A, EditorAction::TypeChartFretDigit>)
     {

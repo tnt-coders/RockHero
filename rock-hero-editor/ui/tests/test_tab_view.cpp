@@ -945,7 +945,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is 3/20 of a beat.
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is a tenth of a beat.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     common::core::Chart chart;
@@ -953,7 +953,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     chart.notes = {
         // Two beats of ring on string 3, meeting the next onset on its own string exactly — the
         // furthest a stored ring may reach (sustainBoundOf). Presentation stops its ink one margin
-        // back to clear that head, so 1.85 to 2.0 beats is ring only the reveal draws.
+        // back to clear that head, so 1.9 to 2.0 beats is ring only the reveal draws.
         common::core::ChartNote{
             .position = common::core::GridPosition{.measure = 1, .beat = 1},
             .string = 3,
@@ -978,7 +978,7 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         common::core::makeChartViewState(arrangement, tempo_map);
     // The fixture is only worth rendering if the derivation really did crop it.
     REQUIRE(tab.notes.size() == 2);
-    CHECK(tab.notes[0].ink_end_seconds == Catch::Approx(0.925));
+    CHECK(tab.notes[0].ink_end_seconds == Catch::Approx(0.95));
     CHECK(tab.notes[0].ring_end_seconds == Catch::Approx(1.0));
 
     TabView view{};
@@ -998,22 +998,22 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         return image;
     };
 
-    // 200 px per second: the drawn tail stops at x = 185 and the ring at x = 200, where the next
-    // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 189
+    // 200 px per second: the drawn tail stops at x = 190 and the ring at x = 200, where the next
+    // head stands. That head is 14.3 px wide, so it reaches back only to x = 193 and column 191
     // is cropped-away ring with nothing else over it. Row 72 is 1.5 px below string 3's lane
     // centre.
-    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() == 0);
 
     // Selecting the note under scrutiny shows it — the selection is a ground of the reveal — and so
     // does standing the caret on its string in the very stretch the crop took: the peek reads the
     // stored ring, not the drawn one.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
-    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() != 0);
     view.setEditState(
         core::ChartEditViewState{
-            .caret = core::ChartCaretViewState{.seconds = 0.9375, .string = 3},
+            .caret = core::ChartCaretViewState{.seconds = 0.96875, .string = 3},
         });
-    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() != 0);
 
     // A grid-snapped caret on the ring's END — the next head's own onset — is inside the ring too:
     // the peek includes both ends.
@@ -1021,12 +1021,12 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 1.0, .string = 3},
         });
-    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() != 0);
 
     // The lane reveal shows it too, and what either shows is the derivation's own crop.
     view.setEditState(core::ChartEditViewState{});
     view.setRingReveal(true);
-    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() != 0);
 }
 
 // THE SPAN ARM of the same reveal. Rule 12a stops a span's rails one margin before the head that
@@ -1043,7 +1043,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // 4/4 at 120 BPM: a beat is half a second, and the margin is 3/20 of a beat.
+    // 4/4 at 120 BPM: a beat is half a second, and the margin is a tenth of a beat.
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
     const auto note = [](const common::core::GridPosition& position,
@@ -1093,7 +1093,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
     // The fixture is only worth rendering if the derivation really owed a margin here.
     REQUIRE(tab.shapes.size() == 1);
     CHECK(tab.shapes[0].start_seconds == Catch::Approx(0.0));
-    CHECK(tab.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
+    CHECK(tab.shapes[0].drawn_end_seconds == Catch::Approx(0.7));
     CHECK(tab.shapes[0].close_seconds == Catch::Approx(0.75));
 
     TabView view{};
@@ -1113,7 +1113,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
         return image;
     };
 
-    // 200 px per second: the rails stop at x = 135 and the close stands at x = 150, so column 137
+    // 200 px per second: the rails stop at x = 140 and the close stands at x = 150, so column 145
     // is trimmed-away rail and column 155 is past the statement entirely. The top rail occupies
     // rows 0 to 2 of the lane, and row 1 carries nothing else — the topmost string's tail envelope
     // starts several rows below it, and this chart draws no lane chips.
@@ -1121,12 +1121,12 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
         return render().getPixelAt(column, 1).getARGB();
     };
     CHECK(rail_at(100) != 0);
-    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(145) == 0);
     CHECK(rail_at(155) == 0);
 
     // THE WHOLE-LANE REVEAL: every visible span reads to its close while it is held.
     view.setRingReveal(true);
-    CHECK(rail_at(137) != 0);
+    CHECK(rail_at(145) != 0);
     // And stops there. The reveal shows the statement's real end, not an unbounded rail.
     CHECK(rail_at(155) == 0);
     // The stretch that always drew is untouched: the reveal EXTENDS the rails rather than moving
@@ -1135,21 +1135,21 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
 
     // Releasing snaps back: a held state, never a mode that latches.
     view.setRingReveal(false);
-    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(145) == 0);
 
     // THE SELECTION ARM: a note the span covers reveals the span it stands in.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
-    CHECK(rail_at(137) != 0);
+    CHECK(rail_at(145) != 0);
 
     // The note that CLOSED the span does not, and it is the boundary case that says why: its onset
     // stands AT the close, which is the instant the statement ended rather than an instant inside
     // it, so it is a member of nothing here.
     view.setEditState(core::ChartEditViewState{.selected_notes = {4}});
-    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(145) == 0);
 
     // Nor does a selection the span never reaches.
     view.setEditState(core::ChartEditViewState{.selected_notes = {5}});
-    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(145) == 0);
 
     // THE CARET ARM: the caret anywhere inside the span's tenure reveals it, with the STRING
     // ignored — a span is lane furniture, not one string's ring — so a caret on the top string
@@ -1158,7 +1158,7 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.4, .string = 6},
         });
-    CHECK(rail_at(137) != 0);
+    CHECK(rail_at(145) != 0);
 
     // Ends-INCLUDED, unlike the selection arm just above: the caret is a position, not a member,
     // and the peek's precedent is that a grid-snapped caret behaves the same wherever it lands —
@@ -1167,14 +1167,14 @@ TEST_CASE("TabView runs a revealed span's rails to its musical close", "[ui][tab
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.75, .string = 3},
         });
-    CHECK(rail_at(137) != 0);
+    CHECK(rail_at(145) != 0);
 
     // Past the close the tenure is over and the caret reveals nothing.
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.9, .string = 3},
         });
-    CHECK(rail_at(137) == 0);
+    CHECK(rail_at(145) == 0);
 }
 
 // A ring reaching a window its drawn tail cannot: the note's ink ends long before the visible

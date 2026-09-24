@@ -319,8 +319,11 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Shift the selected notes' frets down (`Alt+Shift+Down`). */
     FretShiftDown = 0x1706,
 
-    /*! \brief Plant the on-curve point at an armed automation-lane slot (`Insert`). */
-    InsertLanePoint = 0x1707,
+    /*!
+    \brief Create at the armed caret whatever its row holds (`Insert`): the lane's on-curve point,
+    or on a string row the note a digit would state there, at the fret already in force.
+    */
+    InsertAtCaret = 0x1707,
 
     /*! \brief Cancel the Esc ladder's top rung: gesture, then caret, then selection (`Esc`). */
     CancelDismiss = 0x1708,
@@ -388,22 +391,22 @@ enum class EditorCommandId : std::uint16_t
     // returned under an id of its own below.
 
     /*!
-    \brief State the chart caret's own offset along the ring it stands in (`Alt+Insert`).
+    \brief The point on the ring at the chart caret, at the fret already in force (`Alt+Insert`):
+    the ring plane of \ref EditorCommandId::InsertAtCaret.
 
-    The fret ALREADY IN FORCE there is what gives a key carrying no value something to place: a
-    silent point strictly inside the ring, and at its END the slide-out, or the ARRIVAL where a head
-    at that stop abuts — a shift slide in one key. `Alt` is in the chord because it is also the lane
-    reveal: the tail being stated is drawn while the charter states it.
+    A silent point strictly inside the ring, and at its END the end statement — the slide-out, or
+    the ARRIVAL where a head at that stop abuts, a shift slide in one key. `Alt` is in the chord
+    because it is also the lane reveal: the ring being stated is drawn while the charter states it.
     */
-    InsertChartStatement = 0x171C,
+    InsertRingPoint = 0x171C,
 
     /*!
     \brief Type digit 0 into the armed row's payload (`0`, numpad `0`).
 
-    Every object on the chart lane is typed, and the digits are how: the value they accumulate
-    states a note on a slot no ring RINGS THROUGH — a ring's exact end included, where the head
-    simply stands adjacent — a point on the path of one that does, or a retype of a non-empty
-    selection. On an automation lane row a digit is plain value entry.
+    Every object on the chart lane is typed, and the digits are how. A digit says "a note here":
+    over a selection it retypes what is selected; at the caret it places a head on an empty slot
+    and at a ring's exact end alike, retypes the head under the caret, and inside a ring strikes
+    the head that CUTS it. On an automation lane row a digit is plain value entry.
     */
     TypeDigit0 = 0x1801,
 
@@ -434,11 +437,45 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Type digit 9 at the armed caret (`9`, numpad `9`). */
     TypeDigit9 = 0x180A,
 
-    // 0x180B-0x1814 were the path digits (`Alt`+digit), the one verb that differed from the bare
-    // digit in a single cell: at a ring's exact END it stated the slide-out. `Insert` states the
-    // end from the fret already in force (\ref EditorCommandId::InsertLanePoint) and the walk
-    // reaches the statement standing there, so `Alt` creates nothing on this lane. The values stay
+    // 0x180B-0x1814 were the first `Alt`+digit block ("Type Path Digit N"), retired 2026-09-22
+    // and superseded the next day by the ring plane below under fresh values. The values stay
     // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
+
+    /*!
+    \brief Type digit 0 on the RING plane (`Alt`+`0`): "a point on the ring here"
+    (\ref rock_hero::editor::core::IEditorController::onChartRingDigitTyped states the rule).
+
+    Top-row digits only: Windows reads `Alt`+numpad digits as an Alt code and never delivers the
+    chord.
+    */
+    TypeRingDigit0 = 0x1815,
+
+    /*! \brief Type digit 1 on the ring plane (`Alt`+`1`). */
+    TypeRingDigit1 = 0x1816,
+
+    /*! \brief Type digit 2 on the ring plane (`Alt`+`2`). */
+    TypeRingDigit2 = 0x1817,
+
+    /*! \brief Type digit 3 on the ring plane (`Alt`+`3`). */
+    TypeRingDigit3 = 0x1818,
+
+    /*! \brief Type digit 4 on the ring plane (`Alt`+`4`). */
+    TypeRingDigit4 = 0x1819,
+
+    /*! \brief Type digit 5 on the ring plane (`Alt`+`5`). */
+    TypeRingDigit5 = 0x181A,
+
+    /*! \brief Type digit 6 on the ring plane (`Alt`+`6`). */
+    TypeRingDigit6 = 0x181B,
+
+    /*! \brief Type digit 7 on the ring plane (`Alt`+`7`). */
+    TypeRingDigit7 = 0x181C,
+
+    /*! \brief Type digit 8 on the ring plane (`Alt`+`8`). */
+    TypeRingDigit8 = 0x181D,
+
+    /*! \brief Type digit 9 on the ring plane (`Alt`+`9`). */
+    TypeRingDigit9 = 0x181E,
 
     /*! \brief Step the grid one preset finer (`+` main-row or numpad; `=` unshifted alias). */
     GridFiner = 0x1901,

@@ -2297,17 +2297,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     {
         return;
     }
-    // Which flow a digit takes is decided by the RETYPE operand, not by whether the selection is
-    // empty — and that operand is BOTH kinds, because a selected keyframe states a fret exactly as
-    // a head does. A selection holding neither falls through to the insert flow, where the caret
-    // decides; with a keyframe selected the marker is a cursor, so nothing there could have
-    // authored anyway.
-    if (chartSelection().notes().empty() && chartSelection().keyframes().empty())
+    // A fresh entry over what the key addresses (chartEntryTarget), planned in FULL — the pending
+    // box and its red state read the outcome, so even a refused digit visibly does something —
+    // then armed for a digit a second digit could extend, or settled in the same keystroke for
+    // one it could not. An Invalid provisional digit still arms: under a capo every playable
+    // fret's first digit alone refuses, and the window is what keeps the two-digit target
+    // reachable. While the marker is passive with no selection, digits are inert by design (the
+    // marker model) — a stray keystroke after listening authors nothing.
+    if (std::optional<decltype(ChartFretEntry::target)> target = chartEntryTarget(action.plane);
+        target.has_value())
     {
-        insertChartFretAtCaret(digit, now_ms);
-        return;
+        armOrSettleChartFretEntry(plannedChartFretEntry(digit, std::move(*target), now_ms));
     }
-    retypeChartSelectionFret(digit, now_ms);
 }
 
 // A digit while an entry is LIVE combines into it: the pending value widens to value*10+digit,
@@ -2348,9 +2349,10 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
 }
 
 // One authority for what a pending entry would apply: an insert entry plans ONE insert carrying
-// the combined value at its slot (undo removes the note), a split entry plans the cut carrying it
-// as the new head's fret, and a retype entry replans the whole selection from the pre-entry base,
-// so a widened value can never compound on its own earlier digit.
+// the combined value at its slot (undo removes the note), a cut entry plans the ring's division
+// with the value as the new head's fret, a point entry plans the keyframe it states, and a retype
+// entry replans the whole selection from the pre-entry base, so a widened value can never
+// compound on its own earlier digit.
 std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanChartFretEntry(
     const ChartFretEntry& entry) const
 {
@@ -2359,40 +2361,44 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
-    {
-        common::core::ChartNote note;
-        note.position = insert->slot.position;
-        note.string = insert->slot.string;
-        note.fret = entry.value;
-        return planInsertNote(
-            *arrangement->chart, session().song().tempo_map, std::move(note), m_grid_note_value);
-    }
-    // A typed point on a tail plans the keyframe it states — planted for real at the settle and
-    // selected. The commit law is not asked here: a typed value the path already passes through is
-    // a point that says nothing, authoring state like any such point — no entry, gone when the note
-    // leaves focus. One law, one place.
-    if (const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target))
-    {
-        return planInsertKeyframe(
-            *arrangement->chart,
-            session().song().tempo_map,
-            create->note,
-            create->offset,
-            entry.value);
-    }
-    // No guard for an empty operand here: the planner answers NoChange for one, and calling that
-    // Invalid is what armed a red pending box — the display of a REFUSAL — over a press that had
-    // simply found nothing to retype. The two emptinesses stay distinct, as everywhere else.
-    const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
-    return planRetypeFrets(
-        *arrangement->chart,
-        session().song().tempo_map,
-        retype.base_notes,
-        retype.keys,
-        retype.keyframe_keys,
-        ChartFretSet{.fret = entry.value},
-        retype.channel);
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    return std::visit(
+        Overloaded{
+            [&](const ChartFretEntry::InsertAt& insert) {
+                common::core::ChartNote note;
+                note.position = insert.slot.position;
+                note.string = insert.slot.string;
+                note.fret = entry.value;
+                return planInsertNote(chart, tempo_map, std::move(note), m_grid_note_value);
+            },
+            [&](const ChartFretEntry::Cut& cut) {
+                return planCutRing(chart, tempo_map, cut.note, cut.offset, entry.value);
+            },
+            // A point on a ring plans the keyframe it states — planted for real at the settle
+            // and selected. The commit law is not asked here: a typed value the path already
+            // passes through is a point that says nothing, authoring state like any such point —
+            // no entry, gone when the note leaves focus. One law, one place.
+            [&](const ChartFretEntry::CreateKeyframe& create) {
+                return planInsertKeyframe(
+                    chart, tempo_map, create.note, create.offset, entry.value);
+            },
+            // No guard for an empty operand here: the planner answers NoChange for one, and
+            // calling that Invalid is what armed a red pending box — the display of a REFUSAL —
+            // over a press that had simply found nothing to retype. The two emptinesses stay
+            // distinct, as everywhere else.
+            [&](const ChartFretEntry::Retype& retype) {
+                return planRetypeFrets(
+                    chart,
+                    tempo_map,
+                    retype.base_notes,
+                    retype.keys,
+                    retype.keyframe_keys,
+                    ChartFretSet{.fret = entry.value},
+                    retype.channel);
+            },
+        },
+        entry.target);
 }
 
 // The uniform settle: commit the pending entry's plan when it holds one (ONE undo entry for the
@@ -2411,25 +2417,34 @@ void EditorController::Impl::settleChartFretEntry()
     ChartFretEntry entry = std::move(*m_chart_fret_entry);
     m_chart_fret_entry.reset();
     ++m_chart_fret_entry_wake;
+    settleChartFretEntry(std::move(entry));
+}
+
+// The settle selects what the entry addressed or made — the retyped objects, the planted or
+// struck head, the point — so the caret stays armed on it and the next digit retypes it. Bound
+// before the call so the move and the sibling read never share one argument list.
+void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
+{
     if (entry.plan.has_value())
     {
-        // An insert selects the planted note — the caret stays armed on it, so the next digit
-        // retypes it — and a committed GHOST selects the point it made, for the same reason. A
-        // retype rides the default selection follow. Bound before the call so the move and the
-        // sibling read never share one argument list.
-        std::optional<std::vector<ChartSelectionKey>> select_exactly;
-        if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
-        {
-            select_exactly = std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert->slot}};
-        }
-        else if (
-            const auto* const create = std::get_if<ChartFretEntry::CreateKeyframe>(&entry.target)
-        )
-        {
-            select_exactly = std::vector<ChartSelectionKey>{
-                ChartKeyframeKey{.note = create->note, .offset = create->offset}
-            };
-        }
+        std::vector<ChartSelectionKey> select_exactly = std::visit(
+            Overloaded{
+                [](const ChartFretEntry::InsertAt& insert) {
+                    return std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert.slot}};
+                },
+                [this](const ChartFretEntry::Cut& cut) {
+                    return std::vector<ChartSelectionKey>{
+                        ChartNoteKey{.slot = chartRingSiteSlot(cut.note, cut.offset)}
+                    };
+                },
+                [](const ChartFretEntry::CreateKeyframe& create) {
+                    return std::vector<ChartSelectionKey>{
+                        ChartKeyframeKey{.note = create.note, .offset = create.offset}
+                    };
+                },
+                [](const ChartFretEntry::Retype& retype) { return chartRetypeKeys(retype); },
+            },
+            entry.target);
         static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
     }
     updateView();
@@ -2448,9 +2463,8 @@ void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
         armChartFretEntry(std::move(entry));
         return;
     }
-    // An immediate digit is a pending entry that settles in the same keystroke.
-    m_chart_fret_entry = std::move(entry);
-    settleChartFretEntry();
+    // An immediate digit settles in the same keystroke.
+    settleChartFretEntry(std::move(entry));
 }
 
 // Drops the pending entry without committing — context teardown and the Esc invalid rung,
@@ -2516,118 +2530,120 @@ ChartSlotKey EditorController::Impl::chartRingSiteSlot(
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
+const EditorController::Impl::ChartCaret* EditorController::Impl::armedChartStringCaret()
+    const noexcept
+{
+    const ChartCaret* const caret = armedChartCaret();
+    return caret != nullptr && !caret->lane.has_value() ? caret : nullptr;
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
 std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorController::Impl::
-    chartCaretDigitTarget() const
+    chartEntryTarget(const ChartEntryPlane plane) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const ChartCaret* const caret = armedChartCaret();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || caret == nullptr ||
-        caret->lane.has_value())
+    if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        // No caret, or the caret rides an automation lane row — lane typing is the
-        // typed-value editor (routed in the view), never a fret insert.
         return std::nullopt;
     }
-    const ChartSlotKey slot{.position = caret->position, .string = caret->string};
-    const std::optional<ChartPathTail> tail = chartPathTailAt(
-        arrangement->chart->notes, session().song().tempo_map, caret->position, caret->string);
-    // A digit states a POINT where the path can take one: STRICTLY INSIDE the ring, where the only
-    // thing a fret can mean at an instant the string is already sounding is a stop the hand takes.
-    // Nothing single-press cuts a ring — the disconnect verb (Shift+L) is the split's only door.
+    const std::vector<ChartSlotKey>& notes = chartSelection().notes();
+    const std::vector<ChartKeyframeKey>& keyframes = chartSelection().keyframes();
+    const bool nothing_selected = notes.empty() && keyframes.empty();
+    // THE OPERAND'S ONE SLOT, when it has one: the caret's, armed on nothing or on the one
+    // selected head. A wider selection — two heads, any keyframe — has no one slot, and a head
+    // selected without the caret on it (a marquee) is not a slot the keys stand at.
+    const ChartCaret* const caret = armedChartStringCaret();
+    std::optional<ChartSlotKey> slot;
+    if (caret != nullptr)
+    {
+        const ChartSlotKey at{.position = caret->position, .string = caret->string};
+        if (nothing_selected || (keyframes.empty() && notes.size() == 1 && notes.front() == at))
+        {
+            slot = at;
+        }
+    }
+    // THE RING PLANE FIRST, falling through to the bare key's meaning where no ring reaches the
+    // slot: at a slot holding both a head and a previous ring's end, the bare key is the head and
+    // the `Alt` key is the ring, with nothing between.
+    const std::vector<common::core::ChartNote>& stream = arrangement->chart->notes;
+    if (slot.has_value() && plane == ChartEntryPlane::Ring)
+    {
+        if (std::optional<decltype(ChartFretEntry::target)> ring =
+                chartRingEntryTarget(stream, *slot);
+            ring.has_value())
+        {
+            return ring;
+        }
+    }
+    if (!nothing_selected)
+    {
+        return chartRetypeTarget(notes, keyframes);
+    }
+    if (!slot.has_value())
+    {
+        return std::nullopt;
+    }
+    return chartCaretEntryTarget(stream, *slot);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. An object standing at the slot
+// is met with nothing selected only through a transition that put it back under an armed caret —
+// arming on an object selects it.
+decltype(EditorController::Impl::ChartFretEntry::target) EditorController::Impl::
+    chartCaretEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const
+{
+    if (const std::optional<ChartSelectionKey> standing = chartObjectAt(slot.position, slot.string);
+        standing.has_value())
+    {
+        return std::visit(
+            Overloaded{
+                [this](const ChartNoteKey& note) { return chartRetypeTarget({note.slot}, {}); },
+                [this](const ChartKeyframeKey& keyframe) {
+                    return chartRetypeTarget({}, {keyframe});
+                },
+            },
+            *standing);
+    }
+    const std::optional<ChartPathTail> tail =
+        chartPathTailAt(notes, session().song().tempo_map, slot.position, slot.string);
+    // "A note here." On a slot a ring rings THROUGH, the head that divides it, taking the ring's
+    // remainder (planCutRing). On an empty slot, or one where a ring merely stops, the head placed
+    // there, whatever that ring's end states — so sequential entry never trips over a grid-step
+    // note's tail. The end's own statement is the ring plane's.
     if (tail.has_value() && !tail->at_ring_end)
     {
-        return ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
+        return ChartFretEntry::Cut{.note = tail->note, .offset = tail->offset};
     }
-    // Nothing rings THROUGH the slot — an empty one, or one where a ring merely stops: the digit
-    // states the head there, whatever that ring's end states, so sequential entry never trips over
-    // a grid-step note's tail. The end's own statement is `Alt+Insert`'s
-    // (InsertChartStatement) and the keys address it once the walk or a click selects it.
     return ChartFretEntry::InsertAt{.slot = slot};
 }
 
-// Fresh insert: with no selection, the typed digit states an object at the armed caret — a head on
-// a slot no ring rings through, a POINT on the path of one that does. Each rides the same pending
-// entry: the box at the slot, red where the gate refuses the fret, and nothing authored until the
-// window settles. While the marker is passive, digits are inert by design (the marker model) — a
-// stray keystroke after listening authors nothing.
-void EditorController::Impl::insertChartFretAtCaret(const int digit, const std::uint32_t now_ms)
+// Rationale lives on the declaration in editor_controller_impl.h. A statement is addressed rather
+// than doubled because two records on one offset is a shape no chart may hold. From the keyboard
+// this is how the END's own statement is reached at all: no landing addresses it (chartObjectAt).
+std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorController::Impl::
+    chartRingEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const
 {
-    std::optional<decltype(ChartFretEntry::target)> target = chartCaretDigitTarget();
-    if (!target.has_value())
-    {
-        return;
-    }
-    ChartFretEntry entry{.value = digit, .target = std::move(*target), .armed_ms = now_ms};
-    entry.plan = replanChartFretEntry(entry);
-    armOrSettleChartFretEntry(std::move(entry));
-}
-
-// `Alt+Insert` ON A TAIL: the digit route with the digit SUPPLIED — the fret in force at the caret,
-// stated through the same pending entry the typed digit opens. Strictly inside a ring the product
-// is the same silent point typing the note's own fret makes; at the ring's END it is the end
-// statement at that fret, a slide-out toward the fret in force, or the ARRIVAL the chart then
-// proves where a head at that stop abuts (common::core::arrivesIntoNextHead) — a shift slide in one
-// key. Where no ring covers the slot there is no fret in force, so the key states nothing on this
-// lane.
-//
-// THE REVEAL IS IN THE CHORD because the slot before a head can look blank while lying inside a
-// ring's ending zone, past its ink end, and this key states a point on exactly that stretch: with
-// `Alt` held the ring is drawn to its end, so the charter sees what they are inserting onto.
-//
-// A statement already standing at the caret's offset is ADDRESSED rather than doubled: two records
-// on one offset is a shape no chart may hold, so the press selects what is there and every
-// selection-addressed verb then reaches it. Reached at all from the keyboard only for the END's own
-// statement, which no landing addresses (chartObjectAt).
-void EditorController::Impl::performActionImpl(const EditorAction::InsertChartStatement&)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const ChartCaret* const caret = armedChartCaret();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || caret == nullptr ||
-        caret->lane.has_value())
-    {
-        return;
-    }
-    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
     const std::optional<ChartPathTail> tail =
-        chartPathTailAt(notes, session().song().tempo_map, caret->position, caret->string);
+        chartPathTailAt(notes, session().song().tempo_map, slot.position, slot.string);
     if (!tail.has_value())
     {
-        return;
+        return std::nullopt;
     }
     const common::core::ChartNote* const carrier = tailCarrier(notes, *tail);
     if (carrier == nullptr)
     {
-        return;
+        return std::nullopt;
     }
     if (keyframeAtTail(*carrier, *tail) != nullptr)
     {
-        chartSelectionMutable().replaceWith(
-            ChartKeyframeKey{.note = tail->note, .offset = tail->offset});
-        updateView();
-        return;
+        return chartRetypeTarget(
+            {}, {ChartKeyframeKey{.note = tail->note, .offset = tail->offset}});
     }
-    ChartFretEntry entry{
-        // THE FRET IN FORCE, read from the one path authority (common::core::ringStateAt): the
-        // onset's fret, or the last statement before this offset.
-        .value = common::core::ringStateAt(*carrier, tail->offset).fret,
-        .target = ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset},
-        .armed_ms = m_now_milliseconds(),
-    };
-    entry.plan = replanChartFretEntry(entry);
-    // Settled in this keystroke rather than armed: the value arrives WHOLE, so there is no digit
-    // left to widen it and no provisional value to show — which is also why a refusal shows no red
-    // box here, the key having typed nothing the charter can see undone.
-    m_chart_fret_entry = std::move(entry);
-    settleChartFretEntry();
+    return ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
 }
 
-// Fresh retype: capture the selection's pre-entry values as the replan base, plan the typed
-// digit in FULL — the pending box and its red state read the outcome, so even a refused digit
-// visibly does something — then arm the window for a digit a second digit could extend, or
-// settle in the same keystroke for one it could not. An Invalid provisional digit still arms:
-// under a capo every playable fret's first digit alone refuses, and the window is what keeps
-// the two-digit target reachable.
-//
 // WHICH stop the digits state comes from the verb scope's channel, so the two ways to reach the
 // held one — clicking its satellite, or stepping the caret onto it — open the same entry rather
 // than two. Bare digits on a selected note keep stating its own sounding fret, which is what makes
@@ -2636,27 +2652,125 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertChartSt
 // The snapshot covers every note the entry writes THROUGH rather than only the notes it addresses,
 // because a keyframe is stored inside its note: a selection naming only a point on a slide still
 // needs that slide's pre-entry record to replan from, with its head's own fret left alone.
-void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t now_ms)
+EditorController::Impl::ChartFretEntry::Retype EditorController::Impl::chartRetypeTarget(
+    std::vector<ChartSlotKey> keys, std::vector<ChartKeyframeKey> keyframe_keys) const
 {
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
+    std::vector<common::core::ChartNote> base_notes =
+        chartNotesForKeys(notesTouchedBy(keys, keyframe_keys));
+    return ChartFretEntry::Retype{
+        .keys = std::move(keys),
+        .keyframe_keys = std::move(keyframe_keys),
+        .base_notes = std::move(base_notes),
+        .channel = chartVerbSlots().channel,
+    };
+}
+
+std::vector<ChartSelectionKey> EditorController::Impl::chartRetypeKeys(
+    const ChartFretEntry::Retype& retype)
+{
+    std::vector<ChartSelectionKey> keys;
+    keys.reserve(retype.keys.size() + retype.keyframe_keys.size());
+    for (const ChartSlotKey& note : retype.keys)
+    {
+        keys.emplace_back(ChartNoteKey{.slot = note});
+    }
+    for (const ChartKeyframeKey& keyframe : retype.keyframe_keys)
+    {
+        keys.emplace_back(keyframe);
+    }
+    return keys;
+}
+
+// Planned in FULL at once — the pending box and its red state read the outcome, so even a refused
+// value visibly does something.
+EditorController::Impl::ChartFretEntry EditorController::Impl::plannedChartFretEntry(
+    const int value, decltype(ChartFretEntry::target) target, const std::uint32_t now_ms) const
+{
+    ChartFretEntry entry{.value = value, .target = std::move(target), .armed_ms = now_ms};
+    entry.plan = replanChartFretEntry(entry);
+    return entry;
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+std::optional<ChartSlotKey> EditorController::Impl::chartFretEntryCreationSlot(
+    const decltype(ChartFretEntry::target)& target) const
+{
+    return std::visit(
+        Overloaded{
+            [](const ChartFretEntry::InsertAt& insert) {
+                return std::optional<ChartSlotKey>{insert.slot};
+            },
+            [this](const ChartFretEntry::Cut& cut) {
+                return std::optional<ChartSlotKey>{chartRingSiteSlot(cut.note, cut.offset)};
+            },
+            [this](const ChartFretEntry::CreateKeyframe& create) {
+                return std::optional<ChartSlotKey>{chartRingSiteSlot(create.note, create.offset)};
+            },
+            [](const ChartFretEntry::Retype&) { return std::optional<ChartSlotKey>{}; },
+        },
+        target);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+//
+// Settled in this keystroke rather than armed: the value arrives WHOLE, so there is no digit left
+// to widen it and no provisional value to show — which is also why a refusal shows no red box
+// here, the key having typed nothing the charter can see undone. A retype target is where the
+// digit would ADDRESS what stands — the selection, the object under the caret, a statement already
+// on the ring — and `Insert` selects it instead.
+void EditorController::Impl::insertAtChartCaret(const ChartEntryPlane plane)
+{
+    std::optional<decltype(ChartFretEntry::target)> target = chartEntryTarget(plane);
+    if (!target.has_value())
     {
         return;
     }
-    ChartFretEntry entry{
-        .value = digit,
-        .target =
-            ChartFretEntry::Retype{
-                .keys = chartSelection().notes(),
-                .keyframe_keys = chartSelection().keyframes(),
-                .base_notes = chartNotesForKeys(
-                    notesTouchedBy(chartSelection().notes(), chartSelection().keyframes())),
-                .channel = chartVerbSlots().channel,
-            },
-        .armed_ms = now_ms,
-    };
-    entry.plan = replanChartFretEntry(entry);
-    armOrSettleChartFretEntry(std::move(entry));
+    if (const auto* const retype = std::get_if<ChartFretEntry::Retype>(&*target))
+    {
+        chartSelectionMutable().replaceWith(chartRetypeKeys(*retype));
+        updateView();
+        return;
+    }
+    const std::optional<ChartSlotKey> slot = chartFretEntryCreationSlot(*target);
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (!slot.has_value() || arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    const int fret =
+        chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, *slot);
+    settleChartFretEntry(plannedChartFretEntry(fret, std::move(*target), m_now_milliseconds()));
+}
+
+// `Insert`: the note plane at the fret in force — a head on an empty slot or at a ring's end, the
+// cut inside a ring, the head under the caret selected — or the lane's own point.
+void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret&)
+{
+    const ChartCaret* const caret = armedChartCaret();
+    if (caret == nullptr)
+    {
+        return;
+    }
+    if (caret->lane.has_value())
+    {
+        insertLanePointAtCaret(*caret);
+        return;
+    }
+    insertAtChartCaret(ChartEntryPlane::Note);
+}
+
+// `Alt+Insert`: the ring plane at the fret in force — strictly inside a ring the silent point
+// typing the note's own fret makes, at its END the end statement at that fret (a slide-out toward
+// the fret in force, or the ARRIVAL the chart then proves where a head at that stop abuts —
+// common::core::arrivesIntoNextHead — a shift slide in one key), a statement already standing
+// there selected, and where no ring reaches the slot exactly what `Insert` does.
+//
+// THE REVEAL IS IN THE CHORD because the slot before a head can look blank while lying inside a
+// ring's ending zone, past its ink end, and this key states a point on exactly that stretch: with
+// `Alt` held the ring is drawn to its end, so the charter sees what they are inserting onto.
+void EditorController::Impl::performActionImpl(const EditorAction::InsertRingPoint&)
+{
+    insertAtChartCaret(ChartEntryPlane::Ring);
 }
 
 // The full note values behind a sorted key set, in chart order — the one selection-snapshot

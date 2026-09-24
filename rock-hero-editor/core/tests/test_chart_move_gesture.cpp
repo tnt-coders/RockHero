@@ -133,8 +133,8 @@ constexpr int g_retyped_fret{9};
 
 // The chart the silent-point scenarios run on. The VICTIM on string 1 takes the first edit, whose
 // undo entry everything below must leave alone. The HOST rings eight beats on string 3 sounding a
-// plain fret with no keyframes, so its whole path holds that fret — and a digit typed at it two
-// beats in plants a point that says nothing, the edit whose written diff is empty.
+// plain fret with no keyframes, so its whole path holds that fret — and a ring digit typed at it
+// two beats in plants a point that says nothing, the edit whose written diff is empty.
 [[nodiscard]] common::core::Chart makeSilentPointChart()
 {
     common::core::Chart chart;
@@ -475,10 +475,10 @@ TEST_CASE("A silent point edit hands the next move gesture no record", "[core][c
     REQUIRE(fixture.undoEntryCount() == entries_before + 1);
     CHECK(fixture.undoTopLabel() == "Delete Note");
 
-    // A digit at the fret the ring already holds: the point stands in the chart as authoring state,
-    // with no entry of its own.
+    // A ring digit at the fret the ring already holds: the point stands in the chart as authoring
+    // state, with no entry of its own.
     click(fixture.controller, g_host_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    fixture.controller.onChartRingDigitTyped(g_host_fret);
     CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
@@ -520,7 +520,7 @@ TEST_CASE("A silent point edit leaves an earlier retype intact", "[core][chart]"
     REQUIRE(fixture.undoEntryCount() == entries_before + 1);
 
     click(fixture.controller, g_host_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    fixture.controller.onChartRingDigitTyped(g_host_fret);
     CHECK(hasPoint(fixture.currentChart(), common::core::Fraction{2}, g_host_fret));
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
@@ -550,7 +550,7 @@ TEST_CASE("A sustain burst after a silent point edit keeps the earlier entry", "
     click(fixture.controller, g_measure_2_x, g_string_1_y);
     fixture.controller.onSelectionDeleteRequested();
     click(fixture.controller, g_host_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    fixture.controller.onChartRingDigitTyped(g_host_fret);
     REQUIRE(fixture.undoEntryCount() == entries_before + 1);
 
     fixture.controller.onChartSustainAdjustRequested(1);
@@ -584,7 +584,7 @@ TEST_CASE("A technique toggle after a silent point edit reverses its own entry",
     click(fixture.controller, g_measure_2_x, g_string_1_y);
     fixture.controller.onSelectionDeleteRequested();
     click(fixture.controller, g_host_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(g_host_fret);
+    fixture.controller.onChartRingDigitTyped(g_host_fret);
     REQUIRE(fixture.undoEntryCount() == entries_before + 1);
 
     // Onto the host's own head, which keeps its note in focus, so the point stands through both

@@ -157,10 +157,11 @@ struct ChartPathTail
     \brief True when the offset is the ring's END exactly — the slide-out instant, rather than a
     place inside the path.
 
-    The one fact the two digit verbs read differently, stored once by the walk that already knows it
-    rather than re-derived at each call site. Strictly inside, every digit states a point on the
-    path; at the END, `Alt`+digit states the fret the slide-out names while a bare digit places
-    the adjacent head instead, since the ring already stops where that head would start.
+    The one fact the two entry planes read differently, stored once by the walk that already knows
+    it rather than re-derived at each call site. Strictly inside, the note plane cuts the ring and
+    the ring plane states a point on the path; at the END, the ring plane states the end statement
+    while the note plane places the adjacent head instead, since the ring already stops where that
+    head would start.
     */
     bool at_ring_end{};
 };
@@ -216,6 +217,55 @@ because a scrape that rests on a fret is no scrape.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
+
+/*!
+\brief Plans a note struck INSIDE a ring: the ring is divided at the offset and a fresh head takes
+its remainder — the bare digit's and `Insert`'s meaning on a covered slot.
+
+The split walk \ref planToggleJunctions divides by, with a fresh head in place of the severed one:
+the origin keeps its path to the cut, a statement standing exactly there becoming its end
+statement (which the chart then proves an arrival where it names the new head's own stop, and a
+slide-out onto that head where it does not — \ref common::core::arrivesIntoNextHead); every
+keyframe past the cut rides the new head, rebased; and the channel states in force at the cut
+open it, a bend in progress becoming its onset bend. The new head is STRUCK, at the fret given,
+with strike defaults — no attack, node, mute, tremolo, emphasis or held stop rides over, those
+being facts of the strike that made the origin — where the split's severed head is legato and
+keeps them all. The cut deletes nothing: a later keyframe the fret makes silent dissolves under
+the commit law like any silent point.
+
+A scrape refuses, as the split does: one picking-hand gesture has no junction. The offset must
+lie STRICTLY inside the ring — at its end there is nothing to divide, and the head simply stands
+adjacent (\ref planInsertNote).
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the walk and the shared finalize.
+\param note Slot of the note whose ring is cut; a slot holding no note is refused.
+\param offset Beat offset from that note's onset, strictly inside its ring.
+\param fret Fret the new head is struck at.
+\return The plan; Invalid when the walk or the gate refuses it.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, common::core::Fraction offset, int fret);
+
+/*!
+\brief The fret in force on a string at a slot: what a key carrying no value states there.
+
+Inside a ring, the stop the path states at that offset (\ref common::core::ringStateAt — the
+last stated stop, never the travel between stops). Past a ring's end, the end slot itself
+included, the last pitched stop of the string's latest note before the slot
+(\ref common::core::fretBeforeEnd), which is the end statement's own fret unless the end slides
+out toward a stop the string never sounded — so a head placed after a slide-out never manufactures
+a shift slide. With no note before the slot, the open string.
+
+\param notes The chart's note stream, in chart order.
+\param tempo_map Tempo map supplying the beat axis the offsets are measured on.
+\param slot The slot asked about.
+\return The fret in force there.
+*/
+[[nodiscard]] int chartFretInForceAt(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& slot);
 
 /*!
 \brief Withdraws the charter's held-stop statement at each slot: Delete on the held channel.

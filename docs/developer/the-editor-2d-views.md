@@ -194,28 +194,38 @@ element type than the two slot-keyed ones. Every verb reads its own kind's opera
 list (`notes()`, `keyframes()`) and a verb a kind has no meaning for simply reads an empty one,
 which is what keeps the technique verbs free of keyframe guards.
 
-**Every note is TYPED, a click never creates, and `Alt` creates no NOTE — one sentence,
-and every entry case below derives from it.** The DIGITS are the whole of chart entry. At the armed
-caret, on an EMPTY slot and at a ring's EXACT END alike, a digit lands a HEAD at the typed fret; at
-the end it is simply the next note, the ring already stopping there, which is what makes sequential
-entry safe — and it is the next note there whatever that ring's end states, because no landing
-addresses the end's own statement. On a slot a ring COVERS, a digit lands a POINT on that note's
-path at the typed fret, planted and selected with the caret on it. `ALT+INSERT` is the one key that
-states the END: the digit route with the digit supplied, the fret ALREADY IN FORCE at the caret —
-inside a ring the silent point typing the note's own fret makes, at the end a slide-out toward the fret
-in force, or the ARRIVAL where a head at that stop abuts, which is a shift slide in one key
-(`EditorAction::InsertChartStatement`). The reveal rides in its chord because a slot just before a
-head can look blank while lying inside a ring's ending zone, past its ink end, and this is the verb
-that states a point there. A statement already standing at that offset is selected, never
-doubled. A pointer press, under every modifier, arms the
-caret and selects what it HIT and creates nothing. A point that merely restates the fret the
-path is already running on says nothing, so it is silent authoring state — no undo entry, gone when
-the note leaves focus, never written — and typing the same fret on a tail therefore leaves nothing
-behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
+**Every note is TYPED, a click never creates, and every entry key has TWO PLANES — one sentence,
+and every entry case below derives from it** (`ring-ends-and-authoring-planes.md`, *The keys*,
+2026-09-23). A key first finds its OPERAND — the selection, else the armed caret's slot — and its
+plane decides what it does there. The BARE key says "a note here": at the caret, a HEAD at the
+typed fret on an EMPTY slot and at a ring's EXACT END alike — at the end it is simply the next
+note, the ring already stopping there, which is what makes sequential entry safe, whatever that
+end states — the head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
+(`planCutRing`: the ring is divided at the slot, the new head is struck at the typed fret with
+strike defaults and takes the ring's remainder, the keyframes past the cut ride it, and a
+statement standing exactly at the cut becomes the origin's end statement — an arrival where it
+names the new head's own stop, a slide-out onto it where it does not). The `ALT` key says "a
+point on the ring here": on the ring that covers or ends at the operand's instant, a POINT at the
+typed fret strictly inside, the END STATEMENT at the end, and a statement already standing there
+selected and retyped, never doubled; where no ring reaches the operand it does exactly what the
+bare key does. `Insert` and `Alt+Insert` are the same two planes with the digit SUPPLIED — the
+fret ALREADY IN FORCE at the caret (`chartFretInForceAt`: inside a ring the stop its path states
+there, past a ring's end the last pitched stop of the string's latest note): a head, the cut, or —
+where the digit would retype — the object SELECTED; a silent point, or the end statement at the
+fret in force, which where a head at that stop abuts is the ARRIVAL the chart then proves, a shift
+slide in one key (`EditorAction::InsertAtCaret`, `EditorAction::InsertRingPoint`). The ring plane's
+reveal rides in `Alt` because a slot just before a head can look blank while lying inside a ring's
+ending zone, past its ink end, and that plane states a point on exactly that stretch. The redirect
+is a property of ONE slot: over a selection of more than one element the plane is ignored and the
+key retypes everything selected. A pointer press, under every modifier, arms the caret and selects
+what it HIT and creates nothing. A point that merely restates the fret the path is already running
+on says nothing, so it is silent authoring state — no undo entry, gone when the note leaves focus,
+never written. A fret-stating point inside an OPEN STRING's tail is refused by chart law
 (`OpenStringSlide`) and paints the red pending box. The keymap side is \ref guide_keyboard.
 
-**The SPLIT is two keystrokes, and `planToggleJunctions` is its one home** — the digit plants
-the point where the division belongs, `Shift+L` splits it there. The point becomes the new
+**The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE
+walk**, `splitNoteIntoProducts` — the split at a selected point, the cut at the caret with a
+struck head in place of the severed one. Under the split the point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, with a bend in force as its onset bend and a shake in force opening it shaking; every
 keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
@@ -226,13 +236,12 @@ than a slide-out — it names the very stop the new head is struck at, at the sa
 the arrival keeps its stored instant, so there is no retreat to compute and no crowded-leg case to
 repair: a grid-step ring splits with nothing said about it. A silent arrival is KEPT, unlike a
 silent slide-out — it wears a linked head at its stored instant, drawn under the reveal, so it is
-ordinary authoring state. That segment walk has
-exactly one caller, so there is one rule and one place it lives. A SCRAPE is refused: one
-picking-hand gesture has no junction. **The same chord JOINS a selected
+ordinary authoring state. The walk has two callers and one rule. A SCRAPE is refused by both:
+one picking-hand gesture has no junction. **The same chord JOINS a selected
 HEAD back onto its predecessor's path**, written as this walk's exact inverse — the arrival is
 already standing at the junction and the merge takes it over — so split and join round-trip byte
-for byte. NOTHING SINGLE-PRESS TRUNCATES A
-RING OR CLIPS A KEYFRAME. The ring clamp still
+for byte. The single-press rule now forbids TRUNCATION only — a cut divides and deletes nothing —
+and NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME. The ring clamp still
 exists — for load, for import, and for every editing verb whose result lands a head inside a
 ring, which the plan gate normalizes exactly as a loaded chart is (`finalizePlan`). That
 truncation SHORTENS the ring and rides its end's own statement back to the new end — onto the
@@ -276,21 +285,21 @@ Four consequences worth knowing before touching this:
   through the core's own drawer (`paintTabKeyframeHead`), so the redrawn mark cannot differ from the
   drawn one by a pixel. A chip needs nothing, chips already drawing above every head, and a selected
   HEAD keeps drawing over the arrival, as the instant's owner should.
-- **`Alt+Insert` at the exact END of a tail authors the end's statement.** The slide-out is the
+- **The ring plane at the exact END of a tail authors the end's statement.** The slide-out is the
   keyframe at the ring's end (`slideOutKeyframe`, `chart.h`), so the caret standing on the end slot
-  and `Alt+Insert` pressed there plant it exactly as a digit anywhere else on the tail plants a
-  point — one gesture, one object kind — with the value the key supplies being the fret already in
-  force there. `Alt` is in the chord because it is the reveal: a slot just before a head can look
-  blank while lying inside a ring's ending zone, and this verb states a point on exactly that
-  stretch. It is the ONE keystroke on the lane that authors a slide-out, which is why the end slot
-  is where the grammar shows plainest: a DIGIT there is simply the NEXT NOTE, the ring already stopping
-  at that instant with nothing to divide and nothing to shorten — exactly what keeps sequential
-  entry safe — whatever the end states. Sequential entry meets
-  the covered case only past the grid: the slot after a grid-step ring IS that ring's end, while a
-  ring deliberately lengthened past its grid step makes the following slot a covered one, where a
-  digit is a point instead. Where a
-  statement ALREADY stands on that end, `Alt+Insert` SELECTS it rather than doubling it, and the
-  keys address it from there.
+  and `Alt`+digit or `Alt+Insert` pressed there plant it exactly as they plant a point anywhere
+  else on the ring — one gesture, one object kind — the digit typing its fret, `Insert` supplying
+  the fret already in force. `Alt` is the reveal as well: a slot just before a head can look blank
+  while lying inside a ring's ending zone, and this plane states a point on exactly that stretch.
+  The end slot is where the two planes show plainest: a BARE digit there is simply the NEXT NOTE,
+  the ring already stopping at that instant with nothing to divide and nothing to shorten —
+  exactly what keeps sequential entry safe — whatever the end states, while the ring plane names
+  the end. Sequential entry meets the covered case only past the grid: the slot after a grid-step
+  ring IS that ring's end, while a ring deliberately lengthened past its grid step makes the
+  following slot a covered one, where a bare digit CUTS the ring instead. Where a statement
+  ALREADY stands on that end, the ring plane SELECTS it — retyped by the digit, left selected by
+  `Insert` — never doubled; and the one selected head the caret is armed on is the one selection
+  the ring plane reaches past, naming the ring that ends at it.
   Its slide-out chip is a selection citizen
   like any keyframe: click it, or step onto it from either side — the walk stops on the end
   statement before the head sharing its instant, and the arrows honour that order at every slot, so
@@ -895,9 +904,9 @@ Three grounds, and what each is for:
 - **`Alt` is the lookahead, and nothing else can serve it.** With a selection standing, typing a
   digit RETYPES those notes instead of inserting one, so a charter placing notes holds no selection
   at all — and placing the next note is exactly when the real tails around it matter. Holding `Alt`
-  shows every ring in the passage at once. `Alt` is also already the authoring gate — it is what
-  the sustain wheel gesture rides, and what the chart lane's insert now carries (`Alt+Insert`) — so
-  you see the ring while you are the one changing it.
+  shows every ring in the passage at once. `Alt` is also the RING PLANE of every entry key — `Alt`+digit and
+  `Alt+Insert` act on the ring at the caret — and what the sustain wheel gesture rides, so you see
+  the ring while you are the one changing it.
 - **The SELECTION is the thing under scrutiny.** A selected note draws to its ring end, and a
   selected keyframe reveals its note, so a keyboard walk or a box that lands on a keyframe past
   the ink end always has a ring to show it, at its true instant. What makes the selection a

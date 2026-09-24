@@ -220,7 +220,9 @@ first caret. The paused playhead is gone.
   the tone strip or automation lanes do NOT move the caret or seek — the highway is the caret's
   only pointer surface (plus the ruler, which keeps positioning the timeline). Ruler clicks
   position the caret at the snapped time on the remembered string.
-- **Typing inserts:** digits on an empty caret insert a note there with the typed fret; the
+- **Typing inserts:** digits on an empty caret insert a note there with the typed fret (and since
+  2026-09-23 a digit inside a ring CUTS it, while `Alt`+digit states a point on the ring —
+  `ring-ends-and-authoring-planes.md`); the
   multi-digit window continues onto the just-inserted note (2 then 3 → one insert of fret 23,
   ONE undo entry — the widened entry stays an insert, never degrading to a retype that would
   strand the note under undo). Digits with a note selection retype it (unchanged). The

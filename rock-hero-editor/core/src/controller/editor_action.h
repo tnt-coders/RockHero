@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -25,6 +26,25 @@
 
 namespace rock_hero::editor::core
 {
+
+/*!
+\brief Which plane an entry key acts on: the operand itself, or the ring at the operand's instant.
+
+A key first finds its OPERAND — the selection, else the armed caret's slot — and its plane then
+decides what it does there. A bare key acts on the operand: a note here, a retype of what is
+selected. An `Alt` key acts on the RING that covers or ends at the operand's instant on its string
+— a point on it, or the statement already standing there — and where none does, acts exactly as the
+bare key would. The redirect is a property of one slot, so over a selection of more than one
+element the plane is ignored and the key retypes everything selected.
+*/
+enum class ChartEntryPlane : std::uint8_t
+{
+    /*! \brief The operand itself: a note at the slot, a retype of the selection. */
+    Note,
+
+    /*! \brief The ring at the operand's instant: a point on it, or its standing statement. */
+    Ring,
+};
 
 /*!
 \brief Outer struct holding every controller action case, the dispatch variant, and the id alias.
@@ -724,20 +744,24 @@ struct EditorAction
     {
     };
 
-    /*! \brief The Insert key's create: an on-curve point at an armed automation-lane slot. */
-    struct InsertLanePoint
+    /*!
+    \brief The Insert key's create: whatever the armed caret's row holds — an on-curve point on an
+    automation lane, and on a string row the note a digit would state there, at the fret already
+    in force (\ref ChartEntryPlane::Note).
+    */
+    struct InsertAtCaret
     {
     };
 
     /*!
-    \brief The chart lane's create: the statement at an armed caret's offset along its ring.
+    \brief The chart lane's ring-plane create: the point on the ring at the caret, at the fret
+    already in force there (\ref ChartEntryPlane::Ring).
 
-    Carries the fret already in force there, which is what gives a key that supplies no value
-    something to state. A verb of its own rather than the lane point's other half, because the two
-    answer to different chords: this one to `Alt+Insert`, so the tail being inserted onto is
-    revealed while the charter inserts onto it.
+    A verb of its own rather than the caret insert's other half, because the two answer to
+    different chords: this one to `Alt+Insert`, so the ring being inserted onto is revealed while
+    the charter inserts onto it.
     */
-    struct InsertChartStatement
+    struct InsertRingPoint
     {
     };
 
@@ -746,6 +770,9 @@ struct EditorAction
     {
         /*! \brief The digit typed, 0 to 9. */
         int digit{};
+
+        /*! \brief The plane the digit acts on: the operand itself, or the ring at it. */
+        ChartEntryPlane plane{ChartEntryPlane::Note};
     };
 
     /*! \brief Shift every selected note's fret by one, shape-preserving. */
@@ -889,7 +916,7 @@ struct EditorAction
         SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints,
         NewToneDocument, OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
-        DeleteSelection, InsertLanePoint, InsertChartStatement, TypeChartFretDigit, ShiftChartFrets,
+        DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         SetChartLeftTap, ToggleChartJunction, SelectSongSection, InsertSongSection,
         RenameSongSection, SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;

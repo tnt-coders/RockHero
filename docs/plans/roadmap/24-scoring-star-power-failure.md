@@ -351,11 +351,13 @@ timing delta always recorded signed (negative = early) for 27's tendency display
 end, one minimum sustain distance (`g_minimum_sustain_distance_seconds`, `grid_arithmetic.h`)
 before a same-string head (`docs/plans/in-progress/ring-ends-and-authoring-planes.md`). A legal
 early strike on that string ends the ring up to the early half of the onset window before the
-head, so the margin must be at least that early half-window, or the player loses sustain credit
-they could not have kept. The margin is in song time and the window in real time, so the tightest
-case is 1.0× playback. The ~±70 ms target meets the settled margin; the ±100 ms default does not,
-and while it stands scoring needs a sustain-drop leniency of its own that covers the difference.
-State this as a `static_assert` or a named invariant once the window is fixed.
+head, so a margin under that early half-window costs the player sustain credit they could not
+have kept unless scoring covers the difference. The margin is in song time and the window in real time, so the tightest
+case is 1.0× playback. **Re-ruled 2026-09-23:** the margin is 50 ms (chosen at the sighting, `grid_arithmetic.h`),
+under the ~±70 ms target's early half as well as the ±100 ms default's, so scoring needs the
+sustain-drop leniency at every window: judge a sustain to its drawn end plus the difference
+between the early half-window and the margin. State that as a named invariant once the window is
+fixed.
 **Files**: new `rock-hero-game/core/include/rock_hero/game/core/scoring/` headers +
 `rock-hero-game/core/src/scoring/` + `rock-hero-game/core/tests/` (new test target
 `rock_hero_game_core_tests`, replacing reliance on `placeholder.cpp`). Include form per

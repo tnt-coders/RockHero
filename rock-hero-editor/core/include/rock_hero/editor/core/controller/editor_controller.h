@@ -473,6 +473,9 @@ public:
     /*! \copydoc IEditorController::onChartFretDigitTyped */
     void onChartFretDigitTyped(int digit) override;
 
+    /*! \copydoc IEditorController::onChartRingDigitTyped */
+    void onChartRingDigitTyped(int digit) override;
+
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override;
 
@@ -561,11 +564,11 @@ public:
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 
-    /*! \copydoc IEditorController::onLanePointInsertRequested */
-    void onLanePointInsertRequested() override;
+    /*! \copydoc IEditorController::onInsertAtCaretRequested */
+    void onInsertAtCaretRequested() override;
 
-    /*! \copydoc IEditorController::onChartStatementInsertRequested */
-    void onChartStatementInsertRequested() override;
+    /*! \copydoc IEditorController::onRingPointInsertRequested */
+    void onRingPointInsertRequested() override;
 
     /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
     void onToneAutomationLaneCaretRequested(

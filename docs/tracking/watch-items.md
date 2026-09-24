@@ -1032,6 +1032,18 @@ accelerate the upgrade, never replace confirmation.
 
 ## Input bindings
 
+### AltGr+digit fires the ring digit on some layouts — trigger: a report from a layout where AltGr types a character on a digit key
+
+JUCE's Windows peer strips `Ctrl` from AltGr, so on German, Polish, French and similar layouts —
+where AltGr on a digit key types `{`, `[`, `]`, `}`, `²` or `³` — the press reaches the keymap as
+`Alt`+digit and fires "Type Digit N on Ring" (2026-09-23) instead of typing the character. A text
+field being edited takes the key first, so typing there is unaffected; on the lane the chord
+authors a point where the charter meant a character. Accepted for now: the chord is the one the
+grammar needs, and the collision exists only on layouts that have no other use for `Alt`+digit on
+the lane. Remedy when it fires: detect AltGr at the key entry (`ComposedCharacterFilter`'s
+sibling) and let the character through, or rebind the ring digits per layout.
+
+
 ### Editor and game binding systems stay parallel — trigger: the editor wants non-keyboard input
 
 Decided 2026-07-20 (46-Q2 / 26-Q4, one answer): the editor's command registry builds on JUCE's

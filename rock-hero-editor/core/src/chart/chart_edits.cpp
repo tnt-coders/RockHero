@@ -438,10 +438,11 @@ struct AddressedStop
 // the arrival.
 //
 // Each head taking over claims `Legato`, W10's signed store for a SEVERED gesture — the walk's own
-// value rather than a caller's, since \ref planToggleJunctions is the only verb that cuts a
-// ring. Its motion is the resolver's to derive, and today an equal-fret junction resolves to
-// Unjustified: see the header, where the unstruck-tie default the addendum PROPOSES needs
-// LegatoMotion::Continuation, which is unbuilt, so the settle sweep flattens the claim to a pick.
+// value rather than a caller's; \ref planCutRing, the other verb that divides a ring, replaces
+// that head with a struck one. Its motion is the resolver's to derive, and today an equal-fret
+// junction resolves to Unjustified: see the header, where the unstruck-tie default the addendum
+// PROPOSES needs LegatoMotion::Continuation, which is unbuilt, so the settle sweep flattens the
+// claim to a pick.
 //
 // Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
 // split at all (the ring already stops there) and is refused, which is also the whole of the
@@ -615,14 +616,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
         tempo_map,
         note.position,
         adjacentTempoGridPosition(tempo_map, grid_note_value, note.position, true));
+    // An occupied slot is the gate's refusal (two notes on one slot), never a replace: the entry
+    // keys address a head that stands where they land, so a placement never meets one.
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    // Placing on an occupied slot replaces the note there. Still reachable: undo and redo never
-    // move the caret, so undoing a delete can put a note back under an armed caret with an empty
-    // selection — the next typed digit inserts onto that occupied slot and must replace, not
-    // collide.
-    std::erase_if(candidate, [&note](const common::core::ChartNote& existing) {
-        return chartSlotKeyOf(existing) == chartSlotKeyOf(note);
-    });
     candidate.push_back(std::move(note));
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
@@ -675,6 +671,82 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
     target->keyframes.insert(at, common::core::Keyframe{.offset = offset, .fret = fret});
 
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
+{
+    const auto origin =
+        std::ranges::find_if(chart.notes, [&note](const common::core::ChartNote& existing) {
+            return chartSlotKeyOf(existing) == note;
+        });
+    if (origin == chart.notes.end())
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    std::vector<common::core::ChartNote> products;
+    const std::expected<void, ChartPlanRefusal> walked =
+        splitNoteIntoProducts(tempo_map, *origin, {offset}, products);
+    if (!walked.has_value())
+    {
+        return std::unexpected{walked.error()};
+    }
+    // THE FRESH HEAD. The walk's second product is the origin under a legato claim — the
+    // remainder, the keyframes past the cut, the channel states in force there — and every fact
+    // of the origin's strike besides. The cut's head is its own strike: the ring's facts ride
+    // over, the strike's do not, and the fret is the one typed. The ring's facts are the walk's
+    // own channel list (fret, bend, vibrato, the keyframes), so a channel added there is copied
+    // here as well.
+    const common::core::ChartNote& severed = products[1];
+    common::core::ChartNote head;
+    head.position = severed.position;
+    head.string = severed.string;
+    head.fret = fret;
+    head.sustain = severed.sustain;
+    head.vibrato = severed.vibrato;
+    head.bend = severed.bend;
+    head.keyframes = severed.keyframes;
+
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    candidate[static_cast<std::size_t>(origin - chart.notes.begin())] = products[0];
+    candidate.push_back(std::move(head));
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Cut Ring");
+}
+
+int chartFretInForceAt(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const ChartSlotKey& slot)
+{
+    if (const std::optional<ChartPathTail> tail =
+            chartPathTailAt(notes, tempo_map, slot.position, slot.string);
+        tail.has_value() && !tail->at_ring_end)
+    {
+        const auto carrier =
+            std::ranges::find_if(notes, [&tail](const common::core::ChartNote& note) {
+                return chartSlotKeyOf(note) == tail->note;
+            });
+        if (carrier != notes.end())
+        {
+            return common::core::ringStateAt(*carrier, tail->offset).fret;
+        }
+    }
+    // Past a ring's end, the end slot included: the string's latest note before the slot. The
+    // stream is in chart order, so the scan stops at the first note not before the slot.
+    const common::core::ChartNote* latest = nullptr;
+    for (const common::core::ChartNote& candidate : notes)
+    {
+        if (!(common::core::Fraction{0} <
+              common::core::beatDistance(tempo_map, candidate.position, slot.position)))
+        {
+            break;
+        }
+        if (candidate.string == slot.string)
+        {
+            latest = &candidate;
+        }
+    }
+    return latest != nullptr ? common::core::fretBeforeEnd(*latest) : 0;
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(

@@ -47,6 +47,10 @@ here and the text below is amended to match.
 
 ## The interaction half (signed the same day): BUILT 2026-09-22
 
+> **Superseded 2026-09-23** by `ring-ends-and-authoring-planes.md` (*The keys*) for the two bullets
+> below: `Alt`+digit returns as the RING plane of the digit, and `Insert` on a string row is the
+> NOTE plane at the fret in force (a head, or the cut inside a ring), `Alt+Insert` its ring plane.
+
 - **`Insert` on a tail types the fret in force at the caret** — the digit route with the digit
   supplied, through the same pending entry. Inside a ring that is what typing the note's own fret
   already does; at the ring's end the product is the end statement at the fret in force. Digits

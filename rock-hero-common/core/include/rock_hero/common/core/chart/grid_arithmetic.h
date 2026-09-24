@@ -80,10 +80,12 @@ ring's end may sit exactly on the next head of its own string, where it stays.
 A DURATION, not a note value, for the same reason \ref g_minimum_kept_sustain_seconds is one: a gap
 is read on screen in TIME, so a note value would open a quarter-second hole at 60 BPM and close to
 a barely visible gap at 200. A duration reads the same at every tempo, and the meter never enters —
-seconds do not care about the signature's denominator. The value sits in the band rhythm-game
-charting converged on for the gap before a following note. Scoring judges a sustain to its drawn
-end, so the margin must be at least the early half of the hit window, or a legal early strike cuts
-a sustain short of credit it could not have kept; roadmap plan 24 carries that invariant.
+seconds do not care about the signature's denominator. The value was sighted, not derived: with
+the highway's tip fade dissolving the last stretch of every tail, a shorter crop keeps more of a
+glide's arrival bend and ends where the fade does, and the 2D lane still reads at it. Scoring
+judges a sustain to its drawn end, so a legal early strike inside the hit window's early half can
+cut a sustain short of credit it could not have kept; roadmap plan 24 carries the sustain-drop
+leniency that covers the difference.
 
 Beyond presentation it answers two questions founded on it deliberately, both asking what the
 smallest READABLE interval is: a never-restruck landed span is emitted only where its tenure
@@ -99,7 +101,7 @@ nothing to show.
 THIS INITIALIZER IS THE ONLY STATEMENT OF THE VALUE: every other comment, guide and rule text names
 "the margin" or "the minimum sustain distance" and points here.
 */
-inline constexpr double g_minimum_sustain_distance_seconds{0.075};
+inline constexpr double g_minimum_sustain_distance_seconds{0.05};
 
 /*!
 \brief Returns the minimum sustain distance in signature beats at the onset it protects.

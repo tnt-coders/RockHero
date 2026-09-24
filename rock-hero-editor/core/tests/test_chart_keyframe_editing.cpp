@@ -1,5 +1,7 @@
+#include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -402,14 +404,14 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// Deleting a point must leave an empty armed slot, so a digit can recreate it without moving.
+// Deleting a point must leave an empty armed slot, so a ring digit can recreate it without moving.
 TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart]")
 {
     KeyframeFixture fixture;
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
     // 9 is the fret the path holds here, so this point says nothing — authoring state, planted and
     // selected all the same.
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
 
     fixture.controller.onSelectionDeleteRequested();
@@ -423,7 +425,7 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
         CHECK(edit.caret->string == 3);
     }
 
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartRingDigitTyped(7);
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
@@ -447,7 +449,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartRingDigitTyped(7);
     REQUIRE(currentChart(fixture.controller).notes[0].keyframes.size() == 2);
 
     fixture.controller.onUndoRequested();
@@ -456,7 +458,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     // leaves, reached here by the transition's own repair.
     CHECK_FALSE(publishedState(fixture.view).selection_present);
 
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     const common::core::Chart recreated = currentChart(fixture.controller);
     REQUIRE(recreated.notes.size() == 1);
     REQUIRE(recreated.notes[0].keyframes.size() == 2);
@@ -539,10 +541,10 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// THE WHOLE ENTRY PATH TO A SPLIT, end to end: a digit states a point on the tail, the point is
-// left selected, and `Shift+L` severs the gesture there. Nothing else single-press cuts a ring, so
-// this pair is the split's only door — and it is lossless, the origin ending at the new head with
-// the remainder riding on at the fret the point stated.
+// THE WHOLE ENTRY PATH TO A SPLIT, end to end: a ring digit states a point on the tail, the point
+// is left selected, and `Shift+L` severs the gesture there. Splitting at a typed fret is this pair
+// — the bare digit's cut strikes a fresh head instead — and it is lossless, the origin ending at
+// the new head with the remainder riding on at the fret the point stated.
 TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -550,7 +552,7 @@ TEST_CASE("The junction toggle splits at a point a digit planted", "[core][chart
 
     // Two beats into the eight-beat ring, on the leg travelling from the head's 5 toward 9.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(6);
+    fixture.controller.onChartRingDigitTyped(6);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     REQUIRE(currentChart(fixture.controller).notes.size() == 1);
 
@@ -589,7 +591,7 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
     // Room for a point strictly inside the tail, then the caret stepped onto it.
     fixture.controller.onChartSustainAdjustRequested(1);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartRingDigitTyped(7);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     REQUIRE(currentChart(fixture.controller).notes.size() == 2);
 
@@ -738,10 +740,10 @@ TEST_CASE("A held move burst stops one step short of the ring's end", "[core][ch
     plain.notes = {makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8})};
     KeyframeFixture fixture{std::move(plain)};
 
-    // The user's report: a digit typed four beats along the tail plants a point that travels from
-    // the onset's 5, and the arrows then drag it outward.
+    // The user's report: a ring digit typed four beats along the tail plants a point that travels
+    // from the onset's 5, and the arrows then drag it outward.
     click(fixture.controller, g_junction_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(6);
+    fixture.controller.onChartRingDigitTyped(6);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
     const std::size_t entries_after_typing =
         publishedState(fixture.view).undo_history.labels.size();
@@ -863,12 +865,11 @@ TEST_CASE("The fret shift moves a selected keyframe by one", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// A BARE digit strictly inside a ring states a POINT on the path, never a cut: nothing
-// single-press splits a ring. The point lands planted and selected, with the caret still on its
-// slot. Where its fret makes a HOLD BOUNDARY, as 5 does on a travel leg, the point already says
-// something and simply stays.
+// A RING digit (`Alt`+digit) strictly inside a ring states a POINT on the path, never a cut. The
+// point lands planted and selected, with the caret still on its slot. Where its fret makes a HOLD
+// BOUNDARY, as 5 does on a travel leg, the point already says something and simply stays.
 TEST_CASE(
-    "A bare digit on a tail plants a keyframe, selected, with the caret on it", "[core][chart]")
+    "A ring digit on a tail plants a keyframe, selected, with the caret on it", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -878,7 +879,7 @@ TEST_CASE(
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.caret.has_value());
 
-    fixture.controller.onChartFretDigitTyped(5);
+    fixture.controller.onChartRingDigitTyped(5);
     const common::core::Chart stated = currentChart(fixture.controller);
     // One note still, and its ring untouched: the tail took a POINT carrying the typed 5, not a
     // second onset and not a cut.
@@ -925,7 +926,7 @@ TEST_CASE(
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     REQUIRE(planted.notes[0].keyframes.size() == 2);
@@ -957,7 +958,7 @@ TEST_CASE("A silent point outlives an edit on its note and still dissolves", "[c
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     click(fixture.controller, g_onset_x, g_string_3_y);
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     const common::core::Chart muted = currentChart(fixture.controller);
@@ -986,9 +987,9 @@ TEST_CASE("Undo collapses a silent point before it replays", "[core][chart]")
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(5);
+    fixture.controller.onChartRingDigitTyped(5);
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     const common::core::Chart planted = currentChart(fixture.controller);
     REQUIRE(planted.notes.size() == 1);
     CHECK(planted.notes[0].keyframes.size() == 3);
@@ -1016,11 +1017,11 @@ TEST_CASE("A slide is authored as its start, then its landing, on one tail", "[c
 
     // The start: two beats in, at the note's own fret, so it says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(5);
-    // The landing: six beats in on the same tail. Strictly inside a ring the two digit verbs say
-    // the same thing, so the bare digit lands the slide exactly as the Alt one would.
+    fixture.controller.onChartRingDigitTyped(5);
+    // The landing: six beats in on the same tail, on the ring plane again — the bare digit would
+    // cut the ring there instead.
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     const common::core::Chart authored = currentChart(fixture.controller);
     REQUIRE(authored.notes.size() == 1);
     REQUIRE(authored.notes[0].keyframes.size() == 2);
@@ -1047,7 +1048,7 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_holding_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(9);
+    fixture.controller.onChartRingDigitTyped(9);
     // The plant leaves the point SELECTED, so the next digit retypes it rather than opening a
     // second entry at the same slot. 7 cannot be widened under the fret cap, so the retype settles
     // in this one keystroke.
@@ -1066,35 +1067,91 @@ TEST_CASE("A planted point kept once it says something", "[core][chart]")
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// Every tail is an authoring surface for points, a plain note's included: a digit there states a
-// point rather than chopping the ring with a new note — and typed at the note's own fret it is a
-// silent one, authoring state like any other that says nothing.
-TEST_CASE("A digit on a plain note's tail plants a point, not a note", "[core][chart]")
+// Every tail is an authoring surface, a plain note's included, and the plane says what for: a bare
+// digit there is "a note here", a fresh head that CUTS the ring and takes its remainder, while the
+// ring digit states a point on the path — typed at the note's own fret, a silent one, authoring
+// state like any other that says nothing.
+TEST_CASE(
+    "A digit on a plain note's tail cuts it, where a ring digit plants a point", "[core][chart]")
 {
     common::core::Chart plain = makeGlideChart();
     plain.notes[0].keyframes.clear();
     KeyframeFixture fixture{std::move(plain)};
     const common::core::Chart original = currentChart(fixture.controller);
 
-    click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(5);
-    const common::core::Chart planted = currentChart(fixture.controller);
-    REQUIRE(planted.notes.size() == 1);
-    REQUIRE(planted.notes[0].keyframes.size() == 1);
-    CHECK(planted.notes[0].keyframes[0].offset == common::core::Fraction{2});
-    CHECK(planted.notes[0].keyframes[0].fret == 5);
-    // The ring is untouched: nothing was chopped.
-    CHECK(planted.notes[0].sustain == original.notes[0].sustain);
+    SECTION("the bare digit cuts the ring")
+    {
+        const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+        click(fixture.controller, g_travel_tail_x, g_string_3_y);
+        fixture.controller.onChartFretDigitTyped(5);
+        const common::core::Chart cut = currentChart(fixture.controller);
+        REQUIRE(cut.notes.size() == 2);
+        CHECK(cut.notes[0].position == original.notes[0].position);
+        CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+        CHECK(cut.notes[0].keyframes.empty());
+        const common::core::ChartNote& head = cut.notes[1];
+        CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 3});
+        CHECK(head.string == 3);
+        CHECK(head.fret == 5);
+        CHECK(head.sustain == common::core::Fraction{6});
+        CHECK(head.attack == common::core::NoteAttack::Pick);
+        // The struck head is what the settle selects, and the cut is one entry.
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+        CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
 
-    click(fixture.controller, g_onset_x, g_string_2_y);
+        fixture.controller.onUndoRequested();
+        CHECK(currentChart(fixture.controller) == original);
+    }
+
+    SECTION("the ring digit plants a point")
+    {
+        click(fixture.controller, g_travel_tail_x, g_string_3_y);
+        fixture.controller.onChartRingDigitTyped(5);
+        const common::core::Chart planted = currentChart(fixture.controller);
+        REQUIRE(planted.notes.size() == 1);
+        REQUIRE(planted.notes[0].keyframes.size() == 1);
+        CHECK(planted.notes[0].keyframes[0].offset == common::core::Fraction{2});
+        CHECK(planted.notes[0].keyframes[0].fret == 5);
+        // The ring is untouched: nothing was chopped.
+        CHECK(planted.notes[0].sustain == original.notes[0].sustain);
+
+        click(fixture.controller, g_onset_x, g_string_2_y);
+        CHECK(currentChart(fixture.controller) == original);
+    }
+}
+
+// A bare digit at a caret a GLIDE covers cuts it mid-glide: the origin keeps the fret it set out
+// from to the cut, re-timing nothing, and the fresh head at the typed fret carries the rest of
+// the path on — the arrival rebased onto its onset.
+TEST_CASE("A digit at a caret on a travel leg cuts the glide", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(7);
+    const common::core::Chart cut = currentChart(fixture.controller);
+    REQUIRE(cut.notes.size() == 2);
+    CHECK(cut.notes[0].fret == 5);
+    CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+    CHECK(cut.notes[0].keyframes.empty());
+    const common::core::ChartNote& head = cut.notes[1];
+    CHECK(head.position == common::core::GridPosition{.measure = 2, .beat = 3});
+    CHECK(head.fret == 7);
+    CHECK(head.sustain == common::core::Fraction{6});
+    REQUIRE(head.keyframes.size() == 1);
+    CHECK(head.keyframes[0].offset == common::core::Fraction{2});
+    CHECK(head.keyframes[0].fret == 9);
+
+    fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// A digit at a caret a GLIDE covers states a POINT on the tail, not a note that would chop it:
-// the typed fret rides the same pending entry a typed note does and lands planted and selected —
-// so a typed fret the path already passes through is a point that says nothing, authoring state
-// that pushes no entry.
-TEST_CASE("A digit at a caret on a travel leg states a point", "[core][chart]")
+// A ring digit at a caret a GLIDE covers states a POINT on the tail: the typed fret rides the same
+// pending entry a typed note does and lands planted and selected — so a typed fret the path
+// already passes through is a point that says nothing, authoring state that pushes no entry.
+TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -1102,7 +1159,7 @@ TEST_CASE("A digit at a caret on a travel leg states a point", "[core][chart]")
 
     // Two beats in, the leg from 5 to 9 passes through 7: stating 7 there says nothing yet.
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(7);
+    fixture.controller.onChartRingDigitTyped(7);
     const common::core::Chart silent = currentChart(fixture.controller);
     REQUIRE(silent.notes.size() == 1);
     REQUIRE(silent.notes[0].keyframes.size() == 2);
@@ -1134,7 +1191,8 @@ TEST_CASE("A digit at a caret on a travel leg states a point", "[core][chart]")
 
 // The typed point and its changed path draw immediately beneath the pending box, then wait for a
 // second digit exactly as a typed note does: the two combine into one value inside the entry
-// window, so a point widens like every other typed value. The stored chart remains untouched
+// window, so a point widens like every other typed value. The FIRST key's plane is the entry's,
+// so a bare second digit widens the point rather than cutting. The stored chart remains untouched
 // until settlement.
 TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][chart]")
 {
@@ -1142,7 +1200,7 @@ TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][c
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_travel_tail_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(1);
+    fixture.controller.onChartRingDigitTyped(1);
     CHECK(currentChart(fixture.controller) == original);
     const std::shared_ptr<const common::core::ChartViewState>& preview =
         publishedState(fixture.view).tab;
@@ -1171,6 +1229,47 @@ TEST_CASE("A typed point on a tail previews the keyframe immediately", "[core][c
     REQUIRE(stated.notes.size() == 1);
     REQUIRE(stated.notes[0].keyframes.size() == 2);
     CHECK(stated.notes[0].keyframes[0].fret == 12);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+}
+
+// A pending CUT is a creating entry like any other: the divided ring and its fresh head draw at
+// once from the projected plan, the box sits at the cut's slot, and a second digit widens the
+// head's fret — all while the stored chart stays whole until the entry settles.
+TEST_CASE("A pending cut previews the divided ring under its box", "[core][chart]")
+{
+    PendingKeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(1);
+    CHECK(currentChart(fixture.controller) == original);
+    const std::shared_ptr<const common::core::ChartViewState>& preview =
+        publishedState(fixture.view).tab;
+    REQUIRE(preview != nullptr);
+    REQUIRE(preview->notes.size() == 2);
+    CHECK_THAT(preview->notes[1].start_seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+    CHECK(preview->notes[1].fret == 1);
+    const std::optional<ChartPendingFretViewState>& pending =
+        publishedState(fixture.view).chart_edit.pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "1");
+        CHECK(pending->valid);
+        const auto* const slot = std::get_if<ChartSlotViewState>(&pending->at);
+        REQUIRE(slot != nullptr);
+        if (slot != nullptr)
+        {
+            CHECK_THAT(slot->seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+            CHECK(slot->string == 3);
+        }
+    }
+
+    fixture.controller.onChartFretDigitTyped(2);
+    const common::core::Chart cut = currentChart(fixture.controller);
+    REQUIRE(cut.notes.size() == 2);
+    CHECK(cut.notes[0].sustain == common::core::Fraction{2});
+    CHECK(cut.notes[1].fret == 12);
     CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
 }
 
@@ -1350,10 +1449,10 @@ TEST_CASE("A point typed before a slide-out silences it until focus leaves", "[c
     const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
     // One beat inside the six-second end, at the fixture geometry's 20 px/s: seven beats along the
-    // ring, where the digit states a point on the path.
+    // ring, where the ring digit states a point on the path.
     constexpr float one_beat_inside_x{110.0f};
     click(fixture.controller, one_beat_inside_x, g_string_3_y);
-    fixture.controller.onChartFretDigitTyped(6);
+    fixture.controller.onChartRingDigitTyped(6);
 
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 1);
@@ -1393,7 +1492,7 @@ TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
 
         // Six beats in, where the glide holds its junction's 9.
         click(fixture.controller, g_holding_tail_x, g_string_3_y);
-        fixture.controller.onChartStatementInsertRequested();
+        fixture.controller.onRingPointInsertRequested();
 
         const common::core::Chart planted = currentChart(fixture.controller);
         REQUIRE(planted.notes.size() == 1);
@@ -1417,7 +1516,7 @@ TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
         const common::core::Chart original = currentChart(fixture.controller);
 
         click(fixture.controller, g_ring_end_x, g_string_3_y);
-        fixture.controller.onChartStatementInsertRequested();
+        fixture.controller.onRingPointInsertRequested();
 
         const common::core::Chart stated = currentChart(fixture.controller);
         REQUIRE(stated.notes.size() == 1);
@@ -1449,7 +1548,7 @@ TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
 
         click(fixture.controller, g_ring_end_x, g_string_3_y);
         REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
-        fixture.controller.onChartStatementInsertRequested();
+        fixture.controller.onRingPointInsertRequested();
 
         CHECK(currentChart(fixture.controller) == original);
         CHECK(
@@ -1459,20 +1558,28 @@ TEST_CASE("Alt+Insert on a tail states the fret in force", "[core][chart]")
             }));
     }
 
-    SECTION("a slot no ring covers is inert")
+    SECTION("a slot no ring reaches does what Insert does")
     {
         KeyframeFixture fixture;
         const common::core::Chart original = currentChart(fixture.controller);
 
-        // The empty string-2 lane: nothing rings there, so there is no fret in force to state.
+        // The empty string-2 lane: nothing rings there, so the key places a head at the fret in
+        // force, which on a string that never sounded is the open string.
         click(fixture.controller, g_holding_tail_x, g_string_2_y);
-        fixture.controller.onChartStatementInsertRequested();
-        CHECK(currentChart(fixture.controller) == original);
+        fixture.controller.onRingPointInsertRequested();
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        CHECK(placed.notes[0] == original.notes[0]);
+        CHECK(placed.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
+        CHECK(placed.notes[1].string == 2);
+        CHECK(placed.notes[1].fret == 0);
 
-        // Nor on a head, whose own facts the note carries: the caret is not on a tail at all.
+        // On a head no ring ends at, it selects the head and edits nothing.
         click(fixture.controller, g_onset_x, g_string_3_y);
-        fixture.controller.onChartStatementInsertRequested();
-        CHECK(currentChart(fixture.controller) == original);
+        fixture.controller.onRingPointInsertRequested();
+        CHECK(currentChart(fixture.controller) == placed);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
     }
 }
 
@@ -1489,7 +1596,7 @@ TEST_CASE("Alt+Insert at an abutting end states the arrival", "[core][chart]")
     KeyframeFixture fixture{std::move(abutting)};
 
     click(fixture.controller, g_ring_end_x, g_string_3_y);
-    fixture.controller.onChartStatementInsertRequested();
+    fixture.controller.onRingPointInsertRequested();
 
     const common::core::Chart stated = currentChart(fixture.controller);
     REQUIRE(stated.notes.size() == 2);
@@ -1503,6 +1610,256 @@ TEST_CASE("Alt+Insert at an abutting end states the arrival", "[core][chart]")
     if (arrival != nullptr)
     {
         CHECK(*arrival == 9);
+    }
+}
+
+// `Insert` on a string row is the bare digit's route with the digit supplied — the fret already in
+// force on the string at the caret — settled in its own keystroke: a head on an empty slot and at a
+// ring's end, the cut inside a ring, and the head under the caret selected rather than edited.
+TEST_CASE("Insert at the caret states a note at the fret in force", "[core][chart]")
+{
+    // Half a beat past the glide's ring end, on its own string.
+    constexpr float past_ring_end_x{130.0f};
+
+    SECTION("an empty string gives the open string")
+    {
+        KeyframeFixture fixture;
+        click(fixture.controller, g_holding_tail_x, g_string_2_y);
+        fixture.controller.onInsertAtCaretRequested();
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        CHECK(placed.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
+        CHECK(placed.notes[1].string == 2);
+        CHECK(placed.notes[1].fret == 0);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+    }
+
+    SECTION("at a ring's end, the head at the last stop, the ring untouched")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onInsertAtCaretRequested();
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        CHECK(placed.notes[0] == original.notes[0]);
+        CHECK(placed.notes[1].position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(placed.notes[1].fret == 9);
+    }
+
+    SECTION("past a slide-out, the last pitched stop rather than the slide's target")
+    {
+        KeyframeFixture fixture{makeSlideOutGlideChart()};
+        click(fixture.controller, past_ring_end_x, g_string_3_y);
+        fixture.controller.onInsertAtCaretRequested();
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        CHECK(placed.notes[1].string == 3);
+        CHECK(placed.notes[1].fret == 9);
+    }
+
+    SECTION("inside a ring, the cut at the stop the path holds there")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+        const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onInsertAtCaretRequested();
+        const common::core::Chart cut = currentChart(fixture.controller);
+        REQUIRE(cut.notes.size() == 2);
+        CHECK(cut.notes[0].sustain == common::core::Fraction{6});
+        CHECK(cut.notes[0].keyframes == original.notes[0].keyframes);
+        CHECK(cut.notes[1].position == common::core::GridPosition{.measure = 3, .beat = 3});
+        CHECK(cut.notes[1].fret == 9);
+        CHECK(cut.notes[1].sustain == common::core::Fraction{2});
+        CHECK(cut.notes[1].attack == common::core::NoteAttack::Pick);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+        CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before + 1);
+        CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+    }
+
+    SECTION("on a head, it selects the head and edits nothing")
+    {
+        KeyframeFixture fixture;
+        // Delete then undo leaves the caret armed over the restored head with nothing selected.
+        click(fixture.controller, g_onset_x, g_string_3_y);
+        fixture.controller.onSelectionDeleteRequested();
+        fixture.controller.onUndoRequested();
+        const common::core::Chart restored = currentChart(fixture.controller);
+        REQUIRE(restored.notes.size() == 1);
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
+        const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
+
+        fixture.controller.onInsertAtCaretRequested();
+        CHECK(currentChart(fixture.controller) == restored);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
+        CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
+    }
+}
+
+// A SCRAPE has no junction to divide, so the cut refuses: a bare digit shows it through the pending
+// entry's red box at the cut's slot, while `Insert`, settled in its own keystroke, says nothing.
+TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
+{
+    common::core::Chart scraping;
+    scraping.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote scrape =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{8});
+    scrape.attack = common::core::NoteAttack::PickSlide;
+    scrape.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = 3}};
+    common::core::setSlideOut(scrape, 12);
+    scraping.notes = {std::move(scrape)};
+    KeyframeFixture fixture{std::move(scraping)};
+    const common::core::Chart original = currentChart(fixture.controller);
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+
+    SECTION("a digit leaves a red box")
+    {
+        fixture.controller.onChartFretDigitTyped(5);
+        CHECK(currentChart(fixture.controller) == original);
+        const std::optional<ChartPendingFretViewState>& pending =
+            publishedState(fixture.view).chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK(pending->text == "5");
+            CHECK_FALSE(pending->valid);
+            const auto* const slot = std::get_if<ChartSlotViewState>(&pending->at);
+            REQUIRE(slot != nullptr);
+            if (slot != nullptr)
+            {
+                CHECK_THAT(slot->seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+                CHECK(slot->string == 3);
+            }
+        }
+    }
+
+    SECTION("Insert is silent")
+    {
+        fixture.controller.onInsertAtCaretRequested();
+        CHECK(currentChart(fixture.controller) == original);
+        CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+    }
+}
+
+// THE RING PLANE AT A RING'S END: `Alt`+digit states the end statement where the bare digit would
+// place the next head, addresses a statement already standing there rather than doubling it, and
+// where no ring reaches the slot does exactly what the bare digit does.
+TEST_CASE("A ring digit at a ring's end states the end statement", "[core][chart]")
+{
+    SECTION("a ring that simply ends takes a slide-out")
+    {
+        KeyframeFixture fixture;
+        const common::core::Chart original = currentChart(fixture.controller);
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onChartRingDigitTyped(3);
+        const common::core::Chart stated = currentChart(fixture.controller);
+        REQUIRE(stated.notes.size() == 1);
+        CHECK(stated.notes[0].sustain == original.notes[0].sustain);
+        const int* const slides_out_toward = common::core::endStatedFretOrNull(stated.notes[0]);
+        REQUIRE(slides_out_toward != nullptr);
+        if (slides_out_toward != nullptr)
+        {
+            CHECK(*slides_out_toward == 3);
+        }
+        CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+    }
+
+    SECTION("a statement already standing is selected and retyped")
+    {
+        KeyframeFixture fixture{makeSlideOutGlideChart()};
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+        fixture.controller.onChartRingDigitTyped(7);
+        const common::core::Chart retyped = currentChart(fixture.controller);
+        REQUIRE(retyped.notes.size() == 1);
+        REQUIRE(retyped.notes[0].keyframes.size() == 2);
+        CHECK(retyped.notes[0].keyframes[1].offset == common::core::Fraction{8});
+        CHECK(retyped.notes[0].keyframes[1].fret == 7);
+        CHECK(
+            publishedState(fixture.view).chart_edit.selected_keyframes ==
+            (std::vector<ChartKeyframeRef>{
+                ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+            }));
+    }
+
+    SECTION("one selected head where a ring ends names that ring's end")
+    {
+        KeyframeFixture fixture{makeAbuttingStringChart(false)};
+        // Arming on the abutting head selects it: the operand is that one head.
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        REQUIRE(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{1});
+        fixture.controller.onChartRingDigitTyped(3);
+        const common::core::Chart stated = currentChart(fixture.controller);
+        REQUIRE(stated.notes.size() == 2);
+        // The head keeps its fret; the ring's end states the head's own stop, an arrival.
+        CHECK(stated.notes[1].fret == 3);
+        const int* const arrival = common::core::endStatedFretOrNull(stated.notes[0]);
+        REQUIRE(arrival != nullptr);
+        if (arrival != nullptr)
+        {
+            CHECK(*arrival == 3);
+        }
+        const common::core::ChartConnections connections = common::core::chartConnections(
+            stated.notes, fixture.controller.session().song().tempo_map);
+        REQUIRE(connections.arrives_into.size() == 2);
+        CHECK(connections.arrives_into[0]);
+    }
+
+    SECTION("no ring at the slot is the bare digit")
+    {
+        KeyframeFixture fixture;
+        click(fixture.controller, g_holding_tail_x, g_string_2_y);
+        fixture.controller.onChartRingDigitTyped(5);
+        const common::core::Chart placed = currentChart(fixture.controller);
+        REQUIRE(placed.notes.size() == 2);
+        CHECK(placed.notes[1].string == 2);
+        CHECK(placed.notes[1].fret == 5);
+    }
+}
+
+// The ring plane's redirect is a property of ONE slot, so over a wider selection it is ignored and
+// the key retypes everything selected, exactly as the bare digit would.
+TEST_CASE("A ring digit over a wider selection retypes it", "[core][chart]")
+{
+    SECTION("two heads, one of them where a ring ends")
+    {
+        common::core::Chart chart = makeAbuttingStringChart(false);
+        chart.notes.push_back(makeTestNote({.measure = 4, .beat = 1}, 2, 3));
+        std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
+        KeyframeFixture fixture{std::move(chart)};
+        const common::core::Chart original = currentChart(fixture.controller);
+
+        // A marquee over both heads at 6.0s, on strings 2 and 3, pressed on empty lane past them.
+        fixture.controller.onChartPointerDown(pointerEvent(150.0f, 199.0f));
+        fixture.controller.onChartPointerDrag(pointerEvent(105.0f, 121.0f));
+        fixture.controller.onChartPointerUp(pointerEvent(105.0f, 121.0f));
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.size() == 2);
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+
+        fixture.controller.onChartRingDigitTyped(7);
+        const common::core::Chart retyped = currentChart(fixture.controller);
+        REQUIRE(retyped.notes.size() == 3);
+        CHECK(retyped.notes[0].keyframes == original.notes[0].keyframes);
+        CHECK(retyped.notes[1].fret == 7);
+        CHECK(retyped.notes[2].fret == 7);
+    }
+
+    SECTION("a keyframe")
+    {
+        KeyframeFixture fixture;
+        click(fixture.controller, g_junction_x, g_string_3_y);
+        REQUIRE(publishedState(fixture.view).chart_edit.selected_keyframes.size() == 1);
+        fixture.controller.onChartRingDigitTyped(7);
+        const common::core::Chart retyped = currentChart(fixture.controller);
+        REQUIRE(retyped.notes.size() == 1);
+        REQUIRE(retyped.notes[0].keyframes.size() == 1);
+        CHECK(retyped.notes[0].keyframes[0].fret == 7);
+        CHECK(retyped.notes[0].fret == 5);
     }
 }
 

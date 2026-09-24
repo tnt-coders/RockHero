@@ -264,8 +264,8 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ExtendTimeSelection:
             case core::EditorActionId::MoveSelection:
             case core::EditorActionId::DeleteSelection:
-            case core::EditorActionId::InsertLanePoint:
-            case core::EditorActionId::InsertChartStatement:
+            case core::EditorActionId::InsertAtCaret:
+            case core::EditorActionId::InsertRingPoint:
             case core::EditorActionId::TypeChartFretDigit:
             case core::EditorActionId::ShiftChartFrets:
             case core::EditorActionId::AdjustChartSustain:
@@ -352,8 +352,8 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ExtendTimeSelection:
         case core::EditorActionId::MoveSelection:
         case core::EditorActionId::DeleteSelection:
-        case core::EditorActionId::InsertLanePoint:
-        case core::EditorActionId::InsertChartStatement:
+        case core::EditorActionId::InsertAtCaret:
+        case core::EditorActionId::InsertRingPoint:
         case core::EditorActionId::TypeChartFretDigit:
         case core::EditorActionId::ShiftChartFrets:
         case core::EditorActionId::AdjustChartSustain:
@@ -1682,8 +1682,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SustainShorten:
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
-        case EditorCommandId::InsertLanePoint:
-        case EditorCommandId::InsertChartStatement:
+        case EditorCommandId::InsertAtCaret:
+        case EditorCommandId::InsertRingPoint:
         case EditorCommandId::CancelDismiss:
         case EditorCommandId::TypeDigit0:
         case EditorCommandId::TypeDigit1:
@@ -1695,6 +1695,16 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::TypeDigit7:
         case EditorCommandId::TypeDigit8:
         case EditorCommandId::TypeDigit9:
+        case EditorCommandId::TypeRingDigit0:
+        case EditorCommandId::TypeRingDigit1:
+        case EditorCommandId::TypeRingDigit2:
+        case EditorCommandId::TypeRingDigit3:
+        case EditorCommandId::TypeRingDigit4:
+        case EditorCommandId::TypeRingDigit5:
+        case EditorCommandId::TypeRingDigit6:
+        case EditorCommandId::TypeRingDigit7:
+        case EditorCommandId::TypeRingDigit8:
+        case EditorCommandId::TypeRingDigit9:
         case EditorCommandId::GridFiner:
         case EditorCommandId::GridCoarser:
         case EditorCommandId::ZoomIn:
@@ -2361,15 +2371,15 @@ bool EditorView::performCommand(const InvocationInfo& info)
             return true;
         }
 
-        case EditorCommandId::InsertLanePoint:
+        case EditorCommandId::InsertAtCaret:
         {
-            m_controller.onLanePointInsertRequested();
+            m_controller.onInsertAtCaretRequested();
             return true;
         }
 
-        case EditorCommandId::InsertChartStatement:
+        case EditorCommandId::InsertRingPoint:
         {
-            m_controller.onChartStatementInsertRequested();
+            m_controller.onRingPointInsertRequested();
             return true;
         }
 
@@ -2399,7 +2409,8 @@ bool EditorView::performCommand(const InvocationInfo& info)
         // Digits type the row's payload (the typing rule, §9b), in the decoder's try order:
         // the lanes view first (it re-checks its own possibly gesture-deferred caret copy),
         // then chart fret typing; the passive marker keeps digits inert (the controller owns
-        // that branch).
+        // that branch). The ring plane follows the same order — on a lane row a digit is a
+        // digit, whatever it is chorded with.
         case EditorCommandId::TypeDigit0:
         case EditorCommandId::TypeDigit1:
         case EditorCommandId::TypeDigit2:
@@ -2410,16 +2421,40 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::TypeDigit7:
         case EditorCommandId::TypeDigit8:
         case EditorCommandId::TypeDigit9:
+        case EditorCommandId::TypeRingDigit0:
+        case EditorCommandId::TypeRingDigit1:
+        case EditorCommandId::TypeRingDigit2:
+        case EditorCommandId::TypeRingDigit3:
+        case EditorCommandId::TypeRingDigit4:
+        case EditorCommandId::TypeRingDigit5:
+        case EditorCommandId::TypeRingDigit6:
+        case EditorCommandId::TypeRingDigit7:
+        case EditorCommandId::TypeRingDigit8:
+        case EditorCommandId::TypeRingDigit9:
         {
-            const int digit = static_cast<int>(info.commandID) -
-                              static_cast<int>(toJuceCommandId(EditorCommandId::TypeDigit0));
+            // The ring block sits above the bare block in the id space, so one compare tells the
+            // planes apart and each block's own base yields the digit.
+            const int id = static_cast<int>(info.commandID);
+            const int ring_base =
+                static_cast<int>(toJuceCommandId(EditorCommandId::TypeRingDigit0));
+            const bool ring = id >= ring_base;
+            const int digit =
+                id -
+                (ring ? ring_base : static_cast<int>(toJuceCommandId(EditorCommandId::TypeDigit0)));
             if (m_tone_automation_lanes_view.beginCaretValueEntry(digit))
             {
                 return true;
             }
             if (hasChart())
             {
-                m_controller.onChartFretDigitTyped(digit);
+                if (ring)
+                {
+                    m_controller.onChartRingDigitTyped(digit);
+                }
+                else
+                {
+                    m_controller.onChartFretDigitTyped(digit);
+                }
             }
             return true;
         }

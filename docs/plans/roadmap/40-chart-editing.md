@@ -384,12 +384,13 @@ format-side decisions) and the design docs — a fresh session needs no other co
   snap to the 1/960 fine grid, Shift extends selection / axis-locks drags, Esc cancels an
   in-flight gesture. Phases 3–8 follow that document's verb grammar; do not re-derive gestures
   locally. **Amended 2026-09-11 (same document, its entry-grammar record):** the chart has no insert
-  quasimode at all — every note is TYPED, a click never creates, and `Alt` creates only the
-  slide-out. A DIGIT at the armed caret is the whole of entry: a head on an empty slot and at a
-  ring's exact end (the next note), a POINT on the path where a ring covers the slot; `Alt`+digit
-  differs only at a ring's exact end, where it authors the slide-out. Dividing a ring is two
-  keystrokes — the digit plants the point, `Shift+L` disconnects it — so nothing single-press
-  truncates a ring or clips a keyframe, and the clamp remains the load,
+  quasimode at all — every note is TYPED and a click never creates. **Re-ruled 2026-09-23
+  (`ring-ends-and-authoring-planes.md`, *The keys*):** every entry key has two planes. Bare, a
+  NOTE at the caret — a head on an empty slot and at a ring's exact end, the head under the caret
+  retyped, the head that CUTS a ring it lands inside; with `Alt`, a POINT on the ring there — an
+  interior point, or the end statement. `Insert` and `Alt+Insert` are the same planes at the fret
+  in force. The single-press rule now forbids truncation only — a cut divides and deletes nothing
+  — and the clamp remains the load,
   import and MOVE authority. Everything above about Alt+click/Alt+drag on this lane is retired
   with it, as are the Phase 5 scope note's "Alt+click pencil placement", the Phase 4 record's
   "occupied slot = replace" and its 40-Q2-B truncation-on-insert, and the Phase 3 test line

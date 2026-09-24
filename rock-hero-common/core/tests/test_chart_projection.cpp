@@ -208,7 +208,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(shift_slider.slides[0].slide_out);
     CHECK(linkedKeyframe(shift_slider.slides[0]));
     CHECK(shift_slider.ring_end_seconds == Catch::Approx(13.0 * beat));
-    CHECK(shift_slider.ink_end_seconds == Catch::Approx(12.85 * beat));
+    CHECK(shift_slider.ink_end_seconds == Catch::Approx(12.9 * beat));
     // A plain paint walks no stop — the arrival lies past the ink end — and a reveal walks it.
     CHECK_FALSE(keyframeDrawn(shift_slider.slides[0], shift_slider.ink_end_seconds));
     CHECK(keyframeDrawn(shift_slider.slides[0], shift_slider.ring_end_seconds));
@@ -333,8 +333,8 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
                 {
                     Keyframe{.offset = Fraction{1}, .bend = 2.0},
                     Keyframe{.offset = Fraction{2}, .fret = 7},
-                    // Past the crop at 77/20, in the ending zone.
-                    Keyframe{.offset = Fraction{39, 10}, .bend = 1.0},
+                    // Past the crop at 39/10, in the ending zone.
+                    Keyframe{.offset = Fraction{79, 20}, .bend = 1.0},
                 },
         },
         // The binding onset the crop measures against.
@@ -354,15 +354,15 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     REQUIRE(state.notes.size() == 2);
     const NoteViewState& ringing = state.notes[0];
 
-    // 120 BPM 4/4: a beat is half a second and the margin is 0.075 s, 3/20 of a beat here, so the
-    // ink stops at 3.85 beats and the ring runs the full four.
-    CHECK(ringing.ink_end_seconds == Catch::Approx(1.925));
+    // 120 BPM 4/4: a beat is half a second and the margin is 0.05 s, a tenth of a beat here, so the
+    // ink stops at 3.9 beats and the ring runs the full four.
+    CHECK(ringing.ink_end_seconds == Catch::Approx(1.95));
     CHECK(ringing.ring_end_seconds == Catch::Approx(2.0));
 
     // The curve carries the onset point in front, which is the channel's opening value, and then
-    // every stated point — the last at its stored 3.9 beats, past the ink end.
+    // every stated point — the last at its stored 3.95 beats, past the ink end.
     REQUIRE(ringing.bend.size() == 3);
-    CHECK(ringing.bend[2].seconds == Catch::Approx(1.95));
+    CHECK(ringing.bend[2].seconds == Catch::Approx(1.975));
     CHECK(ringing.bend[2].seconds > ringing.ink_end_seconds);
     REQUIRE(ringing.slides.size() == 1);
     // Each keyframe carries the AUTHORED offset it was projected from, which is the identity the
@@ -426,11 +426,11 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
     CHECK(note.slides[1].slide_out);
     // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out at the
     // ring's own end a second in — the ring the chart stores — while the ink stops one margin
-    // (75 ms) before the head that binds.
+    // (50 ms) before the head that binds.
     CHECK(note.slides[0].seconds == Catch::Approx(0.25));
     CHECK(note.slides[1].seconds == Catch::Approx(1.0));
     CHECK(note.ring_end_seconds == Catch::Approx(1.0));
-    CHECK(note.ink_end_seconds == Catch::Approx(0.925));
+    CHECK(note.ink_end_seconds == Catch::Approx(0.95));
     // A plain paint walks the stop before the ink end and the leg toward the slide-out as far as
     // the ink end; a reveal walks both stops.
     CHECK(keyframeDrawn(note.slides[0], note.ink_end_seconds));
@@ -669,7 +669,7 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     CHECK(glide.slides.back().offset == Fraction{4});
     // The terminal stands at the ring's end, two seconds in, past the ink end one margin earlier:
     // a plain paint walks no stop, a reveal walks the terminal.
-    CHECK(glide.ink_end_seconds == Catch::Approx(1.925));
+    CHECK(glide.ink_end_seconds == Catch::Approx(1.95));
     CHECK_FALSE(keyframeDrawn(glide.slides[0], glide.ink_end_seconds));
     REQUIRE(keyframeDrawn(glide.slides[0], glide.ring_end_seconds));
     CHECK(glideStopAt(glide, 0).seconds == Catch::Approx(2.0));
@@ -762,7 +762,7 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
 TEST_CASE(
     "Chart projection trims a span's drawn extent to the minimum sustain distance", "[core][chart]")
 {
-    // 120 BPM 4/4 throughout: a beat is half a second and the margin is 0.075 s, 3/20 of a beat.
+    // 120 BPM 4/4 throughout: a beat is half a second and the margin is 0.05 s, a tenth of a beat.
     const auto note =
         [](const GridPosition& position, const int string, const int fret, const Fraction sustain) {
             return ChartNote{
@@ -816,7 +816,7 @@ TEST_CASE(
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].start_seconds == Catch::Approx(0.0));
-        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.675));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.7));
         // The close is that lone note's own onset — beat 1.5, which is where both the statement's
         // reach and the closing event land — so the drawn extent stops one margin inside it.
         CHECK(state.shapes[0].close_seconds == Catch::Approx(0.75));
@@ -824,43 +824,43 @@ TEST_CASE(
 
     SECTION("the trim never retreats behind the span's last statement")
     {
-        // The same figure with the closing note a THIRTY-SECOND after the restrike: the margin
-        // alone would end the rails at 39/40 of a beat, in front of the beat-2 strum they are drawn
+        // The same figure with the closing note a SIXTY-FOURTH after the restrike: the margin
+        // alone would end the rails at 77/80 of a beat, in front of the beat-2 strum they are drawn
         // over. The floor keeps them on that strum, at 1.0 beat — half a second.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{1}),
             note(one, 2, 7, Fraction{1}),
-            note(two, 1, 5, Fraction{1, 8}),
-            note(two, 2, 7, Fraction{1, 8}),
+            note(two, 1, 5, Fraction{1, 16}),
+            note(two, 2, 7, Fraction{1, 16}),
             note(
-                GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 8}},
+                GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 16}},
                 3,
                 7,
-                Fraction{1, 8}),
+                Fraction{1, 16}),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
-        // The close is still the closing onset, an eighth of a beat past the restrike: 1.125 beats
-        // from the front, or 0.5625 s. The floor is a DISPLAY floor, so it moves the drawn extent
-        // alone and the reveal here reaches the whole 1/8 beat the trim gave back.
-        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.5625));
+        // The close is still the closing onset, a sixteenth of a beat past the restrike: 1.0625
+        // beats from the front, or 0.53125 s. The floor is a DISPLAY floor, so it moves the drawn
+        // extent alone and the reveal here reaches the whole 1/16 beat the trim gave back.
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.53125));
     }
 
     SECTION("a span crowded inside the margin keeps exact adjacency")
     {
         // Nothing is left after the trim and the floor, so the statement is drawn however crowded:
-        // an eighth of a beat, ending exactly on the note that closed it.
+        // a sixteenth of a beat, ending exactly on the note that closed it.
         const ChartViewState state = project({
-            note(one, 1, 3, Fraction{1, 8}),
-            note(one, 2, 5, Fraction{1, 8}),
+            note(one, 1, 3, Fraction{1, 16}),
+            note(one, 2, 5, Fraction{1, 16}),
             note(
-                GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}},
+                GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 16}},
                 3,
                 7,
-                Fraction{1, 8}),
+                Fraction{1, 16}),
         });
         REQUIRE(state.shapes.size() == 1);
-        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.0625));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.03125));
         // Protected adjacency falls back to the musical close itself, so the two ends coincide and
         // the reveal has nothing to add: the rails already end on the note that closed the span.
         CHECK_THAT(

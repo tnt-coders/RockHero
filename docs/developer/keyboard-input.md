@@ -200,9 +200,10 @@ twins like `Shift+=` and the numpad-arrival `'+'`) group into **one chip** in th
 dialog and one entry in menu shortcut text; the chip's change/remove operate on every chord in
 its group, so no ghost binding can survive a visible removal.
 
-**Windows composes a character out of `Alt`+numpad digits.** Nothing binds that chord — `Alt` creates
-nothing on the chart lane — but a charter holding `Alt` for the ring reveal can still strike one, and
-Windows reads the pair as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
+**Windows composes a character out of `Alt`+numpad digits.** The ring digits ("Type Digit N on
+Ring", `Alt`+top-row digit) therefore have no numpad twin — the chord never reaches the editor from
+there — but a charter holding `Alt` for the ring reveal can still strike one, and Windows reads the
+pair as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
 the COMPOSED CHARACTER as a bare key press on the release, so `Alt`+7 `Alt`+6 would arrive as a
 plain `L` and fire the legato verb, and the codes 27 and 32 would arrive as cancel and play/pause.
 Each top-level window therefore filters at its key entry — `MainWindow` and `PreviewWindow`, the two
@@ -217,6 +218,12 @@ component's own `keyPressed` (`juce_ComponentPeer.cpp:200-217`), and each window
 commands from its `keyPressed`, so the filter is a keymap-level guarantee rather than a
 per-command guard. And nothing upstream can prevent the composition itself: it happens inside
 `TranslateMessage`, which JUCE calls for every message it pumps.
+
+**AltGr+digit arrives as `Alt`+digit on some layouts.** JUCE's Windows peer strips `Ctrl` from AltGr,
+so on a layout where AltGr types a character on a digit key (`{`, `[`, `]`, `}`, `²`, `³` on German,
+Polish and French layouts) the press fires the ring digit instead of typing the character. A text
+field being edited takes the key first, so typing there is unaffected; on the lane it is a
+`watch-items.md` entry with a reporting trigger, not a rule.
 
 Where the same chord needs different verbs by context (the old decoder's sequential dispatch),
 the mechanism is enablement: `KeyPressMappingSet::keyPressed` visits every command mapped to a
@@ -289,14 +296,14 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
 Alt+Shift+arrows, `Tab`/`Shift+Tab` and their `Ctrl` twins, the five `Ctrl+Shift`+letter row jumps,
-digits, `Enter`, `Ctrl+R`, Delete, Insert (an on-curve point at an armed automation-lane caret) and
-its chart twin `Alt+Insert` (the statement at the fret in force on a tail), and Esc
+digits and their `Alt` twins, `Enter`, `Ctrl+R`, Delete, Insert (whatever the armed caret's row
+holds) and its ring twin `Alt+Insert`, and Esc
 are registered commands like everything else. Their `perform` cases route to dedicated controller
 intents, and since 2026-08-21 every
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `StepToRowObject`, `JumpToFocusRow`,
-`JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertLanePoint`,
-`InsertChartStatement`,
+`JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
+`InsertRingPoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
 `ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`,
 `ToggleChartJunction`) — so
@@ -346,39 +353,48 @@ KEYFRAME as well as a head: a point on a slide states a fret exactly as a head d
 No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
 stop the digit reached, and a keyframe has one position channel and no satellite),
 `onSelectionDeleteRequested`,
-`onLanePointInsertRequested` (the lanes' on-curve point — bare `Insert`'s whole remaining create),
-`onChartStatementInsertRequested` (`Alt+Insert`, which states the fret in force at the caret; the
-reveal is in the chord so the tail being stated is drawn while it is stated) and the entry gestures
-around it — **every note is TYPED, a click never creates, and `Alt` creates no NOTE**. Every entry case on the lane follows from that one sentence.
-The DIGITS (`TypeDigit0`–`9`, "Type Digit N") are the whole of chart entry: at the armed caret, on
-an EMPTY slot and at a ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply
-the next note, since the ring already stops there, which is why sequential entry is safe — and on a
-slot a ring COVERS, a POINT on that note's path at the typed fret, planted and selected with the
-caret on it so the technique keys address it as they address any keyframe. At a ring's end the digit
-is ALWAYS the next note, whatever that end states: no landing addresses the end's own statement
-(`chartObjectAt`), so nothing there can swallow the keystroke into a retype. `ALT+INSERT` is what
-states the end — the digit route with the digit supplied, the fret already in force at the caret
-(`EditorAction::InsertChartStatement`): inside a ring the silent point typing the note's own fret
-makes, at the end a slide-out toward the fret in force, or the ARRIVAL where a head at that stop
-abuts. Its chord carries the reveal, so the tail the point lands on is drawn while it lands. A statement
-already standing at that offset is selected rather than doubled. A pointer press creates nothing
-under any modifier: it arms the caret and selects what it HIT (`Alt` keeps the ring reveal, the
-wheel and the arrows).
+`onChartRingDigitTyped` (the same digit on the RING plane, `Alt`+top-row digit),
+`onInsertAtCaretRequested` (`Insert`: whatever the armed caret's row holds — the lane's on-curve
+point, or the string row's note at the fret in force) and `onRingPointInsertRequested`
+(`Alt+Insert`, the ring plane of `Insert`) and the entry gestures around them — **every note is
+TYPED, a click never creates, and every entry key has TWO PLANES**. Every entry case on the lane
+follows from that one sentence (`ring-ends-and-authoring-planes.md`, *The keys*, 2026-09-23). A key
+first finds its OPERAND — the selection, else the armed caret's slot — and its plane decides what it
+does there. The BARE digit (`TypeDigit0`–`9`, "Type Digit N") says "a note here": over a selection
+it retypes what is selected; at the caret, on an EMPTY slot and at a ring's EXACT END alike, a HEAD
+at the typed fret — at the end it is simply the next note, since the ring already stops there,
+which is why sequential entry is safe, whatever that end states — the head under the caret
+RETYPED, and STRICTLY INSIDE a ring the head that CUTS it (`ChartFretEntry::Cut` → `planCutRing`).
+The `ALT` digit (`TypeRingDigit0`–`9`, "Type Digit N on Ring") says "a point on the ring here": on
+the ring that covers or ends at the operand's instant, a POINT at the typed fret strictly inside,
+the END STATEMENT at the end, and a statement already standing there SELECTED and retyped, never
+doubled (`chartRingDigitTarget`); where no ring reaches the operand it does exactly what the bare
+digit does. The operand is ONE slot — the caret's, armed on nothing or on the one selected head,
+where the ring ending at that head is what the key names; over a wider selection the plane is
+ignored and every selected object is retyped (`chartEntryTarget`, the one resolver the digits and
+the `Insert` chords share). `INSERT` and `ALT+INSERT` are the same two planes with the digit
+SUPPLIED — the fret already in force at the slot (`chartFretInForceAt`) — settled in the
+keystroke, and where the digit would RETYPE they SELECT instead (`insertAtChartCaret`). The ring plane's chord carries the reveal, so the ring the point
+lands on is drawn while it lands. A pointer press creates nothing under any modifier: it arms the
+caret and selects what it HIT (`Alt` keeps the ring reveal, the wheel and the arrows).
 A point that merely restates the fret the path is already running on says NOTHING, so it is silent
 authoring state (the commit law below): typing the same fret on a tail and stopping there leaves
 nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by chart law
 (`OpenStringSlide`) — nothing is pressed to glide — and the pending box paints red.
-**THE SPLIT IS TWO KEYSTROKES, and `planToggleJunctions` is its one home** — a digit plants the
-point where the division belongs, `Shift+L` splits it there (below). The point becomes the new
+**THE SPLIT (`Shift+L`) AND THE CUT (a bare digit or `Insert` inside a ring) DIVIDE A RING BY ONE
+WALK**, `splitNoteIntoProducts` (`chart_edits.cpp`) — the split at a selected point, the cut at
+the caret with a STRUCK head in place of the severed one (typed fret, strike defaults, the ring's
+remainder and its keyframes). Under the split the point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
 keyframe after it rides the new note, a slide-out included; the first note's arrival stands AT the
 cut, on the new head itself, which the chart proves is an arrival and not a slide-out because it names
 that head's own stop at that same instant (`arrivesIntoNextHead`) — so nothing retreats, a
 grid-step ring splits with no crowded case, and a silent arrival is kept as the visible authoring
-state it is. That segment walk has ONE caller, so there is one rule
-and one place it lives. A SCRAPE is refused: one picking-hand gesture has no junction. NOTHING
-SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp remains the authority for load,
+state it is. The walk has two callers and one rule. A SCRAPE is refused by both: one picking-hand
+gesture has no junction. The single-press rule now forbids TRUNCATION only — a cut divides and
+deletes nothing — and NOTHING SINGLE-PRESS TRUNCATES A RING OR CLIPS A KEYFRAME: the ring clamp
+remains the authority for load,
 for import, and for the plan gate every verb passes, which truncates a ring a head lands inside
 and refuses the plan where that truncation would lose an authored statement
 (\ref guide_2d_views).

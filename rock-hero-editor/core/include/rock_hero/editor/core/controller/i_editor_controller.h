@@ -365,23 +365,39 @@ public:
     virtual void onSelectionDeleteRequested() = 0;
 
     /*!
-    \brief Handles a typed bare fret digit: retype the selection, or state an object at the armed
-    caret.
+    \brief Handles a typed bare fret digit: "a note here" — retype the selection, or state a note
+    at the armed caret.
 
-    Every object on the chart lane is typed, and this is how. With a note selection, typing sets
-    every selected note to the typed value — what you type is what appears. With no selection and
-    an armed caret, the typed fret states whatever the slot calls for: a head where no ring covers
-    it, a POINT on the path of a ring it lands STRICTLY INSIDE (nothing single-press cuts a ring),
-    and at a ring's exact end the adjacent head, since the ring already stops where that head would
-    start. While the marker is passive with no selection, digits are inert — a stray keystroke
-    after listening authors nothing (the marker model). Digits within the multi-digit entry window
-    combine (typing 1 then 2 yields fret 12 as ONE undo entry); a digit outside the window starts a
-    fresh value, as does a digit of the OTHER entry verb. Each keystroke applies immediately so the
-    notation always shows the current value.
+    Every object on the chart lane is typed, and this is how. A key first finds its OPERAND — the
+    selection, else the caret's slot — and the bare digit acts on the operand itself. With a
+    selection, typing sets every selected note or keyframe to the typed value — what you type is
+    what appears. With none, the typed fret is a note at the caret: a head on an empty slot and at
+    a ring's exact end alike (the ring already stops where that head starts, which keeps sequential
+    entry safe), the head under the caret retyped, and inside a ring the head that CUTS it, taking
+    the ring's remainder. While the marker is passive with no selection, digits are inert — a
+    stray keystroke after listening authors nothing (the marker model). Digits within the
+    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry) whichever
+    plane began the entry; a digit outside the window starts a fresh value.
 
     \param digit Typed digit in [0, 9].
     */
     virtual void onChartFretDigitTyped(int digit) = 0;
+
+    /*!
+    \brief Handles a typed ring-plane fret digit (`Alt`+digit): "a point on the ring here".
+
+    The same key on the other plane: it acts on the RING that covers or ends at the operand's
+    instant on its string — a point strictly inside it, the end statement at its end, and where a
+    statement already stands there, that statement retyped (it is selected, never doubled) — and
+    where no ring reaches the operand it does exactly what the bare digit does. The operand is one
+    slot: the caret's, armed on nothing or on the one selected head, where the ring ending at that
+    head is what the key names. Over a wider selection — or a head selected without the caret on
+    it — the plane is ignored and every selected object is retyped, exactly as the bare digit
+    would.
+
+    \param digit Typed digit in [0, 9].
+    */
+    virtual void onChartRingDigitTyped(int digit) = 0;
 
     /*!
     \brief Handles a request to shift every selected note's fret by one (Alt+Shift+wheel).
@@ -738,26 +754,32 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
-    \brief Handles the Insert key on an automation lane: the on-curve point at its caret's slot.
+    \brief Handles the Insert key: creates at the armed caret whatever its row holds.
 
-    A slot already holding a point is never mutated, and a caret that is not armed on a lane — a
-    string row, a passive marker, the cursor a multi-select gesture leaves — is inert.
+    On an automation lane, the on-curve point at the caret's slot; a slot already holding a point
+    is never mutated. On a string row, the bare digit's route with the digit supplied — the fret
+    ALREADY IN FORCE on the string at the slot (inside a ring the stop its path states there, past
+    a ring's end the last pitched stop of the string's latest note, else the open string): a head
+    on an empty slot or at a ring's end, the cut inside a ring, and the head under the caret
+    selected rather than retyped. A passive marker, or the cursor a multi-select gesture leaves, is
+    inert.
     */
-    virtual void onLanePointInsertRequested() = 0;
+    virtual void onInsertAtCaretRequested() = 0;
 
     /*!
-    \brief Handles the chart lane's insert: the statement at an armed caret's offset along its ring.
+    \brief Handles the chart lane's ring-plane insert (`Alt+Insert`): the point at the caret's
+    instant on the ring there, at the fret in force.
 
-    The typed digit's route with the digit supplied — the fret ALREADY IN FORCE at that offset:
-    inside the ring the silent point typing the note's own fret makes, at the ring's end the end
-    statement at that fret. A caret no ring covers has no fret in force, so the key states nothing
-    there, and a statement already standing at the offset is selected rather than doubled.
+    The ring digit's route with the digit supplied: inside the ring the silent point typing the
+    note's own fret makes, at its end the end statement at that fret, and a statement already
+    standing there selected rather than doubled. Where no ring reaches the caret it does exactly
+    what `Insert` does.
 
-    Its chord carries the lane reveal (`Alt+Insert`) because the slot before a head can look blank
-    while lying inside a ring's ending zone, past its ink end: under the reveal the ring is drawn to
-    its end, so the charter sees what they are inserting onto.
+    Its chord carries the lane reveal because the slot before a head can look blank while lying
+    inside a ring's ending zone, past its ink end: under the reveal the ring is drawn to its end, so
+    the charter sees what they are inserting onto.
     */
-    virtual void onChartStatementInsertRequested() = 0;
+    virtual void onRingPointInsertRequested() = 0;
 
     /*!
     \brief Arms the lane caret at a timeline position: seeks and arms the caret on the named

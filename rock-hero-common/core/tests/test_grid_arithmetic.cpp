@@ -50,7 +50,7 @@ namespace
 
 // THE MARGIN IS A DURATION: the same span of seconds at any tempo, which is the whole point of the
 // law — the gap a player and a charter read on screen must not shrink because the song is fast.
-// The beat counts differ (75 ms is 3/40 of a beat at 60 BPM and a quarter of one at 200), the
+// The beat counts differ (50 ms is 1/20 of a beat at 60 BPM and a sixth of one at 200), the
 // seconds do not.
 TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[core][chart]")
 {
@@ -58,8 +58,8 @@ TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[co
 
     const TempoMap slow = steadyMap(60.0);
     const TempoMap fast = steadyMap(200.0);
-    CHECK(minimumSustainDistanceBeats(slow, onset) == Fraction{3, 40});
-    CHECK(minimumSustainDistanceBeats(fast, onset) == Fraction{1, 4});
+    CHECK(minimumSustainDistanceBeats(slow, onset) == Fraction{1, 20});
+    CHECK(minimumSustainDistanceBeats(fast, onset) == Fraction{1, 6});
 
     // Measured back through each map, both land on the one duration — within a tick, the lattice
     // the answer is floored onto.
@@ -75,7 +75,7 @@ TEST_CASE("The minimum sustain distance spans one duration at every tempo", "[co
 
 // A tempo anchor standing INSIDE the margin is honoured exactly, because the walk leaves the beat
 // axis for the map's time axis and comes back rather than scaling one local rate. Measure 1 runs
-// at 60 BPM, then the beat into measure 2 is pinned twenty times faster: the margin before the
+// at 60 BPM, then the beat into measure 2 is pinned forty times faster: the margin before the
 // downbeat therefore reaches back over the whole fast beat and on into the preceding one, which a
 // single-rate margin could never produce.
 TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[core][chart]")
@@ -84,12 +84,12 @@ TEST_CASE("The minimum sustain distance honours a tempo anchor inside it", "[cor
         {TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
         {BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
          BeatAnchor{.measure = 1, .beat = 4, .seconds = 3.0},
-         BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.05},
+         BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.025},
          BeatAnchor{.measure = 5, .beat = 1, .seconds = 7.0}},
     };
     const GridPosition onset{.measure = 2, .beat = 1, .offset = {}};
 
-    // 0.05 s of the 75 ms margin is spent on the fast beat and 0.025 s at one second per beat, so
+    // 0.025 s of the 50 ms margin is spent on the fast beat and 0.025 s at one second per beat, so
     // the margin starts 39/40 of a beat into measure 1 beat 3 — on the tick lattice exactly.
     CHECK(
         marginBefore(map, onset) ==
