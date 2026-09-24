@@ -260,8 +260,8 @@ constexpr std::array<std::pair<std::string_view, GpTripletFeel>, 7> g_triplet_fe
     // own playback rule (\ref GpNote::let_ring).
     note.let_ring = note_element.getChildByName("LetRing") != nullptr;
     // The vibrato element's TEXT is the tier, read here rather than downstream so the score's own
-    // house word for the ordinary shake (`Slight`) never reaches the builder. Presence is still
-    // the shake — a spelling this does not know is the ordinary tier rather than a dropped mark —
+    // house word for the ordinary vibrato (`Slight`) never reaches the builder. Presence is still
+    // the vibrato — a spelling this does not know is the ordinary tier rather than a dropped mark —
     // and absence is the only thing that means no vibrato at all.
     if (note_element.getChildByName("Vibrato") != nullptr)
     {

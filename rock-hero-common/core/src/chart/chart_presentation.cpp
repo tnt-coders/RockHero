@@ -56,7 +56,7 @@ namespace
 }
 
 // Rule 2's per-member earning: any keyframe at all, whichever channel it states — a mid-ring curl
-// and a delayed shake ride the tail exactly as a glide does — or a ring longer than the
+// and delayed vibrato ride the tail exactly as a glide does — or a ring longer than the
 // kept-sustain bound. The ring is measured in SECONDS through the tempo map, because the bound is
 // a duration: the same written value earns at a slow tempo and not at a fast one. Whole-note
 // techniques (muting, emphasis, harmonics) are deliberately absent: they say the same thing with or
@@ -67,7 +67,7 @@ namespace
         tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, note.position));
     const double end = tempo_map.secondsAtGlobalBeatPosition(
         globalBeatPosition(tempo_map, sustainEndPosition(tempo_map, note)));
-    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || isShaking(note.vibrato) ||
+    return std::is_neq(note.bend <=> 0.0) || !note.keyframes.empty() || hasVibrato(note.vibrato) ||
            note.tremolo || end - onset > g_minimum_kept_sustain_seconds;
 }
 
@@ -84,7 +84,7 @@ namespace
 // always-visible landmark. The verdict is the OFFSET that landmark sits at — the cases are stated
 // once, at ChartPresentation::rested_from — or nothing for a tail that never rests.
 //
-// What never rests is a ring still STATING at its own end — a bend held to the end, a shake that
+// What never rests is a ring still STATING at its own end — a bend held to the end, vibrato that
 // never stops, tremolo, a slide-out's travel: the curtain owns only what the ribbon has stopped
 // saying anything with. A statement that FINISHES is the split: the stated portion stays always
 // visible, and the plain remainder joins the curtain where the statement ended — held to the ink
@@ -109,7 +109,7 @@ namespace
         return std::nullopt;
     }
     const RingState state = ringStateAt(note, note.sustain);
-    if (std::is_neq(state.bend <=> 0.0) || isShaking(state.vibrato))
+    if (std::is_neq(state.bend <=> 0.0) || hasVibrato(state.vibrato))
     {
         return std::nullopt;
     }

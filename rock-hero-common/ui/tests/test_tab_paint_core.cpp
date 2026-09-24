@@ -35,10 +35,10 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The vibrato regions a note shaking END TO END carries: exactly what the projection derives from
+// The vibrato regions a note vibrating END TO END carries: exactly what the projection derives from
 // a chart that states vibrato at the onset and never restates it, which is every chart written
 // before the channel could say anything else.
-[[nodiscard]] std::vector<common::core::VibratoSpanViewState> wholeTailShake(
+[[nodiscard]] std::vector<common::core::VibratoSpanViewState> wholeTailVibrato(
     const double start_seconds, const double end_seconds)
 {
     return {common::core::VibratoSpanViewState{
@@ -584,7 +584,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
             .tremolo = tremolo,
             .bend = {},
             .slides = {},
-            .vibrato = vibrato ? wholeTailShake(2.0, 8.0)
+            .vibrato = vibrato ? wholeTailVibrato(2.0, 8.0)
                                : std::vector<common::core::VibratoSpanViewState>{},
         };
     };
@@ -682,8 +682,8 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
 }
 
 // The sine covers exactly the stretch its region claims and no more — BOTH of its ends, because
-// the channel states a shake's stop as readily as its start. This is the figure the keyframe
-// model's vibrato channel exists for — a shake that starts where a glide arrives, which the
+// the channel states vibrato's stop as readily as its start. This is the figure the keyframe
+// model's vibrato channel exists for — vibrato that starts where a glide arrives, which the
 // whole-note flag could only draw from the onset, across the travel it never touched.
 TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[ui][tab-paint]")
 {
@@ -719,20 +719,20 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
         painted({common::core::VibratoSpanViewState{.start_seconds = 5.0, .end_seconds = 8.0}});
     const juce::Image early =
         painted({common::core::VibratoSpanViewState{.start_seconds = 2.0, .end_seconds = 5.0}});
-    const juce::Image throughout = painted(wholeTailShake(2.0, 8.0));
+    const juce::Image throughout = painted(wholeTailVibrato(2.0, 8.0));
 
-    // Left of the statement the shaking note and the steady one are the SAME picture: the sine
+    // Left of the statement the vibrating note and the steady one are the SAME picture: the sine
     // starts where the chart says it starts, not where the note does.
     CHECK(worstPixelDeltaInColumns(late, steady, 0, 92) == 0);
     // ...and right of it they differ, so the identity above is not an empty render.
     CHECK(worstPixelDeltaInColumns(late, steady, 108, 158) > 0);
     // The discrimination the first check needs: a region covering the whole tail DOES ink those
     // same early columns, so the probe can see a sine there when one is drawn — and the old
-    // whole-note flag drew exactly this picture for the late shake too.
+    // whole-note flag drew exactly this picture for the late vibrato too.
     CHECK(worstPixelDeltaInColumns(throughout, steady, 0, 92) > 0);
     CHECK(worstPixelDeltaInColumns(throughout, late, 0, 92) > 0);
 
-    // The region's other end, which is the same rule read backwards: a shake the channel STOPS
+    // The region's other end, which is the same rule read backwards: vibrato the channel STOPS
     // mid-tail inks nothing past the stop, while the tail itself runs on to 8.0s underneath. A
     // sine drawn to the note's end instead of the region's would pass every check above.
     CHECK(worstPixelDeltaInColumns(early, steady, 108, 158) == 0);
@@ -749,7 +749,7 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     // wide band is the multiplier applied to the ordinary swing with the stroke added back — read
     // off the constant, because a literal here would pass while the two tiers had silently come
     // apart.
-    std::vector<common::core::VibratoSpanViewState> wide_regions = wholeTailShake(2.0, 8.0);
+    std::vector<common::core::VibratoSpanViewState> wide_regions = wholeTailVibrato(2.0, 8.0);
     wide_regions.front().state = common::core::VibratoState::Wide;
     const juce::Image wide = painted(std::move(wide_regions));
     const double stroke =
@@ -792,7 +792,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .slides = {common::core::KeyframeViewState{
                 .seconds = 7.0, .fret = 9, .offset = common::core::Fraction{}
             }},
-            .vibrato = wholeTailShake(2.0, 8.0),
+            .vibrato = wholeTailVibrato(2.0, 8.0),
         },
         common::core::NoteViewState{
             .start_seconds = 3.0,
@@ -974,7 +974,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .fret = 7,
             .bend = {},
             .slides = {},
-            .vibrato = wholeTailShake(7.0, 13.0),
+            .vibrato = wholeTailVibrato(7.0, 13.0),
         },
         // The tap: span-start onset on the same string at a fret the posture does not hold.
         common::core::NoteViewState{
@@ -2017,7 +2017,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
             .fret = 9,
             .bend = {},
             .slides = {},
-            .vibrato = wholeTailShake(1.0, 18.0),
+            .vibrato = wholeTailVibrato(1.0, 18.0),
         },
     };
 

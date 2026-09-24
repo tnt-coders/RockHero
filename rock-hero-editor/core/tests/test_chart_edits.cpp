@@ -317,7 +317,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                 {
                     // All THREE widths, not two: the wide tier goes through the same saved-form
                     // fixpoint as the ordinary one, and a shed that dropped only the narrow value
-                    // would leave a wide shake on a scrape.
+                    // would leave wide vibrato on a scrape.
                     for (const common::core::VibratoState vibrato :
                          {common::core::VibratoState::None,
                           common::core::VibratoState::Narrow,
@@ -526,7 +526,7 @@ TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][c
 // 40-Q2-B: inserting on a string whose earlier note's sustain rings across the new onset truncates
 // that sustain to end exactly at the onset, the statement at the ring's end riding back with it. A
 // truncation may SHORTEN a ring but never DELETE a statement: an insert that would erase a point
-// standing past the landing, or shed a shake stated on it, is refused whole by the plan gate
+// standing past the landing, or shed vibrato stated on it, is refused whole by the plan gate
 // (finalizePlan).
 TEST_CASE(
     "planInsertNote truncates an overlapped sustain and refuses to erase a statement",
@@ -615,10 +615,10 @@ TEST_CASE(
         CHECK(chart.notes[0].keyframes.size() == 2);
     }
 
-    SECTION("a shake stated exactly at the landing refuses the insert")
+    SECTION("vibrato stated exactly at the landing refuses the insert")
     {
         // The point at 1 survives the cut (the bound is inclusive) and becomes the end statement,
-        // which leaves no shake: the vibrato it states would be shed on a note the insert never
+        // which leaves no vibrato: the vibrato it states would be shed on a note the insert never
         // touched.
         ring_with({
             common::core::Keyframe{
@@ -1120,7 +1120,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         // what keeps the two losses the old step could inflict unreachable: a same-fret point
         // became a slide-out falling toward the fret the string already holds (a mark nothing
         // draws, dissolved by the gate, the visible point gone with it), and a point carrying a
-        // shake was bared of it by the slide-out's fret-and-nothing-else law.
+        // vibrato was bared of it by the slide-out's fret-and-nothing-else law.
         common::core::Chart one_point;
         one_point.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note =
@@ -1132,7 +1132,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         {
             carried.fret = 5;
         }
-        SECTION("a fret and a shake")
+        SECTION("a fret and vibrato")
         {
             carried.fret = 7;
             carried.vibrato = common::core::VibratoState::Wide;
@@ -2934,7 +2934,7 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
 // tidy is that eligibility is asked of the per-note rule authority instead of being restated. Each
 // flag therefore inherits its own rules for free, and they are different rules: a pinch harmonic
 // cannot be deadened (a damped string cannot squeal, so the normalizer would take the pinch with
-// the deadening) while a dead note cannot take a shake (it modulates a pitch the note does not
+// the deadening) while a dead note cannot take vibrato (it modulates a pitch the note does not
 // have).
 // Vibrato has its own planner now that the field is a width axis, so the second half below asks
 // THAT verb the same question: one law, two different answers - and neither is written in this
@@ -3173,7 +3173,7 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
     // The vibrato note is skipped; the plain note AND the harmonic both take the X.
     REQUIRE(dead->inserted.size() == 2);
     CHECK(std::ranges::none_of(dead->inserted, [](const common::core::ChartNote& note) {
-        return common::core::isShaking(note.vibrato);
+        return common::core::hasVibrato(note.vibrato);
     }));
     CHECK(std::ranges::all_of(dead->inserted, [](const common::core::ChartNote& note) {
         return note.dead;
@@ -4518,7 +4518,8 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
     SECTION("a keyframe stating no fret")
     {
         common::core::Chart chart = makeGlideChart();
-        // A mid-travel shake statement: a real keyframe that says nothing about where the hand is.
+        // A mid-travel vibrato statement: a real keyframe that says nothing about where the hand
+        // is.
         chart.notes[0].keyframes.insert(
             chart.notes[0].keyframes.begin(),
             common::core::Keyframe{
@@ -4734,8 +4735,8 @@ TEST_CASE("planCutRing ends the origin on a statement standing at the cut", "[co
 }
 
 // The channel states in force at the cut open the head, so the sound does not change across it:
-// a bend reached before the cut is the head's onset bend, a shake begun before it the head's
-// shake. Neither needs a keyframe of its own on the head.
+// a bend reached before the cut is the head's onset bend, vibrato begun before it the head's
+// vibrato. Neither needs a keyframe of its own on the head.
 TEST_CASE("planCutRing opens the head on the channel states in force", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -5499,7 +5500,7 @@ TEST_CASE("The pinch harmonic law reads the whole selection for the direction", 
 
 // The uniform-scope law under vibrato's TWO scopes: the direction a press means is read across
 // every anchor the selection holds, notes and keyframes alike, so a press clears only when all of
-// them already shake. The planner tests above cover what a press writes; this covers which press
+// them already vibrate. The planner tests above cover what a press writes; this covers which press
 // it is, which is the half `ChartTechniqueLaw::carried` owns.
 TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][chart]")
 {
@@ -5508,7 +5509,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
     note.vibrato = common::core::VibratoState::Narrow;
     note.keyframes = {
-        // The shake ends here, so the state in force AT this point is still.
+        // The vibrato ends here, so the state in force AT this point is still.
         common::core::Keyframe{
             .offset = common::core::Fraction{2},
             .fret = 9,
@@ -5523,7 +5524,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
     const ChartTechniqueLaw law = chartTechniqueLaw(ChartTechnique::Vibrato);
     const ChartSelectionKey note_key = ChartNoteKey{.slot = keyAt(glideOnset(), 1)};
 
-    SECTION("a keyframe carries the shake when the state in force where it stands is shaking")
+    SECTION("a keyframe carries the vibrato when the state in force where it stands is vibrating")
     {
         ChartSelection selection;
         selection.add(
@@ -5539,15 +5540,15 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         CHECK_FALSE(law.carried(chart, selection));
     }
 
-    SECTION("a mixed selection clears only when every anchor in it already shakes")
+    SECTION("a mixed selection clears only when every anchor in it already vibrates")
     {
-        ChartSelection shaking;
-        shaking.add(note_key);
-        shaking.add(
+        ChartSelection vibrating;
+        vibrating.add(note_key);
+        vibrating.add(
             ChartKeyframeKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
-        CHECK(law.carried(chart, shaking));
+        CHECK(law.carried(chart, vibrating));
 
-        // The onset shakes and the other anchor does not, so the press means SET — the same
+        // The onset vibrates and the other anchor does not, so the press means SET — the same
         // partly-carried answer a mixed note selection has always given.
         ChartSelection mixed;
         mixed.add(note_key);
@@ -5610,7 +5611,7 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     CHECK(chart.notes[2].sustain == common::core::Fraction{2});
 
     // The state the first junction states is what the second note OPENS with, so the push and the
-    // shake carry across the cut instead of restarting at the note's own defaults.
+    // vibrato carry across the cut instead of restarting at the note's own defaults.
     const common::core::ChartNote& second = chart.notes[1];
     CHECK(second.fret == 9);
     CHECK_THAT(second.bend, Catch::Matchers::WithinULP(1.0, 0));
@@ -5622,8 +5623,8 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
     CHECK(second.keyframes[0].fret == 11);
 
     // The third opens at the second junction, where the bend has not been restated and the leg
-    // that junction begins states no width — the shake was the first junction's leg alone — and it
-    // is the one that ends where the gesture did, so it keeps the terminal.
+    // that junction begins states no width — the vibrato was the first junction's leg alone — and
+    // it is the one that ends where the gesture did, so it keeps the terminal.
     const common::core::ChartNote& third = chart.notes[2];
     CHECK(third.fret == 11);
     CHECK_THAT(third.bend, Catch::Matchers::WithinULP(1.0, 0));
@@ -5635,14 +5636,14 @@ TEST_CASE("planToggleJunctions splits at every selected junction", "[core][chart
         CHECK(*terminal == 3);
     }
     // The first product's own arrival stands at ITS cut too, carrying the bend the junction stated
-    // (the curve's last value, completing as that product's ring does) while the SHAKE stated there
-    // goes, having no ring left to shake in. Nothing is lost: that shake is the second product's
-    // onset state, which the check above already pins.
+    // (the curve's last value, completing as that product's ring does) while the VIBRATO stated
+    // there goes, having no ring left to vibrate in. Nothing is lost: that vibrato is the second
+    // product's onset state, which the check above already pins.
     REQUIRE(chart.notes[0].keyframes.size() == 1);
     const common::core::Keyframe& first_arrival = chart.notes[0].keyframes[0];
     CHECK(first_arrival.offset == common::core::Fraction{1});
     CHECK(first_arrival.fret == 9);
-    CHECK_FALSE(isShaking(first_arrival.vibrato));
+    CHECK_FALSE(hasVibrato(first_arrival.vibrato));
     const std::optional<double>& first_arrival_bend = first_arrival.bend;
     REQUIRE(first_arrival_bend.has_value());
     if (first_arrival_bend.has_value())
@@ -5693,7 +5694,7 @@ TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[
     CHECK(path.keyframes[0].offset == common::core::Fraction{4});
     CHECK(path.keyframes[0].fret == 7);
     CHECK_FALSE(path.keyframes[0].bend.has_value());
-    CHECK_FALSE(isShaking(path.keyframes[0].vibrato));
+    CHECK_FALSE(hasVibrato(path.keyframes[0].vibrato));
     CHECK(path.keyframes[1].offset == common::core::Fraction{5});
     CHECK(path.keyframes[1].fret == 9);
 
@@ -5711,9 +5712,9 @@ TEST_CASE("planToggleJunctions joins a head into its predecessor as a point", "[
 }
 
 // Nothing carries in the vibrato channel, so the head's onset width becomes the width of the leg
-// its junction point begins — even where the predecessor's last leg shakes at that same width,
-// which a compare against the width in force would have dropped, leaving the head's leg unshaken.
-TEST_CASE("planToggleJunctions joins a shaking head as its own leg's width", "[core][chart]")
+// its junction point begins — even where the predecessor's last leg vibrates at that same width,
+// which a compare against the width in force would have dropped, leaving the head's leg unvibrated.
+TEST_CASE("planToggleJunctions joins a vibrating head as its own leg's width", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -5741,7 +5742,7 @@ TEST_CASE("planToggleJunctions joins a shaking head as its own leg's width", "[c
     CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{4});
     CHECK(chart.notes[0].keyframes[0].fret == 7);
     CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
-    // Both legs shake at one width, so the ring draws as one region from onset to end.
+    // Both legs vibrate at one width, so the ring draws as one region from onset to end.
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 0);
     REQUIRE(regions.size() == 1);
@@ -5941,7 +5942,7 @@ TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
 // note's own field is the first leg's width and a keyframe's is the width of the leg it begins.
 // This is the plain half — a selected keyframe takes the width, and the onset it rides is left
 // exactly as the charter wrote it.
-TEST_CASE("planSetVibrato states the shake at a selected keyframe", "[core][chart]")
+TEST_CASE("planSetVibrato states the vibrato at a selected keyframe", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     const common::core::Chart original = chart;
@@ -5965,14 +5966,14 @@ TEST_CASE("planSetVibrato states the shake at a selected keyframe", "[core][char
     const common::core::ChartNote& note = chart.notes[0];
     // The note reached only through its keyframe keeps its own first leg: a keyframe's width is
     // its own leg's, never a rewrite of the onset.
-    CHECK_FALSE(common::core::isShaking(note.vibrato));
+    CHECK_FALSE(common::core::hasVibrato(note.vibrato));
     REQUIRE(note.keyframes.size() == 2);
     CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
-    CHECK_FALSE(isShaking(note.keyframes[1].vibrato));
+    CHECK_FALSE(hasVibrato(note.keyframes[1].vibrato));
     // The position channel is untouched — the coupling law works because the keyframe is one
     // record, not because a verb copies fields between channels.
     CHECK(note.keyframes[0].fret == 9);
-    // Drawn, only that leg shakes: from the keyframe (two beats in, 3.0s) to the next one, the
+    // Drawn, only that leg vibrates: from the keyframe (two beats in, 3.0s) to the next one, the
     // slide-out at the ring's end (4.0s).
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 0);
@@ -6017,13 +6018,13 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
         CHECK(chart == original);
     }
 
-    SECTION("clearing the shake from a point whose only job it was dissolves the point")
+    SECTION("clearing the vibrato from a point whose only job it was dissolves the point")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
-        // A delayed start: the ring opens still and shakes from two beats in. Nothing about the
-        // hand's position is stated, so this point exists for the shake alone.
+        // A delayed start: the ring opens still and vibrates from two beats in. Nothing about the
+        // hand's position is stated, so this point exists for the vibrato alone.
         note.keyframes = {common::core::Keyframe{
             .offset = common::core::Fraction{2}, .vibrato = common::core::VibratoState::Narrow
         }};
@@ -6052,7 +6053,7 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
         CHECK(chart == original);
     }
 
-    SECTION("clearing the shake from a point that also states a fret keeps the point")
+    SECTION("clearing the vibrato from a point that also states a fret keeps the point")
     {
         common::core::Chart chart = makeGlideChart();
         chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
@@ -6075,7 +6076,7 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
         // The width goes and the fret stays, so the point still says something and stands.
         REQUIRE(chart.notes[0].keyframes.size() == 2);
         CHECK(chart.notes[0].keyframes[0].fret == 9);
-        CHECK_FALSE(isShaking(chart.notes[0].keyframes[0].vibrato));
+        CHECK_FALSE(hasVibrato(chart.notes[0].keyframes[0].vibrato));
         CHECK(vibratoRegionsOf(chart, tempo_map, 0).empty());
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
@@ -6095,7 +6096,7 @@ TEST_CASE("planSetVibrato dissolves only a point the clear empties", "[core][cha
                 .fret = 9,
                 .vibrato = common::core::VibratoState::Narrow
             },
-            // The leg this begins does not shake until the press below states it.
+            // The leg this begins does not vibrate until the press below states it.
             common::core::Keyframe{
                 .offset = common::core::Fraction{2},
                 .fret = 11,
@@ -6195,7 +6196,7 @@ TEST_CASE("planSetVibrato on a note vibrates its first leg only", "[core][chart]
     CHECK(chart == original);
 }
 
-// A keyframe's width runs to the NEXT keyframe, so a slide stop after it ends the shake there
+// A keyframe's width runs to the NEXT keyframe, so a slide stop after it ends the vibrato there
 // even though the ring sounds on past it.
 TEST_CASE("planSetVibrato on a keyframe vibrates only up to the next slide stop", "[core][chart]")
 {
@@ -6217,7 +6218,7 @@ TEST_CASE("planSetVibrato on a keyframe vibrates only up to the next slide stop"
     }
     applyAndValidate(chart, tempo_map, *plan);
 
-    // The stop at beat 2 (3.0s) to the stop at beat 3 (3.5s); the ring rings on to 4.0s unshaken.
+    // The stop at beat 2 (3.0s) to the stop at beat 3 (3.5s); the ring rings on to 4.0s unvibrated.
     const std::vector<common::core::VibratoSpanViewState> regions =
         vibratoRegionsOf(chart, tempo_map, 0);
     REQUIRE(regions.size() == 1);
@@ -6230,7 +6231,7 @@ TEST_CASE("planSetVibrato on a keyframe vibrates only up to the next slide stop"
 
 // Vibrating THROUGH a slide stop stays authorable, one press per leg: the note's press takes the
 // first leg and the stop's press the leg it begins. The projection draws adjacent legs at one width
-// as ONE merged region, so the result reads as a single unbroken shake across the stop.
+// as ONE merged region, so the result reads as a single unbroken vibrato across the stop.
 TEST_CASE("planSetVibrato through a slide stop is one press per leg", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();

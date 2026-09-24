@@ -413,7 +413,7 @@ TEST_CASE("A cropped ring-through still earns its group's tails", "[core][chart]
 // the stored ring, so no chart law touches it — but it does bind the DRAWN tail, and a statement
 // standing past the crop is in the ring's ENDING ZONE, where it keeps its stored instant and a
 // reveal shows it. No statement — a point or an interval, interior or at the ring's end, a
-// slide-out, a bend or a shake — moves or floors the ink past the crop, so every tail below keeps
+// slide-out, a bend or vibrato — moves or floors the ink past the crop, so every tail below keeps
 // the spacing a bare tail keeps.
 TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 {
@@ -486,9 +486,9 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 
     SECTION("a vibrato START on the margin line opens no window, with or without a slide-out")
     {
-        // A shake stated exactly ON the margin line shows for no drawn time at all: it stands at
-        // the ink end, and the shake plays in the ending zone a reveal shows. Still shaking at the
-        // ring's end, so the tail never rests.
+        // Vibrato stated exactly ON the margin line shows for no drawn time at all: it stands at
+        // the ink end, and the vibrato plays in the ending zone a reveal shows. Still vibrating at
+        // the ring's end, so the tail never rests.
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{19, 10}, .vibrato = VibratoState::Narrow}
         };
@@ -497,7 +497,7 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
         check_crop(saved);
     }
 
-    SECTION("a shake starting inside the margin draws nothing past the crop")
+    SECTION("vibrato starting inside the margin draws nothing past the crop")
     {
         saved[0].keyframes = {
             Keyframe{.offset = Fraction{2} - Fraction{1, 16}, .vibrato = VibratoState::Narrow}
@@ -510,8 +510,8 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 
     SECTION("a vibrato END on the margin line finishes on the ink end")
     {
-        // The shaken leg ends at the next keyframe, which must state something of its own: here the
-        // release back to rest, so both channels go quiet on the margin line.
+        // The vibrated leg ends at the next keyframe, which must state something of its own: here
+        // the release back to rest, so both channels go quiet on the margin line.
         saved[0].vibrato = VibratoState::Narrow;
         saved[0].bend = 1.0;
         saved[0].keyframes = {Keyframe{.offset = Fraction{19, 10}, .bend = 0.0}};
@@ -521,7 +521,7 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
         REQUIRE(ink.size() == saved.size());
         REQUIRE(rests.size() == saved.size());
         CHECK(ink[0] == Fraction{19, 10});
-        // The shake stops exactly where the ink does, so the whole ribbon is stated portion.
+        // The vibrato stops exactly where the ink does, so the whole ribbon is stated portion.
         CHECK(rests[0] == std::optional{Fraction{19, 10}});
     }
 
@@ -1567,7 +1567,7 @@ TEST_CASE("Co-struck plain members each rest", "[core][chart]")
 }
 
 // PRESENCE — what the ring is still doing at its end. A ring STILL STATING when it stops (a
-// bend held out, a shake that never ends, tremolo, a slide-out) never rests; a statement that
+// bend held out, vibrato that never ends, tremolo, a slide-out) never rests; a statement that
 // FINISHES rests from where it finished, its stated portion always visible before the landmark —
 // a handover included, whose transfer finishes at the takeover, so its landmark is its ribbon's
 // own end and every pixel of it stays.
@@ -1577,7 +1577,7 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
 
     SECTION("a statement running to the ring's end keeps the whole ribbon standing")
     {
-        // The never-rests family, one member per channel: a bend held to the end, a shake that
+        // The never-rests family, one member per channel: a bend held to the end, vibrato that
         // never stops, and tremolo — each still stating at its own end, so no landmark exists
         // for the curtain to own past. The partner is the accounted control.
         const auto verdicts = [&map](ChartNote stating) {
@@ -1585,15 +1585,15 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
         };
         ChartNote bent = note(at(1, 1), 1, Fraction{4});
         bent.bend = 2.0;
-        ChartNote shaking = note(at(1, 1), 1, Fraction{4});
-        shaking.vibrato = VibratoState::Narrow;
+        ChartNote vibrating = note(at(1, 1), 1, Fraction{4});
+        vibrating.vibrato = VibratoState::Narrow;
         ChartNote hammering = note(at(1, 1), 1, Fraction{4});
         hammering.tremolo = true;
         ChartNote sliding = note(at(1, 1), 1, Fraction{4});
         setSlideOut(sliding, 1);
 
         CHECK_FALSE(verdicts(bent)[0].has_value());
-        CHECK_FALSE(verdicts(shaking)[0].has_value());
+        CHECK_FALSE(verdicts(vibrating)[0].has_value());
         CHECK_FALSE(verdicts(hammering)[0].has_value());
         CHECK_FALSE(verdicts(sliding)[0].has_value());
     }
@@ -1910,15 +1910,15 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
         CHECK(hidden[1]);
     }
 
-    SECTION("a handover still shaking at its end finishes all the same — the takeover ends it")
+    SECTION("a handover still vibrating at its end finishes all the same — the takeover ends it")
     {
-        // THE PRECEDENCE, pinned: the source shakes right up to the pull-off. Read as a statement
+        // THE PRECEDENCE, pinned: the source vibrates right up to the pull-off. Read as a statement
         // in progress it would veto the stroke exactly as the held bend above does; but the
-        // takeover terminates the shake — the successor has the string — so the handover's
+        // takeover terminates the vibrato — the successor has the string — so the handover's
         // landmark is its ribbon's end either way, its ink is identical, and the partner rests.
-        std::vector<ChartNote> shaking = saved;
-        shaking[1].vibrato = VibratoState::Narrow;
-        const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(shaking, map);
+        std::vector<ChartNote> vibrating = saved;
+        vibrating[1].vibrato = VibratoState::Narrow;
+        const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(vibrating, map);
         REQUIRE(rests.size() == 5);
         CHECK(rests[0] == std::optional{Fraction{}});
         CHECK(rests[1] == std::optional{Fraction{2, 5}});

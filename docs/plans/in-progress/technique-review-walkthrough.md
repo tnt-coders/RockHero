@@ -156,7 +156,7 @@ Keep this list and the session task list in step.
   binding of its own is needed. **BUILT** — the floor is `planAdjustSustain`'s own lower bound
   (`83f2afcd`, `83c6bc5a`): a shrinking ring holds at its last keyframe, the step landing on a keyframe
   that states only a fret AND a fret the path does not already hold there makes it the release (one
-  carrying a shake or a bend, or repeating the fret in force, holds the ring above it — both fixed
+  carrying vibrato or a bend, or repeating the fret in force, holds the ring above it — both fixed
   2026-09-21, `ringEndMayLandOnLastKeyframe`), and a released ring shrinks no further. **Feedback RULED
   2026-09-21 (user): none** — a visible bound is not a refusal (`refusal-flash.md`). Nothing
   remains here; tick this box at the next sighting of the gesture.
@@ -262,7 +262,7 @@ Keep this list and the session task list in step.
     CHANGE, so the release drags the end and no other point ever becomes one. Measured against the
     CLAMPED end AFTER the step, so a figure selected whole slides out together and an interior point
     the clamp would strand on the head is refused rather than clipped away by the gate; and the way
-    past the shrink floor a silent or shake-carrying point raises is still moving that point LEFT.
+    past the shrink floor a silent or vibrato-carrying point raises is still moving that point LEFT.
     The gesture consequence the clamp had to earn: a replayed run describing exactly the plan its
     entry already holds is NOT recorded (`commitChartGestureStep`), so every further press into the
     head costs nothing to come back from.
@@ -360,7 +360,7 @@ Keep this list and the session task list in step.
     the fold shape), so consecutive choices on one selection REPLACE one entry and a choice back to
     the pre-run state RETIRES it — `H` `Return` `H` `Return` leaves no trace of a carrier the VERB
     itself produced, by the fold's retire rule rather than by a reversal, while an imported carrier
-    whose payload (a bend, a shake) the set normalized away keeps the entry describing that strip, a
+    whose payload (a bend, vibrato) the set normalized away keeps the entry describing that strip, a
     real edit rather than a hole in the fold — and the run ends at the family's commit points (selection change, caret
     move, another verb's edit, undo/redo, save, a committing settle). Opening the picker ends NOTHING
     another verb staged, a menu being a question rather than an edit; the CHOICE's write does,
@@ -815,7 +815,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   moves the RIBBON — lengthening a released ring leaves the release where it was, a pitched stop
   with the tail running on as a regular slide; shrinking a ring that simply ends exactly onto its
   last stated fret makes that fret the release (the floor is inclusive there, provided the keyframe
-  states nothing but the fret AND that fret TRAVELS from the one already in force — a shake or a
+  states nothing but the fret AND that fret TRAVELS from the one already in force — vibrato or a
   bend on it holds the ring above, and so does a fret the path already holds, whose release would
   fall nowhere: `ringEndMayLandOnLastKeyframe`); shrinking a released
   ring holds at the release, since the ribbon cannot pass its own end point. The MOVE verb
@@ -826,9 +826,9 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   was ruled 2026-09-21: the move verb never makes any OTHER point the release, because an interior
   point's offset must stay STRICTLY below its ring's end — so a point's KIND cannot change under a
   move at all, which is what lets a held run replay release-ness off its pre-gesture chart. A
-  AN END STATEMENT LEAVES NO SHAKE (user, 2026-09-10, narrowed by the 2026-09-21 amendment): a shake
-  on the point the ring was pulled onto has no ring to sound in, so it goes with that ring
-  (`shedEndStatementShake`, one spelling, asked by the writer, the resize and the load repair — no
+  AN END STATEMENT LEAVES NO VIBRATO (user, 2026-09-10, narrowed by the 2026-09-21 amendment):
+  vibrato on the point the ring was pulled onto has no ring to sound in, so it goes with that ring
+  (`shedEndStatementVibrato`, one spelling, asked by the writer, the resize and the load repair — no
   longer by the move step, whose end bound makes a stepped point a release it never can). A BEND
   there STAYS, being the curve's last value.
   Consequences signed, and one of them RETIRED 2026-09-22: a pitched arrival exactly at the end WAS
@@ -854,7 +854,7 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   a gesture of its own here and is not one any more — see the 2026-09-11 note below: no gesture
   lands a head on a ringing note at all.)*
   **THE COMMIT LAW: a silent point is AUTHORING STATE (user, 2026-09-10):** a
-  point that says nothing — no bend, no shake, a fret the path passes through anyway
+  point that says nothing — no bend, no vibrato, a fret the path passes through anyway
   (`keyframeSaysNothingNew`, `chart.h`) — is never document and never history. The undo history
   records WRITTEN states (`writtenChartPlan`): planting one pushes no entry, and the edit that gives
   it a meaning — the landing typed — diffs from the written state before it and so carries both

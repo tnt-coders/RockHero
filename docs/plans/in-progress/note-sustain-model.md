@@ -75,7 +75,7 @@ tail law's verdict beside it. No note of its own, and nothing moved.
    which the curtain owns the ribbon: zero for a plain ring, the last statement's offset (held to
    the ink end) for a ring that finishes stating and goes plain, and the ink end for a
    handed-over member, whose transfer finishes at the takeover. A ring still stating at its own end
-   — a bend held to the end, a shake that never stops, tremolo, a slide-out's travel — rests
+   — a bend held to the end, vibrato that never stops, tremolo, a slide-out's travel — rests
    nothing, because the curtain has no vocabulary for a statement in progress. THE CURTAIN IS
    UNIVERSAL: span furniture is no part of the question, so every fretting-hand tail in scope rests
    over open board exactly as under a bracket. THE ATOM IS THE MEMBER: each member is judged on its

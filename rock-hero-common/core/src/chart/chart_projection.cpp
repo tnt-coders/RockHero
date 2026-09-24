@@ -555,9 +555,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // A note with no keyframes falls out of the same walk with no case of its own: a width at
         // the onset opens here and closes at the ring's end, one region covering the whole ring. A
         // region opening exactly at that end is kept — degenerate, drawing nothing, and still the
-        // honest answer that this channel says the string shakes.
+        // honest answer that this channel says the string vibrates.
         RingState ring = ringStateAtOnset(note);
-        double shake_start_seconds = view.start_seconds;
+        double vibrato_start_seconds = view.start_seconds;
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
         {
@@ -573,18 +573,18 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 // ends here and the wide one starts here. An `if/else` would have hidden that case
                 // behind whichever arm it happened to take, leaving the whole step drawn at the
                 // width the note opened with.
-                if (isShaking(was))
+                if (hasVibrato(was))
                 {
                     view.vibrato.push_back(
                         VibratoSpanViewState{
-                            .start_seconds = shake_start_seconds,
+                            .start_seconds = vibrato_start_seconds,
                             .end_seconds = keyframe_seconds,
                             .state = was,
                         });
                 }
-                if (isShaking(ring.vibrato))
+                if (hasVibrato(ring.vibrato))
                 {
-                    shake_start_seconds = keyframe_seconds;
+                    vibrato_start_seconds = keyframe_seconds;
                 }
             }
             // Bound to locals so each optional check and its access are provably the same object.
@@ -606,11 +606,11 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                     });
             }
         }
-        if (isShaking(ring.vibrato))
+        if (hasVibrato(ring.vibrato))
         {
             view.vibrato.push_back(
                 VibratoSpanViewState{
-                    .start_seconds = shake_start_seconds,
+                    .start_seconds = vibrato_start_seconds,
                     .end_seconds = view.ring_end_seconds,
                     .state = ring.vibrato,
                 });

@@ -505,10 +505,10 @@ struct AddressedStop
         // stops. A SLIDE-OUT reaches only the product ending where the gesture did, every earlier
         // product ending at a cut the next product is struck at.
         //
-        // What the end may KEEP is the channel table's: a SHAKE there has no ring left to shake in
-        // and goes — no loss, being the NEXT product's onset state — while the BEND stays, the
+        // What the end may KEEP is the channel table's: VIBRATO there has no ring left to vibrate
+        // in and goes — no loss, being the NEXT product's onset state — while the BEND stays, the
         // curve's last value completing as this product's ring does.
-        static_cast<void>(common::core::shedEndStatementShake(product));
+        static_cast<void>(common::core::shedEndStatementVibrato(product));
         products.push_back(std::move(product));
         start = end;
     }
@@ -577,7 +577,7 @@ struct AddressedStop
         // doubling its offset — a second record on one offset is a shape no chart may hold. The
         // merge is the overlay law's (common::core::overlayKeyframe): a channel the point does not
         // state is left exactly as the arrival had it, which is what `at` just read as in force.
-        // What the head's own onset states — its bend, its shake — is meant to overwrite the
+        // What the head's own onset states — its bend, its vibrato — is meant to overwrite the
         // arrival's there: the join is the charter folding the head in, not a truncation.
         static_cast<void>(common::core::overlayKeyframe(predecessor.keyframes.back(), point));
     }
@@ -955,7 +955,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
             // gesture replays from the PRE-GESTURE chart, where the point is still interior, so
             // the end never followed the next press and the run stuck until re-selection. And what
             // it left behind was a slide-out nothing draws (a repeated fret) or one shed of its
-            // shake (shedEndStatementShake) — a point that lost its meaning to a move.
+            // vibrato (shedEndStatementVibrato) — a point that lost its meaning to a move.
             const common::core::Fraction end =
                 slide_out != nullptr && std::ranges::binary_search(offsets, slide_out->offset)
                     ? chartSteppedKeyframeOffset(
@@ -1883,7 +1883,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             const common::core::ChartNote& note, common::core::ChartNote& written) {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             // The onset statement, written only when the NOTE itself is selected: a note reached
-            // solely because one of its keyframes is selected keeps the shake it opens with.
+            // solely because one of its keyframes is selected keeps the vibrato it opens with.
             if (std::ranges::binary_search(note_keys, slot))
             {
                 written.vibrato = set;
@@ -1901,12 +1901,12 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
                     {
                         return false;
                     }
-                    if (common::core::isShaking(set))
+                    if (common::core::hasVibrato(set))
                     {
                         keyframe.vibrato = set;
                         return false;
                     }
-                    const bool cleared = common::core::isShaking(keyframe.vibrato);
+                    const bool cleared = common::core::hasVibrato(keyframe.vibrato);
                     keyframe.vibrato = common::core::VibratoState::None;
                     return cleared;
                 }));
@@ -1943,7 +1943,7 @@ namespace
 // the whole string. A harmonic touched above a PRESSED stop is a different statement — one hand
 // holds a fret while the other touches the node, which the note states as a positive `fret` beside
 // its node — and the verb that authors one is not this one. The normalizer then strips what a touch
-// cannot carry — a bend, a shake, the travel of a finger that presses nothing — so the note takes
+// cannot carry — a bend, vibrato, the travel of a finger that presses nothing — so the note takes
 // the harmonic instead of being skipped for a payload it never needed. Safe here in a way it would
 // not be for a pinch: no repair can undo an on-neck node, so the normalizer can only take payloads,
 // never the harmonic. A planted finger the note was holding stays where the charter put it, as a
@@ -2154,7 +2154,7 @@ template <typename Carries>
 // tier, or `V` over it would clear instead of replacing.
 //
 // A key naming no note, or naming a keyframe an earlier press dissolved, reads the state the ring
-// actually holds there — after a clearing press, not shaking — so the next press means SET. What
+// actually holds there — after a clearing press, no vibrato — so the next press means SET. What
 // that press can then do is bounded by `planSetVibrato`, which states the channel on keyframes the
 // chart HOLDS and never authors one: a key whose point dissolved therefore plans to NoChange. The
 // dissolved point returns through the verb window's exact reversal (the second press of the pair),

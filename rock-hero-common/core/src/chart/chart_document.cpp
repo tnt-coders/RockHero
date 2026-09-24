@@ -78,7 +78,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         }
     }
     // Total over the widths; `None` is never written, so reaching here is a caller bug, and
-    // spelling it as either width would write a shake nobody authored.
+    // spelling it as either width would write vibrato nobody authored.
     std::unreachable();
 }
 
@@ -140,8 +140,8 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         ChannelRule{
             .key = "vibrato",
             .matches = [](const juce::var& v) { return v.isString(); },
-            // The shake became an AXIS with a width: a bool could say only that the string shook,
-            // and never how wide.
+            // The vibrato became an AXIS with a width: a bool could say only that the string
+            // vibrated, and never how wide.
             .was = [](const juce::var& v) { return v.isBool(); },
             .remedy = R"(re-import the package to get "vibrato": "narrow")",
         },
@@ -258,7 +258,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         RemovedSpelling{
             .key = "vibrato",
             .was = [](const juce::var& v) { return v.isBool(); },
-            // The shake bool became the width AXIS: the ordinary vibrato is `"narrow"` and the
+            // The vibrato bool became the width AXIS: the ordinary vibrato is `"narrow"` and the
             // deliberate exaggeration `"wide"`, which one bool could not tell apart.
             .remedy = R"(re-import the package to get "vibrato": "narrow")",
         },
@@ -396,7 +396,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
     note.dead = Json::readOptionalBool(note_json, "dead", false);
     note.harmonic_node = Json::tryReadDouble(note_json, "harmonicNode");
 
-    // The first leg's width: absence already says it does not shake — the same rule the absent
+    // The first leg's width: absence already says it does not vibrate — the same rule the absent
     // pick attack and the absent `normal` emphasis follow.
     auto vibrato = readVibrato(note_json, "note");
     if (!vibrato.has_value())
@@ -540,9 +540,9 @@ void appendJsonString(std::string& out, const std::string& text)
     {
         line += R"(, "harmonicNode": )" + doubleText(*note.harmonic_node);
     }
-    // `None` is the absence rather than a word, so the un-shaken leg costs nothing — one spelling
-    // for not shaking, the same elision every defaulted note property takes.
-    if (isShaking(note.vibrato))
+    // `None` is the absence rather than a word, so the unvibrated leg costs nothing — one spelling
+    // for no vibrato, the same elision every defaulted note property takes.
+    if (hasVibrato(note.vibrato))
     {
         line += R"(, "vibrato": ")" + std::string{vibratoToken(note.vibrato)} + '"';
     }
@@ -604,7 +604,7 @@ void appendJsonString(std::string& out, const std::string& text)
             {
                 line += R"(, "bend": )" + doubleText(*bend);
             }
-            if (isShaking(keyframe.vibrato))
+            if (hasVibrato(keyframe.vibrato))
             {
                 line += R"(, "vibrato": ")" + std::string{vibratoToken(keyframe.vibrato)} + '"';
             }

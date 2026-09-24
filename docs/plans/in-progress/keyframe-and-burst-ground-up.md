@@ -36,7 +36,7 @@ requirement breaks that rule, and looking at why produced both sets below.
 
 Shared vocabulary. A note RINGS from its onset to its END. STATEMENTS are made at moments along
 the ring, one per moment, in order, each speaking on one or more CHANNELS: the FRET path (glides
-between stated stops), the BEND curve, the SHAKE (a width per leg, from a statement to the next
+between stated stops), the BEND curve, the VIBRATO (a width per leg, from a statement to the next
 keyframe; re-ruled 2026-09-24 from a state that held until restated).
 
 What a statement MEANS at the very end is a fact about the channels, not a rule about releases —
@@ -46,7 +46,7 @@ the earlier "a release is bare" rule was this, over-stated:
 |---|---|---|
 | fret | a pitched stop the path arrives at | the SLIDE-OUT: an unpitched glide toward it, if it travels; nothing if it repeats the fret in force |
 | bend | a value the curve passes through | the curve's LAST value — meaningful, it sets the final slope |
-| shake | the state from here on | nothing: there is no ring left to shake |
+| vibrato | the state from here on | nothing: there is no ring left to vibrate |
 
 ### Set A — position gives meaning (today's behaviour, generalised)
 
@@ -54,7 +54,7 @@ the earlier "a release is bare" rule was this, over-stated:
    what the table says.
 2. **The tail verb moves the END, never a statement.** Statements are its walls: it stops at the
    next head and at the ring's last statement. It may land ON that statement only if every channel
-   the statement speaks on still speaks at the end — so never onto a shake, never onto a fret that
+   the statement speaks on still speaks at the end — so never onto vibrato, never onto a fret that
    would stop travelling. Landing on a travelling fret is how a glide becomes a slide-out; a ring
    whose end holds a statement cannot shrink; growing one leaves the statement behind, now inside.
 3. **The move verb moves what is SELECTED, never anything else.** The end is its wall, like the
@@ -73,7 +73,7 @@ statement CHANGES MEANING when the end reaches or leaves it, so every verb that 
 statement has to ask rule 2's question. Most of this week's defects were a verb that did not.
 
 Model: the keyframe vector as it is, with `stripReleaseChannels` and the `ReleasePayload` repair
-DELETED (a bend at the end is kept; a shake there is ordinary silence), the landing test
+DELETED (a bend at the end is kept; vibrato there is ordinary silence), the landing test
 generalised to the channel table, and truncation reduced to "refuse, or carry the end's statement".
 No format change beyond permitting a bend on the end keyframe.
 
@@ -119,7 +119,7 @@ statement at the end as the last keyframe row, and nothing in the JSON forbids t
 only the `ReleasePayload` load repair and `stripReleaseChannels` destroy it, and both go under
 either set. So the in-memory model and the file are separate decisions: the writer emits the end
 statement as a row at `offset == sustain`, the reader takes the row at `offset == sustain` AS the
-end statement, and a shake stated there is shed as the silence it is. In a file the equality is a
+end statement, and vibrato stated there is shed as the silence it is. In a file the equality is a
 definition, not two facts to keep in step — a row is the end statement exactly when its offset is
 the sustain — so nothing can desync, and no package is re-imported and no converter is touched.
 The format spec changes by one sentence: the row at the ring's end may state a fret (the slide-out) and
@@ -287,11 +287,11 @@ was, the place the NEXT note starts:
   and declined by the user the same day (it is the chart-end key), and none is needed — the
   keyboard already authors at the end by LANDING, for a bend exactly as for a fall: state the point
   a step inside (`B`, or a digit) and bring the tail in onto it. The channel table allows that
-  landing for a bend and for a travelling fret, and refuses it for a shake.
+  landing for a bend and for a travelling fret, and refuses it for vibrato.
 - **With the end selected, nothing new is needed**: a digit states the fall and `B` the final bend
   by the selected-point rule that already retypes keyframes; Delete clears it; `Alt`+arrows drag it
   and the ring's end with it, which is what the move verb already does to a release; `V` is refused
-  there, a shake at the end saying nothing.
+  there, vibrato at the end saying nothing.
 - **What it removes**: `Alt`+digit's creating cell, any `Alt+B`, the rule that arming a slot
   selects a slide-out's chip, and the shared-slot question entirely — a slot never has to choose
   between a head and the end beside it, which matters once the stored end may sit exactly on the
@@ -577,12 +577,12 @@ because the ring's end moved:
 
 | Rule added | Why it exists |
 |---|---|
-| `stripReleaseChannels`, `releaseWouldStripChannels`, the `ReleasePayload` load repair | a point that becomes the release may be carrying a shake or a bend it cannot keep |
+| `stripReleaseChannels`, `releaseWouldStripChannels`, the `ReleasePayload` load repair | a point that becomes the release may be carrying vibrato or a bend it cannot keep |
 | the detach / clip / re-attach dance in `clipPayloadsToSustain` | the release must be lifted off, the ring cut, and the release put back at the new end |
 | `ringEndMayLandOnLastKeyframe` | a shrink may only land where becoming the release costs and hides nothing |
 | the move verb's end bound (`9312840c`) | a stepped point must not become the release mid-gesture |
 | `&keyframe != release` exclusions in shapes, the importer (three sites), `releasedFret` | every walk of "the statements a hand makes" must remember to skip the last one |
-| closed 2026-09-23 | a keyframe with a shake exactly ON a truncation landing survives the inclusive clip and is then bared: the clip now reports the shed shake as a lost statement and the plan gate refuses (`clipPayloadsToSustain`, `finalizePlan`); a bend there stays, the curve's last value |
+| closed 2026-09-23 | a keyframe with vibrato exactly ON a truncation landing survives the inclusive clip and is then bared: the clip now reports the shed vibrato as a lost statement and the plan gate refuses (`clipPayloadsToSustain`, `finalizePlan`); a bend there stays, the curve's last value |
 
 Six user rulings in eleven days converge on one sentence — *kind never changes by position* — which
 is the property a stated release has by construction.
@@ -599,7 +599,7 @@ coordinate the 2026-09-09 record rejected in so many words. Not recommended.
 
 **A stated release: `std::optional<int>` on the note, the ring's end its position by definition.**
 
-- Unrepresentable, so deleted: a release carrying a bend or shake (the strip family and the load
+- Unrepresentable, so deleted: a release carrying a bend or vibrato (the strip family and the load
   repair), the detach / re-attach dance, every skip-the-release exclusion, and the open hole above
   — a landing either clips a point, which the move verb's existing guard refuses, or does not
   reach it.
@@ -660,7 +660,7 @@ keyframe, so an end-of-ring bend pins the DRAWN tail to the full stored ring. *(
 
 ## 3. Why silent points stay in the document
 
-A point that says nothing new — the note's own fret typed onto its tail, about to be given a shake —
+A point that says nothing new — the note's own fret typed onto its tail, about to be given vibrato —
 is legal in the chart in memory, invisible to undo, stripped on save and load, and dissolved when
 focus leaves its note. It fed several of the defects, and the project already has the opposite
 pattern: the pending fret entry touches nothing until it settles. Moving the silent point out of the
@@ -668,7 +668,7 @@ document the same way looks like the clean answer. It is not:
 
 - **Silence is relational.** A committed, undo-recorded point becomes silent with no act on it when
   the note's own fret is retyped, when an earlier keyframe is inserted, removed or retyped, when
-  another point moves, or when its shake is cleared and the fret it also states is one the path
+  another point moves, or when its vibrato is cleared and the fret it also states is one the path
   already passes through. `Shift+L` joining equal frets creates a silent point ON PURPOSE — that is
   the tie. A creation-time pending point covers none of these, so the document-side dissolve would
   survive and a second provisional mechanism would stand beside it.

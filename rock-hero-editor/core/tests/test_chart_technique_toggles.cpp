@@ -392,7 +392,7 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     controller.onChartTechniqueToggleRequested(ChartTechnique::Dead);
     const auto* chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].dead);
-    CHECK(common::core::isShaking(chart->notes[0].vibrato));
+    CHECK(common::core::hasVibrato(chart->notes[0].vibrato));
     CHECK(chart->notes[1].dead);
 }
 
@@ -425,8 +425,8 @@ TEST_CASE("EditorController toggles each vibrato tier and replaces the other", "
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].vibrato == common::core::VibratoState::Narrow);
 
-    // Shift+V over that same note REPLACES the tier: one entry, and the note never passes through
-    // not shaking. A history move first, so this press runs the verb's law rather than reversing
+    // Shift+V over that same note REPLACES the tier: one entry, and the note never stops vibrating
+    // in between. A history move first, so this press runs the verb's law rather than reversing
     // the press above through the toggle window.
     controller.onUndoRequested();
     controller.onRedoRequested();

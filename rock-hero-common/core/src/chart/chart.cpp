@@ -167,7 +167,7 @@ bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
     }
     // A width is its own leg's statement, so any stated width says something: without it the leg
     // is not vibrated.
-    return !isShaking(point.vibrato);
+    return !hasVibrato(point.vibrato);
 }
 
 bool stripSilentKeyframes(ChartNote& note)
@@ -211,12 +211,12 @@ bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
         return false;
     }
     const Keyframe& last = note.keyframes.back();
-    if (!last.fret.has_value() || endStatementWouldShedShake(last))
+    if (!last.fret.has_value() || endStatementWouldShedVibrato(last))
     {
         return false;
     }
-    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question. With no shake left to
-    // judge (guarded above) and a bend beside the fret saying nothing about position, what it
+    // Whether the landing TRAVELS is THE KEYFRAME COMMIT LAW's own question. With no vibrato left
+    // to judge (guarded above) and a bend beside the fret saying nothing about position, what it
     // answers here is exactly whether the fret differs from the one already in force at that
     // offset.
     return !lastKeyframeSaysNothingNew(note);
@@ -247,7 +247,7 @@ ChartNote savedChartNote(const ChartNote& note)
         // survives is the fret channel, which is the path itself; a keyframe left stating nothing
         // is no record at all and leaves with them.
         static_cast<void>(stripKeyframeChannels(saved.keyframes, [](Keyframe& keyframe) {
-            const bool latent = keyframe.bend.has_value() || isShaking(keyframe.vibrato);
+            const bool latent = keyframe.bend.has_value() || hasVibrato(keyframe.vibrato);
             keyframe.bend.reset();
             keyframe.vibrato = VibratoState::None;
             return latent;

@@ -849,16 +849,16 @@ struct TailInterior
     };
 }
 
-// Draws the vibrato sine over each stretch of tail the note's vibrato channel states as shaking.
+// Draws the vibrato sine over each stretch of tail the note's vibrato channel states as vibrating.
 // Separate from drawNoteTail because the sine is a technique mark RIDING the tail rather than the
 // tail's own body, and the caller clips the technique marks against the arpeggio brackets while
 // the ribbon shows through them untouched.
 //
 // One wave per stated region rather than one per note, because the channel is a state that starts,
-// stops, and changes WIDTH mid-ring (NoteViewState::vibrato): a shake beginning at a glide's
+// stops, and changes WIDTH mid-ring (NoteViewState::vibrato): vibrato beginning at a glide's
 // arrival is the commonest figure there is, and a sine run from the onset would say the string
-// shook through the slide it did not. Each wave takes its phase from its OWN start, so it leaves
-// the string line where the shake begins instead of cutting in at whatever phase the onset
+// vibrated through the slide it did not. Each wave takes its phase from its OWN start, so it leaves
+// the string line where the vibrato begins instead of cutting in at whatever phase the onset
 // reached, and its swing from its own stated width, so a step to the wide tier is visible as a
 // step rather than as a note-wide setting.
 void drawVibratoSine(
@@ -885,10 +885,10 @@ void drawVibratoSine(
     {
         // The two widths, from the one swing the interior allows: the wide tier reaches it and the
         // ordinary one is that divided by the same multiplier, so the pair is stated once and the
-        // exaggeration is genuinely double the ordinary shake. Scaling the WIDE tier past the
+        // exaggeration is genuinely double the ordinary vibrato. Scaling the WIDE tier past the
         // interior instead was not an option on this surface — the technique band clips every mark
         // to the tail's rails, so a doubled wave would draw its crests flat and read as a square
-        // wave rather than as a wider shake.
+        // wave rather than as a wider vibrato.
         const float amplitude = std::max(
             1.0f,
             span.state == common::core::VibratoState::Wide

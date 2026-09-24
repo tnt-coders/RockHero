@@ -454,7 +454,7 @@ differs, and that is the point of keeping the proof outside them:
   CHOICE and one choice planned from the pre-run chart already describes the whole run — which is why
   `ChartHarmonicGesture` is an empty alternative. The retire is a plan test, not a keystroke count:
   `H` `Return` `H` `Return` returns to the pre-run state, and so leaves no trace, for a carrier the
-  VERB produced, while a round trip over an IMPORTED carrier whose payload (a bend, a shake) the set
+  VERB produced, while a round trip over an IMPORTED carrier whose payload (a bend, vibrato) the set
   normalized away does not return to it — that entry describes a real strip and correctly stays. The
   start state needs
   no snapshot: the entry's own plan, reversed, IS the pre-gesture chart — the settle sweep's method,

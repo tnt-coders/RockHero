@@ -120,7 +120,7 @@ The rules, in order:
 
    SCOPE: a right-hand onset is neither a member nor a witness. THE ATOM IS THE MEMBER: a plain
    member rests, a member still stating at its end draws. NEVER RESTS — still stating at its own
-   end AND NOT HANDED OVER: a ring whose final state is not plain (a bend held to the end, a shake
+   end AND NOT HANDED OVER: a ring whose final state is not plain (a bend held to the end, vibrato
    that never stops, tremolo, a slide-out's travel). A HANDOVER FINISHES: a ring whose string a
    later strike takes over (\ref ChartConnections::hands_over), or whose end arrives into the next
    head, is a transfer that completes at the takeover, so it rests from its ink end with an empty

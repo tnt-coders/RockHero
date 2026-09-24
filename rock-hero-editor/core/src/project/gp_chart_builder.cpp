@@ -474,25 +474,25 @@ struct BendCurvePoint
 }
 
 // States a folded-in segment's Guitar Pro vibrato WIDTH at `offset` — the instant that segment
-// BEGINS on the ring that absorbed it. A width is the leg's own (chart.h): a segment that shakes
+// BEGINS on the ring that absorbed it. A width is the leg's own (chart.h): a segment that vibrates
 // states its width at the keyframe its leg begins at, and one that does not states nothing, the
-// leg being unvibrated by default — so a chain shaking end to end states the width at every
-// junction, and one that stops shaking at a junction simply says nothing there.
+// leg being unvibrated by default — so a chain vibrating end to end states the width at every
+// junction, and one that stops vibrating at a junction simply says nothing there.
 //
 // Guitar Pro writes the mark per note and names no instant inside it, so the import picks one (the
 // carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
 // LAST keyframe. At a legato slide that keyframe is the junction the glide arrives at — where the
-// folded segment begins and where a shake after a glide actually starts, which is the corpus's
+// folded segment begins and where vibrato after a glide actually starts, which is the corpus's
 // dominant figure (31 of its 34 slide-then-vibrato occurrences arrive through this merge); at a tie
 // it is the continuation's own onset; and a note that merges nothing states its flag at the onset,
 // which is what \ref ChartNote::vibrato already is. Spelled as the folded segment's own START
 // rather than "whichever keyframe is last", because an origin's bend curve can legally run past
-// the junction and the literal reading would then hand the shake to a bend point; in the figure
+// the junction and the literal reading would then hand the vibrato to a bend point; in the figure
 // the sign-off measures, the two readings name the same instant.
 //
 // Stated per SEGMENT rather than as an onset-level `||` over the whole chain, both halves of which
-// would lie: a folded segment's flag would shake the entire ring from the onset, and a folded
-// segment WITHOUT one would inherit the shake it arrived after.
+// would lie: a folded segment's flag would vibrate the entire ring from the onset, and a folded
+// segment WITHOUT one would inherit the vibrato it arrived after.
 void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState vibrato)
 {
     if (offset.numerator <= 0)
@@ -516,7 +516,7 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState v
     {
         standing->vibrato = vibrato;
     }
-    else if (isShaking(vibrato))
+    else if (hasVibrato(vibrato))
     {
         keyframeAt(note.keyframes, offset).vibrato = vibrato;
     }
@@ -3093,7 +3093,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 {
                     kept.bend = keyframe.bend;
                 }
-                if (isShaking(keyframe.vibrato))
+                if (hasVibrato(keyframe.vibrato))
                 {
                     kept.vibrato = keyframe.vibrato;
                 }
@@ -3643,9 +3643,9 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 {
                     note.sustain = ringEndOf(*next) - entry.global_beat;
                 }
-                // The landing's shake lands ON the junction it arrives at — the same coupling the
+                // The landing's vibrato lands ON the junction it arrives at — the same coupling the
                 // bend fold below relies on, and the sign-off's anchor for Guitar Pro's anchorless
-                // flag. A landing that does NOT shake states nothing: its leg is unvibrated.
+                // flag. A landing that does NOT vibrate states nothing: its leg is unvibrated.
                 stateVibratoAt(note, gap, next->note.vibrato);
                 note.tremolo = note.tremolo || next->note.tremolo;
                 // The merged note's own bend curve, rebased onto the junction. Its onset value
@@ -3710,13 +3710,13 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
             // The slide-out ends the RING, so what the gesture needs is a ring end strictly after
             // any chain keyframe's stated fret — otherwise the slide-out would leave from a
             // position stated at the very instant it ends — and one minimum gesture window past it
-            // is the smallest legal answer. A bend or a shake at the end does not bind it: a
+            // is the smallest legal answer. A bend or vibrato at the end does not bind it: a
             // slide-out states its fret and nothing else, so a statement standing where the string
-            // is let go says nothing by the model's own law (shedEndStatementShake). The four-fret
-            // exit is provisional: resolveSlideOutExits rides the hand's next move instead when it
-            // agrees with the flag's direction. The answer is strictly positive without a floor of
-            // its own: a sustainless note's zero never exceeds the last stated fret's offset, so it
-            // comes back a whole minimum window.
+            // is let go says nothing by the model's own law (shedEndStatementVibrato). The
+            // four-fret exit is provisional: resolveSlideOutExits rides the hand's next move
+            // instead when it agrees with the flag's direction. The answer is strictly positive
+            // without a floor of its own: a sustainless note's zero never exceeds the last stated
+            // fret's offset, so it comes back a whole minimum window.
             common::core::clearSlideOut(note);
             Fraction last_stated_fret{};
             for (const Keyframe& keyframe : note.keyframes)

@@ -958,7 +958,7 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     REQUIRE(keyframes.size() == 4);
     CHECK(keyframes[0].fret.has_value());
     CHECK_FALSE(keyframes[0].bend.has_value());
-    CHECK_FALSE(isShaking(keyframes[0].vibrato));
+    CHECK_FALSE(hasVibrato(keyframes[0].vibrato));
     // Each optional is bound once and guarded by that name: the checker cannot tie two separate
     // reads of an indexed element together.
     const std::optional<double>& released_bend = keyframes[1].bend;
@@ -1031,9 +1031,9 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
     CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "fret": 9 } ])").has_value());
 }
 
-// The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary shake is
+// The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary vibrato is
 // `"narrow"` — a description of what an ordinary vibrato physically is, a fraction of a semitone —
-// and the deliberate exaggeration is `"wide"`. Absence is the only spelling of not shaking, at an
+// and the deliberate exaggeration is `"wide"`. Absence is the only spelling of no vibrato, at an
 // onset and a keyframe alike: `None` has no word.
 TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 {
@@ -1078,7 +1078,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
         }
     }
 
-    SECTION("a note that does not shake writes no key at all")
+    SECTION("a note that does not vibrate writes no key at all")
     {
         Chart chart;
         chart.tuning.strings = {"E2"};
@@ -1106,7 +1106,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 
     SECTION("a keyframe reads the same two words, and off is unknown there too")
     {
-        // Nothing carries, so a keyframe never has to say a shake ends: the word it once used for
+        // Nothing carries, so a keyframe never has to say vibrato ends: the word it once used for
         // that is now the onset's read error.
         const auto off = parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])");
         REQUIRE_FALSE(off.has_value());
@@ -1142,17 +1142,17 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 }
 
 // The one classifier for the axis, which every consumer asks instead of comparing against a
-// width: an open-coded `== Narrow` would answer "not shaking" for the wide notes it was never
+// width: an open-coded `== Narrow` would answer "no vibrato" for the wide notes it was never
 // told about, exactly the trap isAccented exists to close on the emphasis axis.
-TEST_CASE("Chart vibrato classifies every width as shaking", "[core][chart]")
+TEST_CASE("Chart vibrato classifies every width as vibrating", "[core][chart]")
 {
-    CHECK_FALSE(isShaking(VibratoState::None));
-    CHECK(isShaking(VibratoState::Narrow));
-    CHECK(isShaking(VibratoState::Wide));
-    // Value-initialization lands on not-shaking, which is why None is declared first: a
-    // default-constructed or resized note must not arrive already shaking.
-    CHECK_FALSE(isShaking(VibratoState{}));
-    CHECK_FALSE(isShaking(ChartNote{}.vibrato));
+    CHECK_FALSE(hasVibrato(VibratoState::None));
+    CHECK(hasVibrato(VibratoState::Narrow));
+    CHECK(hasVibrato(VibratoState::Wide));
+    // Value-initialization lands on no vibrato, which is why None is declared first: a
+    // default-constructed or resized note must not arrive already vibrating.
+    CHECK_FALSE(hasVibrato(VibratoState{}));
+    CHECK_FALSE(hasVibrato(ChartNote{}.vibrato));
 }
 
 // A keyframe IS its statements: a location carrying none says nothing that could be drawn,
@@ -1335,10 +1335,10 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         REQUIRE(notes[0].keyframes.size() == 1);
         const Keyframe& merged = notes[0].keyframes.front();
         CHECK(merged.offset == Fraction{2});
-        // An end statement leaves no SHAKE, whatever else it states, so the shake it landed on goes
-        // with the ring that would have sounded it (shedEndStatementShake).
+        // An end statement leaves no VIBRATO, whatever else it states, so the vibrato it landed on
+        // goes with the ring that would have sounded it (shedEndStatementVibrato).
         CHECK(merged.fret == 9);
-        CHECK_FALSE(isShaking(merged.vibrato));
+        CHECK_FALSE(hasVibrato(merged.vibrato));
     }
 }
 
@@ -1393,7 +1393,7 @@ TEST_CASE("The silent-keyframe sweep takes a silent end statement", "[core][char
 }
 
 // Every strip arm the normalizer owns works per CHANNEL. A rule that refuses a glide has nothing
-// to say about a bend or a shake authored at the same instant, and forgetting them because they
+// to say about a bend or vibrato authored at the same instant, and forgetting them because they
 // shared an offset with the statement it refused would delete data no rule ever judged — which is
 // exactly the shearing the one-array model exists to prevent.
 TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][chart]")
@@ -1437,7 +1437,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(bare.keyframes.empty());
     }
 
-    SECTION("an open string loses its path and keeps its shake")
+    SECTION("an open string loses its path and keeps its vibrato")
     {
         ChartNote note = note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
@@ -1485,13 +1485,13 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(chart.notes.front().keyframes.size() == 2);
         CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
         CHECK(chart.notes.front().keyframes[1].offset == Fraction{1});
-        // A shake or a push that CHANGES something is a statement whatever the fret says.
-        Chart shaken;
-        shaken.tuning = tuning;
-        shaken.notes = {note_with(
+        // Vibrato or a push that CHANGES something is a statement whatever the fret says.
+        Chart vibrating;
+        vibrating.tuning = tuning;
+        vibrating.notes = {note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow},
              Keyframe{.offset = Fraction{1}, .fret = 9}})};
-        CHECK(normalizeChart(shaken, makeTempoMap()).empty());
+        CHECK(normalizeChart(vibrating, makeTempoMap()).empty());
     }
 
     SECTION("a bend value on a flat stretch of the curve says nothing")
@@ -1529,7 +1529,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
     SECTION("a vibrato width is never silent, a repeated one included")
     {
         // Each width is its own leg's statement and nothing carries, so the second `Narrow` is
-        // what vibrates the leg from 1/2 on: without it that leg would not shake.
+        // what vibrates the leg from 1/2 on: without it that leg would not vibrate.
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
@@ -1542,16 +1542,16 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
 
     SECTION("a slide-out states its fret and nothing else")
     {
-        // A shake stated where the string is let go has no ring to sound in, so the load sheds
+        // Vibrato stated where the string is let go has no ring to sound in, so the load sheds
         // it and says so; the slide-out itself stays.
         ChartNote note = note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 7, .vibrato = VibratoState::Narrow}});
         note.sustain = Fraction{1, 2};
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
-        CHECK(repairs.front() == ChartRepair::EndStatementShake);
+        CHECK(repairs.front() == ChartRepair::EndStatementVibrato);
         REQUIRE(note.keyframes.size() == 1);
-        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
+        CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
         const int* const slide_out = endStatedFretOrNull(note);
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
@@ -1573,7 +1573,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::DeadNoteModulation);
-        CHECK_FALSE(isShaking(note.vibrato));
+        CHECK_FALSE(hasVibrato(note.vibrato));
         CHECK(std::is_eq(note.bend <=> 0.0));
         REQUIRE(note.keyframes.size() == 1);
         const std::optional<int>& kept_fret = note.keyframes[0].fret;
@@ -1583,13 +1583,13 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(*kept_fret == 7);
         }
         CHECK_FALSE(note.keyframes[0].bend.has_value());
-        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
+        CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
 
     SECTION("a saved scrape keeps its path and sheds the channels it overrides")
     {
         // savedChartNote is the memory-to-document seam: a scrape's turnarounds are pick travel,
-        // so a bend or a shake riding one is exactly as latent as the note's own and never
+        // so a bend or vibrato riding one is exactly as latent as the note's own and never
         // reaches the file — while the fret statements, which ARE the path, survive.
         ChartNote note = note_with(
             {Keyframe{.offset = Fraction{1, 2}, .fret = 9, .bend = 1.0},
@@ -1598,7 +1598,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         setSlideOut(note, 12);
         const ChartNote saved = savedChartNote(note);
         // The turnaround and the terminal survive — both are fret statements, which are the path —
-        // while the shake-only keyframe leaves with the channel it carried.
+        // while the vibrato-only keyframe leaves with the channel it carried.
         REQUIRE(saved.keyframes.size() == 2);
         const std::optional<int>& path_fret = saved.keyframes[0].fret;
         REQUIRE(path_fret.has_value());
@@ -2836,11 +2836,11 @@ TEST_CASE("The connections report a ring ending on the next head", "[core][chart
     CHECK_FALSE(ends_on_next_head(falling, other_string));
 }
 
-// AN END STATEMENT LEAVES NO SHAKE, and keeps its BEND. The channel table's own law, note-local and
-// asked of ANY end statement: a shake stated where the string is let go has no ring to sound in,
-// while a bend there is the curve's LAST value and shapes the final leg running into the end — as
-// true of a slide-out as of a shift slide's arrival.
-TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]")
+// AN END STATEMENT LEAVES NO VIBRATO, and keeps its BEND. The channel table's own law, note-local
+// and asked of ANY end statement: vibrato stated where the string is let go has no ring to sound
+// in, while a bend there is the curve's LAST value and shapes the final leg running into the end —
+// as true of a slide-out as of a shift slide's arrival.
+TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart]")
 {
     ChartTuning tuning;
     tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2877,28 +2877,28 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
             CHECK_THAT(*carried, Catch::Matchers::WithinULP(1.0, 0));
         }
     }
-    SECTION("a shake at the end is shed, and a statement that said only the shake goes whole")
+    SECTION("vibrato at the end is shed, and a statement that said only the vibrato goes whole")
     {
         static_cast<void>(setEndStatement(
             note, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = VibratoState::Narrow}));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 9);
-        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
-        // No fret beside it, so shedding the shake leaves nothing stated and the keyframe goes: an
-        // empty keyframe is a shape no chart may hold.
+        CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
+        // No fret beside it, so shedding the vibrato leaves nothing stated and the keyframe goes:
+        // an empty keyframe is a shape no chart may hold.
         note.keyframes = {
             Keyframe{.offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide}
         };
-        CHECK(shedEndStatementShake(note));
+        CHECK(shedEndStatementVibrato(note));
         CHECK(note.keyframes.empty());
     }
 }
 
 // A CLIP REPORTS WHAT IT LOST. Shortening a ring may carry the end's statement back and may land it
 // on a point standing at the new end; what it may not do unannounced is erase a point past that
-// end, overwrite a value the standing point stated, or shed a shake stated where the ring now
+// end, overwrite a value the standing point stated, or shed vibrato stated where the ring now
 // stops, because the plan gate refuses exactly on this report (finalizePlan). The end's own writer,
-// landing on a standing statement, reports an overwrite or a shed shake the same way.
+// landing on a standing statement, reports an overwrite or a shed vibrato the same way.
 TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][chart]")
 {
     ChartNote note;
@@ -2966,10 +2966,10 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         CHECK(note.keyframes[0].fret == 5);
         CHECK(endStatedFretOrNull(note) != nullptr);
     }
-    SECTION("a shake stated exactly at the new end is shed, and that is a loss")
+    SECTION("vibrato stated exactly at the new end is shed, and that is a loss")
     {
         // The end is bare, so nothing rides: the point at 2 survives the inclusive bound and
-        // becomes the end statement, which leaves no shake.
+        // becomes the end statement, which leaves no vibrato.
         note.keyframes = {
             Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
         };
@@ -2977,7 +2977,7 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{2});
         CHECK(note.keyframes[0].fret == 7);
-        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
+        CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
     SECTION("a fret stated exactly at the new end loses nothing")
     {
@@ -2987,17 +2987,17 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         CHECK(note.keyframes[0].offset == Fraction{2});
         CHECK(note.keyframes[0].fret == 7);
     }
-    SECTION("the end's writer landing on a standing shake sheds it, and that is a loss")
+    SECTION("the end's writer landing on a standing vibrato sheds it, and that is a loss")
     {
         note.keyframes = {
             Keyframe{.offset = Fraction{4}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
         };
-        // The written fret equals the standing one, so the shed shake is the only loss.
+        // The written fret equals the standing one, so the shed vibrato is the only loss.
         CHECK(setEndStatement(note, Keyframe{.offset = {}, .fret = 7, .bend = {}, .vibrato = {}}));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{4});
         CHECK(note.keyframes[0].fret == 7);
-        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
+        CHECK_FALSE(hasVibrato(note.keyframes[0].vibrato));
     }
 }
 
@@ -3019,7 +3019,7 @@ TEST_CASE(
         overlayKeyframe(equal_fret, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = {}}));
     CHECK(equal_fret.fret == 9);
 
-    // The standing keyframe never stated a shake, so stating one there overwrites nothing.
+    // The standing keyframe never stated vibrato, so stating one there overwrites nothing.
     Keyframe unstated_channel = standing;
     CHECK_FALSE(overlayKeyframe(
         unstated_channel,
@@ -3577,7 +3577,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     const ChartNote& saved = parsed->notes[7];
     CHECK(saved.attack == NoteAttack::PickSlide);
     CHECK_FALSE(saved.tremolo);
-    CHECK_FALSE(isShaking(saved.vibrato));
+    CHECK_FALSE(hasVibrato(saved.vibrato));
     CHECK_FALSE(saved.palm_mute);
     CHECK_FALSE(saved.dead);
     CHECK(saved.emphasis == NoteEmphasis::Accent);

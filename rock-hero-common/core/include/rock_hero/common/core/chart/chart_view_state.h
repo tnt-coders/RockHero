@@ -157,25 +157,25 @@ struct BendPointViewState
 };
 
 /*!
-\brief One stretch of a note's ring the vibrato channel states as shaking, in absolute seconds.
+\brief One stretch of a note's ring the vibrato channel states as vibrating, in absolute seconds.
 
 The channel is a width per LEG of the ring (\ref Keyframe::vibrato), so what a surface has to draw
-is an interval carrying a WIDTH rather than a flag: a shake can start at a glide's arrival, widen
+is an interval carrying a WIDTH rather than a flag: vibrato can start at a glide's arrival, widen
 mid-hold, stop, and start again, and one boolean could say none of it. The projection reads the
 channel once and hands both surfaces the same regions, which is what keeps the lane's sine and the
 board's wobble covering the same stretch of the same note at the same tier.
 
-A note whose shake runs end to end — every chart written before the keyframe model, and most
+A note whose vibrato runs end to end — every chart written before the keyframe model, and most
 written after — yields exactly one region spanning the whole ring, so the surfaces draw what
 they always drew without a case of their own.
 */
 struct VibratoSpanViewState
 {
-    /*! \brief Absolute timeline position the shake begins. */
+    /*! \brief Absolute timeline position the vibrato begins. */
     double start_seconds{0.0};
 
     /*!
-    \brief Absolute timeline position the shake stops: the first leg at another width or none, or
+    \brief Absolute timeline position the vibrato stops: the first leg at another width or none, or
     the ring's end.
 
     Equal to \ref start_seconds only where a statement lands exactly on the end the note presents,
@@ -184,12 +184,12 @@ struct VibratoSpanViewState
     double end_seconds{0.0};
 
     /*!
-    \brief How wide the string shakes over this region.
+    \brief How wide the string vibrates over this region.
 
     Never \ref VibratoState::None: a region exists exactly where the channel says the string
-    shakes, so a leg without vibrato ENDS one rather than describing one. Carried per region rather
-    than per note because the channel can step between the widths mid-ring, and the surfaces scale
-    their swing from this — the one place either of them learns which tier it is drawing.
+    vibrates, so a leg without vibrato ENDS one rather than describing one. Carried per region
+    rather than per note because the channel can step between the widths mid-ring, and the surfaces
+    scale their swing from this — the one place either of them learns which tier it is drawing.
     */
     VibratoState state{VibratoState::Narrow};
 
@@ -537,9 +537,9 @@ struct NoteViewState
     std::vector<KeyframeViewState> slides;
 
     /*!
-    \brief The stretches of the ring the string shakes over, in ascending time order.
+    \brief The stretches of the ring the string vibrates over, in ascending time order.
 
-    Empty when the note never shakes, which is what "is this note played with vibrato" asks now
+    Empty when the note never vibrates, which is what "is this note played with vibrato" asks now
     that the channel can start and stop mid-ring (\ref VibratoSpanViewState). A region the channel
     never closes runs to \ref ring_end_seconds; a surface clips every region to the extent it
     draws, exactly as it does the bend curve and the slide keyframes.

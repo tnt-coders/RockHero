@@ -57,7 +57,7 @@ constexpr double g_max_cent_offset{1200.0};
 [[nodiscard]] bool statesModulation(const std::vector<Keyframe>& keyframes)
 {
     return std::ranges::any_of(keyframes, [](const Keyframe& keyframe) {
-        return keyframe.bend.has_value() || isShaking(keyframe.vibrato);
+        return keyframe.bend.has_value() || hasVibrato(keyframe.vibrato);
     });
 }
 
@@ -252,9 +252,9 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a pull-off already states the stop under its onset, so the stored held fret "
                    "was dropped";
         }
-        case ChartRepair::EndStatementShake:
+        case ChartRepair::EndStatementVibrato:
         {
-            return "a shake stated where the string is let go had no ring to shake in and was "
+            return "vibrato stated where the string is let go had no ring to vibrate in and was "
                    "dropped";
         }
         case ChartRepair::SilentKeyframe:
@@ -330,11 +330,11 @@ bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     {
         lost = setEndStatement(note, *ridden) || lost;
     }
-    // Whatever stands at the end leaves no SHAKE: a state stated where the ring stops has no ring
-    // left to shake in. Its BEND stays, the curve's last value shaping the final leg — the channel
-    // table decides, and it asks nothing about the gesture the fret beside it proves. A shake shed
-    // here was a point's own, standing at the new end: an authored statement lost.
-    return shedEndStatementShake(note) || lost;
+    // Whatever stands at the end leaves no VIBRATO: a state stated where the ring stops has no ring
+    // left to vibrate in. Its BEND stays, the curve's last value shaping the final leg — the
+    // channel table decides, and it asks nothing about the gesture the fret beside it proves.
+    // Vibrato shed here was a point's own, standing at the new end: an authored statement lost.
+    return shedEndStatementVibrato(note) || lost;
 }
 
 // The one walk that answers "when is this string struck again", which the truncation below, the
@@ -465,7 +465,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    keeps its node. What it cannot keep is pitch MODULATION, which has no positional reading.
     //    The palm flag is untouched throughout: it says where the picking hand is, never what the
     //    string sounds.
-    if (note.dead && (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) ||
+    if (note.dead && (std::is_neq(note.bend <=> 0.0) || hasVibrato(note.vibrato) ||
                       statesModulation(note.keyframes)))
     {
         note.bend = 0.0;
@@ -473,7 +473,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         // The modulation CHANNELS go; the position channel stays, because a dead string still
         // travels — a dragged mute is exactly that.
         static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
-            const bool modulated = keyframe.bend.has_value() || isShaking(keyframe.vibrato);
+            const bool modulated = keyframe.bend.has_value() || hasVibrato(keyframe.vibrato);
             keyframe.bend.reset();
             keyframe.vibrato = VibratoState::None;
             return modulated;
@@ -519,9 +519,9 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         fired(ChartRepair::TapHarmonicTremolo);
     }
     // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
-    // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
+    // vibrato, or carry anywhere, and moving the touch off the node just stops the harmonic.
     if (fretHandHarmonic(note) &&
-        (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) || !note.keyframes.empty()))
+        (std::is_neq(note.bend <=> 0.0) || hasVibrato(note.vibrato) || !note.keyframes.empty()))
     {
         note.bend = 0.0;
         note.vibrato = VibratoState::None;
@@ -537,12 +537,12 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         dropNotePath(note);
         fired(ChartRepair::OpenStringSlide);
     }
-    // AN END STATEMENT LEAVES NO SHAKE: the string is let go there, so a state stated at that
+    // AN END STATEMENT LEAVES NO VIBRATO: the string is let go there, so a state stated at that
     // instant has no ring to sound in. The bend stays, being the curve's last value, which shapes
     // the final leg into the end whether that end slides out or arrives into the next head.
-    if (shedEndStatementShake(note))
+    if (shedEndStatementVibrato(note))
     {
-        fired(ChartRepair::EndStatementShake);
+        fired(ChartRepair::EndStatementVibrato);
     }
 
     // 4. A strike from nowhere needs somewhere to land.

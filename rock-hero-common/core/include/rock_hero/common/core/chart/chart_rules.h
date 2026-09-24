@@ -228,11 +228,11 @@ enum class ChartRepair : std::uint8_t
     DerivedHeldStop,
 
     /*!
-    \brief A SHAKE stated at the ring's end was dropped: a width is the statement of the leg its
+    \brief VIBRATO stated at the ring's end was dropped: a width is the statement of the leg its
     keyframe begins, and one stated where the string is let go begins no leg
-    (\ref shedEndStatementShake). A BEND there is the curve's last value and stays.
+    (\ref shedEndStatementVibrato). A BEND there is the curve's last value and stays.
     */
-    EndStatementShake,
+    EndStatementVibrato,
 
     /*!
     \brief A keyframe that said nothing the path did not already say was dropped
@@ -343,8 +343,8 @@ the ink one margin before that head and leaves the statement where it stands
 
 REPORTS AN AUTHORED STATEMENT LOST: a keyframe past the new end erased, a channel the ridden end
 statement overwrote with a different value on landing (\ref overlayKeyframe — a point at fret 9
-under a slide-out to fret 3 leaves one keyframe at 3, the 9 gone), or a shake a point standing at
-the new end stated and shed (\ref shedEndStatementShake). The ridden end statement itself rides,
+under a slide-out to fret 3 leaves one keyframe at 3, the 9 gone), or vibrato a point standing at
+the new end stated and shed (\ref shedEndStatementVibrato). The ridden end statement itself rides,
 and a scrape's terminal re-aimed is the path's own rule; neither is a loss.
 
 \param note Note whose ring is resized and whose payload is clipped in place.
@@ -467,7 +467,7 @@ the stranded strike (\ref flattenStrandedStrike); and last, a pick slide whose p
 travels after all of that, which becomes the plain pick it sounds like.
 
 Every strip is per CHANNEL, not per keyframe: a capo floor takes a keyframe's fret and leaves the
-bend authored at the same instant, an open string loses its path and keeps its shake, and a
+bend authored at the same instant, an open string loses its path and keeps its vibrato, and a
 keyframe the strip ITSELF left stating nothing is then dropped (\ref stripKeyframeChannels — a
 keyframe that arrived empty is a refusal this normalizer must not quietly repair away, since it
 runs first). That is the cost of storing the moment once — and the point of it, since the

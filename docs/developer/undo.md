@@ -79,7 +79,7 @@ only, so re-running it on an authored edit would overwrite hand positions the ch
   empty alternative — and because the fold RETIRES an entry that returns to the pre-run state, `H`
   `Return` `H` `Return` leaves no trace of a carrier the VERB itself produced, by that rule rather
   than by a second-press reversal. The rule is a PLAN test, not a keystroke count: over an imported
-  carrier whose payload (a bend, a shake) the set normalized away, the round trip does not return to
+  carrier whose payload (a bend, vibrato) the set normalized away, the round trip does not return to
   the pre-run state, so its entry — describing that real strip — correctly stays.
   The other two keep
   their STEPS rather than one summed delta: a duration step moves the ring's END onto the adjacent

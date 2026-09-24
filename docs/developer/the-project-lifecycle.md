@@ -620,7 +620,7 @@ neighbours.
     stating at its end draws, and there is no conjunction over a stroke. The landmark is simply
     where the ring stops stating anything of its own.
 
-    **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake
+    **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, vibrato
     that never stops, tremolo, a slide-out) and not handed over never rests. The curtain owns only
     what the ribbon has stopped saying anything with; it has no vocabulary for a statement in
     progress. There are no exceptions beyond

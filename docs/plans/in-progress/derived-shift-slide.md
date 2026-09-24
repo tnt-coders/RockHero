@@ -37,13 +37,13 @@ here and the text below is amended to match.
   what the claim's own sentence says — the end statement names the stop the next head takes, at
   the same instant. An equal-fret claim can never be justified, so after a settle the deleted
   clause was always true whenever the other five held.
-- **The strip sheds only the SHAKE.** "A slide-out states its fret and nothing else" was enforced
+- **The strip sheds only the VIBRATO.** "A slide-out states its fret and nothing else" was enforced
   eagerly in the note-local writers, which cannot see the relation. The bend half of that law was
   wrong on its own terms: by the channel table a bend at the end is the curve's LAST value, which
   shapes the final leg before the end, and that is as true of a slide-out as of an arrival. So the strip
-  is note-local, applies to any end statement, and sheds the shake alone (a shake at the end has no
-  ring to shake in). A bend on a slide-out becomes legal; no corpus note has one, so nothing re-imports
-  differently. The `ReleasePayload` repair narrows to the shake likewise.
+  is note-local, applies to any end statement, and sheds the vibrato alone (vibrato at the end has
+  no ring to vibrate in). A bend on a slide-out becomes legal; no corpus note has one, so nothing
+  re-imports differently. The `ReleasePayload` repair narrows to the vibrato likewise.
 
 ## The interaction half (signed the same day): BUILT 2026-09-22
 
@@ -132,7 +132,7 @@ means "an end statement whose fret does not travel into the next head". Each con
 resolved answer instead of asking position alone. This is the whole cost of the change: about
 twenty-five call sites move from a local helper to a resolved read.
 
-**The strip needs no relation.** It sheds the shake from any end statement, note-local, and never
+**The strip needs no relation.** It sheds the vibrato from any end statement, note-local, and never
 the bend (see the amendment above). The coexistence ruling holds for arrivals and slide-outs alike.
 
 **No display change.** One flag, `KeyframeViewState::slide_out`, isolates every surface: false draws
@@ -171,12 +171,12 @@ Built, green, and cleaned: the predicate `arrivesIntoNextHead` beside `resolveLe
 `ChartConnections::arrives_into` vector; the slide-out family split into a NOTE-LOCAL pair
 (`endFretStatement`, `endStatedFretOrNull`) and a RESOLVED pair (`slideOutKeyframe(note,
 arrives_into)`, `slideOutFretOrNull(note, arrives_into)`, the second spelled over the first so the
-relational clause stands in one function); the strip narrowed to `shedEndStatementShake` /
-`endStatementWouldShedShake` (note-local, any end statement, the shake alone,
-`ChartRepair::EndStatementShake`); `fretAtRingEnd` and `dissolveSilentRelease` reading the fact; the
-importer's shift branch collapsed to "grow the ring to the gap and state the landing's fret at the
-end"; the `Shift+L` split's retreat and the join's equality test deleted, with a scrape now refused
-outright; `latestStatementBeforeStrike` folded into `chart_presentation.cpp` as
+relational clause stands in one function); the strip narrowed to `shedEndStatementVibrato` /
+`endStatementWouldShedVibrato` (note-local, any end statement, the vibrato alone,
+`ChartRepair::EndStatementVibrato`); `fretAtRingEnd` and `dissolveSilentRelease` reading the fact;
+the importer's shift branch collapsed to "grow the ring to the gap and state the landing's fret at
+the end"; the `Shift+L` split's retreat and the join's equality test deleted, with a scrape now
+refused outright; `latestStatementBeforeStrike` folded into `chart_presentation.cpp` as
 `lastStatementClearance` (since deleted by `ring-ends-and-authoring-planes.md`); the projection's
 `slide_out` flag read from the fact; `deriveChartShapes`
 taking the connections.

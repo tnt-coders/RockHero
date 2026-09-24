@@ -314,7 +314,7 @@ TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
 // the leg that keyframe begins and leaves the note's onset statement alone. The second press inside
 // the verb window takes it back — and takes the width out entirely rather than writing a false
 // one, because a leg without vibrato states nothing.
-TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][chart]")
+TEST_CASE("The vibrato verb states the vibrato at a selected keyframe", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
@@ -322,21 +322,21 @@ TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][ch
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
 
-    const common::core::Chart shaking = currentChart(fixture.controller);
-    REQUIRE(shaking.notes.size() == 1);
-    REQUIRE(shaking.notes[0].keyframes.size() == 1);
-    CHECK(shaking.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
-    // The onset is untouched: the ring opens still and shakes over the leg the junction begins.
-    CHECK_FALSE(common::core::isShaking(shaking.notes[0].vibrato));
+    const common::core::Chart vibrating = currentChart(fixture.controller);
+    REQUIRE(vibrating.notes.size() == 1);
+    REQUIRE(vibrating.notes[0].keyframes.size() == 1);
+    CHECK(vibrating.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+    // The onset is untouched: the ring opens still and vibrates over the leg the junction begins.
+    CHECK_FALSE(common::core::hasVibrato(vibrating.notes[0].vibrato));
     // And the position channel rides along unchanged — one record, so the coupling needs no copy.
-    CHECK(shaking.notes[0].keyframes[0].fret == 9);
+    CHECK(vibrating.notes[0].keyframes[0].fret == 9);
 
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     const common::core::Chart cleared = currentChart(fixture.controller);
     CHECK(cleared == original);
     // The clear takes the width off, so the keyframe keeps only its fret.
     REQUIRE(cleared.notes[0].keyframes.size() == 1);
-    CHECK_FALSE(isShaking(cleared.notes[0].keyframes[0].vibrato));
+    CHECK_FALSE(hasVibrato(cleared.notes[0].keyframes[0].vibrato));
     // The pair reversed its own entry, so it leaves no history trace at all.
     CHECK_FALSE(publishedState(fixture.view).undo_enabled);
 }
@@ -346,15 +346,15 @@ TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][ch
 // off the leg, and a keyframe the clear empties would go with it. Here the point states a fret
 // too, so what goes is the width alone — and this is a NEW undo entry, not a reversal, which is
 // what the round trip below proves.
-TEST_CASE("Clearing the shake at a keyframe dissolves the statement it wrote", "[core][chart]")
+TEST_CASE("Clearing the vibrato at a keyframe dissolves the statement it wrote", "[core][chart]")
 {
     KeyframeFixture fixture;
     const common::core::Chart original = currentChart(fixture.controller);
 
     click(fixture.controller, g_junction_x, g_string_3_y);
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
-    const common::core::Chart shaking = currentChart(fixture.controller);
-    REQUIRE(shaking.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+    const common::core::Chart vibrating = currentChart(fixture.controller);
+    REQUIRE(vibrating.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
 
     // A selection change commits that entry and closes the verb window, so the press below runs
     // the verb's ordinary law instead of reversing anything.
@@ -365,15 +365,15 @@ TEST_CASE("Clearing the shake at a keyframe dissolves the statement it wrote", "
     const common::core::Chart cleared = currentChart(fixture.controller);
     CHECK(cleared == original);
     REQUIRE(cleared.notes[0].keyframes.size() == 1);
-    CHECK_FALSE(isShaking(cleared.notes[0].keyframes[0].vibrato));
+    CHECK_FALSE(hasVibrato(cleared.notes[0].keyframes[0].vibrato));
     CHECK(cleared.notes[0].keyframes[0].fret == 9);
 
     fixture.controller.onUndoRequested();
-    CHECK(currentChart(fixture.controller) == shaking);
+    CHECK(currentChart(fixture.controller) == vibrating);
     fixture.controller.onRedoRequested();
     CHECK(currentChart(fixture.controller) == cleared);
     fixture.controller.onUndoRequested();
-    CHECK(currentChart(fixture.controller) == shaking);
+    CHECK(currentChart(fixture.controller) == vibrating);
 }
 
 // Delete reaches keyframes exactly as it reaches notes: it takes every statement

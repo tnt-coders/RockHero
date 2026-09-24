@@ -190,9 +190,9 @@ below \ref NoteEmphasis::Ghost lights up every consumer at once.
 }
 
 /*!
-\brief How wide the fretting hand shakes a stopped string — the vibrato channel's axis.
+\brief How wide the fretting hand vibrates a stopped string — the vibrato channel's axis.
 
-One axis rather than a flag beside a width, so a note cannot claim to shake and to shake nowhere
+One axis rather than a flag beside a width, so a note cannot claim to vibrate and to vibrate nowhere
 at once. `Narrow` is the ORDINARY vibrato every player uses — physically a fraction of a semitone
 of excursion, which is what the board's own drawn depth says — and `Wide` is the deliberate
 exaggeration above it, the standardized opposition published notation draws with two different
@@ -206,32 +206,32 @@ without vibrato — never a stored "off" statement: the document omits the key w
 enum class VibratoState : std::uint8_t
 {
     /*!
-    \brief No vibrato: the string is not shaken.
+    \brief No vibrato: the string is not vibrated.
 
-    Listed FIRST so value-initialization lands on not-shaking: a zero-valued `Narrow` would make
-    every default-constructed or resized note shake, which is an illegal default hiding behind
+    Listed FIRST so value-initialization lands on no vibrato: a zero-valued `Narrow` would make
+    every default-constructed or resized note vibrate, which is an illegal default hiding behind
     correct-looking code — the same trap \ref NoteEmphasis::Normal is declared first to avoid.
     */
     None,
     /*! \brief The ordinary vibrato: a fraction of a semitone of excursion. */
     Narrow,
-    /*! \brief The deliberate exaggeration: a visibly wider shake than the ordinary one. */
+    /*! \brief The deliberate exaggeration: a visibly wider vibrato than the ordinary one. */
     Wide
 };
 
 /*!
-\brief Reports whether the string is being shaken at all, whichever width.
+\brief Reports whether the string is being vibrated at all, whichever width.
 
 The one classifier for the channel, mirroring \ref isAccented: every consumer that only wants to
-know THAT the string shakes asks this, so a width added to the axis lights up all of them at once
-instead of leaving each open-coded `== Narrow` quietly answering "not shaking" for the wide notes
+know THAT the string vibrates asks this, so a width added to the axis lights up all of them at once
+instead of leaving each open-coded `== Narrow` quietly answering "no vibrato" for the wide notes
 it was never told about.
 
-\param vibrato Width the string is shaken at.
+\param vibrato Width the string is vibrated at.
 
 \return True for every width, false for \ref VibratoState::None.
 */
-[[nodiscard]] constexpr bool isShaking(VibratoState vibrato) noexcept
+[[nodiscard]] constexpr bool hasVibrato(VibratoState vibrato) noexcept
 {
     return vibrato != VibratoState::None;
 }
@@ -539,7 +539,7 @@ Each channel reads independently along the ring:
   fret-stating keyframes, and a mid-hold curl is a new value on a keyframe stating no fret.
 - **vibrato** — a width per LEG (\ref VibratoState), `None` where the leg is not vibrated.
   Nothing carries: each keyframe states its own leg's width, so a delayed start, an end where
-  the next keyframe begins an unvibrated leg, a step from the ordinary shake to the wide one,
+  the next keyframe begins an unvibrated leg, a step from the ordinary vibrato to the wide one,
   several regions, and vibrato through a glide are all just the legs that state one. A vibrated
   leg with no keyframe after it vibrates to the ring's end: a width ends only where a leg begins.
 
@@ -556,8 +556,8 @@ slide: the same statement naming the very stop the next head on that string is s
 same instant, which is a finger gliding into position for a note that is then picked
 (\ref arrivesIntoNextHead). One statement, two gestures, told apart by a RELATION resolved once per
 revision (\ref ChartConnections::arrives_into) rather than asked of position at each reader. Either
-leaves no SHAKE (\ref shedEndStatementShake), a state stated where the string is let go having no
-ring to sound in, and either keeps a BEND, the curve's last value shaping the final leg.
+leaves no VIBRATO (\ref shedEndStatementVibrato), a state stated where the string is let go having
+no ring to sound in, and either keeps a BEND, the curve's last value shaping the final leg.
 
 Nothing separate stores the end's statement, and nothing has to: its moment is the ring's end by
 definition. A point never moves because the ring did: a ring shortened under the statement standing
@@ -638,7 +638,8 @@ channel.
 */
 [[nodiscard]] inline bool keyframeStatesNothing(const Keyframe& keyframe) noexcept
 {
-    return !keyframe.fret.has_value() && !keyframe.bend.has_value() && !isShaking(keyframe.vibrato);
+    return !keyframe.fret.has_value() && !keyframe.bend.has_value() &&
+           !hasVibrato(keyframe.vibrato);
 }
 
 /*!
@@ -687,7 +688,7 @@ template <typename Strip>
 \brief Reports whether any keyframe states a POSITION — whether the note travels at all.
 
 The question every rule about gliding asks, and it is not "are there keyframes": a note whose only
-statements are a mid-ring curl or a delayed shake never moves the hand, so an open string may keep
+statements are a mid-ring curl or delayed vibrato never moves the hand, so an open string may keep
 them and a dead note's E25 tail is not earned by them. Spelled once so the travel rules and the
 presentation rules cannot drift about what travelling means.
 
@@ -854,7 +855,7 @@ struct ChartNote
     An onset fact like the fret, not a whole-note flag: it says nothing about any later leg, each
     of which states its own width on the keyframe that begins it (\ref Keyframe::vibrato).
 
-    `None` is the absence rather than a written value — a leg that does not shake writes no key at
+    `None` is the absence rather than a written value — a leg that does not vibrate writes no key at
     all, so the document has one spelling for it and the reader refuses any other token here
     exactly as it refuses an explicit `"pick"` attack.
     */
@@ -1294,18 +1295,18 @@ the same instant, is a glide into position and a pick (\ref arrivesIntoNextHead)
 /*!
 \brief Reports whether standing at the ring's END would shed a statement from this keyframe.
 
-ONE channel does: the SHAKE, a width for the leg a keyframe begins, and the end begins no leg —
+ONE channel does: the VIBRATO, a width for the leg a keyframe begins, and the end begins no leg —
 while a BEND stays, being the curve's last value. Spelled once,
-so the shed (\ref shedEndStatementShake) and every verb that must know BEFORE it hands a keyframe
+so the shed (\ref shedEndStatementVibrato) and every verb that must know BEFORE it hands a keyframe
 the ring's end read the same list.
 
 \param keyframe Keyframe the ring's end would reach.
 
-\return True when the keyframe states a shake, which an end statement cannot carry.
+\return True when the keyframe states vibrato, which an end statement cannot carry.
 */
-[[nodiscard]] inline bool endStatementWouldShedShake(const Keyframe& keyframe) noexcept
+[[nodiscard]] inline bool endStatementWouldShedVibrato(const Keyframe& keyframe) noexcept
 {
-    return isShaking(keyframe.vibrato);
+    return hasVibrato(keyframe.vibrato);
 }
 
 /*!
@@ -1316,8 +1317,8 @@ The landing's one spelling, so every verb that shortens a ring asks the same que
 each restating part of it. It is allowed only where it costs the keyframe nothing and states
 something: the tail must simply END, because on a ring whose end already carries a statement the end
 IS that point and the slide-out's length is the point's to change (\ref endStatement); the keyframe
-must state no SHAKE, because a shake at the end has no ring to shake in and would be shed
-(\ref endStatementWouldShedShake) — a bend rides to the end as the curve's last value and costs
+must state no VIBRATO, because vibrato at the end has no ring to vibrate in and would be shed
+(\ref endStatementWouldShedVibrato) — a bend rides to the end as the curve's last value and costs
 nothing; it must state a fret, because an end that states none is no landing at all; and that fret
 must TRAVEL from the one already in force there —
 the onset's, or an earlier junction's — because a slide-out toward the fret the string already
@@ -1340,30 +1341,30 @@ there is no relation to resolve (\ref arrivesIntoNextHead).
 [[nodiscard]] bool ringEndMayLandOnLastKeyframe(const ChartNote& note);
 
 /*!
-\brief Leaves the statement at the ring's END with no SHAKE on it.
+\brief Leaves the statement at the ring's END with no VIBRATO on it.
 
-AN END STATEMENT LEAVES NO SHAKE: a width is the statement of the leg its keyframe begins, and one
+AN END STATEMENT LEAVES NO VIBRATO: a width is the statement of the leg its keyframe begins, and one
 stated at the instant the string is let go begins no leg, and a statement that says
 nothing is not kept (\ref keyframeStatesNothing). The BEND stays, whatever the end states, being the
-curve's LAST value and so shaping the final leg into the end (\ref endStatementWouldShedShake).
+curve's LAST value and so shaping the final leg into the end (\ref endStatementWouldShedVibrato).
 
 NOTE-LOCAL, and applied to ANY end statement rather than to a slide-out alone: what an instant can
 carry is a fact about the channels, so it needs no relation. Asked wherever a statement comes to
 stand at the end — written there (\ref setEndStatement), reached by a ring shortening onto it
 (\ref clipPayloadsToSustain), or found there on load.
 
-\param note Note whose end statement, if it has one, loses its shake.
-\return True when the shake was shed — what the normalizer reports as its repair.
+\param note Note whose end statement, if it has one, loses its vibrato.
+\return True when the vibrato was shed — what the normalizer reports as its repair.
 */
-inline bool shedEndStatementShake(ChartNote& note) noexcept
+inline bool shedEndStatementVibrato(ChartNote& note) noexcept
 {
     Keyframe* const end = endStatement(note);
-    if (end == nullptr || !endStatementWouldShedShake(*end))
+    if (end == nullptr || !endStatementWouldShedVibrato(*end))
     {
         return false;
     }
     end->vibrato = VibratoState::None;
-    // A statement of the shake alone then says nothing, and a keyframe stating nothing is a shape
+    // A statement of the vibrato alone then says nothing, and a keyframe stating nothing is a shape
     // no chart may hold (\ref validateChartNoteAlone).
     if (keyframeStatesNothing(*end))
     {
@@ -1406,10 +1407,10 @@ inline bool overlayKeyframe(Keyframe& standing, const Keyframe& arriving) noexce
     overlay(standing.fret, arriving.fret);
     overlay(standing.bend, arriving.bend);
     // The same rule for the width, whose unstated spelling is `None` rather than an empty optional.
-    if (isShaking(arriving.vibrato))
+    if (hasVibrato(arriving.vibrato))
     {
         overwrote =
-            overwrote || (isShaking(standing.vibrato) && standing.vibrato != arriving.vibrato);
+            overwrote || (hasVibrato(standing.vibrato) && standing.vibrato != arriving.vibrato);
         standing.vibrato = arriving.vibrato;
     }
     return overwrote;
@@ -1426,14 +1427,14 @@ is the ring's end by definition, so this stamps `note.sustain` on it and the rin
 the length the statement is meant to stand at.
 
 OVERLAID rather than replaced (\ref overlayKeyframe, the one spelling of that merge). What an end
-may then KEEP is the channel table's (\ref shedEndStatementShake), applied here so every writer of
+may then KEEP is the channel table's (\ref shedEndStatementVibrato), applied here so every writer of
 the end gets the same answer.
 
 \param note Note whose ring's end takes the statement.
 \param statement What is stated there; its own `offset` is ignored.
 \return True when an authored statement was lost writing it: a channel the standing end
-        statement stated overwritten with a different value (\ref overlayKeyframe), or a shake
-        the standing statement stated shed (\ref shedEndStatementShake); false where the end was
+        statement stated overwritten with a different value (\ref overlayKeyframe), or vibrato
+        the standing statement stated shed (\ref shedEndStatementVibrato); false where the end was
         bare.
 */
 inline bool setEndStatement(ChartNote& note, Keyframe statement)
@@ -1442,17 +1443,17 @@ inline bool setEndStatement(ChartNote& note, Keyframe statement)
     bool lost = false;
     if (Keyframe* const standing = endStatement(note); standing != nullptr)
     {
-        // A standing statement's shake goes with the end whichever statement arrives, so it is
-        // lost before the overlay decides what else is; the arriving statement's own shake is the
+        // A standing statement's vibrato goes with the end whichever statement arrives, so it is
+        // lost before the overlay decides what else is; the arriving statement's own vibrato is the
         // writer's to give up and never a loss.
-        const bool sheds = endStatementWouldShedShake(*standing);
+        const bool sheds = endStatementWouldShedVibrato(*standing);
         lost = overlayKeyframe(*standing, statement) || sheds;
     }
     else
     {
         note.keyframes.push_back(statement);
     }
-    static_cast<void>(shedEndStatementShake(note));
+    static_cast<void>(shedEndStatementVibrato(note));
     return lost;
 }
 
@@ -1461,9 +1462,9 @@ inline bool setEndStatement(ChartNote& note, Keyframe statement)
 the end is bare.
 
 The one writer for the slide-out, spelled over the end's own writer (\ref setEndStatement) so a
-caller never reasons about whether the end already carries a statement of another channel (a shake
-there says nothing and goes; a bend rides on — \ref shedEndStatementShake). The ring must already be
-the length the slide-out is meant to leave at — a slide-out is stated at an END, never given one.
+caller never reasons about whether the end already carries a statement of another channel (vibrato
+there says nothing and goes; a bend rides on — \ref shedEndStatementVibrato). The ring must already
+be the length the slide-out is meant to leave at — a slide-out is stated at an END, never given one.
 What makes the fret a SLIDE-OUT rather than an arrival is the relation and not this writer
 (\ref arrivesIntoNextHead).
 
@@ -1479,7 +1480,7 @@ inline void setSlideOut(ChartNote& note, const int fret)
 /*!
 \brief Clears the fret the end statement names, leaving the tail simply ending.
 
-The fret channel alone leaves: a bend or shake stated at the same instant stays, and the keyframe
+The fret channel alone leaves: a bend or vibrato stated at the same instant stays, and the keyframe
 goes with its fret only when it then states nothing (\ref keyframeStatesNothing). NOTE-LOCAL like
 its writer — what it takes is the fret at the end, whichever gesture that fret was proving.
 

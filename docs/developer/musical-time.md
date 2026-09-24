@@ -203,7 +203,7 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   **THE ATOM IS THE MEMBER**: each member is judged alone — a plain member rests, one still stating
   at its end draws beside it. Rule 2's per-group atom is untouched, and each resting member keeps
   its own landmark.
-  **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, a shake that
+  **PRESENCE — nothing of its own**: a ring still STATING at its end (a bend held out, vibrato that
   never stops, tremolo, a slide-out) and not handed over never rests. The curtain owns only what the
   ribbon has stopped saying anything with; it has no vocabulary for a statement in progress. There
   are no exceptions beyond that: the disjunction IS the whole law. A ring whose string a later

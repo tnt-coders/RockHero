@@ -390,11 +390,11 @@ TEST_CASE("A ring lands on a last keyframe that also states a bend", "[core][cha
     CHECK(slides_out());
 }
 
-// The landing is taken only where it ERASES NOTHING. A junction that also states a SHAKE would lose
-// it — a state stated where the string is let go has no ring to shake in — and this verb shortens
+// The landing is taken only where it ERASES NOTHING. A junction that also states VIBRATO would lose
+// it — a state stated where the string is let go has no ring to vibrate in — and this verb shortens
 // rings rather than deleting statements, so such a junction holds the ring STRICTLY above it,
 // exactly as a fretless one does, and the step into it is refused rather than recorded.
-TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][chart]")
+TEST_CASE("A ring holds above a last keyframe that states vibrato", "[core][chart]")
 {
     GestureFixture fixture;
     common::core::Chart chart = makeGlideChart();
@@ -416,11 +416,11 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
     };
     // Asked with the production predicate, so the test cannot drift from the law it pins: the
     // junction still carries the one statement an end could not have kept.
-    const auto states_a_shake = [&fixture] {
+    const auto states_vibrato = [&fixture] {
         const common::core::Chart* const chart_now = chartOrNull(fixture.controller);
         return chart_now != nullptr && chart_now->notes.size() == 1 &&
                chart_now->notes[0].keyframes.size() == 1 &&
-               common::core::endStatementWouldShedShake(chart_now->notes[0].keyframes[0]);
+               common::core::endStatementWouldShedVibrato(chart_now->notes[0].keyframes[0]);
     };
 
     fixture.step(-1);
@@ -429,7 +429,7 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(slides_out());
-    CHECK(states_a_shake());
+    CHECK(states_vibrato());
 
     // 8 - 4 would land the end ON the junction and bare it: the ring stays one step above instead,
     // the junction keeps what it stated, and the press moved no ring so it is not recorded.
@@ -437,28 +437,28 @@ TEST_CASE("A ring holds above a last keyframe that states a shake", "[core][char
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
     CHECK_FALSE(slides_out());
-    CHECK(states_a_shake());
+    CHECK(states_vibrato());
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{5});
-    CHECK(states_a_shake());
+    CHECK(states_vibrato());
 
     // The two held presses left no trace, so one grow is one visible step out from five beats.
     fixture.step(1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{6});
     CHECK(one_keyframe_at(common::core::Fraction{4}));
-    CHECK(states_a_shake());
+    CHECK(states_vibrato());
 }
 
-// The defect the landing rule exists to prevent, end to end. A delayed shake mid-hold is a keyframe
-// stating the fret already in force plus its shake: bared by a landing it would say nothing the
+// The defect the landing rule exists to prevent, end to end. Delayed vibrato mid-hold is a keyframe
+// stating the fret already in force plus its vibrato: bared by a landing it would say nothing the
 // path does not already say, and the settle's silent-point sweep would then dissolve it — the
-// charter's shake shrunk out of existence. The ring holds above it, so the statement survives the
+// charter's vibrato shrunk out of existence. The ring holds above it, so the statement survives the
 // shrink and the leave.
-TEST_CASE("A shrink to the floor keeps a mid-hold shake through the settle", "[core][chart]")
+TEST_CASE("A shrink to the floor keeps mid-hold vibrato through the settle", "[core][chart]")
 {
     GestureFixture fixture;
-    common::core::Chart shaking;
-    shaking.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::Chart vibrating;
+    vibrating.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     common::core::ChartNote held =
         makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{8});
     held.keyframes = {common::core::Keyframe{
@@ -467,13 +467,13 @@ TEST_CASE("A shrink to the floor keeps a mid-hold shake through the settle", "[c
         .bend = {},
         .vibrato = common::core::VibratoState::Narrow,
     }};
-    shaking.notes = {std::move(held)};
-    const bool loaded = fixture.load(std::move(shaking));
+    vibrating.notes = {std::move(held)};
+    const bool loaded = fixture.load(std::move(vibrating));
     REQUIRE(loaded);
 
     click(fixture.controller, 40.0f, 140.0f);
     // Far more presses than the ring has room for: three move it, and the rest are held at the
-    // floor the shake raises.
+    // floor the vibrato raises.
     for (int index = 0; index < 6; ++index)
     {
         fixture.step(-1);
@@ -490,9 +490,9 @@ TEST_CASE("A shrink to the floor keeps a mid-hold shake through the settle", "[c
         REQUIRE(swept->notes[0].keyframes.size() == 1);
         if (swept->notes[0].keyframes.size() == 1)
         {
-            const common::core::Keyframe& shake = swept->notes[0].keyframes[0];
-            CHECK(shake.offset == common::core::Fraction{4});
-            CHECK(shake.vibrato == common::core::VibratoState::Narrow);
+            const common::core::Keyframe& vibrato_point = swept->notes[0].keyframes[0];
+            CHECK(vibrato_point.offset == common::core::Fraction{4});
+            CHECK(vibrato_point.vibrato == common::core::VibratoState::Narrow);
         }
     }
 }

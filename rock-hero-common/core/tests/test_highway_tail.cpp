@@ -301,7 +301,7 @@ TEST_CASE("Highway vibrato lift follows the region in force", "[core][highway][t
 {
     const double period = g_highway_vibrato_period_seconds;
     const double depth = g_highway_vibrato_depth_semitones;
-    // A four-second tail from 10.0s, shaking end to end: exactly what the projection derives from
+    // A four-second tail from 10.0s, vibrating end to end: exactly what the projection derives from
     // a chart stating vibrato at the onset and never restating it.
     const std::vector<VibratoSpanViewState> whole_tail = {
         VibratoSpanViewState{.start_seconds = 10.0, .end_seconds = 14.0}
@@ -347,7 +347,7 @@ TEST_CASE("Highway vibrato lift follows the region in force", "[core][highway][t
 
     SECTION("a region stated mid-ring phases and tapers from its own start")
     {
-        // The same note, but the shake begins part way in — deliberately NOT a whole number of
+        // The same note, but the vibrato begins part way in — deliberately NOT a whole number of
         // periods after the onset, so the two anchors genuinely disagree. At a quarter period past
         // THAT start the wave stands at its positive crest.
         const double late_start = 12.05;
@@ -363,7 +363,7 @@ TEST_CASE("Highway vibrato lift follows the region in force", "[core][highway][t
         // The discrimination: an onset-phased reading at the same instant is nowhere near the
         // crest, so this cannot pass by accident.
         CHECK(std::abs(highwayVibratoWobble(crest_seconds - 10.0, period) - 1.0) > 0.1);
-        // Before the region starts there is no shake at all, however long the note has rung.
+        // Before the region starts there is no vibrato at all, however long the note has rung.
         CHECK_THAT(highwayVibratoSemitonesAt(late, 11.0, 1.0), Catch::Matchers::WithinULP(0.0, 0));
     }
 
@@ -373,7 +373,7 @@ TEST_CASE("Highway vibrato lift follows the region in force", "[core][highway][t
             VibratoSpanViewState{.start_seconds = 10.0, .end_seconds = 11.0},
             VibratoSpanViewState{.start_seconds = 12.05, .end_seconds = 14.0},
         };
-        // Between the two the string is steady, however long it shook on either side.
+        // Between the two the string is steady, however long it vibrated on either side.
         CHECK_THAT(highwayVibratoSemitonesAt(two, 11.5, 1.0), Catch::Matchers::WithinULP(0.0, 0));
         // Inside the second, both the wave's phase and its envelope come from THAT region: a
         // quarter period past its start is its crest. Reading the first region's anchor here

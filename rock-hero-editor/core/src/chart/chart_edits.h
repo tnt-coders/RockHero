@@ -481,7 +481,7 @@ stays STRICTLY BELOW the ring's end — the clamped end, so a step that would st
 that head is refused rather than left for the gate's truncation to clip away: KIND IS NOT THIS
 VERB'S TO CHANGE, so a point that already is the slide-out drags the end with it and no other point
 ever becomes one. Moving a point LEFT remains the way past the resize floor that a point which says
-nothing, or one carrying a shake, raises under a shrinking ring
+nothing, or one carrying vibrato, raises under a shrinking ring
 (\ref common::core::ringEndMayLandOnLastKeyframe); leftward it needs no ceiling of its own, since a
 shortening ring only ever moves away from the head that bounds it.
 
@@ -698,8 +698,8 @@ IS recorded, and the member rejoins where it parted.
   and costs nothing: a last keyframe stating a fret, nothing else, and a fret the path does not
   already hold there, on a ring that simply ends, may be landed on exactly, which makes it the
   SLIDE-OUT and the glide an unpitched slide-out. A BEND beside that fret costs the landing nothing
-  and rides to the end as the curve's last value; a keyframe also stating a SHAKE would lose it,
-  having no ring left to shake in, and one repeating the fret already in force would author
+  and rides to the end as the curve's last value; a keyframe also stating VIBRATO would lose it,
+  having no ring left to vibrate in, and one repeating the fret already in force would author
   a slide-out saying nothing the path does not already say — one the focus-leave sweep takes
   (\ref common::core::stripSilentKeyframes), trading the point the charter can still see for a ring
   that simply ends. Either holds the ring above it like a fretless one: this verb shortens
@@ -963,7 +963,7 @@ independent properties of a note, so a note may end up carrying any combination 
 Eligibility is asked of the per-note rule authority rather than restated, so a mixed selection
 applies to the notes that can take the flag and silently skips the rest — and each flag inherits
 its OWN rules that way, which are not the same rules. `dead` is refused wherever a technique needs
-the pitch it removes (a bend, a shake, a pinch's squeal); `tremolo` is refused on a tap harmonic,
+the pitch it removes (a bend, vibrato, a pinch's squeal); `tremolo` is refused on a tap harmonic,
 whose damping finger leaves the string so nothing holds the node under re-picking. An on-neck
 harmonic node is refused by none of them, because on a dead note it names where the hand stands
 rather than what rings, and a palm mute is refused by nothing at all. A pick slide takes neither
@@ -1076,7 +1076,7 @@ finger touches.
 
 Per note the verb asks \ref chartHarmonicNodeCandidates for what that fret names, writes `fret = 0`
 with the chosen node measured from the open string's stop (the nut, or the capo), and runs
-\ref common::core::normalizeChartNote so a payload a touch cannot carry (the bend, the shake, the
+\ref common::core::normalizeChartNote so a payload a touch cannot carry (the bend, the vibrato, the
 travel of a finger that presses nothing) is stripped by the ONE authority rather than by a list
 copied into this verb. A planted finger goes the same way, by the rule rather than by the
 normalizer: a note carrying a node states no \ref common::core::ChartNote::held, so the write
@@ -1217,9 +1217,9 @@ crowded-leg case to repair, and no clearance authority in the walk at all: a gri
 the session's default 1/16 grid — the commonest split there is — needs nothing said about it.
 
 What the product's end may KEEP is the channel table's, asked of the one authority
-(\ref common::core::shedEndStatementShake): a SHAKE stated at the cut has no ring left to shake in
-and goes, which loses nothing, since the shake at that instant is the NEXT product's onset state; a
-BEND stays, the curve's last value completing as the product's ring does.
+(\ref common::core::shedEndStatementVibrato): VIBRATO stated at the cut has no ring left to vibrate
+in and goes, which loses nothing, since the vibrato at that instant is the NEXT product's onset
+state; a BEND stays, the curve's last value completing as the product's ring does.
 
 An arrival that says nothing the origin's path already says — one typed at the note's own fret, or
 the one a join of equal frets leaves — is KEPT, like every other silent point: it is authoring state
@@ -1243,7 +1243,7 @@ included.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
-onset values — the bend it was already pushing and the shake it was already carrying, so the sound
+onset values — the bend it was already pushing and the vibrato it was already carrying, so the sound
 does not change across a split. Its later keyframes ride along, rebased onto the new onset, and the
 slide-out reaches only the LAST product, since it is the keyframe at the ring's end and the ring's
 end is now there. The origin's own onset facts are untouched.
@@ -1271,9 +1271,9 @@ The split run backward. The selected head stops being a note and becomes a junct
 same instant on its same-string predecessor's path: the predecessor's ring grows to swallow the
 head's own (`gap + head.sustain`, the two rings laid end to end), the head's later keyframes rebase
 onto the predecessor's onset and ride along, and the point states the head's fret plus whatever
-else the head's onset said that the running ring did not — its bend, its shake. Nothing ELSE of the
-head survives, and that is the join's meaning: attack, mutes, node, tremolo, emphasis and held stop
-are facts about a STRIKE, and the join is the statement that no strike happens there.
+else the head's onset said that the running ring did not — its bend, its vibrato. Nothing ELSE of
+the head survives, and that is the join's meaning: attack, mutes, node, tremolo, emphasis and held
+stop are facts about a STRIKE, and the join is the statement that no strike happens there.
 
 Which note is the predecessor is \ref common::core::chartConnections' rule, walked over the output
 stream rather than restated: the last note on the string that SOUNDED.

@@ -515,7 +515,7 @@ public:
     \brief Handles a request to toggle every selected junction between its two states.
 
     One verb, two directions, one compound undo entry. A selected KEYFRAME becomes a head: the
-    note's path ends there and a new head takes the remainder, carrying the bend and shake already
+    note's path ends there and a new head takes the remainder, carrying the bend and vibrato already
     in force so the sound does not change across the split (W10's addendum). A selected HEAD
     becomes a point on its same-string predecessor's path: the two rings join end to end, the
     head's own keyframes ride along rebased, and everything a STRIKE states — attack, mutes, node,

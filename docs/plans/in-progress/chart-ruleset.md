@@ -56,9 +56,9 @@ read through `claimedStop`. Sound truth is never bent for display; nothing deriv
   `narrow` or `wide`; an absent key is `None`). Ordinary guitar vibrato IS physically narrow — a
   fraction of a semitone of excursion — while wide is the deliberate exaggeration, so `narrow` is
   an accurate intrinsic description of the ordinary act and never an instruction to hold back.
-  `None` is listed first so value-initialization lands on not-shaking and has no word: a leg
+  `None` is listed first so value-initialization lands on no vibrato and has no word: a leg
   without vibrato omits the key (2026-09-24), and any other token, `off` included, is a read error
-  at an onset and a keyframe alike; consumers classify through `isShaking()` so nothing open-codes
+  at an onset and a keyframe alike; consumers classify through `hasVibrato()` so nothing open-codes
   `== Narrow` and drops wide notes.
 - **Internal consistency**: one record may not state contradictory facts about its string. The held
   stop is refused anywhere inside the note's traveled hull (`travelsThroughFret` — the closed hull
@@ -787,13 +787,13 @@ length.
   zero for a plain ring; the last keyframe's end for a statement that FINISHES, the stated
   portion staying always visible; and the ribbon's own end — an empty remainder — for a HANDOVER.
 - **PRESENCE — nothing of its own.** A note still STATING at its ring's end — a bend held out, a
-  shake that never stops, tremolo, a slide-out — and not handed over never rests. Zero further
+  vibrato that never stops, tremolo, a slide-out — and not handed over never rests. Zero further
   exceptions, because an exception is a place where exception number two attaches.
 - **A HANDOVER FINISHES.** A note whose string a later strike takes over
   (`ChartConnections::hands_over`) is a TRANSFER of the sound, which the span has no vocabulary for
   either — but the transfer COMPLETES at the takeover, so the whole ribbon is stated portion and the
   note keeps every pixel of it. Asked FIRST, deliberately: the takeover terminates whatever the ring
-  was still stating, so a shake or a bend into a pull-off finishes there too and the handover
+  was still stating, so vibrato or a bend into a pull-off finishes there too and the handover
   outranks the never-rests disjunction. The relation is read off the SUCCESSOR's stored claim, never
   the resolved direction — an equal-fret tie resolves `Unjustified` and still hands the string over.
   Duration cannot tell a transfer from a close, which is why the relation is stated rather than

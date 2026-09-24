@@ -19,13 +19,13 @@ the other.
   strictly past (`ringPassesHead`), and rule 2 (`trimToMargin`) CARRIES the end statement back to
   the trimmed end through `clipPayloadsToSustain` → `setEndStatement` (`chart_rules.cpp`), with a
   halfway fallback where the margin would crowd it (`lastStatementClearance`), an interior floor
-  (`lastInteriorStatementEnd`) and a shake window past a statement that leaves the string shaking
-  (`statementsEnd`, `g_minimum_slide_window`). The presented sustain is therefore shorter than the
-  stored ring, and the editor carries TWO whole projections to show both (`ChartNoteForm::Actual`,
-  `tab_actual` in `editor_controller.cpp`), with `keyframeIdentities` mapping drawn keyframes back
-  to stored ones. Both surfaces draw the presented note, so the end statement is drawn early on
-  both, and the hand window completes with the rail at that drawn instant (`makeSlideRampStarts`,
-  `chart_projection.cpp`).
+  (`lastInteriorStatementEnd`) and a vibrato window past a statement that leaves the string
+  vibrating (`statementsEnd`, `g_minimum_slide_window`). The presented sustain is therefore shorter
+  than the stored ring, and the editor carries TWO whole projections to show both
+  (`ChartNoteForm::Actual`, `tab_actual` in `editor_controller.cpp`), with `keyframeIdentities`
+  mapping drawn keyframes back to stored ones. Both surfaces draw the presented note, so the end
+  statement is drawn early on both, and the hand window completes with the rail at that drawn
+  instant (`makeSlideRampStarts`, `chart_projection.cpp`).
 - **The margin.** `g_minimum_sustain_distance_seconds` is 50 ms (re-ruled at the 2026-09-23
   sighting, from the 75 ms of 2026-09-22: with the highway's tip fade floored to a fixed stretch
   of board the last quarter second of every tail already dissolves, the 75 ms cut landed inside
@@ -82,7 +82,7 @@ What that commits to:
    travelled part of the way. A bend written to land on the head is drawn rising toward it up to
    the crop; a slide toward the next head is drawn sloping toward it.
 2. **Before the crop, everything is inked.** Every keyframe before the crop is reached at its
-   instant. The crop is the only place ink stops early: the interior floor and the shake window
+   instant. The crop is the only place ink stops early: the interior floor and the vibrato window
    exist to push a trimmed end back out, and go with the trim.
 3. **The 2D label** is a destination chip at the crop, drawn only where the leg the ink ends on
    changes something: a slide's or arrival's fret, a bend's amount. It names where the drawn leg
@@ -128,11 +128,11 @@ What that commits to:
    once no reveal moves a mark that reason is gone (decided 2026-09-23).
 
 What is lost, deliberately: a gesture that begins and ends inside the zone (a flick up and back
-inside the margin) has no visible leg, so it is neither drawn nor scored; a shake switched on
-just before the crop shows only the sliver before it (the deleted shake window's job); and a
+inside the margin) has no visible leg, so it is neither drawn nor scored; vibrato switched on
+just before the crop shows only the sliver before it (the deleted vibrato window's job); and a
 note whose binding onset lies within a margin of its own onset draws no ink at all. A short FREE
 ring is unchanged: it draws in full, and a vibrato end statement cannot stand on it
-(`shedEndStatementShake`).
+(`shedEndStatementVibrato`).
 
 **Scoring is the ink.** Judging what the player cannot see is a critical bug, and so is showing
 what is not judged. So the contract is one rule: what is drawn is what is judged. A keyframe before
@@ -232,7 +232,7 @@ With no selection, at the caret:
 | **digit** | a note here, at the typed fret | places the head | retypes it | cuts the ring | places the head |
 | **`Insert`** | a note here, at the fret in force | places the head | selects it | cuts the ring | places the head |
 | **`Alt`+digit** | a point on the ring here, at the typed fret | = digit | = digit, unless a ring ends there | states an interior point | states the end statement |
-| **`Alt+Insert`** | a point on the ring here, at the fret in force | = `Insert` | = `Insert`, unless a ring ends there | a silent point, to be given a bend or shake | the end statement at the fret in force, silent |
+| **`Alt+Insert`** | a point on the ring here, at the fret in force | = `Insert` | = `Insert`, unless a ring ends there | a silent point, to be given a bend or vibrato | the end statement at the fret in force, silent |
 
 A head and a ring's end can share a slot; there the `Alt` chords take the "At a ring's end" column.
 Arming the caret on an object selects it (`chartObjectAt`, which excludes end statements), so "on
@@ -347,7 +347,7 @@ it until the single form carries one.
   onset. **Deleted:** `ChartPresentation::notes`, `ChartResolutions::presented_notes`, the
   importer's `chartPresentation` call, `trimToMargin`'s ride (`clipPayloadsToSustain` stays for
   the store's own clamp), `lastStatementClearance`, `lastInteriorStatementEnd`, `statementsEnd`'s
-  shake window, `keyframeIdentities`. Every reader in the table above then chooses its length.
+  vibrato window, `keyframeIdentities`. Every reader in the table above then chooses its length.
 - The crossing-leg helper beside `glideStopAt`.
 - `makeChartViewState`: `end_seconds` is the ink end and a stored end travels beside it;
   `NoteViewState` is built by assignment and its hand-written `operator==` gains the field; the
@@ -376,7 +376,7 @@ it until the single form carries one.
   none passes vacuously.
 - **Docs:** `chart_presentation.h`'s rule text, `chart.h` (~:562-578, :1169), `chart_rules.h`,
   `chart_view_state.h` (the `NoteViewState` block and `end_seconds`), `chart_legato.h`,
-  `editor_view_state.h` (`tab_actual`), `grid_arithmetic.h` (the shake floor as a producer),
+  `editor_view_state.h` (`tab_actual`), `grid_arithmetic.h` (the vibrato floor as a producer),
   `note-sustain-model.md`, `derived-shift-slide.md` (also its stale `latestStatementBeforeStrike`),
   `keyframe-and-burst-ground-up.md`, `file-formats.md` (the rule-2 sentence),
   `docs/developer/musical-time.md`, `the-project-lifecycle.md`, `the-3d-highway.md` ("one presented
@@ -453,7 +453,7 @@ compile at every site.
 - **The truncation's loss report — built 2026-09-23.** A truncation may shorten a ring and never
   silently delete a statement: `overlayKeyframe`, `setEndStatement` and `clipPayloadsToSustain`
   report an authored statement lost (a keyframe past the landing erased, a stated value the
-  ridden end statement overwrote — never an equal one — or a shake a point on the landing stated
+  ridden end statement overwrote — never an equal one — or vibrato a point on the landing stated
   and shed), `normalizeSustainOverlaps` carries it per truncation (`TailTruncation`), and
   `finalizePlan` refuses on it for every verb in both directions; `moveErasesStatement` is
   deleted. Store law, not display: the ridden end statement lands on the landing head and is a

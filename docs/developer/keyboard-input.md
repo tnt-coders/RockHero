@@ -386,7 +386,7 @@ WALK**, `splitNoteIntoProducts` (`chart_edits.cpp`) — the split at a selected 
 the caret with a STRUCK head in place of the severed one (typed fret, strike defaults, the ring's
 remainder and its keyframes). Under the split the point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
-stated fret, a bend in force as its onset bend, a shake in force opening it shaking — and every
+stated fret, a bend in force as its onset bend, vibrato in force opening it vibrating — and every
 keyframe after it rides the new note, a slide-out included; the first note's arrival stands AT the
 cut, on the new head itself, which the chart proves is an arrival and not a slide-out because it names
 that head's own stop at that same instant (`arrivesIntoNextHead`) — so nothing retreats, a
@@ -399,7 +399,7 @@ for import, and for the plan gate every verb passes, which truncates a ring a he
 and refuses the plan where that truncation would lose an authored statement
 (\ref guide_2d_views).
 THE COMMIT LAW, `keyframeSaysNothingNew` (`chart.h`): a point that says nothing — no
-bend, no shake, a fret the path passes through anyway — is AUTHORING STATE. The history records
+bend, no vibrato, a fret the path passes through anyway — is AUTHORING STATE. The history records
 written states (`writtenChartPlan`), so planting one pushes no entry and the edit that gives it a
 meaning carries its creation; it dissolves, again with no entry, when its NOTE leaves focus
 (`dissolveSilentKeyframes` at the settle, and before undo or redo replays); and the document writer
@@ -501,7 +501,7 @@ the chosen row's WRITE does through `applyChartEditPlan`'s disarm. Consecutive c
 selection FOLD: the verb runs the shared gesture authority `commitChartGestureStep` with an empty
 `ChartHarmonicGesture` alternative, so a run replaces one undo entry and a choice back to the pre-run
 state retires it, which is why `H` `Return` `H` `Return` leaves no trace of a carrier the VERB itself
-produced; an imported carrier whose payload (a bend, a shake) the set normalized away keeps an entry
+produced; an imported carrier whose payload (a bend, vibrato) the set normalized away keeps an entry
 describing that strip, which is a real edit rather than a defect. There is no second-press
 reversal, so the exact restore of a node no label can name — an imported artificial 17.0 on a fret 5
 — is `Ctrl+Z` only; that is the price of a multi-valued "on", where "restore what the last press

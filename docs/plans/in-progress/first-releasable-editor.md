@@ -123,7 +123,7 @@ unenforced rulings, and a set of defects on supported material.
   (`test_chart_sustain_gesture.cpp`). The feedback question closed the same day: a visible bound
   is not a refusal, so the floor is silent (`refusal-flash.md`). TWO defects were found and fixed
   while closing it, both the same shape — a landing that cost the keyframe its meaning:
-  - the landing was also taken on a keyframe carrying a shake or a bend, which the
+  - the landing was also taken on a keyframe carrying vibrato or a bend, which the
     release's bare-fret law then stripped, and a mid-hold vibrato keyframe left stating nothing new
     dissolved at the next settle (fixed 2026-09-21, `c9e72dbf`);
   - the landing was also taken on a keyframe repeating the fret already in force, which became a
@@ -134,7 +134,7 @@ unenforced rulings, and a set of defects on supported material.
   under one predicate the move verb can ask the same way
   (`common::core::ringEndMayLandOnLastKeyframe`).
 - **Closed 2026-09-23: the same hole one verb over.** A ring truncated onto a keyframe carrying a
-  shake sheds that shake by the channel table; the clip now reports the shed as a lost statement
+  vibrato sheds that vibrato by the channel table; the clip now reports the shed as a lost statement
   and the plan gate refuses (`clipPayloadsToSustain`, `finalizePlan`), for every verb. A bend
   there stays, the curve's last value.
   The three SILENT-release routes beside it are CLOSED (user ruling, 2026-09-21): a landing on a

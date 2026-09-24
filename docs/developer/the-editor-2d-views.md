@@ -227,7 +227,7 @@ never written. A fret-stating point inside an OPEN STRING's tail is refused by c
 walk**, `splitNoteIntoProducts` — the split at a selected point, the cut at the caret with a
 struck head in place of the severed one. Under the split the point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
-stated fret, with a bend in force as its onset bend and a shake in force opening it shaking; every
+stated fret, with a bend in force as its onset bend and vibrato in force opening it vibrating; every
 keyframe after it rides the new note, a slide-out included; a glide cut mid-leg leaves the first
 note holding its stated fret while the new note travels on to the arrival; and the first note's
 arrival stands AT the cut, on the new head itself, which the chart then PROVES is an arrival rather
@@ -247,7 +247,7 @@ ring, which the plan gate normalizes exactly as a loaded chart is (`finalizePlan
 truncation SHORTENS the ring and rides its end's own statement back to the new end — onto the
 landing itself, which is where the chart then says the slide-out or the bend completes; it never
 DELETES a statement. The clip reports an authored statement lost — a keyframe past the landing
-erased, a stated value the ridden end statement overwrote, a shake a point on the landing stated
+erased, a stated value the ridden end statement overwrote, vibrato a point on the landing stated
 and shed (`clipPayloadsToSustain`, `TailTruncation`) — and the gate refuses the whole plan on
 that report, for every verb and in both directions: the statement belongs to a note the charter
 may never have touched, and the clip would leave no record of it. A keyframe standing exactly ON
@@ -316,7 +316,7 @@ Four consequences worth knowing before touching this:
   exactly onto its last stated fret makes that fret the slide-out — but only where the landing costs
   the point nothing and states something, which is the previous sentence's other half:
   `ringEndMayLandOnLastKeyframe` (`chart.h`) grants the landing only on a keyframe stating a fret,
-  nothing else, and a fret the path does not already hold there, so a point carrying a shake or a
+  nothing else, and a fret the path does not already hold there, so a point carrying vibrato or a
   bend, and one repeating the fret in force, each hold the ring at the nearest grid line ABOVE them
   instead — a shrink neither deletes a statement nor authors a slide-out nothing draws. And a slide-out's
   ring shrinks no
@@ -879,18 +879,19 @@ frame. A test pins that a tail looks the same however the repaint is clipped.
 The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
 from each statement until the next, so `NoteViewState::vibrato` is a list of `{start_seconds,
 end_seconds, state}` regions the projection derives from the note's keyframes rather than a flag
-(`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide arrives — the
+(`docs/plans/todo/unified-waypoint-model.md`). Vibrato that begins where a glide arrives — the
 corpus's commonest vibrato figure — therefore inks only from that arrival, and a note that simply
-shakes end to end yields one region covering the whole ring, clipped to whatever extent is drawn.
-The 3D board reads the same regions, so the two surfaces cannot say different things about where a shake starts.
+vibrates end to end yields one region covering the whole ring, clipped to whatever extent is drawn.
+The 3D board reads the same regions, so the two surfaces cannot say different things about where
+vibrato starts.
 
 Each region also carries the WIDTH it was stated at, and the sine's swing comes from that: the
 ordinary (narrow) tier draws at half the swing the tail's technique band allows and the wide tier
 fills it, which is `g_wide_vibrato_swing_multiplier` read in both directions from one constant. The
 lane cannot simply scale the wide tier UP the way the board does, because that band is a hard clip
 here — a taller wave would truncate its crests and read as a square wave rather than as a wider
-shake — so the ordinary tier is the one that leaves room. A step from one width to the other is two
-regions meeting at an instant, so the wave changes height where the chart says it does.
+vibrato — so the ordinary tier is the one that leaves room. A step from one width to the other is
+two regions meeting at an instant, so the wave changes height where the chart says it does.
 
 **The ring reveal** is how the length you cannot see becomes visible while you author it. The lane
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —

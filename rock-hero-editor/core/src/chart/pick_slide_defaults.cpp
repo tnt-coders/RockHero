@@ -51,7 +51,7 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
         break;
     }
     // False leaves the note untouched for the default path: a note whose keyframes state only
-    // bends or shakes has no travel to rebuild a scrape from.
+    // bends or vibrates has no travel to rebuild a scrape from.
     return common::core::endStatedFretOrNull(note) != nullptr;
 }
 
