@@ -107,14 +107,13 @@ What that commits to:
    highway's existing tail tip fade (the last 35% of the drawn extent, floored to a fixed span
    since the 2026-09-23 sighting, `g_tail_tip_fade_min_seconds`) applies to the cropped extent;
    "ink" in the scoring contract means the geometric extent, not the fade.
-5. **2D is a hard crop.** No fade: the lane records "the bare end is chosen over both a cap and a
-   dissolve" (`tab_paint_core.cpp`, the tail painter), and that stands. No new ink primitive.
-   **Proposed 2026-09-23 (user, at the 50 ms sighting): give 2D the same tip fade as 3D**, to
-   consolidate the two views into one shared representation — the fade is what made 50 ms read
-   right on the highway, and the lane ends dead where the highway dissolves. One authority for
-   where the fade starts (a `fade_start_seconds` derived once beside `ink_end_seconds` in the
-   projection, both painters reading it) rather than a second fade rule in the lane. To build
-   after phase 2 lands.
+5. **2D fades exactly as 3D does** (re-ruled 2026-09-23 at the 50 ms sighting, built
+   2026-09-24). The lane's earlier "bare end over a cap and a dissolve" ruling stood on the
+   charter needing the exact end; the reveals give that end back crisp, so the ordinary picture
+   ends softly on both surfaces. One authority: `tailFadeSeconds` (`chart_view_state.h`) is the
+   fade both painters read — derived from the ink, not stored — and the lane sets every tail
+   mark's ink through one helper that dissolves it over that stretch. A revealed ring never
+   fades.
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
    a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note
    layer, which names a technique), to its stored end, showing every stored keyframe at its true

@@ -623,7 +623,10 @@ is deliberately single-sourced:
   computed at a draw site; the visible-range prefix maximum indexes the ring end, the furthest any
   paint can reach, and each paint pass drops a note whose drawn end really precedes the window, so
   a drawn ribbon is always in range. Its START is always the note's own onset, and the lane crops
-  hard at the ink end, with no fade. The leg the crop cuts — a slide sloping toward a keyframe
+  at the ink end, dissolving over the last stretch exactly as the highway does (`tailFadeSeconds`,
+  the one rule both surfaces read; `setTailInk` in `tab_paint_core.cpp` is the lane's one ink
+  setter for every mark riding a tail) — except under a reveal, which draws the ring crisp to its
+  true end. The leg the crop cuts — a slide sloping toward a keyframe
   past the ink end, a bend rising toward one — is drawn on its true path as far as the crop and
   wears a DESTINATION CHIP there, naming the fret or the amount it is heading for (a fret chip is
   placed by `tabKeyframeLayout`, the one statement of where a keyframe's mark stands; a bend chip

@@ -15,6 +15,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
@@ -140,6 +141,28 @@ void indexVisibleRanges(common::core::ChartViewState& state)
         return (alpha * alpha) + (red * red) + (green * green) + (blue * blue);
     };
     return distance(color, first) < distance(color, second);
+}
+
+// True when `color` is `ink` partly dissolved toward `ground`: equal to neither, and on every
+// channel between the two in the premultiplied space the software renderer blends in, give or take
+// its one step of rounding. This is how a probe inside a tail's tip fade names the tail's ink
+// without knowing how far along the fade its column falls.
+[[nodiscard]] bool dissolvedBetween(juce::Colour color, juce::Colour ink, juce::Colour ground)
+{
+    if (color == ink || color == ground)
+    {
+        return false;
+    }
+    const juce::PixelARGB pixel = color.getPixelARGB();
+    const juce::PixelARGB from = ground.getPixelARGB();
+    const juce::PixelARGB to = ink.getPixelARGB();
+    const auto between = [](const int value, const int lhs, const int rhs) {
+        return value >= std::min(lhs, rhs) - 1 && value <= std::max(lhs, rhs) + 1;
+    };
+    return between(pixel.getAlpha(), from.getAlpha(), to.getAlpha()) &&
+           between(pixel.getRed(), from.getRed(), to.getRed()) &&
+           between(pixel.getGreen(), from.getGreen(), to.getGreen()) &&
+           between(pixel.getBlue(), from.getBlue(), to.getBlue());
 }
 
 // Half-width of the head's digit window. Narrower than the beside-head chip's own clearance from
@@ -965,16 +988,17 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     state.open_strings = common::core::testing::standardTuning();
     state.notes = {
         // Rings across the span start on string 3 with vibrato, so its sine crosses the side
-        // chip's column — the ink the chip's ground exists to mask.
+        // chip's column — the ink the chip's ground exists to mask. It rings on well past the
+        // span, so the stretch right of the chip lies before the tail's tip fade.
         common::core::NoteViewState{
             .start_seconds = 7.0,
-            .ring_end_seconds = 13.0,
-            .ink_end_seconds = 13.0,
+            .ring_end_seconds = 17.0,
+            .ink_end_seconds = 17.0,
             .string = 3,
             .fret = 7,
             .bend = {},
             .slides = {},
-            .vibrato = wholeTailVibrato(7.0, 13.0),
+            .vibrato = wholeTailVibrato(7.0, 17.0),
         },
         // The tap: span-start onset on the same string at a fret the posture does not hold.
         common::core::NoteViewState{
@@ -1067,7 +1091,11 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
 
     // And the sine really does draw past the chip, so the masked pixel is a masked pixel rather
     // than a sine that never reached the column: some full-coverage stretch of the wave sits just
-    // right of the chip.
+    // right of the chip, before the tail's tip fade starts to dissolve it.
+    const common::core::NoteViewState& ringing = state.notes.front();
+    REQUIRE(
+        static_cast<float>(chip_right + 8) <
+        metrics.x(ringing.ink_end_seconds - common::core::tailFadeSeconds(ringing)));
     const auto sine_grey_in = [&image](int left, int right, int top, int bottom) {
         for (int x = left; x <= right; ++x)
         {
@@ -2197,7 +2225,9 @@ TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-pai
 // Insetting a mark's final endpoint by one stroke, as meeting a cap would call for, shows as a stub
 // of bare ribbon past the mark's tip. Pinned as "the mark's ink reaches the ribbon's last column",
 // the visible claim, rather than as arithmetic on the inset — and pinned for the slide AND the
-// bend, because each draws its own endpoint and one stub cannot cover for the other.
+// bend, because each draws its own endpoint and one stub cannot cover for the other. The note is
+// painted REVEALED: an unrevealed tail dissolves to nothing at its last column, which would leave
+// no ink there to probe, while the reveal draws the same geometry crisp to the same end.
 TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2210,7 +2240,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state);
+        paintTabLane(graphics, metrics, state, [](std::size_t) { return true; });
         return image;
     };
 
@@ -2569,7 +2599,9 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
 // the core must ask it AT EACH INDEX and draw that note, and only that note, on to its ring end.
 // Checked as an image identity against a state whose first note simply inks its whole ring: a core
 // asking the reveal once, or not at all, cannot match a picture that is one note revealed and the
-// other cropped.
+// other cropped. That note is revealed in the control as well, since an unrevealed tail dissolves
+// at its tip where a revealed one runs crisp — for a note already inked to its ring end, the fade
+// is the one thing the reveal changes.
 TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2615,20 +2647,20 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
         return image;
     };
 
-    const juce::Image composed =
-        painted(cropped, [](const std::size_t index) { return index == 0; });
+    const auto first_only = [](const std::size_t index) { return index == 0; };
+    const juce::Image composed = painted(cropped, first_only);
 
-    CHECK(worstPixelDelta(composed, painted(mixed, {})) == 0);
+    CHECK(worstPixelDelta(composed, painted(mixed, first_only)) == 0);
     // Not vacuous: neither revealing nothing nor revealing everything draws that picture, so the
     // identity above can only hold because the reveal was asked per note.
     CHECK(worstPixelDelta(composed, painted(cropped, {})) > 0);
     CHECK(worstPixelDelta(composed, painted(cropped, [](std::size_t) { return true; })) > 0);
 }
 
-// THE CROP IS HARD, AND THE REVEAL DRAWS ON TO THE STORED RING. A tail cropped short of its ring
-// stops inking exactly at its ink end — no fade — and a keyframe stored past that end is not drawn
-// there at all; revealing the note draws the same ribbon on to the ring end and the keyframe's head
-// at its true instant, in full ink.
+// THE CROP ENDS THE INK, AND THE REVEAL DRAWS ON TO THE STORED RING. A tail cropped short of its
+// ring dissolves over the stretch before its ink end and stops inking exactly there, and a keyframe
+// stored past that end is not drawn there at all; revealing the note draws the same ribbon on to
+// the ring end and the keyframe's head at its true instant, in full ink with no fade.
 TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2676,8 +2708,13 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
     const int head_row = juce::roundToInt(center_y) + 10;
     REQUIRE(static_cast<float>(head_row) > span.bottom);
 
-    // Cropped: the fill runs to the ink end's last column and stops dead on the next.
-    CHECK(cropped.getPixelAt(ink_end_x - 1, fill_row) == tail_fill);
+    // Cropped: the fill is solid up to the tip fade, still inks the ink end's last column though
+    // dissolved toward the empty lane, and stops on the next.
+    const int fade_start_x = static_cast<int>(
+        std::floor(metrics.x(6.0 - common::core::tailFadeSeconds(state.notes.front()))));
+    CHECK(cropped.getPixelAt(fade_start_x - 1, fill_row) == tail_fill);
+    CHECK(dissolvedBetween(
+        cropped.getPixelAt(ink_end_x - 1, fill_row), tail_fill, juce::Colours::transparentBlack));
     CHECK(cropped.getPixelAt(ink_end_x, fill_row).getAlpha() == 0);
     // And no head stands at the keyframe's instant.
     CHECK(cropped.getPixelAt(keyframe_x, head_row).getAlpha() == 0);
@@ -2688,6 +2725,148 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
     CHECK(revealed.getPixelAt(ring_end_x, fill_row).getAlpha() == 0);
     // And the keyframe wears its head at its true instant.
     CHECK(revealed.getPixelAt(keyframe_x, head_row).getAlpha() == 255);
+}
+
+// THE TIP FADE. An unrevealed tail dissolves over the stretch tailFadeSeconds states before its
+// ink end — the one rule the highway reads too — and every mark riding it dissolves with it, so a
+// mark can never outlast the ribbon under it. A revealed note runs crisp to its true end instead,
+// since the reveal exists to show exactly where a ring stops. Every probe column is derived from
+// that rule and the lane metrics, so the fade's shape is asked of the painter rather than restated.
+TEST_CASE("Tab paint core dissolves a tail at its tip unless revealed", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+
+    // One ten-second ring on string 3 from 2.0s (x = 40) to 12.0s (x = 240), inked whole.
+    const auto ringing = [](const common::core::NoteEmphasis emphasis, const bool with_vibrato) {
+        return common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = 12.0,
+            .string = 3,
+            .fret = 7,
+            .emphasis = emphasis,
+            .bend = {},
+            .slides = {},
+            .vibrato = with_vibrato ? wholeTailVibrato(2.0, 12.0)
+                                    : std::vector<common::core::VibratoSpanViewState>{},
+        };
+    };
+    const auto painted = [&metrics](const common::core::NoteViewState& note, const bool reveal) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = {note};
+        indexVisibleRanges(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, [reveal](std::size_t) { return reveal; });
+        return image;
+    };
+
+    const common::core::NoteViewState plain_note =
+        ringing(common::core::NoteEmphasis::Normal, false);
+    const juce::Image plain = painted(plain_note, false);
+
+    const juce::Colour tail_fill{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner};
+    const float center_y = metrics.laneY(3);
+    const TailSpan span = tailSpan(metrics, center_y);
+    // The interior row just above the lower rail, where only the ribbon's fill inks.
+    const int fill_row = static_cast<int>(std::floor(span.bottom - metrics.tail_edge_size)) - 1;
+    const int fade_start_x = static_cast<int>(std::floor(
+        metrics.x(plain_note.ink_end_seconds - common::core::tailFadeSeconds(plain_note))));
+    const int ink_end_x = juce::roundToInt(metrics.x(plain_note.ink_end_seconds));
+    // Two windows of columns: one wholly before the fade, one deep inside it.
+    const int solid_from = fade_start_x - 14;
+    const int solid_to = fade_start_x - 2;
+    const int faded_from = ink_end_x - 16;
+    const int faded_to = ink_end_x - 4;
+    REQUIRE(faded_from > fade_start_x);
+
+    SECTION("an unrevealed ribbon is solid before the fade and dissolves toward its end")
+    {
+        CHECK(plain.getPixelAt(fade_start_x - 1, fill_row) == tail_fill);
+        const juce::Colour near_end = plain.getPixelAt(ink_end_x - 4, fill_row);
+        CAPTURE(near_end.toString());
+        CHECK(dissolvedBetween(near_end, tail_fill, juce::Colours::transparentBlack));
+        CHECK(plain.getPixelAt(ink_end_x, fill_row).getAlpha() == 0);
+    }
+
+    SECTION("the same note revealed is solid right up to its ring end")
+    {
+        const juce::Image revealed = painted(plain_note, true);
+        CHECK(revealed.getPixelAt(fade_start_x - 1, fill_row) == tail_fill);
+        CHECK(revealed.getPixelAt(ink_end_x - 4, fill_row) == tail_fill);
+        CHECK(revealed.getPixelAt(ink_end_x - 1, fill_row) == tail_fill);
+        CHECK(revealed.getPixelAt(ink_end_x, fill_row).getAlpha() == 0);
+    }
+
+    SECTION("the vibrato sine dissolves with the ribbon it rides")
+    {
+        const juce::Image vibrating =
+            painted(ringing(common::core::NoteEmphasis::Normal, true), false);
+        // The sine's most strongly inked pixel in a window: where the vibrating render departs
+        // furthest from the plain one, which is on the wave's crest wherever the window cuts it.
+        const auto crest_in = [&](const int x_from, const int x_to) {
+            int worst = -1;
+            juce::Colour crest;
+            for (int x = x_from; x <= x_to; ++x)
+            {
+                for (int y = 0; y < vibrating.getHeight(); ++y)
+                {
+                    const juce::Colour with = vibrating.getPixelAt(x, y);
+                    const juce::Colour without = plain.getPixelAt(x, y);
+                    const int delta = std::max(
+                        {std::abs(with.getAlpha() - without.getAlpha()),
+                         std::abs(with.getRed() - without.getRed()),
+                         std::abs(with.getGreen() - without.getGreen()),
+                         std::abs(with.getBlue() - without.getBlue())});
+                    if (delta > worst)
+                    {
+                        worst = delta;
+                        crest = with;
+                    }
+                }
+            }
+            return crest;
+        };
+        // Before the fade the sine's ink is opaque; deep inside it, the crest is dissolved. A sine
+        // drawn in its solid colour would stay opaque there over the dissolving ribbon.
+        CHECK(crest_in(solid_from, solid_to).getAlpha() == 255);
+        const juce::Colour faded_crest = crest_in(faded_from, faded_to);
+        CAPTURE(faded_crest.toString());
+        CHECK(faded_crest.getAlpha() > 0);
+        CHECK(faded_crest.getAlpha() < 255);
+    }
+
+    SECTION("the accent halo dissolves with the ribbon it lights")
+    {
+        const juce::Image accented =
+            painted(ringing(common::core::NoteEmphasis::Accent, false), false);
+        // The halo alone lies on the rows just outside the rails, over the empty lane, so the
+        // accented render departs from the plain one there only by the halo's light — read as
+        // ALPHA, which is what the fade takes: a faint halo pixel keeps the accent's full hue.
+        const int above_from = juce::roundToInt(span.top) - 4;
+        const int above_to = juce::roundToInt(span.top) - 1;
+        const auto halo_in = [&](const int x_from, const int x_to) {
+            int worst = 0;
+            for (int x = x_from; x <= x_to; ++x)
+            {
+                for (int y = above_from; y <= above_to; ++y)
+                {
+                    const juce::Colour with = accented.getPixelAt(x, y);
+                    const juce::Colour without = plain.getPixelAt(x, y);
+                    worst = std::max(worst, std::abs(with.getAlpha() - without.getAlpha()));
+                }
+            }
+            return worst;
+        };
+        const int solid_halo = halo_in(solid_from, solid_to);
+        const int faded_halo = halo_in(faded_from, faded_to);
+        CAPTURE(solid_halo, faded_halo);
+        CHECK(solid_halo > 0);
+        CHECK(faded_halo < solid_halo);
+    }
 }
 
 // THE DESTINATION CHIP. The slide leg an unrevealed note's ink end cuts wears the chip a slide-out

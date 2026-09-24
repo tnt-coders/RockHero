@@ -557,6 +557,55 @@ struct TailCenterline
     };
 }
 
+// The stretch of a tail's ink over which it dissolves, in lane x: from the fade's start to the
+// drawn end. Nothing for a revealed note, which is drawn crisp to its true end — the reveal exists
+// to show exactly where a ring stops, and a fade would trade that endpoint away.
+struct TailFade
+{
+    float start_x{0.0f};
+    float end_x{0.0f};
+};
+
+[[nodiscard]] std::optional<TailFade> tailFade(
+    const TabLaneMetrics& metrics, const common::core::NoteViewState& note, const bool revealed)
+{
+    if (revealed)
+    {
+        return std::nullopt;
+    }
+    return TailFade{
+        .start_x = metrics.x(note.ink_end_seconds - common::core::tailFadeSeconds(note)),
+        .end_x = metrics.x(note.ink_end_seconds),
+    };
+}
+
+// How lit a tail mark is at a column: full before the fade, dissolving linearly to nothing at
+// the drawn end — the same ramp the highway's ribbon alpha takes.
+[[nodiscard]] float tailFadeAlphaAt(const std::optional<TailFade>& fade, const float x)
+{
+    if (!fade.has_value() || !(fade->start_x < fade->end_x))
+    {
+        return 1.0f;
+    }
+    return std::clamp((fade->end_x - x) / (fade->end_x - fade->start_x), 0.0f, 1.0f);
+}
+
+// Sets the ink every tail mark is drawn with: the colour, dissolving to nothing over the fade.
+// One setter for the ribbon, its rails, the tremolo band, the sine, the bend line and the slide
+// diagonals, so a mark riding the tail can never outlast the tail it rides.
+void setTailInk(juce::Graphics& g, const juce::Colour colour, const std::optional<TailFade>& fade)
+{
+    if (!fade.has_value() || !(fade->start_x < fade->end_x))
+    {
+        g.setColour(colour);
+        return;
+    }
+    g.setGradientFill(
+        juce::ColourGradient{
+            colour, fade->start_x, 0.0f, colour.withAlpha(0.0f), fade->end_x, 0.0f, false
+        });
+}
+
 // Draws the sustain tail as a constant-thickness zigzag band: the plain sustain's ribbon with its
 // top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in thickness
 // the way the ported pointed-gem chain did. This matches the 3D highway's teeth, which swing a
@@ -571,7 +620,7 @@ struct TailCenterline
 // gem cell, double the chain's rate, which reads as picking rather than as a slow wave.
 void drawTremoloTail(
     juce::Graphics& g, const StringStyle& style, const TabLaneMetrics& metrics,
-    const TailCenterline& centerline)
+    const TailCenterline& centerline, const std::optional<TailFade>& fade)
 {
     if (centerline.points.size() < 2)
     {
@@ -595,12 +644,12 @@ void drawTremoloTail(
 
     juce::Path edge_band;
     add_band(edge_band, 0.0f);
-    g.setColour(style[Ink::TailEdge]);
+    setTailInk(g, style[Ink::TailEdge], fade);
     g.fillPath(edge_band);
 
     juce::Path inner_band;
     add_band(inner_band, metrics.tail_edge_size);
-    g.setColour(style[Ink::Tail]);
+    setTailInk(g, style[Ink::Tail], fade);
     g.fillPath(inner_band);
 }
 
@@ -632,10 +681,9 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 // restore that cap in light and box the mark in exactly the same way, so the halo ends where the
 // rails end and states nothing about the tip that the ribbon does not.
 //
-// This is also why the halo does not fade ALONG the tail as the highway's does. Both surfaces
-// obey one rule — the accent light traces the tail that surface actually draws — and they differ
-// only because the ribbons do: the highway's light fades because its ribbon's alpha fades, while
-// the editor's ribbon is uniform with a hard stop, so its halo is uniform and stops with it.
+// The halo fades ALONG the tail as the ribbon does, the way the highway's light does: both
+// surfaces obey one rule — the accent light traces the tail that surface actually draws — and the
+// ribbon's own dissolve is the halo's, piece by piece at pixel scale inside the fade.
 //
 // It traces the CENTRELINE it is handed rather than a pair of straight lines, which is what makes
 // it correct on a tremolo band. A straight halo against a snaking ribbon leaves 0.0127 to 3.1540 px
@@ -644,7 +692,7 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 // centreline and every expression below collapses to the plain straight-band form.
 void drawAccentTailGlow(
     juce::Graphics& g, const StringStyle& style, const TailCenterline& centerline,
-    const float reach)
+    const float reach, const std::optional<TailFade>& fade)
 {
     const std::vector<juce::Point<float>>& points = centerline.points;
     if (points.size() < 2)
@@ -652,6 +700,70 @@ void drawAccentTailGlow(
         return;
     }
 
+    // One halo quad: the edge piece from `edge_from` to `edge_to`, extruded outward by the reach,
+    // lit at the tail's own level at its middle column so the halo dissolves with the ribbon.
+    const auto draw_piece = [&](const juce::Point<float> edge_from,
+                                const juce::Point<float>
+                                    edge_to,
+                                const float outward) {
+        const float run_x = edge_to.x - edge_from.x;
+        const float run_y = edge_to.y - edge_from.y;
+        const float run_squared = (run_x * run_x) + (run_y * run_y);
+        if (!(run_squared > 0.0f))
+        {
+            return;
+        }
+        // TWO DIFFERENT AXES, and keeping them apart is the whole correctness of this
+        // function.
+        //
+        // The QUAD is the edge piece extruded VERTICALLY by the full reach. It has to be
+        // vertical because the tail's every other thickness is: `half_thickness` is a
+        // vertical half-thickness, tailSpan is a vertical span, and a plain tail's halo was a
+        // vertical fillRect. Extruding the quad perpendicularly instead shortens it to
+        // reach * run_x^2 / |run|^2 (4.138 px of the 5.200 at the shipped lane, a fifth of the
+        // halo gone) and, worse, slides its outer corners sideways by
+        // reach * run_x * run_y / |run|^2, so consecutive quads' outer corners land 4.193 px
+        // apart in x: a bare wedge at every apex that turns one way and a double-blended
+        // overlap at every apex that turns the other. Vertical extrusion has neither, because
+        // the outer boundary is then the centreline's own polyline translated, and a
+        // translated polyline still meets itself at every vertex.
+        //
+        // The GRADIENT's axis is the perpendicular one, and only the gradient's. Its
+        // iso-alpha lines have to run PARALLEL to the edge or the ramp would fade along the
+        // tail instead of across it, so its far point is the edge point pushed along the
+        // segment normal by exactly as far as a vertical reach carries: |scale| * |run|.
+        // Alpha at any point is then 1 - (vertical distance outward) / reach, and with
+        // run_y == 0 the whole expression collapses to the straight-band gradient a plain
+        // tail has always drawn.
+        //
+        // The colour order is that straight case's - clear at the outer point, accent ON the
+        // edge - and it has to stay that way. JUCE FLOORS the gradient's lookup index, so
+        // running the ramp the other way shifts every sample a whole table step: 19 counts of
+        // alpha on a flat edge, exactly where this and the straight case must agree.
+        const float scale = -outward * reach * run_x / run_squared;
+        const juce::Point<float> gradient_end{
+            edge_from.x + (scale * run_y), edge_from.y - (scale * run_x)
+        };
+        const float rise = outward * reach;
+
+        juce::Path quad;
+        quad.startNewSubPath(edge_from);
+        quad.lineTo(edge_to);
+        quad.lineTo(edge_to.x, edge_to.y + rise);
+        quad.lineTo(edge_from.x, edge_from.y + rise);
+        quad.closeSubPath();
+
+        const juce::Colour accent = style[Ink::Accent].withMultipliedAlpha(
+            tailFadeAlphaAt(fade, (edge_from.x + edge_to.x) / 2.0f));
+        g.setGradientFill(
+            juce::ColourGradient{accent.withAlpha(0.0f), gradient_end, accent, edge_from, false});
+        g.fillPath(quad);
+    };
+
+    // A piece is lit at ONE level, so inside the fade the edge is cut into pieces a couple of
+    // pixels wide and the halo steps down with the ribbon at pixel scale; before the fade each
+    // edge segment is one piece, as it always was.
+    constexpr float slice_width = 2.0f;
     for (const float outward : {-1.0f, 1.0f})
     {
         for (std::size_t index = 0; index + 1 < points.size(); ++index)
@@ -663,61 +775,27 @@ void drawAccentTailGlow(
                 points[index + 1].x, points[index + 1].y + (outward * centerline.half_thickness)
             };
             const float run_x = edge_to.x - edge_from.x;
-            const float run_y = edge_to.y - edge_from.y;
-            const float run_squared = (run_x * run_x) + (run_y * run_y);
-            if (!(run_squared > 0.0f))
+            if (!fade.has_value() || !(run_x > 0.0f) || edge_to.x <= fade->start_x)
             {
+                draw_piece(edge_from, edge_to, outward);
                 continue;
             }
-            // TWO DIFFERENT AXES, and keeping them apart is the whole correctness of this
-            // function.
-            //
-            // The QUAD is the edge segment extruded VERTICALLY by the full reach. It has to be
-            // vertical because the tail's every other thickness is: `half_thickness` is a
-            // vertical half-thickness, tailSpan is a vertical span, and a plain tail's halo was a
-            // vertical fillRect. Extruding the quad perpendicularly instead shortens it to
-            // reach * run_x^2 / |run|^2 (4.138 px of the 5.200 at the shipped lane, a fifth of the
-            // halo gone) and, worse, slides its outer corners sideways by
-            // reach * run_x * run_y / |run|^2, so consecutive quads' outer corners land 4.193 px
-            // apart in x: a bare wedge at every apex that turns one way and a double-blended
-            // overlap at every apex that turns the other. Vertical extrusion has neither, because
-            // the outer boundary is then the centreline's own polyline translated, and a
-            // translated polyline still meets itself at every vertex.
-            //
-            // The GRADIENT's axis is the perpendicular one, and only the gradient's. Its
-            // iso-alpha lines have to run PARALLEL to the edge or the ramp would fade along the
-            // tail instead of across it, so its far point is the edge point pushed along the
-            // segment normal by exactly as far as a vertical reach carries: |scale| * |run|.
-            // Alpha at any point is then 1 - (vertical distance outward) / reach, and with
-            // run_y == 0 the whole expression collapses to the straight-band gradient a plain
-            // tail has always drawn.
-            //
-            // The colour order is that straight case's - clear at the outer point, accent ON the
-            // edge - and it has to stay that way. JUCE FLOORS the gradient's lookup index, so
-            // running the ramp the other way shifts every sample a whole table step: 19 counts of
-            // alpha on a flat edge, exactly where this and the straight case must agree.
-            const float scale = -outward * reach * run_x / run_squared;
-            const juce::Point<float> gradient_end{
-                edge_from.x + (scale * run_y), edge_from.y - (scale * run_x)
+            const auto at = [&](const float x) {
+                const float t = std::clamp((x - edge_from.x) / run_x, 0.0f, 1.0f);
+                return juce::Point<float>{x, edge_from.y + ((edge_to.y - edge_from.y) * t)};
             };
-            const float rise = outward * reach;
-
-            juce::Path quad;
-            quad.startNewSubPath(edge_from);
-            quad.lineTo(edge_to);
-            quad.lineTo(edge_to.x, edge_to.y + rise);
-            quad.lineTo(edge_from.x, edge_from.y + rise);
-            quad.closeSubPath();
-
-            g.setGradientFill(
-                juce::ColourGradient{
-                    style[Ink::Accent].withAlpha(0.0f),
-                    gradient_end,
-                    style[Ink::Accent],
-                    edge_from,
-                    false
-                });
-            g.fillPath(quad);
+            float x = edge_from.x;
+            if (x < fade->start_x)
+            {
+                draw_piece(edge_from, at(fade->start_x), outward);
+                x = fade->start_x;
+            }
+            while (x < edge_to.x)
+            {
+                const float next = std::min(x + slice_width, edge_to.x);
+                draw_piece(at(x), at(next), outward);
+                x = next;
+            }
         }
     }
 }
@@ -727,7 +805,8 @@ void drawAccentTailGlow(
 // mark riding the tail, clipped against arpeggio brackets where the body is not.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float onset_x, float center_y, const double drawn_end)
+    const common::core::NoteViewState& note, float onset_x, float center_y, const double drawn_end,
+    const std::optional<TailFade>& fade)
 {
     // The DRAWN extent and nothing else — the ink end, or the ring end under a reveal — so a note
     // that draws no tail draws none, including a chugged member of a strum a hand-shape span
@@ -760,7 +839,8 @@ void drawNoteTail(
     // ring, not the empty margin outside it — so one accent reads at one strength across the note.
     if (common::core::isAccented(note.emphasis))
     {
-        drawAccentTailGlow(g, style, centerline, metrics.headSize() * g_accent_glow_reach_heads);
+        drawAccentTailGlow(
+            g, style, centerline, metrics.headSize() * g_accent_glow_reach_heads, fade);
     }
     // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
     // drag — teeth would assert a repetition it never performs, and it cannot be tremolo picked
@@ -772,34 +852,29 @@ void drawNoteTail(
     // a plain muted slide's single drag.
     if (note.tremolo)
     {
-        drawTremoloTail(g, style, metrics, centerline);
+        drawTremoloTail(g, style, metrics, centerline, fade);
     }
     else
     {
         const float thickness = metrics.tail_edge_size;
         const auto fill = [&](const juce::Colour colour, const float top, const float height) {
-            g.setColour(colour);
+            setTailInk(g, colour, fade);
             g.fillRect(juce::Rectangle<float>{onset_x - 1.0f, top, end_x - onset_x + 1.0f, height});
         };
 
-        // The fill covers the whole envelope and the rails lay over its top and bottom — every
-        // color here is opaque, so painting the rails over the fill is the same pixels as
-        // abutting them, without the two rectangles having to agree on a seam.
+        // The fill covers the whole envelope and the rails lay over its top and bottom. Where the
+        // ink is opaque the rails over the fill are the same pixels as abutting them; inside the
+        // fade the two dissolve on one gradient, so the rail stays the brighter of the two at
+        // every column rather than the seam showing through.
         fill(style[Ink::Tail], span.top, span.bottom - span.top);
         // TOP AND BOTTOM RAILS ONLY — no cap on either end. The left edge is omitted because the
-        // head covers it; the right edge is omitted because a cap boxes in whatever technique mark
-        // reaches the tail's end, and the highway draws none.
-        //
-        // Chosen from three candidates:
-        //   mark to end (this) - bare ends, every mark running the full ribbon end cap - a cap,
-        //   marks inset by a stroke to meet its inner face fade out - bare ends with the last
-        //   stretch dissolving, as the highway does
-        // The choice turns on this being the EDITOR: a charter needs to see exactly where a
-        // sustain stops, and a dissolve trades that endpoint away for softness. That reasoning
-        // does not transfer to the game's highway, which is why the two surfaces legitimately end
-        // a tail differently — the highway's dissolve is not a divergence to be reconciled. The
-        // cap is the close second, so if the bare end ever reads as unfinished, reach for the cap
-        // rather than for the dissolve.
+        // head covers it; the right edge because the tail DISSOLVES there, as the highway's does
+        // (chart_view_state.h tailFadeSeconds, the one rule both surfaces read): the two surfaces
+        // end a tail the same way. The editor's earlier ruling — the bare end over a dissolve,
+        // because a charter needs to see exactly where a sustain stops — was re-ruled 2026-09-24
+        // once the reveals existed: a revealed ring is drawn crisp to its true end with no fade,
+        // and the destination chip still marks the crop on a cut leg, so the exact end is one
+        // `Alt` away while the ordinary picture ends softly.
         fill(style[Ink::TailEdge], span.top, thickness);
         fill(style[Ink::TailEdge], span.bottom - thickness, thickness);
     }
@@ -863,7 +938,8 @@ struct TailInterior
 // step rather than as a note-wide setting.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float center_y, const double drawn_end)
+    const common::core::NoteViewState& note, float center_y, const double drawn_end,
+    const std::optional<TailFade>& fade)
 {
     if (note.vibrato.empty())
     {
@@ -937,7 +1013,7 @@ void drawVibratoSine(
     {
         return;
     }
-    g.setColour(style[Ink::VibratoSine]);
+    setTailInk(g, style[Ink::VibratoSine], fade);
     g.strokePath(wave, juce::PathStrokeType{stroke});
 }
 
@@ -1103,7 +1179,8 @@ constexpr float g_technique_line_thickness = 2.0f;
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& slide_labels, const float opacity, const double drawn_end)
+    std::vector<LabelChip>& slide_labels, const float opacity, const double drawn_end,
+    const std::optional<TailFade>& fade)
 {
     if (note.slides.empty() || !inked(note, drawn_end))
     {
@@ -1146,7 +1223,7 @@ void drawSlideLines(
                                       : interior.bottom - line_thickness / 2.0f;
             const float progress = drawn ? 1.0f : cutLegProgress(from_x, stop_x, to_x);
 
-            g.setColour(style[Ink::TechniqueLine]);
+            setTailInk(g, style[Ink::TechniqueLine], fade);
             g.drawLine(from_x, from_y, to_x, from_y + ((to_y - from_y) * progress), line_thickness);
         }
         // THE CHIP. A drawn SLIDE-OUT wears its fret chip at its instant: a slide-out and a
@@ -1288,7 +1365,8 @@ void drawKeyframeHeads(
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end)
+    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end,
+    const std::optional<TailFade>& fade)
 {
     if (note.bend.empty())
     {
@@ -1314,7 +1392,7 @@ void drawBendLines(
     const float end_x = metrics.x(drawn_end);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     double last_semitones = 0.0;
-    g.setColour(style[Ink::TechniqueLine]);
+    setTailInk(g, style[Ink::TechniqueLine], fade);
     for (const common::core::BendPointViewState& point : note.bend)
     {
         const juce::Point<float> target{metrics.x(point.seconds), bend_y(point.semitones)};
@@ -2046,13 +2124,15 @@ void drawStringLineLabel(
 // is left reads as a clean stretch of the tail with a number on it.
 void drawSatelliteDigit(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
-    const float center_y, const juce::String& text)
+    const float center_y, const juce::String& text, const std::optional<TailFade>& fade)
 {
     const TabSatelliteSlot slot = metrics.satelliteSlot();
     const TailInterior interior = tailInterior(metrics, center_y);
     const int patch_top = juce::roundToInt(interior.top);
     const int patch_bottom = juce::roundToInt(interior.bottom);
-    g.setColour(style[Ink::Tail]);
+    // The digit's ground is the ribbon's own ink, so a satellite inside the fade sits on a patch
+    // dissolving with the tail rather than a solid block over it.
+    setTailInk(g, style[Ink::Tail], fade);
     g.fillRect(bar_right, patch_top, slot.extent(), patch_bottom - patch_top);
     drawStringLineLabel(
         g,
@@ -2578,6 +2658,7 @@ void paintTabLane(
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
         const double drawn_end = drawn_end_of(index);
+        const std::optional<TailFade> fade = tailFade(metrics, note, tabRevealed(revealed, index));
 
         // A ghost's opaque tail, marks and head are flattened together, then the finished note is
         // composited once. Per-ink alpha would let the already-drawn tail show through the head.
@@ -2600,7 +2681,7 @@ void paintTabLane(
         // and 3 emptied a tail the ink end is the onset, so this draws nothing and no suppression
         // is tested here — the one shape in which two surfaces could spend a hiding rule
         // differently.
-        drawNoteTail(g, metrics, style, note, onset_x, center_y, drawn_end);
+        drawNoteTail(g, metrics, style, note, onset_x, center_y, drawn_end, fade);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand
@@ -2642,7 +2723,7 @@ void paintTabLane(
                         });
                 }
             }
-            drawVibratoSine(g, metrics, style, note, center_y, drawn_end);
+            drawVibratoSine(g, metrics, style, note, center_y, drawn_end, fade);
             // An unpitched slide label states a fret, so its box uses the plate weight while its
             // text stays fully opaque.
             drawSlideLines(
@@ -2654,9 +2735,19 @@ void paintTabLane(
                 center_y,
                 slide_labels,
                 fret_plate_opacity,
-                drawn_end);
+                drawn_end,
+                fade);
             drawBendLines(
-                g, metrics, style, note, onset_x, center_y, bend_chips, note_opacity, drawn_end);
+                g,
+                metrics,
+                style,
+                note,
+                onset_x,
+                center_y,
+                bend_chips,
+                note_opacity,
+                drawn_end,
+                fade);
         }
 
         if (grouped)
@@ -2759,8 +2850,16 @@ void paintTabLane(
             // statement (drawSatelliteDigit), the same one a note's own held face draws through.
             if (bracket.side_slot)
             {
+                // A bracket's ground is the shape's, not one note's: it draws solid, the bracket
+                // standing where a posture is held rather than where a tail ends.
                 drawSatelliteDigit(
-                    g, metrics, style, bracket.bar_right, center_y, bracket.digit_text);
+                    g,
+                    metrics,
+                    style,
+                    bracket.bar_right,
+                    center_y,
+                    bracket.digit_text,
+                    std::nullopt);
             }
             else
             {
@@ -2822,7 +2921,8 @@ void paintTabLane(
                 lane_styles(note.string),
                 columns.bar_right,
                 center_y,
-                juce::String{*held});
+                juce::String{*held},
+                tailFade(metrics, note, tabRevealed(revealed, index)));
         }
     }
 

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -576,6 +577,40 @@ struct NoteViewState
                lhs.vibrato == rhs.vibrato && lhs.ends_on_next_head == rhs.ends_on_next_head;
     }
 };
+
+/*!
+\brief The fraction of a tail's drawn length over which both surfaces dissolve it at the tip.
+
+Charter's glow posts fade toward the note; the tail's tip mirrors that, so a sustain ends softly
+instead of stopping dead.
+*/
+inline constexpr double g_tail_tip_fade_fraction = 0.35;
+
+/*!
+\brief The least stretch of time a tail's tip fade spans, clamped to the tail.
+
+A fraction of a SHORT tail — a member cropped one margin before the next chord, beside open
+strings ringing on through it — is a few frames of fade beside a long one, and the two ends read
+as two rules. A tail shorter than this fades across its whole length.
+*/
+inline constexpr double g_tail_tip_fade_min_seconds = 0.25;
+
+/*!
+\brief The stretch before a note's ink end over which its tail dissolves — THE one fade rule, read
+by the 2D lane and the 3D board alike so a sustain ends the same way on both.
+
+Measured on the INK: a revealed ring is drawn crisp to its true end and never fades, since the
+reveal exists to show exactly where the ring stops.
+
+\param note The projected note.
+\return Seconds of fade before \ref NoteViewState::ink_end_seconds, at most the ink's length.
+*/
+[[nodiscard]] inline double tailFadeSeconds(const NoteViewState& note) noexcept
+{
+    const double duration = note.ink_end_seconds - note.start_seconds;
+    return std::min(
+        duration, std::max(duration * g_tail_tip_fade_fraction, g_tail_tip_fade_min_seconds));
+}
 
 /*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the slide-out terminal. */
 struct GlideStop

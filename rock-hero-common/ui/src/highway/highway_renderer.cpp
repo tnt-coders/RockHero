@@ -401,17 +401,6 @@ constexpr double g_open_note_end_fade_length = 0.5;
 // every floor mark under an open note reads it), with edge bands of the same width.
 constexpr double g_tail_inner_alpha = 96.0 / 255.0;
 
-// Sustain tails dissolve over this last fraction of the note duration (the glow posts' fade
-// toward the note, mirrored at the tip), so a sustain ends softly instead of stopping dead.
-constexpr double g_tail_tip_fade_fraction = 0.35;
-
-// ...and never over less board than this, in seconds, for the onset rise's reason below: a
-// fraction of a SHORT tail — a member cropped one margin before the next chord, beside open
-// strings ringing on through it — is a few frames of fade beside a long one, and the two ends
-// read as two rules. The floor is clamped to the tail, so a tail shorter than it fades across
-// its whole length.
-constexpr double g_tail_tip_fade_min_seconds = 0.25;
-
 // Seconds of tail over which a sustain rises from nothing at its onset. A FIXED span rather
 // than a fraction, for the reason the tremolo ramp is counted in teeth: the rise then occupies
 // the same stretch of board on every note instead of a dozen frames on a long sustain and none
@@ -4134,14 +4123,12 @@ void HighwayRenderer::Impl::draw(
             // A ghosted note's ribbon quiets with its head, at the one ghost alpha: a
             // full-strength tail under a quieted head reads as a rendering fault rather than as
             // a note played softly.
-            const double duration = note.ink_end_seconds - note.start_seconds;
             const double ghost_tail_alpha = emphasisAlpha(note.emphasis);
             // ...and the loud end lights it, for the same reason and on the same surface. An
             // accent stopping at the head would make the axis say different things at its two ends.
             const bool tail_lit = common::core::isAccented(note.emphasis);
-            const double tip_fade_seconds = std::min(
-                duration,
-                std::max(duration * g_tail_tip_fade_fraction, g_tail_tip_fade_min_seconds));
+            // The one fade rule both surfaces share (chart_view_state.h).
+            const double tip_fade_seconds = common::core::tailFadeSeconds(note);
             const auto tip_alpha = [&](const double seconds) {
                 const double tip = (note.ink_end_seconds - seconds) / tip_fade_seconds;
                 const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;

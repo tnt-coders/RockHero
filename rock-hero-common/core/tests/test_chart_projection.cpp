@@ -6,6 +6,7 @@
 #include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -465,6 +466,32 @@ TEST_CASE("Chart projection keeps every ink end within its ring", "[core][chart]
     // the bounds above are asked of both kinds rather than only of whole rings.
     CHECK(cropped >= 1);
     CHECK(emptied >= 1);
+}
+
+// THE ONE TAIL-FADE RULE both surfaces read: a fraction of the INK's length, never less than a
+// floor of time, and never more than the ink itself. Each case lands on a different arm of that
+// clamp, and the long tail's ring runs past its ink so a rule measured on the ring would fail it.
+TEST_CASE("Tail fade spans a fraction of the ink, floored and clamped to it", "[core][chart]")
+{
+    const auto note = [](const double start, const double ink_end, const double ring_end) {
+        return NoteViewState{
+            .start_seconds = start,
+            .ring_end_seconds = ring_end,
+            .ink_end_seconds = ink_end,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        };
+    };
+
+    // A long tail dissolves over 35% of its ink.
+    CHECK_THAT(tailFadeSeconds(note(2.0, 12.0, 20.0)), Catch::Matchers::WithinRel(3.5, 1e-12));
+    // A short one over the 0.25 s floor, where 35% would be only 0.175 s.
+    CHECK_THAT(tailFadeSeconds(note(2.0, 2.5, 2.5)), Catch::Matchers::WithinRel(0.25, 1e-12));
+    // One shorter than the floor over its whole length.
+    CHECK_THAT(tailFadeSeconds(note(2.0, 2.2, 2.2)), Catch::Matchers::WithinRel(0.2, 1e-12));
+    // And an ink that stops at its onset over nothing, however far its ring runs.
+    CHECK_THAT(tailFadeSeconds(note(2.0, 2.0, 6.0)), Catch::Matchers::WithinULP(0.0, 0));
 }
 
 // The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: each

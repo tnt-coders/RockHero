@@ -190,10 +190,12 @@ same ink end (`makeHighwayTapOnsets`, `highway_projection.cpp`). A left-hand sli
 next head and a pick slide cut at its crop therefore look the same underneath: the light rides
 the rail's own curve to the crop and settles over the last margin.
 
-**A TAIL'S TIP FADE NEVER SPANS LESS THAN A FIXED STRETCH OF BOARD** (`g_tail_tip_fade_min_seconds`,
-`highway_renderer.cpp`), clamped to the tail: the last 35% of a member cropped one margin before
-the next chord was a few frames of fade beside the open strings ringing through it, and the two
-ends read as two rules.
+**A TAIL'S TIP FADE IS ONE RULE FOR BOTH SURFACES** (`tailFadeSeconds`, `chart_view_state.h`): the
+last 35% of the ink, never less than a fixed stretch of time clamped to the tail — the last 35%
+of a member cropped one margin before the next chord was a few frames of fade beside the open
+strings ringing through it, and the two ends read as two rules. The 2D lane reads the same
+function (2026-09-24), so a sustain ends the same way on the board and in the editor; a revealed
+ring never fades.
 
 **AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT.** An open string has no position
 of its own, so its bar and its tail band span the hand window and follow it as it slides — the band
