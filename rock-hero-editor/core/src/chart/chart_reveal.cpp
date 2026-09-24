@@ -7,6 +7,16 @@ namespace rock_hero::editor::core
 {
 
 // Rationale lives on the declaration in chart_reveal.h.
+bool chartNoteRevealed(
+    const std::size_t index, const bool lane_reveal, const std::vector<std::size_t>& selected_notes,
+    const std::vector<ChartKeyframeRef>& selected_keyframes) noexcept
+{
+    return lane_reveal || std::ranges::binary_search(selected_notes, index) ||
+           std::ranges::binary_search(
+               selected_keyframes, index, std::ranges::less{}, &ChartKeyframeRef::note_index);
+}
+
+// Rationale lives on the declaration in chart_reveal.h.
 bool chartSpanRevealed(
     const common::core::ShapeViewState& span, const bool lane_reveal,
     const std::vector<common::core::NoteViewState>& notes,

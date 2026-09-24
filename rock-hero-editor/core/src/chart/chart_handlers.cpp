@@ -20,6 +20,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <string>
@@ -98,6 +99,37 @@ template <typename... Handlers> struct Overloaded : Handlers...
 const common::core::ChartViewState* EditorController::Impl::displayedTabProjection() const
 {
     return m_tab_view_state.get();
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+EditorController::Impl::ResolvedChartSelection EditorController::Impl::resolvedChartSelection()
+    const
+{
+    ResolvedChartSelection resolved;
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return resolved;
+    }
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    resolved.notes = selectedNoteIndices(notes, chartSelection());
+    if (m_tab_view_state != nullptr)
+    {
+        resolved.keyframes =
+            selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
+    }
+    return resolved;
+}
+
+// The reveal a pointer event resolves against, spelled from the grounds the lane paints by
+// (chartNoteRevealed). A mark the reveal brought in is reachable while it is drawn, which is the
+// whole of "nothing undrawn is clickable".
+common::ui::TabRevealed EditorController::Impl::chartRevealFor(const ChartPointerEvent& event) const
+{
+    return [lane_reveal = event.modifiers.alt,
+            selected = resolvedChartSelection()](std::size_t index) {
+        return chartNoteRevealed(index, lane_reveal, selected.notes, selected.keyframes);
+    };
 }
 
 // Each authored array is sorted by (position, string) and the tab projection preserves that order
@@ -1070,11 +1102,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     gesture.anchor_y = event.y;
     gesture.current_x = event.x;
     gesture.current_y = event.y;
-    // The press knows whether the lane reveal is up, because the modifier that holds it is the one
-    // this event carries: a satellite the reveal brought in is reachable while it is drawn, which
-    // is the whole of "nothing undrawn is clickable" for it.
     gesture.hit_target =
-        chartHitTarget(*tab, event.geometry, event.x, event.y, event.modifiers.alt);
+        chartHitTarget(*tab, event.geometry, event.x, event.y, chartRevealFor(event));
     m_chart_gesture = gesture;
 
     if (!gesture.hit_target.has_value())
@@ -1259,7 +1288,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         const float top = std::min(gesture.anchor_y, event.y);
         const float bottom = std::max(gesture.anchor_y, event.y);
         const std::vector<ChartHitTarget> boxed = chartTargetsInBox(
-            *tab, gesture.geometry, left, top, right, bottom, event.modifiers.alt);
+            *tab, gesture.geometry, left, top, right, bottom, chartRevealFor(event));
         std::vector<ChartSelectionKey> keys;
         keys.reserve(boxed.size());
         for (const ChartHitTarget& target : boxed)

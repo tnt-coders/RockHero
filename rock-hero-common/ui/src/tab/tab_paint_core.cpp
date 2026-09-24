@@ -817,6 +817,13 @@ struct TailInterior
     float bottom;
 };
 
+// Whether a note draws any tail at all: no tail, no tail marks, so a note whose ink stops at its
+// onset wears no leg and no destination chip — which would sit on the head.
+[[nodiscard]] bool inked(const common::core::NoteViewState& note, const double drawn_end)
+{
+    return note.start_seconds < drawn_end;
+}
+
 // How far along a leg toward a stop past the drawn extent the extent falls, so the leg is drawn on
 // its true path and cut there: a slide or bend written to land on the next head slopes toward it
 // and simply ends. A leg of no width is complete.
@@ -1098,7 +1105,7 @@ void drawSlideLines(
     const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels, const float opacity, const double drawn_end)
 {
-    if (note.slides.empty())
+    if (note.slides.empty() || !inked(note, drawn_end))
     {
         return;
     }
@@ -1112,7 +1119,7 @@ void drawSlideLines(
     // The gesture as one uniform sequence — the position keyframes, the slide-out last when the
     // note has one. A stop within the drawn extent gets a leg and its mark; the leg toward the
     // first stop BEYOND the extent is drawn too, on its true path as far as the extent
-    // (cutLegProgress), and that stop nothing draws, so no head and no chip.
+    // (cutLegProgress), wearing the destination chip there, and that stop itself draws nothing.
     for (std::size_t index = 0; index < note.slides.size(); ++index)
     {
         const common::core::GlideStop stop = common::core::glideStopAt(note, index);
@@ -1142,24 +1149,20 @@ void drawSlideLines(
             g.setColour(style[Ink::TechniqueLine]);
             g.drawLine(from_x, from_y, to_x, from_y + ((to_y - from_y) * progress), line_thickness);
         }
-        if (!drawn)
+        // THE CHIP. A drawn SLIDE-OUT wears its fret chip at its instant: a slide-out and a
+        // scrape's terminal have no head, because nothing lands where the string is released,
+        // while a junction carrying a continuation head shows its fret ON the head. The leg the
+        // ink CUTS wears the DESTINATION chip at the crop, naming where the leg is heading — only
+        // where it changes the fret; a level leg says nothing new. Where either chip stands is
+        // the layout manifest's one statement.
+        const bool chip = drawn ? note.slides[index].slide_out : stop.fret != previous_fret;
+        if (chip && metrics.draw_text)
         {
-            return;
-        }
-
-        // A junction that carries a continuation head shows its fret ON the head, so the chip
-        // would be the same number twice. Only the SLIDE-OUT keeps the chip: a slide-out and a
-        // scrape's terminal have no head, because nothing lands where the string is released.
-        const bool terminal = note.slides[index].slide_out;
-        if (terminal && metrics.draw_text)
-        {
-            // The leg's own direction ordinarily, and the shared instant's band where the ring ends
-            // on a head of its own string (endMarkYAtSharedInstant).
-            const float label_y = endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head)
-                                      .value_or(slideOutChipY(metrics, center_y, upward));
+            const TabKeyframeLayout layout =
+                tabKeyframeLayout(metrics, note, note.slides[index], drawn_end);
             slide_labels.push_back(
                 LabelChip{
-                    .position = {metrics.x(stop.seconds), label_y},
+                    .position = {layout.center_x, layout.center_y},
                     // Through the same head-label rule, not a raw fret: a stopped harmonic labels
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
@@ -1170,6 +1173,10 @@ void drawSlideLines(
                     .opacity = opacity,
                     .opaque_ink = true,
                 });
+        }
+        if (!drawn)
+        {
+            return;
         }
 
         from_x = to_x;
@@ -1306,22 +1313,25 @@ void drawBendLines(
     // the tail under it.
     const float end_x = metrics.x(drawn_end);
     juce::Point<float> last{onset_x, bend_y(0.0)};
+    double last_semitones = 0.0;
     g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::BendPointViewState& point : note.bend)
     {
-        const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
+        const juce::Point<float> target{metrics.x(point.seconds), bend_y(point.semitones)};
         // A point past the extent is not drawn, but the leg TOWARD it is, on its true path as far
         // as the extent: a bend written to land on the next head rises toward it and stops. That
-        // leg is the last ink, so there is no flat run after it and no chip on it.
-        if (point.seconds > drawn_end)
-        {
-            const float progress = cutLegProgress(last.x, to.x, end_x);
-            g.drawLine(
-                last.x, last.y, end_x, last.y + ((to.y - last.y) * progress), line_thickness);
-            return;
-        }
+        // leg is the last ink, so there is no flat run after it, and it wears the DESTINATION chip
+        // at the crop, naming the amount it is heading for — only where the leg changes it, and
+        // only where the note draws a tail at all.
+        const bool cut = point.seconds > drawn_end;
+        const juce::Point<float> to =
+            cut ? juce::Point<
+                      float>{end_x, last.y + ((target.y - last.y) * cutLegProgress(last.x, target.x, end_x))}
+                : target;
         g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
-        if (metrics.draw_text)
+        const bool chip =
+            !cut || (std::is_neq(point.semitones <=> last_semitones) && inked(note, drawn_end));
+        if (chip && metrics.draw_text)
         {
             // Chips sit on the bend line, or above the head when the bend is at the onset — except
             // at the ring's END where it stands on a head of its own string, which is the band
@@ -1347,7 +1357,12 @@ void drawBendLines(
                     .opaque_ink = false,
                 });
         }
+        if (cut)
+        {
+            return;
+        }
         last = {to.x + 1.0f, to.y};
+        last_semitones = point.semitones;
     }
     // The held stretch after the last bend point runs all the way to the sustain's end — no inset,
     // for the same reason a slide's final leg takes none: there is no end cap to meet.
@@ -2536,12 +2551,9 @@ void paintTabLane(
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 
-    // Whether one note's whole truth is on show, asked once per note per pass so no pass restates
-    // the fallback; a host with no reveal at all reveals nothing.
-    const auto is_revealed = [&revealed](std::size_t index) { return revealed && revealed(index); };
     // HOW FAR one note is drawn, read by every mark on the note (\ref drawnEndSeconds).
     const auto drawn_end_of = [&](std::size_t index) {
-        return common::core::drawnEndSeconds(tab.notes[index], is_revealed(index));
+        return common::core::drawnEndSeconds(tab.notes[index], tabRevealed(revealed, index));
     };
 
     // Floating labels collected during the note passes and drawn above every head.
@@ -2794,7 +2806,7 @@ void paintTabLane(
             // bounds it.
             if (!held.has_value() || !mark.has_value() || note.ring_end_seconds < span_start ||
                 mark->face == common::core::StopMarkFace::Posture ||
-                !common::core::stopMarkShown(*mark, is_revealed(index)))
+                !common::core::stopMarkShown(*mark, tabRevealed(revealed, index)))
             {
                 continue;
             }
@@ -2897,7 +2909,7 @@ void paintTabLaneFurniture(
         // extent rule 12a trimmed, or the musical close where the host reveals this span — the
         // same shape the note passes take, a note drawing to its ink end or, revealed, its ring
         // end.
-        const double end_seconds = revealed_shape && revealed_shape(shape_index)
+        const double end_seconds = tabRevealed(revealed_shape, shape_index)
                                        ? shape.close_seconds
                                        : shape.drawn_end_seconds;
         if (end_seconds >= span_start)

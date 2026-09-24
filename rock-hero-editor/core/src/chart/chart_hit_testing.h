@@ -17,6 +17,7 @@ draws, and nothing undrawn is reachable.
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <variant>
 #include <vector>
 
@@ -123,21 +124,23 @@ how those should draw, and therefore how a pointer should reach them, is the ben
 question and not this function's.
 
 A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
-exactly while the lane reveal is held: the layout manifest answers both questions from one
-rectangle, so the two cannot part. A revealed note's extra tail length is not itself a target,
-because a tail is not a target at all.
+exactly while its note is revealed: the layout manifest answers both questions from one rectangle,
+so the two cannot part. A revealed note's extra tail length is not itself a target, because a tail
+is not a target at all, and the destination chip at an unrevealed note's crop is a mark and not a
+target either.
 
 \param tab Seconds-resolved tab projection being displayed.
 \param geometry Lane geometry the notation was painted with.
 \param x Pointer x in lane-local pixels.
 \param y Pointer y in lane-local pixels.
-\param revealed True while the lane reveal modifier is held, which is the whole of what shows a
-       note's truth; a caller with no reveal state says false and reaches nothing undrawn.
+\param revealed Per-note answer to whether that note's whole truth is on show
+       (\ref common::ui::TabRevealed), the same answer the lane painted by; empty reveals nothing
+       and reaches nothing undrawn.
 \return The hit object, or empty for an empty-lane point.
 */
 [[nodiscard]] std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, bool revealed = false);
+    float y, const common::ui::TabRevealed& revealed = {});
 
 /*!
 \brief Collects the objects whose head or mark rectangles intersect a marquee box.
@@ -148,12 +151,12 @@ because a tail is not a target at all.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
-\param revealed True while the lane reveal modifier is held, exactly as for \ref chartHitTarget: a
-       keyframe past its note's ink end is boxed only while it is drawn.
+\param revealed Per-note reveal answer, exactly as for \ref chartHitTarget: a keyframe past its
+       note's ink end is boxed only while it is drawn.
 \return Boxed objects: heads first, then keyframes, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom, bool revealed = false);
+    float left, float top, float right, float bottom, const common::ui::TabRevealed& revealed = {});
 
 } // namespace rock_hero::editor::core

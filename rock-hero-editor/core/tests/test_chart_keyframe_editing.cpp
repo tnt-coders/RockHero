@@ -603,8 +603,8 @@ TEST_CASE("The junction toggle splits a grid-step ring at the default grid", "[c
     CHECK(origin.fret == 7);
     CHECK(origin.sustain == common::core::Fraction{1, 4});
     // The point restated the fret in force, and it stays: an ARRIVAL wears a linked head at the
-    // presented end, so a silent one is ordinary visible authoring state, unlike a silent
-    // SLIDE-OUT, which the gate dissolves for having no face at all.
+    // ink end, so a silent one is ordinary visible authoring state, unlike a silent SLIDE-OUT,
+    // which the gate dissolves for having no face at all.
     REQUIRE(origin.keyframes.size() == 1);
     CHECK(origin.keyframes[0].offset == common::core::Fraction{1, 4});
     CHECK(origin.keyframes[0].fret == 7);

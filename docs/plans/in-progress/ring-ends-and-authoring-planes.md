@@ -81,9 +81,10 @@ What that commits to:
    vibrato-only leg draw no chip. Where the zone's first keyframe states two channels, each
    channel's chip is drawn as it is elsewhere on the lane. The chip is a MARK, not a click
    target: a zone keyframe is selected through a reveal, where it stands at its true instant.
-   Its crop placement is stated once, in `tabKeyframeLayout` (`tab_layout_manifest.cpp`), the
-   layout every 2D consumer already shares. When the crop is clamped to the onset the chip would
-   sit on the head, and is suppressed.
+   A fret chip's crop placement is stated once, in `tabKeyframeLayout`
+   (`tab_layout_manifest.cpp`), the layout every 2D consumer already shares; a bend chip rides the
+   bend line as every bend chip does, bend points never being targets. When the crop is clamped
+   to the onset the chip would sit on the head, and is suppressed.
 4. **3D has no label.** The rail and the bend curve run their true path to the crop and the hand
    window completes at the TRUE instant — the picture that sighted well. Every hand ramp is filed
    at its keyframe's stored instant, zone keyframes included, so the hand travels with the rail
@@ -95,7 +96,11 @@ What that commits to:
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
    a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note
    layer, which names a technique), to its stored end, showing every stored keyframe at its true
-   instant, hit-testable and ringed there; the chip stays at the crop. The
+   instant, hit-testable and ringed there. A keyframe's mark stands in ONE place: the destination
+   chip at the crop while the ink cuts the leg toward it, the keyframe's own mark at its instant
+   once revealed (built 2026-09-23 this way rather than keeping the chip at the crop under the
+   reveal too: the chip is never a target, so no click can select it and see it move, and a
+   second chip naming the mark standing beside it said nothing). The
    reveal-only held-stop satellites return with the peek and the selection, as before their
    withdrawal. The peek and the selection were withdrawn because revealing moved a clicked chip;
    once no reveal moves a mark that reason is gone (decided 2026-09-23).

@@ -114,6 +114,10 @@ public:
     /*!
     \brief Applies the chart-editing overlay state (selection, marquee).
 
+    The selection is more than an overlay here: a SELECTED note is revealed
+    (core::chartNoteRevealed), so a selection change redraws the tails it names to their ring
+    ends and back.
+
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
     void setEditState(core::ChartEditViewState edit);
@@ -121,15 +125,13 @@ public:
     /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
 
-    THE WHOLE of the lane's reveal. While it is on, EVERY visible note draws to its ring's end —
-    the ring the string really sounds for, every keyframe at its true instant — instead of
-    stopping at its ink end. The editor holds it on exactly while the application is in the
-    foreground and the Alt key — the sustain gesture's own modifier — is down, so the length being
-    authored is visible while it is authored, and releasing crops every note back to its ink end.
-
-    One ground rather than several, and a held modifier rather than a state the editor infers:
-    nothing a charter did a moment ago moves a mark under their pointer, and the key that shows a
-    ring's true extent is the one already held for every gesture that moves it.
+    The lane-wide ground of the reveal (core::chartNoteRevealed carries the selection's). While
+    it is on, EVERY visible note draws to its ring's end — the ring the string really sounds for,
+    every keyframe at its true instant — instead of stopping at its ink end. The editor holds it
+    on exactly while the application is in the foreground and the Alt key — the sustain gesture's
+    own modifier — is down, so the length being authored is visible while it is authored, and
+    releasing crops every note back to its ink end. A reveal never moves a target
+    (chart_reveal.h), so nothing a charter did a moment ago moves a mark under their pointer.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
     operating system every frame for its whole life, so a slide-out nothing delivered cannot strand

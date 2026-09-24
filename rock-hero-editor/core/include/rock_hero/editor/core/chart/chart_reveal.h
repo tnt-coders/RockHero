@@ -2,13 +2,18 @@
 \file chart_reveal.h
 \brief The tablature lane's reveal: whether the whole truth about one drawn thing is on show.
 
-A NOTE is revealed by the lane reveal modifier ALONE, and a revealed note draws to its ring end —
-a selected note and the caret's own note draw like every other. That answer is the lane's own and
-needs no spelling here. A SPAN's furniture reads to its musical close on three grounds, the
-modifier and two positional ones (\ref chartSpanRevealed).
+ONE REVEAL, one predicate PER SUBJECT. A NOTE draws to its ring end — every keyframe at its true
+instant, its reveal-only marks with it — on two grounds, the lane reveal modifier and the note
+being SELECTED (\ref chartNoteRevealed); a SPAN's furniture reads to its musical close on three,
+the modifier and two positional ones (\ref chartSpanRevealed).
 
-Spelled here because two layers ask it, the lane that paints and the controller that hit-tests and
-types, and a second spelling is how the drawn picture and the reachable one come apart.
+A REVEAL NEVER MOVES A TARGET. It adds ink, and the one mark that changes place under it — the
+destination chip, standing at the crop while the ink cuts the leg toward its keyframe and giving
+way to that keyframe's own mark at its instant once revealed — is never a target, so nothing a
+gesture lands on moves because the gesture landed. That is what lets the selection be a ground.
+
+Spelled here because two layers ask it, the lane that paints and the controller that hit-tests,
+and a second spelling is how the drawn picture and the reachable one come apart.
 */
 
 #pragma once
@@ -16,10 +21,33 @@ types, and a second spelling is how the drawn picture and the reachable one come
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
+
+/*!
+\brief Answers whether this note's whole truth is on show.
+
+TWO GROUNDS, and either is enough. The LANE REVEAL is the modifier held over the whole lane, so
+every visible note shows its truth while it is down. The SELECTION is the note being the thing
+under scrutiny — the note itself, or any keyframe of it: a keyboard walk or a box that selects a
+keyframe past the note's ink end must have a ring to show it, and the ring is drawn only where the
+keyframe is. Both index lists are the selection resolved against the projection the lane draws
+(\ref ChartEditViewState), which the lane holds as its published overlay and the controller
+resolves afresh for a pointer event, through one resolver.
+
+\param index Index of the note in the projection's note order.
+\param lane_reveal True while the whole-lane reveal modifier is held.
+\param selected_notes Ascending indices of the selected notes.
+\param selected_keyframes The selected keyframes, ascending by note index.
+
+\return True when this note draws to its ring end, and its reveal-only marks with it.
+*/
+[[nodiscard]] bool chartNoteRevealed(
+    std::size_t index, bool lane_reveal, const std::vector<std::size_t>& selected_notes,
+    const std::vector<ChartKeyframeRef>& selected_keyframes) noexcept;
 
 /*!
 \brief Answers whether this span's furniture runs to its musical close rather than its drawn extent.

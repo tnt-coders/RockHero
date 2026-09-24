@@ -299,21 +299,22 @@ void TabView::paint(juce::Graphics& g)
     const common::core::ChartViewState& tab = lane->tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
-    // Whether a note is revealed, and the only statement of that rule: every visible note while
-    // the whole-lane reveal is held, none otherwise (setRingReveal carries the argument for
-    // the modifier itself). ONE ANSWER, and everything the reveal decides reads it: how far a
-    // note is drawn — to its ring's end, every keyframe at its true instant — and whether its
+    // Whether a note is revealed — while the whole-lane reveal is held or while it is selected —
+    // and the rule lives in the editor core beside the hit test that must agree with it
+    // (core::chartNoteRevealed). ONE ANSWER, and everything the reveal decides reads it: how far
+    // a note is drawn — to its ring's end, every keyframe at its true instant — and whether its
     // reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL). Revealing a note
-    // shows the whole truth about it at once, so the two cannot be separate questions — and the
-    // hit test is handed the same answer, so the drawn picture and the reachable one agree.
-    const bool revealed = m_ring_reveal;
+    // shows the whole truth about it at once, so the two cannot be separate questions.
+    const auto revealed = [this](std::size_t index) {
+        return core::chartNoteRevealed(
+            index, m_ring_reveal, m_edit.selected_notes, m_edit.selected_keyframes);
+    };
 
     // THE SPAN'S OWN REVEAL, stated beside the note's because it is the same held modifier
     // answering for a different subject: while it is on, while a span covers a selected note, or
     // while the caret stands inside its tenure, that span's furniture runs to its MUSICAL CLOSE
-    // instead of to the extent rule 12a trimmed for display. The two positional grounds the note
-    // gave up stay here because a span has no second form to jump to: revealing it lengthens
-    // furniture rather than moving a mark the charter just clicked.
+    // instead of to the extent rule 12a trimmed for display: three grounds
+    // (core::chartSpanRevealed) where the note has two (core::chartNoteRevealed).
     //
     // What the lane hands the paint core is therefore the answer rather than a note, and the core
     // reads whichever of the span's two ends that answer names. The rule itself lives in the editor
@@ -359,8 +360,7 @@ void TabView::paint(juce::Graphics& g)
         g.excludeClipRegion(panel);
     }
 
-    // The core asks per note; this host's answer is the lane's, every note alike.
-    common::ui::paintTabLane(g, metrics, tab, [revealed](std::size_t) { return revealed; });
+    common::ui::paintTabLane(g, metrics, tab, revealed);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -410,12 +410,12 @@ void TabView::paint(juce::Graphics& g)
                 continue;
             }
             const common::core::KeyframeViewState& keyframe = note.slides[ref.keyframe_index];
-            if (!common::core::keyframeDrawn(
-                    keyframe, common::core::drawnEndSeconds(note, revealed)))
+            const double drawn_end = common::core::drawnEndSeconds(note, revealed(ref.note_index));
+            if (!common::core::keyframeDrawn(keyframe, drawn_end))
             {
                 continue;
             }
-            draw(note, keyframe, common::ui::tabKeyframeLayout(metrics, note, keyframe));
+            draw(note, keyframe, common::ui::tabKeyframeLayout(metrics, note, keyframe, drawn_end));
         }
     };
 
@@ -518,7 +518,7 @@ void TabView::paint(juce::Graphics& g)
                 if (targets->channel == common::core::ChartStopChannel::Held)
                 {
                     if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                            common::ui::tabHeldStopLayout(metrics, note, revealed);
+                            common::ui::tabHeldStopLayout(metrics, note, revealed(index));
                         satellite.has_value())
                     {
                         common::ui::paintTabPendingEntryBox(
@@ -804,9 +804,8 @@ std::optional<juce::Rectangle<float>> TabView::noteHeadBounds(const std::size_t 
 }
 
 // The caret square: centered on the caret's slot, one pixel larger than a note head so it
-// reads around a head it rides. It is a SLOT, not a note, so the per-note form pick has nothing
-// to say about it; the string bound it needs is the presented form's, which is the same count
-// the actual form carries.
+// reads around a head it rides. It is a SLOT, not a note, so the reveal has nothing to say about
+// it; it needs only the lane's string bound.
 std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& lane) const
 {
     if (!m_edit.caret.has_value() || m_edit.caret->string < 1 ||

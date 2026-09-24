@@ -283,12 +283,15 @@ heads there — the span's own rails already state how long the posture is frett
 repeating that reads as sustain (`docs/plans/in-progress/note-sustain-model.md` ruling 3).
 Per-surface idiom for one fact again: one hold, a pinned head here and a chord box there.
 
-The TAIL's LENGTH is not per-surface in any way: every surface draws the stored note to one ink end
-(`NoteViewState::ink_end_seconds`, beside the stored `ring_end_seconds`; keyframes keep their stored
-instants) with one verdict beside it (`NoteViewState::rested` and its `reveal_from_seconds`
-landmark), and no surface may compute a different length. The 3D board keeps its tip fade over the
-drawn extent. What IS per-surface
-is where a resting ribbon RESTS: the 2D lane draws it always, while the board draws the part past
+The board draws no destination chip at the crop — the rail and the bend curve run their true path
+to the ink end and the hand window completes at the true instant, which is the whole of what the
+board says about a keyframe past the ink; the chip is the 2D lane's, where a reader scans for a
+number. The TAIL's LENGTH is not per-surface in any way: every surface draws the stored note to one
+ink end (`NoteViewState::ink_end_seconds`, beside the stored `ring_end_seconds`; keyframes keep
+their stored instants) with one verdict beside it (`NoteViewState::rested` and its
+`reveal_from_seconds` landmark), and no surface may compute a different length. The 3D board keeps
+its tip fade over the drawn extent. What IS per-surface is where a resting ribbon RESTS: the 2D
+lane draws it always, while the board draws the part past
 the note's landmark only inside the CURTAIN — a fixed window rising from the hit line, one lead deep
 (the tunable `g_tail_reveal_lead_whole_note`, resolved at the note's own meter and tempo), whose
 fade an in-flight note carries as an IDENTICAL local copy anchored at its RESTING LANDMARK: the head

@@ -1,5 +1,7 @@
 #include "tab/tab_layout_manifest.h"
 
+#include <algorithm>
+
 namespace rock_hero::common::ui
 {
 
@@ -77,26 +79,27 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 
 // Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's
 // own head size, centred on the keyframe's instant and the note's string line. Same square as the
-// onset head, one column along the tail. The slide-out mirrors drawSlideLines instead: its chip
-// sits a third of a head above the tail envelope when the last leg rises and below it when it
-// falls — or on the side the shared instant gives it, which both read from one authority — and the
-// box is the chip's ground: the fret text height with the chip's one-pixel margins, and the
-// two-digit width the satellite column already states for this lane's digits.
+// onset head, one column along the tail. A chip — the slide-out's at its instant, the destination
+// chip at the crop — sits a third of a head above the tail envelope when the leg into it rises and
+// below it when it falls, or on the side the shared instant gives it (both from one authority),
+// and its box is the chip's ground: the fret text height with the chip's one-pixel margins, and
+// the two-digit width the satellite column already states for this lane's digits.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe) noexcept
+    const common::core::KeyframeViewState& keyframe, const double drawn_end) noexcept
 {
+    const bool drawn = common::core::keyframeDrawn(keyframe, drawn_end);
     TabKeyframeLayout layout;
-    layout.center_x = geometry.x(keyframe.seconds);
+    layout.center_x = geometry.x(std::min(keyframe.seconds, drawn_end));
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
-    if (!keyframe.slide_out)
+    if (drawn && common::core::linkedKeyframe(keyframe))
     {
         layout.head = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
         return layout;
     }
-    // The leg into the slide-out rises when its fret is at or above the stop before it — the
-    // previous keyframe's, or the onset's when it is the first.
+    // The leg into the chip rises when the keyframe's fret is at or above the stop before it —
+    // the previous keyframe's, or the onset's when it is the first.
     int previous_fret = note.fret;
     for (const common::core::KeyframeViewState& earlier : note.slides)
     {
@@ -109,9 +112,11 @@ TabKeyframeLayout tabKeyframeLayout(
     const bool upward = keyframe.fret >= previous_fret;
     layout.chip = true;
     // Both bands are the shared authority's (slideOutChipY, endMarkYAtSharedInstant), so the box
-    // the click is bounded in cannot land on the other side of the envelope from the chip.
-    layout.center_y = endMarkYAtSharedInstant(geometry, layout.center_y, note.ends_on_next_head)
-                          .value_or(slideOutChipY(geometry, layout.center_y, upward));
+    // the click is bounded in cannot land on the other side of the envelope from the chip. Only a
+    // DRAWN chip can stand at the shared instant: a chip at the crop stands a margin before it.
+    layout.center_y =
+        endMarkYAtSharedInstant(geometry, layout.center_y, drawn && note.ends_on_next_head)
+            .value_or(slideOutChipY(geometry, layout.center_y, upward));
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;

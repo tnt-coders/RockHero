@@ -128,8 +128,8 @@ application is in the foreground draws each visible note in the 2D tab lane on t
 past its ink end, and releasing it stops every note at its ink end again. Nothing is invoked,
 nothing is undoable, and the mapping set is not involved at all — the whole path is
 `EditorView::syncAltHeldState` → `TabView::setRingReveal`, repainting only on a change. `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is
-exactly what `Alt`+wheel edits. The modifier alone reveals a note — a selected note draws like
-every other — so see \ref guide_2d_views for the mark it makes.
+exactly what `Alt`+wheel edits. The selection is the reveal's other ground
+(`core::chartNoteRevealed`); see \ref guide_2d_views for the mark it makes.
 
 There is nothing registrable beside it: the mark the reveal makes was decided on 2026-08-23 (the
 lane draws each note on to its ring end) and the `F6` toggle that had let the two candidates be

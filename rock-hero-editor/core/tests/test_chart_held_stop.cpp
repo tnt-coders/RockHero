@@ -265,10 +265,10 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
 }
 
 // THE SATELLITE REVEAL at the layers that read it. A DERIVED stop is already printed by the
-// pull-off notation, so its satellite does not stand: it appears exactly while the lane reveal is
-// held — the same pick that draws the note's real ring — and the hit test and the entry follow that
-// one answer. What it must never be is standing: this figure's stop is the notation's, and a second
-// standing copy would state it twice.
+// pull-off notation, so its satellite does not stand: it appears exactly while its note is
+// revealed — the lane reveal held, or the note selected: the same pick that draws the note's real
+// ring — and the hit test and the entry follow that one answer. What it must never be is standing:
+// this figure's stop is the notation's, and a second standing copy would state it twice.
 TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core][chart]")
 {
     HeldStopFixture fixture{makeRevealedHeldChart()};
@@ -297,11 +297,13 @@ TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core]
     // stop every note has. Under a law that stood every satellite it would land on the held one.
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
-    // Nor does selecting the tap draw it: the selection is not a reveal, so the same press still
-    // falls through.
+    // SELECTED: selecting the tap is a ground of the reveal too, so with the selection standing at
+    // the press the digit is drawn and the same press reaches the stop.
     click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
 
     // REVEALED: with the modifier down the tap's whole truth shows — the real ring and this
     // satellite alike — and the same press reaches the stop.

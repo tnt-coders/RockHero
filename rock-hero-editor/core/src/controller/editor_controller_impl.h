@@ -374,6 +374,22 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // held them): the commit law's in-memory half. True when any point went.
     bool dissolveSilentKeyframes(const std::function<bool(const ChartSlotKey&)>& keeps);
     [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
+
+    // The chart selection resolved against the displayed projection, the ONE resolver behind the
+    // published overlay (ChartEditViewState) and the pointer hit test's reveal: selection keys
+    // re-resolve to indices on every ask, so keys whose notes vanished simply drop out instead of
+    // pointing at the wrong glyph. Every stored keyframe is in the projection, so every keyframe
+    // key resolves; whether the lane DRAWS the mark is the lane's own extent question.
+    struct ResolvedChartSelection
+    {
+        std::vector<std::size_t> notes;
+        std::vector<ChartKeyframeRef> keyframes;
+    };
+    [[nodiscard]] ResolvedChartSelection resolvedChartSelection() const;
+
+    // The per-note reveal a pointer event's hit test reads, from the modifier it carries and the
+    // selection standing when the event arrives (chartNoteRevealed).
+    [[nodiscard]] common::ui::TabRevealed chartRevealFor(const ChartPointerEvent& event) const;
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;
     void clearChartEditingState();

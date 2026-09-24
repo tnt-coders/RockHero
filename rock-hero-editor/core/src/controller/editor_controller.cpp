@@ -2870,22 +2870,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
         }
         state.highway = m_highway_view_state;
 
-        // Chart-editing overlays resolve against exactly the projection instance pushed above:
-        // selection keys re-resolve to indices every push, so keys whose notes vanished simply
-        // drop out instead of pointing at the wrong glyph.
+        // Chart-editing overlays resolve against exactly the projection instance pushed above
+        // (resolvedChartSelection), which is the one the lane hit-tests and the one whose
+        // keyframe heads it draws rings on.
         if (arrangement->chart.has_value())
         {
-            state.chart_edit.selected_notes =
-                selectedNoteIndices(arrangement->chart->notes, chartSelection());
-            // Resolved against the projection pushed above, which is the one the lane hit-tested
-            // and the one whose keyframe heads it draws rings on. Every stored keyframe is in it,
-            // so every key resolves; whether the lane DRAWS the mark — and so rings it — is the
-            // lane's own extent question, since only it knows whether the note is revealed.
-            if (m_tab_view_state != nullptr)
-            {
-                state.chart_edit.selected_keyframes = selectedKeyframeIndices(
-                    arrangement->chart->notes, m_tab_view_state->notes, chartSelection());
-            }
+            ResolvedChartSelection selected = resolvedChartSelection();
+            state.chart_edit.selected_notes = std::move(selected.notes);
+            state.chart_edit.selected_keyframes = std::move(selected.keyframes);
             // The marker publishes plainly from its state — armed ⟹ paused is structural
             // (play and the transport listener demote), so no transport check re-derives it
             // here. The caret publishes whenever armed, empty slot or note alike: the square

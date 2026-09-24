@@ -808,12 +808,11 @@ struct ChartEditViewState
     std::vector<std::size_t> selected_notes{};
 
     /*!
-    \brief The selected keyframes as drawn positions, in the selection's own order.
+    \brief The selected keyframes as projected positions, ascending by note index.
 
     Published beside the two index lists rather than folded into them because a keyframe is not
-    addressable the way they are (\ref ChartKeyframeRef). Keys naming a keyframe that no longer
-    draws — one an edit dissolved, one the presentation trim clipped — simply do not appear, the
-    same resolve-or-drop rule the note indices follow.
+    addressable the way they are (\ref ChartKeyframeRef). Keys naming a keyframe an edit dissolved
+    simply do not appear, the same resolve-or-drop rule the note indices follow.
     */
     std::vector<ChartKeyframeRef> selected_keyframes{};
 

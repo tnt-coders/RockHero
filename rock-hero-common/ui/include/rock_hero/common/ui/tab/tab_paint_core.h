@@ -10,8 +10,6 @@ each host supplies only bounds, timeline mapping, and state.
 
 #pragma once
 
-#include <cstddef>
-#include <functional>
 #include <juce_graphics/juce_graphics.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -312,22 +310,6 @@ juce::Rectangle<float> paintTabPendingEntryBox(
     juce::Colour text_color, juce::Colour border_color);
 
 /*!
-\brief Answers whether one event, by its index, is REVEALED, for a host that reveals.
-
-THE ONE pick a reveal makes, asked per note by \ref paintTabLane and per span by
-\ref paintTabLaneFurniture. A revealed note is drawn to its ring's end
-(\ref common::core::drawnEndSeconds), so every keyframe it stores shows at its true instant, and
-its reveal-only marks come in with it (\ref common::core::stopMarkShown); a revealed span's
-furniture runs to its musical close (\ref common::core::ShapeViewState::close_seconds) instead of
-the extent rule 12a trimmed. A host derives the answer from a predicate of its own — this core is
-told the answer and never the reason.
-
-An empty accessor is the ordinary case and reveals nothing, which is the whole answer for a surface
-with no reveal at all: the game's tab strips.
-*/
-using TabRevealed = std::function<bool(std::size_t index)>;
-
-/*!
 \brief Returns the panel \ref drawTabStringLegend would fill, empty when no legend is drawn.
 
 The legend's own geometry, and THE ONE authority on the panel's width. A host that pins the panel
@@ -469,8 +451,11 @@ each pass in turn.
        (ChartViewState::display_hold_ends) is the 3D board's and is not read here. The visible
        range is bounded by the projection's own prefix tables (ChartViewState::ring_end_prefix_max,
        ChartViewState::shape_close_prefix_max).
-\param revealed Per-note answer to whether that note's whole truth is on show: it then draws to
-       its ring end and its reveal-only held-stop satellite comes in; empty reveals nothing.
+\param revealed Per-note answer to whether that note's whole truth is on show
+       (\ref TabRevealed): it then draws to its ring end, every keyframe at its true instant, and
+       its reveal-only held-stop satellite comes in; empty reveals nothing. An unrevealed note
+       crops at its ink end, and the leg the crop cuts wears a destination chip there
+       (\ref tabKeyframeLayout).
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,

@@ -28,7 +28,7 @@ namespace
 
 // Builds a projection with three notes: a long sustain, a short note inside it, and a late note
 // the presentation rules left tail-less — its stored ring runs a second past its bare head, which
-// is the gap the Alt reveal exists to show. Only that note's ink end differs from its ring end.
+// is the gap a reveal exists to show. Only that note's ink end differs from its ring end.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTabState()
 {
     common::core::ChartViewState state;
@@ -72,6 +72,28 @@ namespace
 void setFixtureState(TabView& view)
 {
     view.setState(makeTabState(), 0);
+}
+
+// One cropped note on string 3 (centre y = 70.5): struck at 2.0s, inked to 5.0s, ringing to
+// `ring_end_seconds`, and carrying `keyframe` past the ink end — a mark only a reveal can show.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeCroppedKeyframeState(
+    const double ring_end_seconds, const common::core::KeyframeViewState& keyframe)
+{
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = ring_end_seconds,
+            .ink_end_seconds = 5.0,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = {keyframe},
+            .vibrato = {},
+        },
+    };
+    return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
 // The same tuning with no chart events at all: the control every "what does the panel let
@@ -807,9 +829,9 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
 
 // THE REVEAL IS THE RING, and it reveals a tail hidden for ANY reason because no reason is one of
 // its inputs — which is why the two figures here are the two reasons that exist: presentation never
-// earned the tail, and the trim cut it short. Nothing else shows either of them: an editing state
-// the charter is in the middle of must not move ink under their pointer, so the caret standing in a
-// ring and the selection alike leave the picture exactly as it was.
+// earned the tail, and the trim cut it short. An editing POSITION shows neither of them: the caret
+// the charter is moving must not move ink under their pointer, so standing it in a ring leaves the
+// picture exactly as it was. (Selecting a note is a ground of its own, pinned further down.)
 TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -976,17 +998,17 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
     // centre.
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
-    // Neither editing state shows it: selecting the note under scrutiny leaves its notation where
-    // it was drawn, and so does standing the caret in the very stretch the crop took.
+    // Selecting the note under scrutiny shows it — the selection is a ground of the reveal — while
+    // standing the caret in the very stretch the crop took does not: a position is not a ground.
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
-    CHECK(render().getPixelAt(189, 72).getARGB() == 0);
+    CHECK(render().getPixelAt(189, 72).getARGB() != 0);
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 0.9375, .string = 3},
         });
     CHECK(render().getPixelAt(189, 72).getARGB() == 0);
 
-    // The reveal is the one ground, and what it shows is the derivation's own crop.
+    // The lane reveal shows it too, and what either shows is the derivation's own crop.
     view.setEditState(core::ChartEditViewState{});
     view.setRingReveal(true);
     CHECK(render().getPixelAt(189, 72).getARGB() != 0);
@@ -1196,9 +1218,9 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
 }
 
 // Every editing overlay traces the note the lane drew, and the ink and the reveal share the head
-// exactly: presentation touches only the tail, so a selection ring lands on the same pixels
-// whether or not the note is revealed. Checked on one note selected first and then revealed, which
-// must ring the same head either way — and the selection must not have grown it a tail on the way.
+// exactly: presentation touches only the tail, so a selection ring lands on the head's own pixels
+// and a reveal grows only the tail behind it. Checked on one note selected — which reveals it — and
+// then also lane-revealed, which must ring the same head either way.
 TEST_CASE("TabView keeps its overlays on the head the ink and the reveal share", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1230,18 +1252,12 @@ TEST_CASE("TabView keeps its overlays on the head the ink and the reveal share",
     // does not change again when the reveal redraws the lane to the ring ends.
     CHECK(selected.getPixelAt(112, 10) != plain.getPixelAt(112, 10));
     CHECK(revealed.getPixelAt(112, 10) == selected.getPixelAt(112, 10));
-
-    // And the tail past that head arrives with the REVEAL alone: presentation left this note
-    // without one, and selecting it is not a reason to draw ink the charter did not ask for.
-    CHECK(plain.getPixelAt(128, 12).getARGB() == 0);
-    CHECK(selected.getPixelAt(128, 12).getARGB() == 0);
-    CHECK(revealed.getPixelAt(128, 12).getARGB() != 0);
 }
 
-// THE CHORD a selection is taken from is left alone: neither the selected member nor its mate
-// grows the ring presentation cropped, and the reveal then shows both at once. The picture a
-// charter is working in stays the picture they clicked into.
-TEST_CASE("TabView leaves a selected note beside its mate at their ink ends", "[ui][tab-view]")
+// THE REVEAL A SELECTION MAKES IS PER NOTE: the selected member of a chord grows the ring
+// presentation cropped, while its mate stays at its ink end, and the lane reveal then shows both at
+// once. One selected ring never uncrops its neighbours.
+TEST_CASE("TabView reveals a selected note and leaves its mate at its ink end", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
@@ -1304,15 +1320,15 @@ TEST_CASE("TabView leaves a selected note beside its mate at their ink ends", "[
 
     view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
     const juce::Image upper_selected = render();
-    CHECK(upper_selected.getPixelAt(tail_x, upper_row).getARGB() == 0);
+    CHECK(upper_selected.getPixelAt(tail_x, upper_row).getARGB() != 0);
     CHECK(upper_selected.getPixelAt(tail_x, lower_row).getARGB() == 0);
 
     view.setEditState(core::ChartEditViewState{.selected_notes = {1}});
     const juce::Image lower_selected = render();
     CHECK(lower_selected.getPixelAt(tail_x, upper_row).getARGB() == 0);
-    CHECK(lower_selected.getPixelAt(tail_x, lower_row).getARGB() == 0);
+    CHECK(lower_selected.getPixelAt(tail_x, lower_row).getARGB() != 0);
 
-    // The one ground covers the whole lane, selection or no selection.
+    // The lane reveal covers the whole lane, selection or no selection.
     view.setEditState(core::ChartEditViewState{});
     view.setRingReveal(true);
     const juce::Image revealed = render();
@@ -1320,31 +1336,17 @@ TEST_CASE("TabView leaves a selected note beside its mate at their ink ends", "[
     CHECK(revealed.getPixelAt(tail_x, lower_row).getARGB() != 0);
 }
 
-// AN END CHIP IN THE ENDING ZONE IS DRAWN BY THE REVEAL ALONE, which is the case the one ground
-// exists for: the end statement keeps its stored instant past the ink end, so a ground that drew
-// it — or ringed it — on selection would put a mark on the lane the charter never saw. The reveal
-// draws it instead, and that key is held for every gesture that moves the end.
-TEST_CASE("TabView draws a selected end statement past the ink only revealed", "[ui][tab-view]")
+// THE SELECTION REVEALS WHAT IT NAMES. A cropped note's keyframe past the ink end is undrawn until
+// its note is revealed, and a selection is one of the grounds: the note's own, or its keyframe's
+// alone, since a selected mark must have a ring to show it. Either draws the note to its ring end
+// with the mark at the instant the chart stores, exactly as the lane reveal does, and the accent
+// ring traces the mark there rather than the crop; deselecting crops it straight back. Checked on
+// both kinds of mark past the ink: an end statement's chip and a linked keyframe's head.
+TEST_CASE(
+    "TabView reveals a selected note or keyframe and rings the mark at its instant",
+    "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-
-    // A cropped ring on string 3 carrying its slide-out: the ink stops at 5.0s, while the stored
-    // ring runs to 8.0s and states the slide-out there.
-    const common::core::KeyframeViewState stored_end{.seconds = 8.0, .fret = 9, .slide_out = true};
-    common::core::ChartViewState tab;
-    tab.open_strings = common::core::testing::standardTuning();
-    tab.notes = {
-        common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .ring_end_seconds = 8.0,
-            .ink_end_seconds = 5.0,
-            .string = 3,
-            .fret = 7,
-            .bend = {},
-            .slides = {stored_end},
-            .vibrato = {},
-        },
-    };
 
     const common::core::TimeRange timeline{
         .start = common::core::TimePosition{},
@@ -1353,7 +1355,6 @@ TEST_CASE("TabView draws a selected end statement past the ink only revealed", "
     TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(timeline);
-    view.setState(std::make_shared<const common::core::ChartViewState>(tab), 0);
 
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
@@ -1363,20 +1364,34 @@ TEST_CASE("TabView draws a selected end statement past the ink only revealed", "
         return image;
     };
 
-    // The chip's box at the STORED instant, from the same manifest the lane draws with, so the
-    // probe is the mark's own extent rather than a guessed column.
-    const common::ui::TabKeyframeLayout stored_chip = common::ui::tabKeyframeLayout(
-        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
-        tab.notes[0],
-        stored_end);
-    REQUIRE(stored_chip.chip);
-    const auto box_differs = [&stored_chip](const juce::Image& lhs, const juce::Image& rhs) {
-        for (int y = juce::roundToInt(stored_chip.head.y);
-             y < juce::roundToInt(stored_chip.head.y + stored_chip.head.height);
+    // Shows the cropped note carrying `keyframe`, and answers the mark's layout at the instant the
+    // chart stores — where the revealed note draws it — from the manifest the lane draws with, so
+    // each probe is the mark's own extent rather than a guessed column.
+    const auto show = [&view, &timeline](
+                          const double ring_end_seconds,
+                          const common::core::KeyframeViewState& keyframe) {
+        const std::shared_ptr<const common::core::ChartViewState> state =
+            makeCroppedKeyframeState(ring_end_seconds, keyframe);
+        view.setState(state, 0);
+        return common::ui::tabKeyframeLayout(
+            common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
+            state->notes[0],
+            keyframe,
+            ring_end_seconds);
+    };
+
+    // Whether two renders differ over the mark's box, grown by a few pixels so the probe also
+    // takes in the accent ring straddling its edge.
+    const auto differs_at = [](const common::ui::TabKeyframeLayout& mark,
+                               const juce::Image& lhs,
+                               const juce::Image& rhs) {
+        constexpr int ring_margin = 3;
+        for (int y = juce::roundToInt(mark.head.y) - ring_margin;
+             y < juce::roundToInt(mark.head.y + mark.head.height) + ring_margin;
              ++y)
         {
-            for (int x = juce::roundToInt(stored_chip.head.x);
-                 x < juce::roundToInt(stored_chip.head.x + stored_chip.head.width);
+            for (int x = juce::roundToInt(mark.head.x) - ring_margin;
+                 x < juce::roundToInt(mark.head.x + mark.head.width) + ring_margin;
                  ++x)
             {
                 if (lhs.getPixelAt(x, y) != rhs.getPixelAt(x, y))
@@ -1388,27 +1403,76 @@ TEST_CASE("TabView draws a selected end statement past the ink only revealed", "
         return false;
     };
 
-    const juce::Image plain = render();
+    // The note's one keyframe, as a selection names it.
+    const core::ChartKeyframeRef its_keyframe{.note_index = 0, .keyframe_index = 0};
 
-    // Selecting the statement — what clicking its chip publishes — leaves that stretch of lane
-    // exactly as it was while unrevealed: the chip past the ink end stays undrawn, and so does the
-    // selection ring that would trace it.
-    const core::ChartEditViewState statement_selected{
-        .selected_notes = {0},
-        .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
-    };
-    view.setEditState(statement_selected);
-    CHECK_FALSE(box_differs(render(), plain));
+    SECTION("an end statement's chip, selected with its note, stands at its stored instant")
+    {
+        // The slide-out stated at the stored ring end, 8.0s, three seconds past the ink.
+        const common::core::KeyframeViewState stored_end{
+            .seconds = 8.0, .fret = 9, .slide_out = true
+        };
+        const common::ui::TabKeyframeLayout chip = show(8.0, stored_end);
+        REQUIRE(chip.chip);
 
-    // The reveal is what draws it, at the instant the chart stores ...
-    view.setEditState(core::ChartEditViewState{});
-    view.setRingReveal(true);
-    const juce::Image revealed = render();
-    CHECK(box_differs(revealed, plain));
+        // Unrevealed and unselected, the chip past the ink end is undrawn at its instant.
+        const juce::Image plain = render();
 
-    // ... and, revealed, the selection rings it.
-    view.setEditState(statement_selected);
-    CHECK(box_differs(render(), revealed));
+        // The lane reveal draws it, at the instant the chart stores ...
+        view.setRingReveal(true);
+        const juce::Image revealed = render();
+        CHECK(differs_at(chip, revealed, plain));
+
+        // ... and so does selecting the statement — what clicking its chip publishes — with the
+        // lane reveal released: the selection reveals the note, and rings the chip there.
+        view.setRingReveal(false);
+        view.setEditState(
+            core::ChartEditViewState{.selected_notes = {0}, .selected_keyframes = {its_keyframe}});
+        const juce::Image selected = render();
+        CHECK(differs_at(chip, selected, plain));
+        CHECK(differs_at(chip, selected, revealed));
+
+        // Deselecting crops the note back: the stretch past the ink end is as it was.
+        view.setEditState(core::ChartEditViewState{});
+        CHECK_FALSE(differs_at(chip, render(), plain));
+    }
+
+    SECTION("a linked keyframe's head, selected alone, still reveals its note")
+    {
+        // A glide rising 7 -> 9 at 10.0s (x = 100), inside a ring running on to 12.0s.
+        const common::core::KeyframeViewState glide{.seconds = 10.0, .fret = 9, .slide_out = false};
+        const common::ui::TabKeyframeLayout head = show(12.0, glide);
+        REQUIRE_FALSE(head.chip);
+
+        // 10 px per second: column 115 (11.5s) is ring past the keyframe's head and short of the
+        // ring end at x = 120, and row 72 sits 1.5 px below the lane centre, inside the tail
+        // envelope and off both its rails and the string line.
+        constexpr int ring_x = 115;
+        constexpr int tail_row = 72;
+
+        // Nothing selected: the tail stops at the ink end, and nothing stands at the keyframe.
+        const juce::Image plain = render();
+        CHECK(plain.getPixelAt(ring_x, tail_row).getARGB() == 0);
+
+        // The NOTE selected: drawn to its ring end, the keyframe's head at its true instant.
+        view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
+        const juce::Image note_selected = render();
+        CHECK(note_selected.getPixelAt(ring_x, tail_row).getARGB() != 0);
+        CHECK(differs_at(head, note_selected, plain));
+
+        // Deselected: cropped straight back, the whole picture as it was.
+        view.setEditState(core::ChartEditViewState{});
+        CHECK(worstPixelDeltaInColumns(render(), plain, 0, 199) == 0);
+
+        // The KEYFRAME selected alone: the note is revealed all the same, and the accent ring
+        // traces the keyframe's head at its true instant — which the note's own selection does
+        // not ring.
+        view.setEditState(core::ChartEditViewState{.selected_keyframes = {its_keyframe}});
+        const juce::Image keyframe_selected = render();
+        CHECK(keyframe_selected.getPixelAt(ring_x, tail_row).getARGB() != 0);
+        CHECK(differs_at(head, keyframe_selected, plain));
+        CHECK(differs_at(head, keyframe_selected, note_selected));
+    }
 }
 
 // THE SELECTED OBJECT DRAWS LAST. An arrival stands at the very instant the head it glides into is

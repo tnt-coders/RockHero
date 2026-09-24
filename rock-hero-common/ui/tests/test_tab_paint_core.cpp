@@ -2350,7 +2350,8 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
         };
         const common::core::NoteViewState note = ringing({slide_out}, false);
         const juce::Image image = painted({note});
-        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, slide_out);
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, slide_out, common::core::drawnEndSeconds(note, false));
         CHECK(layout.chip);
         CHECK(box_differs(image, bare, layout.head));
         CHECK(envelope_agrees(image, bare));
@@ -2361,7 +2362,8 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
         const common::core::KeyframeViewState hold{.seconds = 6.0, .fret = 7, .slide_out = false};
         const common::core::NoteViewState note = ringing({hold}, false);
         const juce::Image image = painted({note});
-        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, hold);
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, hold, common::core::drawnEndSeconds(note, false));
         CHECK_FALSE(layout.chip);
         CHECK(box_differs(image, bare, layout.head));
         CHECK(envelope_agrees(image, bare));
@@ -2385,13 +2387,17 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
             .slides = {},
             .vibrato = {},
         };
-        const TabKeyframeLayout shared = tabKeyframeLayout(metrics, glide, slide_out);
+        const TabKeyframeLayout shared = tabKeyframeLayout(
+            metrics, glide, slide_out, common::core::drawnEndSeconds(glide, false));
         CHECK(shared.chip);
         CHECK(shared.center_y > span.bottom);
         // And the band is the RELATION's, not the leg's: the same rising slide-out takes the band
         // above where nothing shares its instant.
+        const common::core::NoteViewState alone = ringing({slide_out}, false);
         CHECK(
-            tabKeyframeLayout(metrics, ringing({slide_out}, false), slide_out).center_y < span.top);
+            tabKeyframeLayout(
+                metrics, alone, slide_out, common::core::drawnEndSeconds(alone, false))
+                .center_y < span.top);
 
         // The head's own marks keep the band above it, so the two never meet: the chip's ink is
         // below the envelope and the pre-bend's above the head.
@@ -2682,6 +2688,221 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
     CHECK(revealed.getPixelAt(ring_end_x, fill_row).getAlpha() == 0);
     // And the keyframe wears its head at its true instant.
     CHECK(revealed.getPixelAt(keyframe_x, head_row).getAlpha() == 255);
+}
+
+// THE DESTINATION CHIP. The slide leg an unrevealed note's ink end cuts wears the chip a slide-out
+// wears, at the crop, naming the fret the leg is heading for — only where the leg changes the
+// fret, and never on a note whose ink stops at its onset, where it would sit on the head. Revealing
+// the note draws the keyframe at its true instant instead, and the crop wears nothing. Where the
+// chip stands is the layout manifest's one statement, so the probes read it from there. A chip is
+// probed on its rows ABOVE the tail envelope: the technique clip keeps every leg inside the tail,
+// so only a chip can put ink there, and the probe cannot mistake the cut leg for it.
+TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    REQUIRE(metrics.draw_text);
+    const auto painted = [&metrics](const common::core::NoteViewState& subject, const bool reveal) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = {subject};
+        indexVisibleRanges(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, [reveal](std::size_t) { return reveal; });
+        return image;
+    };
+    // One note on string 3 from 2.0s (x = 40) at fret 7, ringing to 12.0s (x = 240), inked to
+    // `ink_end`, and carrying whatever stops are passed.
+    const auto ringing =
+        [](const double ink_end, std::vector<common::core::KeyframeViewState> slides) {
+            return common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 12.0,
+                .ink_end_seconds = ink_end,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = std::move(slides),
+                .vibrato = {},
+            };
+        };
+    const TailSpan span = tailSpan(metrics, metrics.laneY(3));
+    // Row limits for the probe below: a head's whole box, or a chip's rows above the envelope.
+    constexpr int every_row = 240;
+    const int above_envelope = static_cast<int>(std::floor(span.top));
+    // Whether anything inside a layout rectangle, above `row_limit`, differs between two renders.
+    const auto differs_in = [](const juce::Image& lhs,
+                               const juce::Image& rhs,
+                               const TabLayoutRect& box,
+                               const int row_limit) {
+        const int bottom = std::min(juce::roundToInt(box.y + box.height), row_limit);
+        for (int y = juce::roundToInt(box.y); y < bottom; ++y)
+        {
+            for (int x = juce::roundToInt(box.x); x < juce::roundToInt(box.x + box.width); ++x)
+            {
+                if (lhs.getPixelAt(x, y) != rhs.getPixelAt(x, y))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // The same note with no stops at all, cropped and revealed: the ground every chip and head is
+    // measured against.
+    const juce::Image bare_cropped = painted(ringing(6.0, {}), false);
+    const juce::Image bare_revealed = painted(ringing(6.0, {}), true);
+
+    SECTION("a linked keyframe past the crop: its chip at the crop, its head only when revealed")
+    {
+        // Rising 7 -> 9 toward 10.0s (x = 200); the ink ends at 6.0s (x = 120).
+        const common::core::KeyframeViewState keyframe{
+            .seconds = 10.0, .fret = 9, .slide_out = false
+        };
+        const common::core::NoteViewState note = ringing(6.0, {keyframe});
+        const TabKeyframeLayout at_crop =
+            tabKeyframeLayout(metrics, note, keyframe, note.ink_end_seconds);
+        const TabKeyframeLayout at_instant =
+            tabKeyframeLayout(metrics, note, keyframe, note.ring_end_seconds);
+        REQUIRE(at_crop.chip);
+        CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
+        // The rising leg's chip stands above the envelope, so its probe rows exist.
+        REQUIRE(at_crop.head.y < span.top - 1.0f);
+        CHECK_FALSE(at_instant.chip);
+
+        const juce::Image cropped = painted(note, false);
+        const juce::Image revealed = painted(note, true);
+
+        // Cropped: the chip at the crop, and nothing at the keyframe's own instant.
+        CHECK(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.head, every_row));
+        // Revealed: the head at the keyframe's instant, and nothing left at the crop.
+        CHECK(differs_in(revealed, bare_revealed, at_instant.head, every_row));
+        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.head, above_envelope));
+    }
+
+    SECTION("a slide-out past the crop: its chip at the crop, and at its instant when revealed")
+    {
+        // A slide-out at the ring's end (x = 240), rising 7 -> 9.
+        const common::core::KeyframeViewState slide_out{
+            .seconds = 12.0, .fret = 9, .slide_out = true
+        };
+        const common::core::NoteViewState note = ringing(6.0, {slide_out});
+        const TabKeyframeLayout at_crop =
+            tabKeyframeLayout(metrics, note, slide_out, note.ink_end_seconds);
+        const TabKeyframeLayout at_instant =
+            tabKeyframeLayout(metrics, note, slide_out, note.ring_end_seconds);
+        REQUIRE(at_crop.chip);
+        REQUIRE(at_instant.chip);
+        CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
+        CHECK_THAT(at_instant.center_x, Catch::Matchers::WithinULP(metrics.x(12.0), 0));
+        REQUIRE(at_crop.head.y < span.top - 1.0f);
+        REQUIRE(at_instant.head.y < span.top - 1.0f);
+
+        const juce::Image cropped = painted(note, false);
+        const juce::Image revealed = painted(note, true);
+
+        CHECK(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.head, above_envelope));
+        CHECK(differs_in(revealed, bare_revealed, at_instant.head, above_envelope));
+        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.head, above_envelope));
+    }
+
+    SECTION("a level leg past the crop says nothing new, so no chip")
+    {
+        // The same fret as the onset: no diagonal and no chip, so the picture is the bare note's.
+        const common::core::KeyframeViewState level{.seconds = 10.0, .fret = 7, .slide_out = false};
+        CHECK(worstPixelDelta(painted(ringing(6.0, {level}), false), bare_cropped) == 0);
+    }
+
+    SECTION("a note whose ink stops at its onset wears no chip")
+    {
+        // The chip would sit on the head: the note draws exactly what the stop-less note draws.
+        const common::core::KeyframeViewState keyframe{
+            .seconds = 10.0, .fret = 9, .slide_out = false
+        };
+        CHECK(
+            worstPixelDelta(
+                painted(ringing(2.0, {keyframe}), false), painted(ringing(2.0, {}), false)) == 0);
+    }
+}
+
+// The bend's destination chip, the slide's twin: the leg an unrevealed note's ink end cuts names
+// the amount it is heading for at the crop — only where the leg changes the amount, never on a
+// note whose ink stops at its onset, and not at all once the note is revealed and the point draws
+// its own chip at its instant. A chip is isolated by rendering the same lane with and without
+// text: every mark but a chip and a head's digit is common to both, so a difference in the columns
+// around the crop, well clear of the onset's digit and any drawn point's chip, is a chip there.
+TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    REQUIRE(metrics.draw_text);
+    TabLaneMetrics textless = metrics;
+    textless.draw_text = false;
+    const auto painted = [](const TabLaneMetrics& lane,
+                            const common::core::NoteViewState& subject,
+                            const bool reveal) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = {subject};
+        indexVisibleRanges(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, lane, state, [reveal](std::size_t) { return reveal; });
+        return image;
+    };
+    // One note on string 3 from 2.0s (x = 40), ringing to 12.0s (x = 240), inked to `ink_end`.
+    const auto bent = [](const double ink_end, std::vector<common::core::BendPointViewState> bend) {
+        return common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = ink_end,
+            .string = 3,
+            .fret = 7,
+            .bend = std::move(bend),
+            .slides = {},
+            .vibrato = {},
+        };
+    };
+    // The crop at 6.0s is column 120; a drawn point at 3.0s chips column 60, well left of here.
+    const auto chip_at_crop = [&](const common::core::NoteViewState& subject, const bool reveal) {
+        const juce::Image with_text = painted(metrics, subject, reveal);
+        const juce::Image without_text = painted(textless, subject, reveal);
+        return worstPixelDeltaInColumns(with_text, without_text, 110, 130) > 0;
+    };
+
+    SECTION("a leg heading for a new amount wears its chip at the crop until revealed")
+    {
+        const common::core::NoteViewState note =
+            bent(6.0, {common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
+        CHECK(chip_at_crop(note, false));
+        CHECK_FALSE(chip_at_crop(note, true));
+    }
+
+    SECTION("a leg that keeps the drawn amount says nothing new, so no chip")
+    {
+        const common::core::NoteViewState note = bent(
+            6.0,
+            {common::core::BendPointViewState{.seconds = 3.0, .semitones = 2.0},
+             common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
+        CHECK_FALSE(chip_at_crop(note, false));
+    }
+
+    SECTION("a note whose ink stops at its onset wears no chip")
+    {
+        // Two notes that differ only in the amount past the crop: a chip naming it would tell them
+        // apart, and nothing else can.
+        const auto heading_for = [&](const double amount) {
+            const common::core::BendPointViewState past{.seconds = 10.0, .semitones = amount};
+            return painted(metrics, bent(2.0, {past}), false);
+        };
+        CHECK(worstPixelDelta(heading_for(2.0), heading_for(4.0)) == 0);
+    }
 }
 
 // [D2]'s amendment 2 on this surface. A landing-opened span states nothing at its landing, so it

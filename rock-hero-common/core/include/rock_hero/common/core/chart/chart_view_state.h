@@ -303,7 +303,7 @@ struct StopMarkViewState
 The ONE presence rule for a stop mark, so the painter that draws the digit, the layout that bounds
 it, the hit test that reaches it and the caret that types into it cannot disagree about whether
 there is one: a \ref StopMarkFace::Revealed face waits for the reveal and every other face stands.
-The reveal itself is the host's per-note pick — the same one that swaps a note to its real ring —
+The reveal itself is the host's per-note pick — the same one that draws a note to its ring end —
 and is never a fact this core holds.
 
 \param mark The stop mark being asked about.

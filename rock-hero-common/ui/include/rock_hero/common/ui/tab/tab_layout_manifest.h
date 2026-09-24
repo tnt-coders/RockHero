@@ -5,12 +5,41 @@
 
 #pragma once
 
+#include <cstddef>
+#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 
 namespace rock_hero::common::ui
 {
+
+/*!
+\brief Answers whether one event, by its index, is REVEALED, for a host that reveals.
+
+THE ONE pick a reveal makes, asked per note by the paint core and the hit tester and per span by
+the furniture pass. A revealed note is drawn to its ring's end (\ref common::core::drawnEndSeconds),
+so every keyframe it stores shows at its true instant, and its reveal-only marks come in with it
+(\ref common::core::stopMarkShown); a revealed span's furniture runs to its musical close
+(\ref common::core::ShapeViewState::close_seconds) instead of the extent rule 12a trimmed. A host
+derives the answer from a predicate of its own; the cores are told the answer and never the reason,
+so the drawn picture and the reachable one cannot part.
+
+An empty accessor is the ordinary case and reveals nothing (\ref tabRevealed), which is the whole
+answer for a surface with no reveal at all: the game's tab strips.
+*/
+using TabRevealed = std::function<bool(std::size_t index)>;
+
+/*!
+\brief Reads a reveal answer for one index, an empty accessor revealing nothing.
+\param revealed The host's answer, possibly empty.
+\param index The event's index.
+\return True when the host reveals that event.
+*/
+[[nodiscard]] inline bool tabRevealed(const TabRevealed& revealed, const std::size_t index)
+{
+    return revealed && revealed(index);
+}
 
 /*! \brief Axis-aligned rectangle in the lane bounds' pixel space. */
 struct TabLayoutRect
@@ -117,9 +146,9 @@ way.
 Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
 note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face
 waits for the reveal (\ref common::core::StopMarkFace::Revealed) lays out to nothing until
-`revealed` says its note's truth is on show — the same per-note pick that swaps the note to its real
-ring, asked here through \ref common::core::stopMarkShown so the drawn digit and the clickable one
-can never part.
+`revealed` says its note's truth is on show — the same per-note pick that draws the note to its
+ring end, asked here through \ref common::core::stopMarkShown so the drawn digit and the clickable
+one can never part.
 
 The vertical extent is the bracket's own, so the two halves of a bracketed mark present the same
 target height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn
@@ -137,47 +166,57 @@ digit centred between them.
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     bool revealed) noexcept;
 
-/*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, or the
-slide-out's slide-out chip at its end. */
+/*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, the
+slide-out's chip at its end, or the destination chip at the crop for a keyframe the ink never
+reaches. */
 struct TabKeyframeLayout
 {
-    /*! \brief Horizontal position of the keyframe's instant: the mark's center column. */
+    /*! \brief The mark's center column: the keyframe's instant, or the drawn extent for a
+    keyframe past it. */
     float center_x{};
 
     /*! \brief Vertical center of the mark: the note's string line for a head, the chip's line
-    for a slide-out. */
+    for a chip. */
     float center_y{};
 
     /*! \brief Rendered head extent — the note head's own size. */
     float head_size{};
 
-    /*! \brief True when the mark is the slide-out's chip rather than a head, so a host tracing the
-    mark traces a box and not the note's head silhouette. */
+    /*! \brief True when the mark is a chip rather than a head, so a host tracing the mark traces
+    a box and not the note's head silhouette. */
     bool chip{false};
 
-    /*! \brief Bounding rectangle of the mark — its drawn extent, and its clickable one. */
+    /*! \brief Bounding rectangle of the mark — its drawn extent, and for a drawn keyframe its
+    clickable one. */
     TabLayoutRect head{};
 };
 
 /*!
-\brief Computes the pixel layout of one keyframe's mark under the given lane geometry.
+\brief Computes the pixel layout of one keyframe's mark under the given lane geometry, for the
+extent the note is drawn to.
 
-The keyframe marks the lane already draws are what the editor hit-tests, so this reads the same
-instant and the same head size the paint core draws with. A slide-out (\ref
-common::core::KeyframeViewState::slide_out) has no head: the slide line ends in its slide-out chip,
-above the tail when the last leg rises and below it when it falls, so its box is the chip's ground
-— the fret-text height plus the chip's padding, wide enough for two digits — on the chip's own
-line. A keyframe the lane draws NO mark for — one at the ring's end that is not the
-slide-out, where the re-picked landing draws its own head — is still laid out here; asking whether
-a mark exists there is the caller's job, exactly as the paint core asks before drawing.
+THE ONE statement of where a keyframe's mark stands, read by the paint core that draws it and the
+hit tester that bounds a click on it. A keyframe within the drawn extent (\ref
+common::core::keyframeDrawn) stands at its instant: a linked one wears the note's own head there,
+and a slide-out (\ref common::core::KeyframeViewState::slide_out) has no head — the slide line
+ends in its chip, above the tail when the last leg rises and below it when it falls, so its box is
+the chip's ground: the fret-text height plus the chip's padding, wide enough for two digits, on the
+chip's own line. A keyframe PAST the extent is the DESTINATION CHIP at the crop: the same chip,
+naming where the leg the ink ends on is heading, standing at the drawn extent rather than at the
+keyframe's own instant.
+
+Whether a mark EXISTS is the caller's question, exactly as the paint core asks before drawing: a
+level leg past the extent draws no destination chip, and a note whose ink stops at its onset draws
+none at all, yet both lay out here.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the keyframe belongs to; its string places the head.
 \param keyframe One of the note's \ref common::core::NoteViewState::slides entries.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
 \return Per-keyframe layout in the lane bounds' pixel space.
 */
 [[nodiscard]] TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe) noexcept;
+    const common::core::KeyframeViewState& keyframe, double drawn_end) noexcept;
 
 } // namespace rock_hero::common::ui

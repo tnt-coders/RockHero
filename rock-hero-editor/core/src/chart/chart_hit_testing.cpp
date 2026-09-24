@@ -34,7 +34,7 @@ namespace
 
 std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, const bool revealed)
+    float y, const common::ui::TabRevealed& revealed)
 {
     // The held-stop satellites first. A satellite's digit sits at its note's own instant, or at the
     // bracket its tap fronts, and its column lies OUTBOARD of the head's own columns and belongs to
@@ -52,8 +52,8 @@ std::optional<ChartHitTarget> chartHitTarget(
     float best_satellite_distance = 0.0f;
     for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
-        const std::optional<common::ui::TabHeldStopLayout> layout =
-            common::ui::tabHeldStopLayout(geometry, tab.notes[index], revealed);
+        const std::optional<common::ui::TabHeldStopLayout> layout = common::ui::tabHeldStopLayout(
+            geometry, tab.notes[index], common::ui::tabRevealed(revealed, index));
         if (!layout.has_value() || !layout->box.contains(x, y))
         {
             continue;
@@ -105,8 +105,10 @@ std::optional<ChartHitTarget> chartHitTarget(
     {
         const common::core::NoteViewState& note = tab.notes[index];
         // A mark is clickable exactly where the lane draws it: within the extent the note is
-        // drawn to, the same rule the paint core draws by.
-        const double drawn_end = common::core::drawnEndSeconds(note, revealed);
+        // drawn to, the same rule the paint core draws by. The destination chip a keyframe past
+        // that extent wears at the crop is a mark, not a target, so it is never asked.
+        const double drawn_end =
+            common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
         for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
             if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
@@ -114,7 +116,7 @@ std::optional<ChartHitTarget> chartHitTarget(
                 continue;
             }
             const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe]);
+                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe], drawn_end);
             if (!layout.head.contains(x, y))
             {
                 continue;
@@ -146,7 +148,7 @@ std::optional<ChartHitTarget> chartHitTarget(
 
 std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom, const bool revealed)
+    float left, float top, float right, float bottom, const common::ui::TabRevealed& revealed)
 {
     const auto intersects = [left, top, right, bottom](const common::ui::TabLayoutRect& box) {
         return box.x < right && box.x + box.width > left && box.y < bottom &&
@@ -170,7 +172,8 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        const double drawn_end = common::core::drawnEndSeconds(note, revealed);
+        const double drawn_end =
+            common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
         for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
         {
             if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
@@ -178,7 +181,7 @@ std::vector<ChartHitTarget> chartTargetsInBox(
                 continue;
             }
             const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe]);
+                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe], drawn_end);
             if (intersects(layout.head))
             {
                 boxed.emplace_back(

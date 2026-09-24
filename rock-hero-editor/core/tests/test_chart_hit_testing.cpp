@@ -6,6 +6,7 @@
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <vector>
 
@@ -98,6 +99,18 @@ namespace
     const ChartSlotKey& slot, const common::core::Fraction offset)
 {
     return ChartKeyframeKey{.note = slot, .offset = offset};
+}
+
+// The reveal while the lane reveal is held: every note's whole truth is on show.
+[[nodiscard]] common::ui::TabRevealed revealEverything()
+{
+    return [](std::size_t) { return true; };
+}
+
+// The reveal a selection makes: one note's whole truth on show, and every other note cropped.
+[[nodiscard]] common::ui::TabRevealed revealOnly(const std::size_t revealed_index)
+{
+    return [revealed_index](const std::size_t index) { return index == revealed_index; };
 }
 
 [[nodiscard]] ChartSlotKey slotAt(const int measure, const int string)
@@ -293,8 +306,8 @@ TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
 }
 
 // THE SATELLITE REVEAL, as this probe sees it: a REVEAL-ONLY satellite is reachable exactly while
-// it is drawn, which is exactly while the lane reveal is held. The reveal is the caller's own
-// state, so it is handed in here rather than derived, and the layout answers "is it drawn" for the
+// it is drawn, which is exactly while its note is revealed. The reveal is the caller's own per-note
+// answer, so it is handed in here rather than derived, and the layout answers "is it drawn" for the
 // painter and for this probe from one rectangle.
 TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][chart]")
 {
@@ -322,13 +335,18 @@ TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][c
     const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
 
     // Unrevealed — including a caller with no reveal state at all, which is what the default
-    // means: nothing is drawn out there, so nothing answers.
+    // means, and a reveal of ANOTHER note, since the answer is per note: nothing is drawn out
+    // there, so nothing answers.
     CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, false).has_value());
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, revealOnly(0)).has_value());
 
-    // Revealed: the same probe reaches the stop, as a second MARK of the same note.
+    // Revealed: the same probe reaches the stop, as a second MARK of the same note — whether the
+    // whole lane is revealed or the tap alone is.
     CHECK(
-        chartHitTarget(tab, geometry, satellite_x, 60.0f, true) ==
+        chartHitTarget(tab, geometry, satellite_x, 60.0f, revealEverything()) ==
+        ChartHitTarget{ChartHeldStopHit{.index = 3}});
+    CHECK(
+        chartHitTarget(tab, geometry, satellite_x, 60.0f, revealOnly(3)) ==
         ChartHitTarget{ChartHeldStopHit{.index = 3}});
     // And the head is unaffected either way: a note is addressed at its own column whatever its
     // marks are doing.
@@ -518,7 +536,9 @@ TEST_CASE("Chart hit testing resolves linked keyframe heads", "[core][chart]")
     common::core::ChartViewState cropped = tab;
     cropped.notes[0].ink_end_seconds = 8.0;
     CHECK_FALSE(chartHitTarget(cropped, geometry, 195.0f, 140.0f).has_value());
-    CHECK(chartHitTarget(cropped, geometry, 195.0f, 140.0f, true) == keyframeTarget(0, 1));
+    CHECK(
+        chartHitTarget(cropped, geometry, 195.0f, 140.0f, revealEverything()) ==
+        keyframeTarget(0, 1));
     CHECK(chartHitTarget(cropped, geometry, 120.0f, 140.0f) == keyframeTarget(0, 0));
 }
 
@@ -548,7 +568,61 @@ TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[co
     CHECK(
         chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f) ==
         (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
-    CHECK(chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, true) == whole);
+    CHECK(
+        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealEverything()) ==
+        whole);
+}
+
+// THE REVEAL IS PER NOTE, and the crop's chip is a mark rather than a target. A keyframe past its
+// note's ink end is reachable while THAT note is revealed — the selection reveals the note it
+// names — and not while some other note is. And the destination chip the cut leg wears at the crop
+// answers nothing: the keyframe it names is reached through a reveal, at its true instant.
+TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart]")
+{
+    common::core::ChartViewState cropped = makeGlideTabState();
+    // Ink cropped at 8s (x = 160): the arrival at 10s (x = 200) stands in the ending zone, and the
+    // leg toward it, rising 9 -> 12, wears its destination chip at the crop.
+    cropped.notes[0].ink_end_seconds = 8.0;
+    // A second note on string 4, after the glide in projection order, for the reveal to name
+    // instead.
+    cropped.notes.push_back(
+        common::core::NoteViewState{
+            .start_seconds = 12.0,
+            .ring_end_seconds = 14.0,
+            .ink_end_seconds = 14.0,
+            .string = 4,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+            .vibrato = {},
+        });
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    CHECK(chartHitTarget(cropped, geometry, 195.0f, 140.0f, revealOnly(0)) == keyframeTarget(0, 1));
+    CHECK_FALSE(chartHitTarget(cropped, geometry, 195.0f, 140.0f, revealOnly(1)).has_value());
+    CHECK(
+        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealOnly(0)) ==
+        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0), keyframeTarget(0, 1)}));
+    CHECK(
+        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealOnly(1)) ==
+        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
+
+    // The chip at the crop, laid out where the lane draws it for the unrevealed note: a press on
+    // it, or a box around it, reaches nothing.
+    const common::core::NoteViewState& glide = cropped.notes[0];
+    REQUIRE(glide.slides.size() == 2);
+    const common::ui::TabKeyframeLayout chip =
+        common::ui::tabKeyframeLayout(geometry, glide, glide.slides[1], glide.ink_end_seconds);
+    REQUIRE(chip.chip);
+    CHECK_FALSE(chartHitTarget(cropped, geometry, chip.center_x, chip.center_y).has_value());
+    CHECK(chartTargetsInBox(
+              cropped,
+              geometry,
+              chip.head.x,
+              chip.head.y,
+              chip.head.x + chip.head.width,
+              chip.head.y + chip.head.height)
+              .empty());
 }
 
 // A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum
