@@ -922,8 +922,8 @@ TEST_CASE("Chart document refuses the removed posture and span keys", "[core][ch
 // The keyframe array is the format's one interval payload, and every channel it carries is
 // PRESENCE-keyed: an unstated channel is a meaning (the reading passes through it), not a
 // defaulted value. This pins the writer against eliding a stated channel that happens to look
-// like a default — a bend released back to zero and a vibrato that ENDS both state values a
-// shorter spelling would silently delete.
+// like a default — a bend released back to zero states a value a shorter spelling would silently
+// delete — and the vibrato width as the one per-leg channel, `None` omitted.
 TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -938,7 +938,7 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     note.keyframes = {
         Keyframe{.offset = Fraction{1, 4}, .fret = 7},
         Keyframe{.offset = Fraction{1, 2}, .bend = 0.0},
-        Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Off},
+        Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Wide},
         Keyframe{.offset = Fraction{3, 2}, .fret = 9, .bend = 2.0, .vibrato = VibratoState::Narrow},
     };
 
@@ -951,14 +951,14 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
     REQUIRE(parsed->notes.size() == 1);
     CHECK(parsed->notes[0] == note);
 
-    // The two default-looking statements survive as STATEMENTS. Round-trip equality alone would
-    // still pass if the writer dropped them and the reader defaulted them back, so each is also
-    // asserted as present and its unstated neighbours as absent.
+    // The default-looking statement survives as a STATEMENT. Round-trip equality alone would still
+    // pass if the writer dropped it and the reader defaulted it back, so it is also asserted as
+    // present and its unstated neighbours as absent.
     const std::vector<Keyframe>& keyframes = parsed->notes[0].keyframes;
     REQUIRE(keyframes.size() == 4);
     CHECK(keyframes[0].fret.has_value());
     CHECK_FALSE(keyframes[0].bend.has_value());
-    CHECK_FALSE(keyframes[0].vibrato.has_value());
+    CHECK_FALSE(isShaking(keyframes[0].vibrato));
     // Each optional is bound once and guarded by that name: the checker cannot tie two separate
     // reads of an indexed element together.
     const std::optional<double>& released_bend = keyframes[1].bend;
@@ -968,16 +968,12 @@ TEST_CASE("Chart keyframes round-trip every channel, absence included", "[core][
         CHECK(std::is_eq(*released_bend <=> 0.0));
     }
     CHECK_FALSE(keyframes[1].fret.has_value());
-    const std::optional<VibratoState>& ended_vibrato = keyframes[2].vibrato;
-    REQUIRE(ended_vibrato.has_value());
-    if (ended_vibrato.has_value())
-    {
-        CHECK(*ended_vibrato == VibratoState::Off);
-    }
+    CHECK(keyframes[2].vibrato == VibratoState::Wide);
     CHECK_FALSE(keyframes[2].fret.has_value());
-    // The document text itself, because that is where an elision would happen.
+    // The document text itself, because that is where an elision would happen; `None` has no word.
     CHECK(text.find(R"("bend": 0)") != std::string::npos);
-    CHECK(text.find(R"("vibrato": "off")") != std::string::npos);
+    CHECK(text.find(R"("vibrato": "wide")") != std::string::npos);
+    CHECK(text.find(R"("vibrato": "off")") == std::string::npos);
     CHECK(text.find(R"("keyframes")") != std::string::npos);
 
     // The onset facts, and the elision that IS correct: a note at rest writes no bend at all,
@@ -1037,8 +1033,8 @@ TEST_CASE("Chart document refuses the removed payload spellings", "[core][chart]
 
 // The vibrato channel is a WIDTH axis, and the document says so in words: the ordinary shake is
 // `"narrow"` — a description of what an ordinary vibrato physically is, a fraction of a semitone —
-// and the deliberate exaggeration is `"wide"`. Absence is the only spelling of not shaking at an
-// onset, which is what makes the third word legal only where the shake ENDS.
+// and the deliberate exaggeration is `"wide"`. Absence is the only spelling of not shaking, at an
+// onset and a keyframe alike: `None` has no word.
 TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1062,10 +1058,9 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             note.fret = 5;
             note.sustain = Fraction{2};
             note.vibrato = width;
-            // The keyframe channel states all THREE, the off value included: the shake ending is a
-            // statement, so eliding it would delete the fact rather than shorten the record.
+            // The keyframe's leg states the same width, spelled exactly as the onset spells it.
             note.keyframes = {
-                Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Off},
+                Keyframe{.offset = Fraction{1}, .vibrato = width},
             };
             chart.notes = {note};
 
@@ -1079,12 +1074,7 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
             REQUIRE(reparsed->notes.size() == 1);
             CHECK(reparsed->notes[0].vibrato == width);
             REQUIRE(reparsed->notes[0].keyframes.size() == 1);
-            const std::optional<VibratoState>& ended = reparsed->notes[0].keyframes[0].vibrato;
-            REQUIRE(ended.has_value());
-            if (ended.has_value())
-            {
-                CHECK(*ended == VibratoState::Off);
-            }
+            CHECK(reparsed->notes[0].keyframes[0].vibrato == width);
         }
     }
 
@@ -1114,9 +1104,17 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
         CHECK(parse_note(R"("vibrato": "wide")").has_value());
     }
 
-    SECTION("a keyframe states all three, because that is where a shake can end")
+    SECTION("a keyframe reads the same two words, and off is unknown there too")
     {
-        CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])").has_value());
+        // Nothing carries, so a keyframe never has to say a shake ends: the word it once used for
+        // that is now the onset's read error.
+        const auto off = parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "off" } ])");
+        REQUIRE_FALSE(off.has_value());
+        CHECK(off.error().message.find("vibrato is unknown") != std::string::npos);
+        CHECK_FALSE(
+            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "none" } ])").has_value());
+        CHECK(
+            parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "narrow" } ])").has_value());
         CHECK(parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "wide" } ])").has_value());
         const auto unknown =
             parse_note(R"("keyframes": [ { "offset": "1/2", "vibrato": "slight" } ])");
@@ -1146,12 +1144,12 @@ TEST_CASE("Chart document reads the vibrato width axis", "[core][chart]")
 // The one classifier for the axis, which every consumer asks instead of comparing against a
 // width: an open-coded `== Narrow` would answer "not shaking" for the wide notes it was never
 // told about, exactly the trap isAccented exists to close on the emphasis axis.
-TEST_CASE("Chart vibrato classifies every width above off", "[core][chart]")
+TEST_CASE("Chart vibrato classifies every width as shaking", "[core][chart]")
 {
-    CHECK_FALSE(isShaking(VibratoState::Off));
+    CHECK_FALSE(isShaking(VibratoState::None));
     CHECK(isShaking(VibratoState::Narrow));
     CHECK(isShaking(VibratoState::Wide));
-    // Value-initialization lands on not-shaking, which is why Off is declared first: a
+    // Value-initialization lands on not-shaking, which is why None is declared first: a
     // default-constructed or resized note must not arrive already shaking.
     CHECK_FALSE(isShaking(VibratoState{}));
     CHECK_FALSE(isShaking(ChartNote{}.vibrato));
@@ -1340,7 +1338,7 @@ TEST_CASE("A truncation carries the statement at the ring's end", "[core][chart]
         // An end statement leaves no SHAKE, whatever else it states, so the shake it landed on goes
         // with the ring that would have sounded it (shedEndStatementShake).
         CHECK(merged.fret == 9);
-        CHECK(!merged.vibrato.has_value());
+        CHECK_FALSE(isShaking(merged.vibrato));
     }
 }
 
@@ -1453,12 +1451,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(endStatedFretOrNull(note) == nullptr);
         REQUIRE(note.keyframes.size() == 1);
         CHECK_FALSE(note.keyframes[0].fret.has_value());
-        const std::optional<VibratoState>& kept_vibrato = note.keyframes[0].vibrato;
-        REQUIRE(kept_vibrato.has_value());
-        if (kept_vibrato.has_value())
-        {
-            CHECK(*kept_vibrato == VibratoState::Narrow);
-        }
+        CHECK(note.keyframes[0].vibrato == VibratoState::Narrow);
     }
 
     SECTION("a keyframe that says nothing the path does not already say is dropped")
@@ -1533,28 +1526,18 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(normalizeChart(sloped, makeTempoMap()).empty());
     }
 
-    SECTION("a vibrato width the string already shakes at says nothing")
+    SECTION("a vibrato width is never silent, a repeated one included")
     {
+        // Each width is its own leg's statement and nothing carries, so the second `Narrow` is
+        // what vibrates the leg from 1/2 on: without it that leg would not shake.
         Chart chart;
         chart.tuning = tuning;
         chart.notes = {note_with(
             {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
              Keyframe{.offset = Fraction{1, 2}, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Off}})};
-        const std::vector<ChartConversion> conversions = normalizeChart(chart, makeTempoMap());
-        REQUIRE(conversions.size() == 1);
-        CHECK(conversions.front().repair == ChartRepair::SilentKeyframe);
-        REQUIRE(chart.notes.front().keyframes.size() == 2);
-        CHECK(chart.notes.front().keyframes[0].offset == Fraction{1, 4});
-        CHECK(chart.notes.front().keyframes[1].offset == Fraction{3, 4});
-        // Judged per channel: a repeated width beside a fret the path does not pass through is a
-        // statement, and the keyframe stays whole.
-        Chart stepped;
-        stepped.tuning = tuning;
-        stepped.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
-             Keyframe{.offset = Fraction{1, 2}, .fret = 9, .vibrato = VibratoState::Narrow}})};
-        CHECK(normalizeChart(stepped, makeTempoMap()).empty());
+             Keyframe{.offset = Fraction{3, 4}, .vibrato = VibratoState::Wide}})};
+        CHECK(normalizeChart(chart, makeTempoMap()).empty());
+        CHECK(chart.notes.front().keyframes.size() == 3);
     }
 
     SECTION("a slide-out states its fret and nothing else")
@@ -1568,7 +1551,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         REQUIRE(repairs.size() == 1);
         CHECK(repairs.front() == ChartRepair::EndStatementShake);
         REQUIRE(note.keyframes.size() == 1);
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
         const int* const slide_out = endStatedFretOrNull(note);
         REQUIRE(slide_out != nullptr);
         if (slide_out != nullptr)
@@ -1600,7 +1583,7 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
             CHECK(*kept_fret == 7);
         }
         CHECK_FALSE(note.keyframes[0].bend.has_value());
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
     }
 
     SECTION("a saved scrape keeps its path and sheds the channels it overrides")
@@ -2900,7 +2883,7 @@ TEST_CASE("An end statement sheds its shake and keeps its bend", "[core][chart]"
             note, Keyframe{.offset = {}, .fret = 9, .bend = {}, .vibrato = VibratoState::Narrow}));
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 9);
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
         // No fret beside it, so shedding the shake leaves nothing stated and the keyframe goes: an
         // empty keyframe is a shape no chart may hold.
         note.keyframes = {
@@ -2994,7 +2977,7 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{2});
         CHECK(note.keyframes[0].fret == 7);
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
     }
     SECTION("a fret stated exactly at the new end loses nothing")
     {
@@ -3014,7 +2997,7 @@ TEST_CASE("A clip reports an erased, overwritten or shed statement", "[core][cha
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{4});
         CHECK(note.keyframes[0].fret == 7);
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK_FALSE(isShaking(note.keyframes[0].vibrato));
     }
 }
 

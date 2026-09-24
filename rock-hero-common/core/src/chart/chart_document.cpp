@@ -49,10 +49,9 @@ namespace
 }
 
 // The vibrato channel's tokens, in both directions. One table so the reader and the writer cannot
-// disagree about a spelling, and so the axis's off value has exactly one word wherever it is
-// legal to write at all (a keyframe, never an onset).
-constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tokens{{
-    {"off", VibratoState::Off},
+// disagree about a spelling. `None` has no word: a leg without vibrato omits the key, onset and
+// keyframe alike, so the table names the widths alone.
+constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tokens{{
     {"narrow", VibratoState::Narrow},
     {"wide", VibratoState::Wide},
 }};
@@ -78,9 +77,28 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
             return spelling;
         }
     }
-    // Total above; a value outside the axis is a caller bug, and spelling it as any of the three
-    // would write a width nobody authored.
+    // Total over the widths; `None` is never written, so reaching here is a caller bug, and
+    // spelling it as either width would write a shake nobody authored.
     std::unreachable();
+}
+
+// Reads an object's `vibrato` key, which the onset and a keyframe spell identically: an absent key
+// is `None`, and a present one must name a width — anything else, `off` included, is unknown.
+[[nodiscard]] std::expected<VibratoState, ChartError> readVibrato(
+    const juce::var& object, const std::string_view owner)
+{
+    if (Json::value(object, "vibrato").isVoid())
+    {
+        return VibratoState::None;
+    }
+    const std::string token = Json::readOptionalString(object, "vibrato", "");
+    const std::optional<VibratoState> width = parseVibratoToken(token);
+    if (!width.has_value())
+    {
+        return std::unexpected{malformed(
+            "chart " + std::string{owner} + " vibrato is unknown: " + token)};
+    }
+    return *width;
 }
 
 // One interval statement: a required offset plus any SUBSET of the channels. Each channel is
@@ -147,18 +165,10 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
                 "chart keyframe \"" + std::string{key} + "\" has the wrong type")};
         }
     }
-    // Every width is a statement HERE, `off` included: the channel holds until restated, so a
-    // keyframe is the only place the chart can say the shake ends. Unlike the onset, which has no
-    // word for off at all.
-    std::optional<VibratoState> vibrato;
-    if (!Json::value(keyframe_json, "vibrato").isVoid())
+    auto vibrato = readVibrato(keyframe_json, "keyframe");
+    if (!vibrato.has_value())
     {
-        const std::string token = Json::readOptionalString(keyframe_json, "vibrato", "");
-        vibrato = parseVibratoToken(token);
-        if (!vibrato.has_value())
-        {
-            return std::unexpected{malformed("chart keyframe vibrato is unknown: " + token)};
-        }
+        return std::unexpected{std::move(vibrato.error())};
     }
     // A keyframe stating no channel at all is refused by validateChartNoteAlone rather than here:
     // this reader answers what the document SAYS, and an empty statement is a legality question
@@ -171,7 +181,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
         .bend = Json::value(keyframe_json, "bend").isVoid()
                     ? std::nullopt
                     : std::optional{Json::readOptionalDouble(keyframe_json, "bend", 0.0)},
-        .vibrato = vibrato,
+        .vibrato = *vibrato,
     };
 }
 
@@ -386,23 +396,14 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 3> g_vibrato_tok
     note.dead = Json::readOptionalBool(note_json, "dead", false);
     note.harmonic_node = Json::tryReadDouble(note_json, "harmonicNode");
 
-    // The channel's opening width. Present means it must name a WIDTH: `off` is refused along with
-    // anything unknown, because absence already says a note does not shake — the same rule the
-    // absent pick attack and the absent `normal` emphasis follow, and the writer can never produce
-    // the token. A keyframe is where the shake ENDS, and there all three words are legal.
-    if (!Json::value(note_json, "vibrato").isVoid())
+    // The first leg's width: absence already says it does not shake — the same rule the absent
+    // pick attack and the absent `normal` emphasis follow.
+    auto vibrato = readVibrato(note_json, "note");
+    if (!vibrato.has_value())
     {
-        const std::string vibrato = Json::readOptionalString(note_json, "vibrato", "");
-        // An unknown word and the one word that is legal only on a keyframe collapse to the same
-        // refusal, which is why this reads the WIDTH rather than the optional: both are a document
-        // saying something an onset cannot say.
-        const VibratoState parsed = parseVibratoToken(vibrato).value_or(VibratoState::Off);
-        if (!isShaking(parsed))
-        {
-            return std::unexpected{malformed("chart note vibrato is unknown: " + vibrato)};
-        }
-        note.vibrato = parsed;
+        return std::unexpected{std::move(vibrato.error())};
     }
+    note.vibrato = *vibrato;
     // The onset value of the bend channel; zero is the default and the unbent onset, so an absent
     // key and a written 0 mean exactly the same thing and neither is a second spelling of the
     // other.
@@ -539,9 +540,8 @@ void appendJsonString(std::string& out, const std::string& text)
     {
         line += R"(, "harmonicNode": )" + doubleText(*note.harmonic_node);
     }
-    // Off is the onset's absence rather than a word, so the un-shaken note costs nothing and the
-    // reader can refuse `"off"` here outright — one spelling for not shaking, the same elision
-    // every defaulted note property takes.
+    // `None` is the absence rather than a word, so the un-shaken leg costs nothing — one spelling
+    // for not shaking, the same elision every defaulted note property takes.
     if (isShaking(note.vibrato))
     {
         line += R"(, "vibrato": ")" + std::string{vibratoToken(note.vibrato)} + '"';
@@ -588,9 +588,8 @@ void appendJsonString(std::string& out, const std::string& text)
             }
             line += R"({ "offset": ")" + formatBeatFractionToken(keyframe.offset) + '"';
             // Every STATED channel is written, values that look like defaults included: a bend of
-            // zero is a release back to rest and an `"off"` vibrato is a shake ENDING, so eliding
-            // either would delete the statement rather than shorten it. Absence is what says
-            // nothing was stated.
+            // zero is a release back to rest, so eliding it would delete the statement rather than
+            // shorten it. Absence is what says nothing was stated — for the vibrato, `None`.
             //
             // Each channel is bound to a local so its check and its access are provably the same
             // object, which the CI-only optional-access checker does not credit across two
@@ -605,10 +604,9 @@ void appendJsonString(std::string& out, const std::string& text)
             {
                 line += R"(, "bend": )" + doubleText(*bend);
             }
-            const std::optional<VibratoState>& vibrato = keyframe.vibrato;
-            if (vibrato.has_value())
+            if (isShaking(keyframe.vibrato))
             {
-                line += R"(, "vibrato": ")" + std::string{vibratoToken(*vibrato)} + '"';
+                line += R"(, "vibrato": ")" + std::string{vibratoToken(keyframe.vibrato)} + '"';
             }
             line += " }";
         }

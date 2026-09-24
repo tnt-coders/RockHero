@@ -25,7 +25,8 @@ read through `claimedStop`. Sound truth is never bent for display; nothing deriv
   NOTATED value and needs `let ring` / l.v. marks precisely because that value is not the true one:
   storing the truth needs no mark, and a mark would be a second authority over the same fact.
 - **Keyframes** are per-channel-optional statements `{offset, fret?, bend?, vibrato?}`; fret and
-  bend interpolate between their own statements, vibrato holds. `slideOut` is fret-only, because the
+  bend interpolate between their own statements, and a vibrato width is the LEG's own — from the
+  keyframe to the next, nothing carrying (re-ruled 2026-09-24). `slideOut` is fret-only, because the
   release IS the ring's end by definition — physically forced, not stylistic. Each channel's
   semantics is separately convention-backed: MusicXML models a bend release as a SEQUENCE of bend
   elements, vibrato is an interval state, and a slide is relational and re-expressed locally per the
@@ -51,13 +52,14 @@ read through `claimedStop`. Sound truth is never bent for display; nothing deriv
   Natural and pinch stay. The two rules above still describe the record those forms WOULD have, and
   the code that derives and draws them stays in place behind the one refusing rule; reopening means
   deleting that rule and resuming `harmonic-display-followups.md`'s parked items.
-- **Vibrato has two tiers and an off state** (`VibratoState{Off, Narrow, Wide}`, saved as `narrow`,
-  `wide` or `off`). Ordinary guitar vibrato IS physically narrow — a fraction of a semitone of
-  excursion — while wide is the deliberate exaggeration, so `narrow` is an accurate intrinsic
-  description of the ordinary act and never an instruction to hold back. `Off` is listed first so
-  value-initialization lands on not-shaking; `"vibrato": "off"` at an ONSET is a read error (the
-  writer can never produce it) while the keyframe channel accepts all three; consumers classify
-  through `isShaking()` so nothing open-codes `== Narrow` and drops wide notes.
+- **Vibrato has two widths and no stored off value** (`VibratoState{None, Narrow, Wide}`, saved as
+  `narrow` or `wide`; an absent key is `None`). Ordinary guitar vibrato IS physically narrow — a
+  fraction of a semitone of excursion — while wide is the deliberate exaggeration, so `narrow` is
+  an accurate intrinsic description of the ordinary act and never an instruction to hold back.
+  `None` is listed first so value-initialization lands on not-shaking and has no word: a leg
+  without vibrato omits the key (2026-09-24), and any other token, `off` included, is a read error
+  at an onset and a keyframe alike; consumers classify through `isShaking()` so nothing open-codes
+  `== Narrow` and drops wide notes.
 - **Internal consistency**: one record may not state contradictory facts about its string. The held
   stop is refused anywhere inside the note's traveled hull (`travelsThroughFret` — the closed hull
   of its own fret, every keyframe fret and its slide-out terminal);

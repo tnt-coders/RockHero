@@ -229,10 +229,10 @@ Keep this list and the session task list in step.
     `docs/plans/todo/unified-waypoint-model.md`; W13 closes into that plan, and the bend study
     shrinks to bend display and authoring on that substrate.
   - **BUILT: the substrate and selectability.** `Keyframe` (`chart.h`) is `{offset, optional<int>
-    fret, optional<double> bend, optional<VibratoState> vibrato}`, so a point inside a gesture
-    carries its own state; the whole-note vibrato bool is gone (`VibratoState { Off, Narrow, Wide
-    }`), and the importer no longer smears it — `stateVibratoAt` writes the onset value at offset
-    zero and a keyframe channel otherwise, and states nothing when the ring already reads that way.
+    fret, optional<double> bend, VibratoState vibrato}`, so a point inside a gesture carries its
+    own state; the whole-note vibrato bool is gone (`VibratoState { None, Narrow, Wide }`, a width
+    per leg since 2026-09-24), and the importer no longer smears it — `stateVibratoAt` writes the
+    onset value at offset zero and a keyframe's width otherwise, and states nothing for `None`.
     (`tremolo` is still OR-merged at the tie and junction sites, deliberately: it is not a channel.)
     `ChartSelectionKey` is the sum `variant<ChartNoteKey, ChartKeyframeKey>`, a keyframe identified
     by (note slot, offset) so sibling edits cannot re-point it; the lane's linked keyframe heads are

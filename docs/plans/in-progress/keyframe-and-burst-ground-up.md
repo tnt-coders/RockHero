@@ -36,7 +36,8 @@ requirement breaks that rule, and looking at why produced both sets below.
 
 Shared vocabulary. A note RINGS from its onset to its END. STATEMENTS are made at moments along
 the ring, one per moment, in order, each speaking on one or more CHANNELS: the FRET path (glides
-between stated stops), the BEND curve, the SHAKE (a state that holds until the next statement).
+between stated stops), the BEND curve, the SHAKE (a width per leg, from a statement to the next
+keyframe; re-ruled 2026-09-24 from a state that held until restated).
 
 What a statement MEANS at the very end is a fact about the channels, not a rule about releases —
 the earlier "a release is bare" rule was this, over-stated:

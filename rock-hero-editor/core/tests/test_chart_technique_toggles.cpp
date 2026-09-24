@@ -450,7 +450,7 @@ TEST_CASE("EditorController toggles each vibrato tier and replaces the other", "
     controller.onRedoRequested();
     controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Off);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::None);
 }
 
 // Uniform scope, unchanged by the axis: anything short of "every anchor already stands at this
@@ -495,8 +495,8 @@ TEST_CASE("EditorController vibrato toggle levels a mixed selection", "[core][ch
     controller.onRedoRequested();
     controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].vibrato == common::core::VibratoState::Off);
-    CHECK(chart->notes[1].vibrato == common::core::VibratoState::Off);
+    CHECK(chart->notes[0].vibrato == common::core::VibratoState::None);
+    CHECK(chart->notes[1].vibrato == common::core::VibratoState::None);
 }
 
 // The right-hand tap joins the shared toggle window like every other row: the second press inside

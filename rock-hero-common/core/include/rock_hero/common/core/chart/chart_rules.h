@@ -228,8 +228,8 @@ enum class ChartRepair : std::uint8_t
     DerivedHeldStop,
 
     /*!
-    \brief A SHAKE stated at the ring's end was dropped: a shake is a state that holds until the
-    next statement, so one stated where the string is let go has no ring to sound in
+    \brief A SHAKE stated at the ring's end was dropped: a width is the statement of the leg its
+    keyframe begins, and one stated where the string is let go begins no leg
     (\ref shedEndStatementShake). A BEND there is the curve's last value and stays.
     */
     EndStatementShake,

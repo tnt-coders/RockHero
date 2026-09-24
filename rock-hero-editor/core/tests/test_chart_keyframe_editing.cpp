@@ -310,11 +310,10 @@ TEST_CASE("The caret rides a moved keyframe out and back", "[core][chart]")
     }
 }
 
-// The vibrato channel's second authoring scope: with a keyframe selected, `V` states the shake AT
-// that keyframe and leaves the note's onset statement alone. The second press inside the verb
-// window takes it back — and takes the statement out entirely rather than writing a false one,
-// because a statement that restates the state already in force changes neither the path nor the
-// state (the generalized dissolve law).
+// The vibrato channel's second authoring scope: with a keyframe selected, `V` states the width of
+// the leg that keyframe begins and leaves the note's onset statement alone. The second press inside
+// the verb window takes it back — and takes the width out entirely rather than writing a false
+// one, because a leg without vibrato states nothing.
 TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -327,7 +326,7 @@ TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][ch
     REQUIRE(shaking.notes.size() == 1);
     REQUIRE(shaking.notes[0].keyframes.size() == 1);
     CHECK(shaking.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
-    // The onset is untouched: the ring opens still and shakes from the junction on.
+    // The onset is untouched: the ring opens still and shakes over the leg the junction begins.
     CHECK_FALSE(common::core::isShaking(shaking.notes[0].vibrato));
     // And the position channel rides along unchanged — one record, so the coupling needs no copy.
     CHECK(shaking.notes[0].keyframes[0].fret == 9);
@@ -335,19 +334,18 @@ TEST_CASE("The vibrato verb states the shake at a selected keyframe", "[core][ch
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     const common::core::Chart cleared = currentChart(fixture.controller);
     CHECK(cleared == original);
-    // A statement saying what was already true is no statement, so the keyframe keeps only its
-    // fret rather than gaining a stated `false`.
+    // The clear takes the width off, so the keyframe keeps only its fret.
     REQUIRE(cleared.notes[0].keyframes.size() == 1);
-    CHECK_FALSE(cleared.notes[0].keyframes[0].vibrato.has_value());
+    CHECK_FALSE(isShaking(cleared.notes[0].keyframes[0].vibrato));
     // The pair reversed its own entry, so it leaves no history trace at all.
     CHECK_FALSE(publishedState(fixture.view).undo_enabled);
 }
 
 // The same clear a press LATER, with the toggle window closed behind a selection change, so the
-// dissolve law itself does the work rather than the window's exact reversal: the press writes a
-// statement, the statement says what was already true, and a keyframe the drop empties would go
-// with it. Here the point states a fret too, so what dissolves is the statement alone — and this
-// is a NEW undo entry, not a reversal, which is what the round trip below proves.
+// clear itself does the work rather than the window's exact reversal: the press takes the width
+// off the leg, and a keyframe the clear empties would go with it. Here the point states a fret
+// too, so what goes is the width alone — and this is a NEW undo entry, not a reversal, which is
+// what the round trip below proves.
 TEST_CASE("Clearing the shake at a keyframe dissolves the statement it wrote", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -367,7 +365,7 @@ TEST_CASE("Clearing the shake at a keyframe dissolves the statement it wrote", "
     const common::core::Chart cleared = currentChart(fixture.controller);
     CHECK(cleared == original);
     REQUIRE(cleared.notes[0].keyframes.size() == 1);
-    CHECK_FALSE(cleared.notes[0].keyframes[0].vibrato.has_value());
+    CHECK_FALSE(isShaking(cleared.notes[0].keyframes[0].vibrato));
     CHECK(cleared.notes[0].keyframes[0].fret == 9);
 
     fixture.controller.onUndoRequested();

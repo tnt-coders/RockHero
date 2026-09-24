@@ -224,7 +224,7 @@ wide-vibrato glyphs vary amplitude, not speed.
 
 **No grid-derived vibrato is planned**, deliberately: it would re-introduce the defect the fixed
 rate removes. The musically real axis is per-note CHARACTER — wide-and-slow against narrow-and-fast
-— and the chart now carries the width half of that as `VibratoState` (`Off` / `Narrow` / `Wide`,
+— and the chart now carries the width half of that as `VibratoState` (`None` / `Narrow` / `Wide`,
 `chart.h`) with `Wide` doubling the drawn depth. Rate remains one number for every note.
 
 Untouched by this: the 2D lane's vibrato squiggle runs on a SPATIAL period (a multiple of the tail

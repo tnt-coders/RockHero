@@ -435,7 +435,7 @@ struct BendCurvePoint
             .offset = offset,
             .fret = std::nullopt,
             .bend = std::nullopt,
-            .vibrato = std::nullopt,
+            .vibrato = VibratoState::None,
         });
 }
 
@@ -474,9 +474,10 @@ struct BendCurvePoint
 }
 
 // States a folded-in segment's Guitar Pro vibrato WIDTH at `offset` — the instant that segment
-// BEGINS on the ring that absorbed it. The width flows through unchanged: `Off` is as much a
-// statement here as either shake, because a segment that does not shake ends the one it folded
-// into, and a segment shaking at the other tier steps the channel rather than restating it.
+// BEGINS on the ring that absorbed it. A width is the leg's own (chart.h): a segment that shakes
+// states its width at the keyframe its leg begins at, and one that does not states nothing, the
+// leg being unvibrated by default — so a chain shaking end to end states the width at every
+// junction, and one that stops shaking at a junction simply says nothing there.
 //
 // Guitar Pro writes the mark per note and names no instant inside it, so the import picks one (the
 // carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
@@ -491,9 +492,7 @@ struct BendCurvePoint
 //
 // Stated per SEGMENT rather than as an onset-level `||` over the whole chain, both halves of which
 // would lie: a folded segment's flag would shake the entire ring from the onset, and a folded
-// segment WITHOUT one would inherit the shake it arrived after. A statement equal to the state
-// already in force says nothing new and is not written, so a chain that shakes end to end stores
-// exactly the onset flag.
+// segment WITHOUT one would inherit the shake it arrived after.
 void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState vibrato)
 {
     if (offset.numerator <= 0)
@@ -507,18 +506,20 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState v
         note.vibrato = vibrato;
         return;
     }
-    // The channel holds each statement until the next, so what the folded segment's flag has to
-    // disagree with is the state IN FORCE where it begins — asked of the one authority
-    // (chart.h), whose "a statement standing AT the instant counts" reading is what makes stating
-    // one idempotent: two segments can fold onto a single offset (a tie continuation whose legato
-    // glide lands on a second voice's note at that very beat), and the second must be able to
-    // restate what the first said there, exactly as their shared keyframe's fret already takes
-    // the later value.
-    if (vibrato == ringStateAt(note, offset).vibrato)
+    // Two segments can fold onto a single offset (a tie continuation whose legato glide lands on
+    // a second voice's note at that very beat), and the LATER one's flag is the leg's — None
+    // included, exactly as their shared keyframe's fret already takes the later value. A segment
+    // without the flag creates nothing: its leg is unvibrated by default, and a keyframe stating
+    // only that would state nothing.
+    const auto standing = std::ranges::find(note.keyframes, offset, &Keyframe::offset);
+    if (standing != note.keyframes.end())
     {
-        return;
+        standing->vibrato = vibrato;
     }
-    keyframeAt(note.keyframes, offset).vibrato = vibrato;
+    else if (isShaking(vibrato))
+    {
+        keyframeAt(note.keyframes, offset).vibrato = vibrato;
+    }
 }
 
 // The note's bend channel read back as the curve it draws: the onset value first, then every
@@ -3092,7 +3093,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 {
                     kept.bend = keyframe.bend;
                 }
-                if (keyframe.vibrato.has_value())
+                if (isShaking(keyframe.vibrato))
                 {
                     kept.vibrato = keyframe.vibrato;
                 }
@@ -3644,8 +3645,7 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
                 }
                 // The landing's shake lands ON the junction it arrives at — the same coupling the
                 // bend fold below relies on, and the sign-off's anchor for Guitar Pro's anchorless
-                // flag. A landing that does NOT shake ends the origin's shake there just as
-                // honestly, and where the two agree the channel says nothing at all.
+                // flag. A landing that does NOT shake states nothing: its leg is unvibrated.
                 stateVibratoAt(note, gap, next->note.vibrato);
                 note.tremolo = note.tremolo || next->note.tremolo;
                 // The merged note's own bend curve, rebased onto the junction. Its onset value

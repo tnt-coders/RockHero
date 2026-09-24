@@ -165,10 +165,9 @@ bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
     {
         return false;
     }
-    // A discrete channel holds its last statement, so a repeated width says nothing wherever it
-    // stands.
-    const std::optional<VibratoState>& vibrato = point.vibrato;
-    return !vibrato.has_value() || *vibrato == ringStateAt(note, point.offset).vibrato;
+    // A width is its own leg's statement, so any stated width says something: without it the leg
+    // is not vibrated.
+    return !isShaking(point.vibrato);
 }
 
 bool stripSilentKeyframes(ChartNote& note)
@@ -240,7 +239,7 @@ ChartNote savedChartNote(const ChartNote& note)
         saved.palm_mute = false;
         saved.dead = false;
         saved.harmonic_node.reset();
-        saved.vibrato = VibratoState::Off;
+        saved.vibrato = VibratoState::None;
         saved.tremolo = false;
         saved.bend = 0.0;
         // The pitched CHANNELS go with the pitched fields: a scrape's turnarounds are pick travel,
@@ -248,9 +247,9 @@ ChartNote savedChartNote(const ChartNote& note)
         // survives is the fret channel, which is the path itself; a keyframe left stating nothing
         // is no record at all and leaves with them.
         static_cast<void>(stripKeyframeChannels(saved.keyframes, [](Keyframe& keyframe) {
-            const bool latent = keyframe.bend.has_value() || keyframe.vibrato.has_value();
+            const bool latent = keyframe.bend.has_value() || isShaking(keyframe.vibrato);
             keyframe.bend.reset();
-            keyframe.vibrato.reset();
+            keyframe.vibrato = VibratoState::None;
             return latent;
         }));
     }

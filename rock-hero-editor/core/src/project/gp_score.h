@@ -169,11 +169,11 @@ struct GpNote
     Guitar Pro spells the two tiers as the `Vibrato` element's text — `Slight` and `Wide` — which
     resolve onto the chart's `Narrow` and `Wide` one for one, so the score's house word for the
     ordinary tier is translated in the parser rather than carried through the model. An absent
-    element is \ref common::core::VibratoState::Off; a PRESENT one is always a shake, so any
+    element is \ref common::core::VibratoState::None; a PRESENT one is always a shake, so any
     spelling but `Wide` reads as the ordinary tier rather than dropping the mark. The corpus
     writes only the two words (318 `Slight`, 10 `Wide`).
     */
-    common::core::VibratoState vibrato{common::core::VibratoState::Off};
+    common::core::VibratoState vibrato{common::core::VibratoState::None};
 
     /*!
     \brief How hard the note is struck, already resolved onto the chart's one dynamics axis.

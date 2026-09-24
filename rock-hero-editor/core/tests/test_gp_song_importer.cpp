@@ -380,17 +380,13 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[3].string == 2);
     CHECK(chart.notes[3].sustain == Fraction{4});
     CHECK(ink_end[3] == Fraction{39, 10});
-    // The score marks the shake on the tie's ORIGIN and not on its continuation, so the merged
-    // ring shakes from its onset and stops where the continuation begins — two beats in, on a
-    // keyframe that states nothing else. The whole-note flag this replaced could only smear the
-    // shake across the continuation it was never written on.
+    // The score marks the shake on the tie's ORIGIN and not on its continuation. A width is its
+    // leg's own, and the continuation begins no leg — a tie states no new position and the
+    // continuation no width — so the origin's shake runs across the whole merged ring.
     // The score's word is `Slight`, which is Guitar Pro's house label for the ORDINARY vibrato
     // and resolves onto the chart's narrow tier — the tier mapping read at its own seam.
     CHECK(chart.notes[3].vibrato == common::core::VibratoState::Narrow);
-    REQUIRE(chart.notes[3].keyframes.size() == 1);
-    CHECK(chart.notes[3].keyframes[0].offset == Fraction{2});
-    CHECK(chart.notes[3].keyframes[0].vibrato == common::core::VibratoState::Off);
-    CHECK_FALSE(chart.notes[3].keyframes[0].fret.has_value());
+    CHECK(chart.notes[3].keyframes.empty());
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
     // a local so the node check and its reads are provably the same object.
@@ -4055,7 +4051,7 @@ TEST_CASE("Guitar Pro parsing reads both vibrato tiers", "[core][gp-import]")
         common::core::VibratoState::Narrow);
     CHECK(
         shaken_note(fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "")) ==
-        common::core::VibratoState::Off);
+        common::core::VibratoState::None);
 }
 
 // The parse side of the feel, which a score-built test cannot reach: Guitar Pro states a bar's
@@ -4263,11 +4259,9 @@ enum class SegmentJoin : std::uint8_t
     std::vector<std::pair<Fraction, common::core::VibratoState>> statements;
     for (const common::core::Keyframe& keyframe : note.keyframes)
     {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<common::core::VibratoState>& vibrato = keyframe.vibrato;
-        if (vibrato.has_value())
+        if (common::core::isShaking(keyframe.vibrato))
         {
-            statements.emplace_back(keyframe.offset, *vibrato);
+            statements.emplace_back(keyframe.offset, keyframe.vibrato);
         }
     }
     return statements;
@@ -4281,8 +4275,8 @@ enum class SegmentJoin : std::uint8_t
 // landing's shake backward over the origin's onset and giving a landing without one a shake it
 // never played. The keyframe model gives the flag a place to land, and the import anchors it where
 // the folded segment BEGINS: the junction the glide arrives at (the carried sign-off's last
-// keyframe) or the continuation's own onset. A ring that shakes end to end stores nothing but its
-// onset flag.
+// keyframe) or the continuation's own onset. A width is its leg's own, so a ring that shakes end
+// to end states it at the onset and again at every junction.
 TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-import]")
 {
     const auto merged_note = [](const GpScore& score) {
@@ -4298,7 +4292,7 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
     {
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::LegatoSlide,
-            common::core::VibratoState::Off,
+            common::core::VibratoState::None,
             common::core::VibratoState::Narrow));
         // The onset does not shake: the glide's origin was never marked.
         CHECK_FALSE(common::core::isShaking(note.vibrato));
@@ -4316,31 +4310,35 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::LegatoSlide,
             common::core::VibratoState::Narrow,
-            common::core::VibratoState::Off));
+            common::core::VibratoState::None));
         CHECK(common::core::isShaking(note.vibrato));
+        // The junction begins the landing's leg, which states no width: the shake ends there
+        // without a statement of its own.
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 7);
-        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Off);
+        CHECK_FALSE(common::core::isShaking(note.keyframes[0].vibrato));
+        CHECK_FALSE(common::core::isShaking(common::core::ringStateAt(note, Fraction{1}).vibrato));
     }
 
-    SECTION("a glide that shakes throughout states its shake once")
+    SECTION("a glide that shakes throughout states the width on each leg")
     {
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::LegatoSlide,
             common::core::VibratoState::Narrow,
             common::core::VibratoState::Narrow));
-        // Byte-identical to what the whole-note flag stored: the state never changes, so the
-        // channel says nothing after its opening statement.
-        CHECK(common::core::isShaking(note.vibrato));
+        // Nothing carries across the junction, so the landing's leg states its own width.
+        CHECK(note.vibrato == common::core::VibratoState::Narrow);
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].fret == 7);
-        CHECK_FALSE(note.keyframes[0].vibrato.has_value());
+        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
     }
 
     SECTION("a tie continuation's shake starts where the continuation does")
     {
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
-            SegmentJoin::Tie, common::core::VibratoState::Off, common::core::VibratoState::Narrow));
+            SegmentJoin::Tie,
+            common::core::VibratoState::None,
+            common::core::VibratoState::Narrow));
         CHECK_FALSE(common::core::isShaking(note.vibrato));
         CHECK(note.sustain == Fraction{2});
         // A tie states no new position, so the keyframe carrying the shake states no fret: the
@@ -4353,24 +4351,28 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
         CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
     }
 
-    SECTION("a plain tie continuation ends the shake mid-ring")
+    SECTION("a plain tie continuation begins no leg, so the origin's shake runs on")
     {
+        // A tie states no new position and the continuation states no width, so nothing begins a
+        // leg at its onset: the first leg, and the origin's shake with it, runs to the ring's end.
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
-            SegmentJoin::Tie, common::core::VibratoState::Narrow, common::core::VibratoState::Off));
+            SegmentJoin::Tie,
+            common::core::VibratoState::Narrow,
+            common::core::VibratoState::None));
         CHECK(common::core::isShaking(note.vibrato));
-        REQUIRE(note.keyframes.size() == 1);
-        CHECK(note.keyframes[0].offset == Fraction{1});
-        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Off);
+        CHECK(note.keyframes.empty());
     }
 
-    SECTION("a tie chain that shakes throughout stores only its onset flag")
+    SECTION("a tie chain that shakes throughout states the width at the junction")
     {
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
             SegmentJoin::Tie,
             common::core::VibratoState::Narrow,
             common::core::VibratoState::Narrow));
-        CHECK(common::core::isShaking(note.vibrato));
-        CHECK(note.keyframes.empty());
+        CHECK(note.vibrato == common::core::VibratoState::Narrow);
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Narrow);
     }
 
     SECTION("a landing that widens the shake states the wider tier at the junction")
@@ -4379,15 +4381,13 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
             SegmentJoin::LegatoSlide,
             common::core::VibratoState::Narrow,
             common::core::VibratoState::Wide));
-        // A step BETWEEN the two widths is a statement exactly as a start or a stop is: the state
-        // in force changed, so the channel says so, and everything downstream reads a narrow
-        // region followed by a wide one with no rule of its own.
+        // Each leg states its own width, so everything downstream reads a narrow region followed by
+        // a wide one with no rule of its own.
         CHECK(note.vibrato == common::core::VibratoState::Narrow);
         REQUIRE(note.keyframes.size() == 1);
         CHECK(note.keyframes[0].offset == Fraction{1});
         CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Wide);
-        // And it holds until something restates it: nothing does, so the wide shake runs to the
-        // ring's end without a second statement.
+        // The junction begins the last leg, so the wide shake runs to the ring's end.
         CHECK(vibratoStatements(note).size() == 1);
         CHECK(
             common::core::ringStateAt(note, Fraction{2}).vibrato ==
@@ -4397,18 +4397,18 @@ TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-imp
     SECTION("a tie chain that never shakes stores nothing at all")
     {
         const common::core::ChartNote note = merged_note(mergedVibratoScore(
-            SegmentJoin::Tie, common::core::VibratoState::Off, common::core::VibratoState::Off));
+            SegmentJoin::Tie, common::core::VibratoState::None, common::core::VibratoState::None));
         CHECK_FALSE(common::core::isShaking(note.vibrato));
         CHECK(note.keyframes.empty());
     }
 }
 
-// The state holds from each statement until the next, so it carries THROUGH travel: a middle
-// segment that shakes and then glides on is the corpus's rare-but-real "vibrato during a slide",
-// and it needs no rule of its own — the shake simply has not been restated yet when the second
-// glide leaves. The chain also proves the anchor is the folded segment's own start rather than
-// whatever keyframe happens to be last: a later junction would be wrong for the middle segment's
-// flag, and the onset would be wrong for both.
+// A width is its leg's own, and a middle segment that shakes and then glides on is the corpus's
+// rare-but-real "vibrato during a slide": its leg runs from the junction it arrives at to the next
+// one, so the shake covers the 7-to-9 travel and stops where the unshaken landing's leg begins.
+// The chain also proves the anchor is the folded segment's own start rather than whatever keyframe
+// happens to be last: a later junction would be wrong for the middle segment's flag, and the onset
+// would be wrong for both.
 TEST_CASE("Guitar Pro import shakes through a slide it has not left yet", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -4442,16 +4442,16 @@ TEST_CASE("Guitar Pro import shakes through a slide it has not left yet", "[core
 
     CHECK_FALSE(common::core::isShaking(note.vibrato));
     CHECK(note.sustain == Fraction{3});
-    // Two junctions, each carrying its own segment's state: the shake starts on the first arrival
-    // and ends on the second, which leaves it true across the whole 7-to-9 travel between them.
+    // Two junctions, each beginning its own segment's leg: only the middle one states a width.
     const std::vector<std::pair<Fraction, common::core::VibratoState>> statements =
         vibratoStatements(note);
-    REQUIRE(statements.size() == 2);
+    REQUIRE(statements.size() == 1);
     CHECK(statements[0] == std::pair{Fraction{1}, common::core::VibratoState::Narrow});
-    CHECK(statements[1] == std::pair{Fraction{2}, common::core::VibratoState::Off});
     REQUIRE(note.keyframes.size() == 2);
     CHECK(note.keyframes[0].fret == 7);
     CHECK(note.keyframes[1].fret == 9);
+    CHECK(common::core::isShaking(common::core::ringStateAt(note, Fraction{3, 2}).vibrato));
+    CHECK_FALSE(common::core::isShaking(common::core::ringStateAt(note, Fraction{2}).vibrato));
 }
 
 // Two voices can hold the same string at the same instant — a sustained lower voice under a fresh
@@ -4547,7 +4547,7 @@ TEST_CASE(
     REQUIRE(note.keyframes.size() == 1);
     CHECK(note.keyframes[0].offset == Fraction{1});
     CHECK(note.keyframes[0].fret == 7);
-    CHECK(note.keyframes[0].vibrato == common::core::VibratoState::Off);
+    CHECK(note.keyframes[0].vibrato == common::core::VibratoState::None);
 }
 
 // The anchor moves only for a flag the import has to RE-HOME. A note that merges nothing states

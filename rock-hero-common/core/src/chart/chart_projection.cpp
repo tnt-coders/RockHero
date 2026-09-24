@@ -545,16 +545,15 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // from the walk that resolved it (\ref ChartConnections::ends_on_next_head).
         view.ends_on_next_head = resolutions.connections.ends_on_next_head[note_index];
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
-        // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
-        // that holds from each statement until the next, so a surface needs the stretch it covers
-        // and the WIDTH over it, not a flag: this walks the statements and closes a region wherever
-        // the state changes, at the ring's end when it never does. Each region carries the width it
-        // was stated at, so a shake that steps to the wide tier mid-ring is two regions and neither
-        // surface needs the channel's rules a second time.
+        // authority every other reader of the channel uses (`RingState` in chart.h). A width is a
+        // leg's own, so a surface needs the stretch it covers and the WIDTH over it, not a flag:
+        // this walks the keyframes and closes a region wherever the width changes — a leg without
+        // one ends the region — and at the ring's end otherwise. Adjacent legs stated at one width
+        // are one region; a step to the wide tier mid-ring is two, and neither surface needs the
+        // channel's rules a second time.
         //
-        // Old content falls out of the same walk with no case of its own, which is what makes the
-        // two surfaces draw it exactly as they always did: a shake stated at the onset and never
-        // restated opens here and closes at the ring's end, one region covering the whole ring. A
+        // A note with no keyframes falls out of the same walk with no case of its own: a width at
+        // the onset opens here and closes at the ring's end, one region covering the whole ring. A
         // region opening exactly at that end is kept — degenerate, drawing nothing, and still the
         // honest answer that this channel says the string shakes.
         RingState ring = ringStateAtOnset(note);

@@ -903,7 +903,7 @@ rule for free when the rules change (a dead note's refusal of a bend, a tap harm
 tremolo).
 
 Membership is EXACTLY "one bool", which is why vibrato is not here: its field is a width axis
-(\ref common::core::VibratoState) along an interval channel, so it has its own planner
+(\ref common::core::VibratoState) along a per-leg channel, so it has its own planner
 (\ref planSetVibrato) and joining this family would have meant a shape the pointer-to-member
 mapping below cannot even spell.
 */
@@ -1316,36 +1316,30 @@ no keyframe are skipped.
 /*!
 \brief Plans the vibrato channel's toggle across a selection — the ONE writer of that channel.
 
-Vibrato is the only technique the toggle verb writes that is interval STATE rather than a
-whole-note fact, so it is the only one with two authoring scopes: the note's own `vibrato` is the
-channel's opening statement at offset zero, and each keyframe may state a change from there
+Vibrato is the only technique the toggle verb writes that is a fact about a LEG of the ring rather
+than about the whole note, so it is the only one with two authoring scopes: the note's own
+`vibrato` is the first leg's width, and each keyframe's is the width of the leg it begins
 (\ref common::core::Keyframe). Both are the same channel, so one planner writes both — splitting
-them would be the channel stated twice, free to disagree about what a press means.
+them would be the channel stated twice, free to disagree about what a press means. A press
+vibrates exactly the legs its anchors begin: vibrato never rides through a slide stop the charter
+did not vibrate, and vibrating through one is one press per leg.
 
 The value is a WIDTH rather than a flag (\ref common::core::VibratoState), which is what lets one
-planner serve both tiers: `V` writes `Narrow` or `Off` and `Shift+V` writes `Wide` or `Off`, so a
+planner serve both tiers: `V` writes `Narrow` or `None` and `Shift+V` writes `Wide` or `None`, so a
 press that replaces one tier with the other is one write of the new width and not a clear followed
 by a set. Nothing here knows which key was pressed.
 
-The caller has already decided the direction under the uniform-scope law, so this writes `set` at
-every selected anchor and then applies the **dissolve law's static half**: a statement that
-restates the state already in force where it stands changes neither the path function nor the
-state, so it is dropped, and a keyframe the drop empties dissolves with it — through
-\ref common::core::stripKeyframeChannels, the one strip authority. That single rule is what makes
-every case of the user's described flow fall out without a branch: clearing the shake from a
-vibrato-start point leaves the point stating nothing and it goes; stating the shake again inside a
-region it already covers leaves no point behind; and stating it at a glide's arrival, where the
-state genuinely changes, keeps the point that says so.
-
-Only statements this press WROTE are judged for redundancy. A restatement the charter (or an
-importer) put somewhere else says nothing to this verb, and quietly rewriting it would make an
-unrelated press an editor of data the user never pointed at.
+The caller has already decided the direction under the uniform-scope law, so this writes the width
+at every selected anchor, or takes it off — through \ref common::core::stripKeyframeChannels, the
+one strip authority, so a keyframe whose only statement was the width dissolves with it (a leg
+without vibrato is `None`, which states nothing). The point lingers as a
+selection key, which is what a second press inside the verb window reverses through.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
 \param keyframe_keys Keyframes whose statement changes, sorted ascending, same precondition.
-\param set Width written at every selected anchor.
+\param set Width written at every selected anchor; `None` takes it off.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
         a redundant statement is a no-op), Invalid when the gate refuses the result.

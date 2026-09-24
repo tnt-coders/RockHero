@@ -566,11 +566,10 @@ struct AddressedStop
     const common::core::RingState at = common::core::ringStateAt(predecessor, gap);
     const std::optional<double> point_bend =
         std::is_neq(head.bend <=> at.bend) ? std::optional<double>{head.bend} : std::nullopt;
-    const std::optional<common::core::VibratoState> point_vibrato =
-        head.vibrato != at.vibrato ? std::optional<common::core::VibratoState>{head.vibrato}
-                                   : std::nullopt;
+    // The head's onset width is the width of the leg the point begins, whatever the leg before it
+    // was: nothing carries in the vibrato channel, so it is stated rather than compared.
     const common::core::Keyframe point{
-        .offset = gap, .fret = head.fret, .bend = point_bend, .vibrato = point_vibrato
+        .offset = gap, .fret = head.fret, .bend = point_bend, .vibrato = head.vibrato
     };
     if (!predecessor.keyframes.empty() && predecessor.keyframes.back().offset == gap)
     {
@@ -777,7 +776,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
                 }
                 keyframe.fret.reset();
                 keyframe.bend.reset();
-                keyframe.vibrato.reset();
+                keyframe.vibrato = common::core::VibratoState::None;
                 return true;
             }));
         deleted_keyframes += before - note.keyframes.size();
@@ -1889,38 +1888,27 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             {
                 written.vibrato = set;
             }
+            // A width is the leg's own statement and a leg without one omits it, so clearing is
+            // the channel taken off the point — through the strip authority, so a point whose
+            // only statement was the width goes with it: it lingers as a selection key (which is
+            // what a second press inside the verb window reverses through) while the chart, which
+            // may never hold a keyframe stating nothing, simply does not have it.
             const std::vector<common::core::Fraction> offsets =
                 selectedOffsetsOn(keyframe_keys, slot);
-            for (common::core::Keyframe& keyframe : written.keyframes)
-            {
-                if (std::ranges::binary_search(offsets, keyframe.offset))
-                {
-                    keyframe.vibrato = set;
-                }
-            }
-            // The dissolve law's static half, run over the statements this press wrote: one that
-            // restates the state already in force where it stands changes neither the path nor the
-            // state, so it is no statement at all. Dropping it through the strip authority is what
-            // dissolves a keyframe whose only job was the technique just cleared — the point
-            // lingers as a selection key (which is what a second press inside the verb window
-            // reverses through) while the chart, which may never hold a keyframe stating nothing,
-            // simply does not have it.
-            common::core::VibratoState shaking = written.vibrato;
             static_cast<void>(common::core::stripKeyframeChannels(
-                written.keyframes, [&shaking, &offsets](common::core::Keyframe& keyframe) {
-                    const std::optional<common::core::VibratoState>& stated = keyframe.vibrato;
-                    if (!stated.has_value())
+                written.keyframes, [&offsets, set](common::core::Keyframe& keyframe) {
+                    if (!std::ranges::binary_search(offsets, keyframe.offset))
                     {
                         return false;
                     }
-                    const bool redundant = *stated == shaking;
-                    shaking = *stated;
-                    if (!redundant || !std::ranges::binary_search(offsets, keyframe.offset))
+                    if (common::core::isShaking(set))
                     {
+                        keyframe.vibrato = set;
                         return false;
                     }
-                    keyframe.vibrato.reset();
-                    return true;
+                    const bool cleared = common::core::isShaking(keyframe.vibrato);
+                    keyframe.vibrato = common::core::VibratoState::None;
+                    return cleared;
                 }));
             return true;
         });
@@ -2182,7 +2170,7 @@ template <typename Carries>
         });
     if (found == chart.notes.end() || !(chartSlotKeyOf(*found) == key.note))
     {
-        return common::core::VibratoState::Off;
+        return common::core::VibratoState::None;
     }
     return common::core::ringStateAt(*found, key.offset).vibrato;
 }
@@ -2192,16 +2180,16 @@ template <typename Carries>
 // the other one" a single rule rather than two copies free to disagree: `carried` asks whether
 // every anchor already stands at THIS width — a scope at the other tier answers no, which makes
 // the press an ordinary set that replaces it in one entry — and `plan` writes this width or clears
-// to `Off`. A mixed selection follows the same convention every other row does: anything short of
+// to `None`. A mixed selection follows the same convention every other row does: anything short of
 // "all of them already" means set, so the press levels the whole scope onto this tier.
 template <common::core::VibratoState Tier>
 [[nodiscard]] ChartTechniqueLaw vibratoTierLaw(const std::string_view noun)
 {
     return ChartTechniqueLaw{
         .noun = noun,
-        // The one row family with two scopes, because vibrato is the one technique here that is
-        // interval STATE: a selected note carries the tier when its onset opens at it, and a
-        // selected keyframe when the state in force where it stands is at it. Both are read for
+        // The one row family with two scopes, because vibrato is the one technique here that is a
+        // fact about a LEG: a selected note carries the tier when its first leg is at it, and a
+        // selected keyframe when the leg it begins is at it. Both are read for
         // the same uniform-scope answer, so a press over a mixed selection clears only when every
         // anchor in it already stands at this tier.
         .carried =
@@ -2237,7 +2225,7 @@ template <common::core::VibratoState Tier>
                     tempo_map,
                     selection.notes(),
                     selection.keyframes(),
-                    set ? Tier : common::core::VibratoState::Off,
+                    set ? Tier : common::core::VibratoState::None,
                     label);
             },
     };

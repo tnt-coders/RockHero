@@ -57,7 +57,7 @@ constexpr double g_max_cent_offset{1200.0};
 [[nodiscard]] bool statesModulation(const std::vector<Keyframe>& keyframes)
 {
     return std::ranges::any_of(keyframes, [](const Keyframe& keyframe) {
-        return keyframe.bend.has_value() || keyframe.vibrato.has_value();
+        return keyframe.bend.has_value() || isShaking(keyframe.vibrato);
     });
 }
 
@@ -469,13 +469,13 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
                       statesModulation(note.keyframes)))
     {
         note.bend = 0.0;
-        note.vibrato = VibratoState::Off;
+        note.vibrato = VibratoState::None;
         // The modulation CHANNELS go; the position channel stays, because a dead string still
         // travels — a dragged mute is exactly that.
         static_cast<void>(stripKeyframeChannels(note.keyframes, [](Keyframe& keyframe) {
-            const bool modulated = keyframe.bend.has_value() || keyframe.vibrato.has_value();
+            const bool modulated = keyframe.bend.has_value() || isShaking(keyframe.vibrato);
             keyframe.bend.reset();
-            keyframe.vibrato.reset();
+            keyframe.vibrato = VibratoState::None;
             return modulated;
         }));
         fired(ChartRepair::DeadNoteModulation);
@@ -524,7 +524,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         (std::is_neq(note.bend <=> 0.0) || isShaking(note.vibrato) || !note.keyframes.empty()))
     {
         note.bend = 0.0;
-        note.vibrato = VibratoState::Off;
+        note.vibrato = VibratoState::None;
         // Every channel goes here rather than one of them, so the whole array goes with them:
         // there is no statement a touch with nothing pressed can make about its own ring.
         note.keyframes.clear();
@@ -865,7 +865,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
-                .message = "keyframe must state a fret, a bend, or a vibrato change at " +
+                .message = "keyframe must state a fret, a bend, or a vibrato width at " +
                            positionText(note.position),
             }};
         }

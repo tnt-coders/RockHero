@@ -984,7 +984,7 @@ TEST_CASE("A harmonic press that only asked leaves another verb's window armed",
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
     live = chartOrNull(fixture.controller);
     REQUIRE(live != nullptr);
-    CHECK(live->notes[1].vibrato == common::core::VibratoState::Off);
+    CHECK(live->notes[1].vibrato == common::core::VibratoState::None);
     CHECK(fixture.undoEntries() == entries_before);
 }
 

@@ -510,8 +510,11 @@ TEST_CASE("Rule 1's crop reads no keyframe in the ending zone", "[core][chart]")
 
     SECTION("a vibrato END on the margin line finishes on the ink end")
     {
+        // The shaken leg ends at the next keyframe, which must state something of its own: here the
+        // release back to rest, so both channels go quiet on the margin line.
         saved[0].vibrato = VibratoState::Narrow;
-        saved[0].keyframes = {Keyframe{.offset = Fraction{19, 10}, .vibrato = VibratoState::Off}};
+        saved[0].bend = 1.0;
+        saved[0].keyframes = {Keyframe{.offset = Fraction{19, 10}, .bend = 0.0}};
 
         const std::vector<Fraction> ink = inkEndsOf(saved, map);
         const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);

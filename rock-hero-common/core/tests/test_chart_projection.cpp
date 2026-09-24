@@ -467,11 +467,11 @@ TEST_CASE("Chart projection keeps every ink end within its ring", "[core][chart]
     CHECK(emptied >= 1);
 }
 
-// The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: it
-// holds from each statement until the next, so a shake can begin at a glide's arrival, stop
-// mid-hold, and begin again, and each region has to cover exactly the stretch the channel says it
-// does. The onset-only case is the identity that keeps every chart written before the channel
-// could say anything else drawing precisely what it drew.
+// The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: each
+// leg of the ring states its own width, so a shake can begin at a glide's arrival, stop mid-hold,
+// and begin again, and each region has to cover exactly the stretch the channel says it does. The
+// onset-only case is the identity that keeps every chart written before the channel could say
+// anything else drawing precisely what it drew.
 TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -515,7 +515,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     SECTION("a shake stated mid-ring begins at the statement, not at the onset")
     {
         const ChartViewState state = project(
-            VibratoState::Off, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
+            VibratoState::None, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -526,10 +526,12 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         CHECK(view.vibrato[0].start_seconds > view.start_seconds);
     }
 
-    SECTION("a shake ended mid-ring stops at the statement, not at the ring's end")
+    SECTION("a shake ends with its leg, not at the ring's end")
     {
-        const ChartViewState state = project(
-            VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Off}});
+        // The curl's keyframe begins a leg that states no width, so the shake stops there: nothing
+        // carries across a keyframe, and ending needs no statement of its own.
+        const ChartViewState state =
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .bend = 1.0}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
         REQUIRE(view.vibrato.size() == 1);
@@ -544,9 +546,9 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         const ChartViewState state = project(
             VibratoState::Narrow,
             {
-                Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Off},
-                Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
-                Keyframe{.offset = Fraction{3}, .vibrato = VibratoState::Off},
+                Keyframe{.offset = Fraction{1}, .bend = 0.5},
+                Keyframe{.offset = Fraction{2}, .bend = 1.0, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{3}, .bend = 0.0},
             });
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
@@ -558,10 +560,10 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         CHECK(view.vibrato[1].end_seconds == Catch::Approx(1.5));
     }
 
-    SECTION("a statement equal to the state in force is no boundary")
+    SECTION("adjacent legs at one width are one region")
     {
-        // Restating what already stands says nothing, so the region stays whole rather than being
-        // cut in two at an instant where nothing changes.
+        // Each leg states its own width, and two legs shaking at the same one draw as one region
+        // rather than being cut in two at an instant where the shake does not change.
         const ChartViewState state = project(
             VibratoState::Narrow,
             {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow}});
@@ -572,6 +574,18 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
             view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
         CHECK_THAT(
             view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
+    }
+
+    SECTION("a slide stop whose leg states no width ends the shake there")
+    {
+        // The glide's stop begins a leg of its own, so a shake on the first leg does not ride
+        // through it.
+        const ChartViewState state =
+            project(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 7}});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
     }
 
     SECTION("a step between the widths closes one region and opens the other")
@@ -610,7 +624,7 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
     {
         // Keyframes, but on another channel: a glide and a curl say nothing about shaking.
         const ChartViewState state = project(
-            VibratoState::Off,
+            VibratoState::None,
             {
                 Keyframe{.offset = Fraction{1}, .bend = 2.0},
                 Keyframe{.offset = Fraction{2}, .fret = 7},
@@ -618,6 +632,45 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         REQUIRE(state.notes.size() == 1);
         CHECK(state.notes.front().vibrato.empty());
     }
+}
+
+// A shift slide's arrival head is its own note, so its width is its own first leg's: the head
+// shakes from its onset and the glide into it — the origin's leg — never does.
+TEST_CASE("Chart projection vibrates a shift slide's arrival head, not its glide", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // The origin glides from 5 to 8, its stop ON the head struck at 8 a beat later.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .keyframes = {Keyframe{.offset = Fraction{1}, .fret = 8}},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 2},
+            .string = 1,
+            .fret = 8,
+            .sustain = Fraction{2},
+            .vibrato = VibratoState::Narrow,
+            .bend = {},
+            .keyframes = {},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+    REQUIRE(state.notes.size() == 2);
+    CHECK(state.notes[0].vibrato.empty());
+    const NoteViewState& head = state.notes[1];
+    REQUIRE(head.vibrato.size() == 1);
+    CHECK_THAT(head.vibrato[0].start_seconds, Catch::Matchers::WithinULP(head.start_seconds, 0));
+    CHECK_THAT(head.vibrato[0].end_seconds, Catch::Matchers::WithinULP(head.ring_end_seconds, 0));
 }
 
 // A placement is authored at the instant the chart states a gesture end, and the ramp table files
