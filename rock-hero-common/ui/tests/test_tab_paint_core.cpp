@@ -806,9 +806,9 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     // wide band is the multiplier applied to the ordinary swing with the stroke added back — read
     // off the constant, because a literal here would pass while the two tiers had silently come
     // apart.
-    std::vector<common::core::VibratoSpanViewState> wide_regions = wholeTailVibrato(2.0, 8.0);
-    wide_regions.front().state = common::core::VibratoState::Wide;
-    const juce::Image wide = painted(std::move(wide_regions));
+    std::vector<common::core::VibratoSpanViewState> wide_spans = wholeTailVibrato(2.0, 8.0);
+    wide_spans.front().state = common::core::VibratoState::Wide;
+    const juce::Image wide = painted(std::move(wide_spans));
     const double stroke =
         static_cast<double>(std::max(1.0f, referenceMetrics(6).tail_height / 8.0f));
     const double narrow_band = inkBandRows(throughout, steady, 42, 158);

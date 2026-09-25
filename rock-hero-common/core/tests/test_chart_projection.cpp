@@ -494,6 +494,46 @@ TEST_CASE("Tail fade spans a fraction of the ink, floored and clamped to it", "[
     CHECK_THAT(tailFadeSeconds(note(2.0, 2.0, 6.0)), Catch::Matchers::WithinULP(0.0, 0));
 }
 
+// THE ONE VIBRATO WIDTH RULE both surfaces read: narrow where narrow is written, wide once the ease
+// that begins AT the step is done, and never outside the two widths — even where a step back lands
+// before the first ease has finished.
+TEST_CASE("Vibrato wide weight eases from each step and stays within the widths", "[core][chart]")
+{
+    constexpr double ease = 0.1;
+    const VibratoSpanViewState span{
+        .start_seconds = 1.0,
+        .end_seconds = 5.0,
+        .state = VibratoState::Narrow,
+        .width_steps = {
+            VibratoWidthStepViewState{.seconds = 2.0, .state = VibratoState::Wide},
+            VibratoWidthStepViewState{.seconds = 3.0, .state = VibratoState::Narrow},
+            VibratoWidthStepViewState{.seconds = 3.03, .state = VibratoState::Wide},
+        },
+    };
+
+    // Narrow up to and at the first step; the change begins where it is written.
+    CHECK_THAT(vibratoWideWeightAt(span, 1.5, ease), Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_THAT(vibratoWideWeightAt(span, 2.0, ease), Catch::Matchers::WithinULP(0.0, 0));
+    // Strictly between the widths inside the ease, and exactly wide once it is done.
+    const double midway = vibratoWideWeightAt(span, 2.05, ease);
+    CHECK(midway > 0.0);
+    CHECK(midway < 1.0);
+    CHECK_THAT(vibratoWideWeightAt(span, 2.1, ease), Catch::Matchers::WithinULP(1.0, 0));
+    CHECK_THAT(vibratoWideWeightAt(span, 2.9, ease), Catch::Matchers::WithinULP(1.0, 0));
+
+    // A step back to wide inside the step to narrow's ease never leaves the two widths, and ends
+    // wide once both eases are done.
+    for (int sample = 0; sample <= 20; ++sample)
+    {
+        const double seconds = 3.0 + (0.01 * static_cast<double>(sample));
+        CAPTURE(seconds);
+        const double weight = vibratoWideWeightAt(span, seconds, ease);
+        CHECK(weight >= 0.0);
+        CHECK(weight <= 1.0);
+    }
+    CHECK_THAT(vibratoWideWeightAt(span, 3.2, ease), Catch::Matchers::WithinULP(1.0, 0));
+}
+
 // The vibrato channel reaches both surfaces as the SPANS it states rather than as a flag: each
 // leg of the ring states its own width, so vibrato can begin at a glide's arrival, stop mid-hold,
 // and begin again, and each span has to cover exactly the stretch the channel says it does. The

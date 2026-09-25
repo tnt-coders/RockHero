@@ -4006,7 +4006,7 @@ void HighwayRenderer::Impl::draw(
             mirrored,
             head_gesture_seconds);
 
-        // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted when the onset
+        // Bend geometry: highwayDrawnNoteY applies the lift per semitone, inverted when the onset
         // group votes for the upper displayed side, and holds the result inside the string grid --
         // the board containment this rule always claimed but did not enforce until the saturation
         // moved into the core seam. The chart-truth station is the curve's anchor-time value (a
@@ -4019,13 +4019,14 @@ void HighwayRenderer::Impl::draw(
         // that anchors a wobble on the string line lives with the wobble rather than being spelled
         // again at each sampling pass here (highwayVibratoDisplacementAt).
         const auto note_y_at = [&](const double seconds, const double depth_scale) {
-            return common::core::highwayBentNoteY(
-                lane_y,
-                group_bend_direction < 0.0,
-                common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds),
-                common::core::highwayVibratoDisplacementAt(note.vibrato, seconds, depth_scale),
-                displayed_count,
-                metrics);
+            const common::core::HighwayNoteOffset note_offset{
+                .bend_semitones =
+                    common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds),
+                .vibrato_gaps =
+                    common::core::highwayVibratoDisplacementAt(note.vibrato, seconds, depth_scale),
+            };
+            return common::core::highwayDrawnNoteY(
+                lane_y, group_bend_direction < 0.0, note_offset, displayed_count, metrics);
         };
         // Chart-truth head station: the curve's value at the anchor time, with the vibrato
         // swing scaled to the head's half depth — the head breathes with the wobble instead
@@ -4424,13 +4425,13 @@ void HighwayRenderer::Impl::draw(
                     // Each span is walked over its own overlap with the visible window. A span
                     // covering the whole tail clamps to exactly [tail_from, tail_to], which is the
                     // walk this replaced.
-                    const double region_from = std::max(tail_from, span.start_seconds);
-                    const double region_to = std::min(tail_to, span.end_seconds);
+                    const double span_from = std::max(tail_from, span.start_seconds);
+                    const double span_to = std::min(tail_to, span.end_seconds);
                     // The span's ENDS are corners of the envelope — flat outside, wobbling
                     // inside — so they are sampled exactly for the reason the extremes are. A
                     // whole-tail span has both ends outside the window and pushes neither. A
-                    // change of width inside the span eases with zero slope, so it has no corner
-                    // to sample.
+                    // change of width inside the span has no corner to sample
+                    // (vibratoWideWeightAt).
                     if (span.start_seconds > tail_from && span.start_seconds < tail_to)
                     {
                         wobble_times.push_back(span.start_seconds);
@@ -4440,17 +4441,17 @@ void HighwayRenderer::Impl::draw(
                         wobble_times.push_back(span.end_seconds);
                     }
                     const double from_index =
-                        common::core::highwayVibratoTurningIndex(region_from - span.start_seconds);
+                        common::core::highwayVibratoTurningIndex(span_from - span.start_seconds);
                     for (int extreme = static_cast<int>(std::floor(from_index)) + 1;; ++extreme)
                     {
                         const double seconds =
                             span.start_seconds + common::core::highwayVibratoSecondsAtTurningIndex(
                                                      static_cast<double>(extreme));
-                        if (!(seconds < region_to))
+                        if (!(seconds < span_to))
                         {
                             break;
                         }
-                        if (seconds > region_from)
+                        if (seconds > span_from)
                         {
                             wobble_times.push_back(seconds);
                         }

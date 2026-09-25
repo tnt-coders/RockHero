@@ -895,9 +895,11 @@ from those: the ordinary (narrow) tier draws at half the swing the tail's techni
 the wide tier fills it, which is `g_wide_vibrato_swing_multiplier` read in both directions from one
 constant. The lane cannot simply scale the wide tier UP the way the board does, because that band is
 a hard clip here — a taller wave would truncate its crests and read as a square wave rather than as
-a wider vibrato — so the ordinary tier is the one that leaves room. A change of width is one wave
-changing its swing where the chart writes it: the phase runs on, and the swing eases into the new
-width over the half wave that begins at the keyframe (`vibratoSwingAt`, shared with the board).
+a wider vibrato — so the ordinary tier is the one that leaves room. That ratio is tuned for this
+surface and need not match the board's. A change of width is one wave changing its swing where the
+chart writes it: the phase runs on, and the swing follows `vibratoWideWeightAt`
+(`chart_view_state.h`), the width rule the board reads too, with half the lane's own wave as the
+ease.
 
 **The ring reveal** is how the length you cannot see becomes visible while you author it. The lane
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —

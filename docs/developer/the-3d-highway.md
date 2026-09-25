@@ -203,13 +203,12 @@ ring never fades.
 
 **VIBRATO IS A DISPLACEMENT, NOT A PITCH** (`highwayVibratoDisplacementAt`, `highway_tail.h`): the
 wobble is a plain sine in string-lane gaps (`g_highway_vibrato_depth_gaps`), added to wherever the
-bend has put the note (`highwayBentNoteY`), and never fed through the bend's tension curve, whose
-square root near the unbent pitch flattened the crests and steepened the crossings. It phases and
+bend has put the note (`highwayDrawnNoteY`), and never fed through the bend's tension curve, whose
+square root near the unbent pitch would flatten the crests and steepen the crossings. It phases and
 tapers per vibrato SPAN — every consecutive vibrating leg (`VibratoSpanViewState`) — so a width
-change mid-ring neither restarts the wave nor tapers it to the string line: narrow is drawn where
-narrow is written and wide where wide is written, the swing easing into the new width over the half
-cycle that begins at the keyframe (`g_highway_vibrato_width_blend_seconds`) so the curve stays
-smooth through the change. The sounding head breathes at exactly half the tail's displacement.
+change mid-ring neither restarts the wave nor tapers it to the string line; the swing between the
+two widths follows `vibratoWideWeightAt` (`chart_view_state.h`), the one width rule the 2D lane
+reads too. The sounding head breathes at exactly half the tail's displacement.
 
 **AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT.** An open string has no position
 of its own, so its bar and its tail band span the hand window and follow it as it slides — the band

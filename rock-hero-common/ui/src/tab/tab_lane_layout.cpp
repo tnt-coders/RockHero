@@ -50,6 +50,11 @@ float TabLaneGeometry::x(double seconds) const noexcept
                           static_cast<double>(bounds_width));
 }
 
+double TabLaneGeometry::secondsPerPixel() const noexcept
+{
+    return visible_timeline.duration().seconds / static_cast<double>(bounds_width);
+}
+
 // Vertical lane center for a chart string, accounting for extra user lanes below the chart.
 float TabLaneGeometry::laneY(int chart_string) const noexcept
 {

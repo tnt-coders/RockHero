@@ -393,13 +393,12 @@ constant stored beside it. Two alternatives are deliberately rejected: Charter's
 stringDistance x 0.8 lift, and a one-gap-PER-semitone identity whose six linear gaps outrun a
 six-lane grid from every lane. This law instead puts the full three-whole-step ceiling at about
 2.86 gaps, inside the roomier side of any six-lane-or-taller grid. A smaller displayed grid can
-meet the saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato does
+meet the saturation in \ref highwayDrawnNoteY only at the extreme top of the range. Vibrato does
 NOT ride this curve: its wobble is a displacement in lane gaps added after it (see
-\ref g_highway_vibrato_depth_gaps), because near the unbent pitch the curve is a square root and
-turned a sine wobble into flat-topped crests with near-vertical crossings.
+\ref g_highway_vibrato_depth_gaps).
 
 Unbounded on purpose: this is the pitch-space displacement, not a drawable position. Use
-\ref highwayBentNoteY to place a bent note, which applies this curve and then holds the result on
+\ref highwayDrawnNoteY to place a bent note, which applies this curve and then holds the result on
 the board.
 
 \param semitones Pitch offset above the unbent string in half steps; fractional values are
@@ -416,11 +415,25 @@ the board.
 }
 
 /*!
-\brief Returns the world Y a bent or vibrating note draws at, held inside the string grid.
+\brief The two channels that move a note off its unbent lane, each in its own unit.
 
-The one authority for where a bent note sits, because the lift alone is not a position. The bend
-rides the tension curve; a vibrato wobble is a displacement added after it, in lane gaps, so the
-wobble stays a plain sine wherever the bend has put the note. Applying
+A struct rather than two parameters because both are doubles, and a swapped pair would compile.
+*/
+struct HighwayNoteOffset
+{
+    /*! \brief Bend in half steps, placed through \ref highwayBendLiftY; negative flips it. */
+    double bend_semitones{0.0};
+
+    /*! \brief Vibrato displacement in string-lane gaps (\ref highwayVibratoDisplacementAt). */
+    double vibrato_gaps{0.0};
+};
+
+/*!
+\brief Returns the world Y a note draws at, bent and vibrating, held inside the string grid.
+
+The one authority for where a note sits off its lane, because the lift alone is not a position. The
+bend rides the tension curve; a vibrato wobble is a displacement added after it, in lane gaps, so
+the wobble stays a plain sine wherever the bend has put the note. Applying
 \ref highwayBendLiftY raw put a two-whole-step bend on a middle lane of a six-string stack BELOW
 THE FLOOR — the floor is the origin and nothing draws beneath it — and put the mirrored case above
 the top fret line. Both are states the inversion rule's own rationale said could not happen, so the
@@ -442,18 +455,17 @@ only on a bend that already has.
 
 \param lane_y World Y of the note's unbent lane center.
 \param inverted True when the lift and the wobble point downward, per highwayBendInverted.
-\param semitones Bend in half steps; a negative value flips the drawn offset with it.
-\param vibrato_gaps Vibrato displacement in string-lane gaps (\ref highwayVibratoDisplacementAt).
+\param note_offset The bend and the vibrato moving the note at this instant.
 \param string_count Number of displayed lanes, which sets the grid's top edge.
 \param metrics World-space constants.
 \return World Y of the note, never outside the string grid.
 */
-[[nodiscard]] inline double highwayBentNoteY(
-    double lane_y, bool inverted, double semitones, double vibrato_gaps, int string_count,
+[[nodiscard]] inline double highwayDrawnNoteY(
+    double lane_y, bool inverted, HighwayNoteOffset note_offset, int string_count,
     const HighwayMetrics& metrics)
 {
-    const double offset =
-        highwayBendLiftY(semitones, metrics) + (vibrato_gaps * metrics.string_distance);
+    const double offset = highwayBendLiftY(note_offset.bend_semitones, metrics) +
+                          (note_offset.vibrato_gaps * metrics.string_distance);
     return std::clamp(
         lane_y + ((inverted ? -1.0 : 1.0) * offset),
         metrics.string_grid_base_y,

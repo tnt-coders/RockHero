@@ -197,8 +197,7 @@ through save and reopen, and draws the same fact on both surfaces.
 The G9 bundle (tasks #261–#264). Rulings first, then the verb.
 
 - **Bend display anchor** — name the constant, sight, sign (`highway-note-art-state.md`, Open
-  decision 1; two couplings flagged there: `highwayBentNoteY`'s saturation guard and vibrato's tuned
-  depth).
+  decision 1; one coupling flagged there: `highwayDrawnNoteY`'s saturation guard).
 - **The keyframe ruling bundle** (task #262), signed in one pass with the anchor since both decide
   drawn bend geometry. No other document enumerates the eight, so they are listed here: (1) the trim
   floor's value (the floor itself is gone with the ring-ends plan; `g_minimum_slide_window` now
@@ -222,7 +221,7 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   abutting a same-string head (`ring-ends-and-authoring-planes.md` phase 1b), and the chord bend
   direction shipped by `ea2e5156` — confirm the vote's side against the G+D and G+D+A examples
   the 2026-08-15 ruling named, and whether a group-wide direction ever pushes a low-string member
-  into `highwayBentNoteY`'s board-edge clamp.
+  into `highwayDrawnNoteY`'s board-edge clamp.
 
 Exit: bends can be created, adjusted, displayed and saved with the same confidence as slides.
 

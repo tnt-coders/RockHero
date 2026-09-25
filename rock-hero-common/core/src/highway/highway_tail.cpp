@@ -110,7 +110,7 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     {
         return 1.0 - std::sin((1.0 - p) * std::numbers::pi / 2.0);
     }
-    return 0.5 - (0.5 * std::cos(p * std::numbers::pi));
+    return raisedCosineEase(p);
 }
 
 double cubicHermite(
@@ -134,10 +134,9 @@ double highwaySlideEaseSlope(const double progress, const bool unpitched) noexce
     return half_pi * std::sin(p * std::numbers::pi);
 }
 
-// Onset-phased sine at the caller-derived period.
-double highwayVibratoWobble(const double seconds_from_onset, const double period_seconds) noexcept
+double highwayVibratoWobble(const double seconds_from_start) noexcept
 {
-    return std::sin(2.0 * std::numbers::pi * seconds_from_onset / period_seconds);
+    return std::sin(2.0 * std::numbers::pi * seconds_from_start / g_highway_vibrato_period_seconds);
 }
 
 // A sine's extremes fall a quarter period in and every half period after, so the index counts half
@@ -152,35 +151,6 @@ double highwayVibratoTurningIndex(const double seconds_from_start) noexcept
 double highwayVibratoSecondsAtTurningIndex(const double index) noexcept
 {
     return (0.5 + index) * (g_highway_vibrato_period_seconds / 2.0);
-}
-
-double vibratoSwingAt(
-    const VibratoSpanViewState& span, const double seconds, const double blend_seconds,
-    const double narrow_swing, const double wide_swing) noexcept
-{
-    const auto swing_of = [&](const VibratoState width) {
-        return width == VibratoState::Wide ? wide_swing : narrow_swing;
-    };
-    // The ease in force: from one swing to another, begun at an instant. The opening width is an
-    // ease already complete, so the walk below needs no case for "before the first step".
-    double from = swing_of(span.state);
-    double to = from;
-    double eased_since = span.start_seconds;
-    const auto eased = [&](const double at) {
-        const double progress = blend_seconds > 0.0 ? (at - eased_since) / blend_seconds : 1.0;
-        return from + ((to - from) * highwaySlideEaseWeight(progress, false));
-    };
-    for (const VibratoWidthStepViewState& step : span.width_steps)
-    {
-        if (step.seconds > seconds)
-        {
-            break;
-        }
-        from = eased(step.seconds);
-        to = swing_of(step.state);
-        eased_since = step.seconds;
-    }
-    return eased(seconds);
 }
 
 double highwayVibratoDisplacementAt(
@@ -202,14 +172,11 @@ double highwayVibratoDisplacementAt(
         // The wide tier is the ordinary depth MULTIPLIED, never a second constant: the two widths
         // then cannot drift apart, and re-sighting the ordinary vibrato carries the exaggeration
         // with it.
-        const double swing = vibratoSwingAt(
-            span,
-            seconds,
-            g_highway_vibrato_width_blend_seconds,
+        const double swing = std::lerp(
             g_highway_vibrato_depth_gaps,
-            g_highway_vibrato_depth_gaps * g_highway_wide_vibrato_depth_multiplier);
-        return depth_scale * taper * swing *
-               highwayVibratoWobble(from_start, g_highway_vibrato_period_seconds);
+            g_highway_vibrato_depth_gaps * g_highway_wide_vibrato_depth_multiplier,
+            vibratoWideWeightAt(span, seconds, g_highway_vibrato_width_ease_seconds));
+        return depth_scale * taper * swing * highwayVibratoWobble(from_start);
     }
     return 0.0;
 }

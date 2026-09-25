@@ -6,9 +6,12 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <string>
@@ -196,9 +199,7 @@ the same stretch of the same note at the same widths.
 
 A span is every consecutive vibrating leg, whatever their widths: only a leg without vibrato ends
 one. The wave is therefore ONE wave across a width change — one phase from the span's start, one
-envelope at its two true ends — and the width is narrow where narrow is written and wide where wide
-is written, easing from the old swing into the new over the half cycle that begins at the step (a
-change of amplitude at an arbitrary phase would kink the curve).
+envelope at its two true ends — whose width both surfaces read from \ref vibratoWideWeightAt.
 
 A note whose vibrato runs end to end — every chart written before the keyframe model, and most
 written after — yields exactly one span covering the whole ring, so the surfaces draw what they
@@ -249,6 +250,52 @@ struct VibratoSpanViewState
                lhs.width_steps == rhs.width_steps;
     }
 };
+
+/*!
+\brief Returns the raised-cosine ease from 0 to 1 across a progress from 0 to 1, held flat outside.
+
+Leaves 0 and arrives at 1 with zero slope, so a quantity eased by it joins whatever holds still on
+either side without a kink.
+
+\param progress Progress through the ease; values outside [0, 1] clamp.
+\return Eased weight in [0, 1].
+*/
+[[nodiscard]] inline double raisedCosineEase(const double progress) noexcept
+{
+    return 0.5 - (0.5 * std::cos(std::clamp(progress, 0.0, 1.0) * std::numbers::pi));
+}
+
+/*!
+\brief Returns how wide a vibrato span swings at a time, as a weight from narrow (0) to wide (1) —
+THE one width rule, read by the 2D lane and the 3D board alike.
+
+Narrow is drawn where narrow is written and wide where wide is written. Each width step eases from
+the old width into the new over the \p ease_seconds that begin AT the step, with
+\ref raisedCosineEase: a surface multiplies this into a sine, and an instant change at an arbitrary
+phase would kink or break that curve, where the ease's zero slope at both ends keeps it smooth.
+Each surface passes half its own wobble, so the change is complete one half swing after the step.
+
+The steps alternate between the two widths (the projection records only changes), so the weight
+is simply one ease per step summed with its sign: it stays in [0, 1], and stays smooth even where
+a step lands before the previous ease has finished.
+
+\param span The vibrating span.
+\param seconds Absolute time to evaluate at.
+\param ease_seconds Length of each step's ease on the reading surface; positive.
+\return 0 at the narrow width, 1 at the wide one, between them inside an ease.
+*/
+[[nodiscard]] inline double vibratoWideWeightAt(
+    const VibratoSpanViewState& span, const double seconds, const double ease_seconds) noexcept
+{
+    assert(ease_seconds > 0.0);
+    double weight = span.state == VibratoState::Wide ? 1.0 : 0.0;
+    for (const VibratoWidthStepViewState& step : span.width_steps)
+    {
+        const double direction = step.state == VibratoState::Wide ? 1.0 : -1.0;
+        weight += direction * raisedCosineEase((seconds - step.seconds) / ease_seconds);
+    }
+    return weight;
+}
 
 /*!
 \brief One keyframe's POSITION statement, resolved to an absolute timeline second.

@@ -1168,7 +1168,7 @@ against the tree on the date above.
   `holder_background` opens its outline at `{-0.01, -0.01}` (`:1611`) inside the function that
   declares 0.0 as its floor. Fix those two first; they are small. Then the consolidation: the law
   is restated at about six sites with no `g_floor_y` and nothing a comment can reference, the two
-  bare floor-plane literals (0.004, 0.015) are unnamed, and the comment beside `highwayBentNoteY`
+  bare floor-plane literals (0.004, 0.015) are unnamed, and the comment beside `highwayDrawnNoteY`
   names the floor while the clamp is at the string grid base (0.075). The fingering panel this item
   once named is gone and was never a breach. (task #276)
 

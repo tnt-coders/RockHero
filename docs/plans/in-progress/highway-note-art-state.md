@@ -408,10 +408,11 @@ it.
    The curve SHAPE in `highwayBendLiftY` (`highway_metrics.h`) is verified physics; the anchor is a
    display choice. For the stated standard (25.5" scale, .009 set, measured at the 12th fret) true
    travel is per-string: high E ≈ 1.5 gaps, B ≈ 1.15, G ≈ 0.9, wound ≈ 0.9–1.1 — so physical
-   accuracy means per-string anchors, and equal-pitch bends would then draw unequal heights. Two
-   couplings before changing it: at ≈ 1.5 the three-whole-step ceiling (2.86 gaps → 4.3) outruns a
-   six-lane grid, so `highwayBentNoteY`'s saturation guard would clamp LEGAL bends and break its own
-   stated guarantee; and vibrato's tuned depth re-opens, since drawn swing scales with the anchor.
+   accuracy means per-string anchors, and equal-pitch bends would then draw unequal heights. One
+   coupling before changing it: at ≈ 1.5 the three-whole-step ceiling (2.86 gaps → 4.3) outruns a
+   six-lane grid, so `highwayDrawnNoteY`'s saturation guard would clamp LEGAL bends and break its own
+   stated guarantee. Vibrato no longer couples: its depth is a displacement in lane gaps, outside
+   the tension curve.
    Scale length barely matters (24.75" differs ≈ 6%; travel goes as L²); fret position is ±15%; real
    setups need somewhat MORE travel than these figures (stretch behind nut and saddle), so they are
    lower bounds.

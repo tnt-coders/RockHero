@@ -8,10 +8,53 @@
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
 {
+
+namespace
+{
+
+// A span vibrating at one width throughout: what the projection derives from a statement that never
+// changes width.
+[[nodiscard]] VibratoSpanViewState oneWidthSpan(
+    const double start_seconds, const double end_seconds,
+    const VibratoState width = VibratoState::Narrow)
+{
+    return VibratoSpanViewState{
+        .start_seconds = start_seconds,
+        .end_seconds = end_seconds,
+        .state = width,
+        .width_steps = {},
+    };
+}
+
+// How far the board draws an unbent note above lane 1 of a six-lane stack, in lane gaps, for a
+// vibrato displacement: the whole placement path, grid clamp included.
+[[nodiscard]] double drawnGapsAboveLaneOne(const double vibrato_gaps)
+{
+    const HighwayMetrics metrics{};
+    const double lane_1 = highwayLaneToY(1, metrics);
+    const double drawn = highwayDrawnNoteY(
+        lane_1,
+        false,
+        HighwayNoteOffset{.bend_semitones = 0.0, .vibrato_gaps = vibrato_gaps},
+        6,
+        metrics);
+    return (drawn - lane_1) / metrics.string_distance;
+}
+
+// The one-sided slopes of a curve just before and just after an instant, for the kink checks.
+template <typename Curve>
+[[nodiscard]] std::pair<double, double> slopesAround(const Curve& curve, const double at)
+{
+    constexpr double h = 1.0e-6;
+    return {(curve(at) - curve(at - h)) / h, (curve(at + h) - curve(at)) / h};
+}
+
+} // namespace
 
 // Adaptive sampling (the per-millisecond-tessellation fix): density follows the projected
 // screen length, bounded below by a drawable pair and above by the hard cap.
@@ -197,34 +240,41 @@ TEST_CASE("Highway bends stay inside the string grid", "[core][highway][tail]")
     // The ceiling fits without saturation from the tightest middle lanes, in both directions.
     const double lane_4 = highwayLaneToY(4, metrics);
     CHECK(highwayBendInverted(4, 6));
-    const double ceiling_down = highwayBentNoteY(lane_4, true, 6.0, 0.0, 6, metrics);
+    const double ceiling_down =
+        highwayDrawnNoteY(lane_4, true, HighwayNoteOffset{.bend_semitones = 6.0}, 6, metrics);
     CHECK(ceiling_down == Catch::Approx(lane_4 - highwayBendLiftY(6.0, metrics)));
     CHECK(ceiling_down > grid_base);
 
     const double lane_3 = highwayLaneToY(3, metrics);
     CHECK_FALSE(highwayBendInverted(3, 6));
-    const double ceiling_up = highwayBentNoteY(lane_3, false, 6.0, 0.0, 6, metrics);
+    const double ceiling_up =
+        highwayDrawnNoteY(lane_3, false, HighwayNoteOffset{.bend_semitones = 6.0}, 6, metrics);
     CHECK(ceiling_up == Catch::Approx(lane_3 + highwayBendLiftY(6.0, metrics)));
     CHECK(ceiling_up < grid_top);
 
     // Junk past the supported range saturates instead of leaving the grid.
-    CHECK(highwayBentNoteY(lane_3, false, 50.0, 0.0, 6, metrics) == Catch::Approx(grid_top));
-    CHECK(highwayBentNoteY(lane_4, true, 50.0, 0.0, 6, metrics) == Catch::Approx(grid_base));
+    CHECK(
+        highwayDrawnNoteY(lane_3, false, HighwayNoteOffset{.bend_semitones = 50.0}, 6, metrics) ==
+        Catch::Approx(grid_top));
+    CHECK(
+        highwayDrawnNoteY(lane_4, true, HighwayNoteOffset{.bend_semitones = 50.0}, 6, metrics) ==
+        Catch::Approx(grid_base));
 
     // The half-step anchor holds as a position: one semitone lands on the next lane up.
     const double lane_1 = highwayLaneToY(1, metrics);
     CHECK(
-        highwayBentNoteY(lane_1, false, 1.0, 0.0, 6, metrics) ==
+        highwayDrawnNoteY(lane_1, false, HighwayNoteOffset{.bend_semitones = 1.0}, 6, metrics) ==
         Catch::Approx(highwayLaneToY(2, metrics)));
 
     // A negative offset flips with its sign and is bounded on that side too.
-    CHECK(highwayBentNoteY(lane_1, false, -8.0, 0.0, 6, metrics) == Catch::Approx(grid_base));
+    CHECK(
+        highwayDrawnNoteY(lane_1, false, HighwayNoteOffset{.bend_semitones = -8.0}, 6, metrics) ==
+        Catch::Approx(grid_base));
 }
 
 // The vibrato wobble is a displacement added AFTER the bend's tension curve, never a pitch fed
-// through it: through the curve's near-zero square root it drew flat-topped crests and
-// near-vertical crossings. On an unbent note the drawn wobble is therefore a plain sine of the
-// depth constant.
+// through it, whose near-zero square root would flatten the crests and steepen the crossings. On
+// an unbent note the drawn wobble is therefore a plain sine of the depth constant.
 TEST_CASE("Highway vibrato draws a plain sine of its depth", "[core][highway][tail]")
 {
     const HighwayMetrics metrics{};
@@ -232,19 +282,9 @@ TEST_CASE("Highway vibrato draws a plain sine of its depth", "[core][highway][ta
     const double period = g_highway_vibrato_period_seconds;
     const double lane_1 = highwayLaneToY(1, metrics);
     // Long enough that the taper has finished at the instants read below.
-    const std::vector<VibratoSpanViewState> whole_tail = {VibratoSpanViewState{
-        .start_seconds = 0.0, .end_seconds = 10.0, .state = VibratoState::Narrow, .width_steps = {}
-    }};
+    const std::vector<VibratoSpanViewState> whole_tail = {oneWidthSpan(0.0, 10.0)};
     const auto drawn_offset = [&](const double seconds) {
-        return (highwayBentNoteY(
-                    lane_1,
-                    false,
-                    0.0,
-                    highwayVibratoDisplacementAt(whole_tail, seconds, 1.0),
-                    6,
-                    metrics) -
-                lane_1) /
-               gap;
+        return drawnGapsAboveLaneOne(highwayVibratoDisplacementAt(whole_tail, seconds, 1.0));
     };
 
     // Eighteen cycles (three seconds) in, clear of the one-second ramp: at 90 degrees the crest is
@@ -340,14 +380,14 @@ TEST_CASE("Cubic Hermite meets its endpoint values and slopes", "[core][highway]
     }
 }
 
-// Wobbles are onset-phased pure functions: vibrato starts on the string line, tremolo peaks at
-// the onset and swings the full depth each way.
-TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]")
+// Wobbles are pure functions phased from their own start: vibrato starts on the string line,
+// tremolo peaks at the onset and swings the full depth each way.
+TEST_CASE("Highway wobbles are start-phased and bounded", "[core][highway][tail]")
 {
     const double period = g_highway_vibrato_period_seconds;
-    CHECK(highwayVibratoWobble(0.0, period) == Catch::Approx(0.0).margin(1.0e-12));
-    CHECK(highwayVibratoWobble(period / 4.0, period) == Catch::Approx(1.0).margin(1.0e-9));
-    CHECK(highwayVibratoWobble(period, period) == Catch::Approx(0.0).margin(1.0e-9));
+    CHECK(highwayVibratoWobble(0.0) == Catch::Approx(0.0).margin(1.0e-12));
+    CHECK(highwayVibratoWobble(period / 4.0) == Catch::Approx(1.0).margin(1.0e-9));
+    CHECK(highwayVibratoWobble(period) == Catch::Approx(0.0).margin(1.0e-9));
 
     const double depth = g_highway_tremolo_depth;
     CHECK(highwayTremoloWobble(0.0) == Catch::Approx(depth));
@@ -373,9 +413,7 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
     const double depth = g_highway_vibrato_depth_gaps;
     // A four-second tail from 10.0s, vibrating end to end: exactly what the projection derives from
     // a chart stating vibrato at the onset and never restating it.
-    const std::vector<VibratoSpanViewState> whole_tail = {VibratoSpanViewState{
-        .start_seconds = 10.0, .end_seconds = 14.0, .state = VibratoState::Narrow, .width_steps = {}
-    }};
+    const std::vector<VibratoSpanViewState> whole_tail = {oneWidthSpan(10.0, 14.0)};
 
     SECTION("a whole-tail span reproduces the note-anchored wobble exactly")
     {
@@ -385,7 +423,7 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
             const double from_onset = seconds - 10.0;
             const double expected =
                 1.0 * highwayTailTaper(from_onset / 4.0, g_highway_tail_taper_fraction) * depth *
-                highwayVibratoWobble(from_onset, period);
+                highwayVibratoWobble(from_onset);
             // Bit-for-bit, not merely close: the whole frozen-visuals claim for the 3D surface is
             // that this arithmetic did not change for content that states nothing mid-ring.
             CHECK_THAT(
@@ -423,12 +461,7 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
         // THAT start the wave stands at its positive crest.
         const double late_start = 12.05;
         const double late_end = 14.0;
-        const std::vector<VibratoSpanViewState> late = {VibratoSpanViewState{
-            .start_seconds = late_start,
-            .end_seconds = late_end,
-            .state = VibratoState::Narrow,
-            .width_steps = {},
-        }};
+        const std::vector<VibratoSpanViewState> late = {oneWidthSpan(late_start, late_end)};
         const double crest_seconds = late_start + (period / 4.0);
         const double crest = highwayVibratoDisplacementAt(late, crest_seconds, 1.0);
         const double expected_taper = highwayTailTaper(
@@ -436,7 +469,7 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
         CHECK(crest == Catch::Approx(expected_taper * depth));
         // The discrimination: an onset-phased reading at the same instant is nowhere near the
         // crest, so this cannot pass by accident.
-        CHECK(std::abs(highwayVibratoWobble(crest_seconds - 10.0, period) - 1.0) > 0.1);
+        CHECK(std::abs(highwayVibratoWobble(crest_seconds - 10.0) - 1.0) > 0.1);
         // Before the span starts there is no vibrato at all, however long the note has rung.
         CHECK_THAT(
             highwayVibratoDisplacementAt(late, 11.0, 1.0), Catch::Matchers::WithinULP(0.0, 0));
@@ -445,18 +478,8 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
     SECTION("the span in force is the one containing the time, not the first one")
     {
         const std::vector<VibratoSpanViewState> two = {
-            VibratoSpanViewState{
-                .start_seconds = 10.0,
-                .end_seconds = 11.0,
-                .state = VibratoState::Narrow,
-                .width_steps = {},
-            },
-            VibratoSpanViewState{
-                .start_seconds = 12.05,
-                .end_seconds = 14.0,
-                .state = VibratoState::Narrow,
-                .width_steps = {},
-            },
+            oneWidthSpan(10.0, 11.0),
+            oneWidthSpan(12.05, 14.0),
         };
         // Between the two the string is steady, however long it vibrated on either side.
         CHECK_THAT(
@@ -473,21 +496,12 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
         CHECK(expected_taper > 0.0);
     }
 
-    SECTION("the head breathes at exactly half the tail's drawn swing")
+    SECTION("the head draws its fraction of the tail's drawn swing")
     {
-        const HighwayMetrics metrics{};
-        const double lane_1 = highwayLaneToY(1, metrics);
         const auto drawn_offset = [&](const double seconds, const double depth_scale) {
-            return highwayBentNoteY(
-                       lane_1,
-                       false,
-                       0.0,
-                       highwayVibratoDisplacementAt(whole_tail, seconds, depth_scale),
-                       6,
-                       metrics) -
-                   lane_1;
+            return drawnGapsAboveLaneOne(
+                highwayVibratoDisplacementAt(whole_tail, seconds, depth_scale));
         };
-        CHECK(g_highway_vibrato_head_depth_fraction == Catch::Approx(0.5));
         for (const double seconds : {10.05, 11.1, 12.3, 13.95})
         {
             CAPTURE(seconds);
@@ -495,7 +509,7 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
             CHECK(std::abs(tail) > 0.0);
             CHECK_THAT(
                 drawn_offset(seconds, g_highway_vibrato_head_depth_fraction),
-                Catch::Matchers::WithinAbs(0.5 * tail, 1.0e-12));
+                Catch::Matchers::WithinAbs(g_highway_vibrato_head_depth_fraction * tail, 1.0e-12));
         }
     }
 
@@ -504,12 +518,8 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
         // Read off the CONSTANT rather than off a copy of its value: the whole point of stating
         // the tier as a multiplier is that re-sighting the ordinary depth carries the exaggeration
         // with it, and a test asserting a literal would pass while that coupling was broken.
-        const std::vector<VibratoSpanViewState> wide = {VibratoSpanViewState{
-            .start_seconds = 10.0,
-            .end_seconds = 14.0,
-            .state = VibratoState::Wide,
-            .width_steps = {},
-        }};
+        const std::vector<VibratoSpanViewState> wide = {oneWidthSpan(
+            10.0, 14.0, VibratoState::Wide)};
         for (const double seconds : {10.4, 11.0, 12.0, 13.5})
         {
             CAPTURE(seconds);
@@ -530,44 +540,36 @@ TEST_CASE("Highway vibrato displacement follows the span in force", "[core][high
     {
         // A statement landing exactly on the end the note presents: the projection keeps it, and
         // the reading has to hold still rather than produce a NaN across the whole tail.
-        const std::vector<VibratoSpanViewState> pinned = {VibratoSpanViewState{
-            .start_seconds = 14.0,
-            .end_seconds = 14.0,
-            .state = VibratoState::Narrow,
-            .width_steps = {},
-        }};
+        const std::vector<VibratoSpanViewState> pinned = {oneWidthSpan(14.0, 14.0)};
         CHECK_THAT(
             highwayVibratoDisplacementAt(pinned, 14.0, 1.0), Catch::Matchers::WithinULP(0.0, 0));
     }
 }
 
 // A change of width inside a span is ONE wave changing its swing, not two waves: the phase runs on
-// from the span's start, the envelope tapers only at the span's true ends, and the swing eases from
-// the old width into the new over the half cycle that begins at the keyframe — narrow where narrow
-// is written, wide where wide is written, and smooth through the change at whatever phase it lands.
+// from the span's start, the envelope tapers only at the span's true ends, and the swing follows
+// vibratoWideWeightAt between the board's two widths — smooth through the change at whatever phase
+// it lands, however close the next change follows.
 TEST_CASE("Highway vibrato changes width inside one wave", "[core][highway][tail]")
 {
-    const double period = g_highway_vibrato_period_seconds;
     const double narrow = g_highway_vibrato_depth_gaps;
     const double wide = g_highway_vibrato_depth_gaps * g_highway_wide_vibrato_depth_multiplier;
+    const double ease = g_highway_vibrato_width_ease_seconds;
     // Deliberately off every crest and crossing, so an instant change would break the curve.
     const double step_seconds = 11.03;
-    const VibratoSpanViewState span{
+    const std::vector<VibratoSpanViewState> spans = {VibratoSpanViewState{
         .start_seconds = 10.0,
         .end_seconds = 14.0,
         .state = VibratoState::Narrow,
         .width_steps = {
             VibratoWidthStepViewState{.seconds = step_seconds, .state = VibratoState::Wide}
         },
-    };
-    const std::vector<VibratoSpanViewState> spans = {span};
+    }};
     const auto displacement = [&](const double seconds) {
         return highwayVibratoDisplacementAt(spans, seconds, 1.0);
     };
     // The wave's own phase, measured from the SPAN's start on both sides of the keyframe.
-    const auto wobble = [&](const double seconds) {
-        return highwayVibratoWobble(seconds - 10.0, period);
-    };
+    const auto wobble = [](const double seconds) { return highwayVibratoWobble(seconds - 10.0); };
     CHECK(std::abs(wobble(step_seconds)) > 0.3);
 
     SECTION("the change begins at the keyframe with no taper and no restarted phase")
@@ -582,13 +584,9 @@ TEST_CASE("Highway vibrato changes width inside one wave", "[core][highway][tail
             Catch::Matchers::WithinAbs(narrow * wobble(step_seconds - 0.1), 1.0e-12));
     }
 
-    SECTION("the swing is the new width exactly half a cycle after the keyframe")
+    SECTION("the swing is the new width once the ease after the keyframe is done")
     {
-        const double settled = step_seconds + g_highway_vibrato_width_blend_seconds;
-        CHECK(g_highway_vibrato_width_blend_seconds == Catch::Approx(period / 2.0));
-        CHECK_THAT(
-            vibratoSwingAt(span, settled, g_highway_vibrato_width_blend_seconds, narrow, wide),
-            Catch::Matchers::WithinAbs(wide, 1.0e-12));
+        const double settled = step_seconds + ease;
         for (const double seconds : {settled, settled + 0.05, 12.5})
         {
             CAPTURE(seconds);
@@ -596,33 +594,60 @@ TEST_CASE("Highway vibrato changes width inside one wave", "[core][highway][tail
                 displacement(seconds), Catch::Matchers::WithinAbs(wide * wobble(seconds), 1.0e-12));
         }
         // Part way through the ease the swing lies strictly between the two widths.
-        const double midway = vibratoSwingAt(
-            span,
-            step_seconds + (g_highway_vibrato_width_blend_seconds / 2.0),
-            g_highway_vibrato_width_blend_seconds,
-            narrow,
-            wide);
-        CHECK(midway > narrow);
-        CHECK(midway < wide);
+        const double midway = step_seconds + (ease / 2.0);
+        REQUIRE(std::abs(wobble(midway)) > 0.1);
+        const double midway_swing = displacement(midway) / wobble(midway);
+        CHECK(midway_swing > narrow);
+        CHECK(midway_swing < wide);
     }
 
     SECTION("the value and its slope are continuous across the keyframe")
     {
-        constexpr double h = 1.0e-6;
-        const double before = displacement(step_seconds - h);
-        const double at = displacement(step_seconds);
-        const double after = displacement(step_seconds + h);
-        CHECK_THAT(after - before, Catch::Matchers::WithinAbs(0.0, 1.0e-4));
-        const double slope_in = (at - before) / h;
-        const double slope_out = (after - at) / h;
+        CHECK_THAT(
+            displacement(step_seconds + 1.0e-6) - displacement(step_seconds - 1.0e-6),
+            Catch::Matchers::WithinAbs(0.0, 1.0e-4));
+        const auto [slope_in, slope_out] = slopesAround(displacement, step_seconds);
         // The wave is moving steeply here, so a matching slope is not two flat stretches agreeing.
         CHECK(std::abs(slope_in) > 1.0);
         CHECK_THAT(slope_out, Catch::Matchers::WithinAbs(slope_in, 1.0e-2));
         // ...and the ease's far end joins the settled wide wave with no kink either.
-        const double settled = step_seconds + g_highway_vibrato_width_blend_seconds;
-        const double settle_in = (displacement(settled) - displacement(settled - h)) / h;
-        const double settle_out = (displacement(settled + h) - displacement(settled)) / h;
+        const auto [settle_in, settle_out] = slopesAround(displacement, step_seconds + ease);
         CHECK_THAT(settle_out, Catch::Matchers::WithinAbs(settle_in, 1.0e-2));
+    }
+
+    SECTION("a step back inside the ease keeps the wave smooth")
+    {
+        // Back to narrow 0.03 s after the step to wide, well inside that step's ease: the second
+        // ease begins while the first is still moving, and the wave carries on without a kink at
+        // either end of either ease.
+        const double back_seconds = step_seconds + 0.03;
+        const std::vector<VibratoSpanViewState> blip = {VibratoSpanViewState{
+            .start_seconds = 10.0,
+            .end_seconds = 14.0,
+            .state = VibratoState::Narrow,
+            .width_steps = {
+                VibratoWidthStepViewState{.seconds = step_seconds, .state = VibratoState::Wide},
+                VibratoWidthStepViewState{.seconds = back_seconds, .state = VibratoState::Narrow},
+            },
+        }};
+        const auto blip_displacement = [&](const double seconds) {
+            return highwayVibratoDisplacementAt(blip, seconds, 1.0);
+        };
+        // The discrimination: the wave is moving steeply where the second ease begins, so a swing
+        // whose own slope jumped there would kink the drawn curve visibly.
+        REQUIRE(std::abs(wobble(back_seconds)) > 0.5);
+        const double first_settled = step_seconds + ease;
+        const double back_settled = back_seconds + ease;
+        for (const double at : {step_seconds, back_seconds, first_settled, back_settled})
+        {
+            CAPTURE(at);
+            const auto [slope_in, slope_out] = slopesAround(blip_displacement, at);
+            CHECK_THAT(slope_out, Catch::Matchers::WithinAbs(slope_in, 1.0e-2));
+        }
+        // Narrow again once both eases are done.
+        const double after = back_seconds + ease + 0.05;
+        CHECK_THAT(
+            blip_displacement(after), Catch::Matchers::WithinAbs(narrow * wobble(after), 1.0e-12));
     }
 }
 
@@ -696,13 +721,13 @@ TEST_CASE("Highway vibrato runs at one fixed rate", "[core][highway][tail]")
     CHECK(frequency >= 4.0);
     CHECK(frequency <= 7.0);
 
-    // Onset-phased: zero at the onset, back to zero after exactly one period, and at its
+    // Span-phased: zero at the span's start, back to zero after exactly one period, and at its
     // extremes a quarter and three quarters of the way through.
     const double period = g_highway_vibrato_period_seconds;
-    CHECK(highwayVibratoWobble(0.0, period) == Catch::Approx(0.0).margin(1.0e-12));
-    CHECK(highwayVibratoWobble(period / 4.0, period) == Catch::Approx(1.0));
-    CHECK(highwayVibratoWobble(period * 3.0 / 4.0, period) == Catch::Approx(-1.0));
-    CHECK(highwayVibratoWobble(period, period) == Catch::Approx(0.0).margin(1.0e-12));
+    CHECK(highwayVibratoWobble(0.0) == Catch::Approx(0.0).margin(1.0e-12));
+    CHECK(highwayVibratoWobble(period / 4.0) == Catch::Approx(1.0));
+    CHECK(highwayVibratoWobble(period * 3.0 / 4.0) == Catch::Approx(-1.0));
+    CHECK(highwayVibratoWobble(period) == Catch::Approx(0.0).margin(1.0e-12));
 }
 
 // The turning-point pair is the ONE statement of where the span-anchored sine peaks: the renderer
@@ -729,7 +754,7 @@ TEST_CASE("Highway vibrato turning points invert the wobble phase", "[core][high
         CHECK(highwayVibratoTurningIndex(seconds) == Catch::Approx(turning));
         // Every whole index is a true extremum, so a sampler walking them lands the wave's
         // corners exactly rather than near them.
-        CHECK(std::abs(highwayVibratoWobble(seconds, period)) == Catch::Approx(1.0));
+        CHECK(std::abs(highwayVibratoWobble(seconds)) == Catch::Approx(1.0));
     }
     CHECK(highwayVibratoSecondsAtTurningIndex(1.0) > highwayVibratoSecondsAtTurningIndex(0.0));
 }

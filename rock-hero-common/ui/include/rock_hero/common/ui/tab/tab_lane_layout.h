@@ -308,6 +308,12 @@ struct TabLaneGeometry
     [[nodiscard]] float x(double seconds) const noexcept;
 
     /*!
+    \brief Returns the timeline seconds one horizontal pixel spans: the inverse of \ref x's scale.
+    \return Seconds per pixel.
+    */
+    [[nodiscard]] double secondsPerPixel() const noexcept;
+
+    /*!
     \brief Vertical lane center for a chart string, accounting for extra lanes below the chart.
     \param chart_string One-based chart string, 1 = the chart's lowest string.
     \return Vertical lane center in the bounds' coordinate space.

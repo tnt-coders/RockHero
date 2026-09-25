@@ -13,7 +13,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/highway/highway_tail.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
@@ -939,8 +939,7 @@ struct TailInterior
 // commonest figure there is, and a sine run from the onset would say the string vibrated through
 // the slide it did not. Each wave takes its phase from its span's OWN start, so it leaves the
 // string line where the vibrato begins instead of cutting in at whatever phase the onset reached,
-// and keeps that phase through a change of width, whose swing eases into the new width over the
-// half wave that begins at the step, exactly as the board's does.
+// and keeps that phase through a change of width (core::vibratoWideWeightAt, the board's rule too).
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float center_y, const double drawn_end,
@@ -961,13 +960,13 @@ void drawVibratoSine(
     const float interior_swing =
         std::max(1.0f, ((interior.bottom - interior.top) / 2.0f) - (stroke / 2.0f));
     // The two widths, from the one swing the interior allows: the wide tier reaches it and the
-    // ordinary one is that divided by the multiplier, so the pair is stated once. Scaling the WIDE
-    // tier past the interior instead was not an option on this surface — the technique band clips
-    // every mark to the tail's rails, so a doubled wave would draw its crests flat and read as a
-    // square wave rather than as a wider vibrato.
+    // ordinary one is that divided by g_wide_vibrato_swing_multiplier, whose doc says why.
     const double wide_swing = interior_swing;
     const double narrow_swing = interior_swing / g_wide_vibrato_swing_multiplier;
     const float period = metrics.tail_height;
+    // The wave is paced in pixels, so the width ease, half a wave, is too.
+    const double seconds_per_pixel = metrics.secondsPerPixel();
+    const double ease_seconds = static_cast<double>(period) / 2.0 * seconds_per_pixel;
     juce::Path wave;
     for (const common::core::VibratoSpanViewState& span : note.vibrato)
     {
@@ -977,18 +976,12 @@ void drawVibratoSine(
         {
             break;
         }
-        const double drawn_to = std::min(span.end_seconds, drawn_end);
         const float from_x = metrics.x(span.start_seconds);
-        const float length = metrics.x(drawn_to) - from_x;
+        const float length = metrics.x(std::min(span.end_seconds, drawn_end)) - from_x;
         if (length <= 0.0f)
         {
             continue;
         }
-        // The wave is paced in pixels, so the width's half-wave ease is too: its length in time is
-        // half a period's pixels at this span's time scale.
-        const double seconds_per_pixel =
-            (drawn_to - span.start_seconds) / static_cast<double>(length);
-        const double blend_seconds = static_cast<double>(period) / 2.0 * seconds_per_pixel;
         // Sampled on whole-pixel distances from the span's start, so the run the clip can show
         // carries the same vertices at the same places the whole span would have put there.
         const TailRun run = visibleTailRun(g, metrics, from_x, length);
@@ -1001,14 +994,12 @@ void drawVibratoSine(
         for (int step = first_step; step <= last_step; ++step)
         {
             const auto dx = static_cast<float>(step);
-            const auto amplitude = static_cast<float>(std::max(
-                1.0,
-                common::core::vibratoSwingAt(
-                    span,
-                    span.start_seconds + (static_cast<double>(dx) * seconds_per_pixel),
-                    blend_seconds,
-                    narrow_swing,
-                    wide_swing)));
+            const double wide_weight = common::core::vibratoWideWeightAt(
+                span,
+                span.start_seconds + (static_cast<double>(step) * seconds_per_pixel),
+                ease_seconds);
+            const auto amplitude =
+                static_cast<float>(std::max(1.0, std::lerp(narrow_swing, wide_swing, wide_weight)));
             const juce::Point<float> point{
                 from_x + dx,
                 interior_center +
@@ -2077,12 +2068,11 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
 [[nodiscard]] common::core::TimeRange tabVisibleSpan(
     const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds)
 {
-    // Divided by immediately below, exactly as makeTabLaneMetrics divides by it.
+    // secondsPerPixel divides by it, exactly as makeTabLaneMetrics does.
     assert(metrics.bounds.getWidth() > 0);
 
     const juce::Rectangle<int> clip = clip_bounds.getIntersection(metrics.bounds);
-    const double duration = metrics.visible_timeline.duration().seconds;
-    const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());
+    const double seconds_per_pixel = metrics.secondsPerPixel();
     const double slack_seconds =
         static_cast<double>(metrics.max_note_height) * 3.0 * seconds_per_pixel;
     // Clip columns relative to the lane's left edge, which is where x() measures time from.
