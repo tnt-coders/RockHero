@@ -1511,7 +1511,7 @@ ChartLegatoPlan planSetLegato(
             common::core::resolveLegato(asked, predecessor, tempo_map);
         // The D14 assist: when the HOLD is the only thing missing — the claim would resolve if the
         // predecessor were still ringing — the verb grows that ring to the successor's ONSET in
-        // the same plan, so pressing H authors the connection instead of demanding the drag first
+        // the same plan, so pressing L authors the connection instead of demanding the drag first
         // (the ring IS the held-ness datum; the verb writes it rather than requiring it). The
         // hypothetical is asked by handing the resolver a predecessor carrying that ring, which IS
         // the only-blocker test: an equal fret, a missing predecessor, or a fret-hand-harmonic

@@ -367,11 +367,11 @@ Re-aimed 2026-08-22 when the tail rules moved to the read side (stage A2): the i
 move intact, and the grace-lead protection it used to cite is gone — binding is now decided on the
 sounding position, which the note-sustain-model plan lists as an accepted deviation.
 
-A smaller relative of the same family, also left: `hasSustainTechnique` tests
-`!note.slides.empty()`, so a trailing equal-fret hold still exempts a note from the *drop* rule when
-the crop does not fire. (A second relative — below-margin crowding leaving a chord's bent string a
-stub its unbent partner did not get — went with the crop's payload floor on 2026-09-23: every
-member's ink now stops at the same margin.)
+A smaller relative of the same family, also left: `earnsTail` (`chart_presentation.cpp`) earns on
+`!note.keyframes.empty()`, so a trailing equal-fret hold still exempts a note from the *drop* rule
+when the crop does not fire. (A second relative — below-margin crowding leaving a chord's bent
+string a stub its unbent partner did not get — went with the crop's payload floor on 2026-09-23:
+every member's ink now stops at the same margin.)
 
 ### Any score using repeats or jump directions is refused outright — trigger: a user reports a real song that will not import
 
@@ -542,11 +542,17 @@ rounding series of 2026-09-22/23, which moved every stored position onto the lat
 are placed against. Accepted for now (user, 2026-09-24): the rows moved the right way and nothing
 has sighted wrong, so the cause is not worth a bisect on its own.
 
+This entry supersedes a 2026-09-22 backlog measurement that had five fret-hand cross-check rows
+ABOVE the same pins (spans crossed by a shift 670 / 400, interior shifts 769 / 497, and these three
+rows at 230, 538 and 1090); those figures predate the census's fold-in flip to the stored ring
+(`da74d79b`) and were never reconciled, so the bisect below must explain both readings.
+
 **Trigger:** a hand window sights odd against the notes it covers (a window arriving where
 nothing is fretted, or over a finger still down), OR the census is next re-pinned for another
 reason — the three rows must not be re-signed without naming the commit that moved them.
-**Remedy:** bisect the three rows across 2026-09-20..24 with the census (`ROCKHERO_GP_CORPUS_DIR`
-set), confirm the mover is the lattice rounding and not a generator regression, then re-pin.
+**Remedy:** bisect the three rows across 2026-09-20..24, `da74d79b` included, with the census
+(`ROCKHERO_GP_CORPUS_DIR` set), confirm the mover is the lattice rounding and not a generator
+regression, then re-pin.
 
 ## Chart editing (tab lane)
 

@@ -11,7 +11,10 @@ the trio mirrored live into plugin windows; the manual plugin verification passe
 **Phase 1b (total rebindability) executed 2026-07-21** — the grammar decoder dissolved into
 49 per-verb commands, everything rebindable, one dispatcher.
 **Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed** (record below).
-Next: Phase 2 here (discovery menus). This plan builds the complete editor
+Phase 2's chart menu shipped 2026-08-06. Phases 5 and 6 are OUT of G0 (release plan D3,
+2026-09-19). Chart entry keys `Insert` / `Alt+Insert` and the `Alt`+digit ring plane landed
+2026-09-22/24 (`dc20b003`, `a4bfed7b`, `5d0cb384`), tracked in `keymap-matrix.md`.
+This plan builds the complete editor
 keybinding + mouse-operation model captured in `docs/plans/in-progress/keymap-matrix.md` and the
 interaction-model fold-in.
 

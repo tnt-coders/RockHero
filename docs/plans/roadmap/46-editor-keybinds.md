@@ -397,7 +397,7 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 3 — Keyboard Shortcuts configuration UI (stock component, themed — decided 2026-07-20) — CODE COMPLETE 2026-07-20, pending the user's in-action review
+### Phase 3 — Actions UI (custom `KeymapEditorView`) — CODE COMPLETE 2026-07-20; review pending
 
 > **Execution record (2026-07-20):** landed as scoped — `KeyboardShortcutsWindow`
 > (`ui/src/keybinds/keyboard_shortcuts_window.{h,cpp}`) hosts the stock component in a
@@ -544,7 +544,7 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 4 — Plugin-window shortcut injection seam — EXECUTED IN GENERALIZED FORM 2026-07-20 (code complete; manual plugin verification pending)
+### Phase 4 — Plugin-window shortcut seam — GENERALIZED; plugin verification PASSED 2026-07-20
 
 > **Execution record:** after the trio-rebindable reversal, this phase executed as the original
 > injected-bindings seam, generalized past the design below in one load-bearing way: chords are

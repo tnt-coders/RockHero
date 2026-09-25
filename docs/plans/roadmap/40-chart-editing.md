@@ -162,8 +162,9 @@ is complete.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
-state which answer they assume. The mid-sustain vibrato-span sub-scope (Phase 7) is gated on
-`docs/plans/roadmap/10-format-versioning-and-chart-identity.md`.
+state which answer they assume. The mid-sustain vibrato-span sub-scope (Phase 7) was gated on
+`docs/plans/roadmap/10-format-versioning-and-chart-identity.md`; per-leg vibrato shipped
+2026-09-24 (`cfe83edc`), and the plan-10 gate is moot under D1.
 
 ## Goal
 
@@ -286,8 +287,9 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   same-string-overlap rule (Q2) is co-owned: this plan sets the edit-time semantics, 42 flags
   residual violations from imports.
 - `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` — the vibrato-span format change
-  (decided 2026-07-06 in the note-format plan, "lands with the next format touch") must route
-  through 10's versioning policy before Phase 7's vibrato sub-scope executes. Note: every chart
+  (decided 2026-07-06 in the note-format plan, "lands with the next format touch") was to route
+  through 10's versioning policy; per-leg vibrato shipped 2026-09-24 (`cfe83edc`), and the
+  plan-10 gate is moot under D1. Note: every chart
   edit changes the chart-identity hash 10 defines; that is correct behavior (a different chart is
   a different chart) and needs no coordination beyond awareness.
 - `docs/plans/roadmap/45-editor-theme-and-string-colors.md` — when the shared string-color palette
@@ -523,13 +525,15 @@ original intent, not as remaining work.
   deliverable, **Phase 11** below. Nothing else in Phase 4 waits on it.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
-### Phase 5 — Technique and note-property editing — ATTACK SLICE LANDED EARLY
+### Phase 5 — Technique and note-property editing — ALL NOTE-LOCAL VERBS SHIPPED
 
-**The attack verb already shipped, outside this plan.** `docs/plans/roadmap/55-pick-slide-notation.md`
-needed it, so `planSetAttack` lives in `chart_edits.h` today with the scrape-safe planners beside
-it (a pick-slide carrier sheds its other techniques and synthesizes its default path). Re-verify
-what attack coverage exists before executing this phase; the mute/harmonic/vibrato/tremolo/accent
-properties and the §9a mixed-validity feedback are what remain.
+**Every note-local verb has shipped** (the command ids `ChartPickSlideToggle` through
+`ChartPinchHarmonicToggle` in `editor_command_id.h`). The attack verb shipped first, outside this
+plan: `docs/plans/roadmap/55-pick-slide-notation.md` needed it, so `planSetAttack` lives in
+`chart_edits.h` with the scrape-safe planners beside it (a pick-slide carrier sheds its other
+techniques and synthesizes its default path). Mute, harmonic, vibrato, tremolo and accent followed.
+What remains is the §9a counted mixed-validity feedback, delivered through the refusal flash
+(`docs/plans/in-progress/refusal-flash.md`).
 
 **The connection family is DONE as of 2026-08-11** and is the pattern the remaining verbs should
 copy. `L` (`ChartLegatoToggle`) and `Shift+T` (`ChartLeftTap`) — default chords since the
@@ -547,15 +551,15 @@ the model doc), so nothing else in this phase needs one.
 
 - **Scope**: attack (pick/pinch/legato/leftTap/tap/pop/slap/pickSlide), mute (none/palm/full), the
   harmonic — which is the `harmonic_node` numeric entry, since a node's presence is what makes a
-  note a harmonic and `Pinch` is an attack — vibrato (whole-note bool until
-  Phase 7's gated sub-scope), tremolo, accent. Shortcuts follow the settlement's §9a
-  mixed-validity policy (2026-07-18 rewrite — the earlier "cycle or toggle on the selection"
-  wording predates it): validate per note, apply where valid with explicit counted feedback,
-  never blind-cycle a mixed selection, and never author an invalid state. A context menu
-  exposes the same intents (single source of truth in the controller) — the note-properties
-  strip was dropped with §7's 2026-07-17 settlement; techniques are selection toggles and
-  chord metadata lives in the span dialog. Applying a property to an N-note selection is one
-  compound undo entry — the first multi-edit lands here.
+  note a harmonic and `Pinch` is an attack — vibrato (per-leg vibrato shipped 2026-09-24
+  (`cfe83edc`); the plan-10 gate is moot under D1), tremolo, accent. Shortcuts follow the
+  settlement's §9a mixed-validity policy (2026-07-18 rewrite — the earlier "cycle or toggle on
+  the selection" wording predates it): validate per note, apply where valid with explicit
+  counted feedback, never blind-cycle a mixed selection, and never author an invalid state. A
+  context menu exposes the same intents (single source of truth in the controller) — the
+  note-properties strip was dropped with §7's 2026-07-17 settlement; techniques are selection
+  toggles and chord metadata lives in the span dialog. Applying a property to an N-note
+  selection is one compound undo entry — the first multi-edit lands here.
 - **Files**: editor-core `src/chart/` edits/handlers; `tab_view.cpp` (context menu), possibly a
   small properties component under `rock-hero-editor/ui/src/tab/`.
 - **Public-header impact**: intents + view-state only.
@@ -566,7 +570,12 @@ the model doc), so nothing else in this phase needs one.
 - **Exit criteria**: every `ChartNote` field authorable except bend/slides/vibrato-spans.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
-### Phase 6 — L-link merge and split commands
+### Phase 6 — L-link merge and split — SHIPPED as the Shift+L junction toggle and the digit cut
+
+Shipped in another form (see `docs/plans/in-progress/ring-ends-and-authoring-planes.md`): `L` became
+the legato verb, and split / join are the `Shift+L` junction toggle (`ChartJunctionToggle`,
+`planToggleJunctions`). A digit typed inside a ring cuts it (`planCutRing`, `5d0cb384`). The scope
+below is the original plan, kept for the record.
 
 - **Scope**: decision 3, restated for the marker model and the uniform-scope law (2026-07-18):
   L acts on the SELECTION — each selected note merges into its own same-string predecessor,
@@ -588,7 +597,12 @@ the model doc), so nothing else in this phase needs one.
 - **Exit criteria**: L and split work as specified and validate clean afterward.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
-### Phase 7 — Curve payload editors: bends, slide keyframes, vibrato spans
+### Phase 7 — Curve payload editors — SLIDE KEYFRAMES AND VIBRATO SHIPPED; BEND (`B`) REMAINS
+
+Slide keyframes are authorable: create through `Insert` / `Alt+Insert` and the `Alt`+digit ring
+plane, plus keyframe retype, fret shift and offset move (release plan tasks G1–G3 and G6). Vibrato
+is a per-leg width on the onset and on each keyframe (`cfe83edc`, 2026-09-24). What remains is the
+`B` bend verb (release plan Phase 3).
 
 - **Scope**: direct manipulation on the sustain tail. Bend points: add (**`B` at the armed caret on
   a covered slot** — PLANNED with the entry grammar of 2026-09-11, where a technique letter states
@@ -597,10 +611,10 @@ the model doc), so nothing else in this phase needs one.
   with snap, semitones vertically in free
   granularity — 0.25 curls are already representable), numeric entry, remove; primitives enforce
   ascending offsets within the sustain. Slide keyframes: add/move/remove, toggle unpitched; strictly-positive ascending
-  offsets ≤ sustain enforced. **Gated sub-scope (assumes plan 10's chart-format versioning
-  outcome)**: vibrato spans per decision 6 — span handles on the tail with the
-  canonical-uniqueness rules from the note-format plan; until 10 closes, vibrato stays the
-  whole-note bool and this sub-scope is skipped without blocking the phase.
+  offsets ≤ sustain enforced. **Formerly gated sub-scope (assumed plan 10's chart-format
+  versioning outcome)**: vibrato spans per decision 6 — span handles on the tail with the
+  canonical-uniqueness rules from the note-format plan; per-leg vibrato shipped 2026-09-24
+  (`cfe83edc`), and the plan-10 gate is moot under D1.
 - **Files**: editor-core `src/chart/` primitives/edits; `tab_view.cpp` handle geometry (reusing
   the existing bend/slide drawing paths); `tab_view_state.h` gains handle metadata if hit-testing
   needs it.
@@ -753,7 +767,7 @@ content and stays local-only.
 - **Phases 4-10 are additive editor-core/ui code** behind new intents; each phase reverts as a
   unit without touching earlier phases. Undo-entry classes are append-only — never repurpose an
   existing IEdit's semantics, so mid-plan rollbacks cannot corrupt histories.
-- **Vibrato-span sub-scope (Phase 7)** must not start before plan 10 closes; if 10 changes the
-  spelling, only the span primitives and handle UI are affected — bends/slides are independent.
+- **Vibrato-span sub-scope (Phase 7)**: per-leg vibrato shipped 2026-09-24 (`cfe83edc`); the
+  plan-10 gate is moot under D1.
 - If any phase reveals the line-cap pressure Q4 anticipates, stop, register 40a/40b in
   `docs/plans/roadmap/00-roadmap.md`, and move the remaining scope there rather than compressing phases.

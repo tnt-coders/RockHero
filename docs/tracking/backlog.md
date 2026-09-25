@@ -45,23 +45,10 @@ an armed caret is left with nothing selected, then delete that branch.
 :668, :2153, and the entry sites) and `project_handlers.cpp` (~:1577). `armedChartStringCaret()`
 (added 2026-09-24 for the entry keys) is the one authority; sweep the rest onto it.
 
-## Found by the 2026-09-22 tick-lattice verification
-
-### The corpus census fails five fret-hand cross-check rows, and has since before 2026-09-22
-
-The local Guitar Pro census (`test_corpus_census.cpp`, `[.local-corpus]`) flags five rows against
-their signed baselines: spans crossed by an FHP shift (670 against 400), their interior shifts (769
-against 497), those arriving where nothing fretted sounds (230 against 132), windows arriving over a
-pinned finger (538 against 186) and those pinned rings (1090 against 232). The figures are identical
-at `a4bfed7b`, before that day's margin, hand-approach and tick-lattice commits, so the drift is
-older. The baseline was last set at `9a4c6ccf`; `36b6cbee` ("completed the hand window with the
-rail") and `a4bfed7b` are the commits since. Bisect those two, then either fix the regression or
-re-sign the rows with the cause stated beside them.
-
 ## Found by the 2026-09-07 curtain session
 
 - **Make the kept-sustain bound a user option.** `g_minimum_kept_sustain_seconds`
-  (grid_arithmetic.h) is the ring duration that earns a drawn tail on both surfaces, read by rule 3
+  (grid_arithmetic.h) is the ring duration that earns a drawn tail on both surfaces, read by rule 2
   of `chartPresentation` and nothing else. The value is a taste, not a law, and belongs beside the
   other user options when those land (`docs/plans/todo/`, the user-color customization family) —
   the option exposes that duration in seconds. The plumbing is small: a presentation options value
@@ -91,8 +78,6 @@ re-sign the rows with the cause stated beside them.
   recentring the one cell (a texture-author task) and check the paired code compensation.
 - **Re-read the [D3]/[D4] reach families on a rig-only run.** The node-grip change moved their
   basis to `handFretOf`/`fretFor` in the same commit as the law, so their movement is unattributed.
-  Pair this with the `presented` → `saved` fold-in flip further down this file and run the census
-  once for both.
 - **The display-capability gate is blind to the PREDECESSOR a repeat box stands in for.** A plain
   chord at the same frets immediately after a PINCH chord in the same span still matches the
   repeat identity (a pinch's grip genuinely is its fret) and, carrying no marks of its own, draws
@@ -118,15 +103,8 @@ re-sign the rows with the cause stated beside them.
 
 ## Found in the 2026-08-15 highway visual pass
 
-Both sighted by the user against the technique-showcase package; each carries a ruling.
+Sighted by the user against the technique-showcase package; it carries a ruling.
 
-- **A pick slide's turnarounds are abrupt where an ordinary slide's are eased.** A scrape with
-  direction keyframes kinks at each one, and its slide-out draws unlike an ordinary slide-out.
-  Ruling: a pick slide's keyframes should navigate smoothly exactly as a pitched slide's do, and
-  the terminal should draw the same shape an ordinary slide-out draws. Check whether the easing
-  authority (`highwaySlideEaseWeight`) is simply not reached on the scrape path rather than
-  needing a second easing rule — a scrape is unpitched, so the question is which easing a
-  *travel* gesture takes, not whether pitch eases.
 - **The two notes of a chord wobble in OPPOSITE directions under vibrato**, because
   `highwayBendInverted` answers per note from that note's own lane, and a chord straddling the
   middle of the stack therefore splits. Ruling (user, 2026-08-15): the direction belongs to the
@@ -473,7 +451,7 @@ remains:
   What invites the restatements is upstream: `is_discrete` is derived from
   `discrete_value_count`, yet is carried beside it through the parameter descriptor, the lane
   view state, and the pointer event, leaving every consumer free to re-derive it its own way.
-- Evaluate: the importer's no-landing degradation path forces a DOWNWARD trail-off even when the
+- Evaluate: the importer's no-landing degradation path forces a DOWNWARD slide-out even when the
   notated glide direction is known (consistent with the pre-existing no-landing path, so a
   deliberate change would touch both).
 - Smaller: two remaining copies of `getIndexOfDevice`
@@ -620,14 +598,6 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   still spell out ~14 lines of controller setup each. Hoist one fixture into
   `chart_editing_fixture.h` and convert both suites (~150 lines, mechanical).
 
-- **Census rig: flip the [D4] fold-in to the stored ring** (2026-08-28, from the stage-2b
-  classification-stream ruling): `test_corpus_census.cpp:758` still folds carried strings in off
-  `presented[ringing].sustain`, measuring a reading production no longer has — the walk's fold-in
-  reads the STORED ring. One-line change (`presented` → `saved`), deliberately left out of the 2b
-  verification run so the arpeggio movement stayed attributable to the ruling alone; flip it and
-  run the census on its own so the [D4] carried-fret-distance histograms can be re-read against
-  the stream the rule actually uses.
-
 - **Rebuild the two 2026-08-30 floor lights when their questions are answerable.** Both were
   built, sighted, and **TABLED the same day (user)** — removed from the tree rather than left
   behind a switch, because a shipped feature nobody can rule on is a maintenance cost with no
@@ -734,16 +704,6 @@ Each re-verified against the code before being written down.
   Bounded in practice by the early `break` at the first binding onset — an ordinary tail reads a
   single onset and only a ring reaching past a head walks further — so this is recorded, not
   urgent. Measure before reshaping it; the cost is a function of the corpus, not of the code.
-
-- **`chartPresentation` runs the tail law during import and discards the verdict.** The
-  importer's `presentedNotes` (`gp_chart_builder.cpp` ~:1736) takes only `.notes` off the
-  `ChartPresentation`, so rule 5's per-note `rested_from` marking is computed and dropped on every
-  import. Recorded so the discard stays DELIBERATE rather than becoming an accident nobody
-  re-examines: the pass reads LENGTHS and the law assigns none, and the function's own comment
-  already says so. Cost measured 2026-09-08 and negligible — 0.38 ms median for the whole function
-  against a 31 ms build — so there is nothing to fix here unless the law starts costing more or a
-  caller starts wanting the verdict. If either happens, the shape is a presentation entry point
-  that returns notes alone.
 
 - **Two triplet-feel importer test sections overlap on the rule they pin.**
   `test_gp_song_importer.cpp`'s "a unit off the pair grid, or without a partner, stays straight"
@@ -1153,15 +1113,6 @@ written down.
   two are recorded together as one change to the claim/hand-table seam rather than as two entries
   here — which is a design question, not the small fix this file holds.
 
-- **The importer's let-ring grip statement still reads the plant bare.** `gripStatementAt`
-  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:1889`) is a second spelling of the
-  grip-statement law — its own comment says it seams where the spans break, "one law read off one
-  derived table" — and it did not take the 2026-09-18 harmonic clause, so under a harmonic over a
-  pressed stop the let-ring figure law and the span machine now disagree about what that note
-  states. One condition (`harmonicOverPressedStop`) aligns them. Costs nothing on the corpus (zero
-  such sources), which is also why it was left out of the ruling's own change rather than folded in
-  unmeasured.
-
 ## Carried out of the plans closed on 2026-09-19
 
 - **The tone crossfade has never had its listening pass.** Slice 5e of
@@ -1171,11 +1122,11 @@ written down.
   is assumed rather than known. Three spikes were specified and none was run — (1) bake and rebake
   curve points while playing with a latency-heavy plugin in another branch, diffing the recorded
   output for discontinuities; (2) two branches with step curves, measuring the composite fade
-  envelope (baked ramp times `smoothingRampTimeSeconds`) and tuning the smoothing time from it; (3)
-  with latency compensation off, crossfade between two branches of mismatched latency and confirm
-  the tone-to-tone phase smear is inaudible. Nothing sounds wrong today, which is why this is a
-  measurement owed and not a defect. Run them as offline-render tests where possible, plus a manual
-  listening pass in the app.
+  envelope (baked ramp times `g_smoothing_ramp_seconds` in `tone_branch_gain_plugin.cpp`) and
+  tuning the smoothing time from it; (3) with latency compensation off, crossfade between two
+  branches of mismatched latency and confirm the tone-to-tone phase smear is inaudible. Nothing
+  sounds wrong today, which is why this is a measurement owed and not a defect. Run them as
+  offline-render tests where possible, plus a manual listening pass in the app.
 
 - **Four fret hit-light tuning calls are still open by eye.**
   `docs/plans/completed/fret-hit-light-effect.md` shipped all six phases with its open decisions 1,
@@ -1207,8 +1158,8 @@ against the tree on the date above.
 
 - **The floor law has two live breaches and no single authority.** The highway floor is y = 0 and
   content is raised above it, yet `highway_renderer.cpp` passes `-glyph_height / 2.0` for every
-  scrolling fret number (`:3854`), centering the glyph ON the floor with half its ink below it, and
-  `holder_background` opens its outline at `{-0.01, -0.01}` (`:1578`) inside the function that
+  scrolling fret number (`:3892`), centering the glyph ON the floor with half its ink below it, and
+  `holder_background` opens its outline at `{-0.01, -0.01}` (`:1611`) inside the function that
   declares 0.0 as its floor. Fix those two first; they are small. Then the consolidation: the law
   is restated at about six sites with no `g_floor_y` and nothing a comment can reference, the two
   bare floor-plane literals (0.004, 0.015) are unnamed, and the comment beside `highwayBentNoteY`

@@ -1,7 +1,7 @@
 # Plan 41 — Tempo Map Authoring
 
-**Status:** Ready — Phases 1–5 are executable now; Phase 6 (time-signature editing) is
-decision-gated on open question Q1 below and must not start before it is answered.
+**Status:** Ready — Phases 1–5 are executable now; Phase 6 (time-signature editing) may start on
+provisional 41-Q1 = A (user, 2026-09-19; see Open questions), and G41-TS closes at its sighting.
 Date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
 
 ## Goal
@@ -401,10 +401,11 @@ is a coherent commit (or small series) with imperative subjects.
   the fixture; disabling the toggle restores raw drag behavior exactly.
 - **Verification:** build + touched tests + clang-tidy.
 
-### Phase 6 — Time-signature editing (decision-gated on Q1; phases below assume outcome A)
+### Phase 6 — Time-signature editing (on provisional Q1 = A; phases below assume outcome A)
 
-Do not start before Q1 is answered. If the user picks B or C, replace the transform step with
-the corresponding policy and re-derive the tests; the UI step survives all outcomes.
+May start on provisional 41-Q1 = A (user, 2026-09-19); G41-TS closes at this phase's sighting. If
+that sighting picks B or C instead, replace the transform step with the corresponding policy and
+re-derive the tests; the UI step survives all outcomes.
 
 - **Scope:**
   - Actions `SetTimeSignature{measure,numerator,denominator}` and
@@ -438,14 +439,14 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
     cursor is IN, read from its tick — is RESTATED, reopening the numerator/denominator prompt;
     otherwise one is INSERTED there. Inert while playing and with no song. The click/context
     popover above is the pointer form of the same two verbs, and `Ctrl+Shift+/` is the signature's
-    select chord. Q1 still gates the whole phase.
+    select chord. The whole phase runs on provisional Q1 = A; G41-TS closes at its sighting.
   - Coordinate with docs/plans/roadmap/42-chart-validation.md: post-edit content validation (if any
     residual issues are possible under the chosen outcome) reports through 42's rule set, not a
     plan-local validator.
 - **Public-header impact:** none intended (transform and edits stay `src/`-private).
 - **Testing:** property tests over randomized maps + content (round-trip A→B→A restores tokens
-  exactly; time-preservation invariant: resolved seconds identical within exact fp equality
-  since anchor seconds and quarter positions are untouched); terminal re-seat cases; memento
+  exactly; time-preservation invariant: resolved seconds identical within half a tick (see the
+  tick-lattice note below), since anchor seconds are untouched); terminal re-seat cases; memento
   undo restores the full song slice field-equal; UI popover tests in the harness.
   - **The tick lattice (2026-09-23).** Every stored position must be a whole number of ticks
     (1/3840 of a whole note) and validation refuses one that is not. A global-beat position

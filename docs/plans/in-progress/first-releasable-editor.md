@@ -6,8 +6,8 @@ umbrella plan for **G0** (task #252). It owns the ORDER, the SCOPE and the EXIT 
 design of each step stays in the roadmap plan or design record named beside it, and nothing here
 restates those documents' rules.
 
-Every claim about current code below was verified on 2026-09-19. Re-verify before acting on one —
-nothing keeps it true.
+Every claim about current code below was verified on 2026-09-19, and the status claims were
+re-verified 2026-09-24. Re-verify before acting on one — nothing keeps it true.
 
 ## Release bar
 
@@ -37,12 +37,13 @@ Verified in the tree; listed so nobody rebuilds it. The remaining work is the ph
 
 - Typed note entry, delete, fret typing, sustain resize, selection move, one-undo gesture bursts
   (plan 40 Phase 4; only pointer drag-move remains, see Decisions).
-- Every supported note-local technique verb: mute, palm mute, vibrato, tremolo, accent, ghost (`G`),
-  pick slide, legato (`L`), left-hand tap (`Shift+T`), natural and pinch harmonics (`H` /
-  `Shift+H` with the node picker).
+- Every supported note-local technique verb: mute, palm mute, vibrato (`V` / `Shift+V`, per leg,
+  on heads and selected keyframes), tremolo, accent, ghost (`G`), pick slide, legato (`L`),
+  left-hand tap (`Shift+T`), natural and pinch harmonics (`H` / `Shift+H` with the node picker).
 - Slide and keyframe authoring: keyframe retype / fret shift / offset move, the slide-out as the
-  release keyframe, keyframe create through the `Insert` ghost, and the `Shift+L` tie / slide link
-  (tasks G1–G3 and G6, all done).
+  release keyframe, keyframe create on the ring plane (`Alt`+digit, `Alt+Insert`), the bare
+  digit's cut of a ring (`planCutRing`, `5d0cb384`), and the `Shift+L` tie / slide link (tasks
+  G1–G3 and G6, all done).
 - Sections (`Ctrl+M`) and tone regions (`Ctrl+T`) under the marker verb grammar, with tone parameter
   automation lanes.
 - The grid-snap switch and the one placement quantum; the chart keybind-discovery menu; the
@@ -109,8 +110,8 @@ unenforced rulings, and a set of defects on supported material.
   goes to the log — NOT a status line or toast, which is the proposal it replaced and the wording
   this entry carried until the ruling was recovered on 2026-09-21. `IEditorView::showNotice` is the
   modal load-time notice, not this. Three reports wait on it, and only the first exists in code:
-  the legato verb's skip (`ChartLegatoPlan`, whose count-and-dominant-reason shape changes to the
-  refused notes themselves), the harmonic picker's skip, and the mixed-validity report for
+  the legato verb's skip (`ChartLegatoPlan`, which already returns the refused notes with their
+  reasons, `aa9b9491`, unwired), the harmonic picker's skip, and the mixed-validity report for
   technique and keyframe edits (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on
   an ineligible selection is a dead key.
 - **The slide tail lock — BUILT, and closed 2026-09-21** (W6, roadmap 40-Q5). This entry said a
@@ -140,10 +141,11 @@ unenforced rulings, and a set of defects on supported material.
   The three SILENT-release routes beside it are CLOSED (user ruling, 2026-09-21): a landing on a
   keyframe repeating the fret in force, a `clipPayloadsToSustain` that turns a TRAVELLING release
   silent by erasing the junction it travelled from, and a digit typed under `Alt` at a ring's exact
-  end naming the fret already in force (`chartCaretDigitTarget`). A release that says nothing has no
-  face and no handle — unlike an interior point, which the charter can see and reach — so the plan
-  gate dissolves it in the edit that made it (`common::core::dissolveSilentRelease`): the first two
-  now come out with no release at all, and the third is a `NoChange` no-op that authors nothing.
+  end naming the fret already in force (now `chartEntryTarget`, `5d0cb384`). A release that says
+  nothing is authoring state under the keyframe commit law — never written, and dissolved when its
+  note leaves focus (`dissolveSilentKeyframes`); `dissolveSilentRelease` went with `dc20b003`
+  (2026-09-22). The `Alt` press at a ring's end naming the fret in force plants such a statement
+  and is a refusal-flash consumer (`refusal-flash.md`).
 - **Inserting a note can no longer clip a neighbour's keyframes silently** (closed 2026-09-23):
   the plan gate's `normalizeSustainOverlaps` reports a truncation that lost an authored statement
   and `finalizePlan` refuses on it for every verb, insert and move alike, in both directions
@@ -173,12 +175,12 @@ unenforced rulings, and a set of defects on supported material.
   the mark, or record the divergence deliberately — see D4.
 - **Defects on supported material**, each a release blocker under corollary 1 unless D5 rules
   otherwise: open strings ringing ~49 beats under the let-ring phrase cap (task #271 — FIXED
-  2026-09-19 by bounding the phrase at its marked run; awaiting a re-sighting, and the census's
-  signed derivation rows need re-signing); the all-palm-muted chord repeat box dropping other marks (#267);
-  pick-slide turnaround easing (#268); chord bend/vibrato direction per onset group (#274); the
-  section insert resolving its position on prompt ACCEPT rather than key press
-  (`docs/tracking/backlog.md`); **undo not resyncing the audible tone** (`marker-verb-grammar.md`,
-  "Not done, deliberately" — blocked on the live-rig test fake).
+  2026-09-19 by bounding the phrase at its marked run, census re-pinned 2026-09-20 `4a10e833`;
+  awaiting only its re-sighting); the all-palm-muted chord repeat box dropping other marks
+  (#267); ~~pick-slide turnaround easing (#268)~~ — closed 2026-09-24 (`eb5aaa3c`, curve
+  `3648d500`); chord bend/vibrato direction per onset group (#274); **undo not resyncing the
+  audible tone while paused** (`docs/tracking/backlog.md`; the fake's per-tone half is done, the
+  harness half blocks).
 
 Exit: every supported note-local field has an editor verb, reports what it skipped, round-trips
 through save and reopen, and draws the same fact on both surfaces.
@@ -194,8 +196,9 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   drawn bend geometry. No other document enumerates the eight, so they are listed here: (1) the trim
   floor's value (the floor itself is gone with the ring-ends plan; `g_minimum_slide_window` now
   lives in the editor's `pick_slide_defaults.h`); (2) the
-  coincident-onset vibrato overwrite; (3) the importer's vibrato-anchor wording; (4) the
-  disconnect's unstruck-tie default, marked UNSIGNED in `chart_edits.cpp` (the same ruling Phase 2
+  coincident-onset vibrato overwrite; (3) the importer's vibrato-anchor wording (2 and 3 may be
+  overtaken by per-leg vibrato, `cfe83edc` / `21f96ed2`; re-verify before the session); (4) the
+  disconnect's unstruck-tie default, marked PROPOSAL in `chart_edits.h` (the same ruling Phase 2
   names); (5) W9-F; (6) W9-G; (7) legato-merged bend chains gain the onset chip; (8) a bend across a
   junction gains its glow arrival.
 - **W9-F with W9-D's glyph** — how 2D says *pitched* versus *falls away*; 3D already dims an
@@ -368,9 +371,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   seams. An AUTHORED `held` is the charter stating the finger is there, and attaches to the span
   as today. Built with the pull-off span fix in Phase 2.
 - **D5 — Which listed defects block. RULED 2026-09-19 (user): all of them.** #271 (open-string
-  ring, fixed the same day), undo-not-resyncing the tone and the section-insert position make
-  authored material play or land wrongly; #267, #268 and #274 are display defects on supported
-  techniques and all three are fixed before release — none is ruled tolerable.
+  ring, fixed the same day) and undo-not-resyncing the tone make authored material play wrongly
+  (the section-insert position, listed here at the ruling, was already fixed by `14be7ce5`,
+  2026-09-13); #267 and #274 are display defects on supported techniques and both are fixed
+  before release — none is ruled tolerable; #268 closed 2026-09-24.
 - **D6 — Forced chord naming** with a name-suggestion algorithm
   (`chart-span-and-selection-model.md` §3). **RULED 2026-09-19 (user):** it belongs to the template
   and chord-dictionary work (Phase 4, plan 60 Phase 5), and a span WITHOUT a template is acceptable
@@ -412,6 +416,8 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   (plan 54), fret hit-light tuning, the camera lead (#269), the FOV pin (#273), the head-mark order
   audit (#275), the floor-law breaches and consolidation (#276), the triple-projection cost watch item.
 - The smooth-scroll camera (parked), the cross-platform port, C++26.
+- Plan 62 (per-song kept-sustain bound) — superseded; it survives only as a watch item's remedy
+  (`docs/tracking/watch-items.md`).
 
 ## Task-list audit (2026-09-19)
 
@@ -436,8 +442,11 @@ the only one that orders work.
 |---|---|---|
 | `00-start-here.md` | Cold-open snapshot for the next session | — |
 | `technique-review-walkthrough.md` | LIVE decision queue (W5, W6, W9-D/F/G, W10 default, W13 display) | Phases 2, 3 |
-| `harmonic-display-followups.md` | Follow-ups #2, #4, #9 live; the rest parked | Phase 2 |
+| `harmonic-display-followups.md` | Follow-ups #2, #4 live; #9 built; the rest parked | Phase 2 |
 | `refusal-flash.md` | Task #278's ruled direction, build shape and open questions F1–F7 | Phase 2 |
+| `derived-shift-slide.md` | SIGNED and BUILT record; key half superseded by the ring-ends plan | Phase 2 |
+| `ring-ends-and-authoring-planes.md` | The ring's-end display and the lane's two authoring planes; both phases BUILT, phase 2 awaiting its entry-flow sighting | Phase 2 |
+| `keyframe-and-burst-ground-up.md` | Unsigned PROPOSAL, ground-up review of keyframes, the release and the undo burst | Phase 3 |
 | `highway-note-art-state.md` | 3D note-art state record; holds the bend anchor decision | Phase 3 |
 | `fhp-derivation-algorithm.md` | Evidence and the five rulings behind 60-Q1..Q5 | Phase 4 |
 | `span-derivation-ground-up.md` | The built span law; cited from `chart_shapes.cpp` | Phases 2, 4 |
@@ -449,7 +458,7 @@ the only one that orders work.
 | `keymap-matrix.md` | The signed keymap and plan 53's tracking artifact | Phases 1–5 |
 | `marker-verb-grammar.md` | Marker grammar + the new-marker-kind checklist; awaiting review | Phases 1, 4, 6 |
 | `legato-authoring-model.md`, `legato-final-spec.md` | The legato record and its signed ruling | Phase 2 (counted skip) |
-| `note-sustain-model.md` | Stored-actual / presented model; cited from eight headers | Phase 4 (#59) |
+| `note-sustain-model.md` | Stored-actual / presented model; cited from three headers | Phase 4 (#59) |
 | `note-format-and-tablature-plan.md` | Format rationale, reference only; live spec is `docs/developer/file-formats.md` | — |
 | `developer-guide-completion.md` | Standing coverage registry — belongs in `docs/tracking/`, see note | — |
 
@@ -467,9 +476,14 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    ring ("a note belongs to the span that contains its onset"; `chart-ruleset.md`, with the
    reopening trigger in `docs/tracking/watch-items.md`), and the corpus census re-pinned after it
    with every row made able to fail.
-2. **Current.** Land the ungated work while gates are signed: the refusal flash
+2. Done 2026-09-21..24, unplanned here but on the path: the tick lattice (`a6455969`,
+   `ce0db3a2`), the derived shift slide (`3e5fceae`, `dc20b003`), the ring-ends plan's two phases
+   and its alongside gate (`da74d79b`..`5d0cb384`, `df5ef1ab`), per-leg vibrato (`cfe83edc`), the
+   span-law fixes (`902da3de`, `9d095609`, `25640d82`), the pick-slide turnarounds (`eb5aaa3c`).
+   Ring-ends phase 2 still awaits its entry-flow sighting.
+3. **Current.** Land the ungated work while gates are signed: the refusal flash
    (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
    signed before Phase 2's verbs are wired: #277's placement and the unstruck-tie default.
-3. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
+4. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
    sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,
    #59 and the authored-span extend law) and G52-RANGE-EDIT.

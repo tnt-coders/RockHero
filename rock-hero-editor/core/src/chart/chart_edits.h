@@ -738,7 +738,7 @@ binary-search this precondition).
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps);
 
-/*! \brief Why an `H` press left a selected note as it found it. */
+/*! \brief Why an `L` press left a selected note as it found it. */
 enum class ChartLegatoSkip : std::uint8_t
 {
     /*! \brief The onset is the picking hand's (tap, pinch, scrape) — no connection describes it. */
@@ -765,7 +765,7 @@ struct ChartLegatoRefusal
 };
 
 /*!
-\brief One `H` press's outcome: the change to apply, and the notes the resolver refused.
+\brief One `L` press's outcome: the change to apply, and the notes the resolver refused.
 
 The refusal channel exists so an all-skipped press is never a dead key. It names only notes the
 resolver REFUSED — a note already carrying the claim the press would set is unchanged, not refused,

@@ -2,11 +2,13 @@
 
 Status: DESIGN DECIDED 2026-09-23, reviewed the same day (three read-only reviewers; every finding
 folded in below). Phase 1 BUILT 2026-09-23 (1a `da74d79b`, 1b `a6cf2f88`, 1c `736adbe3`) and the
-alongside item (`df5ef1ab`), each with its own simplicity review folded in; phase 1 awaits its
-sighting, and phase 2's provisional rulings are re-read against that sighted lane before it starts. Merges and replaces `chart-lane-authoring-planes.md` and
-`ring-end-display.md`. Baseline: HEAD `ce0db3a2` (the tick-lattice follow-up has landed: every
-editor verb produces lattice positions, restored carets snap onto ticks). Re-verify every code
-claim below against the tree before a phase starts; line numbers are as of the baseline.
+alongside item (`df5ef1ab`), each with its own simplicity review folded in; phase 1 sighted
+2026-09-23..24 (fixes `db51a7fa`, `7a17b62e`, `3449f271`, `6fffd40f`); phase 2 BUILT 2026-09-24
+(`5d0cb384`), awaiting its entry-flow sighting. Merges and replaces
+`chart-lane-authoring-planes.md` and `ring-end-display.md`. Baseline: HEAD `ce0db3a2` (the
+tick-lattice follow-up has landed: every editor verb produces lattice positions, restored carets
+snap onto ticks). Re-verify every code claim below against the tree before a phase starts; line
+numbers are as of the baseline.
 
 The two halves are one design because they meet at the ring's end: the display decides where a
 ring's ink stops and what is judged, the keys decide what reaches the ring's end, and each assumes
@@ -464,7 +466,7 @@ compile at every site.
 
 ## Open decisions
 
-None open for phase 1; phase 2's rulings are provisional (see that phase). Decided 2026-09-23
+None open; phase 2's rulings were re-read against the sighted lane and stand. Decided 2026-09-23
 and recorded where they apply: scoring is the ink (*The display*); no 3D label and a hard 2D
 crop (display items 4 and 5); the reveals return with their satellites (item 6); `Alt`+digit
 stays and the uniform-scope law is amended (*The keys*); the bare digit cuts (*Why the bare

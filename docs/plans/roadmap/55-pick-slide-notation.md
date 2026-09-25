@@ -5,9 +5,11 @@
 highway treatment signed on sight 2026-08-05; the verb layer 2026-08-05. No sight gate remains:
 55-Q1's head was signed 2026-08-04, and the 3D mark was superseded 2026-08-06 by the split
 plectrum. Remaining: the acceptance bundle (the measure-20 sight sign, the measure-3 local byte
-check, corpus smoke) and the queued head-texture revision as its own later pass. 55-Q2 (authoring)
-largely dissolved into ordinary note verbs; its remainder — the toggle's UI surface and chord, and
-path-keyframe reshaping — folds into plan 40.
+check, corpus smoke) and the queued head-texture revision as its own later pass. The measure-20
+sight sign needs a fresh look: since 2026-09-24 (`eb5aaa3c`) a scrape's turnarounds take the
+pitched curve and only its terminal slide-out is unpitched. 55-Q2 (authoring) largely dissolved
+into ordinary note verbs; the toggle is bound (`Shift+X`, `ChartPickSlideToggle`), so its
+remainder is path-keyframe reshaping only, which folds into plan 40.
 Baseline `master @ 84bdfe32`.
 
 ## Goal
@@ -217,17 +219,18 @@ language on the 3D highway and the 2D tab.
   gradient), and finally a full renderer-side `texture_glow` blur program — built through all
   six shader touchpoints, then removed the same day when the noise redefinition made every
   white-glow differentiator moot. The moving right-hand light sweeps its glide segments with
-  the arrival keyframe's own ease (stations carry an unpitched flag) at span-scaled slice
-  density — the fixed six slices and pitched ease that served tapped glides faceted a
-  scrape's dozen-fret legs into rough edges. The root impact shards — the comet proposal's
-  last surviving flourish, two slivers flaring back from the bite — were built and DELETED on
-  sight 2026-08-05 ("added nothing of value", user); the bite needs no debris: the X head, the
-  V, and the teeth already carry the whole scrape identity. Do not revive them as static board
-  geometry in any form. If anything ever returns here it would be genuine particle animation —
-  sparks or fire igniting the note as it is HIT and traveling down the sustain tail (user
-  direction 2026-08-05) — which is hit-moment gameplay feedback, not board notation: probably
-  game-only, editor participation undecided, and not wanted now. That idea belongs with plan
-  24's hit-feedback territory if it ever graduates.
+  the arrival keyframe's own ease at span-scaled slice density — the fixed six slices that
+  served tapped glides faceted a scrape's dozen-fret legs into rough edges. (Superseded
+  2026-09-24, `eb5aaa3c`: only the terminal slide-out is unpitched; a scrape's turnarounds take
+  the pitched curve, and the whole-path dim reads the attack.) The root impact shards — the
+  comet proposal's last surviving flourish, two slivers flaring back from the bite — were built
+  and DELETED on sight 2026-08-05 ("added nothing of value", user); the bite needs no debris:
+  the X head, the V, and the teeth already carry the whole scrape identity. Do not revive them
+  as static board geometry in any form. If anything ever returns here it would be genuine
+  particle animation — sparks or fire igniting the note as it is HIT and traveling down the
+  sustain tail (user direction 2026-08-05) — which is hit-moment gameplay feedback, not board
+  notation: probably game-only, editor participation undecided, and not wanted now. That idea
+  belongs with plan 24's hit-feedback territory if it ever graduates.
 - **Tail treatment REVERSED 2026-08-09 (user), and junctions gained heads.** Two changes,
   recorded fully as D17 and D18 in `docs/plans/in-progress/technique-review-walkthrough.md`:
   1. **The teeth mean REPEATED ATTACKS, so a scrape wears none** (`0cebd5cf`). It is one
@@ -259,12 +262,14 @@ language on the 3D highway and the 2D tab.
    Both projections suppress the latent overrides — and since 2026-08-09 they do it by calling
    `savedChartNote` rather than restating the field list, so the document and both surfaces cannot
    disagree about what a saved scrape is (the rule had been written three times, each site
-   claiming to be "the one seam"). Scrape keyframes are marked unpitched, and their turnarounds
-   are LINKED (revised: they were unlinked, which denied that the pick stays on the string through
-   a direction change). The unpitched marking routes the whole 3D path through the existing
-   unpitched-glide machinery and keeps scrape legs out of the hand window's slide-locked ramps
-   (pinned by test; the scrape drives the Phase 4 moving right-hand light while contributing
-   nothing to the hand window). The tab draws: mute X + plate over the digit, white mute-styled V
+   claiming to be "the one seam"). Only a scrape's terminal slide-out is unpitched (since
+   2026-09-24, `eb5aaa3c`; every scrape keyframe was marked unpitched before, which cornered the
+   rail at each turnaround): its turnarounds take the pitched curve and are LINKED (revised: they
+   were unlinked, which denied that the pick stays on the string through a direction change), and
+   the rail dims the whole path by reading the attack. Scrape legs stay out of the hand window's
+   slide-locked ramps through the `rightHandOnset` predicate (pinned by test; the scrape drives
+   the Phase 4 moving right-hand light while contributing nothing to the hand window). The tab
+   draws: mute X + plate over the digit, white mute-styled V
    above the head, a PLAIN ribbon (no teeth — see the reversal above) with slide diagonals
    carrying the travel, a plectrum continuation head at each turnaround, and a chip only at the
    unpitched terminal.
@@ -314,9 +319,9 @@ language on the 3D highway and the 2D tab.
    TERMINAL keyframe legally sits exactly on the silencing next onset (truncation parks the
    sustain, and therefore the terminal, right there — the keyframe-on-onset rule otherwise
    made adjacency-truncated scrapes unrepresentable); interiors stay bound, both pinned.
-   Deliberately deferred: the toggle's UI surface awaits plan 40 Phase 5's technique surface
-   and a user keybind pick (no technique key exists in the signed keymap); path-keyframe
-   reshaping awaits plan 40 Phase 7's curve editors.
+   Deferred then: the toggle's UI surface and keybind — since bound (`Shift+X`,
+   `ChartPickSlideToggle`); path-keyframe reshaping, the one remainder, awaits plan 40 Phase 7's
+   curve editors.
    **Exit.** Acceptance below in full — remaining: the measure-20 sight item (held with the
    Phase 4 visual redesign), the measure-3 byte-identical clause (no committable baseline can
    exist under the corpus firewall; the figure class is value-pinned by regression test — the

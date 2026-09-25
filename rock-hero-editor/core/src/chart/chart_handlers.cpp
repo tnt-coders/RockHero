@@ -3537,7 +3537,7 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartSlotKey>& 
         return;
     }
     // A press that changed nothing is SILENT, exactly like every other technique verb that applies
-    // nothing: selecting a phrase's first note and pressing H is the commonest press there is, and
+    // nothing: selecting a phrase's first note and pressing L is the commonest press there is, and
     // it is not an error. `planned.refused` still names every note the resolver turned down and why
     // — that IS the feedback payload — but the only reporting seam the view offers today is a modal
     // "Could not complete request" box, which interrupts a keystroke to say nothing failed. The

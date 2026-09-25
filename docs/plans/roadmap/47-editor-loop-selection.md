@@ -3,9 +3,11 @@
 ## 1. Status
 
 Ready — 2026-07-07 — baseline `refactor @ 0ffb6efe`. Open questions Q1–Q3 below carry
-recommendations and are mirrored into docs/plans/roadmap/00-roadmap.md (Decisions needed); Phase 1 is
-executable now and is coordinated with docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 1 and
-docs/plans/roadmap/28-practice-mode.md Phase 2 by the whichever-executes-first rule in Decisions below.
+recommendations and are mirrored into docs/plans/roadmap/00-roadmap.md (Decisions needed).
+Phase 1 LANDED via docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 1 (2026-07-11)
+under the whichever-executes-first rule in Decisions below (record at Phase 1). Phases 2–4 are in
+G0 scope (docs/plans/in-progress/first-releasable-editor.md, D3, 2026-09-19). Phase 4 assumes
+Q2 = B, but the user leans C; answer Q2 jointly with 52-Q7.
 
 > **AMENDED 2026-07-20 by the settled editor keymap** (see
 > docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md and

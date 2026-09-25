@@ -59,15 +59,18 @@ token, behaviour under key repeat, and any 3D treatment.
 Task #278 read "the one non-modal notice channel (status bar / toast)" and the release plan called
 four payloads "built and waiting" for it. Neither survives:
 
-- **Only one of the four payloads exists.** `ChartLegatoPlan{plan, skipped, reason}`
+- **Only one of the four payloads exists.** `ChartLegatoPlan{plan, refused}`
   (`rock-hero-editor/core/src/chart/chart_edits.h`) is produced and read nowhere outside tests. The
   harmonic picker's skip reason is three bare `return`s in `chart_handlers.cpp`; the slide-tail
-  clip is `clipPayloadsToSustain` returning `void`; the mixed-validity count is doc-only.
-- **The count-plus-dominant-reason shape is the wrong shape for a flash.** A flash needs the
-  refused elements' identities. `planSetLegato` already walks each note and knows each one's
-  reason; it folds that into a tally and then a single dominant reason, discarding what the flash
-  and the log both need. Returning the refused notes with their reasons REMOVES the tally array and
-  the dominant-reason fold, and the count is the list's size. One datum, stored once.
+  clip, `clipPayloadsToSustain`, now returns whether it lost an authored statement, carried per
+  truncation as `TailTruncation`, and `finalizePlan` refuses on it (`df5ef1ab`) — a refusal with
+  no flash yet; the mixed-validity count is doc-only.
+- **The count-plus-dominant-reason shape was the wrong shape for a flash — DONE for
+  `ChartLegatoPlan` (`aa9b9491`).** A flash needs the refused elements' identities. `planSetLegato`
+  walked each note and knew each one's reason, then folded that into a tally and a single dominant
+  reason, discarding what the flash and the log both need. It now returns the refused notes with
+  their reasons: the tally array and the dominant-reason fold are gone, and the count is the
+  list's size. One datum, stored once.
 - **§9a's "applied to 7 of 8" sentence has no screen to live on** and needs none: the seven changed
   and the one glowed. "Never silent partial application" is met by the flash. The sentence becomes
   the log line.
@@ -80,9 +83,9 @@ four payloads "built and waiting" for it. Neither survives:
 Settled by the ruling and the code as it stands; small enough to build in one pass.
 
 1. **Core: refusals carry identities.** A verb's outcome names the selected elements it turned
-   down, each with its reason. `ChartLegatoPlan` changes to that shape first; the other per-note
-   verbs (`planSetAttack`, `planSetHarmonic`, `planSetNoteFlag`, the keyframe verbs) follow the
-   same return as they are wired. A whole-plan `Invalid` refuses every selected element.
+   down, each with its reason. `ChartLegatoPlan` has that shape (done, `aa9b9491`); the other
+   per-note verbs (`planSetAttack`, `planSetHarmonic`, `planSetNoteFlag`, the keyframe verbs)
+   follow the same return as they are wired. A whole-plan `Invalid` refuses every selected element.
 2. **Controller: one report path.** One function takes a refusal — elements and reasons — writes
    the log lines and asks the view to flash. Every verb head calls it; none formats its own
    message.

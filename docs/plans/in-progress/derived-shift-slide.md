@@ -1,8 +1,11 @@
 # The shift slide as a derived fact
 
-Status: SIGNED 2026-09-21 (the user: "I think that is the one. Implement that"), with the two amendments below; building. Follows the store-the-truth work (`9dc24935`,
-`0ee88bd3`, `e7c42407`, `181d3e27`) and is built on a read-only study of the code at `e7c42407`;
-its findings and the two rulings taken so far are recorded in `keyframe-and-burst-ground-up.md`.
+Status: SIGNED 2026-09-21 (the user: "I think that is the one. Implement that"), with the two
+amendments below; BUILT 2026-09-22 (`3e5fceae`, `dc20b003`); its key half superseded by
+`ring-ends-and-authoring-planes.md` Phase 2 (`5d0cb384`). Follows the store-the-truth work
+(`9dc24935`, `0ee88bd3`, `e7c42407`, `181d3e27`) and is built on a read-only study of the code at
+`e7c42407`; its findings and the two rulings taken so far are recorded in
+`keyframe-and-burst-ground-up.md`.
 Every code claim below carries that date.
 
 ## The claim
@@ -78,9 +81,10 @@ here and the text below is amended to match.
 
 Built as signed, with six things worth recording:
 
-- `Insert` is the command the registry already had, spelled `InsertLanePoint` ("Insert Lane Point",
-  `0x1707`) rather than `NeutralInsert` as `keymap-matrix.md` named it; the matrix row now names the
-  code. The chart lane IS a lane and its keyframe IS a point, so the name stayed and the doc moved.
+- `Insert` is the command the registry already had, spelled `InsertAtCaret` ("Insert at Caret",
+  `0x1707`; `InsertLanePoint` when built, renamed at `5d0cb384`) rather than `NeutralInsert` as
+  `keymap-matrix.md` named it; the matrix row now names the code. The chart lane IS a lane and its
+  keyframe IS a point, so the name stayed then and the doc moved.
 - The entry settles in the arming keystroke rather than arming the window: the value arrives WHOLE,
   so no digit could widen it, and a refused one shows no red box — there is no provisional digit for
   a box to display.
@@ -252,9 +256,9 @@ end).
 
 ## Order
 
-After the user has sighted the store-the-truth work. Then as one change set: the predicate and its
-vector; the slide-out family re-homed onto it; the importer and split deletions; rule 6; the
-presentation cases; tests and the developer guide (`the-project-lifecycle.md` import rule 13,
-`the-editor-2d-views.md`, `file-formats.md`'s keyframe row). Re-import the corpus afterwards so the
-files hold the arrival on the head; the presented corpus must be unchanged, which is the
-acceptance test.
+(historical — executed 2026-09-22) After the user has sighted the store-the-truth work. Then as
+one change set: the predicate and its vector; the slide-out family re-homed onto it; the importer
+and split deletions; rule 6; the presentation cases; tests and the developer guide
+(`the-project-lifecycle.md` import rule 13, `the-editor-2d-views.md`, `file-formats.md`'s keyframe
+row). Re-import the corpus afterwards so the files hold the arrival on the head; the presented
+corpus must be unchanged, which is the acceptance test.

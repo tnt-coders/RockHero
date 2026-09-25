@@ -1,7 +1,7 @@
 # Start Here
 
 *Snapshot taken 2026-09-18 at the end of a session, so the next one can open cold. The release-plan
-section was amended 2026-09-19.*
+section was amended 2026-09-19, and the status claims were refreshed 2026-09-24.*
 
 **The session task list is authoritative; this file is a convenience copy.** Where the two
 disagree, believe the task list and fix this file. Re-verify anything here against the code before
@@ -24,8 +24,9 @@ Full statement of the law, and why it is shaped this way, is in
 ## Sighting queue
 
 Signed 2026-09-18: **P4** sections from the keyboard, **P6** the typed-note entry grammar,
-**P7** the marker grammar and menu plane, **P8** the shift-slide look and hand-window ramp.
-Already signed before that: P1, P2, P2b, P3, P9.
+**P7** the marker grammar and menu plane, **P8** the shift-slide look and hand-window ramp (the
+look was redrawn after signing: arrival on the head `3e5fceae`, chip dropped `6fffd40f`, one
+morph `db51a7fa` — the sighted fixes carry it). Already signed before that: P1, P2, P2b, P3, P9.
 
 Withdrawn: **P5**, the harmonic verbs `H` and `Shift+H` with the node picker, went back into ACTIVE
 WORK before being sighted. Its keymap rows stay PROVISIONAL and it needs a fresh sighting item once
@@ -45,13 +46,9 @@ Still open:
   not: bounded by bar-long silence alone, a song with no such rest was one phrase, so the open G
   rang toward a let-ring mark 36 bars later. A phrase is now a run of consecutive MARKED figures;
   the note stores 1 beat. The corpus moves with it (arpeggio spans 1535 → 1399, since fewer
-  runaway open rings fold into span onsets), and the census's signed derivation rows were ALREADY
-  stale at the commit before — `trigger-4-only flips` fails its enforced check at 94 against a
-  pinned 106 without this change — so those rows need re-signing either way.
-- **The section insert resolves its position when the prompt is ACCEPTED, not when the key is
-  pressed**, so a section added while the transport rolls lands where the playhead drifted to.
-  Written up with the fix spelled out at the end of `docs/tracking/backlog.md`. The tone marker does
-  NOT have this bug; it captures at press time and carries the position through its picker callback.
+  runaway open rings fold into span onsets); census re-pinned 2026-09-20 (`4a10e833`); the
+  current drift is registered in `docs/tracking/watch-items.md`; the Chop Suey re-sighting is
+  still owed.
 
 ## Awaiting review
 
@@ -71,7 +68,8 @@ gates on the path, seven phases with exits, nine decisions (D1–D9), all ruled 
 what is out of scope. The pull-off span defect and the two things it surfaced (the zero-length
 span, the carried-ring founding rule) closed 2026-09-20, so **its next action is the ungated
 builds**: the refusal flash (#278, `refusal-flash.md`), plan 60 Phase 0, plan 41 Phases 1–2,
-tuning / capo.
+tuning / capo. What actually ran from 2026-09-21 to 09-24 was the tick lattice, the derived shift
+slide, the ring-ends plan's phases 1–2 and per-leg vibrato; the ungated list has not started.
 
 FHPs / span markers are in scope through plan 60's hand marker, as are New Chart,
 tempo/time-signature authoring, tuning/capo/cent-offsets, bend authoring, bulk editing and harmonic
@@ -80,7 +78,8 @@ it becomes release scope only if they are re-enabled before release.
 
 This folder was sorted on 2026-09-19. Eleven documents whose work was verified shipped moved to
 `docs/plans/completed/`. Everything left here besides the release plan is a companion record —
-the release plan's closing table says what each one is and which phase it feeds.
+the release plan's closing table says what each one is and which phase it feeds; three records
+added since (derived shift slide, ring ends, keyframe ground-up) are now in that table.
 
 ## Not covered here
 
