@@ -1,7 +1,8 @@
 # One floor light: the fret-hand glow on proof of a grip
 
 **Status 2026-09-25: BUILT through Phase 3** — Phase 1 `e140568e`, Phase 2 steps 1-3 `706b9e8c`,
-steps 4-5 and Phase 3 in the commit that follows. What remains is the sighting list in section 7.
+steps 4-5 and Phase 3 `dba18715`. What remains is the sighting list in section 7; the plan moves to
+`docs/plans/completed/` once those are signed.
 
 *Ruled 2026-09-25. Supersedes the "fret-hand glow on PROOF OF A GRIP" entry in
 `docs/tracking/backlog.md`, which now points here. The plan was drafted by the simplicity-expert

@@ -69,8 +69,9 @@ span, the carried-ring founding rule) closed 2026-09-20, so **its next action is
 builds**: the refusal flash (#278, `refusal-flash.md`), plan 60 Phase 0, plan 41 Phases 1–2,
 tuning / capo. What actually ran from 2026-09-21 to 09-24 was the tick lattice, the derived shift
 slide, the ring-ends plan's phases 1–2 and per-leg vibrato; the ungated list has not started.
-Running ahead of it since 2026-09-25: [one-floor-light.md](one-floor-light.md), the fret-hand
-glow on proof of a grip as ONE light with the picking hand's — all decisions ruled, Phase 1 next.
+Built ahead of it on 2026-09-25: [one-floor-light.md](one-floor-light.md), the fret-hand glow
+on proof of a grip as ONE light with the picking hand's — every phase committed (`e140568e`,
+`706b9e8c`, `dba18715`); its section 7 sighting list is what remains.
 
 FHPs / span markers are in scope through plan 60's hand marker, as are New Chart,
 tempo/time-signature authoring, tuning/capo/cent-offsets, bend authoring, bulk editing and harmonic
