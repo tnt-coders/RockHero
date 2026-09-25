@@ -220,7 +220,11 @@ struct StringStyle
         set(Ink::BorderInner, juce::Colour{style.border_inner});
         set(Ink::Inner, juce::Colour{style.inner});
         set(Ink::LinkedInner, juce::Colour{style.linked_inner});
-        set(Ink::Tail, juce::Colour{style.linked_inner});
+        // The core is light over the lane at the translucency both surfaces share, the rails
+        // full-strength on top (chart_view_state.h g_tail_core_alpha).
+        set(Ink::Tail,
+            juce::Colour{style.linked_inner}.withAlpha(
+                static_cast<float>(common::core::g_tail_core_alpha)));
         set(Ink::TailEdge, juce::Colour{style.tail_edge});
         set(Ink::Accent, juce::Colour{style.accent});
         set(Ink::Digit, juce::Colours::white);
@@ -1244,8 +1248,9 @@ void drawSlideLines(
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
                     .text = tabNoteHeadText(note, stop.fret),
-                    .background = charterDarker(charterDarker(charterDarker(style[Ink::Tail]))),
-                    .border = style[Ink::Tail],
+                    .background =
+                        charterDarker(charterDarker(charterDarker(style[Ink::LinkedInner]))),
+                    .border = style[Ink::LinkedInner],
                     .ink = style[Ink::Digit],
                     .opacity = opacity,
                     .opaque_ink = true,
@@ -2120,20 +2125,28 @@ void drawStringLineLabel(
 //
 // The knockout is OPAQUE and local, which the legend's scrim is not: this digit has to be read on
 // top of the ribbon's own body, so the lane line and whatever technique mark crosses the slot have
-// to go entirely rather than dim. It fills the tail's own INTERIOR across the whole slot, so what
-// is left reads as a clean stretch of the tail with a number on it.
+// to go entirely rather than dim. It restores the host's ground across the tail's INTERIOR for the
+// whole slot and lays the ribbon's own light back over it, so what is left reads as a clean stretch
+// of the tail with a number on it — a translucent core alone would dim the line, not remove it.
 void drawSatelliteDigit(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
-    const float center_y, const juce::String& text, const std::optional<TailFade>& fade)
+    const float center_y, const juce::String& text, const std::optional<TailFade>& fade,
+    const juce::Colour ground)
 {
     const TabSatelliteSlot slot = metrics.satelliteSlot();
     const TailInterior interior = tailInterior(metrics, center_y);
-    const int patch_top = juce::roundToInt(interior.top);
-    const int patch_bottom = juce::roundToInt(interior.bottom);
-    // The digit's ground is the ribbon's own ink, so a satellite inside the fade sits on a patch
-    // dissolving with the tail rather than a solid block over it.
+    const juce::Rectangle<int> patch{
+        bar_right,
+        juce::roundToInt(interior.top),
+        slot.extent(),
+        juce::roundToInt(interior.bottom) - juce::roundToInt(interior.top)
+    };
+    g.setColour(ground);
+    g.fillRect(patch);
+    // The ribbon's own ink over it, so a satellite inside the fade sits on a patch dissolving
+    // with the tail rather than a solid block over it.
     setTailInk(g, style[Ink::Tail], fade);
-    g.fillRect(bar_right, patch_top, slot.extent(), patch_bottom - patch_top);
+    g.fillRect(patch);
     drawStringLineLabel(
         g,
         metrics,
@@ -2505,7 +2518,7 @@ void drawTabFhpChip(
 // floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed)
+    const TabRevealed& revealed, const juce::Colour ground)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.stringCount() > 0);
@@ -2859,7 +2872,8 @@ void paintTabLane(
                     bracket.bar_right,
                     center_y,
                     bracket.digit_text,
-                    std::nullopt);
+                    std::nullopt,
+                    ground);
             }
             else
             {
@@ -2922,7 +2936,8 @@ void paintTabLane(
                 columns.bar_right,
                 center_y,
                 juce::String{*held},
-                tailFade(metrics, note, tabRevealed(revealed, index)));
+                tailFade(metrics, note, tabRevealed(revealed, index)),
+                ground);
         }
     }
 

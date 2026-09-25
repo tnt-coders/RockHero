@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <expected>
+#include <initializer_list>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <map>
 #include <optional>
@@ -141,6 +142,28 @@ void indexVisibleRanges(common::core::ChartViewState& state)
         return (alpha * alpha) + (red * red) + (green * green) + (blue * blue);
     };
     return distance(color, first) < distance(color, second);
+}
+
+// The tail core's ink: the linked-note fill at the translucency both surfaces share.
+[[nodiscard]] juce::Colour tailCore(juce::Colour linked_inner)
+{
+    return linked_inner.withAlpha(static_cast<float>(common::core::g_tail_core_alpha));
+}
+
+// What one pixel reads back as once `layers` are filled over the empty lane in order, bottom
+// first, composited by JUCE's own software renderer. The renderer blends in premultiplied space,
+// so the straight-alpha Colour::overlaidWith lands a step of rounding off what it actually stores;
+// letting the renderer composite the expectation keeps the probe exact without restating numbers.
+[[nodiscard]] juce::Colour composited(std::initializer_list<juce::Colour> layers)
+{
+    const juce::Image pixel{juce::SoftwareImageType{}.create(juce::Image::ARGB, 1, 1, true)};
+    juce::Graphics graphics{pixel};
+    for (const juce::Colour layer : layers)
+    {
+        graphics.setColour(layer);
+        graphics.fillRect(0, 0, 1, 1);
+    }
+    return pixel.getPixelAt(0, 0);
 }
 
 // True when `color` is `ink` partly dissolved toward `ground`: equal to neither, and on every
@@ -1083,15 +1106,16 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     // String 3: the posture "7" states in the side chip, in white, right of the closing bar.
     CHECK(white_in(chip_left + slot.gap, chip_right - slot.gap, 135, 144));
 
-    // The chip's ground is the tail's own fill, and it MASKS the sine. The vibrato path crosses
-    // column 216 at row 144 with full coverage, so without the ground that pixel would carry the
-    // sine's grey; with it, it is exactly the tail fill.
-    const juce::Colour tail_fill{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner};
-    CHECK(image.getPixelAt(216, 144) == tail_fill);
+    // The chip's ground is the tail's own core, laid over the ribbon at the core's translucency.
+    // Column 216 at row 144 lies inside the patch but off the sine and off the string line (which
+    // gaps over the bracket's columns anyway), so it holds the ribbon's core with the ground's
+    // core laid over it: two core layers over the empty lane.
+    const juce::Colour core =
+        tailCore(juce::Colour{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner});
+    CHECK(image.getPixelAt(216, 144) == composited({core, core}));
 
-    // And the sine really does draw past the chip, so the masked pixel is a masked pixel rather
-    // than a sine that never reached the column: some full-coverage stretch of the wave sits just
-    // right of the chip, before the tail's tip fade starts to dissolve it.
+    // And the sine rides on past the chip: some full-coverage stretch of the wave sits just right
+    // of it, before the tail's tip fade starts to dissolve it.
     const common::core::NoteViewState& ringing = state.notes.front();
     REQUIRE(
         static_cast<float>(chip_right + 8) <
@@ -2696,8 +2720,10 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
 
     // The ribbon's fill, probed on the interior row just above the lower rail: the slide's leg
     // rises from the lower rail at the onset toward the upper one at the keyframe, so by the ink
-    // end it is mid-band and leaves this row to the fill alone.
-    const juce::Colour tail_fill{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner};
+    // end it is mid-band and leaves this row to the fill alone. The row is off the string line, so
+    // the fill lies over the empty lane alone.
+    const juce::Colour tail_fill = composited(
+        {tailCore(juce::Colour{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner})});
     const float center_y = metrics.laneY(3);
     const TailSpan span = tailSpan(metrics, center_y);
     const int fill_row = static_cast<int>(std::floor(span.bottom - metrics.tail_edge_size)) - 1;
@@ -2713,6 +2739,10 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
     const int fade_start_x = static_cast<int>(
         std::floor(metrics.x(6.0 - common::core::tailFadeSeconds(state.notes.front()))));
     CHECK(cropped.getPixelAt(fade_start_x - 1, fill_row) == tail_fill);
+    // And that solid core is exactly as translucent as the constant both surfaces read.
+    CHECK(
+        cropped.getPixelAt(fade_start_x - 1, fill_row).getAlpha() ==
+        juce::roundToInt(common::core::g_tail_core_alpha * 255.0));
     CHECK(dissolvedBetween(
         cropped.getPixelAt(ink_end_x - 1, fill_row), tail_fill, juce::Colours::transparentBlack));
     CHECK(cropped.getPixelAt(ink_end_x, fill_row).getAlpha() == 0);
@@ -2768,7 +2798,9 @@ TEST_CASE("Tab paint core dissolves a tail at its tip unless revealed", "[ui][ta
         ringing(common::core::NoteEmphasis::Normal, false);
     const juce::Image plain = painted(plain_note, false);
 
-    const juce::Colour tail_fill{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner};
+    // The core over the empty lane alone: the probe row below is off the string line.
+    const juce::Colour tail_fill = composited(
+        {tailCore(juce::Colour{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner})});
     const float center_y = metrics.laneY(3);
     const TailSpan span = tailSpan(metrics, center_y);
     // The interior row just above the lower rail, where only the ribbon's fill inks.

@@ -456,10 +456,15 @@ each pass in turn.
        its reveal-only held-stop satellite comes in; empty reveals nothing. An unrevealed note
        crops at its ink end, and the leg the crop cuts wears a destination chip there
        (\ref tabKeyframeLayout).
+\param ground The colour the host painted under the lane. The tail's core is light laid over it
+       (\ref common::core::g_tail_core_alpha), and the one mark that must knock out what lies
+       beneath — the satellite digit's ground — restores this colour before laying the core back
+       over it, so the knockout reads as a clean stretch of the tail. Transparent where the host
+       composites the lane itself.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed = {});
+    const TabRevealed& revealed = {}, juce::Colour ground = juce::Colours::transparentBlack);
 
 /*!
 \brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.

@@ -399,7 +399,7 @@ constexpr double g_open_note_end_fade_length = 0.5;
 // readable through a tail's core. Fretted tails split the tail width quarter/half/quarter;
 // open tails span the hand window inset by g_open_tail_margin (highway_floor_geometry.h, where
 // every floor mark under an open note reads it), with edge bands of the same width.
-constexpr double g_tail_inner_alpha = 96.0 / 255.0;
+constexpr double g_tail_inner_alpha = common::core::g_tail_core_alpha;
 
 // Seconds of tail over which a sustain rises from nothing at its onset. A FIXED span rather
 // than a fraction, for the reason the tremolo ramp is counted in teeth: the rise then occupies

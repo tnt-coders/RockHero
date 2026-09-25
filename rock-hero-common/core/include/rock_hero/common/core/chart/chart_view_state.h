@@ -579,6 +579,16 @@ struct NoteViewState
 };
 
 /*!
+\brief The translucency of a tail's core on both surfaces: the ribbon's body between its rails is
+light laid over the lane, not paint.
+
+The highway drew its core this way from the start; the 2D lane took the same number at the
+2026-09-24 sighting, once the shared tip fade showed the two tails dissolving differently — a
+solid bar thinning into the background beside light dying away.
+*/
+inline constexpr double g_tail_core_alpha = 96.0 / 255.0;
+
+/*!
 \brief The fraction of a tail's drawn length over which both surfaces dissolve it at the tip.
 
 Charter's glow posts fade toward the note; the tail's tip mirrors that, so a sustain ends softly

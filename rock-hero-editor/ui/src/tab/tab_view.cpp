@@ -346,7 +346,8 @@ void TabView::paint(juce::Graphics& g)
         g.excludeClipRegion(panel);
     }
 
-    common::ui::paintTabLane(g, metrics, tab, revealed);
+    // The rows sit on the theme's row background, which is what the lane's one knockout restores.
+    common::ui::paintTabLane(g, metrics, tab, revealed, editorTheme().waveform_row_background);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
