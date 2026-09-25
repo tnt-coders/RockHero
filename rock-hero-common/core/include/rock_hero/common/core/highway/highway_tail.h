@@ -189,16 +189,14 @@ and end exactly on the string line.
 /*!
 \brief Evaluates a note's bend curve at an absolute time.
 
-Monotone cubic Hermite interpolation with Fritsch–Carlson tangents (the standard
-shape-preserving interpolant) through the control points: where consecutive segments move in
-the same direction the curve flows THROUGH the control point with continuous nonzero velocity
-— the way a real bending finger passes an intermediate target — instead of easing to a flat
-shelf at every point (the previous per-segment smoothstep, whose terraced look read rigid and
-mechanical on multi-stage bends). Plateaus and direction reversals still get an exactly flat
-tangent, and the Fritsch–Carlson limits guarantee no overshoot past any control value. The
-curve starts and settles at rest: zero tangent at the first point (easing from zero at the
-onset — unless the first point sits at the onset itself, a prebend, which anchors the start
-value) and at the last point, whose value then holds.
+Each segment uses the same cosine ease as a pitched slide, so the bend leaves one stated value and
+arrives at the next one tangentially — and therefore comes to REST at every authored point. That
+rest is the point's meaning: a two-step bend that goes straight to two has no point at one, so a
+point at one says the bend stops there, and the drawn shelf must show it (user ruling, 2026-09-24,
+replacing a monotone cubic that flowed through same-direction points). The curve hits every
+authored point exactly, never overshoots a segment's endpoints, and holds the last value after the
+last point. A curve whose first point is not at the onset eases from zero at the onset; a prebend
+whose first point is at the onset anchors that start value instead.
 
 \param bend Bend curve points in ascending time order.
 \param onset_seconds The note's onset time (the zero anchor for the pre-first-point ramp).

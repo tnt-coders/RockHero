@@ -59,37 +59,6 @@ double highwayBendSemitonesAt(
         return point_semitones(count - 1);
     }
 
-    // Secant slope of the segment starting at `index`; the curve is flat (at rest) before the
-    // first point and after the last, so out-of-range segments report zero slope — which the
-    // Fritsch–Carlson rule below turns into zero endpoint tangents for free.
-    const auto secant = [&](const std::size_t index) {
-        if (index + 1 >= count)
-        {
-            return 0.0;
-        }
-        const double span = point_seconds(index + 1) - point_seconds(index);
-        return span > 0.0 ? (point_semitones(index + 1) - point_semitones(index)) / span : 0.0;
-    };
-    // Fritsch–Carlson tangent at a control point: zero when the neighboring secants disagree
-    // in direction or either is flat (plateaus stay exactly flat, reversals turn at rest), else
-    // the span-weighted harmonic mean — which keeps the tangent inside the monotonicity region,
-    // so the cubic can never overshoot a control value.
-    const auto tangent = [&](const std::size_t index) {
-        const double before = index > 0 ? secant(index - 1) : 0.0;
-        const double after = secant(index);
-        if (before * after <= 0.0)
-        {
-            return 0.0;
-        }
-        const double span_before =
-            index > 0 ? point_seconds(index) - point_seconds(index - 1) : 0.0;
-        const double span_after =
-            index + 1 < count ? point_seconds(index + 1) - point_seconds(index) : 0.0;
-        return 3.0 * (span_before + span_after) /
-               ((((2.0 * span_after) + span_before) / before) +
-                ((span_after + (2.0 * span_before)) / after));
-    };
-
     std::size_t segment = 0;
     while (segment + 2 < count && seconds > point_seconds(segment + 1))
     {
@@ -101,13 +70,9 @@ double highwayBendSemitonesAt(
         return point_semitones(segment + 1);
     }
     const double mix = std::clamp((seconds - point_seconds(segment)) / span, 0.0, 1.0);
-    // The Fritsch–Carlson endpoint tangents, scaled into the segment's own unit.
-    return cubicHermite(
-        point_semitones(segment),
-        tangent(segment) * span,
-        point_semitones(segment + 1),
-        tangent(segment + 1) * span,
-        mix);
+    const double eased = highwaySlideEaseWeight(mix, false);
+    return point_semitones(segment) +
+           ((point_semitones(segment + 1) - point_semitones(segment)) * eased);
 }
 
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept
