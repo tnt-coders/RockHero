@@ -13,11 +13,11 @@ namespace rock_hero::common::core
 namespace
 {
 
-// The pitched slide ease at half progress (sin(pi/4) cubed), the curve a glide-locked or ordinary
-// window transition uses.
+// The pitched slide ease at half progress, the curve a glide-locked or ordinary window transition
+// uses.
 [[nodiscard]] double halfProgressWeight()
 {
-    return std::pow(std::sin(std::numbers::pi / 4.0), 3.0);
+    return 0.5;
 }
 
 // The unpitched release ease at half progress (1 - sin(pi/4)), the curve a slide-out's window

@@ -122,8 +122,7 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     {
         return 1.0 - std::sin((1.0 - p) * std::numbers::pi / 2.0);
     }
-    const double eased = std::sin(p * std::numbers::pi / 2.0);
-    return eased * eased * eased;
+    return 0.5 - (0.5 * std::cos(p * std::numbers::pi));
 }
 
 double cubicHermite(
@@ -144,8 +143,7 @@ double highwaySlideEaseSlope(const double progress, const bool unpitched) noexce
     {
         return half_pi * std::cos((1.0 - p) * half_pi);
     }
-    const double eased = std::sin(p * half_pi);
-    return 3.0 * eased * eased * std::cos(p * half_pi) * half_pi;
+    return half_pi * std::sin(p * std::numbers::pi);
 }
 
 // Onset-phased sine at the caller-derived period.

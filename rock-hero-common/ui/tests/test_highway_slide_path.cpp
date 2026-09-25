@@ -96,8 +96,8 @@ TEST_CASE("Glide holds the onset anchor at the onset and the target at a keyfram
 
 // Mid-segment the path is the EASED interpolation, in the family the arriving keyframe names —
 // the same weights the tail's own centerline and the tapping hand's light travel by. A pitched
-// glide accelerates into its target where an unpitched release leaves early, so the two are
-// measurably apart at the same instant.
+// glide eases symmetrically where an unpitched release leaves early, so the two are measurably
+// apart at the same instant.
 TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;

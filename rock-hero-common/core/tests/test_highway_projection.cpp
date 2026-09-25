@@ -1404,11 +1404,11 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     REQUIRE(path.size() == 3);
     CHECK(path[0].low_line == Catch::Approx(11.0));
     CHECK(path[0].high_line == Catch::Approx(14.0));
-    // Halfway along the upper member's leg: eased with the pitched curve, below the linear 16.
+    // Halfway along the upper member's leg: eased with the symmetric pitched curve.
     CHECK(path[1].seconds == Catch::Approx(4.0));
     CHECK(path[1].low_line == Catch::Approx(14.0));
     CHECK(path[1].high_line == Catch::Approx(14.0 + (4.0 * highwaySlideEaseWeight(0.5, false))));
-    CHECK(path[1].high_line < 16.0);
+    CHECK(path[1].high_line == Catch::Approx(16.0));
     CHECK(path[2].seconds == Catch::Approx(5.0));
     CHECK(path[2].low_line == Catch::Approx(14.0));
     CHECK(path[2].high_line == Catch::Approx(18.0));

@@ -223,8 +223,8 @@ the board — stated in display space so it holds for any string count and stack
 /*!
 \brief Returns the eased interpolation weight of a slide at a segment progress.
 
-Pitched slides accelerate into the target (sin(progress * pi / 2) cubed); unpitched slides
-release early (1 - sin((1 - progress) * pi / 2)).
+Pitched slides ease symmetrically, leaving and arriving tangentially (the cosine ease
+(1 - cos(progress * pi)) / 2); unpitched slides release early (1 - sin((1 - progress) * pi / 2)).
 
 \param progress Position within the slide segment in [0, 1]; values outside clamp.
 \param unpitched True for the unpitched (pressure-release) easing.

@@ -222,12 +222,12 @@ TEST_CASE("Highway slide easing spans its endpoints", "[core][highway][tail]")
         CHECK(highwaySlideEaseWeight(-1.0, unpitched) == Catch::Approx(0.0).margin(1.0e-12));
         CHECK(highwaySlideEaseWeight(2.0, unpitched) == Catch::Approx(1.0).margin(1.0e-12));
     }
-    // The pitched curve accelerates late; the unpitched curve releases early.
-    CHECK(highwaySlideEaseWeight(0.5, false) < 0.5);
+    // The pitched curve is symmetric; the unpitched curve releases early.
+    CHECK(highwaySlideEaseWeight(0.5, false) == Catch::Approx(0.5));
     CHECK(highwaySlideEaseWeight(0.5, true) < 0.5);
     CHECK(
-        highwaySlideEaseWeight(0.5, false) ==
-        Catch::Approx(std::pow(std::sin(std::numbers::pi / 4.0), 3.0)));
+        highwaySlideEaseWeight(0.25, false) ==
+        Catch::Approx(1.0 - highwaySlideEaseWeight(0.75, false)));
 }
 
 // The slope is the curve's own derivative for both families: a central finite difference of the
