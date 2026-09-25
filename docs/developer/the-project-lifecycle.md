@@ -506,8 +506,8 @@ neighbours.
     hand states it.
 
     Stop-identical chords still share one deduplicated posture — the hand posture is what a span
-    states, and techniques render on the notes; a node grip and a fret grip printing the same
-    number are two postures, because they are two grips. Tap-attack notes are invisible to span
+    states, and techniques render on the notes; a natural harmonic's node is no grip at all
+    (re-ruled 2026-09-24), so no posture holds one. Tap-attack notes are invisible to span
     derivation: they
     join no posture and never open or close a span, so a tap-only onset is fully transparent to
     the GROUPING — a chord ringing under taps on other strings keeps its span, which rule 12 then

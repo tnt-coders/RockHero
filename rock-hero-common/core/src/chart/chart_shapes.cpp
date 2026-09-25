@@ -134,9 +134,9 @@ struct StatedStop
     // fret 0 beneath it, which reads as the open string a span already holds (node 5 is not fret 5,
     // and not the open string either). Such a note carries no fret channel at all (the normalizer
     // strips keyframes from one), so the wrap is constant over its ring and the travel machinery
-    // never sees a node. No harmonic clause exists anywhere else in the walk: the split a harmonic
-    // makes falls out of the ordinary contradiction law reading a stop that cannot say a node is
-    // fret 0.
+    // never sees a node. The split a harmonic makes falls out of the ordinary contradiction law
+    // reading a stop that cannot say a node is fret 0; what a node grip does NOT do — found, grow
+    // or join a span — is the grip statement's one clause (\ref nodeGrip).
     const auto states = [&note](const int channel_fret) -> ChartStop {
         return frettingStopAt(note, channel_fret);
     };
@@ -235,16 +235,27 @@ struct StopClaim
 // where the hand is once the strike is over. The open string and the node a natural (or open-string
 // tap) harmonic touches both record fret 0 — the one place the "fret is 0 under a node" invariant
 // is load-bearing — while an artificial harmonic presses a fret under its damped node and is not
-// hand-free. This is a question about the ring's TENURE and not about the grip statement: a node
-// strike still states its node (THE NODE GRIP, node != fret != open, is untouched), but the finger
-// lifts the instant the chime sounds, so a harmonic ringing on is as hand-free as an open string
-// ringing on. Asked at the landing alone, the one seam a member crosses: a finger that slid
-// carries its stop into the landed grip, and a string no finger holds has none to carry. Not at
+// hand-free. This is a question about the ring's TENURE: the finger lifts the instant the chime
+// sounds, so a harmonic ringing on is as hand-free as an open string ringing on (and a natural's
+// node states no grip at all, \ref nodeGrip). Asked at the landing alone, the one seam a member
+// crosses: a finger that slid carries its stop into the landed grip, and a string no finger holds
+// has none to carry. Not at
 // the displacement witness — that reads the SOUND, and a hand-free ring's sound is evidence a
 // strike can contradict even though no finger holds it.
 [[nodiscard]] bool handFree(const ChartStop& stop)
 {
     return stop.fret == 0;
+}
+
+// A NODE GRIP: a natural harmonic's stop, a node touched with nothing pressed. It states no grip
+// (re-ruled 2026-09-24): the finger rests over the node for the strike and lifts, holding no stop
+// a posture could keep, so a natural harmonic founds, grows and joins no span. Its STRIKE still
+// sounds — displacement and the grip contradiction read the sound, so a node struck on a string a
+// span holds at a fret still breaks that span. An artificial harmonic presses a fret under its node
+// and is a grip like any other (\ref harmonicOverPressedStop).
+[[nodiscard]] bool nodeGrip(const ChartStop& stop)
+{
+    return stop.node.has_value() && stop.fret == 0;
 }
 
 // Which rings outliving their own span are TEXTURE — printed in the bracket of a later span they
@@ -987,9 +998,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         //
         // The harmonic clause rides the one authority (\ref gripStatement), so this site and every
         // other statement site read one rule: a harmonic over a PRESSED stop states that stop, and
-        // the slide-out-through below hands back exactly it. A NODE-grip harmonic — a natural,
-        // whose grip IS the node — is never a pull-off source at all, the resolver refusing a
-        // fretHandHarmonic as one, so nothing can displace that node.
+        // the slide-out-through below hands back exactly it. A NODE-grip harmonic — a natural —
+        // states NO grip at all (\ref nodeGrip): it is never a pull-off source, the resolver
+        // refusing a fretHandHarmonic as one, and it founds, grows and joins nothing, its strike
+        // reaching only the sound-reading verdicts.
         const auto grip_statement_of =
             [&saved_notes, &planted_stops, &slot, &gripped_before](
                 const std::size_t string_index) -> std::optional<ChartStop> {
@@ -1001,7 +1013,12 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             }
             const std::optional<ChartStop> beneath = gripStatement(
                 saved_notes[*striking], planted_stops[*striking], gripped_before[string_index]);
-            return beneath.has_value() ? beneath : slot.strikes[string_index];
+            if (beneath.has_value())
+            {
+                return beneath;
+            }
+            const std::optional<ChartStop>& struck = slot.strikes[string_index];
+            return struck.has_value() && nodeGrip(*struck) ? std::nullopt : struck;
         };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
@@ -1486,8 +1503,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             {
                 // Grip statements here too (\c grip_statement_of): a founding stroke states the
                 // frets it sounds, a pull-off source among them included, so the box prints what
-                // was struck. A harmonic chord founds its own span through this same rule: three
-                // co-struck node strikes are three own stops.
+                // was struck. A harmonic chord founds nothing through this same rule: a node grip
+                // is no statement, so three co-struck naturals are no own stops.
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
@@ -1525,6 +1542,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 if (!carried.has_value())
                 {
                     // Mid-travel states no grip and joins no posture.
+                    continue;
+                }
+                if (nodeGrip(*carried))
+                {
+                    // A natural's ring carries no grip either: the finger lifted at the strike,
+                    // so the chime ringing on is no member of anything founded under it
+                    // (\ref nodeGrip, the same clause the struck path reads).
                     continue;
                 }
                 // A carry never folds in on a string this slot STATES OTHERWISE: a claim at a

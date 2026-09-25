@@ -216,6 +216,21 @@ void everySpanIsPositive(const ChartShapes& derived)
     }
 }
 
+// A NATURAL HARMONIC STATES NO GRIP, asked of a whole derivation: no posture's grip holds a node
+// touched with nothing pressed. A harmonic over a pressed stop states that stop, so a node never
+// reaches a grip by any honest road.
+void noPostureHoldsANaturalNode(const ChartShapes& derived)
+{
+    for (const ChartPosture& posture : derived.postures)
+    {
+        for (const std::optional<ChartStop>& stop : posture.stops)
+        {
+            const bool holds_node = stop.has_value() && stop->node.has_value();
+            CHECK_FALSE(holds_node);
+        }
+    }
+}
+
 // The posture one derived span states, per string. Both indices are guarded here rather than at
 // each of the sixty-odd call sites, so a slot naming a span or a posture that is not there fails as
 // a Catch2 assertion instead of reading off the end.
@@ -5690,14 +5705,14 @@ TEST_CASE("A harmonic over a pressed stop states that stop to the grip", "[core]
     }
 }
 
-// THE NODE GRIP: a natural harmonic is a fretting-hand statement of its NODE, and node 5 is not
-// fret 5 — nor the open string it shares a fret number with. No harmonic clause exists anywhere in
-// the walk: the split a harmonic makes falls out of the ordinary contradiction law reading a stop
-// that can no longer say a node is fret 0, a harmonic landing on a string the grip neither states
-// nor holds GROWS the span as any new stop does, and a co-struck node chord founds a span like any
-// co-struck grip. Read as an open string instead, a natural harmonic vanishes into the grip and the
+// A NATURAL HARMONIC STATES NO GRIP (re-ruled 2026-09-24): a node touched with nothing pressed is
+// no stop the hand holds, so it founds, grows and joins no span, and no posture holds a node. Its
+// STRIKE still sounds, so the split a harmonic makes falls out of the ordinary contradiction law
+// reading a stop that cannot say a node is fret 0 — node 5 is not fret 5, nor the open string it
+// shares a fret number with — while a node on a string the span does not name leaves the span
+// standing. Read as an open string instead, a natural harmonic vanishes into the grip and the
 // sighted chart runs one span 9.5 beats straight through a harmonic passage.
-TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
+TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[core][chart]")
 {
     // The third partial's node as the importer stores it, so the fixture cannot drift from the
     // corpus: a whole-number label prints "7", the finger sits in fret 8.
@@ -5708,11 +5723,11 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         // An open-chord texture accumulating through measure 1 into the standing grip
         // {s1:0, s2:3, s3:0, s4:0, s5:0, s6:0}, its rings clamped where their strings are next
         // struck; then the twelfth-partial chord on strings 4/5/6 at 2:2, the third-partial chord
-        // on the same strings at 2:3.5, and at 3:1 the ordinary open-chord figure. FIVE spans where
-        // a node read as an open string gives one of 9.5 beats: the texture closes AT the node
-        // chord, each node chord founds its own span, and the figure at 3:1 founds ordinarily and
-        // then splits at its own release, the co-struck source having spoken over ground its
-        // string was never at.
+        // on the same strings at 2:3.5, and at 3:1 the ordinary open-chord figure. THREE spans
+        // where a node read as an open string gives one of 9.5 beats: the texture closes AT the
+        // node chord, the two node chords found nothing and wear no bracket (their heads print the
+        // nodes), and the figure at 3:1 founds ordinarily and then splits at its own release, the
+        // co-struck source having spoken over ground its string was never at.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 1, 0, Fraction{8}),
             noteAt(1, Fraction{}, 2, 3, Fraction{8}),
@@ -5734,79 +5749,50 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         });
         const ChartShapes derived = deriveFrom(notes);
 
-        REQUIRE(derived.shapes.size() == 5);
-        // The texture, closed by the node chord's own onset: node 12 over the open strings the
-        // grip holds is the hand moving, and no plant bridges a node.
+        REQUIRE(derived.shapes.size() == 3);
+        // The texture, closed by the node chord's own onset: node 12 struck over the open strings
+        // the grip holds is a contradiction on strings the span names, and no plant bridges a
+        // node.
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 2, .beat = 2}});
-        // The twelfth-partial chord founds its own span wearing its three nodes and nothing else.
-        // Every ring still sounding from the figure it closed — the fretted 3 as much as the open
-        // strings — belongs to that closed span, since A RING BELONGS ONLY TO THE SPAN IT WAS
-        // STRUCK IN, so none of them is part of this GRIP. The OPEN ones still SOUND under it, so
-        // the published posture carries those as TEXTURE beside the grip and the bracket prints
-        // them: included in the bracket's display, founding nothing. The fretted ring is a plain
-        // tail — its stop was announced by the span that struck it.
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 2, .beat = 2});
-        const std::vector<std::optional<ChartStop>>& twelfth =
-            derived.postures[derived.shapes[1].posture].stops;
-        const std::vector<std::optional<ChartStop>>& under_twelfth =
-            derived.postures[derived.shapes[1].posture].texture;
-        CHECK_FALSE(twelfth[0].has_value());
-        CHECK(under_twelfth[0] == std::optional{frettedStop(0)});
-        CHECK_FALSE(twelfth[1].has_value());
-        CHECK_FALSE(under_twelfth[1].has_value());
-        CHECK_FALSE(twelfth[2].has_value());
-        CHECK(under_twelfth[2] == std::optional{frettedStop(0)});
-        CHECK(twelfth[3] == std::optional{nodeStop(12.0)});
-        CHECK(twelfth[4] == std::optional{nodeStop(12.0)});
-        CHECK(twelfth[5] == std::optional{nodeStop(12.0)});
-        // Node 7 is not node 12: the third-partial chord breaks it and founds the next.
-        CHECK(
-            derived.shapes[2].position ==
-            GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}});
-        const std::vector<std::optional<ChartStop>>& third =
-            derived.postures[derived.shapes[2].posture].stops;
-        CHECK(third[3] == std::optional{nodeStop(third_partial)});
-        CHECK(third[4] == std::optional{nodeStop(third_partial)});
-        CHECK(third[5] == std::optional{nodeStop(third_partial)});
-        // And the open-chord figure founds at 3:1 exactly as it does with no harmonics before it:
-        // the co-struck 3 beside the source, which states the 3 IT SOUNDS over a string it was
-        // never at. Its release therefore begins a statement of its own a half beat later, so the
-        // tail figure is the box its stroke says and the parts span the release founds — the same
-        // two spans the figure derives when the pull-off is a plain restrike.
-        CHECK(derived.shapes[3].position == GridPosition{.measure = 3, .beat = 1});
-        CHECK(derived.shapes[3].sustain == Fraction{1, 2});
-        const std::vector<std::optional<ChartStop>>& stroke =
-            derived.postures[derived.shapes[3].posture].stops;
+        // Neither node chord founds a span — three co-struck naturals are no own stops, and the
+        // rings sounding under them belong to the span they closed — so the next span is the
+        // open-chord figure at 3:1, founded exactly as it is with no harmonics before it: the
+        // co-struck 3 beside the source, which states the 3 IT SOUNDS over a string it was never
+        // at. Its release therefore begins a statement of its own a half beat later, so the tail
+        // figure is the box its stroke says and the parts span the release founds — the same two
+        // spans the figure derives when the pull-off is a plain restrike.
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 3, .beat = 1});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        const std::vector<std::optional<ChartStop>>& stroke = derivedStops(derived, 1);
         CHECK(stroke[1] == std::optional{frettedStop(3)});
         CHECK(stroke[4] == std::optional{frettedStop(3)});
-        // The open string still ringing from measure 1 sounds under it as texture, as it does
-        // under both node chords above.
-        CHECK(derivedTexture(derived, 3)[2] == std::optional{frettedStop(0)});
+        // The open string still ringing from measure 1 sounds under it as texture.
+        CHECK(derivedTexture(derived, 1)[2] == std::optional{frettedStop(0)});
         CHECK(
-            derived.shapes[4].position ==
+            derived.shapes[2].position ==
             GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}});
         // The stroke's own fretted 3 belongs to the stroke's box, so the parts span the release
         // fronts is the open strings alone and runs for as long as THEY ring.
-        CHECK(derived.shapes[4].sustain == Fraction{2});
-        const std::vector<std::optional<ChartStop>>& figure =
-            derived.postures[derived.shapes[4].posture].stops;
+        CHECK(derived.shapes[2].sustain == Fraction{2});
+        const std::vector<std::optional<ChartStop>>& figure = derivedStops(derived, 2);
         CHECK_FALSE(figure[1].has_value());
         CHECK(figure[2] == std::optional{frettedStop(0)});
         CHECK(figure[3] == std::optional{frettedStop(0)});
         CHECK(figure[4] == std::optional{frettedStop(0)});
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
-    SECTION("node 5 and fret 5 are two grips, never one")
+    SECTION("a node 5 struck over a held fret 5 breaks the grip, never restates it")
     {
         // A grip holding a pressed 5 on string 3, then a natural at the FIFTH-fret node on that
         // string: the same printed number, a different place, so the grip breaks. The BREAK is the
         // whole proof — read as fret 5 the node restates the stop and the span rides through it —
-        // and the node itself founds nothing, because the rings it arrives over belong to the span
-        // it closed (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN).
+        // and the node itself founds nothing: it states no grip, and the rings it arrives over
+        // belong to the span it closed (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN).
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{7, 2}),
@@ -5821,15 +5807,17 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
         CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(
             derived.postures[derived.shapes[0].posture].stops[2] == std::optional{frettedStop(5)});
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
     SECTION("a node touch is not the open string it shares a fret number with")
     {
-        // The grip holds string 4 OPEN; a natural at node 12 on that string is a finger arriving
-        // on a string that had none, and the grip breaks at it. The BREAK is the whole proof —
-        // read as the open string the node restates what the grip holds and the span rides — and
-        // the node founds nothing over rings that belong to the span it closed.
+        // The grip holds string 4 OPEN; a natural at node 12 on that string sounds something other
+        // than the open string the grip names, and the grip breaks at it. The BREAK is the whole
+        // proof — read as the open string the node restates what the grip holds and the span
+        // rides — and the node founds nothing: it states no grip, over rings that belong to the
+        // span it closed.
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{7, 2}),
@@ -5842,13 +5830,16 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 3}});
         CHECK(derived.shapes[0].sustain == Fraction{2});
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
-    SECTION("two harmonics at one node restate a standing grip")
+    SECTION("two harmonics at one node restate nothing: there is no node grip to restate")
     {
         // The twelfth-partial node on string 5 struck twice with overlapping rings, beside two
-        // opens: one statement, one span fronting at the first strike, the node in its posture.
+        // opens. Neither strike is a statement, so there is no node grip for the second to
+        // restate, and the node's ring joins nothing: what remains is two open rings, short of the
+        // three members sound alone needs to found a span.
         const ChartShapes derived = deriveFrom(streamOf({
             harmonicAt(1, Fraction{}, 5, 12.0, Fraction{2}),
             noteAt(1, Fraction{1, 2}, 1, 0, Fraction{7, 2}),
@@ -5856,19 +5847,17 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             harmonicAt(2, Fraction{1, 2}, 5, 12.0, Fraction{5, 2}),
         }));
 
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.postures[derived.shapes[0].posture].stops[4] == std::optional{nodeStop(12.0)});
+        CHECK(derived.shapes.empty());
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
-    SECTION("a harmonic chord founds its own span, and two of them share one posture")
+    SECTION("a harmonic chord founds nothing; the fretted twelves after it found their own span")
     {
-        // Three co-struck naturals with nothing standing: three own stops open a span through the
-        // ordinary rule, as a chord statement. Struck again after a rest, the second chord founds
-        // a second span that keys the SAME posture row; the fretted twelves after it are a third
-        // span on a DIFFERENT row, because a node grip and a fret grip are two grips.
+        // Three co-struck naturals with nothing standing are no own stops, so they open no span
+        // and wear no bracket — their heads print the nodes. Struck again after a rest, the second
+        // chord founds nothing either; the fretted twelves after it are the one span, on a grip
+        // of pressed frets.
         const ChartShapes derived = deriveFrom(streamOf({
             harmonicAt(1, Fraction{}, 4, 12.0, Fraction{1}),
             harmonicAt(1, Fraction{}, 5, 12.0, Fraction{1}),
@@ -5881,32 +5870,43 @@ TEST_CASE("A natural harmonic states its node to the grip", "[core][chart]")
             inMeasure(2, noteAt(1, Fraction{}, 6, 12, Fraction{1})),
         }));
 
-        REQUIRE(derived.shapes.size() == 3);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 2, .beat = 1});
         CHECK_FALSE(derived.shapes[0].sounds_in_parts);
-        CHECK(derived.shapes[0].posture == derived.shapes[1].posture);
-        CHECK(derived.shapes[2].posture != derived.shapes[0].posture);
-        CHECK(
-            derived.postures[derived.shapes[0].posture].stops[3] == std::optional{nodeStop(12.0)});
-        CHECK(
-            derived.postures[derived.shapes[2].posture].stops[3] == std::optional{frettedStop(12)});
+        const std::vector<std::optional<ChartStop>>& twelves = derivedStops(derived, 0);
+        CHECK(twelves[3] == std::optional{frettedStop(12)});
+        CHECK(twelves[4] == std::optional{frettedStop(12)});
+        CHECK(twelves[5] == std::optional{frettedStop(12)});
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
-    SECTION("a harmonic on a string the grip neither states nor holds grows the span")
+    SECTION("a harmonic on a string the grip neither states nor holds leaves the span unchanged")
     {
-        // No "a node always breaks" rule was invented: a node arriving on an unstated string is
-        // evidence arriving, exactly as a new pressed stop is, and the span grows in place.
-        const ChartShapes derived = deriveFrom(streamOf({
+        // No "a node always breaks" rule was invented: a node struck on a string the span does not
+        // name contradicts nothing, so the span stands — and, stating no grip, the node does not
+        // grow it either. The span derives exactly as it does with no harmonic at all: its front,
+        // its grip, which holds no node, and its extent — the node's ring outlives every fretted
+        // member, so a node that joined the span would carry it past the control's close.
+        const std::vector<ChartNote> grip{
             noteAt(1, Fraction{}, 1, 5, Fraction{4}),
             noteAt(1, Fraction{1, 2}, 2, 7, Fraction{7, 2}),
             noteAt(2, Fraction{}, 3, 9, Fraction{3}),
-            harmonicAt(3, Fraction{}, 6, 12.0, Fraction{2}),
-        }));
+        };
+        std::vector<ChartNote> chimed = grip;
+        chimed.push_back(harmonicAt(3, Fraction{}, 6, 12.0, Fraction{6}));
+        const ChartShapes derived = deriveFrom(streamOf(std::move(chimed)));
+        const ChartShapes control = deriveFrom(streamOf(grip));
 
         REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(control.shapes.size() == 1);
         CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(
-            derived.postures[derived.shapes[0].posture].stops[5] == std::optional{nodeStop(12.0)});
+        CHECK(derived.shapes[0].position == control.shapes[0].position);
+        CHECK(derived.shapes[0].sustain == control.shapes[0].sustain);
+        CHECK(derived.shapes[0].closing_onset == control.shapes[0].closing_onset);
+        CHECK(derivedStops(derived, 0) == derivedStops(control, 0));
+        CHECK_FALSE(derivedStops(derived, 0)[5].has_value());
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
@@ -6160,14 +6160,14 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         everySpanIsPositive(bare);
     }
 
-    SECTION(
-        "texture: a harmonic chord struck over ringing opens breaks the span and founds its own")
+    SECTION("texture: a harmonic chord struck over ringing opens breaks the span and founds none")
     {
         // The sighted figure: an open texture accumulates, then natural harmonics are struck at
         // node 12 on strings still ringing OPEN. A node on a string audibly sounding the open
         // string DISPLACES it — Law A reads the sound, not the grip — so the standing span breaks
-        // at the chord and the harmonic chord founds its own span wearing the nodes from its own
-        // onset, never printing them from a front before which those strings rang open.
+        // at the chord, never printing the nodes from a front before which those strings rang
+        // open. The chord itself founds nothing: a natural states no grip, and the sixth string's
+        // open ring still sounding under it belongs to the span it broke.
         const ChartShapes derived = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 4, 0, Fraction{8}),
             noteAt(1, Fraction{1, 2}, 5, 0, Fraction{15, 2}),
@@ -6175,26 +6175,20 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
             harmonicAt(3, Fraction{}, 4, 12.0, Fraction{2}),
             harmonicAt(3, Fraction{}, 5, 12.0, Fraction{2}),
         }));
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
         CHECK(
             derived.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 3}});
-        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derivedStops(derived, 1)[3] == std::optional{nodeStop(12.0)});
-        CHECK(derivedStops(derived, 1)[4] == std::optional{nodeStop(12.0)});
-        // The sixth string's open ring was not touched: it rings on under the chord as texture,
-        // and prints there.
-        CHECK(derivedTexture(derived, 1)[5] == std::optional{frettedStop(0)});
-        CHECK(derived.shapes[1].sounds_in_parts);
+        noPostureHoldsANaturalNode(derived);
         everySpanIsPositive(derived);
     }
 
     SECTION("texture: a natural harmonic ringing in is a plain tail; a landing carries an open")
     {
-        // The same figure with the drone a natural harmonic: a spent ring like any other, so it
-        // founds nothing — and unlike the open string it is NOT texture either. Its node was true
-        // at the strike and false a moment later, because the finger lifted; printing it in this
-        // later bracket would claim a finger the hand has long since moved. The figure that
+        // The same figure with the drone a natural harmonic: it states no grip even in the chord
+        // that struck it, and ringing on it founds nothing — and unlike the open string it is NOT
+        // texture either. The finger touched the node for the strike and lifted; printing the node
+        // in this later bracket would claim a finger the hand has long since moved. The figure that
         // accumulates over it prints nothing on its string.
         const ChartShapes chimed = deriveFrom(streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -6207,6 +6201,7 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         REQUIRE(chimed.shapes.size() == 2);
         CHECK_FALSE(derivedTexture(chimed, 1)[5].has_value());
         CHECK_FALSE(derivedStops(chimed, 1)[5].has_value());
+        noPostureHoldsANaturalNode(chimed);
 
         // Two fretted members slide over a struck open drone: the landing hands the two slid
         // fingers to the successor and the drone — no survivor, since no finger holds it — sounds
@@ -6258,9 +6253,11 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         // span that has since closed is no member of anything later, whether its stop is a node
         // the finger left at the chime or a fret the finger never lifted from. A natural harmonic
         // and an artificial that PRESSES its fret under the damped node therefore derive the same
-        // one span — each states its own stop in the chord that struck it, and neither is a third
-        // member for the two notes that follow. Where the hand still decides is the LANDING, the
-        // one seam a member crosses: there a string no finger holds can be no survivor.
+        // one span, and neither is a third member for the two notes that follow. The artificial
+        // states its pressed stop in the chord that struck it; the natural states no grip at all,
+        // so that chord's grip is the two fretted notes beside it. Where the hand still decides is
+        // the LANDING, the one seam a member crosses: there a string no finger holds can be no
+        // survivor.
         const auto figure = [](ChartNote sixth) {
             return streamOf({
                 std::move(sixth),
@@ -6276,7 +6273,8 @@ TEST_CASE("A ring belongs only to the span it was struck in", "[core][chart]")
         CHECK(
             natural.shapes[0].closing_onset ==
             std::optional{GridPosition{.measure = 1, .beat = 2}});
-        CHECK(derivedStops(natural, 0)[5] == std::optional{nodeStop(12.0)});
+        CHECK_FALSE(derivedStops(natural, 0)[5].has_value());
+        noPostureHoldsANaturalNode(natural);
 
         ChartNote artificial = noteAt(1, Fraction{}, 6, 3, Fraction{4});
         artificial.harmonic_node = 15.0;

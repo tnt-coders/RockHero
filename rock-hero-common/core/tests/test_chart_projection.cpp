@@ -1490,13 +1490,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a node head over a node grip suppresses; the members arriving later print their node")
+    SECTION("an arpeggio of naturals wears no bracket: its heads print the nodes")
     {
-        // THE NODE GRIP at the digit rule: the comparison is on PLACES. Three naturals accumulating
-        // at the twelfth-partial node found a parts span whose posture holds nodes, and the bracket
-        // prints each entry through the one label authority — "12", never the 0 the notes store.
-        // String 4's own diamond head stands at the bracket and sounds that very node, so its digit
-        // is suppressed; strings 5 and 6 arrive later and print in the frame.
+        // A NATURAL HARMONIC STATES NO GRIP: three naturals accumulating at the twelfth-partial
+        // node are no stops the hand holds, so they found no span and no bracket prints them. Each
+        // diamond head prints its own node through the one label authority — "12", never the 0 the
+        // notes store — and that is the whole of what the figure states.
         const auto natural = [&strike](const int beat, const int string, const Fraction sustain) {
             ChartNote note = strike(beat, string, 0, sustain);
             note.harmonic_node = 12.0;
@@ -1508,22 +1507,12 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             natural(3, 6, Fraction{2}),
         });
 
-        REQUIRE(state.shapes.size() == 1);
-        CHECK(state.shapes[0].arpeggio);
-        REQUIRE(state.shapes[0].strings.size() == 3);
-        CHECK(
-            state.shapes[0].strings[0] ==
-            ShapeStringViewState{.string = 4, .stop = nodeStop(12.0), .digit = std::nullopt});
-        CHECK(
-            state.shapes[0].strings[1] ==
-            ShapeStringViewState{
-                .string = 5, .stop = nodeStop(12.0), .digit = StopMarkSlot::Bracket
-            });
-        CHECK(
-            state.shapes[0].strings[2] ==
-            ShapeStringViewState{
-                .string = 6, .stop = nodeStop(12.0), .digit = StopMarkSlot::Bracket
-            });
+        CHECK(state.shapes.empty());
+        REQUIRE(state.notes.size() == 3);
+        for (const NoteViewState& note : state.notes)
+        {
+            CHECK(note.harmonic_node.has_value());
+        }
     }
 
     SECTION("an artificial harmonic's pressed stop prints once, in the note's own satellite")

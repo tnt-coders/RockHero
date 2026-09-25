@@ -512,10 +512,14 @@ head itself prints the node (RULED 2026-09-18). **It also STATES that pressed st
 grip statement is the pressed fret and never the plant — the node is measured from that fret, so
 that is the grip the figure needs, and satellite and bracket then say one number. The plant stays
 true in the wide table because it is real: it is the hand window's to reach, not the bracket's to
-print. Consequences that follow: a lone natural harmonic
-mid-span closes the span and, unless two more stops or three carried rings are present, opens
-nothing; and stop-identical postures deduplicate, so a node grip and a fret grip printing the same
-number are two postures because they are two grips.
+print. **A NATURAL harmonic states NO grip** (re-ruled 2026-09-24, user): a node touched with
+nothing pressed is not a stop the hand holds — the finger rests over the node for the strike and
+lifts — so it founds, grows and joins no span, and a harmonic chord wears no bracket (its heads
+print the nodes). Its strike still sounds, so it splits a span exactly where it contradicts one: a
+node struck on a string the span holds at a fret breaks that span, while one on a string the span
+does not name leaves it standing. This replaces the 2026-09-18 node grip, under which a natural
+stated its node, a harmonic chord founded a span of nodes, and a node on an unstated string grew
+the span; no posture holds a node now.
 
 **THE HOLD-UNDER LAW** (re-ruled 2026-09-19 from the pull-off sighting chart). A pull-off proves a
 finger on its landing stop AT THE RELEASE, and proves nothing about any earlier instant: a finger
@@ -852,10 +856,10 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
   dashed span and more truthful; same-lane overlap is structurally impossible because of the ring
   bound.
 - The tap-harmonic tail extends from the TOUCH position; the satellite carries the stop.
-- A node grip wears the same bracket the fretted members wear on both surfaces: on the 2D lane the
-  bracket prints its label (`chartStopText`, the one label authority), and in 3D the bracket carries
-  no text at all — the node states itself by SITTING ON ITS OWN WIRE (`highwayStopX`), with the same
-  label authority reaching that board through the floor numbers. Node text, no diamond.
+- A natural harmonic is no grip member (re-ruled 2026-09-24) and wears no bracket on either
+  surface: the head prints the node, and in 3D the node states itself by SITTING ON ITS OWN WIRE
+  (`highwayStopX`). A harmonic over a PRESSED stop is the pressed fret's member and wears that
+  fret's bracket like any other. Node text, no diamond.
 - Pending statements are visibly pending (the ghost head through the honesty gate); the Alt reveal
   is the universal actual-truth escape, and it draws the STORED ring on to its end rather than
   stopping at the ink end.

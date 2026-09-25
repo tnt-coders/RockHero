@@ -1717,12 +1717,13 @@ TEST_CASE(
         CHECK(spansOf(chart, built->tempo_map).shapes.size() == 2);
     }
 
-    SECTION("a natural-harmonic chord splits the span the fretted chord held")
+    SECTION("a natural-harmonic chord closes the fretted chord's span and founds none")
     {
-        // THE NODE GRIP, through the import path end to end: the file's natural harmonics arrive
-        // as fret 0 with a node, and the span derivation reads that node as the fretting hand's
-        // statement — not as the open string — so the harmonic chord breaks the fretted chord's
-        // span and founds its own, wearing the nodes in its posture.
+        // A NATURAL HARMONIC STATES NO GRIP, through the import path end to end: the file's
+        // natural harmonics arrive as fret 0 with a node, and the span derivation reads neither
+        // the node nor the open string as a stop the hand holds — so the fretted chord's span
+        // ends at the harmonic chord, and the harmonic chord founds nothing: no bracket, no
+        // posture holding a node. Its heads print the nodes.
         GpBeat harmonics;
         harmonics.duration_whole = Fraction{1, 2};
         harmonics.notes = {
@@ -1740,12 +1741,17 @@ TEST_CASE(
         CHECK(chart.notes[2].fret == 0);
         CHECK(chart.notes[2].harmonic_node == std::optional{12.0});
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
-        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(
-            heldStops(derived.postures[derived.shapes[1].posture]) ==
-            std::vector<std::optional<common::core::ChartStop>>{
-                common::core::nodeStop(12.0), common::core::nodeStop(12.0)
-            });
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 3}});
+        CHECK(std::ranges::none_of(derived.postures, [](const common::core::ChartPosture& posture) {
+            return std::ranges::any_of(
+                posture.stops, [](const std::optional<common::core::ChartStop>& stop) {
+                    return stop.has_value() && stop->node.has_value();
+                });
+        }));
     }
 
     SECTION("a ring notated across voices past the next onset is held whole")
