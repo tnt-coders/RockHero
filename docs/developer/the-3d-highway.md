@@ -180,18 +180,18 @@ and the fret-span furniture under it. (A fret-0 note takes the open-string bar t
 hand window instead and never asks it.) The stop is a parameter because one gesture sounds from
 more than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
-**BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light patch
-are two tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand`, an
-arrival per placement; `HighwayTapOnsetViewState::path`, an arrival per stop of the taps' travel),
-resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's passes
-only decide where to sample it. Each arrival carries its ramp, the ease family the rail draws with,
-and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the approach
-leaves the leg's curve where the rail is cut and comes to rest at the arrival with a continuous
-slope (`cubicHermite`, the one cubic the bend curve is also built from). The settle is a fact
-about the rail, so the chart projection derives it once beside the ramp
-(`FhpViewState::settle_seconds`) and the board copies it; the tap path derives its own from the
-same ink end (`makeHighwayTapOnsets`, `highway_projection.cpp`). A left-hand slide-out into the
-next head and a pick slide cut at its crop therefore look the same underneath: the light rides
+**BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light are two
+tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand.track`, an
+arrival per placement; `HighwayViewState::pick_hand.track`, an arrival per stop of the taps'
+travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
+passes only decide where to sample it. Each arrival carries its ramp, the ease family the rail
+draws with, and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the
+approach leaves the leg's curve where the rail is cut and comes to rest at the arrival with a
+continuous slope (`cubicHermite`, the one cubic the bend curve is also built from). The settle is a
+fact about the rail, so the chart projection derives it once beside the ramp
+(`FhpViewState::settle_seconds`) and the board copies it; the picking hand's track derives its own
+from the same ink end (`makePickHandLight`, `highway_projection.cpp`). A left-hand slide-out into
+the next head and a pick slide cut at its crop therefore look the same underneath: the light rides
 the rail's own curve to the crop and settles over the last margin.
 
 **A TAIL'S TIP FADE IS ONE RULE FOR BOTH SURFACES** (`tailFadeSeconds`, `chart_view_state.h`): the
@@ -457,32 +457,74 @@ arpeggio: the lighter frame is for the pair an ONSET states — a lone strike be
 for the two survivors a landed travel opens, and, once the span marker ships, for an
 authored two-note span.
 
-# The two floor lights, and the one thing they share
+# The floor light
 
-Two passes light the board's floor, both at `g_floor_light_y` (the floor itself is always y = 0 —
-content is raised off it), both through the **same** program and the same per-fragment soft x edges
-(`fs_window_light`, `g_window_light_falloff`), both alpha-blended rather than additive. That last
-point matters where they cover one place: they composite in submission order, so two lights at one
-position cannot sum toward white the way the additive accent batch's halos do.
+ONE light, with two evidence producers. Each hand is the same pair of lists,
+`HighwayHandLight { track, lit }` (`highway_view_state.h`): WHERE its window stands over time (the
+track) and WHEN it is lit (disjoint, ascending `HighwayLitStretch`es, `highway_light.h`).
+`HighwayViewState::fret_hand` and `::pick_hand` are two values of that one type, and the hands
+differ ONLY in what their producers in `highway_projection.cpp` accept as evidence and in the
+tolerance they merge it under:
 
-- **`drawHandWindowLight`** — the fretting hand's backlight, the window sliding over the board.
-  Per-slice brightness lives in one field, `WindowLightSlice::dim`, dimmed by the motion dim across
-  a placement's morph.
-- **`drawTappingHandLight`** — one patch per picking-hand onset over the fret SLOTS it presses:
-  the light's envelope (`highwayLightLevel` in `highway_light.h`, over the onset's
-  `HighwayLitStretch light`: rising over its rise, full through its hold, fading from its
-  release) laid over the same morph the window moves by (`highwayHandWindowAt` over the onset's
-  path), sampled at one list of instants. It leans toward the FHP orange so the two hands read
-  apart. Its fade takes `g_floor_light_decay_seconds`: the decay belongs to the layer drawing the
-  light, never to the hand, so the lane-border ribbons shape the same envelope with their own
-  `g_ribbon_decay_seconds`.
+- **`makeFretHandLight`** — every note whose onset is not a right-hand onset (fretted, open, dead,
+  natural harmonic, legato, left tap), every right-hand onset whose held stop is pressed, and every
+  span over its drawn extent. A bare tap proves nothing. Open strings are lit by ruling: an open
+  note is drawn as a bar spanning the window, and a dark window under it would read as a floating
+  bar. A span carries no rise of its own and never opens a light — it starts at a note's onset or
+  tiles onto its predecessor. Merged under `g_hand_rest_seconds`.
+- **`makePickHandLight`** — one item per tapped member of each right-hand onset group (the same
+  grouping `makeHighwayTapOnsets` strikes with). Its track is the groups' paths concatenated, an
+  earlier group's arrivals at or after the next onset dropped (the hand has moved on); each strike's
+  first arrival is instant. Merged under `g_pick_light_rest_seconds`, which is zero: each strike is
+  its own light, the dip between strikes mirroring the finger lifting, and only overlapping strikes
+  merge.
+
+Both producers hand their evidence to the one **`mergeLitEvidence`**, differing only in the
+tolerance it is given — a parameter, never a branch. **`g_hand_rest_seconds`** is the ESTABLISHMENT
+RULE: a hand's position stays established across a gap shorter than it. The fretting hand's light
+merges under it (a sustainless chug riff would otherwise strobe at every margin trim), and a
+repeated tap within it keeps its number unprinted (a `HighwayTapOnsetViewState` carries its strike's
+hold end, `release_seconds`, for that test). Each stretch rises over its first note's arrival
+margin, clamped so it never reaches back past the previous release, holds to its release (the drawn
+end, or the last pitched keyframe before a drawn slide-out), and fades over
+`g_light_decay_seconds` — ONE decay for every layer, because a release is a gesture.
+
+**THE BRIGHTNESS RULE** is the one formula every layer draws, at any fret line and instant:
+`max over lights of coverage(highwayLitWindowAt(track, stretch, t), line) ×
+highwayLightLevel(stretch, t) × motionDim(track, highwayLitTrackTime(track, stretch, t))`, where the
+motion dim is the sin-squared bell a window sweeping across lanes dims by, whichever hand moves it —
+read off the leg `highwayHandLegAt` finds, the same lookup the window eases through.
+`highwayLitWindowAt` (`highway_window.h`) is the READING RULE: a light never starts a new leg of its
+track outside its own stretch, because a placement whose ramp lies in a dark gap must not move a
+light nothing displays. Through its rise it already stands where its start stands; after its
+release it only finishes the leg in progress at the release (a slide-out's settle), then holds. The
+lights read `highwayLitWindowAt`; furniture that is not a light — pinned numbers, box panels, beat
+wings, rails, tails — reads the raw window, `highwayHandWindowAt`.
+
+The renderer names the two hands once, in `forEachHand` (the fretting hand first, then the picking
+hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn span through
+`forEachLightOf`; `forEachLight` is the two composed.
+
+- **`drawFloorLight`** — per light, the brightness laid over the window at a list of instants
+  (`appendLightSampleTimes`: the lit interval's ends, the start, the release, and — only where the
+  light follows its track — the arrivals it reaches and each ramp it travels, sliced by
+  `highwayGlideSliceCount`), through the per-fragment soft x edges (`fs_window_light`,
+  `g_window_light_falloff`), with the spill lane drawn past each edge so the soft band fades fully.
+  One batch per hand; the picking hand's lanes lean toward the FHP orange
+  (`HandLightStyle::warm_mix`). Alpha-blended rather than additive, so two lights at one position
+  composite in submission order instead of summing toward white.
+- **`drawLaneBorderRibbons`** — the bright tier is the rule at now (`lineLightAt`); the mid tier is
+  the rule along z at each sample's time, so a line is lit only while its light is.
+- **`drawFretLines`** — the active tier is the rule at now.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
-the next statement — is **TABLED**: removed rather than left switched off, with the revisit recorded
-in `docs/tracking/backlog.md`.
+the next statement — is what the fretting hand's evidence and the establishment rule do: the light
+goes out through any gap of `g_hand_rest_seconds` or more and rises back over the next note's
+margin.
 
-A **harmonic node light** (a floor glow under every note whose node lies on the neck) is tabled the
-same way and recorded in the same place. What stands without it is the FLOOR MARK that light shared
+A **harmonic node light** (a floor glow under every note whose node lies on the neck) is
+**TABLED**: removed rather than left switched off, with the revisit recorded in
+`docs/tracking/backlog.md`. What stands without it is the FLOOR MARK that light shared
 its position with: a harmonic's fret-span line runs from its stop to its node rather than
 wire-to-wire across a fret slot, because the press and the touch lie in two places and a slot line
 alone points the hand a wire away from the touch.
@@ -492,10 +534,10 @@ marked head and a floor mark cannot disagree. A pinch is absent by construction 
 the body, so the neck has nowhere to point, and its head takes the pinch cell instead) and a scrape
 by exclusion (its node is an in-memory latent, not a touch — refused by `isHarmonic` itself).
 
-Neither tabled feature states a FACT the 2D lane would have to answer, which is why their absence
-needs no tab-side change either: the stop-to-node line restates on the floor what the 2D lane
-already says with the diamond head, the node number and the satellite's pressed stop, and the hand
-WINDOW is board-only furniture 2D has no lit region for.
+Neither the node light's absence nor the floor light states a FACT the 2D lane would have to
+answer, which is why neither needs a tab-side change: the stop-to-node line restates on the floor
+what the 2D lane already says with the diamond head, the node number and the satellite's pressed
+stop, and the hand WINDOW and its light are board-only furniture 2D has no lit region for.
 
 # Two visual paths: chart visuals and screen-space overlays
 

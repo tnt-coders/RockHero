@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
+#include <optional>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/highway/highway_window.h>
@@ -285,6 +286,137 @@ TEST_CASE("Hand window line coverage ramps across the edges", "[core][highway][w
     CHECK(highwayHandWindowLineCoverage(sweeping, 3.0) == Catch::Approx(1.0));
     CHECK(highwayHandWindowLineCoverage(sweeping, 6.0) == Catch::Approx(1.0));
     CHECK(highwayHandWindowLineCoverage(sweeping, 7.0) == Catch::Approx(0.5));
+}
+
+// THE LEG LOOKUP at its breakpoints: a leg is in progress from its ramp's start inclusive to its
+// arrival exclusive, the first arrival never has one, and neither does a zero ramp.
+TEST_CASE("Hand leg lookup finds the ramp in progress", "[core][highway][window]")
+{
+    std::vector<HighwayHandArrival> track = makePlacements();
+    // The first arrival carries a ramp of its own, which must still never be a leg.
+    track.front().ramp_seconds = 1.0;
+    // A zero-ramp step after the move: arrives instantly, so it is never a leg either.
+    track.push_back(
+        HighwayHandArrival{
+            .seconds = 8.0,
+            .low_line = 1.0,
+            .high_line = 5.0,
+            .ramp_seconds = 0.0,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        });
+
+    CHECK_FALSE(highwayHandLegAt(track, 1.5).has_value());
+    CHECK_FALSE(highwayHandLegAt(track, 3.9).has_value());
+
+    const std::optional<HighwayHandLeg> at_start = highwayHandLegAt(track, 4.0);
+    REQUIRE(at_start.has_value());
+    if (at_start.has_value())
+    {
+        CHECK(at_start->from == &track[0]);
+        CHECK(at_start->to == &track[1]);
+        CHECK(std::is_eq(at_start->progress <=> 0.0));
+    }
+    const std::optional<HighwayHandLeg> mid = highwayHandLegAt(track, 5.0);
+    REQUIRE(mid.has_value());
+    if (mid.has_value())
+    {
+        CHECK(std::is_eq(mid->progress <=> 0.5));
+    }
+
+    CHECK_FALSE(highwayHandLegAt(track, 6.0).has_value());
+    CHECK_FALSE(highwayHandLegAt(track, 7.99).has_value());
+    CHECK_FALSE(highwayHandLegAt(track, 8.0).has_value());
+    CHECK_FALSE(highwayHandLegAt({}, 5.0).has_value());
+}
+
+// THE READING RULE: a placement whose ramp lies inside a dark gap between two lights moves
+// neither. A light never starts a new leg outside its own stretch: after its release it holds the
+// release's window, and through its rise it already stands where its start stands.
+TEST_CASE("Lit window holds still outside its stretch", "[core][highway][window]")
+{
+    const auto arrival =
+        [](const double seconds, const double low, const double high, const double ramp) {
+            return HighwayHandArrival{
+                .seconds = seconds,
+                .low_line = low,
+                .high_line = high,
+                .ramp_seconds = ramp,
+                .unpitched_ramp = false,
+                .settle_seconds = 0.0,
+            };
+        };
+    // Lines 2-6 from the start; a move to 7-11 ramping over 2.5-3.0, wholly inside the gap; and a
+    // move to 1-5 ramping over 4.5-5.0, under the second light's rise.
+    const std::vector<HighwayHandArrival> track{
+        arrival(0.0, 2.0, 6.0, 0.0), arrival(3.0, 7.0, 11.0, 0.5), arrival(5.0, 1.0, 5.0, 0.5)
+    };
+    const HighwayLitStretch first{
+        .start_seconds = 0.5, .release_seconds = 1.0, .rise_seconds = 0.0
+    };
+    const HighwayLitStretch second{
+        .start_seconds = 5.0, .release_seconds = 6.5, .rise_seconds = 0.5
+    };
+
+    // The gap's move is real on the track itself.
+    const HighwayHandWindow mid_gap = highwayHandWindowAt(track, 2.75);
+    CHECK(mid_gap.low_line > 2.0);
+    CHECK(mid_gap.low_line < 7.0);
+
+    // The first light, after its release, holds its window at the release — through its decay and
+    // through the whole gap.
+    const HighwayHandWindow at_release = highwayLitWindowAt(track, first, 1.0);
+    CHECK(at_release == HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
+    CHECK(highwayLitWindowAt(track, first, 1.05) == at_release);
+    CHECK(highwayLitWindowAt(track, first, 2.75) == at_release);
+
+    // The second light, through its rise, already stands where its start stands, while the track
+    // underneath is still mid-move.
+    const HighwayHandWindow at_start = highwayLitWindowAt(track, second, 5.0);
+    CHECK(at_start == HighwayHandWindow{.low_line = 1.0, .high_line = 5.0});
+    CHECK(highwayLitWindowAt(track, second, 4.75) == at_start);
+    CHECK(highwayHandWindowAt(track, 4.75).low_line > 1.0);
+
+    // Inside its stretch a light reads the track as it is.
+    CHECK(highwayLitWindowAt(track, second, 6.0) == highwayHandWindowAt(track, 6.0));
+}
+
+// A leg already in progress AT the release is still followed to its end — a slide-out settling
+// over its crop zone keeps travelling while its light fades — and then holds; a leg that only
+// begins inside the decay never moves the light.
+TEST_CASE("Lit window finishes the leg in progress at its release", "[core][highway][window]")
+{
+    std::vector<HighwayHandArrival> track = makeSettlingPlacements(0.25);
+    // A later move to lines 1-5 whose ramp begins after the slide-out has landed.
+    track.push_back(
+        HighwayHandArrival{
+            .seconds = 7.0,
+            .low_line = 1.0,
+            .high_line = 5.0,
+            .ramp_seconds = 0.5,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        });
+    // Released halfway along the slide-out's one-second approach (5.0 to 6.0).
+    const HighwayLitStretch light{
+        .start_seconds = 2.0, .release_seconds = 5.5, .rise_seconds = 0.0
+    };
+
+    CHECK(highwayLitWindowAt(track, light, 5.75) == highwayHandWindowAt(track, 5.75));
+    CHECK(std::is_eq(highwayLitTrackTime(track, light, 6.75) <=> 6.0));
+    CHECK(
+        highwayLitWindowAt(track, light, 6.75) ==
+        HighwayHandWindow{.low_line = 7.0, .high_line = 13.0});
+    CHECK_FALSE(highwayHandWindowAt(track, 6.75) == highwayLitWindowAt(track, light, 6.75));
+
+    // With no leg in progress at the release, the light holds the release's window.
+    const HighwayLitStretch early{
+        .start_seconds = 2.0, .release_seconds = 4.5, .rise_seconds = 0.0
+    };
+    CHECK(std::is_eq(highwayLitTrackTime(track, early, 5.5) <=> 4.5));
+    CHECK(
+        highwayLitWindowAt(track, early, 5.5) ==
+        HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
 }
 
 } // namespace rock_hero::common::core

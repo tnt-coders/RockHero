@@ -161,9 +161,9 @@ approach ending there.
 
 THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
 fretting hand's track (\ref HighwayViewState::fret_hand) is an arrival per placement, and the
-picking hand's light path (\ref HighwayTapOnsetViewState::path) is an arrival per stop of the taps'
-travel. Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window
-covering frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
+picking hand's (\ref HighwayViewState::pick_hand) is an arrival per stop of the taps' travel.
+Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window covering
+frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
 */
 struct HighwayHandArrival
 {
@@ -179,8 +179,8 @@ struct HighwayHandArrival
     /*!
     \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
-    A placement's is \ref FhpViewState::ramp_seconds; a light path's arrival ramps over the leg
-    from the arrival before it.
+    A placement's is \ref FhpViewState::ramp_seconds. On the picking hand's track a strike's first
+    arrival is instant, and every later arrival ramps over the leg from the arrival before it.
     */
     double ramp_seconds{0.0};
 
@@ -223,7 +223,45 @@ struct HighwayHandArrival
     }
 };
 
-/*! \brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes. */
+/*!
+\brief One hand's light: WHERE its window stands over time, and WHEN it is lit.
+
+The same pair for both hands (\ref HighwayViewState::fret_hand, \ref HighwayViewState::pick_hand),
+so every floor layer draws either hand through one path and the hands differ only in the evidence
+their producers accept. Where the light stands at an instant is \ref highwayHandWindowAt over
+\ref track; how bright it is there is \ref highwayLightLevel over the stretch of \ref lit covering
+that instant.
+*/
+struct HighwayHandLight
+{
+    /*! \brief Where the hand's window stands, over time: arrivals ascending. */
+    std::vector<HighwayHandArrival> track;
+
+    /*!
+    \brief When the light is lit: disjoint stretches in ascending order (\ref mergeLitEvidence),
+    empty where the chart proves nothing about the hand.
+    */
+    std::vector<HighwayLitStretch> lit;
+
+    /*!
+    \brief Compares two hand lights by their stored fields.
+    \param lhs Left-hand light.
+    \param rhs Right-hand light.
+    \return True when both lights store equal values.
+
+    Defaulted: each member is a vector of a type that hand-writes its own exact comparison, so no
+    floating compare is spelled here.
+    */
+    friend bool operator==(const HighwayHandLight& lhs, const HighwayHandLight& rhs) = default;
+};
+
+/*!
+\brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes: the STRIKE's
+facts alone, for the tapped chord box and the strike pop.
+
+Where the picking hand's light stands and when it is lit are not the strike's: they live on the
+hand (\ref HighwayViewState::pick_hand), whose one track runs through every strike.
+*/
 struct HighwayTapOnsetViewState
 {
     /*! \brief Absolute onset position shared by the simultaneous taps. */
@@ -239,19 +277,13 @@ struct HighwayTapOnsetViewState
     int count{0};
 
     /*!
-    \brief The picking hand's window track for this onset, in the board's one motion element
-    (\ref makeHighwayTapOnsets). Never empty; a sustainless tap has exactly one arrival.
-    */
-    std::vector<HighwayHandArrival> path;
+    \brief The strike's hold end: the latest release among the struck notes, never before the onset.
 
-    /*!
-    \brief When the onset's light is lit (\ref makeHighwayTapOnsets).
-
-    Its \ref HighwayLitStretch::start_seconds duplicates \ref seconds until the light moves off the
-    onset onto the hand's own track (`one-floor-light.md`, Phase 2). The path may run past the
-    release: a leg the ink end cuts settles to its arrival while the light is already fading.
+    A note releases at its drawn end, or at its last pitched keyframe when a drawn slide-out follows
+    (pressure is already coming off). Whether the next strike repeats an established position is
+    measured from here (\ref g_hand_rest_seconds).
     */
-    HighwayLitStretch light;
+    double release_seconds{0.0};
 
     /*!
     \brief Compares two tap-onset views by their stored fields.
@@ -260,15 +292,14 @@ struct HighwayTapOnsetViewState
     \return True when both views store equal values.
 
     Exact second equality for the same reason as the arrival's: these are compared against values
-    the projection produced. The scalars are tested before the path so an unequal onset rejects
-    without walking the path.
+    the projection produced.
     */
-    friend bool operator==(
+    friend constexpr bool operator==(
         const HighwayTapOnsetViewState& lhs, const HighwayTapOnsetViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
-               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count && lhs.light == rhs.light &&
-               lhs.path == rhs.path;
+               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
+               std::is_eq(lhs.release_seconds <=> rhs.release_seconds);
     }
 };
 
@@ -527,21 +558,28 @@ struct HighwayViewState
     ChartViewState chart;
 
     /*!
-    \brief The fretting hand's window track: an arrival per placement
-    (\ref ChartViewState::fret_hand_positions), in the board's one motion element.
+    \brief The fretting hand's light.
 
-    What the board's window motion reads — the window edges, the morph dim, the camera's framing
-    — through the one resolver both hands share (\ref highwayHandWindowAt). The chart's placements
-    stay the authority for what a placement IS (the 2D lane draws them, the board labels them).
+    Its track is an arrival per placement (\ref ChartViewState::fret_hand_positions): what the
+    board's window motion reads — the window edges, the morph dim, the camera's framing — through
+    the one resolver both hands share (\ref highwayHandWindowAt). The chart's placements stay the
+    authority for what a placement IS (the 2D lane draws them, the board labels them). It is lit
+    where the chart proves the hand holds something (\ref makeFretHandLight).
     */
-    std::vector<HighwayHandArrival> fret_hand;
+    HighwayHandLight fret_hand;
+
+    /*!
+    \brief The picking hand's light (\ref makePickHandLight): the tap onsets' paths as one track,
+    lit around each right-hand strike through the same merge the fretting hand's evidence takes.
+    */
+    HighwayHandLight pick_hand;
 
     /*!
     \brief Tapping-hand onsets in ascending order, derived from the notes' picking-hand-at-the-neck
     attacks — taps AND pick slides, per \ref rightHandOnset.
 
     Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): these
-    feed the per-tap light envelopes and the tapped chord boxes, and carry no user-editable data.
+    feed the tapped chord boxes and the strike pops, and carry no user-editable data.
     */
     std::vector<HighwayTapOnsetViewState> tap_onsets;
 

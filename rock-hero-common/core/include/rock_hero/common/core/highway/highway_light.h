@@ -6,7 +6,7 @@
 #pragma once
 
 #include <compare>
-#include <span>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -18,7 +18,7 @@ full through \ref release_seconds, then decaying.
 Where the light stands is not part of the stretch: that is the hand's track in the board's one
 motion element (\ref HighwayHandArrival). How fast it decays is not part of it either: the decay
 belongs to the LAYER that draws the light, never to the hand. A stretch gathered as evidence, before
-\ref foldLitEvidence and \ref crowdedAfter, carries its rise unclamped.
+\ref mergeLitEvidence, carries its rise unclamped.
 */
 struct HighwayLitStretch
 {
@@ -30,7 +30,7 @@ struct HighwayLitStretch
 
     /*!
     \brief Duration of the light's rise ending at \ref start_seconds; never negative, and clamped
-    by \ref crowdedAfter so a light never rises back through an earlier hold.
+    by \ref mergeLitEvidence so a light never rises back through an earlier hold.
     */
     double rise_seconds{0.0};
 
@@ -92,30 +92,49 @@ zero), full through the hold up to and including the release, and a linear decay
     const HighwayLitStretch& stretch, double seconds, double decay_seconds) noexcept;
 
 /*!
-\brief Folds gathered evidence into one light.
+\brief THE ESTABLISHMENT RULE: a hand's position stays established across a gap shorter than this.
 
-THE fold: the light starts at the earliest start, releases at the latest release, and rises over the
-widest rise among the items starting within \ref g_onset_match_epsilon of that earliest start — a
-later item's rise ends at its own start, where the light is already full.
-
-\param items Evidence to fold; must not be empty.
-\return The folded stretch, its rise not yet crowding-clamped.
+Two things read it. The fretting hand's light merges its evidence under it (\ref mergeLitEvidence):
+released at each note's drawn end, that light would dip at every margin trim and strobe through a
+sustainless chug riff, so a dark gap has to be long enough to read as a rest rather than as a
+flicker before the light goes out. And a repeated tap within it is an established position, so its
+number is not printed again. Seconds rather than beats because that is a readability question, not
+a musical one — the minimum sustain distance, the same question for tails, sighted more
+consistently across slow and fast songs once it was time-based — and because the light's own rise
+and decay are already in seconds. The value is a sighting knob.
 */
-[[nodiscard]] HighwayLitStretch foldLitEvidence(std::span<const HighwayLitStretch> items) noexcept;
+inline constexpr double g_hand_rest_seconds = 1.0;
 
 /*!
-\brief Returns a stretch with its rise clamped so it never rises back past the previous stretch's
-release.
+\brief The picking hand's light merges its evidence under this gap (\ref mergeLitEvidence).
 
-THE crowding clamp, mirroring the fret-hand ramps: the rise is clamped to [0, the gap between the
-previous release and this start], the gap floored at zero, so a dense run keeps a dip between its
-lights.
-
-\param stretch Stretch to clamp.
-\param previous The stretch lit immediately before it.
-\return \p stretch with its rise clamped to the gap.
+Zero: every strike is its own light, and the dip between strikes mirrors the finger lifting. Strikes
+that overlap still merge, since their gap is negative. A look ruled on sight, distinct from the
+establishment rule (\ref g_hand_rest_seconds) the picking hand's labels still follow.
 */
-[[nodiscard]] HighwayLitStretch crowdedAfter(
-    HighwayLitStretch stretch, const HighwayLitStretch& previous) noexcept;
+inline constexpr double g_pick_light_rest_seconds = 0.0;
+
+/*!
+\brief Merges gathered evidence into a hand's lit stretches.
+
+THE merge: sorted by start, evidence gathers into one run while each next item starts less than
+\p rest_seconds after the latest release seen in the run so far — a gap of exactly the tolerance
+splits, and a gap narrower than \ref g_onset_match_epsilon never does, so the members of one strike
+stay one light even under a zero tolerance. Each run folds into one stretch: the earliest start,
+the latest release, and the widest rise among the items starting within
+\ref g_onset_match_epsilon of that earliest start (a later item's rise ends at its own start,
+where the light is already full). Each stretch is then crowded after the
+one before it: its rise is clamped to the gap after the previous release, so a light never rises
+back through an earlier hold.
+
+Taken by value on purpose: the merge sorts its evidence and folds it in place, returning the same
+storage.
+
+\param items Evidence, one stretch per proof, rises unclamped, in any order.
+\param rest_seconds The rest tolerance; never negative.
+\return The lit stretches: disjoint and ascending, rises crowding-clamped.
+*/
+[[nodiscard]] std::vector<HighwayLitStretch> mergeLitEvidence(
+    std::vector<HighwayLitStretch> items, double rest_seconds);
 
 } // namespace rock_hero::common::core

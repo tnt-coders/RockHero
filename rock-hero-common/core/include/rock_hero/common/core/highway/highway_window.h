@@ -6,8 +6,9 @@
 #pragma once
 
 #include <compare>
+#include <optional>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <vector>
+#include <span>
 
 namespace rock_hero::common::core
 {
@@ -52,8 +53,8 @@ struct HighwayHandWindow
 \brief Returns the eased extent of a hand's window at an absolute time.
 
 THE ONE MORPH both hands move by. A track is arrivals in ascending order
-(\ref HighwayHandArrival): the fretting hand's placements, or the picking hand's light path.
-Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ease from the previous
+(\ref HighwayHandArrival): the fretting hand's placements, or the picking hand's strikes and their
+travel. Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ease from the previous
 settled window toward the arriving one, so the window travels in lockstep with a gliding note and
 morphs smoothly for ordinary moves. Which easing applies is the arrival's own `unpitched_ramp`: a
 pitched approach takes the slide curve, an unpitched one the slide-out curve, which starts slowly
@@ -71,7 +72,86 @@ arrivals at all.
 \return Fractional window extent at the time.
 */
 [[nodiscard]] HighwayHandWindow highwayHandWindowAt(
-    const std::vector<HighwayHandArrival>& track, double seconds) noexcept;
+    std::span<const HighwayHandArrival> track, double seconds) noexcept;
+
+/*!
+\brief The leg a hand's window is travelling at one instant: the ramp from one arrival's settled
+window into the next's.
+*/
+struct HighwayHandLeg
+{
+    /*! \brief The arrival the leg leaves; never null. */
+    const HighwayHandArrival* from{nullptr};
+
+    /*! \brief The arrival the leg ramps into; never null. */
+    const HighwayHandArrival* to{nullptr};
+
+    /*! \brief How far through the ramp the instant lies, in [0, 1). */
+    double progress{0.0};
+};
+
+/*!
+\brief Returns the leg whose ramp is in progress at an absolute time, if any.
+
+THE LEG LOOKUP every reader of motion asks — the window's easing (\ref highwayHandWindowAt), a
+light's reading after its release (\ref highwayLitTrackTime), and the renderer's motion dim. The
+leg into an arrival `to` is in progress from `to.seconds - to.ramp_seconds` inclusive to
+`to.seconds` exclusive (at the arrival it has arrived). A zero ramp has no leg, and neither does the
+first arrival: its window already holds before it arrives.
+
+The leg points into \p track, so it is valid only while the track is.
+
+\param track Arrivals in ascending order.
+\param seconds Absolute time to evaluate at.
+\return The leg in progress, or no value where the window holds still.
+*/
+[[nodiscard]] std::optional<HighwayHandLeg> highwayHandLegAt(
+    std::span<const HighwayHandArrival> track, double seconds) noexcept;
+
+/*!
+\brief Returns the instant a lit light reads its hand's track at: where the window it shows is
+taken from (\ref highwayLitWindowAt).
+
+THE READING RULE, stated once: a light never starts a new leg of its track outside its own stretch,
+because a placement whose ramp lies in a dark gap must not move a light nothing displays — neither
+the fading light before the gap nor the rising one after it. So:
+
+- inside the stretch, [start, release], the light reads the track at \p seconds;
+- during the rise, before the start, it reads the track at the start: the placement is already in
+  place as the light rises, with no morph;
+- after the release it follows only the leg already in progress AT the release — the arrival whose
+  ramp has begun by then and not yet arrived — to that leg's end, and holds there; with no leg in
+  progress it holds the release's window. A slide-out's settle over its crop zone therefore still
+  plays out, while a leg that begins inside the decay never moves the light.
+
+The result never decreases as \p seconds grows, and the light's window moves only between its
+readings at two instants, which is what lets a drawer bound its samples.
+
+\param track Arrivals in ascending order.
+\param stretch The light's lit stretch over that track.
+\param seconds Absolute time the light is drawn at.
+\return The absolute time the track is read at.
+*/
+[[nodiscard]] double highwayLitTrackTime(
+    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
+    double seconds) noexcept;
+
+/*!
+\brief Returns the extent a lit light shows at an absolute time: its hand's window read at
+\ref highwayLitTrackTime.
+
+Every layer that draws a light — the floor, the lane-border tiers, the fret-line tier — takes the
+light's extent from here, never from \ref highwayHandWindowAt directly, so no layer can show a move
+the light itself does not make.
+
+\param track Arrivals in ascending order.
+\param stretch The light's lit stretch over that track.
+\param seconds Absolute time the light is drawn at.
+\return Fractional window extent the light covers at the time.
+*/
+[[nodiscard]] HighwayHandWindow highwayLitWindowAt(
+    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
+    double seconds) noexcept;
 
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.

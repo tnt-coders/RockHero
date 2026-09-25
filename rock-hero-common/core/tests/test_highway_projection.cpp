@@ -1051,71 +1051,56 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.000000000001, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::LeftTap); // The FRETTING hand's tap: no entry.
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes);
     REQUIRE(onsets.size() == 3);
     CHECK(
-        onsets[0] == HighwayTapOnsetViewState{
-                         .seconds = 1.0,
-                         .fret_low = 12,
-                         .fret_high = 12,
-                         .count = 1,
-                         .path = {HighwayHandArrival{
-                             .seconds = 1.0,
-                             .low_line = 11.0,
-                             .high_line = 12.0,
-                             .ramp_seconds = 0.0,
-                             .unpitched_ramp = false,
-                             .settle_seconds = 0.0,
-                         }},
-                         .light = HighwayLitStretch{
-                             .start_seconds = 1.0,
-                             .release_seconds = 1.0,
-                             .rise_seconds = 0.0,
-                         },
-                     });
+        onsets[0] ==
+        HighwayTapOnsetViewState{
+            .seconds = 1.0, .fret_low = 12, .fret_high = 12, .count = 1, .release_seconds = 1.0
+        });
     CHECK(
-        onsets[1] == HighwayTapOnsetViewState{
-                         .seconds = 2.0,
-                         .fret_low = 14,
-                         .fret_high = 14,
-                         .count = 1,
-                         .path = {HighwayHandArrival{
-                             .seconds = 2.0,
-                             .low_line = 13.0,
-                             .high_line = 14.0,
-                             .ramp_seconds = 0.0,
-                             .unpitched_ramp = false,
-                             .settle_seconds = 0.0,
-                         }},
-                         .light = HighwayLitStretch{
-                             .start_seconds = 2.0,
-                             .release_seconds = 2.0,
-                             .rise_seconds = 0.0,
-                         },
-                     });
+        onsets[1] ==
+        HighwayTapOnsetViewState{
+            .seconds = 2.0, .fret_low = 14, .fret_high = 14, .count = 1, .release_seconds = 2.0
+        });
     CHECK(
         onsets[2] == HighwayTapOnsetViewState{
                          .seconds = 3.0,
                          .fret_low = 12,
                          .fret_high = 17,
                          .count = 3,
-                         .path = {HighwayHandArrival{
-                             .seconds = 3.0,
-                             .low_line = 11.0,
-                             .high_line = 17.0,
-                             .ramp_seconds = 0.0,
-                             .unpitched_ramp = false,
-                             .settle_seconds = 0.0,
-                         }},
-                         .light = HighwayLitStretch{
-                             .start_seconds = 3.0,
-                             .release_seconds = 3.000000000001,
-                             .rise_seconds = 0.0,
-                         },
+                         .release_seconds = 3.000000000001
                      });
-    // The release a picosecond past the onset is the onset's own instant: it adds no arrival.
-    CHECK(onsets[2].path.size() == 1);
+
+    // The same groups light the picking hand: one arrival per onset on its one track (the release
+    // a picosecond past the chord's onset is the onset's own instant, so it adds no arrival), and
+    // one light per strike.
+    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(notes.size(), 0.0));
+    const auto settled = [](const double seconds, const double low, const double high) {
+        return HighwayHandArrival{
+            .seconds = seconds,
+            .low_line = low,
+            .high_line = high,
+            .ramp_seconds = 0.0,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        };
+    };
+    CHECK(
+        light.track == std::vector<HighwayHandArrival>{
+                           settled(1.0, 11.0, 12.0),
+                           settled(2.0, 13.0, 14.0),
+                           settled(3.0, 11.0, 17.0),
+                       });
+    CHECK(
+        light.lit ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.0, .rise_seconds = 0.0},
+            HighwayLitStretch{.start_seconds = 2.0, .release_seconds = 2.0, .rise_seconds = 0.0},
+            HighwayLitStretch{
+                .start_seconds = 3.0, .release_seconds = 3.000000000001, .rise_seconds = 0.0
+            },
+        });
 }
 
 // A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes
@@ -1133,24 +1118,27 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     tap.attack = NoteAttack::Tap;
     tap.harmonic_node = 12.0;
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets({tap});
     REQUIRE(onsets.size() == 1);
     CHECK(onsets.front().count == 1);
     CHECK(onsets.front().fret_low == 12);
     CHECK(onsets.front().fret_high == 12);
-    // The path arrival reads the same sounding place through the light's own interpolation, so it
-    // has to agree exactly (compared through the ordering query, which the project uses for an
+    // The track arrival reads the same sounding place through the light's own interpolation, so
+    // it has to agree exactly (compared through the ordering query, which the project uses for an
     // exact floating compare that -Wfloat-equal accepts): the node's fret spans lines 11 to 12.
-    REQUIRE_FALSE(onsets.front().path.empty());
-    CHECK(std::is_eq(onsets.front().path.front().low_line <=> 11.0));
-    CHECK(std::is_eq(onsets.front().path.front().high_line <=> 12.0));
+    const HighwayHandLight light = makePickHandLight({tap}, std::vector<double>(1, 0.0));
+    REQUIRE_FALSE(light.track.empty());
+    CHECK(std::is_eq(light.track.front().low_line <=> 11.0));
+    CHECK(std::is_eq(light.track.front().high_line <=> 12.0));
 
     // An ordinary open string with no node still has nowhere to light, so the guard still holds
     // where it was meant to.
     NoteViewState open_tap = tap;
     open_tap.harmonic_node.reset();
-    CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
+    CHECK(makeHighwayTapOnsets({open_tap}).empty());
+    const HighwayHandLight dark = makePickHandLight({open_tap}, std::vector<double>(1, 0.0));
+    CHECK(dark.track.empty());
+    CHECK(dark.lit.empty());
 }
 
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
@@ -1195,76 +1183,81 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     };
     notes.push_back(trailing);
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
-    REQUIRE(onsets.size() == 3);
+    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(notes.size(), 0.0));
 
-    // Each later arrival ramps over the leg from the arrival before it; the onset ramps over none.
-    REQUIRE(onsets[0].path.size() == 2);
+    // The three onsets' paths concatenated on the one track, two arrivals each. Each later
+    // arrival ramps over the leg from the arrival before it; an onset ramps over its light rise,
+    // which is zero here.
+    const std::vector<HighwayHandArrival>& track = light.track;
+    REQUIRE(track.size() == 6);
     CHECK(
-        onsets[0].path[0] == HighwayHandArrival{
-                                 .seconds = 1.0,
-                                 .low_line = 11.0,
-                                 .high_line = 12.0,
-                                 .ramp_seconds = 0.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
+        track[0] == HighwayHandArrival{
+                        .seconds = 1.0,
+                        .low_line = 11.0,
+                        .high_line = 12.0,
+                        .ramp_seconds = 0.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
     CHECK(
-        onsets[0].path[1] == HighwayHandArrival{
-                                 .seconds = 2.0,
-                                 .low_line = 11.0,
-                                 .high_line = 12.0,
-                                 .ramp_seconds = 1.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
-
-    REQUIRE(onsets[1].path.size() == 2);
+        track[1] == HighwayHandArrival{
+                        .seconds = 2.0,
+                        .low_line = 11.0,
+                        .high_line = 12.0,
+                        .ramp_seconds = 1.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
     CHECK(
-        onsets[1].path[0] == HighwayHandArrival{
-                                 .seconds = 3.0,
-                                 .low_line = 11.0,
-                                 .high_line = 12.0,
-                                 .ramp_seconds = 0.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
+        track[2] == HighwayHandArrival{
+                        .seconds = 3.0,
+                        .low_line = 11.0,
+                        .high_line = 12.0,
+                        .ramp_seconds = 0.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
     CHECK(
-        onsets[1].path[1] == HighwayHandArrival{
-                                 .seconds = 4.0,
-                                 .low_line = 14.0,
-                                 .high_line = 15.0,
-                                 .ramp_seconds = 1.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
-
-    REQUIRE(onsets[2].path.size() == 2);
+        track[3] == HighwayHandArrival{
+                        .seconds = 4.0,
+                        .low_line = 14.0,
+                        .high_line = 15.0,
+                        .ramp_seconds = 1.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
     CHECK(
-        onsets[2].path[0] == HighwayHandArrival{
-                                 .seconds = 5.0,
-                                 .low_line = 9.0,
-                                 .high_line = 10.0,
-                                 .ramp_seconds = 0.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
+        track[4] == HighwayHandArrival{
+                        .seconds = 5.0,
+                        .low_line = 9.0,
+                        .high_line = 10.0,
+                        .ramp_seconds = 0.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
     CHECK(
-        onsets[2].path[1] == HighwayHandArrival{
-                                 .seconds = 6.0,
-                                 .low_line = 12.0,
-                                 .high_line = 13.0,
-                                 .ramp_seconds = 1.0,
-                                 .unpitched_ramp = false,
-                                 .settle_seconds = 0.0,
-                             });
+        track[5] == HighwayHandArrival{
+                        .seconds = 6.0,
+                        .low_line = 12.0,
+                        .high_line = 13.0,
+                        .ramp_seconds = 1.0,
+                        .unpitched_ramp = false,
+                        .settle_seconds = 0.0,
+                    });
 
     // The held tap and the plain slide release at their ink ends; the drawn slide-out releases at
-    // the last pitched keyframe, pressure already coming off.
-    CHECK(onsets[0].light.release_seconds == Catch::Approx(held.ink_end_seconds));
-    CHECK(onsets[1].light.release_seconds == Catch::Approx(sliding.ink_end_seconds));
-    CHECK(onsets[2].light.release_seconds == Catch::Approx(trailing.slides.front().seconds));
+    // the last pitched keyframe, pressure already coming off. Each strike is its own light, and
+    // each strike's hold end is the same release.
+    REQUIRE(light.lit.size() == 3);
+    CHECK(light.lit[0].release_seconds == Catch::Approx(held.ink_end_seconds));
+    CHECK(light.lit[1].release_seconds == Catch::Approx(sliding.ink_end_seconds));
+    CHECK(light.lit[2].release_seconds == Catch::Approx(trailing.slides.front().seconds));
+    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(notes);
+    REQUIRE(strikes.size() == 3);
+    for (std::size_t index = 0; index < strikes.size(); ++index)
+    {
+        CHECK(std::is_eq(strikes[index].release_seconds <=> light.lit[index].release_seconds));
+    }
 }
 
 // The release is the hold end: the ink end, except where a DRAWN unpitched slide-out follows, when
@@ -1285,25 +1278,23 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     };
     REQUIRE(keyframeDrawn(trailing.slides.back(), trailing.ink_end_seconds));
 
-    const std::vector<HighwayTapOnsetViewState> drawn =
-        makeHighwayTapOnsets({trailing}, std::vector<double>(1, 0.0));
-    REQUIRE(drawn.size() == 1);
-    CHECK(drawn.front().light.release_seconds == Catch::Approx(2.0));
+    const HighwayHandLight drawn = makePickHandLight({trailing}, std::vector<double>(1, 0.0));
+    REQUIRE(drawn.lit.size() == 1);
+    CHECK(drawn.lit.front().release_seconds == Catch::Approx(2.0));
     // The path ends at that last pitched keyframe: the slide-out adds nothing.
-    REQUIRE(drawn.front().path.size() == 3);
-    CHECK(drawn.front().path.back().seconds == Catch::Approx(2.0));
+    REQUIRE(drawn.track.size() == 3);
+    CHECK(drawn.track.back().seconds == Catch::Approx(2.0));
 
     // The same note with its ink cut after the pitched glide: the slide-out is not drawn, so the
     // light holds to the ink end and releases there, which extends the path by a release arrival.
     NoteViewState cut = trailing;
     cut.ink_end_seconds = 2.25;
     REQUIRE_FALSE(keyframeDrawn(cut.slides.back(), cut.ink_end_seconds));
-    const std::vector<HighwayTapOnsetViewState> undrawn =
-        makeHighwayTapOnsets({cut}, std::vector<double>(1, 0.0));
-    REQUIRE(undrawn.size() == 1);
-    CHECK(undrawn.front().light.release_seconds == Catch::Approx(cut.ink_end_seconds));
-    REQUIRE(undrawn.front().path.size() == 4);
-    const HighwayHandArrival& release = undrawn.front().path.back();
+    const HighwayHandLight undrawn = makePickHandLight({cut}, std::vector<double>(1, 0.0));
+    REQUIRE(undrawn.lit.size() == 1);
+    CHECK(undrawn.lit.front().release_seconds == Catch::Approx(cut.ink_end_seconds));
+    REQUIRE(undrawn.track.size() == 4);
+    const HighwayHandArrival& release = undrawn.track.back();
     CHECK(release.seconds == Catch::Approx(cut.ink_end_seconds));
     CHECK(release.low_line == Catch::Approx(12.0));
     CHECK(release.high_line == Catch::Approx(13.0));
@@ -1331,11 +1322,10 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
     };
     REQUIRE_FALSE(keyframeDrawn(tap.slides.front(), tap.ink_end_seconds));
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
-    REQUIRE(onsets.size() == 1);
-    CHECK(onsets.front().light.release_seconds == Catch::Approx(tap.ink_end_seconds));
-    const std::vector<HighwayHandArrival>& path = onsets.front().path;
+    const HighwayHandLight light = makePickHandLight({tap}, std::vector<double>(1, 0.0));
+    REQUIRE(light.lit.size() == 1);
+    CHECK(light.lit.front().release_seconds == Catch::Approx(tap.ink_end_seconds));
+    const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 2);
     CHECK(
         path[0] == HighwayHandArrival{
@@ -1375,11 +1365,10 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     high.attack = NoteAttack::Tap;
     high.slides = {KeyframeViewState{.seconds = 5.0, .fret = 18, .offset = Fraction{}}};
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({low, high}, std::vector<double>(2, 0.0));
-    REQUIRE(onsets.size() == 1);
-    CHECK(onsets.front().light.release_seconds == Catch::Approx(5.0));
-    const std::vector<HighwayHandArrival>& path = onsets.front().path;
+    const HighwayHandLight light = makePickHandLight({low, high}, std::vector<double>(2, 0.0));
+    REQUIRE(light.lit.size() == 1);
+    CHECK(light.lit.front().release_seconds == Catch::Approx(5.0));
+    const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 3);
     CHECK(path[0].low_line == Catch::Approx(11.0));
     CHECK(path[0].high_line == Catch::Approx(14.0));
@@ -1395,7 +1384,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
 
 // The light-rise ramp mirrors the fret-hand arrival rule: an onset takes its widest member's
 // margin rise, and crowding clamps the rise so it never reaches backward past the previous tap
-// onset's release — a dense run keeps its per-tap dips.
+// onset's release — a dense run keeps its per-tap dips, each strike its own light.
 TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "[core][highway]")
 {
     std::vector<NoteViewState> notes;
@@ -1415,12 +1404,12 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     add_tap(3.6, 3.6, 15); // Rise clamps to 0.1s — the gap after the hold, not the onset gap.
 
     const std::vector<double> rises{0.2, 0.25, 0.25, 0.25, 0.25};
-    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, rises);
-    REQUIRE(onsets.size() == 4);
-    CHECK(onsets[0].light.rise_seconds == Catch::Approx(0.25));
-    CHECK(onsets[1].light.rise_seconds == Catch::Approx(0.2));
-    CHECK(onsets[2].light.rise_seconds == Catch::Approx(0.25));
-    CHECK(onsets[3].light.rise_seconds == Catch::Approx(0.1));
+    const HighwayHandLight light = makePickHandLight(notes, rises);
+    REQUIRE(light.lit.size() == 4);
+    CHECK(light.lit[0].rise_seconds == Catch::Approx(0.25));
+    CHECK(light.lit[1].rise_seconds == Catch::Approx(0.2));
+    CHECK(light.lit[2].rise_seconds == Catch::Approx(0.25));
+    CHECK(light.lit[3].rise_seconds == Catch::Approx(0.1));
 }
 
 // The pick-slide seam: latents suppressed, only the path's terminal unpitched, and the hand
@@ -1471,29 +1460,30 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
     CHECK_FALSE(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);
-    // The right-hand light rides the scrape: one onset whose path arrivals follow the traveled
-    // keyframes (17 at the onset, 3 at the reversal, 9 at the end), each fret's window spanning
-    // lines fret - 1 to fret.
+    // The right-hand light rides the scrape: one onset, and the picking hand's track follows the
+    // traveled keyframes (17 at the onset, 3 at the reversal, 9 at the end), each fret's window
+    // spanning lines fret - 1 to fret.
     REQUIRE(state.tap_onsets.size() == 1);
-    const HighwayTapOnsetViewState& light = state.tap_onsets.front();
-    CHECK(light.fret_low == 17);
-    CHECK(light.count == 1);
-    REQUIRE(light.path.size() == 3);
-    CHECK(light.path[0].low_line == Catch::Approx(16.0));
-    CHECK(light.path[1].low_line == Catch::Approx(2.0));
-    CHECK(light.path[2].low_line == Catch::Approx(8.0));
-    CHECK(light.path[2].high_line == Catch::Approx(9.0));
+    const HighwayTapOnsetViewState& strike = state.tap_onsets.front();
+    CHECK(strike.fret_low == 17);
+    CHECK(strike.count == 1);
+    const std::vector<HighwayHandArrival>& path = state.pick_hand.track;
+    REQUIRE(path.size() == 3);
+    CHECK(path[0].low_line == Catch::Approx(16.0));
+    CHECK(path[1].low_line == Catch::Approx(2.0));
+    CHECK(path[2].low_line == Catch::Approx(8.0));
+    CHECK(path[2].high_line == Catch::Approx(9.0));
     // Each arrival carries its stop's family so the light sweeps with the rail's own ease — the
     // turnaround pitched, the terminal released — each over its own half-beat leg (0.25 s at 120
-    // BPM); the onset arrival comes from no glide.
-    CHECK_FALSE(light.path[0].unpitched_ramp);
-    CHECK_FALSE(light.path[1].unpitched_ramp);
-    CHECK(light.path[2].unpitched_ramp);
-    CHECK(light.path[0].ramp_seconds == Catch::Approx(0.0));
-    CHECK(light.path[1].ramp_seconds == Catch::Approx(0.25));
-    CHECK(light.path[2].ramp_seconds == Catch::Approx(0.25));
+    // BPM); the onset arrival ramps over its light rise, which the grid origin clamps to nothing.
+    CHECK_FALSE(path[0].unpitched_ramp);
+    CHECK_FALSE(path[1].unpitched_ramp);
+    CHECK(path[2].unpitched_ramp);
+    CHECK(path[0].ramp_seconds == Catch::Approx(0.0));
+    CHECK(path[1].ramp_seconds == Catch::Approx(0.25));
+    CHECK(path[2].ramp_seconds == Catch::Approx(0.25));
     // A free scrape is drawn to its end, so no leg crosses an ink end and nothing settles.
-    for (const HighwayHandArrival& arrival : light.path)
+    for (const HighwayHandArrival& arrival : path)
     {
         CHECK(std::is_eq(arrival.settle_seconds <=> 0.0));
     }
@@ -1526,10 +1516,9 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     REQUIRE(keyframeDrawn(scrape.slides[0], scrape.ink_end_seconds));
     REQUIRE_FALSE(keyframeDrawn(scrape.slides[1], scrape.ink_end_seconds));
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({scrape}, std::vector<double>(1, 0.0));
-    REQUIRE(onsets.size() == 1);
-    const std::vector<HighwayHandArrival>& path = onsets.front().path;
+    const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
+    REQUIRE(light.lit.size() == 1);
+    const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 3);
 
     CHECK(path[0].seconds == Catch::Approx(1.0));
@@ -1558,8 +1547,8 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     CHECK(path[2].settle_seconds == Catch::Approx(0.1));
     // A scrape releases where its ink ends — the pick lifts at the crop — while the path runs on
     // to the cut leg's arrival.
-    CHECK(onsets.front().light.release_seconds == Catch::Approx(scrape.ink_end_seconds));
-    CHECK(onsets.front().light.release_seconds < path.back().seconds);
+    CHECK(light.lit.front().release_seconds == Catch::Approx(scrape.ink_end_seconds));
+    CHECK(light.lit.front().release_seconds < path.back().seconds);
 }
 
 // The light eases each scrape leg in the rail's own family: a turnaround is a stop the pick
@@ -1580,10 +1569,8 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
         KeyframeViewState{.seconds = 1.75, .fret = 2, .offset = Fraction{}, .slide_out = true},
     };
 
-    const std::vector<HighwayTapOnsetViewState> onsets =
-        makeHighwayTapOnsets({scrape}, std::vector<double>(1, 0.0));
-    REQUIRE(onsets.size() == 1);
-    const std::vector<HighwayHandArrival>& path = onsets.front().path;
+    const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
+    const std::vector<HighwayHandArrival>& path = light.track;
     REQUIRE(path.size() == 4);
 
     // The onset comes from no glide; each turnaround arrives pitched, the terminal released.
@@ -1658,12 +1645,12 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
 
     const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
     REQUIRE(state.chart.fret_hand_positions.size() == 3);
-    REQUIRE(state.fret_hand.size() == 3);
+    REQUIRE(state.fret_hand.track.size() == 3);
 
     // One arrival per placement, at the placement's instant with its ramp and family.
-    for (std::size_t index = 0; index < state.fret_hand.size(); ++index)
+    for (std::size_t index = 0; index < state.fret_hand.track.size(); ++index)
     {
-        const HighwayHandArrival& arrival = state.fret_hand[index];
+        const HighwayHandArrival& arrival = state.fret_hand.track[index];
         const FhpViewState& placement = state.chart.fret_hand_positions[index];
         CHECK(arrival.seconds == Catch::Approx(placement.seconds));
         CHECK(arrival.ramp_seconds == Catch::Approx(placement.ramp_seconds));
@@ -1671,17 +1658,17 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     }
     // Its lines are the settled window's edges: frets [fret, fret + width - 1] sit on lines
     // fret - 1 to fret + width - 1.
-    CHECK(state.fret_hand[0].low_line == Catch::Approx(4.0));
-    CHECK(state.fret_hand[0].high_line == Catch::Approx(8.0));
-    CHECK(state.fret_hand[1].low_line == Catch::Approx(8.0));
-    CHECK(state.fret_hand[1].high_line == Catch::Approx(12.0));
-    CHECK(state.fret_hand[2].low_line == Catch::Approx(1.0));
-    CHECK(state.fret_hand[2].high_line == Catch::Approx(6.0));
+    CHECK(state.fret_hand.track[0].low_line == Catch::Approx(4.0));
+    CHECK(state.fret_hand.track[0].high_line == Catch::Approx(8.0));
+    CHECK(state.fret_hand.track[1].low_line == Catch::Approx(8.0));
+    CHECK(state.fret_hand.track[1].high_line == Catch::Approx(12.0));
+    CHECK(state.fret_hand.track[2].low_line == Catch::Approx(1.0));
+    CHECK(state.fret_hand.track[2].high_line == Catch::Approx(6.0));
 
     // The slide-out arrival settles over the crop zone: from where the margin before the head
     // begins — the lattice-floored margin, which at 120 BPM lands on the lattice exactly — to the
     // arrival. The zone begins exactly where the gliding note's ink stops.
-    const HighwayHandArrival& slide_out = state.fret_hand[1];
+    const HighwayHandArrival& slide_out = state.fret_hand.track[1];
     REQUIRE(slide_out.unpitched_ramp);
     const double crop_seconds = tempo_map.secondsAtGlobalBeatPosition(
         globalBeatPosition(tempo_map, marginBefore(tempo_map, slide_out_arrival)));
@@ -1695,10 +1682,10 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
 
     // The margin morphs settle over nothing: their ramp is already the pitched curve's tangential
     // arrival.
-    CHECK_FALSE(state.fret_hand[0].unpitched_ramp);
-    CHECK_FALSE(state.fret_hand[2].unpitched_ramp);
-    CHECK(std::is_eq(state.fret_hand[0].settle_seconds <=> 0.0));
-    CHECK(std::is_eq(state.fret_hand[2].settle_seconds <=> 0.0));
+    CHECK_FALSE(state.fret_hand.track[0].unpitched_ramp);
+    CHECK_FALSE(state.fret_hand.track[2].unpitched_ramp);
+    CHECK(std::is_eq(state.fret_hand.track[0].settle_seconds <=> 0.0));
+    CHECK(std::is_eq(state.fret_hand.track[2].settle_seconds <=> 0.0));
 }
 
 namespace
@@ -1779,14 +1766,355 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.slides = {KeyframeViewState{.seconds = 2.0, .fret = 9, .offset = Fraction{}}};
 
     const std::vector<NoteViewState> notes{note};
-    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, {0.0});
+    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(1, 0.0));
 
-    REQUIRE(onsets.size() == 1);
-    REQUIRE_FALSE(onsets[0].path.empty());
+    REQUIRE_FALSE(light.track.empty());
     // The node's fret spans lines node - 1 to node.
-    CHECK(onsets[0].path.front().high_line == Catch::Approx(17.0));
-    CHECK(onsets[0].path.back().high_line == Catch::Approx(21.0));
-    CHECK(onsets[0].path.back().low_line == Catch::Approx(20.0));
+    CHECK(light.track.front().high_line == Catch::Approx(17.0));
+    CHECK(light.track.back().high_line == Catch::Approx(21.0));
+    CHECK(light.track.back().low_line == Catch::Approx(20.0));
+}
+
+namespace
+{
+
+// A chart with nothing but the notes a floor-light case needs and no placements: the default map
+// is 4/4 at 120 BPM, so a beat is half a second, a measure two, and the arrival margin an eighth.
+[[nodiscard]] Arrangement makeLightArrangement(std::vector<ChartNote> notes)
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = std::move(notes);
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    return arrangement;
+}
+
+// One note of a floor-light case, the fields such a case varies named and the rest at rest.
+[[nodiscard]] ChartNote lightNote(
+    const GridPosition position, const int string, const int fret, const Fraction sustain,
+    const NoteAttack attack = NoteAttack::Pick)
+{
+    return ChartNote{
+        .position = position,
+        .string = string,
+        .fret = fret,
+        .sustain = sustain,
+        .attack = attack,
+        .bend = {},
+        .keyframes = {},
+    };
+}
+
+// A sustainless tap for the picking hand's cases, released where it starts.
+[[nodiscard]] NoteViewState tapAt(const double start, const int string, const int fret)
+{
+    NoteViewState note;
+    note.start_seconds = start;
+    note.ring_end_seconds = start;
+    note.ink_end_seconds = start;
+    note.string = string;
+    note.fret = fret;
+    note.attack = NoteAttack::Tap;
+    return note;
+}
+
+// The instant one arrival margin before a grid position: where a light rising into a note there
+// begins.
+[[nodiscard]] double marginStartSeconds(const TempoMap& tempo_map, const GridPosition position)
+{
+    return tempo_map.secondsAtGlobalBeatPosition(
+        globalBeatPosition(tempo_map, marginBefore(tempo_map, position)));
+}
+
+// THE SPAN NEVER OPENS A LIGHT: every lit stretch of the fretting hand starts at the onset of a
+// note that is evidence for it, never at a span's own start with nothing struck there. A span's
+// evidence carries no rise, so a stretch it opened would switch on with no approach at all.
+void checkEveryStretchOpensOnANote(const HighwayViewState& state)
+{
+    for (const HighwayLitStretch& stretch : state.fret_hand.lit)
+    {
+        CHECK(std::ranges::any_of(state.chart.notes, [&stretch](const NoteViewState& note) {
+            const bool evidence = !rightHandOnset(note.attack) || note.held.value_or(0) > 0;
+            return evidence &&
+                   std::abs(note.start_seconds - stretch.start_seconds) < g_onset_match_epsilon;
+        }));
+    }
+}
+
+} // namespace
+
+// An open string is evidence by ruling: it is drawn as a bar spanning the window, so a dark window
+// under it would read as a floating bar. Its light rises over the arrival margin before the note —
+// the same marginBefore the hand's own morph is led by — and releases at the drawn end.
+TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][highway][light]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const GridPosition onset{.measure = 2, .beat = 1};
+    const HighwayViewState state = makeHighwayViewState(
+        makeLightArrangement({lightNote(onset, 1, 0, Fraction{1})}), tempo_map, {}, {});
+
+    REQUIRE(state.chart.notes.size() == 1);
+    const NoteViewState& open = state.chart.notes.front();
+    REQUIRE(state.fret_hand.lit.size() == 1);
+    const HighwayLitStretch& lit = state.fret_hand.lit.front();
+    CHECK(lit.start_seconds == Catch::Approx(open.start_seconds));
+    CHECK(lit.release_seconds == Catch::Approx(open.ink_end_seconds));
+    CHECK(
+        lit.rise_seconds ==
+        Catch::Approx(open.start_seconds - marginStartSeconds(tempo_map, onset)));
+    CHECK(lit.rise_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+}
+
+// A bare tap proves nothing about the fretting hand, so it leaves that hand dark while the tap
+// itself still strikes and lights the picking hand. A tap whose held stop is pressed is the
+// fretting hand holding that stop, lit through the claim.
+TEST_CASE("Fret-hand light ignores a bare tap and lights a claimed one", "[core][highway][light]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    ChartNote tap =
+        lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 12, Fraction{1}, NoteAttack::Tap);
+
+    const HighwayViewState bare =
+        makeHighwayViewState(makeLightArrangement({tap}), tempo_map, {}, {});
+    CHECK(bare.fret_hand.lit.empty());
+    CHECK(bare.tap_onsets.size() == 1);
+    CHECK(bare.pick_hand.lit.size() == 1);
+
+    tap.held = 5;
+    const HighwayViewState claimed =
+        makeHighwayViewState(makeLightArrangement({tap}), tempo_map, {}, {});
+    REQUIRE(claimed.chart.notes.size() == 1);
+    REQUIRE(claimed.fret_hand.lit.size() == 1);
+    CHECK(
+        claimed.fret_hand.lit.front().start_seconds ==
+        Catch::Approx(claimed.chart.notes.front().start_seconds));
+    CHECK(
+        claimed.fret_hand.lit.front().release_seconds ==
+        Catch::Approx(claimed.chart.notes.front().ink_end_seconds));
+}
+
+// A pick slide is the picking hand dragging across the strings, and without a claim it says
+// nothing about the fretting hand — while a left tap and a natural harmonic are that hand's own.
+TEST_CASE("Fret-hand light reads the fretting hand's techniques only", "[core][highway][light]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    ChartNote scrape =
+        lightNote(GridPosition{.measure = 2, .beat = 1}, 5, 17, Fraction{1}, NoteAttack::PickSlide);
+    scrape.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 9}};
+    const HighwayViewState scraped =
+        makeHighwayViewState(makeLightArrangement({scrape}), tempo_map, {}, {});
+    CHECK(scraped.fret_hand.lit.empty());
+    CHECK_FALSE(scraped.pick_hand.lit.empty());
+
+    // A left tap and, two measures later, a natural harmonic on a between-fret node: two lights,
+    // each opened by its own note.
+    ChartNote harmonic = lightNote(GridPosition{.measure = 4, .beat = 1}, 3, 3, Fraction{1, 8});
+    harmonic.harmonic_node = 3.2;
+    const HighwayViewState state = makeHighwayViewState(
+        makeLightArrangement(
+            {lightNote(
+                 GridPosition{.measure = 2, .beat = 1}, 4, 7, Fraction{1}, NoteAttack::LeftTap),
+             harmonic}),
+        tempo_map,
+        {},
+        {});
+    REQUIRE(state.chart.notes.size() == 2);
+    REQUIRE(state.fret_hand.lit.size() == 2);
+    CHECK(
+        state.fret_hand.lit[0].start_seconds == Catch::Approx(state.chart.notes[0].start_seconds));
+    CHECK(
+        state.fret_hand.lit[1].start_seconds == Catch::Approx(state.chart.notes[1].start_seconds));
+}
+
+// Both hands release by one rule: a DRAWN unpitched slide-out lets go at the last pitched keyframe
+// (pressure is already coming off), while one past the ink end is not drawn, so the note holds to
+// its ink end and releases there.
+TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][highway][light]")
+{
+    NoteViewState trailing;
+    trailing.start_seconds = 1.0;
+    trailing.ring_end_seconds = 2.5;
+    trailing.ink_end_seconds = 2.5;
+    trailing.fret = 10;
+    trailing.slides = {
+        KeyframeViewState{.seconds = 1.5, .fret = 12, .offset = Fraction{}},
+        KeyframeViewState{.seconds = 2.0, .fret = 13, .offset = Fraction{}},
+        KeyframeViewState{.seconds = 2.5, .fret = 8, .offset = Fraction{}, .slide_out = true},
+    };
+    REQUIRE(keyframeDrawn(trailing.slides.back(), trailing.ink_end_seconds));
+    ChartViewState scene;
+    scene.notes = {trailing};
+    const std::vector<double> rise{0.125};
+    CHECK(
+        makeFretHandLight(scene, rise) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.125},
+        });
+
+    scene.notes.front().ink_end_seconds = 2.25;
+    REQUIRE_FALSE(keyframeDrawn(scene.notes.front().slides.back(), 2.25));
+    CHECK(
+        makeFretHandLight(scene, rise) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.25, .rise_seconds = 0.125},
+        });
+}
+
+// A span is evidence over its drawn extent: chord heads whose tails the repeat treatment emptied
+// still hold the grip, so the light stays lit to the span's drawn end — and the span, starting at
+// the chord's onset, adds no rise of its own.
+TEST_CASE("Fret-hand light holds through a span over emptied tails", "[core][highway][light]")
+{
+    ChartViewState scene;
+    scene.notes = {chordNote(1.0, 1, 5), chordNote(1.0, 2, 7)};
+    scene.shapes = {chordShape(1.0, 3.0, {{1, 5}, {2, 7}})};
+    CHECK(
+        makeFretHandLight(scene, std::vector<double>{0.125, 0.125}) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 3.0, .rise_seconds = 0.125},
+        });
+}
+
+// THE SPAN NEVER OPENS A LIGHT, over a real derivation: three fingers glide into a landing and
+// ring on, which opens a carry-opened SUCCESSOR span at the landing — a span that starts where no
+// note does. It tiles onto its predecessor and the gliding rings cover it, so it never opens a
+// stretch; a rise taken from nothing would switch the light on with no approach.
+TEST_CASE("Fret-hand light is never opened by a carry-opened span", "[core][highway][light]")
+{
+    const auto glide = [](const int string, const int fret, const Fraction sustain) {
+        ChartNote note = lightNote(GridPosition{.measure = 1, .beat = 1}, string, fret, sustain);
+        note.keyframes = {Keyframe{.offset = Fraction{2}, .fret = fret + 2}};
+        return note;
+    };
+    const HighwayViewState state = makeHighwayViewState(
+        makeLightArrangement(
+            {glide(1, 5, Fraction{4}),
+             glide(2, 7, Fraction{6}),
+             glide(4, 11, Fraction{6}),
+             lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 7, Fraction{2})}),
+        makeHighwayTempoMap(),
+        {},
+        {});
+
+    // The departing grip and the landing's successor, which starts at the landing (1.0 s) where
+    // no note is struck.
+    REQUIRE(state.chart.shapes.size() == 2);
+    const double landing = state.chart.shapes[1].start_seconds;
+    CHECK(std::ranges::none_of(state.chart.notes, [landing](const NoteViewState& note) {
+        return std::abs(note.start_seconds - landing) < g_onset_match_epsilon;
+    }));
+    CHECK(state.fret_hand.lit.size() == 1);
+    checkEveryStretchOpensOnANote(state);
+}
+
+// THE 9731dcee DISCRIMINATOR, the user's repro: a chord under a span in measure 1, measure 2
+// emptied of notes, and the chord returning in measure 3. The rest is longer than the tolerance,
+// so the light goes out and comes back: TWO stretches, the second starting at the returning chord
+// with a one-margin rise that never reaches back through the rest. It guards the order of the
+// merge: the silence in front of a statement is measured before the span the statement opens is
+// folded in, so that span can never erase the rest.
+TEST_CASE(
+    "Fret-hand light goes out through a measure a chord returns from", "[core][highway][light]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const auto chord_note = [](const int measure, const int string) {
+        return lightNote(GridPosition{.measure = measure, .beat = 1}, string, 5, Fraction{1});
+    };
+    const HighwayViewState state = makeHighwayViewState(
+        makeLightArrangement(
+            {chord_note(1, 1), chord_note(1, 2), chord_note(3, 1), chord_note(3, 2)}),
+        tempo_map,
+        {},
+        {});
+
+    REQUIRE(state.chart.notes.size() == 4);
+    REQUIRE(state.chart.shapes.size() == 2);
+    // The first light releases at the later of the first chord's ink ends and its span's drawn
+    // end; the second opens at the returning chord.
+    const double first_release = std::max(
+        {state.chart.notes[0].ink_end_seconds,
+         state.chart.notes[1].ink_end_seconds,
+         state.chart.shapes[0].drawn_end_seconds});
+    const double returning = state.chart.notes[2].start_seconds;
+    REQUIRE(returning - first_release >= g_hand_rest_seconds);
+
+    REQUIRE(state.fret_hand.lit.size() == 2);
+    CHECK(state.fret_hand.lit[0].release_seconds == Catch::Approx(first_release));
+    CHECK(state.fret_hand.lit[1].start_seconds == Catch::Approx(returning));
+    CHECK(
+        state.fret_hand.lit[1].rise_seconds ==
+        Catch::Approx(
+            returning - marginStartSeconds(tempo_map, GridPosition{.measure = 3, .beat = 1})));
+    CHECK(
+        state.fret_hand.lit[1].start_seconds - state.fret_hand.lit[1].rise_seconds > first_release);
+    checkEveryStretchOpensOnANote(state);
+}
+
+// The picking hand pulses: every strike of a dense run is its own light over the one track, the
+// dip between strikes mirroring the finger lifting — spaced here past the picking hand's own
+// tolerance, whatever its value. Only strikes that overlap merge, their gap being negative.
+TEST_CASE("Pick-hand light lights each strike of a dense run on its own", "[core][highway][light]")
+{
+    const double step = g_pick_light_rest_seconds + 0.25;
+    const std::vector<NoteViewState> run{
+        tapAt(1.0, 1, 12),
+        tapAt(1.0 + step, 1, 14),
+        tapAt(1.0 + (2.0 * step), 1, 12),
+        tapAt(1.0 + (3.0 * step), 1, 15),
+    };
+    const HighwayHandLight light = makePickHandLight(run, std::vector<double>(run.size(), 0.125));
+    CHECK(light.track.size() == run.size());
+    REQUIRE(light.lit.size() == run.size());
+    for (std::size_t index = 0; index < run.size(); ++index)
+    {
+        CHECK(std::is_eq(light.lit[index].start_seconds <=> run[index].start_seconds));
+    }
+
+    // A held tap and a second strike landing inside its hold: one light.
+    NoteViewState held = tapAt(1.0, 1, 12);
+    held.ring_end_seconds = 2.0;
+    held.ink_end_seconds = 2.0;
+    const std::vector<NoteViewState> overlapping{held, tapAt(1.5, 2, 14)};
+    const HighwayHandLight one =
+        makePickHandLight(overlapping, std::vector<double>(overlapping.size(), 0.125));
+    CHECK(
+        one.lit ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.125},
+        });
+}
+
+// ONE TRACK: when a later strike lands while an earlier one is still travelling, the hand has
+// moved on — the earlier strike's arrivals at or after the later onset are dropped, and the later
+// strike takes the window from its own onset.
+TEST_CASE("Pick-hand track leaves an earlier strike at the next onset", "[core][highway][light]")
+{
+    // A tapped glide from fret 12 at 1.0 to fret 15 at 2.0, and a tap at fret 17 on another string
+    // at 1.5, halfway along it.
+    NoteViewState gliding = tapAt(1.0, 1, 12);
+    gliding.ring_end_seconds = 2.0;
+    gliding.ink_end_seconds = 2.0;
+    gliding.slides = {KeyframeViewState{.seconds = 2.0, .fret = 15, .offset = Fraction{}}};
+    const std::vector<NoteViewState> notes{gliding, tapAt(1.5, 2, 17)};
+
+    const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(2, 0.125));
+    REQUIRE(light.track.size() == 2);
+    CHECK(light.track[0].seconds == Catch::Approx(1.0));
+    CHECK(light.track[0].low_line == Catch::Approx(11.0));
+    // The glide's landing at 2.0 is gone: the later strike holds the window from 1.5 on, arriving
+    // there instantly as every strike does.
+    CHECK(light.track[1].seconds == Catch::Approx(1.5));
+    CHECK(light.track[1].low_line == Catch::Approx(16.0));
+    CHECK(light.track[1].high_line == Catch::Approx(17.0));
+    CHECK(std::is_eq(light.track[1].ramp_seconds <=> 0.0));
+    // The later strike lands inside the glide's hold, so the two overlap and are one light, lit
+    // through the glide's release.
+    CHECK(
+        light.lit ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.125},
+        });
 }
 
 // Membership and the per-group facts: contiguous same-onset notes form one group, right-hand

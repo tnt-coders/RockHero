@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,7 +28,7 @@ namespace
 // target at rest the longest but reads too static, so 2 gives the tighter, livelier frame.
 constexpr int g_camera_zone_measures = 2;
 
-// THE FRETTING HAND'S TRACK (\ref HighwayViewState::fret_hand): each placement's approach, in
+// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): each placement's approach, in
 // the board's one motion element.
 [[nodiscard]] std::vector<HighwayHandArrival> makeHighwayFretHand(const ChartViewState& scene)
 {
@@ -104,16 +106,15 @@ constexpr int g_camera_zone_measures = 2;
     return last_pitched;
 }
 
-} // namespace
-
-// Rationale lives on the declaration in highway_projection.h.
-std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
-    const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
+// THE ONE WALK over the right-hand onset groups both picking-hand producers read, so the grouping
+// is stated once: contiguous notes struck together (the shared onset epsilon) whose attack is a
+// right-hand onset sounding on the board. Each group with at least one such member is visited with
+// the strike's facts and its members' indices into `notes`, ascending. Fretting-hand notes sharing
+// the onset are not members.
+template <typename Visit>
+void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit)
 {
-    std::vector<HighwayTapOnsetViewState> onsets;
-    std::vector<const NoteViewState*> taps;
-    // One lit-stretch item per tapped member, all starting at the onset, folded into its light.
-    std::vector<HighwayLitStretch> evidence;
+    std::vector<std::size_t> members;
     for (std::size_t index = 0; index < notes.size();)
     {
         const double onset = notes[index].start_seconds;
@@ -123,13 +124,14 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
         {
             ++group_end;
         }
-        HighwayTapOnsetViewState view{.seconds = onset, .path = {}, .light = {}};
-        taps.clear();
-        evidence.clear();
+        HighwayTapOnsetViewState strike{
+            .seconds = onset, .fret_low = 0, .fret_high = 0, .count = 0, .release_seconds = onset
+        };
+        members.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {
             const NoteViewState& note = notes[member];
-            // Judged on where the note SOUNDS, so an open-string tap HARMONIC lights its node. The
+            // Judged on where the note SOUNDS, so an open-string tap HARMONIC strikes its node. The
             // guard exists to keep a malformed chart from putting a light off the board, and the
             // sounding position is what has to be on the board — reading `fret` instead dropped the
             // light from a note the rules explicitly allow, since E4 accepts a tap that strikes a
@@ -143,98 +145,183 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
             {
                 continue;
             }
-            view.fret_low =
-                view.count == 0 ? sounding_fret : std::min(view.fret_low, sounding_fret);
-            view.fret_high = std::max(view.fret_high, sounding_fret);
-            ++view.count;
-            taps.push_back(&note);
-            evidence.push_back(
-                HighwayLitStretch{
-                    .start_seconds = onset,
-                    .release_seconds = noteReleaseAt(note),
-                    .rise_seconds =
-                        member < note_rise_seconds.size() ? note_rise_seconds[member] : 0.0,
-                });
+            strike.fret_low =
+                strike.count == 0 ? sounding_fret : std::min(strike.fret_low, sounding_fret);
+            strike.fret_high = std::max(strike.fret_high, sounding_fret);
+            ++strike.count;
+            strike.release_seconds = std::max(strike.release_seconds, noteReleaseAt(note));
+            members.push_back(member);
         }
         index = group_end;
-        if (taps.empty())
+        if (!members.empty())
+        {
+            visit(strike, std::span<const std::size_t>(members));
+        }
+    }
+}
+
+// One group's PATH appended to the picking hand's track: the onset, every member's stops the light
+// follows up to and including the first past the ink end, and the release where it extends the
+// path. The instants come first, because a chord's extent at any of them spans every member's
+// position there, which is read once the group's list is whole. The first arrival is instant, and
+// every later one ramps over the leg from the arrival before it. An instant strike is not a lost
+// morph: the reading rule (highwayLitTrackTime) holds a light's window at its start through its
+// rise, so a ramp into a strike could never show — and one clamped against a release rather than
+// the previous arrival broke the track's ordering for a glide the next strike's margin cuts.
+void appendTapGroupPath(
+    const std::vector<NoteViewState>& notes, const HighwayTapOnsetViewState& strike,
+    const std::span<const std::size_t> members, std::vector<HighwayHandArrival>& track)
+{
+    const std::size_t head = track.size();
+    track.push_back(HighwayHandArrival{.seconds = strike.seconds});
+    for (const std::size_t member : members)
+    {
+        const NoteViewState& tap = notes[member];
+        const bool scrape = isScrape(tap.attack);
+        for (std::size_t stop_index = 0; stop_index < tap.slides.size(); ++stop_index)
+        {
+            const GlideStop stop = glideStopAt(tap, stop_index);
+            if ((stop.unpitched && !scrape) || stop.fret <= 0)
+            {
+                continue;
+            }
+            track.push_back(
+                HighwayHandArrival{
+                    .seconds = stop.seconds,
+                    .unpitched_ramp = stop.unpitched,
+                    .settle_seconds = std::max(0.0, stop.seconds - tap.ink_end_seconds),
+                });
+            if (!keyframeDrawn(tap.slides[stop_index], tap.ink_end_seconds))
+            {
+                break;
+            }
+        }
+    }
+    std::ranges::sort(
+        std::ranges::subrange(track.begin() + static_cast<std::ptrdiff_t>(head), track.end()),
+        std::ranges::less{},
+        &HighwayHandArrival::seconds);
+    // Two members stopping at one instant are one arrival: an unpitched leg into it keeps the
+    // unpitched ease, and the longer settle wins, whichever the sort put first.
+    std::size_t kept = head + 1;
+    for (std::size_t at = head + 1; at < track.size(); ++at)
+    {
+        HighwayHandArrival& last = track[kept - 1];
+        if (track[at].seconds - last.seconds < g_onset_match_epsilon)
+        {
+            last.unpitched_ramp = last.unpitched_ramp || track[at].unpitched_ramp;
+            last.settle_seconds = std::max(last.settle_seconds, track[at].settle_seconds);
+            continue;
+        }
+        track[kept] = track[at];
+        ++kept;
+    }
+    track.resize(kept);
+    // The release extends the path only past its last stop: inside a cut leg it is where the light
+    // fades, never a stop the hand makes, and an arrival there would split the leg.
+    if (strike.release_seconds - track.back().seconds >= g_onset_match_epsilon)
+    {
+        track.push_back(HighwayHandArrival{.seconds = strike.release_seconds});
+    }
+    for (std::size_t at = head; at < track.size(); ++at)
+    {
+        HighwayHandArrival& arrival = track[at];
+        double low = memberPositionAt(notes[members.front()], arrival.seconds);
+        double high = low;
+        for (const std::size_t member : members.subspan(1))
+        {
+            const double position = memberPositionAt(notes[member], arrival.seconds);
+            low = std::min(low, position);
+            high = std::max(high, position);
+        }
+        arrival.low_line = low - 1.0;
+        arrival.high_line = high;
+        arrival.ramp_seconds = at == head ? 0.0 : arrival.seconds - track[at - 1].seconds;
+    }
+}
+
+} // namespace
+
+// Rationale lives on the declaration in highway_projection.h.
+std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(const std::vector<NoteViewState>& notes)
+{
+    std::vector<HighwayTapOnsetViewState> onsets;
+    forEachTapGroup(
+        notes, [&onsets](const HighwayTapOnsetViewState& strike, std::span<const std::size_t>) {
+            onsets.push_back(strike);
+        });
+    return onsets;
+}
+
+// Rationale lives on the declaration in highway_projection.h.
+HighwayHandLight makePickHandLight(
+    const std::vector<NoteViewState>& notes, const std::span<const double> margin_rise)
+{
+    assert(margin_rise.size() == notes.size() && "one margin rise per note");
+    HighwayHandLight light;
+    // One lit-stretch item per tapped member, all starting at its group's onset.
+    std::vector<HighwayLitStretch> items;
+    forEachTapGroup(
+        notes,
+        [&](const HighwayTapOnsetViewState& strike, const std::span<const std::size_t> members) {
+            for (const std::size_t member : members)
+            {
+                items.push_back(
+                    HighwayLitStretch{
+                        .start_seconds = strike.seconds,
+                        .release_seconds = noteReleaseAt(notes[member]),
+                        .rise_seconds = margin_rise[member],
+                    });
+            }
+            // The hand has moved on: an earlier group's arrivals at or after this onset — the tail
+            // of a leg still settling, or a release past this strike — are not where it stands.
+            while (!light.track.empty() &&
+                   light.track.back().seconds > strike.seconds - g_onset_match_epsilon)
+            {
+                light.track.pop_back();
+            }
+            appendTapGroupPath(notes, strike, members, light.track);
+        });
+    light.lit = mergeLitEvidence(std::move(items), g_pick_light_rest_seconds);
+    return light;
+}
+
+// Rationale lives on the declaration in highway_projection.h.
+std::vector<HighwayLitStretch> makeFretHandLight(
+    const ChartViewState& scene, const std::span<const double> margin_rise)
+{
+    assert(margin_rise.size() == scene.notes.size() && "one margin rise per note");
+    std::vector<HighwayLitStretch> items;
+    items.reserve(scene.notes.size() + scene.shapes.size());
+    for (std::size_t index = 0; index < scene.notes.size(); ++index)
+    {
+        const NoteViewState& note = scene.notes[index];
+        // A bare right-hand onset says nothing about the fretting hand; one whose held stop is
+        // pressed is that hand holding it. No authorship tier is needed: a DEFAULT held stop is
+        // above zero only under a covering span, which is evidence anyway.
+        if (rightHandOnset(note.attack) && note.held.value_or(0) <= 0)
         {
             continue;
         }
-        view.light = foldLitEvidence(evidence);
-        if (!onsets.empty())
-        {
-            view.light = crowdedAfter(view.light, onsets.back().light);
-        }
-        // The instants first — the onset, every member's stops the light follows up to and
-        // including the first past the ink end, and the release where it extends the path —
-        // because a chord's extent at any of them spans every member's position there, which is
-        // read once the list is whole.
-        std::vector<HighwayHandArrival>& path = view.path;
-        path.push_back(HighwayHandArrival{.seconds = onset});
-        for (const NoteViewState* const tap : taps)
-        {
-            const bool scrape = isScrape(tap->attack);
-            for (std::size_t stop_index = 0; stop_index < tap->slides.size(); ++stop_index)
-            {
-                const GlideStop stop = glideStopAt(*tap, stop_index);
-                if ((stop.unpitched && !scrape) || stop.fret <= 0)
-                {
-                    continue;
-                }
-                path.push_back(
-                    HighwayHandArrival{
-                        .seconds = stop.seconds,
-                        .unpitched_ramp = stop.unpitched,
-                        .settle_seconds = std::max(0.0, stop.seconds - tap->ink_end_seconds),
-                    });
-                if (!keyframeDrawn(tap->slides[stop_index], tap->ink_end_seconds))
-                {
-                    break;
-                }
-            }
-        }
-        std::ranges::sort(path, std::ranges::less{}, &HighwayHandArrival::seconds);
-        // Two members stopping at one instant are one arrival: an unpitched leg into it keeps
-        // the unpitched ease, and the longer settle wins, whichever the sort put first.
-        std::size_t kept = 1;
-        for (std::size_t at = 1; at < path.size(); ++at)
-        {
-            HighwayHandArrival& last = path[kept - 1];
-            if (path[at].seconds - last.seconds < g_onset_match_epsilon)
-            {
-                last.unpitched_ramp = last.unpitched_ramp || path[at].unpitched_ramp;
-                last.settle_seconds = std::max(last.settle_seconds, path[at].settle_seconds);
-                continue;
-            }
-            path[kept] = path[at];
-            ++kept;
-        }
-        path.resize(kept);
-        // The release extends the path only past its last stop: inside a cut leg it is where the
-        // light fades, never a stop the hand makes, and an arrival there would split the leg.
-        if (view.light.release_seconds - path.back().seconds >= g_onset_match_epsilon)
-        {
-            path.push_back(HighwayHandArrival{.seconds = view.light.release_seconds});
-        }
-        for (std::size_t at = 0; at < path.size(); ++at)
-        {
-            HighwayHandArrival& arrival = path[at];
-            double low = memberPositionAt(*taps.front(), arrival.seconds);
-            double high = low;
-            for (std::size_t tap = 1; tap < taps.size(); ++tap)
-            {
-                const double position = memberPositionAt(*taps[tap], arrival.seconds);
-                low = std::min(low, position);
-                high = std::max(high, position);
-            }
-            arrival.low_line = low - 1.0;
-            arrival.high_line = high;
-            arrival.ramp_seconds = at == 0 ? 0.0 : arrival.seconds - path[at - 1].seconds;
-        }
-        onsets.push_back(std::move(view));
+        items.push_back(
+            HighwayLitStretch{
+                .start_seconds = note.start_seconds,
+                .release_seconds = noteReleaseAt(note),
+                .rise_seconds = margin_rise[index],
+            });
     }
-    return onsets;
+    // A span never OPENS a light: it starts at a note's onset, which carries the rise, or tiles
+    // onto its predecessor, so it lights its drawn extent with no rise of its own.
+    for (const ShapeViewState& shape : scene.shapes)
+    {
+        items.push_back(
+            HighwayLitStretch{
+                .start_seconds = shape.start_seconds,
+                .release_seconds = shape.drawn_end_seconds,
+                .rise_seconds = 0.0,
+            });
+    }
+    return mergeLitEvidence(std::move(items), g_hand_rest_seconds);
 }
 
 HighwayViewState makeHighwayViewState(
@@ -270,27 +357,26 @@ HighwayViewState makeHighwayViewState(
     const Chart& chart = *arrangement.chart;
     const std::vector<NoteViewState>& notes = state.chart.notes;
 
-    // Per-note tap light-rise durations: the right-hand light rises over the fret-hand
-    // placements' own arrival margin (\ref marginBefore) before the onset; zero for
-    // fretting-hand notes. The scene's notes pair one-to-one with the chart's, and a note's
-    // position survives the saved-form transform, so the grid position comes straight from the
-    // chart. Feeds makeHighwayTapOnsets.
-    std::vector<double> tap_rise_seconds;
-    tap_rise_seconds.reserve(notes.size());
+    // Per-note margin rise: whichever hand a note lights, its light rises over the fret-hand
+    // placements' own arrival margin (marginBefore) before the onset. One loop feeds both hands'
+    // producers. The scene's notes pair one-to-one with the chart's, and a note's position
+    // survives the saved-form transform, so the grid position comes straight from the chart.
+    std::vector<double> margin_rise_seconds;
+    margin_rise_seconds.reserve(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        double rise_seconds = 0.0;
-        if (rightHandOnset(notes[index].attack))
-        {
-            rise_seconds = notes[index].start_seconds -
-                           tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
-                               tempo_map, marginBefore(tempo_map, chart.notes[index].position)));
-        }
-        tap_rise_seconds.push_back(rise_seconds);
+        margin_rise_seconds.push_back(
+            notes[index].start_seconds -
+            tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
+                tempo_map, marginBefore(tempo_map, chart.notes[index].position))));
     }
-    // Tapping-hand onsets derive purely from the resolved notes (right-hand tap lighting).
-    state.tap_onsets = makeHighwayTapOnsets(notes, tap_rise_seconds);
-    state.fret_hand = makeHighwayFretHand(state.chart);
+    // Both hands' lights and the tap onsets derive purely from the resolved scene.
+    state.tap_onsets = makeHighwayTapOnsets(notes);
+    state.pick_hand = makePickHandLight(notes, margin_rise_seconds);
+    state.fret_hand = HighwayHandLight{
+        .track = makeHighwayFretHand(state.chart),
+        .lit = makeFretHandLight(state.chart, margin_rise_seconds),
+    };
 
     // Onset groups and their repeat classification, derived here once per chart revision. The
     // rules look backward through the whole note stream, so the renderer's visible window could

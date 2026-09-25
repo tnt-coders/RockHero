@@ -107,19 +107,15 @@ constexpr double g_window_light_falloff = 0.55;
 // fraction darker at peak sweep speed and recovers by arrival (the sin-squared bell keeps the
 // overall feel gentler than a full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
-// How long a light takes to fade after its release on each LAYER that draws it. The decay belongs
-// to the layer, never to a hand: a lit stretch carries only its rise, start and release
-// (common::core::HighwayLitStretch), and each layer shapes the one envelope
-// (common::core::highwayLightLevel) with its own decay. The rise is an arrival, derived from the
-// chart; a decay is a short visual constant, because a release is a gesture, not an arrival.
-//
-// The floor plane's decay: the floor light fades over it, and the fret-line tiers keep a light's
-// lines lit until it has.
-constexpr double g_floor_light_decay_seconds = 0.1;
-// The lane-border ribbons' decay, much slower than the floor's (per-strike ribbon flashing read
-// as jarring in tap sections): the floor light pulses with each strike while the brightened edges
-// bridge the gaps of a dense run, fading only once the run ends.
-constexpr double g_ribbon_decay_seconds = 0.45;
+// THE LIGHT'S RELEASE FADE: how long a hand's light takes to go out after its release, on every
+// layer that draws it — the floor, both ribbon tiers, the fret-line tier. A lit stretch carries
+// only its rise, start and release (common::core::HighwayLitStretch), and every layer shapes the
+// one envelope (common::core::highwayLightLevel) with this one decay. The rise is an arrival,
+// derived from the chart; the decay is a short visual constant, because a release is a gesture,
+// not an arrival. No layer fades slower to bridge a run: whether a run is one light or a pulse per
+// note is the producer's merge tolerance (common::core::g_hand_rest_seconds for the fretting hand,
+// common::core::g_pick_light_rest_seconds for the picking hand), decided once for every layer.
+constexpr double g_light_decay_seconds = 0.1;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
 // wobble — read from shading alone even where screen-space lift is foreshortened at center
@@ -208,9 +204,6 @@ constexpr ArgbColor g_fret_number_active_color = 0xFF87DDF6;
 constexpr ArgbColor g_fret_number_dim_color = 0x8007928F;
 constexpr ArgbColor g_fret_number_fhp_color = 0xFFFFA821;
 
-// Hand-window activity horizon for the active fret state.
-constexpr double g_fret_active_horizon_seconds = 0.5;
-
 // Capo display (crude first treatment, roadmap 25-Q6): the dead zone the capo silences between
 // the nut and its fret line, dimmed over the face; and the clamp itself, a steel bar with a
 // dark rim laid across the strings just behind its fret, overhanging the string grid so it
@@ -240,6 +233,24 @@ constexpr ArgbColor g_hit_glow_color = 0xFFFFB040;
 constexpr double g_hit_glow_falloff = 0.2;
 constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
 constexpr double g_hit_glow_top_fade = 0.35;
+
+// What one hand's light looks like, stated once so both hands draw through one path and differ
+// only here: the lit lanes' lean toward the FHP orange, and the colour a strike pops in.
+struct HandLightStyle
+{
+    // How far the lit lane tint leans toward the FHP orange; zero keeps the lanes' own tint.
+    double warm_mix;
+    // The colour this hand's strikes pop in.
+    ArgbColor strike_color;
+};
+
+// The fretting hand keeps the lanes' own tint and pops in the hit-glow amber; the picking hand's
+// light leans warm so the two hands read apart at a glance, and its strikes pop white.
+constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .strike_color = g_hit_glow_color};
+constexpr HandLightStyle g_picking_hand_light{
+    .warm_mix = g_tap_light_warm_mix,
+    .strike_color = 0xFFFFFFFF,
+};
 
 // Anticipation ring window before a note lands (500 ms).
 constexpr double g_anticipation_seconds = 0.5;
@@ -695,7 +706,7 @@ constexpr double g_inlay_double_string_spacings = 1.5;
     const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
     const common::core::HighwayHandWindow window =
-        common::core::highwayHandWindowAt(state.fret_hand, seconds);
+        common::core::highwayHandWindowAt(state.fret_hand.track, seconds);
     const double low_x = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
     const double high_x = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
     return {std::min(low_x, high_x), std::max(low_x, high_x)};
@@ -789,7 +800,7 @@ bool windowSampleTimes(
     bool moves = false;
     times.clear();
     times.push_back(from_seconds);
-    const std::vector<common::core::HighwayHandArrival>& track = state.fret_hand;
+    const std::vector<common::core::HighwayHandArrival>& track = state.fret_hand.track;
     const auto start = static_cast<std::size_t>(
         std::ranges::upper_bound(
             track, from_seconds, std::ranges::less{}, &common::core::HighwayHandArrival::seconds) -
@@ -831,22 +842,22 @@ bool windowSampleTimes(
     return moves;
 }
 
-// The fret lines a tap's light path crosses anywhere along it, clamped to the face, as an
-// inclusive [first, last] pair — the union the visible and active line tiers light up whole.
-[[nodiscard]] std::pair<int, int> tapPathLines(
-    const common::core::HighwayTapOnsetViewState& tap) noexcept
+// The stretches of one hand's lit list whose light can be seen anywhere in [from_seconds,
+// to_seconds]. The list is disjoint, ascending and crowding-clamped (mergeLitEvidence): each rise
+// starts at or after the previous release, so the lit intervals' starts ascend as their ends do,
+// and both bounds are one binary search each — no prefix maximum, no padding by a longest rise.
+[[nodiscard]] std::span<const common::core::HighwayLitStretch> litRange(
+    const std::span<const common::core::HighwayLitStretch> lit, const double from_seconds,
+    const double to_seconds) noexcept
 {
-    double low = tap.path.front().low_line;
-    double high = tap.path.front().high_line;
-    for (const common::core::HighwayHandArrival& arrival : tap.path)
-    {
-        low = std::min(low, arrival.low_line);
-        high = std::max(high, arrival.high_line);
-    }
-    return {
-        std::max(0, static_cast<int>(std::floor(low))),
-        std::min(g_face_fret_count, static_cast<int>(std::ceil(high))),
+    const auto interval = [](const common::core::HighwayLitStretch& stretch) {
+        return common::core::highwayLitInterval(stretch, g_light_decay_seconds);
     };
+    const auto first = std::ranges::partition_point(
+        lit, [&](const auto& stretch) { return interval(stretch).to_seconds < from_seconds; });
+    const auto last = std::ranges::partition_point(
+        lit, [&](const auto& stretch) { return interval(stretch).from_seconds <= to_seconds; });
+    return {first, std::max(first, last)};
 }
 
 // Appends one quad (two triangles) to a CPU-side batch, choosing the split diagonal.
@@ -1071,18 +1082,20 @@ struct ChordBoxFrame
     bool closed_top{};
 };
 
-// Axis-aligned quad on the floor plane (y constant, spanning x and z).
+// Axis-aligned quad on the floor plane (y constant, spanning x and z), its colour running from
+// `abgr_z0` along its z0 edge to `abgr_z1` along its z1 edge.
 void pushFloorQuad(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double y, const double z0, const double z1, const std::uint32_t abgr)
+    const double x1, const double y, const double z0, const double z1, const std::uint32_t abgr_z0,
+    const std::uint32_t abgr_z1)
 {
     pushQuad(
         vertices,
         indices,
-        makeVertex(x0, y, z0, abgr),
-        makeVertex(x1, y, z0, abgr),
-        makeVertex(x1, y, z1, abgr),
-        makeVertex(x0, y, z1, abgr));
+        makeVertex(x0, y, z0, abgr_z0),
+        makeVertex(x1, y, z0, abgr_z0),
+        makeVertex(x1, y, z1, abgr_z1),
+        makeVertex(x0, y, z1, abgr_z1));
 }
 
 // One endpoint of a three-band ribbon segment: a centerline offset applied to the band
@@ -1774,27 +1787,6 @@ struct FloorNumber
     std::size_t build_index{0};
 };
 
-// One settled fret-hand window visible this frame; the span rules live at the hand_windows site
-// in draw().
-struct HandWindow
-{
-    double start_seconds;
-    double end_seconds;
-    double low_line;
-    double high_line;
-};
-
-// One sampled slice of the hand-window light: its z and the two eased window edges there, plus
-// the motion dim the ramps write. One record rather than four parallel arrays, so a slice cannot
-// be half-written.
-struct WindowLightSlice
-{
-    double z;
-    double low_x;
-    double high_x;
-    double dim;
-};
-
 // One arpeggio bracket glyph awaiting its lane-dominant submission; the ordering rule lives at
 // the bracket_batches site in draw().
 struct BracketBatch
@@ -1911,8 +1903,6 @@ struct FrameScratch
     std::vector<PosColorUvVertex> pass_textured_vertices;
     std::vector<std::uint16_t> pass_textured_indices;
 
-    std::vector<HandWindow> hand_windows;
-    std::vector<WindowLightSlice> window_light_slices;
     std::vector<BracketBatch> bracket_batches;
     std::vector<BoxDraw> boxes;
     std::vector<double> window_edge_onsets;
@@ -1978,8 +1968,6 @@ struct FrameScratch
         pass_color_indices.clear();
         pass_textured_vertices.clear();
         pass_textured_indices.clear();
-        hand_windows.clear();
-        window_light_slices.clear();
         bracket_batches.clear();
         boxes.clear();
         window_edge_onsets.clear();
@@ -1992,18 +1980,21 @@ struct FrameScratch
     }
 };
 
+// One brightness per fret line of the board face, line 0 (the nut) through the last.
+using LineLight = std::array<double, g_face_fret_count + 1>;
+
 // The frame-scope facts the board passes read: the instant being drawn, the span of song time
-// on screen, and the per-frame derivations (the settled hand windows, the shape spans reaching
-// the board) that every pass would otherwise re-derive. draw() builds one at the top of the
-// frame and hands it to each pass, so a pass declares what it reads instead of capturing
-// draw()'s locals.
+// on screen, and the per-frame derivations (the fret lines the light brightens now, the shape
+// spans reaching the board) that every pass would otherwise re-derive. draw() builds one at the
+// top of the frame and hands it to each pass, so a pass declares what it reads instead of
+// capturing draw()'s locals.
 //
 // Only what changes per FRAME belongs here. The passes are Impl members, so every per-STATE
 // fact — the metrics, the view state, the scroll speed, the derivations taken beside
 // displayed_count — is read from the renderer itself, never copied through this record.
 //
-// The spans view storage that is complete before this record is built and untouched for the
-// rest of the frame: the frame's hand windows in the scratch, the chart's own shape list.
+// The span views storage that is complete before this record is built and untouched for the
+// rest of the frame: the chart's own shape list.
 struct FrameContext
 {
     // Playback song time for this frame; the origin every time-to-z conversion measures from.
@@ -2014,11 +2005,9 @@ struct FrameContext
     double span_start_seconds{0.0};
     double span_end_seconds{0.0};
 
-    // The settled fret-hand windows visible this frame, in arrival order.
-    std::span<const HandWindow> hand_windows;
-
-    // The window at the current instant, fractional mid-transition.
-    common::core::HighwayHandWindow current_window;
+    // The brightness rule at the current instant, per fret line (Impl::lineLightAt): the bright
+    // ribbon tier and the fret lines' active tier both read it.
+    LineLight lines_lit_now{};
 
     // The hand-posture spans reaching the board this frame.
     std::span<const common::core::ShapeViewState> visible_shapes;
@@ -2095,14 +2084,6 @@ struct HighwayRenderer::Impl
     // Longest fretting-hand approach ramp, for windowSampleTimes' exact early-out: an arrival
     // this far past a window's end cannot reach back into it, and neither can any later arrival.
     double max_fret_hand_ramp_seconds{0.0};
-    // The tapping hand's counterpart of sustain_prefix_max and max_fret_hand_ramp_seconds,
-    // derived once per chart revision: the running maximum of the lights' releases, and the
-    // longest tap rise. Tap light envelopes run from an onset's rise start to its release plus a
-    // decay, and the releases overlap freely, so the prefix maximum is what bounds a span's first
-    // candidate (visibleEventRange's argument, applied to the hand that has no `end_seconds`
-    // field) and the longest rise is what bounds its last.
-    std::vector<double> tap_end_prefix_max;
-    double max_tap_rise_seconds{0.0};
     FrameScratch scratch;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -2121,40 +2102,200 @@ struct HighwayRenderer::Impl
         return common::core::displayedLane(chart_string, extra_lanes);
     }
 
-    /*
-    The tap onsets whose light can reach [from_seconds, to_seconds], as a half-open index range —
-    visibleEventRange's answer for the tapping hand, which carries its extent in a rise and a
-    release rather than in an `end_seconds` field. A tap's light is lit over its
-    highwayLitInterval: it rises over `light.rise_seconds` before its onset and fades
-    `decay_seconds` after its release, so:
-
-      - every onset before the first whose prefix maximum of releases reaches back into the span
-        has faded before it (the releases overlap freely, which is exactly why the bound is the
-        prefix maximum rather than the releases themselves), and
-      - every onset from the first whose rise cannot start by `to_seconds` — even at the longest
-        rise in the chart — begins after it, as do all later onsets.
-
-    Both tests are spelled with the same expressions the per-tap skips use, so the range is a
-    tight superset of what those skips keep and callers still run them: the range never drops a
-    tap the caller's own test would have kept, and a rounding tie only costs one skipped tap.
-    */
-    [[nodiscard]] std::pair<std::size_t, std::size_t> litTapOnsetRange(
-        const double from_seconds, const double to_seconds,
-        const double decay_seconds) const noexcept
+    // The two hands in paint order, each with its style: the fretting hand first (it has always
+    // painted under the picking hand's light), then the picking hand. The one place the hands are
+    // named, so every layer draws both through one path.
+    template <typename Visit> void forEachHand(const Visit& visit) const
     {
-        const auto first = static_cast<std::size_t>(
-            std::ranges::partition_point(
-                tap_end_prefix_max,
-                [&](const double release) { return release + decay_seconds < from_seconds; }) -
-            tap_end_prefix_max.begin());
-        const auto last = static_cast<std::size_t>(
-            std::ranges::partition_point(
-                state.tap_onsets,
-                [&](const common::core::HighwayTapOnsetViewState& tap) {
-                    return tap.seconds - max_tap_rise_seconds <= to_seconds;
-                }) -
-            state.tap_onsets.begin());
-        return {std::min(first, last), last};
+        visit(state.fret_hand, g_fretting_hand_light);
+        visit(state.pick_hand, g_picking_hand_light);
+    }
+
+    // One hand's lights whose lit interval reaches [from_seconds, to_seconds], ascending.
+    template <typename Visit>
+    static void forEachLightOf(
+        const common::core::HighwayHandLight& hand, const double from_seconds,
+        const double to_seconds, const Visit& visit)
+    {
+        for (const common::core::HighwayLitStretch& stretch :
+             litRange(hand.lit, from_seconds, to_seconds))
+        {
+            visit(stretch);
+        }
+    }
+
+    // Every light, of either hand, whose lit interval reaches [from_seconds, to_seconds], visited
+    // as (hand, stretch, style) in forEachHand's order and ascending within a hand.
+    template <typename Visit>
+    void forEachLight(const double from_seconds, const double to_seconds, const Visit& visit) const
+    {
+        forEachHand([&](const common::core::HighwayHandLight& hand, const HandLightStyle& style) {
+            forEachLightOf(
+                hand,
+                from_seconds,
+                to_seconds,
+                [&](const common::core::HighwayLitStretch& stretch) {
+                    visit(hand, stretch, style);
+                });
+        });
+    }
+
+    /*
+    THE MOTION DIM: how much a hand's light dims at an instant because its window is sweeping
+    across lanes, whichever hand moves it. The silhouette keeps the settled cross-section along the
+    whole eased contour, and the transition's fading lives in brightness instead: the leg the
+    window is travelling (highwayHandLegAt, the one lookup the window itself eases through) dims
+    along a sin-squared bell over its own progress — full brightness at the ramp's start and end,
+    deepest exactly mid-transition — whose depth scales with the leg's overall steepness on the
+    board (lateral travel over the z its ramp spans), so a slow glide keeps most of its glow.
+    Outside every leg the light is undimmed.
+    */
+    [[nodiscard]] double motionDim(
+        const std::vector<common::core::HighwayHandArrival>& track,
+        const double seconds) const noexcept
+    {
+        const std::optional<common::core::HighwayHandLeg> leg =
+            common::core::highwayHandLegAt(track, seconds);
+        if (!leg.has_value())
+        {
+            return 1.0;
+        }
+        const common::core::HighwayHandArrival& from = *leg->from;
+        const common::core::HighwayHandArrival& to = *leg->to;
+        const bool mirrored = state.options.mirrored;
+        const auto travel_x = [&](const double from_line, const double to_line) {
+            return std::abs(
+                common::core::highwayFretLineX(to_line, metrics, mirrored) -
+                common::core::highwayFretLineX(from_line, metrics, mirrored));
+        };
+        const double slope =
+            std::max(travel_x(from.low_line, to.low_line), travel_x(from.high_line, to.high_line)) /
+            common::core::highwayTimeToZ(to.ramp_seconds, scroll_speed, metrics);
+        const double depth = g_window_morph_dim * (slope / std::sqrt(1.0 + (slope * slope)));
+        const double bell = std::sin(std::numbers::pi * leg->progress);
+        return 1.0 - (depth * bell * bell);
+    }
+
+    // One light's strength at an instant, before the window's coverage of any line: the envelope
+    // times the motion dim. The rule's time-dependent factors, stated once for every layer. The dim
+    // is read at the light's own track instant (highwayLitTrackTime), so a light holding still
+    // through its rise or its decay is never dimmed by a move it does not make.
+    [[nodiscard]] double lightStrengthAt(
+        const common::core::HighwayHandLight& hand, const common::core::HighwayLitStretch& stretch,
+        const double seconds) const noexcept
+    {
+        return common::core::highwayLightLevel(stretch, seconds, g_light_decay_seconds) *
+               motionDim(
+                   hand.track, common::core::highwayLitTrackTime(hand.track, stretch, seconds));
+    }
+
+    /*
+    THE BRIGHTNESS RULE at one instant, per fret line: the max over every light of the window's
+    coverage of the line (highwayHandWindowLineCoverage over highwayLitWindowAt: the one morph both
+    hands move by, read so a light never starts a leg outside its own stretch) times the light's
+    strength there (the envelope times the motion dim, read at the same track instant).
+    Every layer that brightens lines asks this: the ribbons' bright tier and the fret lines'
+    active tier at now, the ribbons' mid tier along z. Lights max-combine, so two hands over one
+    line never sum.
+    */
+    void lineLightAt(const double seconds, LineLight& lines) const
+    {
+        lines.fill(0.0);
+        forEachLight(
+            seconds,
+            seconds,
+            [&](const common::core::HighwayHandLight& hand,
+                const common::core::HighwayLitStretch& stretch,
+                const HandLightStyle&) {
+                const double strength = lightStrengthAt(hand, stretch, seconds);
+                if (strength <= 0.0)
+                {
+                    return;
+                }
+                const common::core::HighwayHandWindow window =
+                    common::core::highwayLitWindowAt(hand.track, stretch, seconds);
+                for (int line = 0; line <= g_face_fret_count; ++line)
+                {
+                    double& slot = lines.at(static_cast<std::size_t>(line));
+                    slot = std::max(
+                        slot,
+                        common::core::highwayHandWindowLineCoverage(
+                            window, static_cast<double>(line)) *
+                            strength);
+                }
+            });
+    }
+
+    /*
+    Appends the instants one light is sampled at inside the drawn span [span_from, span_to],
+    clipped to the light's own lit interval: the clip's two ends, the start and the release, and —
+    only where the light actually follows its track (highwayLitTrackTime, the reading rule) — every
+    arrival it reaches and each ramp it travels, subdivided by its sweep (highwayGlideSliceCount,
+    the one policy every glide-following mark subdivides by) so the light travels with the glide
+    instead of cutting straight across it. Between two samples every factor of the brightness rule
+    is linear or held, so these are all the breakpoints a layer needs. Unsorted; the caller sorts
+    once it has appended everything it samples.
+
+    The reading rule never decreases, so the light moves only while its track is read between its
+    readings at the clip's two ends; outside that stretch its window holds, and a sample there would
+    only draw a segment that states nothing new. Inside it the reading IS the instant, so a track
+    instant is a drawn instant. highwayHandWindowAt eases an instant through the ramp of the FIRST
+    arrival after it, so the ramps walked are those of the arrivals from the first past the first
+    reading through the first past the last — two binary searches, whatever the track's length.
+    */
+    static void appendLightSampleTimes(
+        const common::core::HighwayHandLight& hand, const common::core::HighwayLitStretch& stretch,
+        const double span_from, const double span_to, std::vector<double>& times)
+    {
+        const common::core::HighwayLitInterval lit =
+            common::core::highwayLitInterval(stretch, g_light_decay_seconds);
+        const double from_seconds = std::max(lit.from_seconds, span_from);
+        const double to_seconds = std::min(lit.to_seconds, span_to);
+        const std::vector<common::core::HighwayHandArrival>& track = hand.track;
+        const double follow_from = common::core::highwayLitTrackTime(track, stretch, from_seconds);
+        const double follow_to = common::core::highwayLitTrackTime(track, stretch, to_seconds);
+        const auto keep_in = [&](const double seconds, const double low, const double high) {
+            if (seconds >= low && seconds <= high)
+            {
+                times.push_back(seconds);
+            }
+        };
+        const auto keep_followed = [&](const double seconds) {
+            keep_in(seconds, std::max(from_seconds, follow_from), std::min(to_seconds, follow_to));
+        };
+        times.push_back(from_seconds);
+        times.push_back(to_seconds);
+        keep_in(stretch.start_seconds, from_seconds, to_seconds);
+        keep_in(stretch.release_seconds, from_seconds, to_seconds);
+        // Where the light stops following: the end of the leg in progress at its release.
+        keep_followed(follow_to);
+        const auto first = std::ranges::upper_bound(
+            track, follow_from, std::ranges::less{}, &common::core::HighwayHandArrival::seconds);
+        const auto past = std::ranges::upper_bound(
+            track, follow_to, std::ranges::less{}, &common::core::HighwayHandArrival::seconds);
+        const auto last = past == track.end() ? past : std::next(past);
+        for (auto it = first; it != last; ++it)
+        {
+            const common::core::HighwayHandArrival& b = *it;
+            keep_followed(b.seconds);
+            if (it == track.begin() || b.ramp_seconds <= 0.0)
+            {
+                continue;
+            }
+            const common::core::HighwayHandArrival& a = *std::prev(it);
+            const double sweep =
+                std::max(std::abs(b.low_line - a.low_line), std::abs(b.high_line - a.high_line));
+            if (sweep <= 0.0)
+            {
+                continue;
+            }
+            const double ramp_start = b.seconds - b.ramp_seconds;
+            const int slices = highwayGlideSliceCount(sweep);
+            for (int slice = 0; slice < slices; ++slice)
+            {
+                keep_followed(ramp_start + (b.ramp_seconds * static_cast<double>(slice) / slices));
+            }
+        }
     }
 
     // Board z for a song time under the current scroll speed: the one conversion the passes and
@@ -2224,18 +2365,6 @@ struct HighwayRenderer::Impl
         return common::core::highwayStringGridTopY(displayed_count, metrics);
     }
 
-    // The tap onsets whose light can reach a time span, as the taps themselves; litTapOnsetRange
-    // holds the bound and its proof. Every pass keeps its own per-tap skip — this only spares
-    // each one the onsets that provably fail it, the way visibleEventRange spares the note sweep.
-    [[nodiscard]] std::span<const common::core::HighwayTapOnsetViewState> litTaps(
-        const double from_seconds, const double to_seconds,
-        const double decay_seconds) const noexcept
-    {
-        const auto [first, last] = litTapOnsetRange(from_seconds, to_seconds, decay_seconds);
-        return std::span<const common::core::HighwayTapOnsetViewState>(state.tap_onsets)
-            .subspan(first, last - first);
-    }
-
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
 
@@ -2250,8 +2379,7 @@ struct HighwayRenderer::Impl
     // The frame's own facts arrive as the context; everything per-state (the scratch buffers,
     // the metrics, the view state) each pass reads from the renderer, like any other member.
     void drawLaneBorderRibbons(const FrameContext& frame);
-    void drawHandWindowLight(const FrameContext& frame);
-    void drawTappingHandLight(const FrameContext& frame);
+    void drawFloorLight(const FrameContext& frame);
     void drawBeatBars(const FrameContext& frame);
     void drawHandShapeRails(const FrameContext& frame);
     void drawStringLines();
@@ -2488,20 +2616,10 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
         std::views::transform(&common::core::ShapeViewState::drawn_end_seconds));
     m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
     m_impl->max_fret_hand_ramp_seconds = 0.0;
-    for (const common::core::HighwayHandArrival& arrival : m_impl->state.fret_hand)
+    for (const common::core::HighwayHandArrival& arrival : m_impl->state.fret_hand.track)
     {
         m_impl->max_fret_hand_ramp_seconds =
             std::max(m_impl->max_fret_hand_ramp_seconds, arrival.ramp_seconds);
-    }
-    m_impl->tap_end_prefix_max = common::core::makeSustainPrefixMax(
-        m_impl->state.tap_onsets |
-        std::views::transform(&common::core::HighwayTapOnsetViewState::light) |
-        std::views::transform(&common::core::HighwayLitStretch::release_seconds));
-    m_impl->max_tap_rise_seconds = 0.0;
-    for (const common::core::HighwayTapOnsetViewState& tap : m_impl->state.tap_onsets)
-    {
-        m_impl->max_tap_rise_seconds =
-            std::max(m_impl->max_tap_rise_seconds, tap.light.rise_seconds);
     }
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
@@ -2628,71 +2746,13 @@ void HighwayRenderer::Impl::draw(
     const std::array<float, 4> box_glow_uniform =
         glow_uniform_at(metrics.string_grid_base_y, g_accent_gain_boxes);
 
-    // Settled hand windows visible this frame: each placement owns the time range from its
-    // arrival up to the next placement's ramp start (the transition itself is drawn as a
-    // sampled sweep below, so settled spans shrink by the following ramp). The first
-    // placement's window already holds before its arrival (the pre-held opening, matching
-    // highwayHandWindowAt), so its span extends back to the span start even when the arrival
-    // itself is far past the horizon. A chart with no placements gets the reference nut
-    // window.
-    // Arrivals ascend and a window ends at the NEXT arrival's ramp start — never later than that
-    // arrival itself — so a placement whose successor arrives at or before the span start closes
-    // before the span and cannot show: the walk begins one placement before the first arrival
-    // past the span start. It ends at the first arrival at or past the span end, whose window
-    // opens past the span, as does every later one. Index 0 is the exception at both ends: its
-    // window is pre-held from the span start, so it is always a candidate when it is reached.
-    const std::vector<common::core::HighwayHandArrival>& fhps = state.fret_hand;
-    const auto after_span_start = static_cast<std::size_t>(
-        std::ranges::upper_bound(
-            fhps,
-            span_start_seconds,
-            std::ranges::less{},
-            &common::core::HighwayHandArrival::seconds) -
-        fhps.begin());
-    const auto at_span_end = static_cast<std::size_t>(
-        std::ranges::lower_bound(
-            fhps,
-            span_end_seconds,
-            std::ranges::less{},
-            &common::core::HighwayHandArrival::seconds) -
-        fhps.begin());
-    const std::size_t first_window = after_span_start > 0 ? after_span_start - 1 : 0;
-    const std::size_t last_window = std::min(fhps.size(), std::max(at_span_end, std::size_t{1}));
-    std::vector<HandWindow>& hand_windows = scratch.hand_windows;
-    for (std::size_t index = first_window; index < last_window; ++index)
-    {
-        const common::core::HighwayHandArrival& fhp = fhps[index];
-        const double window_start = index == 0 ? span_start_seconds : fhp.seconds;
-        const double window_end = index + 1 < fhps.size()
-                                      ? fhps[index + 1].seconds - fhps[index + 1].ramp_seconds
-                                      : span_end_seconds;
-        if (window_end <= span_start_seconds || window_start >= span_end_seconds ||
-            window_end <= window_start)
-        {
-            continue;
-        }
-        hand_windows.push_back(
-            HandWindow{
-                .start_seconds = std::max(window_start, span_start_seconds),
-                .end_seconds = std::min(window_end, span_end_seconds),
-                .low_line = fhp.low_line,
-                .high_line = fhp.high_line,
-            });
-    }
-    if (state.fret_hand.empty())
-    {
-        hand_windows.push_back(
-            HandWindow{
-                .start_seconds = span_start_seconds,
-                .end_seconds = span_end_seconds,
-                .low_line = 0.0,
-                .high_line = 4.0,
-            });
-    }
     // The window at the current instant, fractional mid-transition: the shared coverage signal
-    // for the hit-line presentation (lane brightness, pinned numbers).
+    // for the hit-line presentation's pinned numbers.
     const common::core::HighwayHandWindow current_window =
-        common::core::highwayHandWindowAt(state.fret_hand, now_seconds);
+        common::core::highwayHandWindowAt(state.fret_hand.track, now_seconds);
+    // The brightness rule at the current instant, per fret line, for the two tiers that read it.
+    LineLight lines_lit_now{};
+    lineLightAt(now_seconds, lines_lit_now);
 
     // Hand-posture spans reaching the board this frame. Spans ascend by start but overlap
     // freely, so the range is visibleEventRange over the prefix maximum of their ends — the note
@@ -2711,8 +2771,7 @@ void HighwayRenderer::Impl::draw(
         .now_seconds = now_seconds,
         .span_start_seconds = span_start_seconds,
         .span_end_seconds = span_end_seconds,
-        .hand_windows = hand_windows,
-        .current_window = current_window,
+        .lines_lit_now = lines_lit_now,
         .visible_shapes = visible_shapes,
     };
     // The z conversion the content scheduler below still reaches for by name; it delegates to
@@ -2722,8 +2781,7 @@ void HighwayRenderer::Impl::draw(
     // The board's furniture, under the content. Each pass carries its own banner; the order of
     // the calls is the layering, because the board view paints in submission order.
     drawLaneBorderRibbons(frame);
-    drawHandWindowLight(frame);
-    drawTappingHandLight(frame);
+    drawFloorLight(frame);
     drawBeatBars(frame);
     drawHandShapeRails(frame);
 
@@ -3369,7 +3427,7 @@ void HighwayRenderer::Impl::draw(
             // window.
             const double window_seconds = std::max(box.start_seconds, now_seconds);
             const common::core::HighwayHandWindow window =
-                common::core::highwayHandWindowAt(state.fret_hand, window_seconds);
+                common::core::highwayHandWindowAt(state.fret_hand.track, window_seconds);
             const auto [x0, x1] = handWindowXAt(state, window_seconds, metrics, mirrored);
             push_box_accent_light(x0, x1);
             pushChordBoxPanel(
@@ -3700,7 +3758,7 @@ void HighwayRenderer::Impl::draw(
                 continue;
             }
             const common::core::HighwayHandWindow beat_window =
-                common::core::highwayHandWindowAt(state.fret_hand, beat.seconds);
+                common::core::highwayHandWindowAt(state.fret_hand.track, beat.seconds);
             const double z = time_to_z(beat.seconds);
             for (int fret = 1; fret <= g_face_fret_count; ++fret)
             {
@@ -3765,60 +3823,69 @@ void HighwayRenderer::Impl::draw(
 
         // Tap numbers label POSITIONS, not notes (per-note numbers over-labeled dense runs):
         // one number per tap onset, at its low fret like a hand-position arrival, and only when
-        // it tells the player something new — the first tap after the lighting lapsed, or a
-        // move away from the position the previous tap's path LANDED in. A repeat inside a lit
-        // run (the previous release plus the ribbon decay still bridging this rise — the same
-        // bridge the lane edges show) is already established and stays unlabeled, as are chord
-        // upper members. A tapped glide then establishes each landing as its own new position
-        // (matching the placements a fretting-hand glide carries at its targets): every path
-        // station that changes the extent gets an arrival number of its own.
+        // it tells the player something new. A strike that repeats the previous strike's frets
+        // while that position is still established — less than the establishment rule
+        // (g_hand_rest_seconds) after the previous strike's hold end — stays unlabeled, as do
+        // chord upper members. A tapped glide then establishes each landing as its own new
+        // position (matching the placements a fretting-hand glide carries at its targets): every
+        // track station that changes the extent, other than a strike's own arrival, gets an
+        // arrival number of its own, at the fret containing its low edge (handFretOf, the one ceil
+        // law the strike's own fret comes from).
         //
-        // The one scan here that carries state across its subjects: `previous_tap` decides
-        // whether this onset repeats an established position, so the walk cannot simply start
-        // inside the window. It starts at the first onset that can push anything — every number
-        // it pushes sits at the onset or at a later path station, and push_target_number drops
-        // everything at or before now, so an onset whose whole path has passed pushes nothing —
-        // and seeds the carry from the onset immediately before it, which is exactly what the
-        // full walk would have held on arriving there. Ending the walk needs no carry at all:
-        // past the range's far bound every station is past the span end, and that bound is the
-        // looser padded one, so nothing that could still push a number is cut.
-        const auto [first_tap, last_tap] = litTapOnsetRange(now_seconds, span_end_seconds, 0.0);
-        const common::core::HighwayTapOnsetViewState* previous_tap =
-            first_tap > 0 ? &state.tap_onsets[first_tap - 1] : nullptr;
-        for (const common::core::HighwayTapOnsetViewState& tap :
-             std::span<const common::core::HighwayTapOnsetViewState>(state.tap_onsets)
-                 .subspan(first_tap, last_tap - first_tap))
+        // The walk is over the picking hand's track, from the first arrival past now —
+        // push_target_number drops everything at or before it — to the first past the span end.
+        // A strike compares against the strike before it and a station against the arrival before
+        // it, so the walk carries no state of its own; a cursor into the tap onsets, both
+        // ascending, tells a strike's arrival (at its onset, the same instant exactly) from a
+        // station between strikes.
+        const std::vector<common::core::HighwayHandArrival>& pick_track = state.pick_hand.track;
+        auto onset = std::ranges::upper_bound(
+            state.tap_onsets,
+            now_seconds,
+            std::ranges::less{},
+            &common::core::HighwayTapOnsetViewState::seconds);
+        for (auto arrival = std::ranges::upper_bound(
+                 pick_track,
+                 now_seconds,
+                 std::ranges::less{},
+                 &common::core::HighwayHandArrival::seconds);
+             arrival != pick_track.end() && arrival->seconds <= span_end_seconds;
+             ++arrival)
         {
-            const bool repeat_in_lit_run =
-                previous_tap != nullptr &&
-                std::lround(previous_tap->path.back().low_line) + 1 == tap.fret_low &&
-                std::lround(previous_tap->path.back().high_line) == tap.fret_high &&
-                common::core::highwayLitInterval(previous_tap->light, g_ribbon_decay_seconds)
-                        .to_seconds >=
-                    common::core::highwayLitInterval(tap.light, g_ribbon_decay_seconds)
-                        .from_seconds;
-            if (!repeat_in_lit_run)
+            while (onset != state.tap_onsets.end() && onset->seconds < arrival->seconds)
             {
-                push_target_number(tap.fret_low, tap.seconds);
+                ++onset;
             }
-            for (std::size_t at = 1; at < tap.path.size(); ++at)
+            if (onset != state.tap_onsets.end() && std::is_eq(onset->seconds <=> arrival->seconds))
             {
-                const common::core::HighwayHandArrival& a = tap.path[at - 1];
-                const common::core::HighwayHandArrival& b = tap.path[at];
-                if (std::is_neq(a.low_line <=> b.low_line) ||
-                    std::is_neq(a.high_line <=> b.high_line))
+                const common::core::HighwayTapOnsetViewState& tap = *onset;
+                const bool repeat_established = onset != state.tap_onsets.begin() &&
+                                                std::prev(onset)->fret_low == tap.fret_low &&
+                                                std::prev(onset)->fret_high == tap.fret_high &&
+                                                tap.seconds - std::prev(onset)->release_seconds <
+                                                    common::core::g_hand_rest_seconds;
+                if (!repeat_established)
                 {
-                    push_target_number(static_cast<int>(std::lround(b.low_line)) + 1, b.seconds);
+                    push_target_number(tap.fret_low, tap.seconds);
                 }
+                continue;
             }
-            previous_tap = &tap;
+            // A station always has an arrival before it: the track opens on a strike.
+            const common::core::HighwayHandArrival& before = *std::prev(arrival);
+            if (std::is_neq(before.low_line <=> arrival->low_line) ||
+                std::is_neq(before.high_line <=> arrival->high_line))
+            {
+                push_target_number(
+                    common::core::handFretOf(common::core::nodeStop(arrival->low_line + 1.0)),
+                    arrival->seconds);
+            }
         }
 
         // Slide keyframes deliberately push no numbers of their own (completing the one-rule
         // model: an orange number marks a hand position being established, nothing else). A
         // fretting-hand glide that moves the window carries a hand-position placement at its
         // target (normalization rule 9), and a tapped glide's landings are labeled through the
-        // path loop above — both hands' glides earn their numbers as POSITIONS, never
+        // track walk above — both hands' glides earn their numbers as POSITIONS, never
         // as keyframes. The keyframe glow posts and fret-span lines remain — they are target
         // furniture, not labels.
 
@@ -5517,100 +5584,50 @@ void HighwayRenderer::Impl::draw(
     drawStrikeGlow(frame);
 }
 
-// --- Lane border ribbons: one faded runway strip per fret line (Charter's floor
-// grid). Alpha tiers: bright for the current hand range, mid for any visible window's
-// range, faint elsewhere. ---
+// --- Lane border ribbons: one faded runway strip per fret line (Charter's floor grid), in three
+// alpha tiers the brightness rule drives (lineLightAt): faint everywhere; the mid tier along the
+// strip, wherever a light covers the line at that slice's time, so a line is lit only while its
+// light is; and the bright tier, the rule at now, lifting the whole strip toward full so the
+// brightened band hands off line by line in lockstep with the window crossing the hit line. Lines
+// stay straight and fixed; only alpha animates. ---
 void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
-    std::array<bool, g_face_fret_count + 1> in_visible_window{};
-    for (const HandWindow& window : frame.hand_windows)
-    {
-        for (int line = static_cast<int>(std::lround(window.low_line));
-             line <= static_cast<int>(std::lround(window.high_line));
-             ++line)
-        {
-            if (line >= 0 && line <= g_face_fret_count)
-            {
-                in_visible_window.at(static_cast<std::size_t>(line)) = true;
-            }
-        }
-    }
-    // Right-hand windows join the visible tier: lines the tapping hand's light path crosses
-    // on screen brighten like any visible window's. The tier is a per-line array, so overlap
-    // with the fretting hand's windows deduplicates itself, and the path union already
-    // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
-    // current fretting-hand window's hit-line crossfade.
-    for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_decay_seconds))
-    {
-        if (tap.seconds > frame.span_end_seconds ||
-            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds).to_seconds <
-                frame.span_start_seconds)
-        {
-            continue;
-        }
-        const auto [first_line, last_line] = tapPathLines(tap);
-        for (int line = first_line; line <= last_line; ++line)
-        {
-            in_visible_window.at(static_cast<std::size_t>(line)) = true;
-        }
-    }
-
-    // The tapping hand's contribution to the bright tier (the left window's coverage
-    // brightened its ribbons to full while the tap lanes stayed at the mid tier): each tap
-    // active at NOW brightens its lines by its own light envelope — rising on approach, full
-    // through the hold, fading over the decay — over the path extent at now (eased
-    // mid-glide with the same curve the light travels). Coverage softens across one fret
-    // past the extent's bounding lines, and lines take the max over taps, so hand overlap
-    // deduplicates itself exactly like the other tiers.
-    std::array<double, g_face_fret_count + 1> tap_coverage{};
-    for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.now_seconds, frame.now_seconds, g_ribbon_decay_seconds))
-    {
-        // Rises vary per onset, so the bounded range is padded by the longest of them and
-        // the exact skip stays here; the ribbons use their own slower decay.
-        const common::core::HighwayLitInterval lit =
-            common::core::highwayLitInterval(tap.light, g_ribbon_decay_seconds);
-        if (lit.from_seconds > frame.now_seconds || lit.to_seconds < frame.now_seconds)
-        {
-            continue;
-        }
-        const double envelope =
-            common::core::highwayLightLevel(tap.light, frame.now_seconds, g_ribbon_decay_seconds);
-        // The extent at now through the one morph both hands move by, which holds the onset
-        // extent before the onset and the last arrival's after it.
-        const common::core::HighwayHandWindow at_now =
-            common::core::highwayHandWindowAt(tap.path, frame.now_seconds);
-        for (int line = 0; line <= g_face_fret_count; ++line)
-        {
-            const double line_coverage =
-                common::core::highwayHandWindowLineCoverage(at_now, static_cast<double>(line)) *
-                envelope;
-            double& slot = tap_coverage.at(static_cast<std::size_t>(line));
-            slot = std::max(slot, line_coverage);
-        }
-    }
+    // The mid tier's samples: the drawn span's two ends plus every visible light's own instants,
+    // which are all the breakpoints of the rule along z.
+    std::vector<double>& times = scratch.window_times;
+    times.clear();
+    times.push_back(frame.span_start_seconds);
+    times.push_back(frame.span_end_seconds);
+    forEachLight(
+        frame.span_start_seconds,
+        frame.span_end_seconds,
+        [&](const common::core::HighwayHandLight& hand,
+            const common::core::HighwayLitStretch& stretch,
+            const HandLightStyle&) {
+            appendLightSampleTimes(
+                hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
+        });
+    std::ranges::sort(times);
+    const auto duplicates = std::ranges::unique(times);
+    times.erase(duplicates.begin(), duplicates.end());
 
     auto [vertices, indices] = scratch.colorBatch();
-    // One full-length strip per fret line, four vertices each.
+    // At least one strip per fret line, four vertices each.
     vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));
-    const double z0 = timeToZ(frame, frame.span_start_seconds);
-    const double z1 = timeToZ(frame, frame.span_end_seconds);
-    for (int line = 0; line <= g_face_fret_count; ++line)
-    {
-        // Coverage crossfade: each full-length strip lerps from its non-current tier to full
-        // brightness by how deeply the current eased window contains it, so the brightened
-        // band hands off line-by-line in lockstep with the border crossing the hit line.
-        // Lines stay straight and fixed; only alpha animates. Whichever hand covers a line
-        // more deeply wins it (max-combine).
-        const double base_alpha =
-            in_visible_window.at(static_cast<std::size_t>(line)) ? 0.375 : 0.125;
-        const double coverage = std::max(
-            common::core::highwayHandWindowLineCoverage(
-                frame.current_window, static_cast<double>(line)),
-            tap_coverage.at(static_cast<std::size_t>(line)));
-        const double alpha = base_alpha + ((1.0 - base_alpha) * coverage);
+    // One strip of one line between two samples, each end at its own tier alpha: the faint base,
+    // lifted by the mid tier's quarter, then lifted toward full by the bright tier. The bright tier
+    // is one value for the whole strip, so it crossfades every strip at once.
+    const auto push_strip = [&](const int line,
+                                const std::size_t from,
+                                const std::size_t to,
+                                const double mid_from,
+                                const double mid_to) {
+        const double bright = frame.lines_lit_now.at(static_cast<std::size_t>(line));
+        const auto tint = [&](const double mid) {
+            const double base = 0.125 + (0.25 * mid);
+            return packAbgr(g_lane_border_color | 0xFF000000U, base + ((1.0 - base) * bright));
+        };
         const double x = common::core::highwayFretLineX(line, metrics, mirrored);
         pushFloorQuad(
             vertices,
@@ -5618,330 +5635,161 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
             x - 0.025,
             x + 0.025,
             0.004,
-            z0,
-            z1,
-            packAbgr(g_lane_border_color | 0xFF000000U, alpha));
+            timeToZ(frame, times[from]),
+            timeToZ(frame, times[to]),
+            tint(mid_from),
+            tint(mid_to));
+    };
+    // Walked once along z: a line's strip is one quad over each stretch of samples its mid tier
+    // holds still across, and one quad per slice it varies over — so a line no light reaches is
+    // the single full-length quad it always was, and the batch grows only where light moves.
+    LineLight previous{};
+    LineLight current{};
+    lineLightAt(times.front(), previous);
+    std::array<std::size_t, g_face_fret_count + 1> held_from{};
+    for (std::size_t sample = 1; sample < times.size(); ++sample)
+    {
+        lineLightAt(times[sample], current);
+        for (int line = 0; line <= g_face_fret_count; ++line)
+        {
+            const auto slot = static_cast<std::size_t>(line);
+            if (std::is_eq(current.at(slot) <=> previous.at(slot)))
+            {
+                continue;
+            }
+            if (held_from.at(slot) < sample - 1)
+            {
+                push_strip(
+                    line, held_from.at(slot), sample - 1, previous.at(slot), previous.at(slot));
+            }
+            push_strip(line, sample - 1, sample, previous.at(slot), current.at(slot));
+            held_from.at(slot) = sample;
+        }
+        previous = current;
+    }
+    const std::size_t last = times.size() - 1;
+    for (int line = 0; line <= g_face_fret_count; ++line)
+    {
+        const auto slot = static_cast<std::size_t>(line);
+        if (held_from.at(slot) < last)
+        {
+            push_strip(line, held_from.at(slot), last, previous.at(slot), previous.at(slot));
+        }
     }
 
     submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
 }
 
-// --- Hand-window light: one continuous brightness calculation across the window width,
-// evaluated per fragment (fhp-window-motion plan, lighting redesign). Each slab vertex
-// carries the fragment's distances inside the window's eased edges (linear within a slice,
-// so interpolation is exact); the fragment shader dissolves the light softly across the
-// falloff band straddling each edge. No geometric clipping, no border line — soft edges at
-// any zoom, and transitions cannot facet or misalign. The slab is emitted per board lane
-// so each quad carries its lane's intrinsic lit tint (plain vs inlay-dotted) as vertex
-// color: the light reveals the board's own coloring rather than painting over it, and the
-// shared per-fragment mask is identical across lanes (the edge distances are one linear
-// field in x), so the lit region still reads as one continuous light. ---
-void HighwayRenderer::Impl::drawHandWindowLight(const FrameContext& frame)
+// --- The floor light: each hand's light as one continuous brightness across its window,
+// evaluated per fragment (fhp-window-motion plan, lighting redesign). Each slab vertex carries the
+// fragment's distances inside the window's eased edges (linear within a slice, so interpolation
+// is exact); the fragment shader dissolves the light softly across the falloff band straddling
+// each edge. No geometric clipping, no border line — soft edges at any zoom, and transitions
+// cannot facet or misalign. The slab is emitted per board lane so each quad carries its lane's
+// intrinsic lit tint (plain vs inlay-dotted) as vertex color: the light reveals the board's own
+// coloring rather than painting over it, and the shared per-fragment mask is identical across
+// lanes (the edge distances are one linear field in x), so the lit region still reads as one
+// continuous light.
+//
+// Every light is its brightness rule (lightStrengthAt: the envelope times the motion dim) laid
+// over its hand's one morph as the light reads it (highwayLitWindowAt, which never starts a leg
+// outside the light's own stretch), sampled at the light's own instants
+// (appendLightSampleTimes). The lanes drawn reach the spill lane past each edge, so the soft band
+// fades fully on both sides: a light drawn only over the slots it touches ends in a hard
+// half-strength line on its edge. One batch per hand, the fretting hand's first; the picking
+// hand's lanes lean toward the FHP orange (HandLightStyle::warm_mix) so the two hands read apart.
+// Two lights at one place composite in submission order, so they cannot sum toward white. ---
+void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
     const std::array<float, 4> light_params{
         static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
     };
-    bgfx::setUniform(window_light_params.get(), light_params.data());
-    auto [vertices, indices] = scratch.texturedBatch();
+    const double spill = g_window_light_falloff / 2.0;
     std::vector<double>& times = scratch.window_times;
-    windowSampleTimes(
-        state, frame.span_start_seconds, frame.span_end_seconds, max_fret_hand_ramp_seconds, times);
-    std::vector<WindowLightSlice>& slices = scratch.window_light_slices;
-    slices.clear();
-    slices.reserve(times.size());
-    for (const double seconds : times)
-    {
-        const auto [low_x, high_x] = handWindowXAt(state, seconds, metrics, mirrored);
-        slices.push_back(
-            WindowLightSlice{
-                .z = timeToZ(frame, seconds),
-                .low_x = low_x,
-                .high_x = high_x,
-                .dim = 1.0,
+    const auto window_x = [&](const common::core::HighwayHandWindow& window) {
+        const double edge0 = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
+        const double edge1 = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
+        return std::pair{std::min(edge0, edge1), std::max(edge0, edge1)};
+    };
+    forEachHand([&](const common::core::HighwayHandLight& hand, const HandLightStyle& style) {
+        auto [vertices, indices] = scratch.texturedBatch();
+        forEachLightOf(
+            hand,
+            frame.span_start_seconds,
+            frame.span_end_seconds,
+            [&](const common::core::HighwayLitStretch& stretch) {
+                times.clear();
+                appendLightSampleTimes(
+                    hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
+                std::ranges::sort(times);
+                const auto duplicates = std::ranges::unique(times);
+                times.erase(duplicates.begin(), duplicates.end());
+                double alpha_a = lightStrengthAt(hand, stretch, times.front());
+                auto [low_a, high_a] =
+                    window_x(common::core::highwayLitWindowAt(hand.track, stretch, times.front()));
+                double za = timeToZ(frame, times.front());
+                for (std::size_t sample = 1; sample < times.size(); ++sample)
+                {
+                    const double alpha_b = lightStrengthAt(hand, stretch, times[sample]);
+                    const auto [low_b, high_b] = window_x(
+                        common::core::highwayLitWindowAt(hand.track, stretch, times[sample]));
+                    const double zb = timeToZ(frame, times[sample]);
+                    // A slice dark at both ends draws nothing; every lane past the half-band spill
+                    // outside both slice-end windows is fully dark, so it draws nothing either.
+                    const bool dark = alpha_a <= 0.0 && alpha_b <= 0.0;
+                    const double lit_x0 = std::min(low_a, low_b) - spill;
+                    const double lit_x1 = std::max(high_a, high_b) + spill;
+                    for (int fret = 1; !dark && fret <= g_face_fret_count; ++fret)
+                    {
+                        const double lane_low =
+                            common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                        const double lane_high =
+                            common::core::highwayFretLineX(fret, metrics, mirrored);
+                        const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
+                        if (lane_x1 < lit_x0 || lane_x0 > lit_x1)
+                        {
+                            continue;
+                        }
+                        // Lean the hue only: the mix target takes the lane's own alpha so a warm
+                        // light keeps the lanes' base opacity (mixArgb blends all four channels,
+                        // and the FHP orange is opaque). A zero mix is the lane's tint exactly.
+                        const ArgbColor base =
+                            isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
+                        const ArgbColor lane_color = mixArgb(
+                            base,
+                            (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
+                            style.warm_mix);
+                        const auto vertex = [&](const double x,
+                                                const double z,
+                                                const double low,
+                                                const double high,
+                                                const double alpha) {
+                            return makeUvVertex(
+                                x,
+                                g_floor_light_y,
+                                z,
+                                packAbgr(lane_color, alpha),
+                                static_cast<float>((x - low) + spill),
+                                static_cast<float>((high - x) + spill));
+                        };
+                        pushQuad(
+                            vertices,
+                            indices,
+                            vertex(lane_x0, za, low_a, high_a, alpha_a),
+                            vertex(lane_x1, za, low_a, high_a, alpha_a),
+                            vertex(lane_x1, zb, low_b, high_b, alpha_b),
+                            vertex(lane_x0, zb, low_b, high_b, alpha_b));
+                    }
+                    alpha_a = alpha_b;
+                    low_a = low_b;
+                    high_a = high_b;
+                    za = zb;
+                }
             });
-    }
-    // Motion dim: the silhouette keeps the settled cross-section everywhere — the same
-    // x-measured fade band along the whole eased contour — and the transition's fading
-    // lives in the light's brightness instead. Each ramp dims along a sin-squared bell over
-    // its own progress: full brightness at the ramp's start and end, deepest exactly
-    // mid-transition, so the light reads as gradually fading out of the lit span, through
-    // the dark middle of the sweep, and back into the arriving span (a per-sample speed dim
-    // plateaued at maximum across most of a fast morph instead). The bell's depth scales
-    // with the ramp's overall sweep steepness, so slow glides keep most of their glow.
-    //
-    // Placements ascend, so only a bounded run of them can dim this span: one arriving at or
-    // before the span start is skipped outright, and from the first whose arrival sits the
-    // longest ramp in the chart past the span end, no ramp — this one's or any later one's —
-    // still reaches back into the span. (windowSampleTimes above bounds itself the same way.)
-    for (const common::core::HighwayHandArrival& fhp : std::ranges::subrange(
-             std::ranges::upper_bound(
-                 state.fret_hand,
-                 frame.span_start_seconds,
-                 std::ranges::less{},
-                 &common::core::HighwayHandArrival::seconds),
-             std::ranges::partition_point(
-                 state.fret_hand, [&](const common::core::HighwayHandArrival& candidate) {
-                     return candidate.seconds - max_fret_hand_ramp_seconds < frame.span_end_seconds;
-                 })))
-    {
-        if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= frame.span_start_seconds ||
-            fhp.seconds - fhp.ramp_seconds >= frame.span_end_seconds)
-        {
-            continue;
-        }
-        const double ramp_start = fhp.seconds - fhp.ramp_seconds;
-        const auto [low_from, high_from] = handWindowXAt(state, ramp_start, metrics, mirrored);
-        const auto [low_to, high_to] = handWindowXAt(state, fhp.seconds, metrics, mirrored);
-        const double dz = timeToZ(frame, fhp.seconds) - timeToZ(frame, ramp_start);
-        if (dz <= 0.0)
-        {
-            continue;
-        }
-        const double slope =
-            std::max(std::abs(low_to - low_from), std::abs(high_to - high_from)) / dz;
-        const double depth = g_window_morph_dim * (slope / std::sqrt(1.0 + (slope * slope)));
-        for (std::size_t sample = 0; sample < times.size(); ++sample)
-        {
-            if (times[sample] < ramp_start || times[sample] > fhp.seconds)
-            {
-                continue;
-            }
-            const double progress = (times[sample] - ramp_start) / fhp.ramp_seconds;
-            const double bell = std::sin(std::numbers::pi * progress);
-            double& dim = slices[sample].dim;
-            dim = std::min(dim, 1.0 - (depth * bell * bell));
-        }
-    }
-    const double spill = g_window_light_falloff / 2.0;
-    for (std::size_t sample = 1; sample < slices.size(); ++sample)
-    {
-        const WindowLightSlice& slice_a = slices[sample - 1];
-        const WindowLightSlice& slice_b = slices[sample];
-        const double za = slice_a.z;
-        const double zb = slice_b.z;
-        const double low_a = slice_a.low_x;
-        const double low_b = slice_b.low_x;
-        const double high_a = slice_a.high_x;
-        const double high_b = slice_b.high_x;
-        // Every fragment past the half-band spill outside both slice-end windows is fully
-        // dark, so lanes entirely beyond it draw nothing.
-        const double lit_x0 = std::min(low_a, low_b) - spill;
-        const double lit_x1 = std::max(high_a, high_b) + spill;
-        for (int fret = 1; fret <= g_face_fret_count; ++fret)
-        {
-            const double lane_low = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-            const double lane_high = common::core::highwayFretLineX(fret, metrics, mirrored);
-            const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
-            if (lane_x1 < lit_x0 || lane_x0 > lit_x1)
-            {
-                continue;
-            }
-            const ArgbColor lane_color =
-                isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
-            const std::uint32_t tint_a = packAbgr(lane_color, slice_a.dim);
-            const std::uint32_t tint_b = packAbgr(lane_color, slice_b.dim);
-            const auto vertex = [&](const double x,
-                                    const double z,
-                                    const double low,
-                                    const double high,
-                                    const std::uint32_t tint) {
-                return makeUvVertex(
-                    x,
-                    g_floor_light_y,
-                    z,
-                    tint,
-                    static_cast<float>((x - low) + spill),
-                    static_cast<float>((high - x) + spill));
-            };
-            pushQuad(
-                vertices,
-                indices,
-                vertex(lane_x0, za, low_a, high_a, tint_a),
-                vertex(lane_x1, za, low_a, high_a, tint_a),
-                vertex(lane_x1, zb, low_b, high_b, tint_b),
-                vertex(lane_x0, zb, low_b, high_b, tint_b));
-        }
-    }
-    submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
-}
-
-// --- Tapping-hand light: one patch per tap onset over its own tapped fret lanes, alpha
-// rising toward the tap along the approach side, holding through the derived path (which
-// morphs with pitched glides and sustained contact), and decaying after the fingers
-// release (the right-hand-tap-lighting plan). Patches are deliberately per-onset, never
-// merged into runs: the dip between consecutive taps mirrors the finger lifting.
-// Consecutive same-lane patches simply alpha-compose where their envelopes overlap, which
-// shallows the dip toward continuous light only at densities where the hand genuinely never
-// leaves the board. Reuses the window light's per-fragment soft x edges; the tint leans
-// toward the FHP orange so the two hands' lights read apart. ---
-void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
-{
-    const bool mirrored = state.options.mirrored;
-    const std::array<float, 4> light_params{
-        static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
-    };
-    bgfx::setUniform(window_light_params.get(), light_params.data());
-    auto [vertices, indices] = scratch.texturedBatch();
-    const double spill = g_window_light_falloff / 2.0;
-    // One strip segment between two instants, each end carrying its own alpha and
-    // fractional fret-line extent (the soft x edges interpolate across the quad exactly like
-    // the window light's slices), clipped to the visible span with endpoint values
-    // re-interpolated so a patch never floats past a board edge.
-    const auto emit_segment = [&](double time_a,
-                                  double alpha_a,
-                                  double low_a,
-                                  double high_a,
-                                  double time_b,
-                                  double alpha_b,
-                                  double low_b,
-                                  double high_b) {
-        if (time_b <= time_a || time_b <= frame.span_start_seconds ||
-            time_a >= frame.span_end_seconds)
-        {
-            return;
-        }
-        const auto lerp = [](const double a, const double b, const double w) {
-            return a + ((b - a) * w);
-        };
-        if (time_a < frame.span_start_seconds)
-        {
-            const double w = (frame.span_start_seconds - time_a) / (time_b - time_a);
-            alpha_a = lerp(alpha_a, alpha_b, w);
-            low_a = lerp(low_a, low_b, w);
-            high_a = lerp(high_a, high_b, w);
-            time_a = frame.span_start_seconds;
-        }
-        if (time_b > frame.span_end_seconds)
-        {
-            const double w = (frame.span_end_seconds - time_a) / (time_b - time_a);
-            alpha_b = lerp(alpha_a, alpha_b, w);
-            low_b = lerp(low_a, low_b, w);
-            high_b = lerp(high_a, high_b, w);
-            time_b = frame.span_end_seconds;
-        }
-        const double za = timeToZ(frame, time_a);
-        const double zb = timeToZ(frame, time_b);
-        const auto patch_edges = [&](const double low, const double high) {
-            const double edge0 = common::core::highwayFretLineX(low, metrics, mirrored);
-            const double edge1 = common::core::highwayFretLineX(high, metrics, mirrored);
-            return std::pair{std::min(edge0, edge1), std::max(edge0, edge1)};
-        };
-        const auto [low_x_a, high_x_a] = patch_edges(low_a, high_a);
-        const auto [low_x_b, high_x_b] = patch_edges(low_b, high_b);
-        // The fret slots the patch touches: slot f spans lines f - 1 to f.
-        const int lane_first =
-            std::max(1, static_cast<int>(std::floor(std::min(low_a, low_b))) + 1);
-        const int lane_last =
-            std::min(g_face_fret_count, static_cast<int>(std::ceil(std::max(high_a, high_b))));
-        for (int fret = lane_first; fret <= lane_last; ++fret)
-        {
-            const double lane_low = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-            const double lane_high = common::core::highwayFretLineX(fret, metrics, mirrored);
-            const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
-            // Warm the hue only: the mix target takes the lane's own alpha so the tap
-            // light keeps the window light's base opacity (mixArgb blends all four
-            // channels, and the FHP orange is opaque).
-            const ArgbColor base = isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
-            const ArgbColor lane_color = mixArgb(
-                base,
-                (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
-                g_tap_light_warm_mix);
-            const auto vertex = [&](const double x,
-                                    const double z,
-                                    const std::uint32_t tint,
-                                    const double low_x,
-                                    const double high_x) {
-                return makeUvVertex(
-                    x,
-                    g_floor_light_y,
-                    z,
-                    tint,
-                    static_cast<float>((x - low_x) + spill),
-                    static_cast<float>((high_x - x) + spill));
-            };
-            const std::uint32_t tint_a = packAbgr(lane_color, alpha_a);
-            const std::uint32_t tint_b = packAbgr(lane_color, alpha_b);
-            pushQuad(
-                vertices,
-                indices,
-                vertex(lane_x0, za, tint_a, low_x_a, high_x_a),
-                vertex(lane_x1, za, tint_a, low_x_a, high_x_a),
-                vertex(lane_x1, zb, tint_b, low_x_b, high_x_b),
-                vertex(lane_x0, zb, tint_b, low_x_b, high_x_b));
-        }
-    };
-    // The light is the envelope (highwayLightLevel) laid over the path's one morph
-    // (highwayHandWindowAt): this pass only decides where to sample the two — the rise start,
-    // every arrival, the release and the fade's end, plus a moving leg subdivided by its sweep
-    // (highwayGlideSliceCount, the one policy every glide-following mark subdivides by) so the
-    // light travels with the glide instead of cutting straight across it. A leg the ink end cuts
-    // keeps morphing into its arrival while the light is already fading from the release.
-    std::vector<double>& times = scratch.window_times;
-    for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_decay_seconds))
-    {
-        // Rises vary per onset, so the bounded range is padded by the longest of them and
-        // the exact skip stays here: two cheap POD compares.
-        const common::core::HighwayLitInterval lit =
-            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds);
-        if (lit.to_seconds < frame.span_start_seconds || lit.from_seconds > frame.span_end_seconds)
-        {
-            continue;
-        }
-        times.clear();
-        times.push_back(lit.from_seconds);
-        times.push_back(tap.light.release_seconds);
-        times.push_back(lit.to_seconds);
-        for (std::size_t at = 0; at < tap.path.size(); ++at)
-        {
-            const common::core::HighwayHandArrival& b = tap.path[at];
-            times.push_back(b.seconds);
-            if (at == 0)
-            {
-                continue;
-            }
-            const common::core::HighwayHandArrival& a = tap.path[at - 1];
-            const double sweep =
-                std::max(std::abs(b.low_line - a.low_line), std::abs(b.high_line - a.high_line));
-            if (sweep <= 0.0)
-            {
-                continue;
-            }
-            const int slices = highwayGlideSliceCount(sweep);
-            for (int slice = 1; slice < slices; ++slice)
-            {
-                times.push_back(
-                    a.seconds + ((b.seconds - a.seconds) * static_cast<double>(slice) / slices));
-            }
-        }
-        std::ranges::sort(times);
-        const auto duplicates = std::ranges::unique(times);
-        times.erase(duplicates.begin(), duplicates.end());
-        common::core::HighwayHandWindow previous =
-            common::core::highwayHandWindowAt(tap.path, times.front());
-        double previous_alpha =
-            common::core::highwayLightLevel(tap.light, times.front(), g_floor_light_decay_seconds);
-        for (std::size_t sample = 1; sample < times.size(); ++sample)
-        {
-            const common::core::HighwayHandWindow at =
-                common::core::highwayHandWindowAt(tap.path, times[sample]);
-            const double alpha = common::core::highwayLightLevel(
-                tap.light, times[sample], g_floor_light_decay_seconds);
-            emit_segment(
-                times[sample - 1],
-                previous_alpha,
-                previous.low_line,
-                previous.high_line,
-                times[sample],
-                alpha,
-                at.low_line,
-                at.high_line);
-            previous = at;
-            previous_alpha = alpha;
-        }
-    }
-    submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
+        bgfx::setUniform(window_light_params.get(), light_params.data());
+        submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
+    });
 }
 
 // --- Beat and measure bars: Charter's gradient wings in its deep blue, clipped to
@@ -6102,66 +5950,22 @@ void HighwayRenderer::Impl::drawStringLines()
     }
 }
 
-// --- Board face: dynamic fret lines with Charter's three states (inactive, active
-// within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
-// to 4x — a large part of the alive feel), drawn over the string lines and passing content.
-// Fret lines run the board face's own vertical extent (the string grid alone — the gap below
-// the grid base belongs to the chord boxes' bottom bars). ---
+// --- Board face: dynamic fret lines with Charter's three states (inactive, active under a lit
+// hand, and the sqrt-decay hit-flash that thickens up to 4x — a large part of the alive feel),
+// drawn over the string lines and passing content. The active tier is the brightness rule at now
+// (lineLightAt): the window's coverage times its light, fractional mid-transition, so the face
+// lines crossfade in lockstep with the sweeping border and go dark with the light. Fret lines run
+// the board face's own vertical extent (the string grid alone — the gap below the grid base
+// belongs to the chord boxes' bottom bars). ---
 void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
-    // Active fret lines: the current hand window's coverage (fractional mid-transition, so
-    // the face lines' active state crossfades in lockstep with the sweeping border) plus
-    // every window arriving soon at full weight.
-    std::array<double, g_face_fret_count + 1> active{};
-    for (int line = 0; line <= g_face_fret_count; ++line)
-    {
-        active.at(static_cast<std::size_t>(line)) = common::core::highwayHandWindowLineCoverage(
-            frame.current_window, static_cast<double>(line));
-    }
-    for (const HandWindow& window : frame.hand_windows)
-    {
-        if (window.start_seconds > frame.now_seconds + g_fret_active_horizon_seconds ||
-            window.end_seconds < frame.now_seconds)
-        {
-            continue;
-        }
-        for (int line = static_cast<int>(std::lround(window.low_line));
-             line <= static_cast<int>(std::lround(window.high_line));
-             ++line)
-        {
-            if (line >= 0 && line <= g_face_fret_count)
-            {
-                active.at(static_cast<std::size_t>(line)) = 1.0;
-            }
-        }
-    }
-    // Right-hand windows activate their lines under the same horizon: the lines the tapping
-    // hand's light path crosses light up while the tap is held or arriving soon. Per-line
-    // array, so overlap with the fretting hand's windows deduplicates itself; the path
-    // union carries any tapped-slide morph.
-    for (const common::core::HighwayTapOnsetViewState& tap : litTaps(
-             frame.now_seconds,
-             frame.now_seconds + g_fret_active_horizon_seconds,
-             g_floor_light_decay_seconds))
-    {
-        if (tap.seconds > frame.now_seconds + g_fret_active_horizon_seconds ||
-            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds).to_seconds <
-                frame.now_seconds)
-        {
-            continue;
-        }
-        const auto [first_line, last_line] = tapPathLines(tap);
-        for (int line = first_line; line <= last_line; ++line)
-        {
-            active.at(static_cast<std::size_t>(line)) = 1.0;
-        }
-    }
+    const LineLight& active = frame.lines_lit_now;
 
     // Strike brightening lives wholly in the additive glow pass at the end of the frame;
-    // the lines themselves carry only the inactive/active hand-window state.
+    // the lines themselves carry only the inactive/active hand-light state.
     auto [vertices, indices] = scratch.colorBatch();
     // One quad per fret line, four vertices each.
     vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));

@@ -161,10 +161,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
     double low_line = 0.0;
     double high_line = metrics.camera_reference_span;
     const auto after_now = std::ranges::upper_bound(
-        state.fret_hand, now_seconds, std::ranges::less{}, &HighwayHandArrival::seconds);
-    if (!state.fret_hand.empty())
+        state.fret_hand.track, now_seconds, std::ranges::less{}, &HighwayHandArrival::seconds);
+    if (!state.fret_hand.track.empty())
     {
-        const auto active = after_now == state.fret_hand.begin() ? after_now : after_now - 1;
+        const auto active = after_now == state.fret_hand.track.begin() ? after_now : after_now - 1;
         low_line = active->low_line;
         high_line = active->high_line;
     }
@@ -190,8 +190,8 @@ HighwayCameraTarget makeHighwayCameraTarget(
                                                          : std::numeric_limits<double>::infinity();
 
     const auto scan_begin = std::ranges::lower_bound(
-        state.fret_hand, window_start, std::ranges::less{}, &HighwayHandArrival::seconds);
-    for (auto it = scan_begin; it != state.fret_hand.end(); ++it)
+        state.fret_hand.track, window_start, std::ranges::less{}, &HighwayHandArrival::seconds);
+    for (auto it = scan_begin; it != state.fret_hand.track.end(); ++it)
     {
         const HighwayHandArrival& arrival = *it;
         if (arrival.seconds >= horizon)

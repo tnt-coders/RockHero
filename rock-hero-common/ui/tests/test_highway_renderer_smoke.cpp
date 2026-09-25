@@ -479,8 +479,11 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         CHECK_FALSE(families.chart.notes.empty());
         CHECK_FALSE(families.chart.fret_hand_positions.empty());
         // The hand window, its light and the camera move by the fretting hand's track, not the
-        // placements the board labels, so both must be present.
-        CHECK_FALSE(families.fret_hand.empty());
+        // placements the board labels, so both must be present — and each hand's light has to be
+        // lit somewhere, or the sweep would never draw the floor light at all.
+        CHECK_FALSE(families.fret_hand.track.empty());
+        CHECK_FALSE(families.fret_hand.lit.empty());
+        CHECK_FALSE(families.pick_hand.lit.empty());
         CHECK_FALSE(families.chord_groups.empty());
         CHECK_FALSE(families.tap_onsets.empty());
         CHECK_FALSE(families.beats.empty());
@@ -540,6 +543,10 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         const common::core::HighwayViewState dense =
             makeHighwayViewState(makeDenseAccentArrangement(), tempo_map, {}, {});
         CHECK(dense.chart.notes.size() > std::size_t{100});
+        // It is also the no-placements frame: with no track the fretting hand's light stands at
+        // the reference nut window, lit by the open strings' evidence.
+        CHECK(dense.fret_hand.track.empty());
+        CHECK_FALSE(dense.fret_hand.lit.empty());
         renderer->setViewState(dense);
         drawFrames(*renderer, *device, 0.0, 4.0 / 40.0, 40);
     }

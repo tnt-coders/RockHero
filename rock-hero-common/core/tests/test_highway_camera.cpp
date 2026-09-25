@@ -23,7 +23,7 @@ namespace
     HighwayViewState state;
     state.chart.open_strings = testing::standardTuning();
     state.options.mirrored = mirrored;
-    state.fret_hand = std::move(arrivals);
+    state.fret_hand.track = std::move(arrivals);
     return state;
 }
 

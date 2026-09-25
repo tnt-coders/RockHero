@@ -1,10 +1,43 @@
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
+#include <functional>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/shared/visible_events.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
+
+namespace
+{
+
+// THE fold, one item at a time over a run sorted by start and seeded from its first item: the run
+// keeps its earliest start, takes the latest release, and takes the widest rise only from items
+// starting at that earliest start — a later item's rise ends inside the light, which is already
+// full there. The seed is the earliest item because the run is sorted.
+void foldLitEvidence(HighwayLitStretch& run, const HighwayLitStretch& item) noexcept
+{
+    run.release_seconds = std::max(run.release_seconds, item.release_seconds);
+    if (item.start_seconds - run.start_seconds < g_onset_match_epsilon)
+    {
+        run.rise_seconds = std::max(run.rise_seconds, item.rise_seconds);
+    }
+}
+
+// THE crowding clamp: a rise never reaches back past the previous stretch's release. The gap
+// cannot be negative here, because the merge only splits a run at a gap of at least the tolerance,
+// which is itself never negative.
+[[nodiscard]] HighwayLitStretch crowdedAfter(
+    HighwayLitStretch stretch, const HighwayLitStretch& previous) noexcept
+{
+    const double gap = stretch.start_seconds - previous.release_seconds;
+    assert(gap >= 0.0 && "the merge splits only at a gap of at least the rest tolerance");
+    stretch.rise_seconds = std::min(stretch.rise_seconds, gap);
+    return stretch;
+}
+
+} // namespace
 
 // Rationale lives on the declaration in highway_light.h.
 HighwayLitInterval highwayLitInterval(
@@ -38,33 +71,37 @@ double highwayLightLevel(
     return 1.0;
 }
 
-// Seeded from the earliest item, which always qualifies for the rise, so the fold needs no order
-// from its caller.
-HighwayLitStretch foldLitEvidence(const std::span<const HighwayLitStretch> items) noexcept
+// Rationale lives on the declaration in highway_light.h. The runs are folded into the front of the
+// sorted evidence itself — a run never starts before the slot its stretch is written to — so the
+// merge allocates nothing beyond the vector it was handed.
+std::vector<HighwayLitStretch> mergeLitEvidence(
+    std::vector<HighwayLitStretch> items, const double rest_seconds)
 {
-    assert(!items.empty() && "foldLitEvidence needs evidence to fold");
-    const HighwayLitStretch& earliest =
-        *std::ranges::min_element(items, {}, &HighwayLitStretch::start_seconds);
-    HighwayLitStretch folded = earliest;
-    for (const HighwayLitStretch& item : items)
+    assert(rest_seconds >= 0.0 && "the rest tolerance is a duration");
+    // A gap narrower than the onset tolerance is no gap at all, whatever the rest tolerance: the
+    // members of one sustainless chord start and release at one instant, and under a zero tolerance
+    // they would otherwise split into one stretch each for a single strike.
+    const double split_gap = std::max(rest_seconds, g_onset_match_epsilon);
+    std::ranges::sort(items, std::ranges::less{}, &HighwayLitStretch::start_seconds);
+    std::size_t kept = 0;
+    for (std::size_t next = 0; next < items.size();)
     {
-        folded.release_seconds = std::max(folded.release_seconds, item.release_seconds);
-        if (item.start_seconds - earliest.start_seconds < g_onset_match_epsilon)
+        HighwayLitStretch run = items[next];
+        ++next;
+        while (next < items.size() && items[next].start_seconds - run.release_seconds < split_gap)
         {
-            folded.rise_seconds = std::max(folded.rise_seconds, item.rise_seconds);
+            foldLitEvidence(run, items[next]);
+            ++next;
         }
+        if (kept > 0)
+        {
+            run = crowdedAfter(run, items[kept - 1]);
+        }
+        items[kept] = run;
+        ++kept;
     }
-    return folded;
-}
-
-// At most the gap, and the gap is never negative: a stretch starting inside the previous one's
-// hold (overlapping strikes) gets no rise at all.
-HighwayLitStretch crowdedAfter(
-    HighwayLitStretch stretch, const HighwayLitStretch& previous) noexcept
-{
-    stretch.rise_seconds = std::min(
-        stretch.rise_seconds, std::max(0.0, stretch.start_seconds - previous.release_seconds));
-    return stretch;
+    items.resize(kept);
+    return items;
 }
 
 } // namespace rock_hero::common::core

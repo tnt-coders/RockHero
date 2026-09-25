@@ -29,7 +29,7 @@ hand on its own code path is a defect.
 - **The rest tolerance (F1).** Released at the drawn end, a fretted note's light would dip at every
   margin trim and strobe through a sustainless chug riff (25% between 16ths). So the fretting
   hand's evidence merges across any gap SHORTER THAN A REST TOLERANCE, measured in SECONDS
-  (`g_hand_rest_seconds`, one constant, starting value 1.0). Seconds, not beats, by the user's
+  (one constant per hand — see below — the fretting hand's starting at 1.0). Seconds, not beats, by the user's
   ruling and the precedent: whether a dark gap reads as a flicker or as a rest is a readability
   question, and the minimum sustain distance — the same question for tails — sighted more
   consistently across slow and fast songs once it was time-based; this light's own rise and decay
@@ -37,11 +37,19 @@ hand on its own code path is a defect.
   The tolerance is the ONLY threshold; it is a
   parameter of the merge, not a second mechanism, and it lets both hands share one release rule
   (`noteReleaseAt`: the drawn end, or the last pitched keyframe before a drawn slide-out) with no
-  second "hold" authority. **The picking hand goes through the same merge with the same tolerance
-  in the first build** — the user wants the simplest state sighted before any exemption: a dense
-  tap run then reads as one light travelling the run instead of a pulse per strike. If the
-  sighting rejects that, the exemption is a per-hand tolerance (zero for the picking hand), a
-  parameter and never a branch; the pulse-per-strike look is the fallback, not the target.
+  second "hold" authority. The picking hand went through the same merge with the same tolerance
+  in the first build, and the user sighted it (2026-09-25): **the merged right hand was rejected
+  — the per-strike pulse is the ruled look**, while the fretting hand's merged light is right at
+  1.0 s. So the tolerance is per hand: `g_hand_rest_seconds` = 1.0 is THE ESTABLISHMENT RULE (a
+  hand's position stays established across a gap shorter than this: the fretting light merges
+  under it, and a repeated tap within it of the previous strike's release is not relabelled with
+  a position number — the per-strike pulse took away the light that used to bridge that repeat),
+  and `g_pick_light_rest_seconds` = 0.0 is the picking LIGHT's look (each strike its own light;
+  overlapping strikes still merge, their gap being negative). The strike therefore carries its
+  hold end (`release_seconds`) as a fact, which its rails run to as well. Two constants, one
+  merge, never a branch. Open sighting: with one decay for every layer, the
+  lane-border ribbons now pulse with the right hand's light; the old 0.45 s ribbon decay bridged
+  those pulses, and the user rules on sight whether that bridging comes back as a second decay.
 - **The motion dim (D2)** is universal: a light moving across lanes dims by its slope, whichever
   hand moves it.
 - **The soft edge (D3)** is drawn in full for both hands. The tap light today ends in a hard 50%
@@ -53,11 +61,17 @@ hand on its own code path is a defect.
   second "lines a light ever covers" rule.
 - **A box's sides (D6)** are its hand's window at `max(onset, now)`, the strummed rule verbatim,
   for tapped boxes too.
-- **Strike pops (D7)**: a single note pops its own two fret lines and a boxed strike pops its box's
-  two sides, for both hands, in the hand's strike colour — amber for the fretting hand (unchanged),
-  WHITE for the picking hand, single taps included. No derived right-hand spans: a tapped box is
-  already derived per onset from the tap group, and a span object would be a second representation
-  of the same fact, invisible on the 2D lane.
+- **Rails (D7, as the user meant it):** the side highlights that run through a chord's duration
+  are the hand-shape RAILS (`drawHandShapeRails`) — drawn for fretting-hand posture spans along
+  the window's edges from the span's start to its drawn end, which is why singles never get them.
+  The picking hand gets the same rails under every tapped chord (`count >= 2`) over its hold —
+  the onset to the struck notes' release — in WHITE. One rails pass draws `(track, [from, to],
+  colour)` for both hands; the fretting hand feeds it its spans, the picking hand its tapped
+  chords. No derived right-hand spans: the strike carries its hold end (`release_seconds`, a strike
+  fact the box's sides also read), and a span object would be a second representation of the same
+  fact, invisible on the 2D lane. The strike POPS are a separate, briefer thing (a flash at the
+  onset): a single note pops its own two fret lines and a boxed strike its box's two sides, for
+  both hands, in the hand's strike colour — amber for the fretting hand, white for the picking.
 - **Tests may change.** This is a functionality change; right-hand test values that D3, D5 and D6
   move are re-pinned deliberately, never silently.
 
@@ -97,8 +111,9 @@ struct HighwayHandLight            // one per hand, the same shape for both
   same statement the fretting window makes when it shifts while a note rings. (Today each onset
   carries its own path so overlapping taps at different frets keep two lights; under one track the
   later strike takes the window. Sighting item 2.) `HighwayTapOnsetViewState` then carries only
-  the STRIKE's facts — `seconds`, `fret_low`, `fret_high`, `count` — for the box and the pop; its
-  `path`, `release_seconds` and `rise_seconds` move into `pick_hand`. In Phase 1 (bit-identical)
+  the STRIKE's facts — `seconds`, `fret_low`, `fret_high`, `count`, and `release_seconds` (the
+  struck notes' hold end, which the tapped chord's rails run to) — for the box, its rails and the
+  pop; its `path` and `rise_seconds` move into `pick_hand`. In Phase 1 (bit-identical)
   the onset still holds its own path and one composed `HighwayLitStretch light`; the track moves
   in Phase 2.
 
@@ -161,7 +176,8 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
     at a note onset, which carries the rise, or tiles onto its predecessor as a carry-opened
     successor). Section 4 tests that claim; if it fails, the fix is a rise taken from the note at
     the span's start, never a silent 0.
-  - Result: `mergeLitEvidence(items, g_hand_rest_seconds)`.
+  - Result: `mergeLitEvidence(items, g_hand_rest_seconds)`; the picking producer passes
+    `g_pick_light_rest_seconds`.
 
 **The hands differ only in what a note proves.** The fold, the merge, the crowding clamp, the
 envelope and the emission are stated once and run for both hands over the same shape. The picking
@@ -184,9 +200,15 @@ template <typename Visit> void Impl::forEachLight(double from, double to, double
 
 ```text
 brightness(line, t) = max over lights of  coverage(highwayHandWindowAt(path, t), line)
-                                        × highwayLightLevel(stretch, t, layer_decay)
+                                        × highwayLightLevel(stretch, t, g_light_decay_seconds)
                                         × motionDim(path, t)
 ```
+
+ONE decay for the whole light (`g_light_decay_seconds`, 0.1 s: a release is a gesture, so it
+fades over a short visual constant). *Ruled 2026-09-25 after the plan was written:* the ribbons'
+own slower decay (0.45 s) existed only to bridge the per-strike dips of the old pulsing tap light;
+under the rest tolerance a dense run is already one continuous light, so that job is gone and the
+second decay with it — bridging is the rest tolerance's rule, stated once, never a layer's.
 
 - **Floor** (`drawFloorLight`, replacing `drawHandWindowLight` and `drawTappingHandLight`): per
   visited light, today's tap-light sample list — the lit interval's ends, start, release, the
@@ -194,22 +216,26 @@ brightness(line, t) = max over lights of  coverage(highwayHandWindowAt(path, t),
   at each sample `highwayLightLevel × motionDim`, the extent `highwayHandWindowAt(path, t)`, the
   lane tint mixed by `style.warm_mix`, and the spill lane drawn on both sides so the soft band
   fades fully (D3).
-- **Ribbons, bright tier:** the rule at `now` with the ribbon decay (0.45 s).
-- **Ribbons, mid tier:** the rule along z — at each z-slice's time — with the floor decay. This
-  replaces the `HandWindow` slices built per frame in `draw()`.
-- **Fret-line active tier:** the rule at `now` with the floor decay.
+- **Ribbons, bright tier:** the rule at `now`.
+- **Ribbons, mid tier:** the rule along z — at each z-slice's time. This replaces the
+  `HandWindow` slices built per frame in `draw()`.
+- **Fret-line active tier:** the rule at `now`.
 - **Range bound:** one `LitIndex { release_prefix_max, max_rise_seconds }` per list, built once per
   chart, and one `litRange(...)`, generalizing `litTapOnsetRange` / `tap_end_prefix_max` /
   `max_tap_rise_seconds`.
+- **Rails** (`drawHandShapeRails` generalized): one pass drawing `(track, [from, to], colour)`;
+  the fretting hand's posture spans over `fret_hand.track` as today (arpeggio or border colour),
+  and every tapped chord (`count >= 2`) over `pick_hand.track` from its onset to its
+  `release_seconds`, in the picking hand's white. Sampled by the one density policy (Phase 3).
 - **Strike pops** (`drawStrikeGlow`): `boxSidesAt(path, onset, now) = highwayHandWindowAt(path,
   max(onset, now))` is the ONE function the box panel and the pop both ask (D6), so a gliding tapped
   chord's box and pop follow its light exactly as a strum's follow the window. Pops are collected
   per hand (two line-slot arrays) so a shared line max-resolves within a hand and the two hands'
   strips add. Colour per hand from `HandLightStyle::strike_color` (D7). The pop clamp is one rule —
   a pop clamps against the next pop landing on the same strips — stated once.
-- **Constants renamed** for what they are: `g_floor_light_release_seconds` (a duration) →
-  `g_floor_light_decay_seconds`; `g_tap_ribbon_decay_seconds` → `g_ribbon_decay_seconds`. The decay
-  belongs to the LAYER, never to the hand.
+- **Constants:** `g_floor_light_release_seconds` (a duration, misnamed as an instant) became
+  `g_floor_light_decay_seconds` in Phase 1 and is `g_light_decay_seconds` from Phase 2, the light's
+  one decay; `g_tap_ribbon_decay_seconds` is deleted (above).
 
 ### 2.5 Deleted
 
@@ -249,13 +275,15 @@ before and after; Phase 1 changes no sample time and no alpha arithmetic.
 
 1. **Core.** `HighwayHandLight` for both hands (`fret_hand` moves into its pair; `pick_hand` is
    built from the onset paths), `mergeLitEvidence`, `makeFretHandLight`, `makePickHandLight`, the
-   ungated margin-rise loop, `g_hand_rest_seconds`. The renderer reads `pick_hand` for the tap light
+   ungated margin-rise loop, the per-hand rest tolerances. The renderer reads `pick_hand` for the tap light
    in this step so the tree stays green; the fretting light is still always on until step 2.
 2. **Renderer floor.** `drawFloorLight` over `forEachLight`; the universal motion dim; the spill
    lanes; delete `drawHandWindowLight`, `drawTappingHandLight`, `WindowLightSlice`.
 3. **Renderer tiers.** Ribbons and fret lines read the brightness rule; delete `HandWindow`,
    `hand_windows`, `tapPathLines`.
-4. **Strike pops.** `boxSidesAt`, per-hand slots, per-hand colour, the one clamp rule.
+4. **Rails and strike pops.** The tapped chord's hold end back on the strike (`release_seconds`);
+   the rails pass over both hands' tracks, white under tapped chords; `boxSidesAt`, per-hand
+   slots, per-hand colour, the one clamp rule.
 5. **Docs.** `docs/developer/the-3d-highway.md` "The two floor lights" → "The floor light"; the
    backlog entry closed with the commit reference; `harmonic-display-followups.md`'s `tap_onsets`
    mention re-checked.
@@ -318,12 +346,13 @@ parameter named like an enclosing local); the merge's stretch count uses branche
 
 ## 7. Sightings the build owes
 
-1. The rest tolerance's value (`g_hand_rest_seconds`), on a chug riff, a legato run, and a
-   phrase with a real rest.
-2. The picking hand under the same tolerance: a dense tap run as one travelling light instead of
-   a pulse per strike, and overlapping taps at different frets under one track. Rejecting either
-   is the per-hand tolerance of zero (section 1), never a branch.
-3. The tapped chord's sides after D3 and D6, against a strummed chord over the same frets.
+1. The fretting hand's rest tolerance (`g_hand_rest_seconds`, 1.0 s: "good for now, will
+   continue sighting"), on a chug riff, a legato run, and a phrase with a real rest.
+2. SIGHTED 2026-09-25: the merged right hand was rejected in favour of the per-strike pulse
+   (`g_pick_light_rest_seconds` = 0). Still open: overlapping taps at different frets under one
+   track, and whether the ribbons pulsing with the right hand under one decay reads well.
+3. The tapped chord's white rails through its hold, and its sides after D3 and D6, against a
+   strummed chord under a posture span over the same frets.
 4. The universal motion dim on a tapped glide.
 5. An open-string tap harmonic's box and pop at its node (the only harmonic tap validation still
    allows).

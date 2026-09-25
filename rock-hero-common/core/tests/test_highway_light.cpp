@@ -1,10 +1,10 @@
-#include <array>
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/shared/visible_events.h>
-#include <span>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -22,6 +22,10 @@ constexpr HighwayLitStretch g_held_light{
 
 // A layer decay whose halfway point, like the rise's, lands on an exact binary fraction.
 constexpr double g_decay_seconds = 0.5;
+
+// The merge cases' own rest tolerance, fixed here rather than read from g_hand_rest_seconds: that
+// constant is a sighting knob, and these cases pin the merge's breakpoints, not its tuning.
+constexpr double g_rest_seconds = 1.0;
 
 } // namespace
 
@@ -67,12 +71,13 @@ TEST_CASE("Lit interval spans the rise start to the decay end", "[core][highway]
     CHECK_THAT(lit.to_seconds, WithinULP(3.5, 0));
 }
 
-// THE fold: the earliest start, the latest release, and the widest rise among the items at that
-// earliest start only. An item starting later rises inside the light, so its wider rise must not
-// win — and it is placed first here so the fold cannot lean on the order it was handed.
-TEST_CASE("Folding evidence keeps the widest rise at the earliest start", "[core][highway][light]")
+// THE fold, driven through the merge: evidence at one onset is one light with the earliest start,
+// the latest release, and the widest rise among the items at that earliest start only. An item
+// starting later rises inside the light, so its wider rise must not win — and it is placed first
+// here so the merge cannot lean on the order it was handed.
+TEST_CASE("Merging folds evidence into the widest rise at its start", "[core][highway][light]")
 {
-    const std::array<HighwayLitStretch, 4> items{
+    const std::vector<HighwayLitStretch> items{
         HighwayLitStretch{.start_seconds = 1.5, .release_seconds = 2.0, .rise_seconds = 0.875},
         HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.5, .rise_seconds = 0.25},
         HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.5, .rise_seconds = 0.125},
@@ -81,15 +86,20 @@ TEST_CASE("Folding evidence keeps the widest rise at the earliest start", "[core
             .start_seconds = 1.000000000001, .release_seconds = 1.25, .rise_seconds = 0.375
         },
     };
-
     CHECK(
-        foldLitEvidence(items) ==
-        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.5, .rise_seconds = 0.375});
-    // One item folds to itself.
-    CHECK(foldLitEvidence(std::span(items).first(1)) == items.front());
+        mergeLitEvidence(items, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.5, .rise_seconds = 0.375},
+        });
+    // One item merges to itself.
+    CHECK(
+        mergeLitEvidence({items.front()}, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{items.front()});
+    // No evidence, no light.
+    CHECK(mergeLitEvidence({}, g_rest_seconds).empty());
 
-    // At the tolerance itself an item is a later strike: its wider rise does not win.
-    const std::array<HighwayLitStretch, 2> at_tolerance{
+    // At the onset tolerance itself an item is a later strike: its wider rise does not win.
+    const std::vector<HighwayLitStretch> at_tolerance{
         HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.5, .rise_seconds = 0.25},
         HighwayLitStretch{
             .start_seconds = 1.0 + g_onset_match_epsilon,
@@ -98,38 +108,120 @@ TEST_CASE("Folding evidence keeps the widest rise at the earliest start", "[core
         },
     };
     CHECK(
-        foldLitEvidence(at_tolerance) ==
-        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.5, .rise_seconds = 0.25});
+        mergeLitEvidence(at_tolerance, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.5, .rise_seconds = 0.25},
+        });
 }
 
-// THE crowding clamp: a rise that would reach back past the previous release shrinks to the gap,
-// one that fits is untouched, and a start at or before the previous release rises not at all.
-TEST_CASE("Crowding clamps a rise to the gap after the previous release", "[core][highway][light]")
+// THE rest tolerance: evidence starting less than the tolerance after the run's LATEST release so
+// far joins the run, and a gap of exactly the tolerance or more splits it. The latest release is
+// measured, not the last item's: a short note inside a long one does not open a gap.
+TEST_CASE("Merging splits evidence only at a gap of the rest tolerance", "[core][highway][light]")
+{
+    const HighwayLitStretch first{
+        .start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.25
+    };
+
+    // A gap of exactly the tolerance: two lights, the second's rise untouched by crowding.
+    const HighwayLitStretch at_rest{
+        .start_seconds = 3.0, .release_seconds = 3.5, .rise_seconds = 0.5
+    };
+    CHECK(
+        mergeLitEvidence({first, at_rest}, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{first, at_rest});
+
+    // A gap just short of it: one light, released at the later release.
+    const HighwayLitStretch inside{
+        .start_seconds = 2.875, .release_seconds = 3.5, .rise_seconds = 0.5
+    };
+    CHECK(
+        mergeLitEvidence({first, inside}, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 3.5, .rise_seconds = 0.25},
+        });
+
+    // A short item inside a long one: the gap to the next is measured from the long one's release.
+    const std::vector<HighwayLitStretch> nested{
+        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 4.0, .rise_seconds = 0.25},
+        HighwayLitStretch{.start_seconds = 1.5, .release_seconds = 1.75, .rise_seconds = 0.25},
+        HighwayLitStretch{.start_seconds = 4.5, .release_seconds = 5.0, .rise_seconds = 0.25},
+    };
+    CHECK(
+        mergeLitEvidence(nested, g_rest_seconds) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 5.0, .rise_seconds = 0.25},
+        });
+}
+
+// THE crowding clamp, shown with no tolerance at all so every non-negative gap splits: a rise that
+// would reach back past the previous release shrinks to the gap, and one that fits is untouched.
+// A start INSIDE the previous light (a negative gap), or touching its release (a gap narrower than
+// the onset tolerance is no gap), is not crowded but merged.
+TEST_CASE("Merging crowds each rise against the previous release", "[core][highway][light]")
 {
     const HighwayLitStretch previous{
         .start_seconds = 0.5, .release_seconds = 1.0, .rise_seconds = 0.0
     };
+    const auto second_after = [&previous](const HighwayLitStretch& next) {
+        const std::vector<HighwayLitStretch> merged = mergeLitEvidence({previous, next}, 0.0);
+        REQUIRE(merged.size() == 2);
+        CHECK(merged.front() == previous);
+        return merged.back();
+    };
 
     CHECK(
-        crowdedAfter(
-            HighwayLitStretch{.start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.5},
-            previous) ==
+        second_after(
+            HighwayLitStretch{
+                .start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.5
+            }) ==
         HighwayLitStretch{.start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.25});
     CHECK(
-        crowdedAfter(
-            HighwayLitStretch{.start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.125},
-            previous) ==
+        second_after(
+            HighwayLitStretch{
+                .start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.125
+            }) ==
         HighwayLitStretch{.start_seconds = 1.25, .release_seconds = 2.0, .rise_seconds = 0.125});
     CHECK(
-        crowdedAfter(
-            HighwayLitStretch{.start_seconds = 0.75, .release_seconds = 2.0, .rise_seconds = 0.5},
-            previous) ==
-        HighwayLitStretch{.start_seconds = 0.75, .release_seconds = 2.0, .rise_seconds = 0.0});
+        mergeLitEvidence(
+            {previous,
+             HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.5}},
+            0.0) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 0.5, .release_seconds = 2.0, .rise_seconds = 0.0},
+        });
     CHECK(
-        crowdedAfter(
-            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.5},
-            previous) ==
-        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.0});
+        mergeLitEvidence(
+            {previous,
+             HighwayLitStretch{.start_seconds = 0.75, .release_seconds = 2.0, .rise_seconds = 0.5}},
+            0.0) ==
+        std::vector<HighwayLitStretch>{
+            HighwayLitStretch{.start_seconds = 0.5, .release_seconds = 2.0, .rise_seconds = 0.0},
+        });
+}
+
+// The merge sorts its own evidence: the producers gather notes and spans in two passes, so the
+// order they hand in is never the timeline's, and the result must not depend on it.
+TEST_CASE("Merging does not depend on the evidence order", "[core][highway][light]")
+{
+    std::vector<HighwayLitStretch> items{
+        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.5, .rise_seconds = 0.25},
+        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 1.25, .rise_seconds = 0.375},
+        HighwayLitStretch{.start_seconds = 2.0, .release_seconds = 2.25, .rise_seconds = 0.125},
+        HighwayLitStretch{.start_seconds = 4.0, .release_seconds = 4.5, .rise_seconds = 0.5},
+        HighwayLitStretch{.start_seconds = 4.25, .release_seconds = 6.0, .rise_seconds = 0.0},
+        HighwayLitStretch{.start_seconds = 8.0, .release_seconds = 8.0, .rise_seconds = 0.25},
+    };
+    const std::vector<HighwayLitStretch> expected{
+        HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.25, .rise_seconds = 0.375},
+        HighwayLitStretch{.start_seconds = 4.0, .release_seconds = 6.0, .rise_seconds = 0.5},
+        HighwayLitStretch{.start_seconds = 8.0, .release_seconds = 8.0, .rise_seconds = 0.25},
+    };
+    CHECK(mergeLitEvidence(items, g_rest_seconds) == expected);
+    std::ranges::reverse(items);
+    CHECK(mergeLitEvidence(items, g_rest_seconds) == expected);
+    std::ranges::rotate(items, items.begin() + 2);
+    CHECK(mergeLitEvidence(items, g_rest_seconds) == expected);
 }
 
 } // namespace rock_hero::common::core
