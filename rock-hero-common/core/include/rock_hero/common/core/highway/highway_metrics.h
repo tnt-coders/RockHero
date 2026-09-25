@@ -83,10 +83,10 @@ struct HighwayMetrics
     from nothing at the far edge to full opacity this far nearer the hit line. Measured in world
     units rather than seconds because the far edge sits at the same world z at every scroll
     speed (\ref highwayTimeToZ divides by the speed the visibility window multiplies by), so the
-    band is one constant stretch of board. Zero turns the fade off. The value is a first choice,
-    still to be sighted.
+    band is one constant stretch of board. Zero turns the fade off. 10 units is 500 ms of travel
+    at scroll speed 1.0, signed on sight 2026-09-25 over 4.0, which read as a pop.
     */
-    double far_fade_length_z{4.0};
+    double far_fade_length_z{10.0};
 
     /*!
     \brief Note head half-width (Charter firstFretDistance 1.2 / 2.5).
