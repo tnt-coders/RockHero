@@ -629,15 +629,17 @@ the model doc), so nothing else in this phase needs one.
   `Alt+←/→` reach the new `SongSectionSelection` alternative,
   and a ruler right-click menu carries all four. **No type vocabulary and no format change**: the
   free name stands, and a colour-by-type, if it is ever wanted, derives from a normalized-name
-  lookup at projection rather than from a second stored field. The board marks a boundary by
-  promoting that downbeat's beat bar (`HighwayBeatViewState::section_start`) rather than adding a
-  pass. All undoable.
+  lookup at projection rather than from a second stored field. The board marked a boundary by
+  promoting that downbeat's beat bar rather than adding a pass, until 2026-09-24, when the
+  promotion was removed after sighting; the board now shows only the section name, with the
+  board-side mark an open backlog item. All undoable.
 - **Files**: editor-core `src/chart/` + projection, `tab_view.cpp`, new dialog components under
   `rock-hero-editor/ui/src/tab/` or `chart/`. Sections instead landed in editor-core
   `src/timeline/` (`section_handlers.cpp`, `song_sections_snapshot.*`, `section_projection.*`),
   `timeline_ruler.*`, and `highway_projection.cpp` / `highway_renderer.cpp`.
 - **Public-header impact**: intents; `section_view_state.h` gained the position and selected
-  fields, `highway_view_state.h` the promoted-bar flag, `session.h` the mutable sections
+  fields, `highway_view_state.h` the promoted-bar flag (since removed), `session.h` the mutable
+  sections
   accessor.
 - **Testing**: template arity/reference integrity, shape-span windows, unused-template command,
   section projection ordering; dialog logic kept headless-testable (state in editor-core).

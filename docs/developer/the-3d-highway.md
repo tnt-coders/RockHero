@@ -256,18 +256,18 @@ rather than taking as an argument. A hard end reads as an edge belonging to noth
 falls, wires included, and a harmonic's stop-to-node line does not stop on the wires that would give
 a slot line its flat ends in any case. There is no un-tapered floor line, and no way to ask for one.
 
-**A song section boundary is a promoted downbeat bar, not a mark of its own.** Sections snap to
-measure downbeats (the authoring verb enforces it), so a boundary *is* a bar the board already
-draws: `HighwayBeatViewState::section_start`, set by the projection, sends that downbeat's attack
-line to full alpha in the section green and roughly triples its trailing wing. Length along z is
-the axis with room — the calibration in `highway_renderer.cpp` measures the frame bar at 0.075
-world projecting to 0.7 px at the horizon, so a mark differing only in brightness would not read.
-Which downbeat a section belongs to is decided ONCE, in the camera-zone walk that already snaps a
-mid-measure start forward, so the promoted bar and the framing cut can never disagree. Rejected:
-a `drawSectionBars` pass (a coplanar quad at the bar's own y, and a second rule for what a
-downbeat looks like), an arch over the board (nothing vertical exists above the face except the
-label, and it would occlude approaching notes), and a per-section floor tint (the floor is the
-reading surface, already carrying the hand-window light and the strike glow).
+**A song section boundary draws nothing on the floor.** Sections snap to measure downbeats (the
+authoring verb enforces it), so a boundary *is* a bar the board already draws, and the board
+draws it as any other downbeat; only the name above the board marks the section. A promoted bar
+— the downbeat's attack line at full alpha in the section green with a trailing wing about three
+times as long — shipped 2026-09-12 and was removed 2026-09-24 after sighting: the green wing read
+as an awkward glow under the notes rather than as a boundary. How sections should read on the
+board is an open backlog item; the earlier rejections still stand as inputs to it — a coplanar
+`drawSectionBars` pass (a second rule for what a downbeat looks like), an arch over the board
+(nothing vertical exists above the face except the label, and it would occlude approaching notes),
+and a per-section floor tint (the floor is the reading surface, already carrying the hand-window
+light and the strike glow). Which downbeat a section belongs to is still decided ONCE, in the
+camera-zone walk that snaps a mid-measure start forward for the framing cut.
 
 The section's **name** floats above the board at `faceTopY() + 1.5 * string_distance`, riding its
 own z out among the notes but submitted with `alwaysDepth` so a nearer note cannot eat it. It

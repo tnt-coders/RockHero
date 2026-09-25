@@ -81,13 +81,6 @@ constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
 
-// A section boundary is a downbeat the verb snapped there, so the board promotes that same bar
-// instead of laying a coplanar mark of its own: full alpha, the ruler chip's green so the two
-// surfaces name the boundary in one color, and a trailing wing about three times as long. Length
-// along z is the axis with room — a mark differing only in brightness would not read, since the
-// bar projects to well under a pixel out at the horizon. Value chosen for sighting.
-constexpr ArgbColor g_section_bar_color = 0xFF2E7D52;
-constexpr double g_section_fade_length = 0.6;
 // The lighting plane every floor light shares: the fretting hand's window and the tapping hand's.
 // Between the lane ribbons (0.004) and the beat bars (0.015) — the floor itself stays at y = 0 and
 // content is raised off it (the floor law), so a new floor mark takes a height in that stack rather
@@ -5992,14 +5985,6 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
         const double z = timeToZ(frame, beat.seconds);
         if (beat.measure_downbeat)
         {
-            // A section boundary promotes this same bar rather than adding a pass: the attack
-            // line goes full alpha in the section green and the trailing wing runs about three
-            // times as far down the measure. Everything else about the bar is unchanged.
-            const bool section = beat.section_start;
-            const ArgbColor attack_color = section ? g_section_bar_color : g_chord_box_color;
-            const double attack_alpha = section ? 1.0 : g_attack_line_alpha;
-            const ArgbColor trail_color = section ? g_section_bar_color : g_beat_bar_color;
-            const double trail_length = section ? g_section_fade_length : g_attack_fade_length;
             pushTaperedFloorQuad(
                 vertices,
                 indices,
@@ -6008,9 +5993,9 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 0.015,
                 z - g_attack_line_half_length,
                 z + g_attack_line_half_length,
-                attack_color,
-                attack_alpha,
-                attack_alpha);
+                g_chord_box_color,
+                g_attack_line_alpha,
+                g_attack_line_alpha);
             pushTaperedFloorQuad(
                 vertices,
                 indices,
@@ -6018,8 +6003,8 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                 x1,
                 0.015,
                 z + g_attack_line_half_length,
-                z + g_attack_line_half_length + trail_length,
-                trail_color,
+                z + g_attack_line_half_length + g_attack_fade_length,
+                g_beat_bar_color,
                 1.0,
                 0.0);
         }

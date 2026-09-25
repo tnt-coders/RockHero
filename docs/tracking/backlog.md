@@ -1272,3 +1272,14 @@ against the tree on the date above.
   foreign ring, natural-versus-artificial harmonic at the slot open, and the abutting-spans
   projection case now assert through equality or the close alone. Each wants a co-struck partner
   at the breaking slot to put its original discrimination back under test.
+
+## Found while sighting the section boundary on the highway (2026-09-24)
+
+- **The board has no mark for a section boundary.** The promoted downbeat bar (the attack line at
+  full alpha in the section green with a wing three times as long) sighted as an awkward glow under
+  the notes and was removed the same day; the board now draws a section downbeat like any other and
+  shows only the floating name. Sections read acceptably that way for now. When a boundary mark is
+  wanted, design it against the rejections already recorded in `docs/developer/the-3d-highway.md`
+  (a coplanar second pass, an arch over the board, a per-section floor tint) and the sub-pixel bar
+  calibration there; the projection's camera-zone walk still decides which downbeat a section
+  belongs to, so a new mark reads that decision rather than re-deriving it.
