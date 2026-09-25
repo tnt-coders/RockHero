@@ -597,19 +597,18 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   reader. Nothing about either survives in the code except what stands on its own (below); the
   built versions, their derivations, their tests and their sighting rigs are in the history at
   `eeb26eca` (both features) and `9731dcee` (the fixes and the hue rig).
-  - **RE-SCOPED 2026-09-25 (user) as the fret-hand glow on PROOF OF A GRIP, one implementation
-    with the right hand's.** No silence threshold: the window light is lit wherever the chart
-    proves the fretting hand is holding something and fades elsewhere, with the right-hand light's
-    own rise (one margin before, crowding-clamped), release (`memberReleaseAt`: the drawn end, or
-    the last pitched keyframe before a drawn slide-out) and 0.1 s fade. Evidence: fretted notes,
-    spans, held claims, and OPEN STRINGS — lit not because they prove a grip but because an open
-    note is drawn as a bar spanning the hand window, so a dark window under a struck open string
-    would read as a floating bar. A bare right-hand tap is not evidence; a tap with a held claim is
-    lit through the claim. The lane borders and fret-line tiers fade with the light. Build order:
-    (1) a pure refactor extracting the shared envelope, rise and release, with every right-hand
-    test unchanged; (2) the left hand's evidence, merged into disjoint stretches, as a brightness
-    factor on the window light. The tap-at-claimed-stop split (#277) is unbuilt, so until it lands
-    a span can keep the light lit a little past such a tap. The history below is the original.
+  - **PLANNED 2026-09-25 — `docs/plans/in-progress/one-floor-light.md` is the record.** Re-scoped
+    the same day (user) as the fret-hand glow on PROOF OF A GRIP, ONE light shared with the picking
+    hand: one stretch type, one envelope, one rise / release / decay, one emission through floor,
+    ribbons and fret-line tier; the hands differ only in what a note proves. Evidence: fretted
+    notes, spans, held claims, and OPEN STRINGS — lit not because they prove a grip but because an
+    open note is drawn as a bar spanning the hand window, so a dark window under a struck open
+    string would read as a floating bar. A bare right-hand tap is not evidence; a tap with a held
+    claim is lit through the claim. The "no threshold" wording of the first re-scope was withdrawn
+    when the plan showed it strobes through chug riffs: evidence merges across gaps shorter than
+    ONE rest tolerance in beats (`g_hand_rest_beats`, sighted; both hands under it first). The
+    tap-at-claimed-stop split (#277) is unbuilt, so until it lands a span can keep the light lit a
+    little past such a tap. The history below is the original.
   - **The FHP silence fade** — the fretting hand's backlight going out through a left-hand rest
     of a quarter note or more and returning ahead of the next statement, led by `marginBefore`.
     Revisit **after the derivation plan lands**: the rule's threshold and its lead are both
