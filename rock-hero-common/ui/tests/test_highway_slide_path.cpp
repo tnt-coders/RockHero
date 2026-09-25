@@ -1,5 +1,6 @@
 #include "highway/highway_slide_path.h"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/common/core/chart/chart_view_state.h>
@@ -25,10 +26,11 @@ namespace
     return note;
 }
 
-// One glide keyframe, pitched. A keyframe is unpitched exactly when its note is a scrape or when
-// it is the note's SLIDE-OUT — the slide-out terminal, which lives in the same list as its last
-// entry and which `slideOutKeyframe` below states. The authored offset is left unstated — these
-// fixtures resolve no tempo map, and only the editor's selection reads it.
+// One glide keyframe, pitched. A keyframe is unpitched exactly when it is the note's SLIDE-OUT —
+// the slide-out terminal, which lives in the same list as its last entry and which
+// `slideOutKeyframe` below states; a scrape's turnarounds are pitched stops like any other. The
+// authored offset is left unstated — these fixtures resolve no tempo map, and only the editor's
+// selection reads it.
 [[nodiscard]] common::core::KeyframeViewState keyframe(const double seconds, const int fret)
 {
     return common::core::KeyframeViewState{
@@ -186,14 +188,14 @@ TEST_CASE("A harmonic's node rides its stop through a glide", "[ui][highway]")
         Catch::Matchers::WithinAbs(common::core::highwayFretLineX(11.2, metrics, false), 1e-12));
 }
 
-// The unpitched slide-out's dim spans the whole CONSECUTIVE run, not each leg: a scrape's chained
-// legs are one continuous release, so the alpha must never snap back to full where the travel
-// reverses. Only the geometry restarts per leg.
-TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][highway]")
+// A scrape's dim spans its WHOLE path, not each leg: its chained legs are one continuous release,
+// so the alpha must never snap back to full where the travel reverses. Only the geometry restarts
+// per leg.
+TEST_CASE("A scrape's dim ramps across its whole path", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;
-    // A real scrape: the attack makes every stop unpitched pick travel, and the required terminal
-    // is the run's last leg — so the run is the turnaround at 2.0 plus the pick lifting at 3.0.
+    // A real scrape: a turnaround at 2.0, then the required terminal where the pick lifts at 3.0.
+    // The turnaround is a pitched stop, and the dim still spans both legs, read off the attack.
     common::core::NoteViewState scrape = frettedNote();
     scrape.attack = common::core::NoteAttack::PickSlide;
     scrape.ring_end_seconds = 3.0;
@@ -204,15 +206,113 @@ TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][high
         return highwaySlideStateAt(scrape, base_x, metrics, false, seconds).alpha;
     };
 
-    // The run spans onset to last keyframe (1.0 to 3.0), so the turnaround at 2.0 sits halfway
+    // The dim spans onset to last keyframe (1.0 to 3.0), so the turnaround at 2.0 sits halfway
     // down the ramp rather than at its bottom.
     CHECK_THAT(alpha_at(1.0), Catch::Matchers::WithinAbs(1.0, 1e-12));
     CHECK_THAT(alpha_at(2.0), Catch::Matchers::WithinAbs(0.625, 1e-12));
     CHECK_THAT(alpha_at(3.0), Catch::Matchers::WithinAbs(g_unpitched_slide_end_alpha, 1e-12));
 
-    // Monotone the whole way: no leg boundary lifts it.
+    // Monotone the whole way: no leg boundary lifts it, and just past the turnaround it carries
+    // on from where it stood rather than snapping back to full.
     CHECK(alpha_at(1.5) > alpha_at(2.0));
     CHECK(alpha_at(2.0) > alpha_at(2.5));
+    CHECK_THAT(alpha_at(2.0 + 1e-9), Catch::Matchers::WithinAbs(0.625, 1e-6));
+}
+
+// A scrape's turnarounds are places the pick reaches and turns from, so each interior leg rides
+// the PITCHED curve and arrives tangentially — the rail's slope falls to zero into the stop, where
+// the release curve would still be moving at full speed and corner there. Only the terminal leg,
+// where the pick lifts toward a fret it never reaches, keeps the release curve.
+TEST_CASE("A scrape arrives tangentially at every turnaround", "[ui][highway]")
+{
+    const common::core::HighwayMetrics metrics;
+    // Down from 12 to 3, up to 10, then the terminal down toward 2: two turnarounds, one leg a
+    // second each.
+    common::core::NoteViewState scrape = frettedNote();
+    scrape.fret = 12;
+    scrape.attack = common::core::NoteAttack::PickSlide;
+    scrape.slides = {keyframe(2.0, 3), keyframe(3.0, 10), slideOutKeyframe(4.0, 2)};
+    const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
+    const auto rail_x = [&](const double seconds) {
+        return base_x + highwaySlideStateAt(scrape, base_x, metrics, false, seconds).x_offset;
+    };
+    const auto stop_x = [&](const int fret) {
+        return highwayNoteFretboardX(scrape, fret, metrics, false);
+    };
+
+    struct Leg
+    {
+        double start_seconds;
+        int from_fret;
+        int to_fret;
+        bool unpitched;
+    };
+    const std::array<Leg, 3> legs{
+        Leg{.start_seconds = 1.0, .from_fret = 12, .to_fret = 3, .unpitched = false},
+        Leg{.start_seconds = 2.0, .from_fret = 3, .to_fret = 10, .unpitched = false},
+        Leg{.start_seconds = 3.0, .from_fret = 10, .to_fret = 2, .unpitched = true},
+    };
+    for (const Leg& leg : legs)
+    {
+        const double from_x = stop_x(leg.from_fret);
+        const double travel = stop_x(leg.to_fret) - from_x;
+        for (const double progress : {0.25, 0.5, 0.9, 0.95, 0.99})
+        {
+            CHECK_THAT(
+                rail_x(leg.start_seconds + progress),
+                Catch::Matchers::WithinAbs(
+                    from_x +
+                        (travel * common::core::highwaySlideEaseWeight(progress, leg.unpitched)),
+                    1e-9));
+        }
+        // The stop itself is reached exactly, whichever curve led there.
+        CHECK_THAT(
+            rail_x(leg.start_seconds + 1.0), Catch::Matchers::WithinAbs(from_x + travel, 1e-9));
+    }
+
+    // The slope into each turnaround, per unit of the leg's travel, falls toward zero as the
+    // stop nears; the release curve over the same last stretch would still be moving at nearly
+    // its full pi / 2.
+    for (const Leg& leg : {legs[0], legs[1]})
+    {
+        const double arrive = leg.start_seconds + 1.0;
+        const double travel = stop_x(leg.to_fret) - stop_x(leg.from_fret);
+        const auto slope_before = [&](const double step) {
+            return (rail_x(arrive) - rail_x(arrive - step)) / (step * travel);
+        };
+        const auto release_slope_before = [](const double step) {
+            return (1.0 - common::core::highwaySlideEaseWeight(1.0 - step, true)) / step;
+        };
+        CHECK(slope_before(0.1) > slope_before(0.05));
+        CHECK(slope_before(0.05) > slope_before(0.01));
+        CHECK(slope_before(0.01) < 0.05);
+        CHECK(release_slope_before(0.01) > 1.5);
+    }
+}
+
+// On any note other than a scrape, the dim is the terminal slide-out's own leg: a pitched glide
+// before it keeps the note's full brightness, and only the leg into the terminal fades.
+TEST_CASE("A fretted glide dims only across its slide-out leg", "[ui][highway]")
+{
+    const common::core::HighwayMetrics metrics;
+    common::core::NoteViewState note = frettedNote();
+    note.ring_end_seconds = 3.0;
+    note.ink_end_seconds = 3.0;
+    note.slides = {keyframe(2.0, 9), slideOutKeyframe(3.0, 12)};
+    const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
+    const auto alpha_at = [&](const double seconds) {
+        return highwaySlideStateAt(note, base_x, metrics, false, seconds).alpha;
+    };
+
+    for (const double seconds : {1.0, 1.5, 1.99, 2.0})
+    {
+        CHECK_THAT(alpha_at(seconds), Catch::Matchers::WithinAbs(1.0, 1e-12));
+    }
+    CHECK_THAT(
+        alpha_at(2.5),
+        Catch::Matchers::WithinAbs(1.0 + ((g_unpitched_slide_end_alpha - 1.0) * 0.5), 1e-12));
+    CHECK_THAT(alpha_at(3.0), Catch::Matchers::WithinAbs(g_unpitched_slide_end_alpha, 1e-12));
+    CHECK_THAT(alpha_at(5.0), Catch::Matchers::WithinAbs(g_unpitched_slide_end_alpha, 1e-12));
 }
 
 // The density policy every glide-following mark subdivides by. Bounded at both ends so a

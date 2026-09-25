@@ -97,8 +97,8 @@ struct SlideRamp
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // A scrape renders through the unpitched machinery end to end and never feeds the
-        // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
+        // A scrape is the picking hand's travel and never feeds the slide-locked ramps: it has
+        // no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
         if (isScrape(note.attack) || !anyKeyframeStatesFret(note.keyframes))
         {

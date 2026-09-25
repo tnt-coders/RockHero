@@ -632,11 +632,13 @@ struct GlideStop
     int fret{0};
 
     /*!
-    \brief True when this stop is unpitched travel rather than a pitched arrival.
+    \brief True at the slide-out terminal, where the travel leaves toward a fret it never reaches:
+    the leg into it takes the release curve and arrives still moving.
 
-    NOT "the glide slides out here". A pick slide's every stop carries it, because a scrape's whole
-    path is unpitched travel — the turnarounds included — so reading it as an ending mis-draws every
-    scrape. The terminal carries it too, and there the slide-out reading does hold.
+    Every other stop — a scrape's turnarounds included — is a place the travel reaches and turns
+    from, so its leg takes the pitched curve and arrives tangentially (re-ruled 2026-09-24: a
+    scrape's interior legs took the release curve and cornered at every turnaround). What a
+    scrape's whole path shares is its DIM, which the rail reads off the attack, not off this flag.
     */
     bool unpitched{false};
 };
@@ -646,7 +648,7 @@ struct GlideStop
 in time order (\ref NoteViewState::slides), the slide-out last when the note has one.
 
 The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
-camera's framing, the lane's diagonals — which folds the note's attack into each stop's
+camera's framing, the lane's diagonals — which folds the slide-out flag into each stop's
 pitched-ness so no consumer restates that rule. A consumer walks the stops up to the extent it
 draws (\ref keyframeDrawn): a stop beyond it is not drawn, but the leg TOWARD it is, on its true
 path as far as the extent.
@@ -661,10 +663,9 @@ path as far as the extent.
     return GlideStop{
         .seconds = keyframe.seconds,
         .fret = keyframe.fret,
-        // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any other
-        // note a stated position is a stop the finger arrives at — except the slide-out, which is
-        // where the finger leaves toward.
-        .unpitched = isScrape(note.attack) || keyframe.slide_out,
+        // A stated position is a stop the travel arrives at, whichever hand makes it — except the
+        // slide-out, which is where it leaves toward.
+        .unpitched = keyframe.slide_out,
     };
 }
 
@@ -673,9 +674,9 @@ path as far as the extent.
 
 Every stated position is a stop the finger arrives at, and it wears the note's own head shape
 there — the slide-out alone is not one, since it is where the finger leaves toward and the slide
-line draws its slide-out chip instead. Being unpitched does not unlink a keyframe — a scrape's
-turnaround is one gesture continuing, and its head is what keeps the corner from reading as a
-break. Whether the keyframe is DRAWN at all is the extent's question, not this one's: a linked
+line draws its slide-out chip instead. A scrape's turnaround is linked like any other stop — one
+gesture continuing, its head marking the turn. Whether the keyframe is DRAWN at all is the
+extent's question, not this one's: a linked
 keyframe past the ink end is drawn only while the note is revealed.
 
 \param keyframe One of a note's \ref NoteViewState::slides entries.

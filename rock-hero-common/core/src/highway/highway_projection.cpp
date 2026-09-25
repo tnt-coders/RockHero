@@ -49,7 +49,8 @@ constexpr int g_camera_zone_measures = 2;
 // A member's position on its own rail at an instant: its sounding stop before any glide, eased
 // along each leg with the family the rail draws (highwaySlideEaseWeight, the family being the
 // stop's own through glideStopAt), and the last stop's afterwards. A tap's unpitched slide-out
-// never moves the light; a scrape's unpitched stops ARE the hand's travel. The DRAWN position
+// never moves the light; a scrape's stops, its slide-out included, ARE the hand's travel. The
+// DRAWN position
 // (highwayDrawnStop), so a path cannot walk off the board while the head it belongs to is held at
 // the edge.
 [[nodiscard]] double memberPositionAt(const NoteViewState& note, const double seconds)

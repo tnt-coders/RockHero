@@ -1848,7 +1848,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         if (scrape)
         {
             note.attack = common::core::NoteAttack::PickSlide;
-            // The attack makes every stop unpitched pick travel; the last entry is the required
+            // The attack makes the path the pick's travel; the last entry is the required
             // terminal, the SLIDE-OUT, which sits at the ring's end by definition.
             note.slides = {
                 common::core::KeyframeViewState{

@@ -210,12 +210,14 @@ physics — its ring is position-dependent, drawn at its node's absolute fret po
 
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
-(pitched and unpitched glides ease differently) plus the unpitched slide-out's alpha dim, holding the
-last target past the last STOP. Stop and not keyframe: the gesture is read as one uniform sequence —
-the note's position keyframes, the slide-out last — through `glideStopAt` in
-`chart_view_state.h`, which folds the note's attack and the slide-out flag into each stop's
-pitched-ness so no consumer restates that rule, bounded by `keyframeDrawn` where a consumer draws
-only to the ink end. Both live out here rather than inline in `draw()`, which is what
+(pitched and unpitched glides ease differently) plus the release dim — the slide-out's own leg on
+a fretted note, a scrape's whole path as one continuous release — holding the last target past the
+last STOP. Stop and not keyframe: the gesture is read as one uniform sequence — the note's position
+keyframes, the slide-out last — through `glideStopAt` in `chart_view_state.h`, which folds the
+slide-out flag into each stop's pitched-ness so no consumer restates that rule: only the terminal
+takes the release curve, and a scrape's turnarounds are pitched legs that arrive tangentially
+(re-ruled 2026-09-24, when they cornered). Bounded by `keyframeDrawn` where a consumer draws only
+to the ink end. Both live out here rather than inline in `draw()`, which is what
 lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
 glide lambda declared after every floor pass is reachable by no floor pass. `highwayGlideSliceCount`
 rides along as the one density policy every glide-following mark subdivides an eased segment by, so

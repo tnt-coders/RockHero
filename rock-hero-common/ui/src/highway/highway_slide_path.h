@@ -31,8 +31,8 @@ namespace rock_hero::common::ui
 \brief Alpha an unpitched (pressure-release) glide has dimmed to by the end of its run.
 
 The slide-out is a fading gesture rather than a sounding stop, so the rail dims toward this across
-the whole consecutive unpitched run instead of holding the note's own brightness to the last
-keyframe.
+the release — a fretted note's slide-out leg, a scrape's whole path — instead of holding the note's
+own brightness to the last keyframe.
 */
 constexpr double g_unpitched_slide_end_alpha = 0.25;
 
@@ -87,7 +87,9 @@ struct HighwaySlideState
     /*! \brief World-X offset from the note's own onset anchor; zero before it moves. */
     double x_offset{0.0};
 
-    /*! \brief Brightness scale from the unpitched slide-out; 1.0 for a pitched glide. */
+    /*!
+    \brief Brightness across a release, toward \ref g_unpitched_slide_end_alpha; 1.0 elsewhere.
+    */
     double alpha{1.0};
 };
 
@@ -105,10 +107,10 @@ all of them: a time inside the drawn extent on the leg toward a stop beyond it l
 true path. What is DRAWN is the caller's to bound — it evaluates only times within its extent,
 so a stop past the ink end moves nothing on the board.
 
-The dim spans the whole CONSECUTIVE unpitched run rather than one segment: a scrape's chained legs
-are one continuous release, so the alpha must never snap back to full at a direction reversal —
-only the geometry restarts per leg. A lone terminal slide-out is a one-segment run, which reduces
-to the original per-segment dim.
+The dim spans a scrape's WHOLE path rather than one segment: a scrape's chained legs are one
+continuous release, so the alpha must never snap back to full at a direction reversal — only the
+geometry restarts per leg, each interior leg on the pitched curve and the terminal on the release
+curve. On any other note the dim is the terminal slide-out's own leg.
 
 \param note Projected note whose glide is being read.
 \param base_x World X the offset is measured from — the note's own anchor for a fretted gesture.
@@ -123,25 +125,24 @@ to the original per-segment dim.
 {
     // The gesture read as one uniform sequence — the note's position keyframes, then its
     // slide-out terminal — through the shared stop accessor. Every stop, not only those within
-    // the drawn extent: the leg an extent cuts runs toward the first stop beyond it, and an
-    // unpitched run dims across its whole stored length.
+    // the drawn extent: the leg an extent cuts runs toward the first stop beyond it, and a
+    // release dims across its whole stored length.
     const std::size_t stop_count = note.slides.size();
     if (stop_count == 0 || note.fret <= 0)
     {
         return HighwaySlideState{.x_offset = 0.0, .alpha = 1.0};
     }
-    const auto unpitched_alpha_at = [&note,
-                                     stop_count](const std::size_t segment, const double at) {
-        std::size_t run_begin = segment;
-        while (run_begin > 0 && common::core::glideStopAt(note, run_begin - 1).unpitched)
+    // THE DIM, stated once for the legs and for the hold past the last stop: a scrape's whole
+    // path is one release, a fretted note's slide-out leg alone is one, and every other leg holds
+    // full brightness.
+    const bool scrape = common::core::isScrape(note.attack);
+    const auto alpha_at = [&note, stop_count, scrape](const std::size_t segment, const double at) {
+        if (!scrape && !common::core::glideStopAt(note, segment).unpitched)
         {
-            --run_begin;
+            return 1.0;
         }
-        std::size_t run_end = segment;
-        while (run_end + 1 < stop_count && common::core::glideStopAt(note, run_end + 1).unpitched)
-        {
-            ++run_end;
-        }
+        const std::size_t run_begin = scrape ? 0 : segment;
+        const std::size_t run_end = scrape ? stop_count - 1 : segment;
         const double run_start_seconds =
             run_begin == 0 ? note.start_seconds
                            : common::core::glideStopAt(note, run_begin - 1).seconds;
@@ -163,20 +164,19 @@ to the original per-segment dim.
             const double progress =
                 span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0) : 1.0;
             const double weight = common::core::highwaySlideEaseWeight(progress, stop.unpitched);
-            const double alpha = stop.unpitched ? unpitched_alpha_at(index, seconds) : 1.0;
             return HighwaySlideState{
                 .x_offset = segment_start_x + ((stop_x - segment_start_x) * weight) - base_x,
-                .alpha = alpha,
+                .alpha = alpha_at(index, seconds),
             };
         }
         segment_start_seconds = stop.seconds;
         segment_start_x = stop_x;
     }
-    // Past the last stop the glide holds its target (and any unpitched dimming).
+    // Past the last stop the glide holds its target, and the dim holds where its run ended.
     const common::core::GlideStop last = common::core::glideStopAt(note, stop_count - 1);
     return HighwaySlideState{
         .x_offset = highwayNoteFretboardX(note, last.fret, metrics, mirrored) - base_x,
-        .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
+        .alpha = alpha_at(stop_count - 1, seconds),
     };
 }
 

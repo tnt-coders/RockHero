@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
@@ -1443,9 +1444,9 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     CHECK(onsets[3].rise_seconds == Catch::Approx(0.1));
 }
 
-// The pick-slide seam: latents suppressed, the path unpitched, and the hand window's
-// slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape keyframe
-// still gets the ordinary margin morph. The scrape DOES drive the moving right-hand light
+// The pick-slide seam: latents suppressed, only the path's terminal unpitched, and the hand
+// window's slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape
+// keyframe still gets the ordinary margin morph. The scrape DOES drive the moving right-hand light
 // (asserted below) while contributing nothing to the hand window.
 TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
 {
@@ -1489,7 +1490,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides.back().slide_out);
     REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
-    CHECK(glideStopAt(view, 0).unpitched);
+    CHECK_FALSE(glideStopAt(view, 0).unpitched);
     CHECK(glideStopAt(view, 1).unpitched);
     // The right-hand light rides the scrape: one onset whose path arrivals follow the traveled
     // keyframes (17 at the onset, 3 at the reversal, 9 at the end), each fret's window spanning
@@ -1503,10 +1504,11 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(light.path[1].low_line == Catch::Approx(2.0));
     CHECK(light.path[2].low_line == Catch::Approx(8.0));
     CHECK(light.path[2].high_line == Catch::Approx(9.0));
-    // Keyframe arrivals carry the unpitched flag so the light sweeps with the scrape's own ease,
-    // each over its own half-beat leg (0.25 s at 120 BPM); the onset arrival comes from no glide.
+    // Each arrival carries its stop's family so the light sweeps with the rail's own ease — the
+    // turnaround pitched, the terminal released — each over its own half-beat leg (0.25 s at 120
+    // BPM); the onset arrival comes from no glide.
     CHECK_FALSE(light.path[0].unpitched_ramp);
-    CHECK(light.path[1].unpitched_ramp);
+    CHECK_FALSE(light.path[1].unpitched_ramp);
     CHECK(light.path[2].unpitched_ramp);
     CHECK(light.path[0].ramp_seconds == Catch::Approx(0.0));
     CHECK(light.path[1].ramp_seconds == Catch::Approx(0.25));
@@ -1556,12 +1558,13 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     CHECK(path[0].high_line == Catch::Approx(17.0));
     CHECK_FALSE(path[0].unpitched_ramp);
 
-    // The drawn turnaround: an ordinary unpitched leg, nothing to settle.
+    // The drawn turnaround: an ordinary pitched leg the pick arrives at and turns from, nothing to
+    // settle.
     CHECK(path[1].seconds == Catch::Approx(1.25));
     CHECK(path[1].low_line == Catch::Approx(2.0));
     CHECK(path[1].high_line == Catch::Approx(3.0));
     CHECK(path[1].ramp_seconds == Catch::Approx(0.25));
-    CHECK(path[1].unpitched_ramp);
+    CHECK_FALSE(path[1].unpitched_ramp);
     CHECK(std::is_eq(path[1].settle_seconds <=> 0.0));
 
     // The cut leg: the terminal past the ink end is the last arrival, its whole leg is the ramp,
@@ -1578,6 +1581,60 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     // to the cut leg's arrival.
     CHECK(onsets.front().release_seconds == Catch::Approx(scrape.ink_end_seconds));
     CHECK(onsets.front().release_seconds < path.back().seconds);
+}
+
+// The light eases each scrape leg in the rail's own family: a turnaround is a stop the pick
+// reaches and turns from, so the light arrives there on the pitched curve exactly as the rail
+// does, and only the terminal — where the pick lifts — keeps the release curve.
+TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core][highway]")
+{
+    // Down from fret 12 to 3, up to 10, then the terminal down toward 2, a quarter second a leg.
+    NoteViewState scrape;
+    scrape.start_seconds = 1.0;
+    scrape.ring_end_seconds = 1.75;
+    scrape.ink_end_seconds = 1.75;
+    scrape.fret = 12;
+    scrape.attack = NoteAttack::PickSlide;
+    scrape.slides = {
+        KeyframeViewState{.seconds = 1.25, .fret = 3, .offset = Fraction{}},
+        KeyframeViewState{.seconds = 1.5, .fret = 10, .offset = Fraction{}},
+        KeyframeViewState{.seconds = 1.75, .fret = 2, .offset = Fraction{}, .slide_out = true},
+    };
+
+    const std::vector<HighwayTapOnsetViewState> onsets =
+        makeHighwayTapOnsets({scrape}, std::vector<double>(1, 0.0));
+    REQUIRE(onsets.size() == 1);
+    const std::vector<HighwayHandArrival>& path = onsets.front().path;
+    REQUIRE(path.size() == 4);
+
+    // The onset comes from no glide; each turnaround arrives pitched, the terminal released.
+    CHECK_FALSE(path[0].unpitched_ramp);
+    CHECK_FALSE(path[1].unpitched_ramp);
+    CHECK_FALSE(path[2].unpitched_ramp);
+    CHECK(path[3].unpitched_ramp);
+    for (std::size_t index = 1; index < path.size(); ++index)
+    {
+        CHECK(path[index].ramp_seconds == Catch::Approx(0.25));
+        CHECK(std::is_eq(path[index].settle_seconds <=> 0.0));
+    }
+    CHECK(path[1].low_line == Catch::Approx(2.0));
+    CHECK(path[2].low_line == Catch::Approx(9.0));
+    CHECK(path[3].low_line == Catch::Approx(1.0));
+
+    // Halfway along each leg the light's window stands where that leg's own curve puts it: the
+    // pitched weight into each turnaround, the release weight into the terminal.
+    const auto low_line_at = [&path](const double seconds) {
+        return highwayHandWindowAt(path, seconds).low_line;
+    };
+    CHECK(
+        low_line_at(1.125) ==
+        Catch::Approx(11.0 + ((2.0 - 11.0) * highwaySlideEaseWeight(0.5, false))));
+    CHECK(
+        low_line_at(1.375) ==
+        Catch::Approx(2.0 + ((9.0 - 2.0) * highwaySlideEaseWeight(0.5, false))));
+    CHECK(
+        low_line_at(1.625) ==
+        Catch::Approx(9.0 + ((1.0 - 9.0) * highwaySlideEaseWeight(0.5, true))));
 }
 
 // The fretting hand's track is an arrival per chart placement, with the placement's settled window

@@ -1013,8 +1013,8 @@ TEST_CASE(
     }
 }
 
-// The pick-slide seam: latent overridden techniques never reach the view, and the path is
-// unpitched end to end.
+// The pick-slide seam: latent overridden techniques never reach the view, and the path's
+// turnarounds are pitched stops while only its terminal releases.
 TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
 {
     Chart chart;
@@ -1049,21 +1049,20 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
     // The turnaround and the terminal are both keyframes — the terminal being the SLIDE-OUT, the
-    // last of them — so the stop walk reads one leg list, every stop unpitched because a scrape's
-    // whole path is the PICK's travel. The turnaround is LINKED and the terminal is not: the pick
-    // stays on the string through a direction change, so the junction carries a continuation head
-    // (in the note's plectrum shape), while the terminal is where the pick leaves and only its
-    // chip marks the position.
+    // last of them — so the stop walk reads one leg list. The turnaround is a place the pick
+    // reaches and turns from, so it is a pitched stop its leg arrives at tangentially; only the
+    // terminal, where the pick leaves toward a fret it never reaches, releases. The turnaround is
+    // LINKED and the terminal is not: the pick stays on the string through a direction change, so
+    // the junction carries a continuation head (in the note's plectrum shape), while the terminal
+    // is where the pick leaves and only its chip marks the position.
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides.back().slide_out);
     CHECK(view.slides.back().fret == 9);
     // Alone on the chart, so nothing crops it and the ink runs the whole ring.
     CHECK_THAT(view.ink_end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
     REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
-    for (std::size_t index = 0; index < 2; ++index)
-    {
-        CHECK(glideStopAt(view, index).unpitched);
-    }
+    CHECK_FALSE(glideStopAt(view, 0).unpitched);
+    CHECK(glideStopAt(view, 1).unpitched);
     CHECK(linkedKeyframe(view.slides[0]));
     CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.ring_end_seconds));
 }
