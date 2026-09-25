@@ -144,10 +144,13 @@ struct ChartShape
 
     THE POSTURE TRUTH CRITERION, which this field is what enforces: **no span claims a stop the hand
     abandoned while it ran.** A span's posture is a per-span set that only ever GROWS (growth IS
-    accumulation), so the one way it could come to lie is by outliving a member — and the extent law
-    below is what forbids that. The first member whose statement stops bounds the whole span — the
-    trailing edge — and the dating floor bounds the front by the end of each stated string's last
-    FOREIGN sound (Law A's clamp, the leading edge), so every fret a bracket prints was held for
+    accumulation), so the two ways it could come to lie are by outliving a member and by admitting
+    one the front predates — and the extent law below and Law A together forbid both. The first
+    member whose statement stops bounds the whole span — the trailing edge — and the dating floor
+    bounds the front by the end of each stated string's last FOREIGN sound (Law A's clamp, the
+    leading edge), an invariant growth keeps by refusing: a strike on a string that audibly sounded
+    another stop since the front breaks the span rather than joining it, since the bracket would
+    otherwise print the new fret back over that sound. So every fret a bracket prints was held for
     every instant the bracket covers. A long accumulation bracket is therefore true BY CONSTRUCTION,
     not by measurement.
 
@@ -390,9 +393,10 @@ strings that merely ring on past a break are tails.
 
 WHEN A SPAN RUNS AND ENDS. A span runs until its grip BREAKS: a member quits (any posture member —
 its sound out with nothing on its own string renewing it at that instant, either hand's onset
-renewing), or a contradiction (a strike naming a different stop on a string the grip states or the
-hand audibly holds — Law A, read end-inclusively at the junction instant). A restatement of the
-same grip is the same span CONTINUING; a stop the grip lacks GROWS it in place — growth IS
+renewing), or a contradiction (a strike naming a different stop on a string the grip states, the
+hand audibly holds, or that audibly sounded another stop since the span's front — Law A, read
+end-inclusively at the junction instant, and read back to the front at the join). A restatement of
+the same grip is the same span CONTINUING; a stop the grip lacks GROWS it in place — growth IS
 accumulation, and the quit arm is what guarantees absorption only ever unions grips whose sounds
 genuinely overlap. Fingers traveling together with the grip held CARRY the statement; the break
 lands where the new grip establishes. The stored close is the breaking event's onset or where the

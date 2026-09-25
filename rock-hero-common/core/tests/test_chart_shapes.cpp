@@ -5934,6 +5934,117 @@ TEST_CASE("A natural harmonic states no grip, and its strike still splits", "[co
     }
 }
 
+// A SPAN NEVER PRINTS A FRET OVER A HARMONIC'S TAIL (ruled 2026-09-24): while a natural harmonic
+// rings, its string is demonstrably not fretted, so for that whole tenure the string is no part of
+// any grip statement. A bracket asserts its grip from its front, so a strike on a string the span
+// does not state, whose last foreign sound ended STRICTLY after that front, breaks the span rather
+// than joining it (Law A at the join) — exactly as it breaks where that sound still rings at the
+// strike. Where the foreign ring ended is no difference in what the hand did.
+TEST_CASE("A span never prints a fret over a harmonic's tail", "[core][chart]")
+{
+    // The sighted figure, by how long the chime rings: a natural at node 12 on string 4 at 1:1; a
+    // fretted pair on strings 2 and 3 at 1:2 ringing to 1:5, which founds a span while the chime
+    // may still ring; and a fret on string 4 at 1:4, ringing to 1:5 beside the pair.
+    const auto figure = [](const Fraction chime) {
+        return streamOf({
+            harmonicAt(1, Fraction{}, 4, 12.0, chime),
+            noteAt(2, Fraction{}, 2, 3, Fraction{3}),
+            noteAt(2, Fraction{}, 3, 2, Fraction{3}),
+            noteAt(4, Fraction{}, 4, 2, Fraction{1}),
+        });
+    };
+
+    SECTION("THE SIGHTED FIGURE: a fret struck after the chime died breaks the span")
+    {
+        // The chime rings to 1:3, a beat past the span's 1:2 front and a beat short of the late
+        // fret. Before the ruling the fret joined by growth: one posture holding strings 2, 3 AND
+        // 4, running to the rings' end at 1:5, so the bracket printed string 4's 2 back to 1:2,
+        // over the chime's tail. Now the span closes at the fret's onset on strings 2 and 3 alone,
+        // and the fret founds nothing: the pair's rings were struck behind the new frontier (A RING
+        // BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so the late fret stands alone.
+        const ChartShapes derived = deriveFrom(figure(Fraction{2}));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 4}});
+        const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
+        CHECK(grip[1] == std::optional{frettedStop(3)});
+        CHECK(grip[2] == std::optional{frettedStop(2)});
+        CHECK_FALSE(grip[3].has_value());
+        noPostureHoldsANaturalNode(derived);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("THE EQUALITY EDGE: a chime ending exactly at the front leaves the string free")
+    {
+        // The chime ends AT the 1:2 front, so string 4 was free for every instant the bracket
+        // covers and the late fret JOINS by growth: one span holding strings 2, 3 and 4, running
+        // to the rings' end at 1:5. The join's boundary is strict — a sound ending at the front
+        // is Law A's dating floor met, not crossed.
+        const ChartShapes derived = deriveFrom(figure(Fraction{1}));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[0].sustain == Fraction{3});
+        const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
+        CHECK(grip[1] == std::optional{frettedStop(3)});
+        CHECK(grip[2] == std::optional{frettedStop(2)});
+        CHECK(grip[3] == std::optional{frettedStop(2)});
+        noPostureHoldsANaturalNode(derived);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("THE DISPLACEMENT CONTROL: a chime still ringing at the fret derives the same")
+    {
+        // The chime rings to 1:4, the late fret's own onset, so the strike displaces a sound
+        // still audible there — Law A's foreign-ring break, read end-inclusively at the junction
+        // — and the span broke there before the ruling too. The join's break is that same break
+        // for a ring that ended sooner, so the two figures derive identically.
+        derivesLike(figure(Fraction{3}), figure(Fraction{2}));
+        const ChartShapes derived = deriveFrom(figure(Fraction{3}));
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(
+            derived.shapes[0].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 4}});
+    }
+
+    SECTION("THE OPEN-RING ANALOG: an open string dying under the span is as hand-free")
+    {
+        // The chime replaced by string 4 struck OPEN at 1:1 and ringing to 1:3 — struck inside a
+        // box on strings 5 and 6 that closes at 1:2, so the open ring reaches the pair's span as
+        // TEXTURE, not as a member (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN; struck under
+        // no span at all, it would accumulate into the pair's grip and quit it at 1:3). An open
+        // ring is no finger's stop any more than a chime is, so the fret on string 4 at 1:4
+        // breaks the pair's span by the same law: nothing sounds on string 4 at that strike, so
+        // without the join's break the fret grew the grip and its bracket printed the 2 back over
+        // the open string's tail.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 5, 3, Fraction{1}),
+            noteAt(1, Fraction{}, 6, 3, Fraction{1}),
+            noteAt(1, Fraction{}, 4, 0, Fraction{2}),
+            noteAt(2, Fraction{}, 2, 3, Fraction{3}),
+            noteAt(2, Fraction{}, 3, 2, Fraction{3}),
+            noteAt(4, Fraction{}, 4, 2, Fraction{1}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes[1].sustain == Fraction{2});
+        CHECK(
+            derived.shapes[1].closing_onset ==
+            std::optional{GridPosition{.measure = 1, .beat = 4}});
+        const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 1);
+        CHECK(grip[1] == std::optional{frettedStop(3)});
+        CHECK(grip[2] == std::optional{frettedStop(2)});
+        CHECK_FALSE(grip[3].has_value());
+        CHECK(derivedTexture(derived, 1)[3] == std::optional{frettedStop(0)});
+        everySpanIsPositive(derived);
+    }
+}
+
 // A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN: every member's onset lies inside its span.
 // Struck, a ring is a member of the span standing or founded at its strike like any other note;
 // once that span has ended the ring founds no accumulation and folds into no later posture, open

@@ -276,7 +276,9 @@ event-algebra, edge-first, deletion-first).
   gates members ARRIVING staggered, and nothing arrives at a landing. The front: one floor
   `max(covered, foreign-sound end over stated strings)`, and members date it from the earliest
   onset at or after the floor — `covered` is this dating floor and never a reach input, and the
-  asymmetry is the one thing separating the front from the reach. All SOUNDED members bound (a
+  asymmetry is the one thing separating the front from the reach. The floor holds through growth
+  as an invariant: a strike on a string whose foreign sound ended past the standing front is a
+  contradiction, never a join (Law A at the join). All SOUNDED members bound (a
   claim lends no ring: it neither bounds the reach nor feeds the quit arm, so a span of claims alone
   runs no distance — LAW II is what governs hand-alone spans); the reach is one minimum over
   sounded-member `covers`. THE INVARIANT:

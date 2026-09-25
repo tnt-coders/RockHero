@@ -1125,6 +1125,20 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     contradiction = true;
                     continue;
                 }
+                // LAW A AT THE JOIN: the founding's dating floor (front at or after every stated
+                // string's foreign-sound end) is an invariant, and growth cannot move the front
+                // to keep it, so a string whose foreign sound ended INSIDE the span — a natural
+                // harmonic's chime, an open ring dying under the shape — breaks rather than
+                // joins. The displacement above is this rule's special case, the ring still
+                // sounding at the strike; where the ring ended is no difference in what the hand
+                // did. Without it the fret joined and the bracket printed it over the chime's
+                // tail.
+                if (!stated.has_value() && statement.has_value() &&
+                    open->front_beat < hand[string_index].foreign_until)
+                {
+                    contradiction = true;
+                    continue;
+                }
                 // THE CLAIM WITNESS, and it is graded because EVIDENCE OUTRANKS ASSERTION (the
                 // sighted Law A semantics). A differing CLAIM against a carried claim always
                 // breaks: assertion against assertion is the charter re-authoring the hand, and

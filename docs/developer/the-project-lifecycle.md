@@ -471,7 +471,11 @@ neighbours.
     successor starts exactly where its predecessor ended (rule 11b), and the floor a member dates
     against is the later of that frontier and the end of the last FOREIGN sound on its own string —
     a displacement junction is the special case whose foreign end is the displacing strike, and a
-    foreign ring that died into silence bounds just as hard at its own end.
+    foreign ring that died into silence bounds just as hard at its own end. The floor is an
+    INVARIANT, not a founding step: growth cannot move a front, so a strike on a string whose
+    foreign sound ended past the standing span's front breaks the span instead of joining it
+    (Law A at the join, ruled 2026-09-24 when a fret struck after a natural harmonic's chime died
+    under a span joined it and the bracket printed that fret back over the harmonic's tail).
 
     **THERE ARE NO FOUNDING MODES.** A founding mode would decide what an arriving new stop did —
     split a statement-founded span, be absorbed by an accumulation — and the grip-tenure law
