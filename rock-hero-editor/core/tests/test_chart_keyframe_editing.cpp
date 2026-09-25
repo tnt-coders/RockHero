@@ -520,9 +520,8 @@ TEST_CASE("The junction toggle severs the gesture at a selected keyframe", "[cor
     CHECK(severed.notes[1].fret == 9);
     CHECK(severed.notes[1].sustain == common::core::Fraction{4});
     CHECK(severed.notes[1].keyframes.empty());
-    // W10's signed store for a split head. The addendum's proposed UNSTRUCK-tie reading needs
-    // LegatoMotion::Continuation, which is unbuilt — the default is a proposal, not a ruling.
-    CHECK(severed.notes[1].attack == common::core::NoteAttack::Legato);
+    // A split head is struck: the join, not the split, is the unstruck junction.
+    CHECK(severed.notes[1].attack == common::core::NoteAttack::Pick);
 
     // The SPLIT PRODUCT becomes the selection — the planner names it exactly, because it is the
     // one record the plan inserted at a new key. So the next verb acts on the new head, and the

@@ -229,8 +229,8 @@ slide-out onto that head where it does not — \ref common::core::arrivesIntoNex
 keyframe past the cut rides the new head, rebased; and the channel states in force at the cut
 open it, a bend in progress becoming its onset bend. The new head is STRUCK, at the fret given,
 with strike defaults — no attack, node, mute, tremolo, emphasis or held stop rides over, those
-being facts of the strike that made the origin — where the split's severed head is legato and
-keeps them all. The cut deletes nothing: a later keyframe the fret makes silent dissolves under
+being facts of the strike that made the origin — where the split's new head is picked and keeps
+them all. The cut deletes nothing: a later keyframe the fret makes silent dissolves under
 the commit law like any silent point.
 
 A scrape refuses, as the split does: one picking-hand gesture has no junction. The offset must
@@ -1235,25 +1235,21 @@ becomes three notes: the uniform-scope law, one level inside the note.
 **The split walk is this verb's alone.** The per-note segment walk it runs was shared with the tab
 lane's typed STRIKE until that verb was retired — every digit now states a point on the path it
 lands in, so the lossless split reaches the chart through this verb only. All this verb supplies is
-the instants, each selected keyframe; the walk owns everything a product carries, the SEVERED
-`Legato` attack and the fret in force at the cut (at a keyframe, that keyframe's own statement)
+the instants, each selected keyframe; the walk owns everything a product carries, the struck
+`Pick` attack and the fret in force at the cut (at a keyframe, that keyframe's own statement)
 included.
 
 What each product carries. The remainder is the same note restarted at the junction: its fret is
 the keyframe's, its ring is what is left, and the CHANNEL states in force at the split become its
-onset values — the bend it was already pushing and the vibrato it was already carrying, so the sound
-does not change across a split. Its later keyframes ride along, rebased onto the new onset, and the
+onset values — the bend it was already pushing and the vibrato it was already carrying, so the pitch
+does not jump across a split. Its later keyframes ride along, rebased onto the new onset, and the
 slide-out reaches only the LAST product, since it is the keyframe at the ring's end and the ring's
 end is now there. The origin's own onset facts are untouched.
 
-**The split head's attack, and the one thing this cannot yet say.** W10 ruled the split head stores
-plain `Legato` — never `Pick` (which would author a strike that is not in the music) and never a
-stored tie (struck-ness is derivable) — and that is what this writes. The addendum's proposed
-default is that the product is an UNSTRUCK tie; expressing that needs `LegatoMotion::Continuation`,
-W10's amendment to the equal-fret arm of \ref common::core::resolveLegato, which is not built. Under
-today's resolver an equal-fret claim resolves to `Unjustified`, so the settle sweep flattens it to
-`Pick` and the split product reads as struck until that amendment lands. The default is a
-PROPOSAL, not a ruling; nothing here is written as if it were one.
+**The split head is STRUCK and stores `Pick`.** A junction with no strike is exactly what the join
+produces — one longer ring — so "split but unstruck" names no state, and dividing a ring is
+therefore the statement that the string is re-attacked there. A charter who wants the cut played
+legato presses `L` on the product afterwards.
 
 Split refusals, the first two from W10's ruling 2 ("technique verbs split only at stated frets"):
 

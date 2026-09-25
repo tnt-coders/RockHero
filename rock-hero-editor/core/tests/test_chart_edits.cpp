@@ -4563,6 +4563,8 @@ TEST_CASE("A retype applies and reverses atomically", "[core][chart]")
 TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
+    // A strike payload, to pin that the struck product inherits the origin's payloads.
+    chart.notes[0].palm_mute = true;
     const common::core::Chart original = chart;
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -4601,10 +4603,10 @@ TEST_CASE("planToggleJunctions severs a glide at its junction", "[core][chart]")
     REQUIRE(product.keyframes.size() == 1);
     CHECK(product.keyframes[0].offset == common::core::Fraction{2});
     CHECK(product.keyframes[0].fret == 12);
-    // W10's store for a split head — never Pick, never a stored tie. The addendum's proposed
-    // UNSTRUCK reading needs LegatoMotion::Continuation, which is unbuilt, so this is a claim the
-    // settle sweep still flattens; the default is a proposal, not a ruling.
-    CHECK(product.attack == common::core::NoteAttack::Legato);
+    // A split head is STRUCK and stores `Pick` directly, keeping the origin's payloads: a junction
+    // with no strike is the join's one longer ring, so the split authors the re-attack.
+    CHECK(product.attack == common::core::NoteAttack::Pick);
+    CHECK(product.palm_mute);
 
     // One entry, and it reverses field for field.
     REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
@@ -6034,7 +6036,7 @@ TEST_CASE("planToggleJunctions splits and joins in one press", "[core][chart]")
     if (product != nullptr)
     {
         CHECK(product->fret == 9);
-        CHECK(product->attack == common::core::NoteAttack::Legato);
+        CHECK(product->attack == common::core::NoteAttack::Pick);
     }
 
     REQUIRE(applyChartChange(chart, toggled->plan.reversed()).has_value());

@@ -427,7 +427,7 @@ struct AddressedStop
 // Each product spans one segment of the original ring — [start, end) — so the walk is lossless by
 // construction rather than by a rule each caller restates: the keyframes inside a segment ride
 // along rebased onto its onset, and the CHANNEL states in force at the cut (`ringStateAt`: fret,
-// bend, vibrato) open the new head, so the sound does not change across it. Every one of the
+// bend, vibrato) open the new head, so the pitch does not jump across it. Every one of the
 // note's own flags rides onto both products, since each product starts life as a copy of it.
 // Walking the whole ring as segments rather than special-casing "origin plus remainder" is what
 // makes two instants on one note three notes without a second rule.
@@ -437,12 +437,9 @@ struct AddressedStop
 // mid-glide leaves the origin holding the fret it set out from while the remainder travels on to
 // the arrival.
 //
-// Each head taking over claims `Legato`, W10's signed store for a SEVERED gesture — the walk's own
-// value rather than a caller's; \ref planCutRing, the other verb that divides a ring, replaces
-// that head with a struck one. Its motion is the resolver's to derive, and today an equal-fret
-// junction resolves to Unjustified: see the header, where the unstruck-tie default the addendum
-// PROPOSES needs LegatoMotion::Continuation, which is unbuilt, so the settle sweep flattens the
-// claim to a pick.
+// Each head taking over is STRUCK and stores `Pick`: a junction with no strike is the join's one
+// longer ring, so a split authors the re-attack (see the header). \ref planCutRing, the other verb
+// that divides a ring, replaces that head with one at strike defaults.
 //
 // Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
 // split at all (the ring already stops there) and is refused, which is also the whole of the
@@ -481,7 +478,7 @@ struct AddressedStop
             product.fret = carried.fret;
             product.bend = carried.bend;
             product.vibrato = carried.vibrato;
-            product.attack = common::core::NoteAttack::Legato;
+            product.attack = common::core::NoteAttack::Pick;
         }
         // The ring runs to where the string is next struck, which after a split is the next
         // product's onset: a re-strike is what stops a ring, and the drawn tail is the
@@ -694,9 +691,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
     {
         return std::unexpected{walked.error()};
     }
-    // THE FRESH HEAD. The walk's second product is the origin under a legato claim — the
-    // remainder, the keyframes past the cut, the channel states in force there — and every fact
-    // of the origin's strike besides. The cut's head is its own strike: the ring's facts ride
+    // THE FRESH HEAD. The walk's second product is the origin picked again — the remainder, the
+    // keyframes past the cut, the channel states in force there — and every other fact of the
+    // origin's strike besides. The cut's head is its own strike: the ring's facts ride
     // over, the strike's do not, and the fret is the one typed. The ring's facts are the walk's
     // own channel list (fret, bend, vibrato, the keyframes), so a channel added there is copied
     // here as well.
@@ -1769,7 +1766,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
             }
             // The instant is all this verb supplies: the keyframe the cut consumes states its own
             // fret, which is exactly the fret in force there and therefore the walk's own value,
-            // and the severed head's `Legato` attack is the walk's too.
+            // and the new head's `Pick` attack is the walk's too.
             splits.push_back(keyframe.offset);
         }
         if (splits.empty())

@@ -383,8 +383,9 @@ nothing behind. A fret-stating point inside an OPEN STRING's tail is refused by 
 (`OpenStringSlide`) — nothing is pressed to glide — and the pending box paints red.
 **THE SPLIT (`Shift+L`) AND THE CUT (a bare digit or `Insert` inside a ring) DIVIDE A RING BY ONE
 WALK**, `splitNoteIntoProducts` (`chart_edits.cpp`) — the split at a selected point, the cut at
-the caret with a STRUCK head in place of the severed one (typed fret, strike defaults, the ring's
-remainder and its keyframes). Under the split the point becomes the new
+the caret with a fresh head in place of the split's (typed fret, strike defaults, the ring's
+remainder and its keyframes). Both heads are struck and store `Pick`; the split's keeps the
+origin's payloads. Under the split the point becomes the new
 head; the original note ends exactly on it; the new note opens in the state the hand holds — its
 stated fret, a bend in force as its onset bend, vibrato in force opening it vibrating — and every
 keyframe after it rides the new note, a slide-out included; the first note's arrival stands AT the
@@ -454,8 +455,10 @@ in `ChartLegatoPlan::refused` for the refusal flash
 `onChartLeftTapRequested`,
 `onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
 because a junction has exactly two states and the press moves each selected one to the other. A
-selected KEYFRAME becomes a head: the note's path ends there and a new head takes the remainder,
-carrying the channel states in force so the sound does not change across the cut. **This is the
+selected KEYFRAME becomes a head: the note's path ends there and a new STRUCK head (`Pick`) takes
+the remainder, carrying the channel states in force so the pitch does not jump across the cut —
+the unstruck junction is the join's one longer ring, and `L` on the new head makes the cut legato.
+**This is the
 lane's whole SPLIT, in two keystrokes**: the digit that plants the point is the first half, this
 press the second, so a charter divides a ringing note by saying where and then saying so. A
 selected HEAD becomes a point on its same-string predecessor's path: the two rings lie end to end,

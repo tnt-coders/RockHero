@@ -651,8 +651,12 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
 > technique-changed junction for a `Continuation` claim to describe. A junction where something
 > changes stays a head for one reason only: the charter did not press the verb there. The
 > struck/unstruck boundary, ruling 1a's de-justified-continuation settle and the ghosting affordance
-> are all consequences of that unbuilt mechanism and stand superseded with it; the split head still
-> stores the plain `Legato` claim W10 signed, whose unstruck-tie reading remains a PROPOSAL.
+> are all consequences of that unbuilt mechanism and stand superseded with it.
+>
+> **RULED 2026-09-25 — the split head is STRUCK and stores `Pick`**, keeping the origin's payloads:
+> a junction with no strike is the join's one longer ring, so "split but unstruck" names no state,
+> and a charter who wants the cut legato presses `L` on the product. The `Continuation` amendment is
+> closed for good.
 >
 > **Still open:** the importer's own tie-destination merge (`gp_chart_builder.cpp`) hand-writes the
 > merge `planToggleJunctions` now owns, and W10 ruled import and editor one law — tracked in
@@ -698,19 +702,16 @@ selection, else split-the-tail at the armed caret, else inert.
 
 **The disconnect joins the verb's scope.** `Shift+L` with a selected KEYFRAME disconnects that
 keyframe from its note ("to make it feel consistent" — the split-tail law applied at the keyframe
-instead of a bare tail point): the note's path ends there and a new head takes the remainder. The
-orchestrator's proposed default — the split product is an unstruck tie, so the sound is unchanged
-and a second press can make it struck — is PROPOSED, not ruled.
+instead of a bare tail point): the note's path ends there and a new head takes the remainder.
+*RULED 2026-09-25:* the product is struck and stores `Pick` (the unstruck-tie proposal is closed).
 
 **BUILT: the keyframe clause** (2026-08-26, then spelled `planDisconnectKeyframes` /
 `ChartKeyframeDisconnect` `0x1713`; the join half and the rename landed 2026-09-12 — see the
 amendment at the top of this section). Three things the build settled or exposed:
 
-- **The unstruck-tie default is still a proposal, and the code says so.** The split head stores the
-  plain `Legato` claim W10 signed; under today's resolver an equal-fret claim is Unjustified, so the
-  settle sweep flattens it to a pick and the product reads as STRUCK until `LegatoMotion` gains
-  `Continuation` (it holds `Unjustified`, `Hammer`, `Pull` today). Nothing was written as if the
-  default were ruled.
+- **The split head's attack — RULED 2026-09-25: struck, stored as `Pick`.** The build first stored
+  a `Legato` claim that the settle sweep flattened to a pick; the split now writes `Pick` directly,
+  and `LegatoMotion` gains no `Continuation`.
 - **The arrival STANDS where the split does** *(restated 2026-09-22; the retreat below is
   retired)*. The origin's arrival sits AT the cut, on the new head itself, and what tells it from
   the product's own fall is the RELATION rather than its place: it names the very stop the new head
@@ -722,7 +723,8 @@ amendment at the top of this section). Three things the build settled or exposed
     clearance law went on 2026-09-21 (`keyframe-and-burst-ground-up.md` step 3) and the retreat with
     it, so there is no crowded case left to refuse either.
 
-**RULED — the split head's attack:**
+**RULED — the split head's attack** *(the first bullet is overturned 2026-09-25: the split head
+stores `Pick` — see the amendment at the top of this section):*
 
 - **The split head stores plain `Legato`; `LegatoMotion` gains `Continuation`.** No new stored value
   (`Pick` killed for authoring a strike that is not in the music; a stored `Tie` killed on
