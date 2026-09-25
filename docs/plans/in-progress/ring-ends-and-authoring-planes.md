@@ -85,8 +85,10 @@ What that commits to:
    instant. The crop is the only place ink stops early: the interior floor and the vibrato window
    exist to push a trimmed end back out, and go with the trim.
 3. **The 2D label** is a destination chip at the crop, drawn only where the leg the ink ends on
-   changes something: a slide's or arrival's fret, a bend's amount. It names where the drawn leg
-   is heading, which the strike on the same string then shows in its own state. A leg that is
+   changes something: a slide-out's fret, a bend's amount. It names where the drawn leg is
+   heading. A shift slide's ARRIVAL wears none (sighted 2026-09-24): the next head, struck at
+   that very stop one margin on, already shows where the leg lands, and the chip beside it only
+   got in the way. A leg that is
    level across the crop (a bend held into the zone, its release written past the crop) and a
    vibrato-only leg draw no chip. Where the zone's first keyframe states two channels, each
    channel's chip is drawn as it is elsewhere on the lane. The chip is a MARK, not a click

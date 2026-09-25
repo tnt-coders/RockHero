@@ -2995,6 +2995,29 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
         CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.head, above_envelope));
     }
 
+    SECTION("a shift slide's arrival past the crop wears no chip: the next head shows the landing")
+    {
+        // Rising 7 -> 9 into the next head at the ring's end (x = 240); the ink ends at 6.0s.
+        const common::core::KeyframeViewState keyframe{
+            .seconds = 12.0, .fret = 9, .slide_out = false
+        };
+        common::core::NoteViewState note = ringing(6.0, {keyframe});
+        note.ends_on_next_head = true;
+        const TabKeyframeLayout at_crop =
+            tabKeyframeLayout(metrics, note, keyframe, note.ink_end_seconds);
+        REQUIRE(at_crop.chip);
+        REQUIRE(at_crop.head.y < span.top - 1.0f);
+
+        const juce::Image cropped = painted(note, false);
+        // The cut leg is still drawn, but nothing stands at the crop above the envelope.
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
+        // The same leg toward a stop that is NOT the next head keeps its chip: the head is what
+        // makes the chip redundant, not the ring's end.
+        common::core::NoteViewState free_end = ringing(6.0, {keyframe});
+        free_end.ends_on_next_head = false;
+        CHECK(differs_in(painted(free_end, false), bare_cropped, at_crop.head, above_envelope));
+    }
+
     SECTION("a slide-out past the crop: its chip at the crop, and at its instant when revealed")
     {
         // A slide-out at the ring's end (x = 240), rising 7 -> 9.

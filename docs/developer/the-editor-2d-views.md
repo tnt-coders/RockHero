@@ -630,8 +630,9 @@ is deliberately single-sourced:
   past the ink end, a bend rising toward one — is drawn on its true path as far as the crop and
   wears a DESTINATION CHIP there, naming the fret or the amount it is heading for (a fret chip is
   placed by `tabKeyframeLayout`, the one statement of where a keyframe's mark stands; a bend chip
-  rides the bend line as every bend chip does); a level leg wears none, and a note whose ink
-  stops at its onset draws no tail marks at all. The chip is a mark, never a target
+  rides the bend line as every bend chip does); a level leg wears none, a shift slide's ARRIVAL
+  wears none either, since the next head one margin on already shows where the leg lands, and a
+  note whose ink stops at its onset draws no tail marks at all. The chip is a mark, never a target
   (`chart_hit_testing.h`). **A TAIL THAT SHOWS NO TECHNIQUE INFORMATION RESTS, AND
   NOTHING IS EVER SHORTENED** — the tail law. The core presentation
   (`common::core::chartPresentation`) MARKS that tail rested without emptying it, so this lane simply draws it: the lane shows the execution form always,

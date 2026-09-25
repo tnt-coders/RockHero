@@ -1234,9 +1234,13 @@ void drawSlideLines(
         // scrape's terminal have no head, because nothing lands where the string is released,
         // while a junction carrying a continuation head shows its fret ON the head. The leg the
         // ink CUTS wears the DESTINATION chip at the crop, naming where the leg is heading — only
-        // where it changes the fret; a level leg says nothing new. Where either chip stands is
-        // the layout manifest's one statement.
-        const bool chip = drawn ? note.slides[index].slide_out : stop.fret != previous_fret;
+        // where it changes the fret, a level leg saying nothing new, and never for the ARRIVAL of
+        // a shift slide: the next head, struck at that very stop one margin on, already shows
+        // where the leg lands, and a chip beside it only got in the way (sighted 2026-09-24).
+        // Where either chip stands is the layout manifest's one statement.
+        const bool arrival = final_leg && note.ends_on_next_head && !note.slides[index].slide_out;
+        const bool chip =
+            drawn ? note.slides[index].slide_out : stop.fret != previous_fret && !arrival;
         if (chip && metrics.draw_text)
         {
             const TabKeyframeLayout layout =
