@@ -139,6 +139,32 @@ where the last ink under the old window ends — never earlier — and, where no
 up to a capped lead before the arrival, so the morph is truthful and lengthens whenever the hand is
 actually free. The derivation belongs in `chart_projection.cpp` beside the slide-ramp table.
 
+### The fret-hand window stops with a corner at a slide-out's end — trigger: plan 60 Phases 1–2 land (FHPs derived at read), then sight it
+
+A slide-matched window ramp rides the rail's own curve, and a slide-out's rail is the release
+curve, which ends at full speed because its ink runs out there. The window persists, so at the
+stored FHP instant it stops dead: a free-ending slide-out (Scotty Doesn't Know 72:3) has no crop
+and no settle at all, and a cropped one (74:3) settles from peak speed inside the 50 ms crop zone,
+two or three frames. Sighted 2026-09-25 and DELIBERATELY LEFT SHARP: it does not read badly, and
+two remedies were built and sighted the same day without earning their keep —
+
+- easing every fretting-hand arrival on the pitched curve (`e4064b72`, reverted in `0c5bb4b5`):
+  the window and the rail then shared only their endpoints, and the hand no longer followed the
+  slide at all; the deleted comment had recorded that finding already;
+- a post-arrival COAST, stateless — the window leaves the arrival at its exit velocity and comes
+  to rest on `v0 · t · exp(−t / τ)`, overshooting by `v0 · τ / e` (built, not committed). With τ
+  the minimum sustain distance (50 ms) it is invisible: the stop still happens inside 50 ms, just
+  after the arrival instead of before. At τ = 200 ms it reads as a visible two-thirds-of-a-fret
+  drift past the FHP at 72:3, and the overshoot scales with exit speed, so a very fast long
+  slide-out would carry frets past its target; a cap would be its knob.
+
+Neither could be judged properly: the window rides a slide only where an FHP sits exactly at the
+slide's end, and hand-authored slide-outs get none until FHPs are derived at read, so imported
+songs are the only test bed. Sight both remedies again against authored material once plan 60
+Phases 1–2 land, together with the related derivation question for the G60 session: whether a
+slide-out's DESTINATION is a stop the derived hand must cover, since at 74:3 the rails travel
+two frets to 6 while the window travels one to the FHP at 7.
+
 ### ~~The lane's two chart forms align by index only by construction~~ — RETIRED 2026-09-23: there is one form
 
 **Retired 2026-09-23.** `ring-ends-and-authoring-planes.md` deleted the second form outright:
