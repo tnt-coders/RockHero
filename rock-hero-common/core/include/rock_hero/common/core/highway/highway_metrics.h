@@ -386,24 +386,24 @@ constant, which the half-step anchor divides out, so this one curve is exact for
 travel relative to the first semitone runs 1.00, 1.46, 1.84, 2.19, 2.53, 2.86: each extra
 semitone moves the string less than the one before even as the force keeps climbing, which is
 what makes the drawn shape read as a string being bent rather than a pitch plot. Negative offsets
-(a vibrato wobble dipping below the unbent pitch) mirror the same curve.
+mirror the same curve.
 
 The one-gap anchor at a half step is why the rate is the string spacing itself rather than a
 constant stored beside it. Two alternatives are deliberately rejected: Charter's separate
 stringDistance x 0.8 lift, and a one-gap-PER-semitone identity whose six linear gaps outrun a
 six-lane grid from every lane. This law instead puts the full three-whole-step ceiling at about
 2.86 gaps, inside the roomier side of any six-lane-or-taller grid. A smaller displayed grid can
-meet the saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato depth is
-authored in semitones and rides the same curve on purpose: near the unbent pitch the slope is
-steep (small pitch changes take large travel, exactly as on a real string), so a wobble draws
-wider than its semitone count suggests, and a wobble riding a held bend draws narrower.
+meet the saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato does
+NOT ride this curve: its wobble is a displacement in lane gaps added after it (see
+\ref g_highway_vibrato_depth_gaps), because near the unbent pitch the curve is a square root and
+turned a sine wobble into flat-topped crests with near-vertical crossings.
 
 Unbounded on purpose: this is the pitch-space displacement, not a drawable position. Use
 \ref highwayBentNoteY to place a bent note, which applies this curve and then holds the result on
 the board.
 
 \param semitones Pitch offset above the unbent string in half steps; fractional values are
-       ordinary (a bend in progress, a vibrato wobble).
+       ordinary (a bend in progress).
 \param metrics World-space constants.
 \return World Y offset from the unbent lane center, signed like \p semitones.
 */
@@ -416,9 +416,11 @@ the board.
 }
 
 /*!
-\brief Returns the world Y a bent note draws at, held inside the string grid.
+\brief Returns the world Y a bent or vibrating note draws at, held inside the string grid.
 
-The one authority for where a bent note sits, because the lift alone is not a position. Applying
+The one authority for where a bent note sits, because the lift alone is not a position. The bend
+rides the tension curve; a vibrato wobble is a displacement added after it, in lane gaps, so the
+wobble stays a plain sine wherever the bend has put the note. Applying
 \ref highwayBendLiftY raw put a two-whole-step bend on a middle lane of a six-string stack BELOW
 THE FLOOR — the floor is the origin and nothing draws beneath it — and put the mirrored case above
 the top fret line. Both are states the inversion rule's own rationale said could not happen, so the
@@ -434,22 +436,28 @@ so it labels the bend amount and maps its progress onto the tail instead, and th
 property of the two surfaces rather than a disagreement between them.
 
 The direction still comes from the caller (highwayBendInverted), which prefers the roomier side,
-so saturation only ever bites the residue that side could not hold.
+so saturation only ever bites the residue that side could not hold. The wobble's widest swing
+stays inside the half gap between an outer lane and the grid's edge, so it meets the saturation
+only on a bend that already has.
 
 \param lane_y World Y of the note's unbent lane center.
-\param inverted True when the lift points downward, per highwayBendInverted.
-\param semitones Pitch offset in half steps; may be negative (a vibrato wobble dipping below the
-       unbent pitch), in which case the drawn offset flips with it.
+\param inverted True when the lift and the wobble point downward, per highwayBendInverted.
+\param semitones Bend in half steps; a negative value flips the drawn offset with it.
+\param vibrato_gaps Vibrato displacement in string-lane gaps (\ref highwayVibratoDisplacementAt).
 \param string_count Number of displayed lanes, which sets the grid's top edge.
 \param metrics World-space constants.
-\return World Y of the bent note, never outside the string grid.
+\return World Y of the note, never outside the string grid.
 */
 [[nodiscard]] inline double highwayBentNoteY(
-    double lane_y, bool inverted, double semitones, int string_count, const HighwayMetrics& metrics)
+    double lane_y, bool inverted, double semitones, double vibrato_gaps, int string_count,
+    const HighwayMetrics& metrics)
 {
-    const double lift = (inverted ? -1.0 : 1.0) * highwayBendLiftY(semitones, metrics);
+    const double offset =
+        highwayBendLiftY(semitones, metrics) + (vibrato_gaps * metrics.string_distance);
     return std::clamp(
-        lane_y + lift, metrics.string_grid_base_y, highwayStringGridTopY(string_count, metrics));
+        lane_y + ((inverted ? -1.0 : 1.0) * offset),
+        metrics.string_grid_base_y,
+        highwayStringGridTopY(string_count, metrics));
 }
 
 /*!

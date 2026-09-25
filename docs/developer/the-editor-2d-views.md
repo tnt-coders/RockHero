@@ -874,28 +874,30 @@ accumulates in later is READ-ONLY notation, reachable through that member's own 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via
 `visibleTailRun`. Both are functions of the distance from their own **start** — the onset for the
-tremolo band, the region's own start for each vibrato sine — so a clipped run lands the identical
+tremolo band, the span's own start for each vibrato sine — so a clipped run lands the identical
 shape (phase never depends on where generation began), and each generator snaps its run outward
 onto its own vertex spacing, so the rasterized result is *identical* rather than merely similar. At
 full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen vertices every
 frame. A test pins that a tail looks the same however the repaint is clipped.
 
-The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
+The sine is drawn **once per stated vibrato span**, not once per note: the vibrato channel holds
 from each statement until the next, so `NoteViewState::vibrato` is a list of `{start_seconds,
-end_seconds, state}` regions the projection derives from the note's keyframes rather than a flag
-(`docs/plans/todo/unified-waypoint-model.md`). Vibrato that begins where a glide arrives — the
-corpus's commonest vibrato figure — therefore inks only from that arrival, and a note that simply
-vibrates end to end yields one region covering the whole ring, clipped to whatever extent is drawn.
-The 3D board reads the same regions, so the two surfaces cannot say different things about where
-vibrato starts.
+end_seconds, state, width_steps}` spans the projection derives from the note's keyframes rather
+than a flag (`docs/plans/todo/unified-waypoint-model.md`). A span is every consecutive vibrating
+leg; only a leg without vibrato ends one. Vibrato that begins where a glide arrives — the corpus's
+commonest vibrato figure — therefore inks only from that arrival, and a note that simply vibrates
+end to end yields one span covering the whole ring, clipped to whatever extent is drawn. The 3D
+board reads the same spans, so the two surfaces cannot say different things about where vibrato
+starts.
 
-Each region also carries the WIDTH it was stated at, and the sine's swing comes from that: the
-ordinary (narrow) tier draws at half the swing the tail's technique band allows and the wide tier
-fills it, which is `g_wide_vibrato_swing_multiplier` read in both directions from one constant. The
-lane cannot simply scale the wide tier UP the way the board does, because that band is a hard clip
-here — a taller wave would truncate its crests and read as a square wave rather than as a wider
-vibrato — so the ordinary tier is the one that leaves room. A step from one width to the other is
-two regions meeting at an instant, so the wave changes height where the chart says it does.
+Each span carries the WIDTH it opens at and every later change of width, and the sine's swing comes
+from those: the ordinary (narrow) tier draws at half the swing the tail's technique band allows and
+the wide tier fills it, which is `g_wide_vibrato_swing_multiplier` read in both directions from one
+constant. The lane cannot simply scale the wide tier UP the way the board does, because that band is
+a hard clip here — a taller wave would truncate its crests and read as a square wave rather than as
+a wider vibrato — so the ordinary tier is the one that leaves room. A change of width is one wave
+changing its swing where the chart writes it: the phase runs on, and the swing eases into the new
+width over the half wave that begins at the keyframe (`vibratoSwingAt`, shared with the board).
 
 **The ring reveal** is how the length you cannot see becomes visible while you author it. The lane
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —

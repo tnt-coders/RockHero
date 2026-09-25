@@ -37,14 +37,17 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The vibrato regions a note vibrating END TO END carries: exactly what the projection derives from
+// The vibrato spans a note vibrating END TO END carries: exactly what the projection derives from
 // a chart that states vibrato at the onset and never restates it, which is every chart written
 // before the channel could say anything else.
 [[nodiscard]] std::vector<common::core::VibratoSpanViewState> wholeTailVibrato(
     const double start_seconds, const double end_seconds)
 {
     return {common::core::VibratoSpanViewState{
-        .start_seconds = start_seconds, .end_seconds = end_seconds
+        .start_seconds = start_seconds,
+        .end_seconds = end_seconds,
+        .state = common::core::VibratoState::Narrow,
+        .width_steps = {},
     }};
 }
 
@@ -761,10 +764,18 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     };
 
     const juce::Image steady = painted({});
-    const juce::Image late =
-        painted({common::core::VibratoSpanViewState{.start_seconds = 5.0, .end_seconds = 8.0}});
-    const juce::Image early =
-        painted({common::core::VibratoSpanViewState{.start_seconds = 2.0, .end_seconds = 5.0}});
+    const juce::Image late = painted({common::core::VibratoSpanViewState{
+        .start_seconds = 5.0,
+        .end_seconds = 8.0,
+        .state = common::core::VibratoState::Narrow,
+        .width_steps = {},
+    }});
+    const juce::Image early = painted({common::core::VibratoSpanViewState{
+        .start_seconds = 2.0,
+        .end_seconds = 5.0,
+        .state = common::core::VibratoState::Narrow,
+        .width_steps = {},
+    }});
     const juce::Image throughout = painted(wholeTailVibrato(2.0, 8.0));
 
     // Left of the statement the vibrating note and the steady one are the SAME picture: the sine
@@ -811,6 +822,21 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
     // ...and the pair really is a pair: the ordinary tier leaves room above it rather than
     // already filling the band, which is what makes the wide one visible at all.
     CHECK(wide_band > narrow_band);
+
+    // A step to the wide tier at 5.0s is ONE wave changing its swing: before the step it is the
+    // narrow wave exactly, and once its half-wave ease is done it is the wide wave exactly — the
+    // same phase, run from the span's start, on both sides.
+    const juce::Image stepped = painted({common::core::VibratoSpanViewState{
+        .start_seconds = 2.0,
+        .end_seconds = 8.0,
+        .state = common::core::VibratoState::Narrow,
+        .width_steps = {common::core::VibratoWidthStepViewState{
+            .seconds = 5.0, .state = common::core::VibratoState::Wide
+        }},
+    }});
+    CHECK(worstPixelDeltaInColumns(stepped, throughout, 0, 96) == 0);
+    CHECK(worstPixelDeltaInColumns(stepped, wide, 130, 158) == 0);
+    CHECK(worstPixelDeltaInColumns(stepped, throughout, 130, 158) > 0);
 }
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.

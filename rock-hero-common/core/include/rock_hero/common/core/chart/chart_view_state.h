@@ -158,17 +158,51 @@ struct BendPointViewState
 };
 
 /*!
-\brief One stretch of a note's ring the vibrato channel states as vibrating, in absolute seconds.
+\brief A change of vibrato width inside one vibrating span, in absolute seconds.
+*/
+struct VibratoWidthStepViewState
+{
+    /*! \brief Absolute timeline position of the keyframe that states the new width. */
+    double seconds{0.0};
+
+    /*! \brief The width in force from this instant on; never \ref VibratoState::None. */
+    VibratoState state{VibratoState::Narrow};
+
+    /*!
+    \brief Compares two width steps by their stored fields.
+    \param lhs Left-hand step.
+    \param rhs Right-hand step.
+    \return True when both steps store equal values.
+    */
+    friend constexpr bool operator==(
+        const VibratoWidthStepViewState& lhs, const VibratoWidthStepViewState& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
+        // floating member. Exact equality is intended; the ordering query expresses it
+        // warning-free with identical semantics.
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.state == rhs.state;
+    }
+};
+
+/*!
+\brief One unbroken stretch of a note's ring the vibrato channel states as vibrating, in absolute
+seconds.
 
 The channel is a width per LEG of the ring (\ref Keyframe::vibrato), so what a surface has to draw
-is an interval carrying a WIDTH rather than a flag: vibrato can start at a glide's arrival, widen
-mid-hold, stop, and start again, and one boolean could say none of it. The projection reads the
-channel once and hands both surfaces the same regions, which is what keeps the lane's sine and the
-board's wobble covering the same stretch of the same note at the same tier.
+is an interval rather than a flag: vibrato can start at a glide's arrival, widen mid-hold, stop, and
+start again, and one boolean could say none of it. The projection reads the channel once and hands
+both surfaces the same spans, which is what keeps the lane's sine and the board's wobble covering
+the same stretch of the same note at the same widths.
+
+A span is every consecutive vibrating leg, whatever their widths: only a leg without vibrato ends
+one. The wave is therefore ONE wave across a width change — one phase from the span's start, one
+envelope at its two true ends — and the width is narrow where narrow is written and wide where wide
+is written, easing from the old swing into the new over the half cycle that begins at the step (a
+change of amplitude at an arbitrary phase would kink the curve).
 
 A note whose vibrato runs end to end — every chart written before the keyframe model, and most
-written after — yields exactly one region spanning the whole ring, so the surfaces draw what
-they always drew without a case of their own.
+written after — yields exactly one span covering the whole ring, so the surfaces draw what they
+always drew without a case of their own.
 */
 struct VibratoSpanViewState
 {
@@ -176,29 +210,33 @@ struct VibratoSpanViewState
     double start_seconds{0.0};
 
     /*!
-    \brief Absolute timeline position the vibrato stops: the first leg at another width or none, or
-    the ring's end.
+    \brief Absolute timeline position the vibrato stops: the first leg without vibrato, or the
+    ring's end.
 
     Equal to \ref start_seconds only where a statement lands exactly on the end the note presents,
-    which draws nothing on either surface and still reports the region the channel states.
+    which draws nothing on either surface and still reports the span the channel states.
     */
     double end_seconds{0.0};
 
     /*!
-    \brief How wide the string vibrates over this region.
+    \brief How wide the string vibrates from \ref start_seconds until the first width step.
 
-    Never \ref VibratoState::None: a region exists exactly where the channel says the string
-    vibrates, so a leg without vibrato ENDS one rather than describing one. Carried per region
-    rather than per note because the channel can step between the widths mid-ring, and the surfaces
-    scale their swing from this — the one place either of them learns which tier it is drawing.
+    Never \ref VibratoState::None: a span exists exactly where the channel says the string
+    vibrates, so a leg without vibrato ENDS one rather than describing one.
     */
     VibratoState state{VibratoState::Narrow};
 
     /*!
-    \brief Compares two vibrato regions by their stored fields.
-    \param lhs Left-hand region.
-    \param rhs Right-hand region.
-    \return True when both regions store equal values.
+    \brief Each later change of width, ascending, strictly inside the span, each differing from the
+    width before it.
+    */
+    std::vector<VibratoWidthStepViewState> width_steps;
+
+    /*!
+    \brief Compares two vibrato spans by their stored fields.
+    \param lhs Left-hand span.
+    \param rhs Right-hand span.
+    \return True when both spans store equal values.
     */
     friend constexpr bool operator==(
         const VibratoSpanViewState& lhs, const VibratoSpanViewState& rhs) noexcept
@@ -207,7 +245,8 @@ struct VibratoSpanViewState
         // floating member. Exact equality is intended; the ordering query expresses it
         // warning-free with identical semantics.
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.state == rhs.state;
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.state == rhs.state &&
+               lhs.width_steps == rhs.width_steps;
     }
 };
 
@@ -541,9 +580,9 @@ struct NoteViewState
     \brief The stretches of the ring the string vibrates over, in ascending time order.
 
     Empty when the note never vibrates, which is what "is this note played with vibrato" asks now
-    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). A region the channel
-    never closes runs to \ref ring_end_seconds; a surface clips every region to the extent it
-    draws, exactly as it does the bend curve and the slide keyframes.
+    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). A span the channel
+    never closes runs to \ref ring_end_seconds; a surface clips every span to the extent it draws,
+    exactly as it does the bend curve and the slide keyframes.
     */
     std::vector<VibratoSpanViewState> vibrato;
 

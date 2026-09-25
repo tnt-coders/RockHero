@@ -494,12 +494,12 @@ TEST_CASE("Tail fade spans a fraction of the ink, floored and clamped to it", "[
     CHECK_THAT(tailFadeSeconds(note(2.0, 2.0, 6.0)), Catch::Matchers::WithinULP(0.0, 0));
 }
 
-// The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: each
+// The vibrato channel reaches both surfaces as the SPANS it states rather than as a flag: each
 // leg of the ring states its own width, so vibrato can begin at a glide's arrival, stop mid-hold,
-// and begin again, and each region has to cover exactly the stretch the channel says it does. The
+// and begin again, and each span has to cover exactly the stretch the channel says it does. The
 // onset-only case is the identity that keeps every chart written before the channel could say
 // anything else drawing precisely what it drew.
-TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][chart]")
+TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     // Alone on the chart, so no binding onset crops the tail and the region ends are the channel's
@@ -631,29 +631,47 @@ TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][
         CHECK(view.slides.empty());
     }
 
-    SECTION("a step between the widths closes one region and opens the other")
+    SECTION("a step between the widths is a step inside one span")
     {
-        // The case an either/or boundary test would hide: at this instant the vibrato neither
-        // starts nor stops, so a reading that asked "did it turn on or off" would find neither and
-        // draw the whole tail at the width the note opened with.
+        // At this instant the vibrato neither starts nor stops, so the span runs on: one wave with
+        // one phase and one envelope, whose width changes where the change is written. Two spans
+        // here would taper the wave to the string line and restart its phase at the step.
         const ChartViewState state = project(
             VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Wide}});
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& view = state.notes.front();
-        REQUIRE(view.vibrato.size() == 2);
-        CHECK(view.vibrato[0].state == VibratoState::Narrow);
-        CHECK_THAT(
-            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
-        CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
-        // The wide region opens at the very instant the narrow one closes: one statement, two
-        // regions, no gap the surfaces would draw as a pause in the vibrato.
-        CHECK(view.vibrato[1].state == VibratoState::Wide);
-        CHECK(view.vibrato[1].start_seconds == Catch::Approx(1.0));
-        CHECK_THAT(
-            view.vibrato[1].end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
+        REQUIRE(view.vibrato.size() == 1);
+        const VibratoSpanViewState& span = view.vibrato[0];
+        CHECK(span.state == VibratoState::Narrow);
+        CHECK_THAT(span.start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK_THAT(span.end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
+        REQUIRE(span.width_steps.size() == 1);
+        CHECK(span.width_steps[0].seconds == Catch::Approx(1.0));
+        CHECK(span.width_steps[0].state == VibratoState::Wide);
     }
 
-    SECTION("every region carries the width it was stated at")
+    SECTION("widths stepping back and forth stay one span until a leg stops vibrating")
+    {
+        const ChartViewState state = project(
+            VibratoState::Narrow,
+            {
+                Keyframe{.offset = Fraction{1}, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{3}},
+            });
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        const VibratoSpanViewState& span = view.vibrato[0];
+        CHECK(span.end_seconds == Catch::Approx(1.5));
+        REQUIRE(span.width_steps.size() == 2);
+        CHECK(span.width_steps[0].seconds == Catch::Approx(0.5));
+        CHECK(span.width_steps[0].state == VibratoState::Wide);
+        CHECK(span.width_steps[1].seconds == Catch::Approx(1.0));
+        CHECK(span.width_steps[1].state == VibratoState::Narrow);
+    }
+
+    SECTION("every span carries the width it was stated at")
     {
         // A wide onset with no restatement is the whole-tail case at the other tier, which is the
         // one thing a region-carrying-the-width model has to get right before anything draws.

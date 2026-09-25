@@ -141,27 +141,56 @@ double highwayVibratoWobble(const double seconds_from_onset, const double period
 }
 
 // A sine's extremes fall a quarter period in and every half period after, so the index counts half
-// periods offset by that quarter: index zero is the first crest, and -0.5 is the region's start.
+// periods offset by that quarter: index zero is the first crest, and -0.5 is the span's start.
 double highwayVibratoTurningIndex(const double seconds_from_start) noexcept
 {
     return (seconds_from_start / (g_highway_vibrato_period_seconds / 2.0)) - 0.5;
 }
 
-// Exact inverse of the index above, so a caller walking whole indices lands on the wave's corners
-// rather than near them, in the same phase highwayVibratoSemitonesAt reads.
+// Exact inverse of the index above, so a caller walking whole indices lands on the wave's extremes
+// rather than near them, in the same phase highwayVibratoDisplacementAt reads.
 double highwayVibratoSecondsAtTurningIndex(const double index) noexcept
 {
     return (0.5 + index) * (g_highway_vibrato_period_seconds / 2.0);
 }
 
-double highwayVibratoSemitonesAt(
+double vibratoSwingAt(
+    const VibratoSpanViewState& span, const double seconds, const double blend_seconds,
+    const double narrow_swing, const double wide_swing) noexcept
+{
+    const auto swing_of = [&](const VibratoState width) {
+        return width == VibratoState::Wide ? wide_swing : narrow_swing;
+    };
+    // The ease in force: from one swing to another, begun at an instant. The opening width is an
+    // ease already complete, so the walk below needs no case for "before the first step".
+    double from = swing_of(span.state);
+    double to = from;
+    double eased_since = span.start_seconds;
+    const auto eased = [&](const double at) {
+        const double progress = blend_seconds > 0.0 ? (at - eased_since) / blend_seconds : 1.0;
+        return from + ((to - from) * highwaySlideEaseWeight(progress, false));
+    };
+    for (const VibratoWidthStepViewState& step : span.width_steps)
+    {
+        if (step.seconds > seconds)
+        {
+            break;
+        }
+        from = eased(step.seconds);
+        to = swing_of(step.state);
+        eased_since = step.seconds;
+    }
+    return eased(seconds);
+}
+
+double highwayVibratoDisplacementAt(
     const std::span<const VibratoSpanViewState> vibrato, const double seconds,
     const double depth_scale) noexcept
 {
     for (const VibratoSpanViewState& span : vibrato)
     {
         const double duration = span.end_seconds - span.start_seconds;
-        // A region a statement opened exactly at the ring's end has no time to wobble in, and its
+        // A span a statement opened exactly at the ring's end has no time to wobble in, and its
         // progress would be a division by zero — the same guard the head's taper carried when the
         // whole channel was one note-long flag.
         if (!(duration > 0.0) || seconds < span.start_seconds || seconds > span.end_seconds)
@@ -173,9 +202,13 @@ double highwayVibratoSemitonesAt(
         // The wide tier is the ordinary depth MULTIPLIED, never a second constant: the two widths
         // then cannot drift apart, and re-sighting the ordinary vibrato carries the exaggeration
         // with it.
-        const double tier =
-            span.state == VibratoState::Wide ? g_highway_wide_vibrato_depth_multiplier : 1.0;
-        return depth_scale * taper * tier * g_highway_vibrato_depth_semitones *
+        const double swing = vibratoSwingAt(
+            span,
+            seconds,
+            g_highway_vibrato_width_blend_seconds,
+            g_highway_vibrato_depth_gaps,
+            g_highway_vibrato_depth_gaps * g_highway_wide_vibrato_depth_multiplier);
+        return depth_scale * taper * swing *
                highwayVibratoWobble(from_start, g_highway_vibrato_period_seconds);
     }
     return 0.0;

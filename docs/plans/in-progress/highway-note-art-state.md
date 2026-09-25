@@ -187,9 +187,10 @@ with `b.x == b.y` the shader's formula reduces to the true Euclidean distance to
 the diamond cell's two axes are equal to 0.000000 tx.
 
 **Vibrato runs at ONE FIXED RATE, 6.0 Hz** — `g_highway_vibrato_period_seconds` = `1.0 / 6.0`
-(`highway_tail.h`) — independent of tempo and meter, with depth `g_highway_vibrato_depth_semitones`
-0.125 (doubled by `g_highway_wide_vibrato_depth_multiplier` for the `Wide` width) and the wave
-anchored to the note's own extremes so it stays rigid on approach.
+(`highway_tail.h`) — independent of tempo and meter, with depth `g_highway_vibrato_depth_gaps`
+0.345 lane gaps, a displacement added after the bend rather than a pitch through its tension curve
+(scaled by `g_highway_wide_vibrato_depth_multiplier` 1.42 for the `Wide` width), and the wave
+anchored to its span's own extremes so it stays rigid on approach.
 
 Vibrato rate is a property of the player's WRIST, not of the song's grid, so deriving it from tempo
 is a category error at any value. A grid-locked wobble runs at literally BPM/30 Hz, which over the

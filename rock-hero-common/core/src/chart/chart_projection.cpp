@@ -541,20 +541,31 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // The pair fact the surfaces need for the band a mark at the END takes, carried per note
         // from the walk that resolved it (\ref ChartConnections::ends_on_next_head).
         view.ends_on_next_head = resolutions.connections.ends_on_next_head[note_index];
-        // The vibrato channel resolved into the REGIONS it states, folded through the same one
-        // authority every other reader of the channel uses (`RingState` in chart.h). A width is a
-        // leg's own, so a surface needs the stretch it covers and the WIDTH over it, not a flag:
-        // this walks the keyframes and closes a region wherever the width changes — a leg without
-        // one ends the region — and at the ring's end otherwise. Adjacent legs stated at one width
-        // are one region; a step to the wide tier mid-ring is two, and neither surface needs the
-        // channel's rules a second time.
+        // The vibrato channel resolved into the SPANS it states, folded through the same one
+        // authority every other reader of the channel uses (`RingState` in chart.h). A span is
+        // every consecutive vibrating leg: a leg without vibrato ends it, and a change of width
+        // inside it is a step the span carries rather than a second span, so the drawn wave keeps
+        // one phase and one envelope across the change. Neither surface needs the channel's rules
+        // a second time.
         //
-        // A note with no keyframes falls out of the same walk with no case of its own: a width at
-        // the onset opens here and closes at the ring's end, one region covering the whole ring. A
-        // region opening exactly at that end is kept — degenerate, drawing nothing, and still the
-        // honest answer that this channel says the string vibrates.
+        // A span opens running to the ring's end and is cut short only when a leg without vibrato
+        // follows, so a note with no keyframes falls out of the same walk with no case of its own:
+        // one span covering the whole ring. A span opening exactly at that end is kept —
+        // degenerate, drawing nothing, and still the honest answer that the string vibrates.
+        const auto open_span = [&](const double seconds, const VibratoState width) {
+            view.vibrato.push_back(
+                VibratoSpanViewState{
+                    .start_seconds = seconds,
+                    .end_seconds = view.ring_end_seconds,
+                    .state = width,
+                    .width_steps = {},
+                });
+        };
         RingState ring = ringStateAtOnset(note);
-        double vibrato_start_seconds = view.start_seconds;
+        if (hasVibrato(ring.vibrato))
+        {
+            open_span(view.start_seconds, ring.vibrato);
+        }
         for (std::size_t keyframe_index = 0; keyframe_index < note.keyframes.size();
              ++keyframe_index)
         {
@@ -565,23 +576,20 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             ring.advance(keyframe);
             if (ring.vibrato != was)
             {
-                // Closing and opening are asked SEPARATELY rather than as an either/or, because a
-                // step from one width to the other does both at this instant: the narrow region
-                // ends here and the wide one starts here. An `if/else` would have hidden that case
-                // behind whichever arm it happened to take, leaving the whole step drawn at the
-                // width the note opened with.
-                if (hasVibrato(was))
+                if (!hasVibrato(was))
                 {
-                    view.vibrato.push_back(
-                        VibratoSpanViewState{
-                            .start_seconds = vibrato_start_seconds,
-                            .end_seconds = keyframe_seconds,
-                            .state = was,
-                        });
+                    open_span(keyframe_seconds, ring.vibrato);
                 }
-                if (hasVibrato(ring.vibrato))
+                else if (!hasVibrato(ring.vibrato))
                 {
-                    vibrato_start_seconds = keyframe_seconds;
+                    view.vibrato.back().end_seconds = keyframe_seconds;
+                }
+                else
+                {
+                    view.vibrato.back().width_steps.push_back(
+                        VibratoWidthStepViewState{
+                            .seconds = keyframe_seconds, .state = ring.vibrato
+                        });
                 }
             }
             // Bound to locals so each optional check and its access are provably the same object.
@@ -602,15 +610,6 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                         .slide_out = slides_out && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
-        }
-        if (hasVibrato(ring.vibrato))
-        {
-            view.vibrato.push_back(
-                VibratoSpanViewState{
-                    .start_seconds = vibrato_start_seconds,
-                    .end_seconds = view.ring_end_seconds,
-                    .state = ring.vibrato,
-                });
         }
         state.notes.push_back(std::move(view));
     }

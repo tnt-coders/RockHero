@@ -4015,23 +4015,24 @@ void HighwayRenderer::Impl::draw(
         // The tail shows the wobble's whole swing; only the head breathes at a fraction of it.
         constexpr double full_vibrato_swing = 1.0;
         // The centerline, from the two channels that move it: the bend curve and whatever vibrato
-        // region is in force. Both are read through their own core authority, so the envelope
+        // span is in force. Both are read through their own core authority, so the envelope
         // that anchors a wobble on the string line lives with the wobble rather than being spelled
-        // again at each sampling pass here (highwayVibratoSemitonesAt).
+        // again at each sampling pass here (highwayVibratoDisplacementAt).
         const auto note_y_at = [&](const double seconds, const double depth_scale) {
-            double semitones =
-                common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);
-            semitones +=
-                common::core::highwayVibratoSemitonesAt(note.vibrato, seconds, depth_scale);
             return common::core::highwayBentNoteY(
-                lane_y, group_bend_direction < 0.0, semitones, displayed_count, metrics);
+                lane_y,
+                group_bend_direction < 0.0,
+                common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds),
+                common::core::highwayVibratoDisplacementAt(note.vibrato, seconds, depth_scale),
+                displayed_count,
+                metrics);
         };
         // Chart-truth head station: the curve's value at the anchor time, with the vibrato
         // swing scaled to the head's half depth — the head breathes with the wobble instead
         // of bouncing at the tail's full swing or sitting pinned, both of which read as odd.
         // A pre-bent curve is already lifted at the onset, so this sits off the lane for the
         // entire approach. A head pinned past the tail's end holds still at the value the tail
-        // stops at, since a region the ink end cuts runs on into the ending zone.
+        // stops at, since a span the ink end cuts runs on into the ending zone.
         const double chart_head_y =
             note_y_at(head_gesture_seconds, common::core::g_highway_vibrato_head_depth_fraction);
         // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
@@ -4412,22 +4413,24 @@ void HighwayRenderer::Impl::draw(
                 // The vibrato wave's own turning points, handed to the sampler exactly like the
                 // teeth above. The uniform grid spans the VISIBLE window, which advances every
                 // frame, so a wave sampled by the grid alone is re-sampled at new phases each
-                // frame and visibly morphs on approach; the sine's extremes are REGION-anchored,
+                // frame and visibly morphs on approach; the sine's extremes are SPAN-anchored,
                 // so pinning a sample to each keeps the drawn wave rigid on the note, the way the
                 // teeth already are. WHERE those extremes fall is core's to state, not this walk's:
-                // the turning-point pair below inverts the very phase highwayVibratoSemitonesAt
-                // reads, so re-anchoring the lift moves the samples with it instead of aliasing
+                // the turning-point pair below inverts the very phase highwayVibratoDisplacementAt
+                // reads, so re-anchoring the wobble moves the samples with it instead of aliasing
                 // them.
                 for (const common::core::VibratoSpanViewState& span : note.vibrato)
                 {
-                    // Each region is walked over its own overlap with the visible window. A
-                    // region covering the whole tail clamps to exactly [tail_from, tail_to],
-                    // which is the walk this replaced.
+                    // Each span is walked over its own overlap with the visible window. A span
+                    // covering the whole tail clamps to exactly [tail_from, tail_to], which is the
+                    // walk this replaced.
                     const double region_from = std::max(tail_from, span.start_seconds);
                     const double region_to = std::min(tail_to, span.end_seconds);
-                    // The region's ENDS are corners of the envelope — flat outside, wobbling
+                    // The span's ENDS are corners of the envelope — flat outside, wobbling
                     // inside — so they are sampled exactly for the reason the extremes are. A
-                    // whole-tail region has both ends outside the window and pushes neither.
+                    // whole-tail span has both ends outside the window and pushes neither. A
+                    // change of width inside the span eases with zero slope, so it has no corner
+                    // to sample.
                     if (span.start_seconds > tail_from && span.start_seconds < tail_to)
                     {
                         wobble_times.push_back(span.start_seconds);

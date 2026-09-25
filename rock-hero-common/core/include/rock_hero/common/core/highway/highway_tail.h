@@ -32,47 +32,49 @@ eighth note runs at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the two en
 library — which is both slower and faster than any hand produces.
 
 6.0 Hz sits on the literature's own centre, and it is reachable only because RATE AND DEPTH ARE
-JUDGED TOGETHER, not independently. A nearby 6.25 Hz reads *"frantic"* at a quarter-semitone
-swing, and the depth here is half of that (0.125 — see g_highway_vibrato_depth_semitones).
-Listeners read a wobble's speed partly from its width; production couples the two inversely at
-r = -0.62. So 6 Hz at this narrow swing is a different stimulus from 6.25 Hz at twice the depth,
-and it reads calm where that one reads frantic. Keep the pairing in mind before moving either
-number alone: widening the depth without slowing the rate walks back toward the setting that
-failed.
+JUDGED TOGETHER, not independently. A nearby 6.25 Hz reads *"frantic"* at a ±0.49-gap swing,
+and the ordinary depth here is ±0.345 (see g_highway_vibrato_depth_gaps). Listeners read a
+wobble's speed partly from its width; production couples the two inversely at r = -0.62. So 6 Hz
+at this narrow swing is a different stimulus from 6.25 Hz at the wider one, and it reads calm
+where that one reads frantic. Keep the pairing in mind before moving either number alone:
+widening the depth without slowing the rate walks back toward the setting that failed.
 */
 inline constexpr double g_highway_vibrato_period_seconds = 1.0 / 6.0;
 
 /*!
-\brief Vibrato wobble depth in semitones of bend lift — a sixteenth of a step each way.
+\brief Vibrato wobble depth, in string-lane gaps each way from the note's drawn position.
 
-Authored in SEMITONES on purpose, so the wobble rides the same tension curve as every bend —
-but that curve is steepest near the unbent pitch, so the drawn swing shrinks slower than the
-constant: a quarter semitone drew ±0.49 string gaps and read as too much sweep, this eighth
-draws ±0.34, and the next stop down if it still reads large is 0.0625 (±0.24, the visual
-halving of the original). Full unit swing (±1 semitone) reads as a whammy dive, not a
-vibrato. Callers multiply this into the wobble factor when converting it to bend-lift
-semitones.
+A DISPLACEMENT, not a pitch: the wobble is the sideways motion the fretting hand makes, so it adds
+to wherever the bend has put the note and never enters the tension curve that places a bend
+(\ref highwayBendLiftY). It was once authored in semitones and fed through that curve, which is a
+square root near the unbent pitch, and the drawn wave became a square-rooted sine — flat-topped
+crests and near-vertical crossings. Only a bend rides the tension curve.
+
+0.345 is the swing the old eighth of a semitone drew and was sighted at; a quarter-gap swing is the
+next stop down if it still reads large.
 */
-inline constexpr double g_highway_vibrato_depth_semitones = 0.125;
+inline constexpr double g_highway_vibrato_depth_gaps = 0.345;
 
 /*!
 \brief How much wider the WIDE tier swings than the ordinary one.
 
 \ref VibratoState::Narrow is the depth above; the wide tier multiplies it, so the two tiers cannot
 drift apart the way a second hard-coded depth would and re-tuning the ordinary vibrato carries the
-exaggeration with it. Two is the user's own figure for the tier ("probably double the intensity of
-regular vibrato"); it is a sighting knob, not a derived number, and the pairing note under \ref
-g_highway_vibrato_period_seconds applies to it — the wide tier reads FASTER than the narrow one at
-the same rate because listeners judge a wobble's speed partly from its width.
+exaggeration with it. Not two, although the tiers were once a quarter and an eighth of a semitone:
+through the tension curve's square root that 1:2 in pitch drew 1:1.42 on screen, and the screen
+swing is what was sighted. The wide swing must stay under half a gap, the margin between an outer
+lane and the string grid's edge, or it reaches the board's clamp. The pairing note under \ref
+g_highway_vibrato_period_seconds applies here too — the wide tier reads FASTER than the narrow one
+at the same rate because listeners judge a wobble's speed partly from its width.
 */
-inline constexpr double g_highway_wide_vibrato_depth_multiplier = 2.0;
+inline constexpr double g_highway_wide_vibrato_depth_multiplier = 1.42;
 
 /*!
-\brief The head's vibrato swing as a fraction of the tail's depth.
+\brief The head's vibrato swing as a fraction of the tail's.
 
-Half of whatever \ref g_highway_vibrato_depth_semitones swings, so it retunes with the tail.
-A fully pinned head looked odd against the wobbling tail and a full-depth head bounced; the
-head breathing at half depth keeps it visibly alive while the tail carries the motion.
+Exactly half of the tail's displacement at the same instant, so it retunes with the tail. A fully
+pinned head looked odd against the wobbling tail and a full-depth head bounced; the head breathing
+at half depth keeps it visibly alive while the tail carries the motion.
 */
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
@@ -150,10 +152,11 @@ Callers walk the half-cycles to place the wave's turning points exactly (see
 [[nodiscard]] double highwayTremoloTailSecondsAtCycle(double cycles) noexcept;
 
 /*!
-\brief Fraction of the tail duration over which the vibrato lift ramps in and out.
+\brief Fraction of a vibrato span's duration over which its wobble ramps in and out.
 
-Modulating at full amplitude to the tail's very ends would start and end the lift off the
-string line; the taper is this project's deliberate fix so it always anchors on it. Tremolo
+Modulating at full amplitude to the span's very ends would start and end the wobble off the
+string line; the taper is this project's deliberate fix so it always anchors on it. It applies
+only at a span's two true ends, never at a change of width inside one. Tremolo
 teeth ramp in their own phase units instead (see \ref g_highway_tremolo_ramp_cycles), because
 a fraction of duration is the wrong measure for a depth-spaced wave.
 */
@@ -282,7 +285,7 @@ slopes measured per unit of `t`.
 \brief Returns the vibrato wobble at a time from the note onset, as a signed unit factor.
 
 Onset-phased on purpose (absolute-time phasing desynchronizes repeated notes); callers scale
-by the bend lift distance and the taper envelope.
+by the swing and the taper envelope.
 
 \param seconds_from_onset Time since the note onset.
 \param period_seconds Wobble period; callers pass g_highway_vibrato_period_seconds.
@@ -292,16 +295,16 @@ by the bend lift distance and the taper envelope.
     double seconds_from_onset, double period_seconds) noexcept;
 
 /*!
-\brief Returns the vibrato turning-point index at a time from a region's start.
+\brief Returns the vibrato turning-point index at a time from a span's start.
 
-Counts the sine's extremes: they fall a quarter period into the region and every half period
+Counts the sine's extremes: they fall a quarter period into the span and every half period
 after that, so index zero is the first crest, one the trough behind it, and the index grows by
 one per half period, fractional in between. Whole values ARE the turning points, which is what
 lets a sampler walk them (see \ref makeHighwayTailSampleTimes).
 
-\param seconds_from_start Time since the region's start — the anchor
-       \ref highwayVibratoSemitonesAt phases from.
-\return Turning-point index, -0.5 at the region's start and growing along it.
+\param seconds_from_start Time since the span's start — the anchor
+       \ref highwayVibratoDisplacementAt phases from.
+\return Turning-point index, -0.5 at the span's start and growing along it.
 */
 [[nodiscard]] double highwayVibratoTurningIndex(double seconds_from_start) noexcept;
 
@@ -309,36 +312,64 @@ lets a sampler walk them (see \ref makeHighwayTailSampleTimes).
 \brief Returns the time a vibrato turning point lands at — the inverse of
        \ref highwayVibratoTurningIndex.
 
-The pair states the region-anchored phase ONCE, so a caller placing samples on the wave's extremes
-cannot drift out of step with the reading \ref highwayVibratoSemitonesAt produces.
+The pair states the span-anchored phase ONCE, so a caller placing samples on the wave's extremes
+cannot drift out of step with the reading \ref highwayVibratoDisplacementAt produces.
 
-\param index Turning-point index from the region's start.
-\return Time since the region's start, in seconds.
+\param index Turning-point index from the span's start.
+\return Time since the span's start, in seconds.
 */
 [[nodiscard]] double highwayVibratoSecondsAtTurningIndex(double index) noexcept;
 
 /*!
-\brief Returns the vibrato lift a note's stated regions contribute at an absolute time.
+\brief Seconds over which a vibrato's swing eases from one width into the next: half a wobble.
 
-The board's whole vibrato reading, in one place: which region is in force, the envelope that
-anchors its wobble on the string line at the region's own two ends, the fixed rate, and the depth
-its stated WIDTH scales (\ref g_highway_wide_vibrato_depth_multiplier).
-It was three copies of that arithmetic — the tail's probe pass, its sample pass, and the head —
-before the channel gained regions, and three copies is how mid-ring vibrato would have ended up
-tapering against the note where it should taper against the region.
+Starts AT the keyframe stating the new width, so the change begins where it is written and is
+complete one half swing later: a transition, not a gradual one. The ease leaves
+and arrives with zero slope, so swing times sine stays smooth through the change at any phase,
+where an instant change at an arbitrary phase would kink or break the curve.
+*/
+inline constexpr double g_highway_vibrato_width_blend_seconds =
+    g_highway_vibrato_period_seconds / 2.0;
 
-Each region carries its own phase and envelope, measured from where the vibrato STARTS: the wobble
-therefore leaves the string line at every region's start instead of jumping in at whatever phase
-the onset happens to reach, and a region spanning the whole tail reproduces the note-anchored
-arithmetic exactly, because its start IS the onset and its length IS the tail's.
+/*!
+\brief Returns the swing a vibrato span has at an absolute time, between its two widths' swings.
 
-\param vibrato The note's stated regions (\ref NoteViewState::vibrato), ascending and disjoint.
+The span's opening width holds until its first step; each step eases from the swing in force at
+its instant to the new width's over \p blend_seconds, with the same zero-slope ease a pitched slide
+uses. A step arriving mid-ease starts from wherever the ease had reached.
+
+\param span The vibrating span; \p seconds is read against its width steps.
+\param seconds Absolute time to evaluate at.
+\param blend_seconds Length of each ease; zero or less steps instantly.
+\param narrow_swing Swing of \ref VibratoState::Narrow, in the caller's units.
+\param wide_swing Swing of \ref VibratoState::Wide, in the same units.
+\return The swing, in the caller's units.
+*/
+[[nodiscard]] double vibratoSwingAt(
+    const VibratoSpanViewState& span, double seconds, double blend_seconds, double narrow_swing,
+    double wide_swing) noexcept;
+
+/*!
+\brief Returns the vibrato displacement a note's stated spans contribute at an absolute time, in
+string-lane gaps.
+
+The board's whole vibrato reading, in one place: which span is in force, the envelope that anchors
+its wobble on the string line at the span's own two ends, the fixed rate, and the swing its stated
+widths set (\ref vibratoSwingAt). A DISPLACEMENT added to the note's drawn position, never a pitch
+fed through the bend's tension curve (see \ref g_highway_vibrato_depth_gaps).
+
+Each span carries one phase and one envelope, measured from where the vibrato STARTS: the wobble
+leaves the string line at every span's start instead of jumping in at whatever phase the onset
+happens to reach, keeps that phase across a change of width, and a span covering the whole tail
+reproduces the note-anchored arithmetic exactly, because its start IS the onset.
+
+\param vibrato The note's stated spans (\ref NoteViewState::vibrato), ascending and disjoint.
 \param seconds Absolute time to evaluate at.
 \param depth_scale Fraction of the full swing this reader shows; the tail shows all of it, a
        sounding head breathes at \ref g_highway_vibrato_head_depth_fraction of it.
-\return Pitch offset in semitones, signed; zero outside every region and at each region's ends.
+\return Displacement in string-lane gaps, signed; zero outside every span and at each span's ends.
 */
-[[nodiscard]] double highwayVibratoSemitonesAt(
+[[nodiscard]] double highwayVibratoDisplacementAt(
     std::span<const VibratoSpanViewState> vibrato, double seconds, double depth_scale) noexcept;
 
 /*!

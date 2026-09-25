@@ -13,6 +13,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
@@ -933,13 +934,13 @@ struct TailInterior
 // tail's own body, and the caller clips the technique marks against the arpeggio brackets while
 // the ribbon shows through them untouched.
 //
-// One wave per stated region rather than one per note, because the channel is a state that starts,
-// stops, and changes WIDTH mid-ring (NoteViewState::vibrato): vibrato beginning at a glide's
-// arrival is the commonest figure there is, and a sine run from the onset would say the string
-// vibrated through the slide it did not. Each wave takes its phase from its OWN start, so it leaves
-// the string line where the vibrato begins instead of cutting in at whatever phase the onset
-// reached, and its swing from its own stated width, so a step to the wide tier is visible as a
-// step rather than as a note-wide setting.
+// One wave per stated span rather than one per note, because the channel is a state that starts
+// and stops mid-ring (NoteViewState::vibrato): vibrato beginning at a glide's arrival is the
+// commonest figure there is, and a sine run from the onset would say the string vibrated through
+// the slide it did not. Each wave takes its phase from its span's OWN start, so it leaves the
+// string line where the vibrato begins instead of cutting in at whatever phase the onset reached,
+// and keeps that phase through a change of width, whose swing eases into the new width over the
+// half wave that begins at the step, exactly as the board's does.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float center_y, const double drawn_end,
@@ -959,35 +960,37 @@ void drawVibratoSine(
     const float interior_center = (interior.top + interior.bottom) / 2.0f;
     const float interior_swing =
         std::max(1.0f, ((interior.bottom - interior.top) / 2.0f) - (stroke / 2.0f));
+    // The two widths, from the one swing the interior allows: the wide tier reaches it and the
+    // ordinary one is that divided by the multiplier, so the pair is stated once. Scaling the WIDE
+    // tier past the interior instead was not an option on this surface — the technique band clips
+    // every mark to the tail's rails, so a doubled wave would draw its crests flat and read as a
+    // square wave rather than as a wider vibrato.
+    const double wide_swing = interior_swing;
+    const double narrow_swing = interior_swing / g_wide_vibrato_swing_multiplier;
     const float period = metrics.tail_height;
     juce::Path wave;
     for (const common::core::VibratoSpanViewState& span : note.vibrato)
     {
-        // The two widths, from the one swing the interior allows: the wide tier reaches it and the
-        // ordinary one is that divided by the same multiplier, so the pair is stated once and the
-        // exaggeration is genuinely double the ordinary vibrato. Scaling the WIDE tier past the
-        // interior instead was not an option on this surface — the technique band clips every mark
-        // to the tail's rails, so a doubled wave would draw its crests flat and read as a square
-        // wave rather than as a wider vibrato.
-        const float amplitude = std::max(
-            1.0f,
-            span.state == common::core::VibratoState::Wide
-                ? interior_swing
-                : interior_swing / g_wide_vibrato_swing_multiplier);
-        // Regions ascend, so the first one opening past the drawn extent ends the walk; a region
+        // Spans ascend, so the first one opening past the drawn extent ends the walk; a span
         // crossing the extent is drawn as far as it.
         if (span.start_seconds >= drawn_end)
         {
             break;
         }
+        const double drawn_to = std::min(span.end_seconds, drawn_end);
         const float from_x = metrics.x(span.start_seconds);
-        const float length = metrics.x(std::min(span.end_seconds, drawn_end)) - from_x;
+        const float length = metrics.x(drawn_to) - from_x;
         if (length <= 0.0f)
         {
             continue;
         }
-        // Sampled on whole-pixel distances from the region's start, so the run the clip can show
-        // carries the same vertices at the same places the whole region would have put there.
+        // The wave is paced in pixels, so the width's half-wave ease is too: its length in time is
+        // half a period's pixels at this span's time scale.
+        const double seconds_per_pixel =
+            (drawn_to - span.start_seconds) / static_cast<double>(length);
+        const double blend_seconds = static_cast<double>(period) / 2.0 * seconds_per_pixel;
+        // Sampled on whole-pixel distances from the span's start, so the run the clip can show
+        // carries the same vertices at the same places the whole span would have put there.
         const TailRun run = visibleTailRun(g, metrics, from_x, length);
         if (run.empty())
         {
@@ -998,6 +1001,14 @@ void drawVibratoSine(
         for (int step = first_step; step <= last_step; ++step)
         {
             const auto dx = static_cast<float>(step);
+            const auto amplitude = static_cast<float>(std::max(
+                1.0,
+                common::core::vibratoSwingAt(
+                    span,
+                    span.start_seconds + (static_cast<double>(dx) * seconds_per_pixel),
+                    blend_seconds,
+                    narrow_swing,
+                    wide_swing)));
             const juce::Point<float> point{
                 from_x + dx,
                 interior_center +
