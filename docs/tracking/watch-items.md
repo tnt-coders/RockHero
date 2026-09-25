@@ -523,6 +523,31 @@ pattern could fall out.
 one study (the B-versus-H tension says any pre-contradiction seam rule needs a discriminator the
 sighted data must supply); never patch single cases into the law one at a time.
 
+### Three fret-hand-window census rows drifted below their pins — trigger: a hand window sights odd, or the census is next re-signed
+
+Found 2026-09-24 while baselining the texture retirement: the local corpus census
+(`test_corpus_census.cpp`, `[.local-corpus]`) already failed at the commit BEFORE that change on
+three fret-hand-window rows, with identical values before and after it, so today's span work is
+not the cause. The pins date from the 2026-09-20 re-signing.
+
+| Row | Pinned | Measured |
+|---|---|---|
+| windows arriving where nothing fretted sounds | 132 | 67 |
+| windows arriving over a pinned finger | 186 | 139 |
+| those pinned rings | 232 | 175 |
+
+Every drop is in the direction the generator wants (fewer windows arriving over nothing, fewer
+over a still-held finger), and the candidates between the pins and today are the tick-lattice
+rounding series of 2026-09-22/23, which moved every stored position onto the lattice the windows
+are placed against. Accepted for now (user, 2026-09-24): the rows moved the right way and nothing
+has sighted wrong, so the cause is not worth a bisect on its own.
+
+**Trigger:** a hand window sights odd against the notes it covers (a window arriving where
+nothing is fretted, or over a finger still down), OR the census is next re-pinned for another
+reason — the three rows must not be re-signed without naming the commit that moved them.
+**Remedy:** bisect the three rows across 2026-09-20..24 with the census (`ROCKHERO_GP_CORPUS_DIR`
+set), confirm the mover is the lattice rounding and not a generator regression, then re-pin.
+
 ## Chart editing (tab lane)
 
 ### Bracket clipping gaps a scrape's travel diagonals — trigger: seen in real material
