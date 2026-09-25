@@ -2739,13 +2739,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
-                // a chord box, because something is picked apart inside them. TEXTURE CLASSIFIES
-                // ONLY WHERE ITS BRACKET DRAWS, so a span whose only in-parts evidence is texture
-                // and that sounds nothing inside itself stays a chord span; what is counted here
-                // is the spans a bracket has something to draw over.
+                // a chord box, because something is picked apart inside them. A span classes by
+                // its own strokes alone: a ring struck before it — an open drone included — is a
+                // tail under it and classes nothing, so what is counted here is the spans whose
+                // own members sound apart.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1154.0,
+                .expected = 1082.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2753,7 +2753,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // Far fewer than the spans that meet trigger 4 at all (section [3]), because a
                 // span some interior sounding already flipped needs no carry to do it. The carry
                 // is read as a GRIP here, so a ring struck inside a span that has since closed is
-                // not a member to fold in and texture the bracket prints is not counted.
+                // a tail, not a member to fold in, and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
                 .expected = 76.0,
@@ -2788,10 +2788,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
                 // side can attribute, how many land in a grip that is then STRUMMED WHOLE (a box)
                 // rather than picked apart (a bracket). A LANDING IS NOT A SOUNDING, so a
-                // successor classifies by the ordinary triggers like any other span, and texture
-                // classifies only where its bracket draws — a successor nothing sounds inside is a
-                // chord span. A corpus dominated by chord slides into chord stabs therefore reads
-                // overwhelmingly BOX, which is what this row says in numbers.
+                // successor classifies by the ordinary triggers like any other span, and a ring
+                // it did not strike — an open drone included — classifies nothing, so a successor
+                // nothing sounds inside is a chord span. A corpus dominated by chord slides into
+                // chord stabs therefore reads overwhelmingly BOX, which is what this row says in
+                // numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
                 .expected = 904.0,

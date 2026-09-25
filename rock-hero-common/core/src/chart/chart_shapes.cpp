@@ -258,17 +258,6 @@ struct StopClaim
     return stop.node.has_value() && stop.fret == 0;
 }
 
-// Which rings outliving their own span are TEXTURE — printed in the bracket of a later span they
-// ring under — and which are plain tails: the open string alone. An open string's 0 is true for as
-// long as it rings, because no hand was ever on it, so printing it claims nothing about the hand.
-// Any other stop in a later bracket would claim a finger: a fretted one was announced by the span
-// that struck it, and a natural harmonic's node was true at the strike and false a moment later —
-// a harmonic is fretted INSTANTANEOUSLY, and the hand has LEFT by the time the next span arrives.
-[[nodiscard]] bool textureStop(const ChartStop& stop)
-{
-    return stop == frettedStop(0);
-}
-
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
 // carries is only its statement — which strings at which stops, the authored claims, and the
 // handful of facts published at emit that only the walk's own passage through the slots can know.
@@ -282,18 +271,6 @@ struct OpenSpan
     // strike restates in place, and nothing ever removes one: a stop's silence is what BREAKS the
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
-
-    // TEXTURE UNDER THE GRIP: the OPEN strings sounding through this span's open that were struck
-    // before it and so are no part of the grip (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN)
-    // — open strings alone, never a ring a finger made (\ref textureStop). They found nothing,
-    // bound nothing, classify nothing and contradict nothing — every reader of the grip reads
-    // `stops` alone — but the bracket states what SOUNDS
-    // under the shape, and a drone ringing under it does: a ring entering an ESTABLISHED span
-    // belongs in that span's bracket display. Published only at emit, as the union with the grip on
-    // strings the grip leaves empty; a fret struck on a texture string grows the grip, and the
-    // grip's stop wins. Written at the two sites that refuse a ring: the slot open's fold-in and
-    // the landing's survivors.
-    std::vector<std::optional<ChartStop>> texture;
 
     // The authored claims this span carries (\ref StopClaim): stops asserted with no sound of
     // their own. They never date the front and never bound the reach, because a claim is no
@@ -315,8 +292,7 @@ struct OpenSpan
     bool silent_only{false};
 
     // The hand's OWN strokes have sounded this grip in parts — what the unison-restatement break
-    // and the partial-sounding guards read. Narrower than the published class
-    // (\ref ChartShape::sounds_in_parts), which also counts texture ringing under the grip.
+    // and the partial-sounding guards read, published as \ref ChartShape::sounds_in_parts.
     bool struck_in_parts{false};
 
     // True on the span a landing opened and nowhere else (rule 6) — the one span no event states
@@ -423,9 +399,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
 
     std::optional<OpenSpan> open;
     // Keyed by the posture itself, so the table deduplicates by exactly the identity the type
-    // states (grip AND texture: a shape with and without a drone ringing under it prints two
-    // different brackets, so they are two rows) and a field added to the posture can never fall
-    // out of the key.
+    // states and a field added to the posture can never fall out of the key.
     std::map<ChartPosture, std::size_t> posture_indices;
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
@@ -611,43 +585,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 reach_entry = derived.shapes.size();
             }
         }
-        // THE PUBLISHED POSTURE has two halves: the grip above, and the TEXTURE ringing under it on
-        // the strings the grip never took — the grip's stop and a claim's both outrank it, so the
-        // two are DISJOINT by construction and a reader can union them blindly. Published apart
-        // rather than merged so that every rule (and the census's carry rows) reads the grip
-        // alone while every display unions; merging them made the census count texture as
-        // carries. The posture reaches the screen only through arpeggio furniture (the bracket's
-        // glyphs and digits; a box-class span draws its strums' own boxes and never reads it), so
-        // "included in that span's bracket display" needs nothing gated.
-        std::vector<std::optional<ChartStop>> texture(stops.size());
-        for (std::size_t string_index = 0; string_index < texture.size(); ++string_index)
-        {
-            if (!stops[string_index].has_value())
-            {
-                texture[string_index] = open->texture[string_index];
-            }
-        }
-        // TEXTURE CLASSIFIES (the chord over ringing opens): a shape with hand-free rings sounding
-        // under it at its open has members sounding separately, which is what ARPEGGIO means, so it
-        // is published in parts and draws the bracket that prints the texture. Applied to the
-        // PUBLISHED class only, never to the walk's own flag: that flag feeds the
-        // unison-restatement break, and a chug over a drone must stay ONE span — one bracket with
-        // its boxes inside — rather than breaking at every restrike of its grip.
-        //
-        // ...AND ONLY WHERE THAT BRACKET DRAWS (the slid chord at My Sacrifice 15:1.5). The
-        // classification exists so the bracket prints the texture; a landing successor nothing has
-        // sounded inside carries no mark at all (rule 12's deferral — nothing is stated at a
-        // boundary), so its texture prints nowhere, and classing it in parts would color the rails
-        // arpeggio over a chord that reads as a chord. The bracket position IS "the first sounding
-        // at or after the front", so this is also the landing law's own class rule — a successor is
-        // classified by what sounds INSIDE it — applied to texture: the drone still rides in the
-        // posture, and the first restrike inside the successor prints it and classes it in one act.
-        const bool textured =
-            open->bracket_position.has_value() &&
-            std::ranges::any_of(
-                texture, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
         // Built once and handed to the table; the row copies it only on a first sighting.
-        ChartPosture posture{.stops = std::move(stops), .texture = std::move(texture)};
+        ChartPosture posture{.stops = std::move(stops)};
         const auto [entry, inserted] =
             posture_indices.try_emplace(std::move(posture), derived.postures.size());
         if (inserted)
@@ -663,7 +602,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 .closing_onset = head,
                 .posture = entry->second,
                 .silent_member = silent_member,
-                .sounds_in_parts = open->struck_in_parts || textured,
+                .sounds_in_parts = open->struck_in_parts,
                 .landing_opened = open->landing_opened,
                 .bracket_position = open->bracket_position,
             });
@@ -696,12 +635,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // on: the survivors ring out as plain tails.
             bool arrived = false;
             std::vector<std::optional<ChartStop>> landed(string_count);
-            std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t survivors = 0;
-            // Every string the hand table knows is classified ONCE here — grip survivor, texture,
-            // or nothing. The slot open asks the same three-way question of its carried rings, and
-            // both refuse a ring by the one law (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK
-            // IN); they differ only in who crosses: here the closing span's members, there nobody.
+            // Every string the hand table knows is asked once here whether it survives into the
+            // landed grip. The slot open asks the same of its carried rings, and both refuse a
+            // ring by the one law (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN); they differ
+            // only in who crosses: here the closing span's members, there nobody.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<std::size_t>& finger = hand[string_index].finger;
@@ -734,20 +672,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     // way a member crosses a seam: the grip itself moved, carried by fingers that
                     // slid and never lifted. So the survivors are the closing span's own FRETTED
                     // members and nothing else. A ring that span never held was never its member;
-                    // a string no finger holds neither slid nor stayed, whether the closing span
-                    // struck it or it was already texture there — a one-string slide over a struck
-                    // drone lands into no bracket, which is an accepted consequence. A glide
-                    // coming to rest ON the open string is the hand lifting, not landing, so the
-                    // skip suppressing that arrival is the same rule and not a gap. An open string
-                    // still SOUNDS under the landed grip and prints there as texture for as long as
-                    // it rings, whichever span struck it — a drone dropping out of the successor's
-                    // bracket and back into the next slot-founded span's is the flicker this
-                    // classification exists to refuse. Every other such ring is a plain tail
-                    // (\ref textureStop).
-                    if (textureStop(*stop))
-                    {
-                        texture[string_index] = stop;
-                    }
+                    // a string no finger holds neither slid nor stayed — a one-string slide over a
+                    // struck drone lands into no bracket, which is an accepted consequence. A
+                    // glide coming to rest ON the open string is the hand lifting, not landing, so
+                    // the skip suppressing that arrival is the same rule and not a gap. Every such
+                    // ring is a plain tail.
                     continue;
                 }
                 landed[string_index] = stop;
@@ -773,7 +702,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 .position = boundary_position,
                 .front_beat = boundary,
                 .stops = std::move(landed),
-                .texture = std::move(texture),
                 // The fingers slid; they never lifted — the authored records ride the statement
                 // they were authored against.
                 .claims = std::move(carried_claims),
@@ -1437,7 +1365,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // figure coming apart, and the close belongs to the landing (rule
             // 10) — so a restrike beside a travelling member rides, per member and not per slot
             // (the mid-slide rule). And a span already IN PARTS wears the bracket that covers
-            // partial texture, so partials ride it unchanged.
+            // partial sounding, so partials ride it unchanged.
             partial_sounding = !restates_whole && touched_stated > 0 && !open->struck_in_parts &&
                                open->last_stated_beat.has_value() && !member_travelling;
             // THE PARTIAL-SLIDE SPLIT (the chord split mid sustain): a partial-slide slot touching
@@ -1511,7 +1439,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // the rings still sounding strictly past this instant on strings it does not state —
             // read STRICTLY, the membership window.
             std::vector<std::optional<ChartStop>> stops(string_count);
-            std::vector<std::optional<ChartStop>> texture(string_count);
             std::size_t own = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -1579,7 +1506,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // every span still to come — no front dates earlier than the frontier — so it
                 // founds no accumulation and folds into no new posture, until it is RESTRUCK,
                 // which is a statement and joins through `own` above. A bracket announces a stop
-                // once, in the span that struck it; afterwards the tail says it is still held.
+                // once, in the span that struck it; afterwards the tail says it is still held,
+                // and no later bracket prints it — an open drone's 0 included (ruled 2026-09-24,
+                // retiring the texture that printed it under every span it rang through).
                 // Without that, two rings under a moving melody found a fresh bracket at every
                 // melody note, each restating the same two rings.
                 //
@@ -1589,14 +1518,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // E0: nothing had closed since the E0 was struck.
                 if (onset_beat[*finger] < covered)
                 {
-                    // ...but an OPEN string still SOUNDS under whatever this slot founds, so it is
-                    // recorded as texture and the bracket prints it; every other spent ring is a
-                    // plain tail (\ref textureStop). Asked after the stated-otherwise skip, so a
-                    // ring this slot has already ended is never texture.
-                    if (textureStop(*carried))
-                    {
-                        texture[string_index] = *carried;
-                    }
                     continue;
                 }
                 // A carried source states what its strike stated, like every grip statement: over
@@ -1688,7 +1609,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     .position = front,
                     .front_beat = front_beat,
                     .stops = std::move(stops),
-                    .texture = std::move(texture),
                     .claims = {},
                     .bracket_position = front_sounds ? front : slot.position,
                     .last_stated_beat = slot.beat,

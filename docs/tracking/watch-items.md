@@ -616,10 +616,11 @@ resurrecting spans across silence must come from somewhere else, stated in the r
 Ruled 2026-09-20 after sighting three options side by side: **a ring belongs only to the span it
 was struck in**, so every member's onset lies inside its span and the slide landing is the one way
 a member crosses a seam. A ring struck before the coverage frontier — fretted or open — founds no
-accumulation and joins no later span; an open string prints on as texture, anything else is a
-plain tail. It replaced a law that refused only hand-free rings, under which two ringing notes
-beneath a moving melody founded a fresh bracket at every melody note. The strict form won because
-it is the simplest rule that stops that, and the user sighted it as reading well.
+accumulation and joins no later span: it is a plain tail, an open string's 0 included since the
+2026-09-24 ruling retired the texture that printed a drone on in later brackets. It replaced a
+law that refused only hand-free rings, under which two ringing notes beneath a moving melody
+founded a fresh bracket at every melody note. The strict form won because it is the simplest rule
+that stops that, and the user sighted it as reading well.
 
 Two accepted costs, measured on the local corpus against the old law (about 83 arpeggio spans of
 22,400 gone; no box count moved):

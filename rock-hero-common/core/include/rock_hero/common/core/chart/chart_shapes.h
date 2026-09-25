@@ -29,61 +29,47 @@ struct ChartConnections;
 \brief One hand posture: the stop held on each string while a span runs.
 
 Array index 0 is the lowest-pitched string; a null entry means the string is not part of the
-posture. Both arrays are \ref g_max_chart_strings long — the model's own bound on a string
-number, not a statement about the tuning — so a chart with fewer strings simply leaves the top
-slots empty, and two postures compare by their grip and their texture together.
+posture. The array is \ref g_max_chart_strings long — the model's own bound on a string number,
+not a statement about the tuning — so a chart with fewer strings simply leaves the top slots
+empty.
 
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
 pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
 fretting hand is holding under it (\ref deriveChartShapes). A ring struck before the span never
-joins its grip: an open string still sounding under it is at most the TEXTURE beside it. A
-stop carries no provenance here on purpose: the posture is what the hand holds, and where a given
-stop came from is the SPAN's question (\ref ChartShape::silent_member), so two spans holding an
-identical grip over an identical texture stay one deduplicated posture however each was learned —
-while a node grip and a fret grip printing the same number are two postures, because they are two
-grips. Chord names and fingerings carry no field here because nothing writes one; when they are
-authored they become a dictionary keyed by a posture rather than members of it.
+joins its grip and prints in no later bracket: a bracket states the onsets inside its span, and
+the tail says the ring is still sounding (ruled 2026-09-24, retiring the open-string texture that
+printed a drone's 0 in every bracket it rang under). A stop carries no provenance here on
+purpose: the posture is what the hand holds, and where a given stop came from is the SPAN's
+question (\ref ChartShape::silent_member), so two spans holding an identical grip stay one
+deduplicated posture however each was learned — while a node grip and a fret grip printing the
+same number are two postures, because they are two grips. Chord names and fingerings carry no
+field here because nothing writes one; when they are authored they become a dictionary keyed by a
+posture rather than members of it.
 */
 struct ChartPosture
 {
     /*!
     \brief THE GRIP: the stop the hand holds per string; nullopt where it holds none.
 
-    What every rule reads — founding, extent, class, contradiction, the tap's held default, the
-    census's carry rows. Never a texture string: the two are disjoint by construction.
+    What every rule and every display reads — founding, extent, class, contradiction, the tap's
+    held default, the census's carry rows, the bracket's digits.
     */
     std::vector<std::optional<ChartStop>> stops;
 
     /*!
-    \brief THE TEXTURE under the grip: OPEN strings sounding through the span that belong to an
-    earlier span; nullopt where none does, and always nullopt where \ref stops holds the string.
-
-    A ring belongs only to the span it was struck in, so a note ringing on out of a closed span
-    founds nothing and bounds nothing — but an open string SOUNDS under whatever founds over it,
-    and the bracket states what sounds under the shape, which also classifies the span an arpeggio.
-    Open strings ALONE: an open string's 0 is true for as long as it rings, since no hand was ever
-    on it, while any other stop in a later bracket would claim a finger — a fretted one was
-    announced by the span that struck it, and a natural harmonic's finger lifted at the strike — so
-    those rings are plain tails here and print in no later bracket. Published beside the grip
-    rather than merged into it so that a display can union the two and a rule can read the grip
-    alone, with neither having to guess which is which.
-    */
-    std::vector<std::optional<ChartStop>> texture;
-
-    /*!
-    \brief Compares two postures by their grip and their texture.
+    \brief Compares two postures by their grip.
     \param lhs Left-hand posture.
     \param rhs Right-hand posture.
-    \return True when both hold the same stop, and print the same texture, on every string.
+    \return True when both hold the same stop on every string.
     */
     friend bool operator==(const ChartPosture& lhs, const ChartPosture& rhs) = default;
 
     /*!
-    \brief Orders two postures by their grip, then their texture — the posture's own identity,
-           so a table keyed on it deduplicates by exactly what \ref operator== compares.
+    \brief Orders two postures by their grip — the posture's own identity, so a table keyed on it
+           deduplicates by exactly what \ref operator== compares.
     \param lhs Left-hand posture.
     \param rhs Right-hand posture.
-    \return Ordering by grip, then by texture; partial because a stop's is (\ref ChartStop).
+    \return Ordering by grip; partial because a stop's is (\ref ChartStop).
     */
     friend std::partial_ordering operator<=>(const ChartPosture& lhs, const ChartPosture& rhs) =
         default;
@@ -118,9 +104,9 @@ struct ChartShape
     The second half is what keeps spans from overlapping: a ring whose onset lies inside a span
     already emitted is CARRIED, and a carry never backdates. That is one comparison with two
     consequences, and \ref deriveChartShapes spends it once — a carry that dates a span is a
-    founding member and BOUNDS it, while one crossing in from covered ground is texture that states
-    a stop and no reach. Landings and death survivors are covered by construction, which is why a
-    successor starts exactly where its predecessor ended.
+    founding member and BOUNDS it, while one crossing in from covered ground is a tail that joins
+    nothing. Landings and death survivors are covered by construction, which is why a successor
+    starts exactly where its predecessor ended.
     */
     GridPosition position;
 
@@ -279,14 +265,8 @@ struct ChartShape
     taps above those fingers are the other hand's — so this count says nothing there, and every
     such span states a stop no sound of its own states.
 
-    TEXTURE CLASSIFIES: a shape with open strings ringing under it at its open (\ref
-    ChartPosture::texture) is published in parts too — those rings sound separately from the stroke
-    by definition, and the bracket is what prints them — but only where that bracket DRAWS: a
-    landing successor nothing has sounded inside has no \ref bracket_position and prints its texture
-    nowhere, so it stays a chord span until its first interior sounding gives the bracket a slot.
-    SOUNDS in parts is therefore wider than STRUCK in parts, the walk's own flag that the
-    unison-restatement break reads and that never sees texture: a chug over a drone is one span
-    drawn as one bracket with its boxes inside rather than a span per restrike.
+    Rings struck before the span never enter this count, however they sound under it: they are no
+    members, print in no bracket, and so class nothing (the retired open-string texture once did).
     */
     bool sounds_in_parts{false};
 

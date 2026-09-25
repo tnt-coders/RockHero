@@ -303,7 +303,23 @@ as evidence of a grip.
   still ringing open changes what that string sounds and breaks the span, whether or not a finger
   held it — otherwise the bracket would print the new stop from a front before which the string
   audibly rang open. A spent ring is no member, but its sound is still evidence.
-- **TEXTURE IN THE BRACKET.** The two halves of a posture are the GRIP — what the walk reasons
+- **A BRACKET STATES THE ONSETS INSIDE ITS SPAN, AND NOTHING ELSE** (RULED 2026-09-24, user). A
+  ring refused at either seam — the slot open's fold-in or the landing's survivors — is a plain tail
+  whatever its stop, an open string's 0 included: it rides into no posture, prints in no later
+  bracket and classes no span. The posture is the grip alone (`ChartPosture::stops`), the
+  projection prints that and nothing beside it, and a span's published `sounds_in_parts` is the
+  walk's own `struck_in_parts`. This retires TEXTURE, the one exception this law ever carried: an
+  open ring struck before a span's front rode into its posture, printed its 0 in the bracket and
+  classed the span an arpeggio, on the ground that a 0 claims no finger where a fret would. That
+  ground did not hold — a fretted ring proves its finger as surely, and both were announced by the
+  span that struck them. Sighted at My Sacrifice 44:4: a chord 9 9 12 _ 0 0 split by a natural
+  harmonic left the successor bracket re-printing the open half of the still-sounding chord and
+  dropping the fretted half. The two texture bullets below and the two 2026-09-08 rulings that grew
+  from them (the landing's texture column, and texture classing only where its bracket draws) are
+  kept for the record, superseded — moot rather than contradicted, since nothing they governed
+  exists any more.
+- **TEXTURE IN THE BRACKET.** *Superseded 2026-09-24 by the bracket law above; kept for the
+  record.* The two halves of a posture are the GRIP — what the walk reasons
   about, every rule reading `OpenSpan::stops` and nothing else — and the TEXTURE under it
   (`OpenSpan::texture`, published as `ChartPosture::texture`): the OPEN rings sounding through a
   span's open that belong to an earlier span, recorded at exactly the two sites that refuse a ring
@@ -311,7 +327,8 @@ as evidence of a grip.
   claim's stop and a grip's both outrank it, and a fret struck on a texture string GROWS the grip —
   so every display unions the two blindly while every rule and the census read the grip alone.
   Published apart rather than merged, because merged it was read two ways.
-- **TEXTURE IS THE OPEN STRING ALONE** (`textureStop`). An open string's 0 is true for as long as it
+- **TEXTURE IS THE OPEN STRING ALONE** (`textureStop`). *Superseded 2026-09-24 by the bracket
+  law above; kept for the record.* An open string's 0 is true for as long as it
   rings, because no hand was ever on it, so printing it claims nothing about the hand. Any other
   stop in a later bracket would claim a finger: a fretted one was already announced by the span that
   struck it, and a harmonic's node was true at the strike and false a moment later. Every such stale
@@ -411,10 +428,11 @@ than a retroactive verdict on everything it contained.
   strikes a string never stated — a strict superset states the whole chord AND MORE, a new statement
   and never growth.
 - **Chord → parts.** A stroke sounding PART of what a never-in-parts span STATED — some of its own
-  stops, not all — is the statement coming apart, so the chord span closes and the partial founds
-  the parts span through the ordinary slot open, taking the still-ringing members in as carried
-  texture. A stroke on strings the span never stated is not this direction at all: it is the
-  statement still ASSEMBLING, which is growth.
+  stops, not all — is the statement coming apart, so the chord span closes and the parts found
+  their own span through the ordinary slot open, on what they STRIKE: the chord's rings were struck
+  behind the new frontier and join nothing, so a partial or two alone founds nothing and the parts
+  bracket covers exactly the ground that sounds in parts. A stroke on strings the span never
+  stated is not this direction at all: it is the statement still ASSEMBLING, which is growth.
 - **THE PARTIAL SLIDE.** A slot whose statement is divided by its own notated rings — a held
   member's ring ending STRICTLY BEFORE a co-struck glide arrives — necessarily sounds in parts from
   that slot, so it splits and the span it founds is born in parts. A voicing-shift slide whose held
@@ -474,13 +492,15 @@ glide, and the break lands where the new grip ESTABLISHES.
   included, because nothing here asks how far a finger moved. A staggered landing whose every other
   surviving member is itself mid-glide opens nothing, and the truth stays in the sliding tails.
 - **THE LANDING CLASSIFIES EVERY STRING THE HAND TABLE KNOWS, ONCE** — grip survivor, texture, or
-  nothing. The slot open asks the same three-way question of its carried rings, and both refuse a
-  ring by the one law above, so the two seams cannot disagree about what a string is; they differ
-  only in who crosses — here the closing span's own fretted members, there nobody. An open string
-  sounding strictly past the boundary is texture under the successor WHICHEVER span struck it; a
-  drone that died before the boundary is left out on both paths by the same sounding test. The
-  smallest bracket this can produce is two grip digits over a ringing 0 — what the slot path
-  already prints for a two-finger chord over a drone.
+  nothing. *Superseded 2026-09-24 by A BRACKET STATES THE ONSETS INSIDE ITS SPAN (above): with no
+  texture, a string is a grip survivor or nothing, and every other ring past the boundary is a
+  plain tail; kept for the record.* The slot open asks the same three-way question of its carried
+  rings, and both refuse a ring by the one law above, so the two seams cannot disagree about what a
+  string is; they differ only in who crosses — here the closing span's own fretted members, there
+  nobody. An open string sounding strictly past the boundary is texture under the successor
+  WHICHEVER span struck it; a drone that died before the boundary is left out on both paths by the
+  same sounding test. The smallest bracket this can produce is two grip digits over a ringing 0 —
+  what the slot path already prints for a two-finger chord over a drone.
 - **The landing restarts each survivor's coverage at the landed grip**, re-read from the channel, so
   a multi-leg glide's NEXT departure still caps it.
 - **Whether the new grip gets a moment of its own is a MUSICAL test, not a drawable-room one.** A
@@ -602,7 +622,9 @@ still derives, because it asks about the span's EXTENT.
 - **The denominator is well defined** because within a span the posture is a PER-SPAN SET that only
   ever GROWS, and growing is not leaving; the quit arm is what ends the span the moment a stop would
   have to leave.
-- **TEXTURE CLASSIFIES, but ONLY WHERE ITS BRACKET DRAWS.** A shape with hand-free rings sounding
+- **TEXTURE CLASSIFIES, but ONLY WHERE ITS BRACKET DRAWS.** *Superseded 2026-09-24 by A BRACKET
+  STATES THE ONSETS INSIDE ITS SPAN (above): a ring struck before the span classes nothing, and
+  the published class is the walk's own; kept for the record.* A shape with hand-free rings sounding
   under it has members sounding separately from them by definition, so the bracket that prints the
   texture draws and the span is published in parts. But the classification exists so that bracket
   prints the texture: a span with no `bracket_position` — a landing successor nothing has sounded

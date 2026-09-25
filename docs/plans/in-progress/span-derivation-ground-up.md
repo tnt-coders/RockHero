@@ -62,17 +62,17 @@ is bookkeeping about that tenure.
    the successor and counts toward no survivor threshold. The consequence is accepted by name: a
    one-string slide over a struck drone lands into no bracket.
 
-   OF THE RINGS REFUSED AT EITHER SITE, ONLY THE OPEN STRING IS TEXTURE (`textureStop`): printed
-   in the bracket of a later span it rings under, because an open string's 0 stays true for
-   exactly as long as it sounds and claims no finger. Any other stop would claim one — a fretted
-   ring's was already announced by the span that struck it, and a natural harmonic's node was true
-   at the strike and false a moment after it, harmonics being fretted instantaneously — so every
-   other stale ring is a plain tail: it prints in no later bracket and classifies nothing.
+   A BRACKET STATES THE ONSETS INSIDE ITS SPAN, AND NOTHING ELSE: every ring refused at either
+   site is a plain tail, an open string's 0 included — it prints in no later bracket and
+   classifies nothing, so the posture is the grip alone. (Ruled 2026-09-24: the open string used
+   to ride on as TEXTURE, printed in later brackets because its 0 claims no finger, but a fretted
+   ring proves its finger as surely and both were announced by the span that struck them; at My
+   Sacrifice 44:4 the exception re-printed a split chord's open half and dropped its fretted half.)
 
 ### When a span runs and ends
 
 8. A span RUNS UNTIL ITS GRIP BREAKS, and only these break it:
-   - A MEMBER QUITS — any posture member, carried texture included. The grip technically changed,
+   - A MEMBER QUITS — any posture member, carried or struck. The grip technically changed,
      and there is ONE kind of member: LAW III's classifies-never-bounds rider is overruled, with
      the import's contradiction cut of co-terminating let-ring rings at grip changes as what keeps
      this from fragmenting passages.
@@ -115,15 +115,15 @@ is bookkeeping about that tenure.
 
      Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
      own stops, not all — is the statement coming apart, so the chord span closes there and
-     the partial founds the parts span through the ordinary slot open, which carries the
-     still-ringing members in as texture and births it in parts. The bracket covers exactly
-     the ground that sounds in parts. Where the partial is the stroke's own next slot and the
-     stroke is still sounding under it there is no split at all — the stroke is absorbed, the
-     span flows, the class turns in place, and the box a strum earned survives literally, as a
-     box drawn inside the bracket. This direction cuts everywhere else. A stroke touching only
-     strings the span never stated is NOT this direction: it states nothing about the span's
-     own stops coming apart, so it is the statement still assembling — growth. Below the
-     slot-open thresholds the partial founds nothing and the notes ride bare.
+     the parts found their own span through the ordinary slot open, on what they STRIKE: the
+     chord's rings were struck behind the new frontier and join nothing. The bracket covers
+     exactly the ground that sounds in parts. Where the partial is the stroke's own next slot
+     and the stroke is still sounding under it there is no split at all — the stroke is
+     absorbed, the span flows, the class turns in place, and the box a strum earned survives
+     literally, as a box drawn inside the bracket. This direction cuts everywhere else. A stroke
+     touching only strings the span never stated is NOT this direction: it states nothing about
+     the span's own stops coming apart, so it is the statement still assembling — growth. Below
+     the slot-open thresholds the partial founds nothing and the notes ride bare.
 
      Three guards, each with its own ground: a LANDING SUCCESSOR arrives stated by no event, so
      its FIRST sounding defines its character in place — a lone re-pick turns it parts where it

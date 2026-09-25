@@ -421,16 +421,15 @@ neighbours.
     open-position arpeggio still found from its first open string. The LANDING is the one seam a
     member crosses, the grip itself moving under fingers that slid, so its survivors are the
     closing span's own FRETTED members: a string no hand holds neither slid nor stayed, hands
-    nothing to the successor and counts toward no survivor threshold. An OPEN string still SOUNDS
-    under whatever founds over it, so the
-    walk records it as TEXTURE (`OpenSpan::texture`; open strings alone — a harmonic's stale ring
-    is a plain tail, its finger gone at the strike) and publishes it beside the grip as
-    `ChartPosture::texture`,
-    disjoint from `stops` — the bracket unions the two and prints the drone; every rule, and the
-    census, reads the grip alone. Texture does CLASSIFY, on the published span only: a shape with
-    texture under its open is an arpeggio (its members sound separately from the drone), so the
-    bracket that prints the texture draws; the walk's own in-parts flag never sees it, which is
-    what keeps a chug over a drone one span. The posture — the STOP held on each member string: a
+    nothing to the successor and counts toward no survivor threshold. **A bracket states the
+    onsets inside its span, and nothing else**: a ring refused at either seam is a plain tail
+    whatever its stop, an open drone's `0` included, so it prints in no later bracket and classes
+    no span — the posture is the grip alone, and every rule, every display and the census read
+    it. (Ruled 2026-09-24: an open ring used to ride into later postures as TEXTURE, printing its
+    `0` and classing the span an arpeggio because a `0` claims no finger, but a fretted ring
+    proves its finger as surely and both were announced by the span that struck them — at My
+    Sacrifice 44:4 the exception re-printed a split chord's open half and dropped its fretted
+    half.) The posture — the STOP held on each member string: a
     fret pressed, the open string, or a harmonic node touched (`ChartStop`; node 5 is not fret 5) —
     becomes a posture entry, deduplicated by stop vector across the chart. Postures carry no name
     and no
@@ -462,11 +461,12 @@ neighbours.
     boundary (the absorption rule), and the box it founds dates from the stroke itself — never
     from a lone stab before it that held one of its stops with a ring dying exactly into the
     chord, which is what the restrike inheritance would otherwise make of it. **Carried rings
-    never backdate:** a ring whose onset lies inside a span already
-    emitted crossed in from ground someone else covered, so it dates nothing — but it is a member
-    like any other and it BOUNDS the span: the coverage frontier is the dating floor and never an
-    input to the reach. There is ONE kind of member, carried texture included, so nothing sounding
-    under a span classifies without also bounding it. Landings are covered by construction, which
+    never backdate:** a ring whose onset lies inside a span already emitted crossed in from ground
+    someone else covered, so it dates nothing and joins nothing — it is a tail, the ring belonging
+    only to the span it was struck in — while a carried ring fresh enough to join is a member like
+    any other and BOUNDS the span: the coverage frontier is the dating floor and never an input to
+    the reach. There is ONE kind of member, so nothing sounding under a span classifies it without
+    also bounding it. Landings are covered by construction, which
     is why a
     successor starts exactly where its predecessor ended (rule 11b), and the floor a member dates
     against is the later of that frontier and the end of the last FOREIGN sound on its own string —
@@ -715,9 +715,10 @@ neighbours.
     about the stop it speaks from (the chime dies the moment the pressed fret lifts), and it still
     adds no length, because the evidence arrives as a claim. **EVERY SOUNDED MEMBER BOUNDS, carried or
     struck**: there is ONE
-    kind of member, so a ring crossing in over covered ground states the grip AND lends its
-    reach, and what keeps let-ring texture from fragmenting the passage it sits under is the
-    import's own contradiction cut rather than a member class that classifies without bounding.
+    kind of member, so a carried ring that joins states the grip AND lends its reach, while a ring
+    crossing in over covered ground is no member and does neither. What keeps let-ring passages
+    from fragmenting under this is the import's own contradiction cut rather than a member class
+    that classifies without bounding.
     The closing machinery is unchanged and runs after this: the close is the EARLIER of what the
     statement reached and the event that ended it, so it shortens the reach and never lengthens it.
     Rule 12a's margin is no part of that number.
@@ -815,8 +816,8 @@ neighbours.
     every question about a finger's whereabouts is that one question at a different moment: a
     strike asks it at the note's onset, a member's own reach wherever the shape's own start falls
     inside the ring, a landing at the arrival, and rule 12's ring-through fold-in at the slot the
-    ring crosses (a fold-in that skips a hand-free ring struck before the last span ended — see
-    the membership paragraph above).
+    ring crosses (a fold-in that skips any ring struck before the last span ended — see the
+    membership paragraph above).
     Between a departure and its landing the answer is NOTHING — a finger mid-glide is on no stop,
     so it joins no OTHER shape's posture on its way past (its own span covers it the whole time),
     and it is that silence, not a second stored bound, that keeps a mid-glide member from being
@@ -942,7 +943,8 @@ neighbours.
 
     (a) **A posture string still ringing at the span start with no onset there.** A note still
     ringing through a chord's onset (tie-held from before, not re-struck) joins the derived posture
-    on its string — **at the stop its own fret channel states there**, so
+    on its string when it was struck since the last span closed — a ring from an earlier span is a
+    tail, never a member — **at the stop its own fret channel states there**, so
     a ring that has slid since its strike is stated at the grip it has reached and one caught
     mid-glide is stated nowhere at all, joining no posture (rule 11b) — and the strum is then
     picking around it rather than strumming the shape whole. Both the chord under a held single

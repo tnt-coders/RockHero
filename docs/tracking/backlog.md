@@ -755,20 +755,6 @@ Each re-verified against the code before being written down.
   composite's comment which case belongs to which section, so a later edit does not delete the
   only coverage of a rule it thought was duplicated.
 
-- **`ChartPosture`'s two halves are equal-length by convention, not construction.** `stops` and
-  `texture` are parallel vectors: the emit in `chart_shapes.cpp` sizes the texture from the grip
-  and reads `OpenSpan::texture` by the same index, and `chart_projection.cpp`'s bracket union
-  indexes `posture.texture` from a loop bounded by `posture.stops.size()`. Every producer sizes
-  both at the string count and the test fixtures now state same-length pairs, so nothing is wrong
-  today, and keying the posture table on the posture itself (2026-09-08) closed the identity
-  half. The shape that closes the pairing half is a merge — one vector of a per-string entry
-  carrying the stop plus whether it is texture — which makes disjointness and equal length
-  unrepresentable and deletes the mask loop, the projection union and `OpenSpan`'s second
-  vector, at the cost of a filter at the two grip readers (`chart_legato.cpp`'s held default and
-  the census's carry rows). Roughly line-neutral; do it if a third per-string fact ever arrives
-  or if the bracket's top-bar count is ruled to read the grip alone (which needs provenance the
-  flattened `ShapeStringViewState` does not carry).
-
 - **Composed-character filter: sibling keys on non-US layouts.** `ComposedCharacterFilter`
   (`rock-hero-editor/ui/src/main_window/`) swallows a modifier-less key press whose key is not
   physically down, which is how a Windows Alt-code character is told from a keystroke. JUCE answers
