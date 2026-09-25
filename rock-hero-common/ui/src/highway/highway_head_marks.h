@@ -166,13 +166,13 @@ struct HighwayHeadMark
 \brief The technique marks a head wears, in draw order: front is lowest, back is on top.
 
 Fixed capacity because the maximum is provable rather than guessed, and the render path may not
-allocate per note: a head stacks at most a palm mark, ONE hand mark (tap, slap, pop and pinch are
-all the same `attack` slot, so they are mutually exclusive), a connection cell, a harmonic, and the
-deadening X. Five, exactly.
+allocate per note: a head stacks at most ONE hand mark (tap, slap and pop share the `attack` slot,
+so they are mutually exclusive), a connection cell, a harmonic (the node cell or the pinch cell —
+a pinch draws on this rung, not the hand rung), the palm mark, and the deadening X. Five, exactly.
 */
 struct HighwayHeadMarkStack
 {
-    /*! \brief Palm, hand, connection, harmonic, deadening — the provable maximum. */
+    /*! \brief Hand, connection, harmonic, palm, deadening — the provable maximum. */
     static constexpr std::size_t g_capacity = 5;
 
     /*! \brief Marks in draw order; only the first \ref count entries are populated. */
@@ -203,12 +203,15 @@ path: two lists are both "the marker order", written twice and free to answer di
 where the connection cell and the harmonic sit in it — this project's recurring defect rather than
 a matter of taste.
 
-The order is DERIVED, not authored, from how much of the note's identity each mark overrides.
-A palm mute only shades the tone; a hand mark says how the string was struck; a connection says
-whether it was struck at all; a harmonic says the pitch is not the fretted one; and the deadening X
-says there is no pitch. Each claim swallows the one before it, so each draws over the one before
-it, and the X — the mark that must survive intact, because a broken X reads as a different mark
-entirely — lands on top by construction rather than by special case.
+Below the mutes the order follows how much of the note's identity each mark overrides: a hand
+mark says how the string was struck, a connection says whether it was struck at all, and a
+harmonic says the pitch is not the fretted one. Each claim swallows the one before it, so each
+draws over the one before it.
+
+The mutes cap the stack: palm mute, then the deadening X on top. A mute is stated over whatever
+the hand did, which is how the 2D lane paints it too (its mute X lands after the pinch bar), so
+both surfaces state one stack; drawn under the pinch cell, a palm mute was hidden by the squeal
+mark. The X stays topmost because a broken X reads as a different mark entirely.
 
 A scrape is not a rank in that ladder but a category of one, and that is a chart rule rather than a
 layering preference: `chart_rules.cpp` validates a pick-slide note against `savedChartNote(note) ==
@@ -240,11 +243,6 @@ ignores the flag and draws every mark upright.
         return stack;
     }
 
-    if (note.palm_mute)
-    {
-        add(g_head_cell_palm_mute, true);
-    }
-
     if (note.attack == common::core::NoteAttack::Tap)
     {
         add(g_head_cell_tap, true);
@@ -269,6 +267,11 @@ ignores the flag and draws every mark upright.
     if (common::core::isHarmonic(note.harmonic_node, note.attack))
     {
         add(highwayHarmonicMark(note) ? g_head_cell_harmonic : g_head_cell_pinch_harmonic, true);
+    }
+
+    if (note.palm_mute)
+    {
+        add(g_head_cell_palm_mute, true);
     }
 
     if (note.dead)

@@ -157,10 +157,10 @@ TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
     REQUIRE(stack.count == HighwayHeadMarkStack::g_capacity);
     CHECK(
         cellsOf(stack) == std::vector<int>{
-                              g_head_cell_palm_mute,
                               g_head_cell_tap,
                               g_head_cell_legato,
                               g_head_cell_harmonic,
+                              g_head_cell_palm_mute,
                               g_head_cell_full_mute
                           });
 
@@ -220,6 +220,20 @@ TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][h
     CHECK(cellsOf(highwayHeadMarks(natural)) == std::vector<int>{g_head_cell_harmonic});
 }
 
+// The palm-muted squeal is the most common pinch context, and the mute is stated over whatever the
+// hand did: the palm mark draws over the pinch cell, as the 2D lane paints its mute X over the
+// pinch bar.
+TEST_CASE("Highway palm mark draws over a pinch", "[ui][highway]")
+{
+    common::core::NoteViewState muted_pinch =
+        noteWith(common::core::NoteAttack::Pinch, common::core::LegatoMotion::Unjustified);
+    muted_pinch.harmonic_node = 17.0;
+    muted_pinch.palm_mute = true;
+    CHECK(
+        cellsOf(highwayHeadMarks(muted_pinch)) ==
+        std::vector<int>{g_head_cell_pinch_harmonic, g_head_cell_palm_mute});
+}
+
 // The head's harmonic cell and the note's stop-to-node fret-span line on the floor read ONE
 // predicate, so this pins the classification both of them stand on rather than either drawer's
 // own reading of it.
@@ -263,15 +277,16 @@ TEST_CASE("Highway head marks carry their own roll behavior", "[ui][highway]")
 
     const HighwayHeadMarkStack stack = highwayHeadMarks(note);
     REQUIRE(stack.count == HighwayHeadMarkStack::g_capacity);
-    CHECK(stack.marks.at(0).rides_roll);       // palm
-    CHECK(stack.marks.at(1).rides_roll);       // tap
-    CHECK_FALSE(stack.marks.at(2).rides_roll); // connection
-    CHECK(stack.marks.at(3).rides_roll);       // harmonic
+    CHECK(stack.marks.at(0).rides_roll);       // tap
+    CHECK_FALSE(stack.marks.at(1).rides_roll); // connection
+    CHECK(stack.marks.at(2).rides_roll);       // harmonic
+    CHECK(stack.marks.at(3).rides_roll);       // palm
     CHECK_FALSE(stack.marks.at(4).rides_roll); // dead X
 
     // The pull-off is the connection cell mirrored, and only that mark is ever mirrored.
-    CHECK(stack.marks.at(2).flipped);
+    CHECK(stack.marks.at(1).flipped);
     CHECK_FALSE(stack.marks.at(0).flipped);
+    CHECK_FALSE(stack.marks.at(2).flipped);
     CHECK_FALSE(stack.marks.at(3).flipped);
 
     const common::core::NoteViewState hammer =
