@@ -152,11 +152,17 @@ unenforced rulings, and a set of defects on supported material.
   (`ring-ends-and-authoring-planes.md`, the alongside item). What remains is the screen's half: a
   refusal the screen does not explain, which is `refusal-flash.md`'s (the flash lights the refused
   selection).
-- **The tap-at-claimed-stop refusal** (task #277) — ruled invalid by construction, enforced
-  nowhere: `chart_rules.cpp` never consults `chartClaimedStops`, so the state can be authored and
-  saved. The open design call is placement (validator, load repair, or planner refusal).
-- **Rule the unstruck-tie default** for `Shift+L`'s split product — still a PROPOSAL in
-  `technique-review-walkthrough.md` W10 and `keymap-matrix.md`.
+- **#277 re-ruled 2026-09-25: a tap at a claimed stop is LEGAL** — it proves the hand lifted, and
+  the span holding that fret splits at the tap. The derivation absorbs it today (a right-hand tap
+  states nothing to the posture, so the claim carries through; a left-hand tap at the fret joins
+  the span), so this is a derivation fix on supported material: the contradiction block in
+  `chart_shapes.cpp` gains a break for a tap on the string whose fret equals the standing claim,
+  for both hands; `chartHeldStops`' default follows; tests and a census row; the law texts amended
+  (listed in `chart-ruleset.md`).
+- **The split product is STRUCK — RULED 2026-09-25 (user) and built the same day.** `Shift+L`'s
+  split head stores `Pick`, inheriting the origin's payloads; the unstruck-tie proposal is closed,
+  because a tie is never stored (it is one longer ring, which is what the join produces), and a
+  charter who wants legato at the cut presses `L` on the product.
 - **Harmonic display follow-ups #2 and #4** (`harmonic-display-followups.md`). #2 is the satellite
   background. #4 (one span across a tap pulled off to its plant) was NARROWED 2026-09-19 by the
   re-ruled hold-under law and must not contradict 60-Q1..Q5, so rule it with or before the G60
@@ -199,8 +205,8 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   lives in the editor's `pick_slide_defaults.h`); (2) the
   coincident-onset vibrato overwrite; (3) the importer's vibrato-anchor wording (2 and 3 may be
   overtaken by per-leg vibrato, `cfe83edc` / `21f96ed2`; re-verify before the session); (4) the
-  disconnect's unstruck-tie default, marked PROPOSAL in `chart_edits.h` (the same ruling Phase 2
-  names); (5) W9-F; (6) W9-G; (7) legato-merged bend chains gain the onset chip; (8) a bend across a
+  disconnect's split product — RULED 2026-09-25 struck, stored `Pick` (Phase 2), so this item is
+  closed; (5) W9-F; (6) W9-G; (7) legato-merged bend chains gain the onset chip; (8) a bend across a
   junction gains its glow arrival.
 - **W9-F with W9-D's glyph** — how 2D says *pitched* versus *falls away*; 3D already dims an
   unpitched run and 2D does not, so the surfaces diverge today. **W9-G** (does a mute restate at
@@ -488,7 +494,8 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    Ring-ends phases 1 and 2 were sighted and signed 2026-09-24 (one 1b item waits on bends).
 3. **Current.** Land the ungated work while gates are signed: the refusal flash
    (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
-   signed before Phase 2's verbs are wired: #277's placement and the unstruck-tie default.
+   signed before Phase 2's verbs are wired — both RULED 2026-09-25: #277 (a tap at a claimed
+   stop is legal; the derivation split is a Phase 2 build) and the split product (struck, built).
 4. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
    sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,
    #59 and the authored-span extend law) and G52-RANGE-EDIT.

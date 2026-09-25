@@ -6,6 +6,10 @@ walk that carries it. The maintained plain-English spec for readers outside this
 10 to 12b of `docs/developer/the-project-lifecycle.md`, which `chart_shapes.h` points at rather
 than restating.
 
+Pending amendment: a tap at a claimed stop lifts the hand and splits the span (RULED 2026-09-25,
+UNBUILT), which amends rule 2 and the evidence table's "without ever moving a close" — see
+`chart-ruleset.md`, Open, carried forward.
+
 ## THE LAW
 
 One idea: a span is the statement "the hand holds this grip, from here to here." Everything else

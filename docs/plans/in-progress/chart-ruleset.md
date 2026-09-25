@@ -982,6 +982,16 @@ claims); and section marks anywhere in the let-ring law (organizational, not a h
 
 ## Open, carried forward
 
+- **A tap at a claimed stop lifts the hand (RULED 2026-09-25, UNBUILT).** A tap, right-hand or
+  left-hand, landing on the string and fret an earlier record's claim still holds is legal: it
+  proves the fretting hand lifted, and any span that contained that fret splits at the tap. This
+  reverses the 2026-08-28 "invalid by construction" direction (task #277). The derivation absorbs
+  the figure today — a right-hand tap states nothing, so the claim carries through it, and a
+  left-hand tap at the fret restates the grip and grows the span. The ruling amends LAW III's
+  membership paragraph ("a tap says nothing about it"), the RENEWING-versus-BOUNDING bullet ("no
+  hand lifting anywhere"), and `span-derivation-ground-up.md` rule 2 and its evidence-table bullet
+  ("without ever moving a close"). Those sentences stand as written until the build lands, because
+  the code is the authority.
 - The claim's face has no signed 3D story, and the game-side box-chain walk must realign to the
   interior classification — LAW IV's surface-parity obligation.
 - The converter's default ring for tail-less source notes. The frame is the TWO-LAYER principle:
@@ -1000,8 +1010,8 @@ claims); and section marks anywhere in the let-ring law (organizational, not a h
 - The tap-harmonic head's touch-primary emphasis against published tab's stop-primary habit, and the
   span-start bracket digit's polysemy (silent versus carried member, disambiguated only by the
   incoming tail) — both flagged for UI design judgment.
-- Open verbs recorded, not judged: the move gesture, the tie verb and the disconnect's unstruck-tie
-  default, and the keyframe ruling bundle.
+- Open verbs recorded, not judged: the move gesture, the tie verb, and the keyframe ruling
+  bundle. (The disconnect's split product was RULED 2026-09-25: struck, stored `Pick`.)
 - Accepted-for-now derivation residues, each with its own trigger, live in
   `docs/tracking/watch-items.md` rather than here — the let-ring clip under a moving same-string
   melody, staggered landings opening nothing, and two-member figure noise among them.
