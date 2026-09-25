@@ -18,6 +18,7 @@ target_sources(
             src/chart/span_cover.h
             src/highway/highway_camera.cpp
             src/highway/highway_hit_glow.cpp
+            src/highway/highway_light.cpp
             src/highway/highway_projection.cpp
             src/highway/highway_tail.cpp
             src/highway/highway_window.cpp

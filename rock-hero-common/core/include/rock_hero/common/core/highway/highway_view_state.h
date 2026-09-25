@@ -15,6 +15,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
@@ -244,23 +245,13 @@ struct HighwayTapOnsetViewState
     std::vector<HighwayHandArrival> path;
 
     /*!
-    \brief When the hand leaves: the light's decay begins here.
+    \brief When the onset's light is lit (\ref makeHighwayTapOnsets).
 
-    The hold end — the drawn tail's end, or the last pitched keyframe when a drawn unpitched
-    slide-out follows, pressure already coming off. The path may run past it: a leg the ink end
-    cuts settles to its arrival while the light is already fading.
+    Its \ref HighwayLitStretch::start_seconds duplicates \ref seconds until the light moves off the
+    onset onto the hand's own track (`one-floor-light.md`, Phase 2). The path may run past the
+    release: a leg the ink end cuts settles to its arrival while the light is already fading.
     */
-    double release_seconds{0.0};
-
-    /*!
-    \brief Duration of the light's rise ending at \ref seconds.
-
-    Derived at projection time with the fret-hand placements' own arrival rule rather than a
-    rise of its own: the minimum-sustain-distance margin before the onset, shortened when the
-    previous tap onset's release crowds closer than the margin so envelopes never reach backward
-    through an earlier hold.
-    */
-    double rise_seconds{0.0};
+    HighwayLitStretch light;
 
     /*!
     \brief Compares two tap-onset views by their stored fields.
@@ -276,9 +267,8 @@ struct HighwayTapOnsetViewState
         const HighwayTapOnsetViewState& lhs, const HighwayTapOnsetViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
-               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
-               std::is_eq(lhs.rise_seconds <=> rhs.rise_seconds) &&
-               std::is_eq(lhs.release_seconds <=> rhs.release_seconds) && lhs.path == rhs.path;
+               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count && lhs.light == rhs.light &&
+               lhs.path == rhs.path;
     }
 };
 

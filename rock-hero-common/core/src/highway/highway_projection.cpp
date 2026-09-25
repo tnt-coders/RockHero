@@ -7,6 +7,7 @@
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
@@ -80,10 +81,10 @@ constexpr int g_camera_zone_measures = 2;
     return previous_position;
 }
 
-// When the member's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
+// When the note's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
 // follows (pressure is already coming off), otherwise the drawn tail's end — which for a scrape
 // is where the pick lifts.
-[[nodiscard]] double memberReleaseAt(const NoteViewState& note)
+[[nodiscard]] double noteReleaseAt(const NoteViewState& note)
 {
     const bool drawn_slide_out = !isScrape(note.attack) && !note.slides.empty() &&
                                  note.slides.back().slide_out &&
@@ -111,6 +112,8 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
 {
     std::vector<HighwayTapOnsetViewState> onsets;
     std::vector<const NoteViewState*> taps;
+    // One lit-stretch item per tapped member, all starting at the onset, folded into its light.
+    std::vector<HighwayLitStretch> evidence;
     for (std::size_t index = 0; index < notes.size();)
     {
         const double onset = notes[index].start_seconds;
@@ -120,8 +123,9 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
         {
             ++group_end;
         }
-        HighwayTapOnsetViewState view{.seconds = onset, .path = {}};
+        HighwayTapOnsetViewState view{.seconds = onset, .path = {}, .light = {}};
         taps.clear();
+        evidence.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {
             const NoteViewState& note = notes[member];
@@ -143,15 +147,24 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
                 view.count == 0 ? sounding_fret : std::min(view.fret_low, sounding_fret);
             view.fret_high = std::max(view.fret_high, sounding_fret);
             ++view.count;
-            view.rise_seconds = std::max(
-                view.rise_seconds,
-                member < note_rise_seconds.size() ? note_rise_seconds[member] : 0.0);
             taps.push_back(&note);
+            evidence.push_back(
+                HighwayLitStretch{
+                    .start_seconds = onset,
+                    .release_seconds = noteReleaseAt(note),
+                    .rise_seconds =
+                        member < note_rise_seconds.size() ? note_rise_seconds[member] : 0.0,
+                });
         }
         index = group_end;
         if (taps.empty())
         {
             continue;
+        }
+        view.light = foldLitEvidence(evidence);
+        if (!onsets.empty())
+        {
+            view.light = crowdedAfter(view.light, onsets.back().light);
         }
         // The instants first — the onset, every member's stops the light follows up to and
         // including the first past the ink end, and the release where it extends the path —
@@ -159,10 +172,8 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
         // read once the list is whole.
         std::vector<HighwayHandArrival>& path = view.path;
         path.push_back(HighwayHandArrival{.seconds = onset});
-        view.release_seconds = onset;
         for (const NoteViewState* const tap : taps)
         {
-            view.release_seconds = std::max(view.release_seconds, memberReleaseAt(*tap));
             const bool scrape = isScrape(tap->attack);
             for (std::size_t stop_index = 0; stop_index < tap->slides.size(); ++stop_index)
             {
@@ -202,9 +213,9 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
         path.resize(kept);
         // The release extends the path only past its last stop: inside a cut leg it is where the
         // light fades, never a stop the hand makes, and an arrival there would split the leg.
-        if (view.release_seconds - path.back().seconds >= g_onset_match_epsilon)
+        if (view.light.release_seconds - path.back().seconds >= g_onset_match_epsilon)
         {
-            path.push_back(HighwayHandArrival{.seconds = view.release_seconds});
+            path.push_back(HighwayHandArrival{.seconds = view.light.release_seconds});
         }
         for (std::size_t at = 0; at < path.size(); ++at)
         {
@@ -220,13 +231,6 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
             arrival.low_line = low - 1.0;
             arrival.high_line = high;
             arrival.ramp_seconds = at == 0 ? 0.0 : arrival.seconds - path[at - 1].seconds;
-        }
-        // Crowding clamp, mirroring the fret-hand ramps: the rise never reaches backward past
-        // the previous tap onset's release, so a dense run keeps its per-tap dips.
-        if (!onsets.empty())
-        {
-            view.rise_seconds = std::clamp(
-                view.rise_seconds, 0.0, std::max(0.0, onset - onsets.back().release_seconds));
         }
         onsets.push_back(std::move(view));
     }

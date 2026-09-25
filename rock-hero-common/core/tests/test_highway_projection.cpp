@@ -1068,8 +1068,11 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                              .unpitched_ramp = false,
                              .settle_seconds = 0.0,
                          }},
-                         .release_seconds = 1.0,
-                         .rise_seconds = 0.0,
+                         .light = HighwayLitStretch{
+                             .start_seconds = 1.0,
+                             .release_seconds = 1.0,
+                             .rise_seconds = 0.0,
+                         },
                      });
     CHECK(
         onsets[1] == HighwayTapOnsetViewState{
@@ -1085,8 +1088,11 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                              .unpitched_ramp = false,
                              .settle_seconds = 0.0,
                          }},
-                         .release_seconds = 2.0,
-                         .rise_seconds = 0.0,
+                         .light = HighwayLitStretch{
+                             .start_seconds = 2.0,
+                             .release_seconds = 2.0,
+                             .rise_seconds = 0.0,
+                         },
                      });
     CHECK(
         onsets[2] == HighwayTapOnsetViewState{
@@ -1102,8 +1108,11 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                              .unpitched_ramp = false,
                              .settle_seconds = 0.0,
                          }},
-                         .release_seconds = 3.000000000001,
-                         .rise_seconds = 0.0,
+                         .light = HighwayLitStretch{
+                             .start_seconds = 3.0,
+                             .release_seconds = 3.000000000001,
+                             .rise_seconds = 0.0,
+                         },
                      });
     // The release a picosecond past the onset is the onset's own instant: it adds no arrival.
     CHECK(onsets[2].path.size() == 1);
@@ -1253,9 +1262,9 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
 
     // The held tap and the plain slide release at their ink ends; the drawn slide-out releases at
     // the last pitched keyframe, pressure already coming off.
-    CHECK(onsets[0].release_seconds == Catch::Approx(held.ink_end_seconds));
-    CHECK(onsets[1].release_seconds == Catch::Approx(sliding.ink_end_seconds));
-    CHECK(onsets[2].release_seconds == Catch::Approx(trailing.slides.front().seconds));
+    CHECK(onsets[0].light.release_seconds == Catch::Approx(held.ink_end_seconds));
+    CHECK(onsets[1].light.release_seconds == Catch::Approx(sliding.ink_end_seconds));
+    CHECK(onsets[2].light.release_seconds == Catch::Approx(trailing.slides.front().seconds));
 }
 
 // The release is the hold end: the ink end, except where a DRAWN unpitched slide-out follows, when
@@ -1279,7 +1288,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     const std::vector<HighwayTapOnsetViewState> drawn =
         makeHighwayTapOnsets({trailing}, std::vector<double>(1, 0.0));
     REQUIRE(drawn.size() == 1);
-    CHECK(drawn.front().release_seconds == Catch::Approx(2.0));
+    CHECK(drawn.front().light.release_seconds == Catch::Approx(2.0));
     // The path ends at that last pitched keyframe: the slide-out adds nothing.
     REQUIRE(drawn.front().path.size() == 3);
     CHECK(drawn.front().path.back().seconds == Catch::Approx(2.0));
@@ -1292,7 +1301,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     const std::vector<HighwayTapOnsetViewState> undrawn =
         makeHighwayTapOnsets({cut}, std::vector<double>(1, 0.0));
     REQUIRE(undrawn.size() == 1);
-    CHECK(undrawn.front().release_seconds == Catch::Approx(cut.ink_end_seconds));
+    CHECK(undrawn.front().light.release_seconds == Catch::Approx(cut.ink_end_seconds));
     REQUIRE(undrawn.front().path.size() == 4);
     const HighwayHandArrival& release = undrawn.front().path.back();
     CHECK(release.seconds == Catch::Approx(cut.ink_end_seconds));
@@ -1325,7 +1334,7 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
     const std::vector<HighwayTapOnsetViewState> onsets =
         makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
     REQUIRE(onsets.size() == 1);
-    CHECK(onsets.front().release_seconds == Catch::Approx(tap.ink_end_seconds));
+    CHECK(onsets.front().light.release_seconds == Catch::Approx(tap.ink_end_seconds));
     const std::vector<HighwayHandArrival>& path = onsets.front().path;
     REQUIRE(path.size() == 2);
     CHECK(
@@ -1369,7 +1378,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     const std::vector<HighwayTapOnsetViewState> onsets =
         makeHighwayTapOnsets({low, high}, std::vector<double>(2, 0.0));
     REQUIRE(onsets.size() == 1);
-    CHECK(onsets.front().release_seconds == Catch::Approx(5.0));
+    CHECK(onsets.front().light.release_seconds == Catch::Approx(5.0));
     const std::vector<HighwayHandArrival>& path = onsets.front().path;
     REQUIRE(path.size() == 3);
     CHECK(path[0].low_line == Catch::Approx(11.0));
@@ -1408,10 +1417,10 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     const std::vector<double> rises{0.2, 0.25, 0.25, 0.25, 0.25};
     const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, rises);
     REQUIRE(onsets.size() == 4);
-    CHECK(onsets[0].rise_seconds == Catch::Approx(0.25));
-    CHECK(onsets[1].rise_seconds == Catch::Approx(0.2));
-    CHECK(onsets[2].rise_seconds == Catch::Approx(0.25));
-    CHECK(onsets[3].rise_seconds == Catch::Approx(0.1));
+    CHECK(onsets[0].light.rise_seconds == Catch::Approx(0.25));
+    CHECK(onsets[1].light.rise_seconds == Catch::Approx(0.2));
+    CHECK(onsets[2].light.rise_seconds == Catch::Approx(0.25));
+    CHECK(onsets[3].light.rise_seconds == Catch::Approx(0.1));
 }
 
 // The pick-slide seam: latents suppressed, only the path's terminal unpitched, and the hand
@@ -1549,8 +1558,8 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     CHECK(path[2].settle_seconds == Catch::Approx(0.1));
     // A scrape releases where its ink ends — the pick lifts at the crop — while the path runs on
     // to the cut leg's arrival.
-    CHECK(onsets.front().release_seconds == Catch::Approx(scrape.ink_end_seconds));
-    CHECK(onsets.front().release_seconds < path.back().seconds);
+    CHECK(onsets.front().light.release_seconds == Catch::Approx(scrape.ink_end_seconds));
+    CHECK(onsets.front().light.release_seconds < path.back().seconds);
 }
 
 // The light eases each scrape leg in the rail's own family: a turnaround is a stop the pick

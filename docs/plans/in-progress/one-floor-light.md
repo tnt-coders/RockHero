@@ -127,6 +127,12 @@ std::vector<HighwayLitStretch> mergeLitEvidence(std::vector<HighwayLitStretch>, 
     // ascending.
 ```
 
+*Amended after Phase 1's simplicity pass:* once the merge lands, both producers call only
+`mergeLitEvidence`, so `foldLitEvidence` and `crowdedAfter` become private steps of it in
+`highway_light.cpp`'s anonymous namespace — the fold a single pass over a sorted run and the crowd
+`min(rise, gap)` with the gap asserted non-negative, since the merge only splits at a gap of at
+least the tolerance. Phase 1 keeps them public for the tap producer and their own spec tests.
+
 Kept, one renamed: `memberReleaseAt` → `noteReleaseAt` (a note's release, not a chord member's;
 file-local in `highway_projection.cpp`, where both producers live); `marginBefore`;
 `highwayHandWindowAt`; `highwayHandWindowLineCoverage`.

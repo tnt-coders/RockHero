@@ -20,6 +20,7 @@
 #include <ranges>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_hit_glow.h>
+#include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -106,23 +107,19 @@ constexpr double g_window_light_falloff = 0.55;
 // fraction darker at peak sweep speed and recovers by arrival (the sin-squared bell keeps the
 // overall feel gentler than a full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
-// Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own tapped
-// fret lanes along the timeline, rising over the approach side of the tap, holding through
-// sustained contact (morphing with pitched glides), and decaying after the fingers release, so the
-// light dips between consecutive taps exactly as the finger lifts (deliberately per-onset, never
-// merged into runs). The rise duration is each onset's projection-derived ramp_seconds — the
-// fret-hand placements' own margin-based arrival rule, where a fixed wall-clock rise reads
-// inconsistently — while the release below stays a short visual constant: a release is a gesture,
-// not an arrival.
+// How long a light takes to fade after its release on each LAYER that draws it. The decay belongs
+// to the layer, never to a hand: a lit stretch carries only its rise, start and release
+// (common::core::HighwayLitStretch), and each layer shapes the one envelope
+// (common::core::highwayLightLevel) with its own decay. The rise is an arrival, derived from the
+// chart; a decay is a short visual constant, because a release is a gesture, not an arrival.
 //
-// Named for the FLOOR PLANE rather than for the tapping hand: it is the release every light on
-// that plane fades over, and the lane-border ribbons' own constant below is stated as a contrast
-// against it.
-constexpr double g_floor_light_release_seconds = 0.1;
-// The lane-border ribbons release much more slowly than the floor light (per-tap ribbon
-// flashing read as jarring in tap sections): the light pulses with each strike while the
-// brightened edges bridge the gaps of a dense run, fading only once the run ends.
-constexpr double g_tap_ribbon_decay_seconds = 0.45;
+// The floor plane's decay: the floor light fades over it, and the fret-line tiers keep a light's
+// lines lit until it has.
+constexpr double g_floor_light_decay_seconds = 0.1;
+// The lane-border ribbons' decay, much slower than the floor's (per-strike ribbon flashing read
+// as jarring in tap sections): the floor light pulses with each strike while the brightened edges
+// bridge the gaps of a dense run, fading only once the run ends.
+constexpr double g_ribbon_decay_seconds = 0.45;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
 // wobble — read from shading alone even where screen-space lift is foreshortened at center
@@ -832,27 +829,6 @@ bool windowSampleTimes(
     const auto duplicates = std::ranges::unique(times);
     times.erase(duplicates.begin(), duplicates.end());
     return moves;
-}
-
-// A tap light's strength at an instant: rising over the onset's own rise, full from the onset
-// through the hold, and fading over `decay_seconds` from the release — the one envelope the floor
-// light and the lane-border ribbons both shape, each with its own decay.
-[[nodiscard]] double tapLightEnvelope(
-    const common::core::HighwayTapOnsetViewState& tap, const double seconds,
-    const double decay_seconds) noexcept
-{
-    if (seconds < tap.seconds)
-    {
-        return tap.rise_seconds > 0.0
-                   ? std::clamp(
-                         (seconds - (tap.seconds - tap.rise_seconds)) / tap.rise_seconds, 0.0, 1.0)
-                   : 0.0;
-    }
-    if (seconds > tap.release_seconds)
-    {
-        return std::clamp(1.0 - ((seconds - tap.release_seconds) / decay_seconds), 0.0, 1.0);
-    }
-    return 1.0;
 }
 
 // The fret lines a tap's light path crosses anywhere along it, clamped to the face, as an
@@ -2148,8 +2124,9 @@ struct HighwayRenderer::Impl
     /*
     The tap onsets whose light can reach [from_seconds, to_seconds], as a half-open index range —
     visibleEventRange's answer for the tapping hand, which carries its extent in a rise and a
-    release rather than in an `end_seconds` field. A tap's light rises over `rise_seconds` before
-    its onset and fades `decay_seconds` after its release, so:
+    release rather than in an `end_seconds` field. A tap's light is lit over its
+    highwayLitInterval: it rises over `light.rise_seconds` before its onset and fades
+    `decay_seconds` after its release, so:
 
       - every onset before the first whose prefix maximum of releases reaches back into the span
         has faded before it (the releases overlap freely, which is exactly why the bound is the
@@ -2518,11 +2495,13 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     }
     m_impl->tap_end_prefix_max = common::core::makeSustainPrefixMax(
         m_impl->state.tap_onsets |
-        std::views::transform(&common::core::HighwayTapOnsetViewState::release_seconds));
+        std::views::transform(&common::core::HighwayTapOnsetViewState::light) |
+        std::views::transform(&common::core::HighwayLitStretch::release_seconds));
     m_impl->max_tap_rise_seconds = 0.0;
     for (const common::core::HighwayTapOnsetViewState& tap : m_impl->state.tap_onsets)
     {
-        m_impl->max_tap_rise_seconds = std::max(m_impl->max_tap_rise_seconds, tap.rise_seconds);
+        m_impl->max_tap_rise_seconds =
+            std::max(m_impl->max_tap_rise_seconds, tap.light.rise_seconds);
     }
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
@@ -3814,8 +3793,10 @@ void HighwayRenderer::Impl::draw(
                 previous_tap != nullptr &&
                 std::lround(previous_tap->path.back().low_line) + 1 == tap.fret_low &&
                 std::lround(previous_tap->path.back().high_line) == tap.fret_high &&
-                previous_tap->release_seconds + g_tap_ribbon_decay_seconds >=
-                    tap.seconds - tap.rise_seconds;
+                common::core::highwayLitInterval(previous_tap->light, g_ribbon_decay_seconds)
+                        .to_seconds >=
+                    common::core::highwayLitInterval(tap.light, g_ribbon_decay_seconds)
+                        .from_seconds;
             if (!repeat_in_lit_run)
             {
                 push_target_number(tap.fret_low, tap.seconds);
@@ -5561,10 +5542,11 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
     // current fretting-hand window's hit-line crossfade.
     for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_release_seconds))
+         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_decay_seconds))
     {
         if (tap.seconds > frame.span_end_seconds ||
-            tap.release_seconds + g_floor_light_release_seconds < frame.span_start_seconds)
+            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds).to_seconds <
+                frame.span_start_seconds)
         {
             continue;
         }
@@ -5584,17 +5566,18 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     // deduplicates itself exactly like the other tiers.
     std::array<double, g_face_fret_count + 1> tap_coverage{};
     for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.now_seconds, frame.now_seconds, g_tap_ribbon_decay_seconds))
+         litTaps(frame.now_seconds, frame.now_seconds, g_ribbon_decay_seconds))
     {
         // Rises vary per onset, so the bounded range is padded by the longest of them and
         // the exact skip stays here; the ribbons use their own slower decay.
-        if (tap.seconds - tap.rise_seconds > frame.now_seconds ||
-            tap.release_seconds + g_tap_ribbon_decay_seconds < frame.now_seconds)
+        const common::core::HighwayLitInterval lit =
+            common::core::highwayLitInterval(tap.light, g_ribbon_decay_seconds);
+        if (lit.from_seconds > frame.now_seconds || lit.to_seconds < frame.now_seconds)
         {
             continue;
         }
         const double envelope =
-            tapLightEnvelope(tap, frame.now_seconds, g_tap_ribbon_decay_seconds);
+            common::core::highwayLightLevel(tap.light, frame.now_seconds, g_ribbon_decay_seconds);
         // The extent at now through the one morph both hands move by, which holds the onset
         // extent before the onset and the last arrival's after it.
         const common::core::HighwayHandWindow at_now =
@@ -5888,7 +5871,7 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
                 vertex(lane_x0, zb, tint_b, low_x_b, high_x_b));
         }
     };
-    // The light is the envelope (tapLightEnvelope) laid over the path's one morph
+    // The light is the envelope (highwayLightLevel) laid over the path's one morph
     // (highwayHandWindowAt): this pass only decides where to sample the two — the rise start,
     // every arrival, the release and the fade's end, plus a moving leg subdivided by its sweep
     // (highwayGlideSliceCount, the one policy every glide-following mark subdivides by) so the
@@ -5896,19 +5879,20 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
     // keeps morphing into its arrival while the light is already fading from the release.
     std::vector<double>& times = scratch.window_times;
     for (const common::core::HighwayTapOnsetViewState& tap :
-         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_release_seconds))
+         litTaps(frame.span_start_seconds, frame.span_end_seconds, g_floor_light_decay_seconds))
     {
         // Rises vary per onset, so the bounded range is padded by the longest of them and
         // the exact skip stays here: two cheap POD compares.
-        if (tap.release_seconds + g_floor_light_release_seconds < frame.span_start_seconds ||
-            tap.seconds - tap.rise_seconds > frame.span_end_seconds)
+        const common::core::HighwayLitInterval lit =
+            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds);
+        if (lit.to_seconds < frame.span_start_seconds || lit.from_seconds > frame.span_end_seconds)
         {
             continue;
         }
         times.clear();
-        times.push_back(tap.seconds - tap.rise_seconds);
-        times.push_back(tap.release_seconds);
-        times.push_back(tap.release_seconds + g_floor_light_release_seconds);
+        times.push_back(lit.from_seconds);
+        times.push_back(tap.light.release_seconds);
+        times.push_back(lit.to_seconds);
         for (std::size_t at = 0; at < tap.path.size(); ++at)
         {
             const common::core::HighwayHandArrival& b = tap.path[at];
@@ -5936,13 +5920,14 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
         times.erase(duplicates.begin(), duplicates.end());
         common::core::HighwayHandWindow previous =
             common::core::highwayHandWindowAt(tap.path, times.front());
-        double previous_alpha = tapLightEnvelope(tap, times.front(), g_floor_light_release_seconds);
+        double previous_alpha =
+            common::core::highwayLightLevel(tap.light, times.front(), g_floor_light_decay_seconds);
         for (std::size_t sample = 1; sample < times.size(); ++sample)
         {
             const common::core::HighwayHandWindow at =
                 common::core::highwayHandWindowAt(tap.path, times[sample]);
-            const double alpha =
-                tapLightEnvelope(tap, times[sample], g_floor_light_release_seconds);
+            const double alpha = common::core::highwayLightLevel(
+                tap.light, times[sample], g_floor_light_decay_seconds);
             emit_segment(
                 times[sample - 1],
                 previous_alpha,
@@ -6160,10 +6145,11 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
     for (const common::core::HighwayTapOnsetViewState& tap : litTaps(
              frame.now_seconds,
              frame.now_seconds + g_fret_active_horizon_seconds,
-             g_floor_light_release_seconds))
+             g_floor_light_decay_seconds))
     {
         if (tap.seconds > frame.now_seconds + g_fret_active_horizon_seconds ||
-            tap.release_seconds + g_floor_light_release_seconds < frame.now_seconds)
+            common::core::highwayLitInterval(tap.light, g_floor_light_decay_seconds).to_seconds <
+                frame.now_seconds)
         {
             continue;
         }

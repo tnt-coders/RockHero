@@ -469,11 +469,13 @@ position cannot sum toward white the way the additive accent batch's halos do.
   Per-slice brightness lives in one field, `WindowLightSlice::dim`, dimmed by the motion dim across
   a placement's morph.
 - **`drawTappingHandLight`** — one patch per picking-hand onset over the fret SLOTS it presses:
-  the light's envelope (`tapLightEnvelope`, rising over the onset's rise and fading from its
-  `release_seconds`) laid over the same morph the window moves by (`highwayHandWindowAt` over
-  the onset's path), sampled at one list of instants. It leans toward the FHP orange so the two
-  hands read apart. Its fade takes `g_floor_light_release_seconds`, named for the plane rather
-  than for the hand.
+  the light's envelope (`highwayLightLevel` in `highway_light.h`, over the onset's
+  `HighwayLitStretch light`: rising over its rise, full through its hold, fading from its
+  release) laid over the same morph the window moves by (`highwayHandWindowAt` over the onset's
+  path), sampled at one list of instants. It leans toward the FHP orange so the two hands read
+  apart. Its fade takes `g_floor_light_decay_seconds`: the decay belongs to the layer drawing the
+  light, never to the hand, so the lane-border ribbons shape the same envelope with their own
+  `g_ribbon_decay_seconds`.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
 the next statement — is **TABLED**: removed rather than left switched off, with the revisit recorded
