@@ -69,31 +69,17 @@ namespace
     return Fraction{} < trimmed ? trimmed : shape.sustain;
 }
 
-// The approach a fret-hand placement rides when the placement lands exactly on a glide arrival,
-// keyed by the keyframe's grid position: where the leg into that arrival starts, and whether it
-// eases like unpitched travel. The arrival itself is the placement's own instant — nothing
-// presentation decides moves a statement — so the hand travels with the rail and completes where
-// the sound goes.
-struct SlideRamp
-{
-    double start_seconds{0.0};
-    bool unpitched{false};
-    // The note whose rail the ramp follows: its ink end is where the settle begins.
-    std::size_t note{0};
-};
-
-// Walks every glide in the stored stream once and records the segment each arrival rides. A pass
+// Walks every glide in the stored stream once and records, keyed by each keyframe's grid position,
+// the second the leg into it starts: the approach a fret-hand placement rides when it lands
+// exactly there. The arrival itself is the placement's own instant — nothing presentation decides
+// moves a statement — so the hand travels with the rail and completes where the sound goes. A pass
 // of its own rather than a table filled inside the note loop below, because the key is a grid
 // position the fret-hand pass looks a ramp up by, and the note loop resolves seconds.
-//
-// The SLIDE-OUT is the RESOLVED fact: a slide-out and a shift slide's arrival are the same
-// statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
-// Asking position alone would ease every arrival with the slide-out curve.
-[[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
+[[nodiscard]] std::map<GridPosition, double> makeSlideRampStarts(
     const ChartConnections& connections, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    std::map<GridPosition, SlideRamp> starts;
+    std::map<GridPosition, double> starts;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
@@ -129,31 +115,17 @@ struct SlideRamp
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span. The slide-out's segment starts where the last sounded
-            // fret left off and ends where the ring does, and is marked unpitched so the ease
-            // matches the slide-out.
-            const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
+            // fret left off and ends where the ring does.
+            const bool slide_out = slides_out && keyframe_index + 1 == note.keyframes.size();
             const double keyframe_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + keyframe.offset.toDouble());
-            if (*fret != segment_start_fret || unpitched)
+            if (*fret != segment_start_fret || slide_out)
             {
-                const SlideRamp ramp{
-                    .start_seconds = segment_start_seconds,
-                    .unpitched = unpitched,
-                    .note = index,
-                };
-                // A PITCHED ramp outranks an unpitched one at a shared key: a slide-out on one
-                // string and a shift slide's arrival on another can end on the same head, and the
-                // placement standing there is the hand LANDING. The key names no string, so the tie
-                // is settled here rather than by which note the walk happened to reach first.
-                SlideRamp& filed =
-                    starts
-                        .try_emplace(
-                            advanceGridPosition(tempo_map, note.position, keyframe.offset), ramp)
-                        .first->second;
-                if (filed.unpitched && !unpitched)
-                {
-                    filed = ramp;
-                }
+                // Two rings can end on one key from two strings; the first filed, in stream
+                // order, keeps it.
+                starts.try_emplace(
+                    advanceGridPosition(tempo_map, note.position, keyframe.offset),
+                    segment_start_seconds);
             }
             segment_start_seconds = keyframe_seconds;
             segment_start_fret = *fret;
@@ -185,7 +157,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
 
     // Where each fret-hand placement's approach ramp begins; asked once for the whole chart and
     // read by the placement pass at the bottom.
-    const std::map<GridPosition, SlideRamp> slide_ramp_starts =
+    const std::map<GridPosition, double> slide_ramp_starts =
         makeSlideRampStarts(resolutions.connections, tempo_map);
 
     // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
@@ -626,17 +598,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         const double arrival_seconds =
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
-        bool unpitched_ramp = false;
-        // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
-        // the crop, the hand completes at the arrival, and the board eases the difference.
-        double settle_seconds = 0.0;
         if (const auto slide = slide_ramp_starts.find(fhp.position);
             slide != slide_ramp_starts.end())
         {
-            ramp_start_seconds = slide->second.start_seconds;
-            unpitched_ramp = slide->second.unpitched;
-            settle_seconds =
-                std::max(0.0, arrival_seconds - state.notes[slide->second.note].ink_end_seconds);
+            ramp_start_seconds = slide->second;
         }
         else
         {
@@ -656,8 +621,6 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 .fret = fhp.fret,
                 .width = fhp.width,
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
-                .unpitched_ramp = unpitched_ramp,
-                .settle_seconds = settle_seconds,
             });
     }
 

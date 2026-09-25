@@ -936,9 +936,9 @@ struct ShapeViewState
 struct FhpViewState
 {
     /*!
-    \brief Absolute position the hand arrives at this placement — the DRAWN arrival where a slide's
-    ramp carries it, which presentation may place a margin before the instant the chart states.
-    Placements ascend by this, the order every consumer binary-searches.
+    \brief Absolute position the hand arrives at this placement: the instant the chart states it
+    at, a slide's ramp included. Placements ascend by this, the order every consumer
+    binary-searches.
     */
     double seconds{0.0};
 
@@ -962,26 +962,6 @@ struct FhpViewState
     double ramp_seconds{0.0};
 
     /*!
-    \brief True when \ref ramp_seconds spans an UNPITCHED glide, so an animated hand eases with the
-    unpitched glide's curve instead of the pitched one.
-
-    The hand follows whatever the rail draws, and the two families are different functions of
-    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
-    window and the rail sharing only their endpoints.
-    */
-    bool unpitched_ramp{false};
-
-    /*!
-    \brief The stretch of the ramp past the rail's ink end — the crop zone — over which an animated
-    hand settles into the arrival instead of finishing the glide's curve; zero where the rail
-    reaches the arrival.
-
-    A slide-matched placement whose glide the ink end cuts: the rail is drawn to the crop while
-    the hand completes at the arrival (\ref HighwayHandArrival::settle_seconds).
-    */
-    double settle_seconds{0.0};
-
-    /*!
     \brief Compares two placements by their stored fields.
     \param lhs Left-hand placement.
     \param rhs Right-hand placement.
@@ -990,9 +970,7 @@ struct FhpViewState
     friend constexpr bool operator==(const FhpViewState& lhs, const FhpViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp &&
-               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
+               lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds);
     }
 };
 

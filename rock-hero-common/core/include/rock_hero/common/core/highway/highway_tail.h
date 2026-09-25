@@ -249,36 +249,6 @@ Pitched slides ease symmetrically, leaving and arriving tangentially (the cosine
 [[nodiscard]] double highwaySlideEaseWeight(double progress, bool unpitched) noexcept;
 
 /*!
-\brief Returns the slope of \ref highwaySlideEaseWeight at a segment progress, per unit progress.
-
-The one derivative of the one curve, for the approach that must leave the curve without a kink:
-the window's settle over a crop zone joins the curve at its value AND its slope here
-(\ref highwayHandWindowAt).
-
-\param progress Position within the slide segment in [0, 1]; values outside clamp.
-\param unpitched True for the unpitched (pressure-release) easing.
-\return The curve's slope at the progress.
-*/
-[[nodiscard]] double highwaySlideEaseSlope(double progress, bool unpitched) noexcept;
-
-/*!
-\brief The cubic Hermite curve from one value and slope to another, at a unit progress.
-
-The one spelling of the basis, for the bend curve's segments and the hand window's settle: the
-curve passes through `from` with slope `from_slope` at 0 and `to` with slope `to_slope` at 1,
-slopes measured per unit of `t`.
-
-\param from Value at progress 0.
-\param from_slope Slope at progress 0, per unit progress.
-\param to Value at progress 1.
-\param to_slope Slope at progress 1, per unit progress.
-\param t Progress in [0, 1].
-\return The curve's value at `t`.
-*/
-[[nodiscard]] double cubicHermite(
-    double from, double from_slope, double to, double to_slope, double t) noexcept;
-
-/*!
 \brief Returns the vibrato wobble at a time from the note onset, as a signed unit factor.
 
 Onset-phased on purpose (absolute-time phasing desynchronizes repeated notes); callers scale

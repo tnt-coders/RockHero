@@ -44,7 +44,7 @@ count of the right-hand notes struck together at that onset — feeding, for two
 simultaneous taps, the tapped chord box — plus the PATH the light follows in the board's one
 motion element (\ref HighwayHandArrival): the onset; every stop of the hand's travel a tap's
 pitched glides or a scrape's whole keyframe path make, up to and including the first stop past
-the ink end, whose leg the light follows on the rail's own curve and settles over the crop zone;
+the ink end, whose leg the light follows on the rail's own curve to its arrival;
 and the release where it extends the path (sustained contact keeps the light on through the
 sustain). A tap's unpitched slide-out contributes nothing — pressure is already releasing, so the
 light decays from the last pitched arrival. The extent at each arrival spans every member's

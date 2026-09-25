@@ -184,15 +184,12 @@ more than one of them: the onset from the note's own fret, a slide from each fre
 are two tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand`, an
 arrival per placement; `HighwayTapOnsetViewState::path`, an arrival per stop of the taps' travel),
 resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's passes
-only decide where to sample it. Each arrival carries its ramp, the ease family the rail draws with,
-and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the approach
-leaves the leg's curve where the rail is cut and comes to rest at the arrival with a continuous
-slope (`cubicHermite`, the one cubic the bend curve is also built from). The settle is a fact
-about the rail, so the chart projection derives it once beside the ramp
-(`FhpViewState::settle_seconds`) and the board copies it; the tap path derives its own from the
-same ink end (`makeHighwayTapOnsets`, `highway_projection.cpp`). A left-hand slide-out into the
-next head and a pick slide cut at its crop therefore look the same underneath: the light rides
-the rail's own curve to the crop and settles over the last margin.
+only decide where to sample it. Each arrival carries its ramp and its ease family. The fretting
+hand's window always takes the pitched curve, even on a slide-out's ramp: unlike the rail's ink, the
+window outlives the slide, so it has to come to rest at its arrival rather than stop at full speed.
+The window still starts and ends with the slide. The light's legs follow the rail's own curve
+instead, so a leg along a scrape's unpitched travel takes the release curve
+(`makeHighwayTapOnsets`, `highway_projection.cpp`).
 
 **A TAIL'S TIP FADE IS ONE RULE FOR BOTH SURFACES** (`tailFadeSeconds`, `chart_view_state.h`): the
 last 35% of the ink, never less than a fixed stretch of time clamped to the tail — the last 35%

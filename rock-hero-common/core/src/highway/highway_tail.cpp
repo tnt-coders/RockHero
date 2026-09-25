@@ -113,27 +113,6 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     return 0.5 - (0.5 * std::cos(p * std::numbers::pi));
 }
 
-double cubicHermite(
-    const double from, const double from_slope, const double to, const double to_slope,
-    const double t) noexcept
-{
-    const double t2 = t * t;
-    const double t3 = t2 * t;
-    return (from * ((2.0 * t3) - (3.0 * t2) + 1.0)) + (from_slope * (t3 - (2.0 * t2) + t)) +
-           (to * ((-2.0 * t3) + (3.0 * t2))) + (to_slope * (t3 - t2));
-}
-
-double highwaySlideEaseSlope(const double progress, const bool unpitched) noexcept
-{
-    const double p = std::clamp(progress, 0.0, 1.0);
-    const double half_pi = std::numbers::pi / 2.0;
-    if (unpitched)
-    {
-        return half_pi * std::cos((1.0 - p) * half_pi);
-    }
-    return half_pi * std::sin(p * std::numbers::pi);
-}
-
 // Onset-phased sine at the caller-derived period.
 double highwayVibratoWobble(const double seconds_from_onset, const double period_seconds) noexcept
 {
