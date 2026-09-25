@@ -3531,6 +3531,8 @@ void HighwayRenderer::Impl::draw(
         head_indices.clear();
     };
     std::size_t batched_group = state.chord_groups.size();
+    // The bend lift's sign for the batched group: one vote per onset group, taken at its boundary.
+    double group_bend_direction = 1.0;
 
     // EVERY technique marker layers above EVERY head of its onset group. The notes of one onset
     // push lane-ascending into a single batch, so a marker written inline from a lower lane is
@@ -3928,6 +3930,11 @@ void HighwayRenderer::Impl::draw(
             emit_pending_markers();
             flush_note_batches();
             batched_group = group_index;
+            group_bend_direction =
+                common::core::highwayBendInverted(
+                    state.chart.notes, group, extra_lanes, displayed_count, invert)
+                    ? -1.0
+                    : 1.0;
             // Floor numbers beyond this group's onset take their painter slot here, under
             // this group and everything nearer.
             submit_numbers_beyond(group.start_seconds);
@@ -3985,11 +3992,6 @@ void HighwayRenderer::Impl::draw(
         // moved into the core seam. The chart-truth station is the curve's anchor-time value (a
         // pinned sounding head rides the curve with the tail centerline); an approaching pre-bent
         // head reveals that station progressively — see the reveal below.
-        const double bend_direction =
-            common::core::highwayBendInverted(
-                state.chart.notes, group, extra_lanes, displayed_count, invert)
-                ? -1.0
-                : 1.0;
         // The tail shows the wobble's whole swing; only the head breathes at a fraction of it.
         constexpr double full_vibrato_swing = 1.0;
         // The centerline, from the two channels that move it: the bend curve and whatever vibrato
@@ -4002,7 +4004,7 @@ void HighwayRenderer::Impl::draw(
             semitones +=
                 common::core::highwayVibratoSemitonesAt(note.vibrato, seconds, depth_scale);
             return common::core::highwayBentNoteY(
-                lane_y, bend_direction < 0.0, semitones, displayed_count, metrics);
+                lane_y, group_bend_direction < 0.0, semitones, displayed_count, metrics);
         };
         // Chart-truth head station: the curve's value at the anchor time, with the vibrato
         // swing scaled to the head's half depth — the head breathes with the wobble instead
@@ -4556,7 +4558,7 @@ void HighwayRenderer::Impl::draw(
                         continue;
                     }
                     const double pitch_slope =
-                        bend_direction * (samples[after].y - samples[before].y) / dz;
+                        group_bend_direction * (samples[after].y - samples[before].y) / dz;
                     lifts[sample] =
                         g_tail_slope_shade_depth * std::tanh(pitch_slope * g_tail_slope_shade_gain);
                 }
@@ -5446,9 +5448,9 @@ void HighwayRenderer::Impl::draw(
             // direction and sin_r stays zero, which negates both offsets exactly as before.
             push_marker(
                 x,
-                chart_head_y + (bend_direction * bend_marker_lift),
+                chart_head_y + (group_bend_direction * bend_marker_lift),
                 z,
-                bend_direction,
+                group_bend_direction,
                 0.0,
                 g_head_cell_bend,
                 tint);

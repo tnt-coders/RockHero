@@ -87,8 +87,7 @@ bool highwayBendInverted(
 {
     std::size_t inverted_count = 0;
     std::size_t upright_count = 0;
-    const std::size_t end = std::min(notes.size(), group.first + group.count);
-    for (std::size_t index = group.first; index < end; ++index)
+    for (std::size_t index = group.first; index < group.first + group.count; ++index)
     {
         const int lane = displayedLane(notes[index].string, extra_lanes);
         const int displayed_lane = invert_string_order ? (string_count + 1 - lane) : lane;

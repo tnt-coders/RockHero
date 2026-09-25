@@ -212,8 +212,11 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   (`docs/plans/completed/fret-hit-light-effect.md`, open decision 4).
 - **Bend authoring itself** — the `B` verb at the armed caret on a covered slot (plan 40 Phase 7),
   and `V` for a vibrato keyframe by the same grammar.
-- **One ring-ends sighting waits on it** — an end bend abutting a same-string head
-  (`ring-ends-and-authoring-planes.md` phase 1b), deferred 2026-09-24 until bends are authorable.
+- **Two sightings wait on it**, both deferred 2026-09-24 until bends are authorable: an end bend
+  abutting a same-string head (`ring-ends-and-authoring-planes.md` phase 1b), and the chord bend
+  direction shipped by `ea2e5156` — confirm the vote's side against the G+D and G+D+A examples
+  the 2026-08-15 ruling named, and whether a group-wide direction ever pushes a low-string member
+  into `highwayBentNoteY`'s board-edge clamp.
 
 Exit: bends can be created, adjusted, displayed and saved with the same confidence as slides.
 
