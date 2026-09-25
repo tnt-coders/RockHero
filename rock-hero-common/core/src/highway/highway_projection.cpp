@@ -26,8 +26,7 @@ namespace
 constexpr int g_camera_zone_measures = 2;
 
 // THE FRETTING HAND'S TRACK (\ref HighwayViewState::fret_hand): each placement's approach, in
-// the board's one motion element. Every approach takes the pitched curve, a slide-out's included:
-// the window outlives the rail it moves with, so it always eases to rest at its arrival.
+// the board's one motion element.
 [[nodiscard]] std::vector<HighwayHandArrival> makeHighwayFretHand(const ChartViewState& scene)
 {
     std::vector<HighwayHandArrival> track;
@@ -40,7 +39,8 @@ constexpr int g_camera_zone_measures = 2;
                 .low_line = static_cast<double>(fhp.fret - 1),
                 .high_line = static_cast<double>(fhp.fret + fhp.width - 1),
                 .ramp_seconds = fhp.ramp_seconds,
-                .unpitched_ramp = false,
+                .unpitched_ramp = fhp.unpitched_ramp,
+                .settle_seconds = fhp.settle_seconds,
             });
     }
     return track;
@@ -175,6 +175,7 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
                     HighwayHandArrival{
                         .seconds = stop.seconds,
                         .unpitched_ramp = stop.unpitched,
+                        .settle_seconds = std::max(0.0, stop.seconds - tap->ink_end_seconds),
                     });
                 if (!keyframeDrawn(tap->slides[stop_index], tap->ink_end_seconds))
                 {
@@ -184,7 +185,7 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
         }
         std::ranges::sort(path, std::ranges::less{}, &HighwayHandArrival::seconds);
         // Two members stopping at one instant are one arrival: an unpitched leg into it keeps
-        // the unpitched ease, whichever the sort put first.
+        // the unpitched ease, and the longer settle wins, whichever the sort put first.
         std::size_t kept = 1;
         for (std::size_t at = 1; at < path.size(); ++at)
         {
@@ -192,6 +193,7 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
             if (path[at].seconds - last.seconds < g_onset_match_epsilon)
             {
                 last.unpitched_ramp = last.unpitched_ramp || path[at].unpitched_ramp;
+                last.settle_seconds = std::max(last.settle_seconds, path[at].settle_seconds);
                 continue;
             }
             path[kept] = path[at];

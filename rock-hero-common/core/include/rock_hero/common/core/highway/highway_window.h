@@ -55,11 +55,12 @@ THE ONE MORPH both hands move by. A track is arrivals in ascending order
 (\ref HighwayHandArrival): the fretting hand's placements, or the picking hand's light path.
 Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ease from the previous
 settled window toward the arriving one, so the window travels in lockstep with a gliding note and
-morphs smoothly for ordinary moves. The fretting hand always eases to rest on the pitched slide
-curve, a slide-out's ramp included: the window persists past the slide, where the rail's ink simply
-ends, so an approach arriving at speed would read as a hard stop. Only a light path's leg along a
-scrape's unpitched travel (`unpitched_ramp`) takes the release curve its rail is drawn with, so the
-light stays on the rail. Outside every ramp the settled window holds, and arrivals
+morphs smoothly for ordinary moves. Which easing applies is the arrival's own `unpitched_ramp`: a
+pitched approach takes the slide curve, an unpitched one the slide-out curve, which starts slowly
+because a hand letting go does not accelerate the way one arriving does. An arrival's
+`settle_seconds` is the crop zone: over that final stretch the approach leaves its curve — where
+the rail it follows is cut — and comes to rest at the arrival with a continuous slope, in place of
+the unpitched curve's stop with slope. Outside every ramp the settled window holds, and arrivals
 are inclusive: at exactly \p seconds the arrival has arrived. The first arrival's settled window
 already holds from the start of time — the opening scroll shows where the hand belongs before the
 first note arrives — and the reference nut window (lines 0 to 4) applies only when there are no

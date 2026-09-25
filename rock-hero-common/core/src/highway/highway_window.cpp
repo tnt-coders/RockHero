@@ -16,6 +16,29 @@ namespace
     return HighwayHandWindow{.low_line = arrival.low_line, .high_line = arrival.high_line};
 }
 
+// The approach's weight at `progress` through a ramp of positive length: the ramp's own curve,
+// and inside the settle stretch (\ref HighwayHandArrival::settle_seconds, never more than the
+// ramp) the cubic from that curve's value and slope where the stretch begins to full travel with
+// zero slope where it ends. The slope is scaled into the stretch's own unit so the join is
+// continuous in time, not only in value.
+[[nodiscard]] double approachWeight(
+    const HighwayHandArrival& arrival, const double progress) noexcept
+{
+    const double settle =
+        std::min(arrival.settle_seconds, arrival.ramp_seconds) / arrival.ramp_seconds;
+    const double knee = 1.0 - settle;
+    if (settle <= 0.0 || progress <= knee)
+    {
+        return highwaySlideEaseWeight(progress, arrival.unpitched_ramp);
+    }
+    return cubicHermite(
+        highwaySlideEaseWeight(knee, arrival.unpitched_ramp),
+        highwaySlideEaseSlope(knee, arrival.unpitched_ramp) * settle,
+        1.0,
+        0.0,
+        std::clamp((progress - knee) / settle, 0.0, 1.0));
+}
+
 } // namespace
 
 // Binary-searches the arrival-sorted track, then eases inside the next arrival's ramp. Per-frame
@@ -43,10 +66,11 @@ HighwayHandWindow highwayHandWindowAt(
     }
     const HighwayHandWindow target = settledWindow(*next);
     const double progress = (seconds - (next->seconds - next->ramp_seconds)) / next->ramp_seconds;
-    // The arrival names its curve: the pitched one, which comes to rest, for every fretting-hand
-    // approach; a light path's leg along a scrape's unpitched travel takes the release curve its
-    // rail is drawn with.
-    const double weight = highwaySlideEaseWeight(progress, next->unpitched_ramp);
+    // The window eases with the SAME curve the drawn rail uses for this move: the pitched glide's
+    // curve for a pitched ramp, the unpitched release curve for a slide-out. Easing every move with
+    // the pitched one left the window and the rail sharing only their endpoints, which read as the
+    // window not moving with the slide.
+    const double weight = approachWeight(*next, progress);
     return HighwayHandWindow{
         .low_line = previous.low_line + ((target.low_line - previous.low_line) * weight),
         .high_line = previous.high_line + ((target.high_line - previous.high_line) * weight),

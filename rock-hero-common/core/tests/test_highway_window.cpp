@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
+#include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/highway/highway_window.h>
 #include <vector>
@@ -37,6 +38,7 @@ namespace
             .high_line = 6.0,
             .ramp_seconds = 0.0,
             .unpitched_ramp = false,
+            .settle_seconds = 0.0,
         },
         HighwayHandArrival{
             .seconds = 6.0,
@@ -44,17 +46,42 @@ namespace
             .high_line = 13.0,
             .ramp_seconds = 2.0,
             .unpitched_ramp = false,
+            .settle_seconds = 0.0,
         },
     };
 }
 
-// The same move with the arriving leg marked unpitched, so the two ease families can be compared
-// over identical geometry rather than against a second hand-written fixture.
+// The same move with the arriving placement's ramp marked unpitched, so the two ease families can
+// be compared over identical geometry rather than against a second hand-written fixture.
 [[nodiscard]] std::vector<HighwayHandArrival> makeUnpitchedPlacements()
 {
     std::vector<HighwayHandArrival> placements = makePlacements();
     placements.back().unpitched_ramp = true;
     return placements;
+}
+
+// A settled window at lines 2-6, then an unpitched one-second approach to lines 7-13 arriving at
+// 6.0 whose final `settle_seconds` settle into the arrival.
+[[nodiscard]] std::vector<HighwayHandArrival> makeSettlingPlacements(const double settle_seconds)
+{
+    return {
+        HighwayHandArrival{
+            .seconds = 2.0,
+            .low_line = 2.0,
+            .high_line = 6.0,
+            .ramp_seconds = 0.0,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        },
+        HighwayHandArrival{
+            .seconds = 6.0,
+            .low_line = 7.0,
+            .high_line = 13.0,
+            .ramp_seconds = 1.0,
+            .unpitched_ramp = true,
+            .settle_seconds = settle_seconds,
+        },
+    };
 }
 
 } // namespace
@@ -112,6 +139,7 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
             .high_line = 8.0,
             .ramp_seconds = 1.0,
             .unpitched_ramp = false,
+            .settle_seconds = 0.0,
         },
     };
     const HighwayHandWindow opening_mid = highwayHandWindowAt(opening, 0.5);
@@ -119,8 +147,8 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
     CHECK(opening_mid.high_line == Catch::Approx(8.0));
 }
 
-// A light path's leg along a scrape's unpitched travel eases with the slide-out curve, not the
-// pitched one: same settled windows at both ends of the ramp, a different path between them. That
+// A placement arriving on an unpitched slide-out eases with the slide-out curve, not the pitched
+// one: same settled windows at both ends of the ramp, a different path between them. That
 // difference is the flag's entire purpose, and the projection setting it is not evidence the
 // window reads it.
 TEST_CASE("Hand window eases an unpitched ramp with the slide-out curve", "[core][highway][window]")
@@ -148,6 +176,96 @@ TEST_CASE("Hand window eases an unpitched ramp with the slide-out curve", "[core
     const HighwayHandWindow pitched_mid = highwayHandWindowAt(makePlacements(), 5.0);
     CHECK(mid.low_line < pitched_mid.low_line);
     CHECK(mid.high_line < pitched_mid.high_line);
+}
+
+// The crop zone: over an unpitched ramp's final `settle_seconds` the window leaves the slide-out
+// curve with its value and slope and comes to rest at the arrival with zero slope, where the
+// curve alone would stop with slope. Before the zone it is the curve, unchanged.
+TEST_CASE("Hand window settles an unpitched ramp over its crop zone", "[core][highway][window]")
+{
+    // Ramp [5.0, 6.0], settle over its final 0.15 s: the knee sits at progress 0.85 (5.85 s).
+    const std::vector<HighwayHandArrival> settling = makeSettlingPlacements(0.15);
+    const auto expected_on_curve = [](const double curve_progress) {
+        const double weight = highwaySlideEaseWeight(curve_progress, true);
+        return HighwayHandWindow{
+            .low_line = 2.0 + (5.0 * weight),
+            .high_line = 6.0 + (7.0 * weight),
+        };
+    };
+
+    // (a) Before the settle begins the window rides the plain unpitched curve.
+    for (const double progress : {0.25, 0.5, 0.85})
+    {
+        const HighwayHandWindow window = highwayHandWindowAt(settling, 5.0 + progress);
+        const HighwayHandWindow expected = expected_on_curve(progress);
+        CHECK(window.low_line == Catch::Approx(expected.low_line));
+        CHECK(window.high_line == Catch::Approx(expected.high_line));
+    }
+
+    // (b) At the arrival the window is the settled target.
+    CHECK(
+        highwayHandWindowAt(settling, 6.0) ==
+        HighwayHandWindow{.low_line = 7.0, .high_line = 13.0});
+
+    // (c) Just before the arrival the window has all but come to rest: its gap to the target is a
+    // small fraction of the gap the curve alone still has there, because it arrives with zero
+    // slope where the curve arrives with slope.
+    constexpr double just_before = 6.0 - 1.0e-3;
+    const HighwayHandWindow near_arrival = highwayHandWindowAt(settling, just_before);
+    const HighwayHandWindow curve_near_arrival = expected_on_curve(just_before - 5.0);
+    CHECK(near_arrival.low_line == Catch::Approx(7.0).margin(1.0e-3));
+    CHECK(near_arrival.high_line == Catch::Approx(13.0).margin(1.0e-3));
+    CHECK(7.0 - near_arrival.low_line < (7.0 - curve_near_arrival.low_line) / 10.0);
+    CHECK(13.0 - near_arrival.high_line < (13.0 - curve_near_arrival.high_line) / 10.0);
+
+    // (d) The settle joins the curve without a jump at the knee.
+    constexpr double knee = 5.85;
+    const HighwayHandWindow before_knee = highwayHandWindowAt(settling, knee - 1.0e-6);
+    const HighwayHandWindow after_knee = highwayHandWindowAt(settling, knee + 1.0e-6);
+    CHECK(std::abs(after_knee.low_line - before_knee.low_line) < 1.0e-3);
+    CHECK(std::abs(after_knee.high_line - before_knee.high_line) < 1.0e-3);
+
+    // (e) A zero settle is the plain curve all the way to the arrival.
+    const std::vector<HighwayHandArrival> plain = makeSettlingPlacements(0.0);
+    for (const double progress : {0.25, 0.9, 0.999})
+    {
+        const HighwayHandWindow window = highwayHandWindowAt(plain, 5.0 + progress);
+        const HighwayHandWindow expected = expected_on_curve(progress);
+        CHECK(window.low_line == Catch::Approx(expected.low_line));
+        CHECK(window.high_line == Catch::Approx(expected.high_line));
+    }
+}
+
+// A settle longer than its ramp is clamped to the ramp: the whole approach becomes the settle, so
+// the window still leaves the previous settled extent without a jump at the ramp's start and still
+// arrives exactly at the arrival.
+TEST_CASE("Hand window clamps a settle longer than its ramp", "[core][highway][window]")
+{
+    // Ramp [5.0, 6.0] with a settle of 3 s.
+    const std::vector<HighwayHandArrival> overlong = makeSettlingPlacements(3.0);
+    const HighwayHandWindow previous{.low_line = 2.0, .high_line = 6.0};
+
+    // No jump at the ramp's start: the window there is the previous settled one, and an instant
+    // later it has barely moved.
+    CHECK(highwayHandWindowAt(overlong, 5.0) == previous);
+    const HighwayHandWindow just_after = highwayHandWindowAt(overlong, 5.0 + 1.0e-6);
+    CHECK(std::abs(just_after.low_line - previous.low_line) < 1.0e-3);
+    CHECK(std::abs(just_after.high_line - previous.high_line) < 1.0e-3);
+
+    // Exactly at the arrival: the settled target.
+    CHECK(
+        highwayHandWindowAt(overlong, 6.0) ==
+        HighwayHandWindow{.low_line = 7.0, .high_line = 13.0});
+
+    // Through the ramp it is the settle as long as the ramp itself.
+    const std::vector<HighwayHandArrival> full = makeSettlingPlacements(1.0);
+    for (const double progress : {0.1, 0.5, 0.9})
+    {
+        const HighwayHandWindow clamped = highwayHandWindowAt(overlong, 5.0 + progress);
+        const HighwayHandWindow expected = highwayHandWindowAt(full, 5.0 + progress);
+        CHECK(clamped.low_line == Catch::Approx(expected.low_line));
+        CHECK(clamped.high_line == Catch::Approx(expected.high_line));
+    }
 }
 
 // Coverage is the shared hit-line signal: full one lane inside either edge, zero one lane

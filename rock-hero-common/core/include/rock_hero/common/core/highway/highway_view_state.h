@@ -184,13 +184,21 @@ struct HighwayHandArrival
     double ramp_seconds{0.0};
 
     /*!
-    \brief True when the ramp is a light path's leg along a scrape's UNPITCHED travel, so the
-    light eases with the unpitched curve its rail is drawn with instead of the pitched one.
-
-    Never set on the fretting hand's track: the window outlives every rail it moves with, so it
-    always eases to rest on the pitched curve.
+    \brief True when the ramp spans an UNPITCHED glide (\ref FhpViewState::unpitched_ramp), so
+    the approach eases with the unpitched curve instead of the pitched one.
     */
     bool unpitched_ramp{false};
+
+    /*!
+    \brief The final stretch of the ramp over which the approach settles into the arrival with a
+    continuous slope; zero settles on the ramp's own curve.
+
+    THE CROP ZONE: from the rail's ink end to the arrival. A leg the ink end cuts is drawn to the
+    crop and no further while the hand completes at the true instant, so over this stretch the
+    window leaves the leg's curve where the rail stops and comes to rest exactly at the arrival,
+    in place of the curve's stop with slope. Zero where the rail reaches the arrival.
+    */
+    double settle_seconds{0.0};
 
     /*!
     \brief Compares two arrivals by their stored fields.
@@ -209,7 +217,8 @@ struct HighwayHandArrival
                std::is_eq(lhs.low_line <=> rhs.low_line) &&
                std::is_eq(lhs.high_line <=> rhs.high_line) &&
                std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp;
+               lhs.unpitched_ramp == rhs.unpitched_ramp &&
+               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
     }
 };
 
@@ -239,7 +248,7 @@ struct HighwayTapOnsetViewState
 
     The hold end — the drawn tail's end, or the last pitched keyframe when a drawn unpitched
     slide-out follows, pressure already coming off. The path may run past it: a leg the ink end
-    cuts runs on to its arrival while the light is already fading.
+    cuts settles to its arrival while the light is already fading.
     */
     double release_seconds{0.0};
 

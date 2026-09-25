@@ -105,9 +105,7 @@ What that commits to:
    crop zone: from the ink end to the arrival the approach leaves the leg's curve where the rail
    is cut and comes to rest with a continuous slope, both hands moving by the one morph
    (`highwayHandWindowAt`; the settle derived once beside the ramp as
-   `FhpViewState::settle_seconds`; sighted 2026-09-23 as a corner without it). Superseded
-   2026-09-25: the settle is gone, and the fretting hand's window now always eases to rest on the
-   pitched curve (sighted abrupt at Scotty Doesn't Know 72:3 and 74:3). Every hand ramp
+   `FhpViewState::settle_seconds`; sighted 2026-09-23 as a corner without it). Every hand ramp
    is filed
    at its keyframe's stored instant, zone keyframes included, so the hand travels with the rail
    and completes where the sound goes; the ramp walk reads the stored notes directly. The
