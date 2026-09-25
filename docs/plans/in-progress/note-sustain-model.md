@@ -320,11 +320,12 @@ and has no instances on that material.
   under `Alt` (stage B): it has the space for a length that the board, read at speed, does not.
 
   What the shipped board reads, and why these helpers exist on their own terms:
-  `highway_slide_path.h` (`highwayNoteFretboardX`, `highwaySlideStateAt`, `highwayGlideSliceCount`)
-  and `highway_floor_geometry.h` (`highwayVisibleSpan` and `HighwaySpan`, `highwayFloorFootprint`
-  with `g_open_tail_margin`). The sustain tail, the head, the hand-window light and the tap light
-  ask all of them. `HighwaySpan` carries `from` and `to` and no `ends_inside`, which only a band's
-  end cap and a floor light's far fade would read.
+  `highway_slide_path.h` (`highwayNoteFretboardX`, `highwaySlideStateAt`), `highway_window.h`
+  (`highwayTrackSampleTimes`, which holds the one glide density policy) and
+  `highway_floor_geometry.h` (`highwayVisibleSpan` and `HighwaySpan`, `highwayFloorFootprint` with
+  `g_open_tail_margin`). The sustain tail, the head and the floor light ask all of them.
+  `HighwaySpan` carries `from` and `to` and no `ends_inside`, which only a band's end cap and a
+  floor light's far fade would read.
 
   There are **two visual paths**, not three: `docs/developer/the-3d-highway.md` records in one
   paragraph what a world-space mark would need if the shape is ever wanted again (the overlay path

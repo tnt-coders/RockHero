@@ -212,9 +212,10 @@ reads too. The sounding head breathes at exactly half the tail's displacement.
 
 **AN OPEN RING MOVES WITH THE HAND WINDOW; A HARMONIC'S DOES NOT.** An open string has no position
 of its own, so its bar and its tail band span the hand window and follow it as it slides — the band
-samples the window per station along its length wherever a placement ramp overlaps the visible tail
-(`windowSampleTimes`, whose return value is that one scan's other answer: whether the window moves
-inside the span at all), and holds one extent otherwise. The string is not being slid, only moved
+samples the window per station along its length wherever the window moves under the visible tail
+(`highwayTrackSampleTimes`, the one sampling policy, under "The floor light" below — whose samples
+past the tail's two ends are also the answer to whether it moves at all), and holds one extent
+otherwise. The string is not being slid, only moved
 visibly, and the curtain applies to that ribbon exactly as to any plain one (the reveal alpha
 multiplies into every band sample). A straight, onset-anchored open ring is the rejected
 alternative: it reads as the string detaching from the hand. A harmonic is the other case by
@@ -232,9 +233,9 @@ takes the release curve, and a scrape's turnarounds are pitched legs that arrive
 (re-ruled 2026-09-24, when they cornered). Bounded by `keyframeDrawn` where a consumer draws only
 to the ink end. Both live out here rather than inline in `draw()`, which is what
 lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
-glide lambda declared after every floor pass is reachable by no floor pass. `highwayGlideSliceCount`
-rides along as the one density policy every glide-following mark subdivides an eased segment by, so
-a scrape cannot facet under one mark while staying smooth under another.
+glide lambda declared after every floor pass is reachable by no floor pass. The one density policy
+every mark following the hand's window is sliced by lives beside the window's own easing, inside
+the one sampling policy (`highwayTrackSampleTimes`, `highway_window.h`).
 
 A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node's offset above the
 stop is constant in fret units and a glide that moves the stop moves the node by the same amount —
@@ -506,9 +507,9 @@ hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn
 `forEachLightOf`; `forEachLight` is the two composed.
 
 - **`drawFloorLight`** — per light, the brightness laid over the window at a list of instants
-  (`appendLightSampleTimes`: the lit interval's ends, the start, the release, and — only where the
-  light follows its track — the arrivals it reaches and each ramp it travels, sliced by
-  `highwayGlideSliceCount`), through the per-fragment soft x edges (`fs_window_light`,
+  (`appendLightSampleTimes`: the lit interval's ends, the start, the release, and — only over the
+  stretch where the light follows its track — that stretch's track samples,
+  `highwayTrackSampleTimes`), through the per-fragment soft x edges (`fs_window_light`,
   `g_window_light_falloff`), with the spill lane drawn past each edge so the soft band fades fully.
   One batch per hand; the picking hand's lanes lean toward the FHP orange
   (`HandLightStyle::warm_mix`). Alpha-blended rather than additive, so two lights at one position
@@ -516,6 +517,48 @@ hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn
 - **`drawLaneBorderRibbons`** — the bright tier is the rule at now (`lineLightAt`); the mid tier is
   the rule along z at each sample's time, so a line is lit only while its light is.
 - **`drawFretLines`** — the active tier is the rule at now.
+
+**ONE SAMPLING POLICY.** Everything drawn along a hand's track — the floor light over the stretch
+it follows, the rails, an open tail's band — samples the window through
+`highwayTrackSampleTimes` (`highway_window.h`): the range's two ends, every arrival inside it, and
+each overlapping leg's ramp sliced by the one density policy (four slices per fret of travel,
+clamped to 6-64). A settled stretch adds nothing, so straight segments between samples follow the
+eased window exactly where it moves; `highwaySortUniqueTimes` finishes every sample list, the
+tail's own sampler included. For an open tail the list does double duty: anything in it past the
+two ends — or a window that differs at the tail's two ends, which catches a tail shorter than one
+slice inside a ramp — means the window moves under the tail, which is what switches the band to
+per-station sampling.
+
+Three marks beside the lights, all on the raw window:
+
+- **Rails** (`drawHandShapeRails`) — the side highlights that run through a held chord's duration:
+  a solid core between fade-out wings along both window edges, from the hold's start to its end,
+  riding the hit line while it lasts. ONE pass draws every rail as `(track, from, to, colour)`, fed
+  by both hands: the fretting hand's posture spans over `fret_hand.track` in the span's own colour
+  (purple for an arpeggio, the lane-border teal otherwise — a span's colour says what kind of span
+  it is), and every tapped chord (`tappedChord`) over `pick_hand.track` from its onset to its
+  `release_seconds`, in the picking hand's white (`HandLightStyle::mark_color`). A strike carries
+  its own hold end, so the picking hand needs no derived spans — a span object would restate the
+  strike on a second representation the 2D lane never shows. Singles get no rails on either hand.
+- **Box sides** — `highwayBoxSidesAt(track, onset, now)` (`highway_window.h`) is the hand's
+  window at `max(onset, now)`: an approaching box stands at its onset's window, and one riding the
+  hit line follows the live window, so a gliding chord carries its box. It is the one rule for both
+  hands — a strummed box reads the fretting hand's track, a tapped box the picking hand's, whose
+  window at a tapped chord's onset is its taps' own slots (and, for an open-string tap harmonic,
+  its node).
+- **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
+  landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
+  spans the window) its box's two sides. They are chart facts, `HighwayHandLight::pops`
+  (`HighwayStrikePop`, `highway_light.h`), derived once per chart revision in
+  `highway_projection.cpp`: every pop is in its NOTE's hand's list — a right-hand onset's strike,
+  landings and bend arrivals are the picking hand's — and THE POP CLAMP is applied there, once, for
+  every pop of both hands: a pop's release clamps (`highwayHitGlowRelease`) against the next pop of
+  its hand landing on the same strips (the same fret's wires, or the box sides — every box pop of a
+  hand lights its live window's sides), so a fast run keeps a discrete pop per strike; pops at one
+  instant are one strike and never clamp each other. `drawStrikeGlow` only reads each hand's
+  still-fading run, draws it in the hand's `mark_color` — amber for the fretting hand, white for
+  the picking hand — max-resolving a wire two pops of one hand share, while the two hands' strips
+  add; the box sides stand at the hand's live window.
 
 The **FHP silence fade** — the backlight going out through a left-hand rest and returning ahead of
 the next statement — is what the fretting hand's evidence and the establishment rule do: the light

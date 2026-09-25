@@ -230,7 +230,7 @@ The same pair for both hands (\ref HighwayViewState::fret_hand, \ref HighwayView
 so every floor layer draws either hand through one path and the hands differ only in the evidence
 their producers accept. Where the light stands at an instant is \ref highwayHandWindowAt over
 \ref track; how bright it is there is \ref highwayLightLevel over the stretch of \ref lit covering
-that instant.
+that instant; what flashes on it is \ref pops.
 */
 struct HighwayHandLight
 {
@@ -242,6 +242,9 @@ struct HighwayHandLight
     empty where the chart proves nothing about the hand.
     */
     std::vector<HighwayLitStretch> lit;
+
+    /*! \brief The hand's strike-glow pops, ascending by onset, releases already clamped. */
+    std::vector<HighwayStrikePop> pops;
 
     /*!
     \brief Compares two hand lights by their stored fields.
@@ -265,7 +268,7 @@ hand (\ref HighwayViewState::pick_hand), whose one track runs through every stri
 struct HighwayTapOnsetViewState
 {
     /*! \brief Absolute onset position shared by the simultaneous taps. */
-    double seconds{0.0};
+    double start_seconds{0.0};
 
     /*! \brief Lowest tapped fret at the onset. */
     int fret_low{0};
@@ -273,7 +276,7 @@ struct HighwayTapOnsetViewState
     /*! \brief Highest tapped fret at the onset. */
     int fret_high{0};
 
-    /*! \brief Number of simultaneous taps; two or more render the tapped chord box. */
+    /*! \brief Number of simultaneous taps; two or more are a tapped chord (\ref tappedChord). */
     int count{0};
 
     /*!
@@ -297,11 +300,45 @@ struct HighwayTapOnsetViewState
     friend constexpr bool operator==(
         const HighwayTapOnsetViewState& lhs, const HighwayTapOnsetViewState& rhs) noexcept
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
-               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
-               std::is_eq(lhs.release_seconds <=> rhs.release_seconds);
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               lhs.fret_low == rhs.fret_low && lhs.fret_high == rhs.fret_high &&
+               lhs.count == rhs.count && std::is_eq(lhs.release_seconds <=> rhs.release_seconds);
     }
 };
+
+/*!
+\brief Returns whether a strike is a tapped chord: two or more taps struck together.
+
+THE TAPPED-CHORD RULE: only a tapped chord draws the tapped box, its rails and its box-side pop; a
+single tap pops its own slot's wires.
+
+\param strike The strike to classify.
+\return True for two or more simultaneous taps.
+*/
+[[nodiscard]] constexpr bool tappedChord(const HighwayTapOnsetViewState& strike) noexcept
+{
+    return strike.count >= 2;
+}
+
+/*!
+\brief Returns whether the board marks a keyframe: a pitched linked keyframe within the note's ink
+end.
+
+An unpitched slide-out is a pressure release with no target to mark, a scrape's stops are the
+PICKING hand's travel, and a keyframe past the ink end is in the ring's ending zone — the board
+draws no reveal, so no mark of it appears. One predicate, asked by every consumer that draws or pops
+a keyframe's fret, so none of them can disagree about which keyframes exist on the board.
+
+\param note The note carrying the keyframe.
+\param keyframe One of the note's keyframes.
+\return True when the board draws a mark at the keyframe and pops its landing.
+*/
+[[nodiscard]] constexpr bool highwayMarksKeyframe(
+    const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
+{
+    return !isScrape(note.attack) && linkedKeyframe(keyframe) && keyframe.fret > 0 &&
+           keyframeDrawn(keyframe, note.ink_end_seconds);
+}
 
 /*!
 \brief Which box treatment one onset group draws — LAW IV's answer for the chord-box family.

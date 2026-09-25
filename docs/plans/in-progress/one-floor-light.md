@@ -1,5 +1,8 @@
 # One floor light: the fret-hand glow on proof of a grip
 
+**Status 2026-09-25: BUILT through Phase 3** — Phase 1 `e140568e`, Phase 2 steps 1-3 `706b9e8c`,
+steps 4-5 and Phase 3 in the commit that follows. What remains is the sighting list in section 7.
+
 *Ruled 2026-09-25. Supersedes the "fret-hand glow on PROOF OF A GRIP" entry in
 `docs/tracking/backlog.md`, which now points here. The plan was drafted by the simplicity-expert
 agent from a clean slate, reviewed against the tree, and its decisions ruled by the user the same
@@ -187,9 +190,9 @@ and spans. Nothing else about a hand is a code path.
 ### 2.4 Emission: one path through every layer (`highway_renderer.cpp`)
 
 ```cpp
-struct HandLightStyle { double warm_mix; ArgbColor strike_color; };
-constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .strike_color = g_hit_glow_color};
-constexpr HandLightStyle g_picking_hand_light{.warm_mix = g_tap_light_warm_mix, .strike_color = 0xFFFFFFFF};
+struct HandLightStyle { double warm_mix; ArgbColor mark_color; };
+constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .mark_color = g_hit_glow_color};
+constexpr HandLightStyle g_picking_hand_light{.warm_mix = g_tap_light_warm_mix, .mark_color = 0xFFFFFFFF};
 
 template <typename Visit> void Impl::forEachLight(double from, double to, double decay, Visit&&) const;
     // visit(const HighwayHandLight&, const HighwayLitStretch&, const HandLightStyle&)
@@ -227,12 +230,15 @@ second decay with it — bridging is the rest tolerance's rule, stated once, nev
   the fretting hand's posture spans over `fret_hand.track` as today (arpeggio or border colour),
   and every tapped chord (`count >= 2`) over `pick_hand.track` from its onset to its
   `release_seconds`, in the picking hand's white. Sampled by the one density policy (Phase 3).
-- **Strike pops** (`drawStrikeGlow`): `boxSidesAt(path, onset, now) = highwayHandWindowAt(path,
+- **Strike pops** (`drawStrikeGlow`): `highwayBoxSidesAt(path, onset, now) = highwayHandWindowAt(path,
   max(onset, now))` is the ONE function the box panel and the pop both ask (D6), so a gliding tapped
-  chord's box and pop follow its light exactly as a strum's follow the window. Pops are collected
-  per hand (two line-slot arrays) so a shared line max-resolves within a hand and the two hands'
-  strips add. Colour per hand from `HandLightStyle::strike_color` (D7). The pop clamp is one rule —
-  a pop clamps against the next pop landing on the same strips — stated once.
+  chord's box and pop follow its light exactly as a strum's follow the window. Pops are CHART
+  FACTS: each hand's `HighwayHandLight::pops` (`HighwayStrikePop {onset, release, fret-or-box}`)
+  is derived once in the projection beside the track and the lit stretches, with the pop clamp —
+  one rule, a pop's release clamps against the next pop of its hand landing on the same strips,
+  coincident pops never clamping each other — applied at build time and tested in core. The
+  renderer only binary-searches, evaluates the envelope and draws: per hand, a shared line
+  max-resolves and the two hands' strips add, in the hand's `HandLightStyle::mark_color` (D7).
 - **Constants:** `g_floor_light_release_seconds` (a duration, misnamed as an instant) became
   `g_floor_light_decay_seconds` in Phase 1 and is `g_light_decay_seconds` from Phase 2, the light's
   one decay; `g_tap_ribbon_decay_seconds` is deleted (above).
@@ -243,7 +249,7 @@ second decay with it — bridging is the rest tolerance's rule, stated once, nev
 `litTapOnsetRange`, `tap_end_prefix_max`, `max_tap_rise_seconds`, `HandWindow`,
 `FrameScratch::hand_windows`, `FrameContext::hand_windows` and their build loop in `draw()`,
 `WindowLightSlice`, `windowSampleTimes`, the tapped-box side computation in the panel code (now
-`boxSidesAt`), the per-hand strike branches. Anonymous-namespace helpers that lose their last
+`highwayBoxSidesAt`), the per-hand strike branches. Anonymous-namespace helpers that lose their last
 caller MUST go in the same change: `-Wunused-function` fails CI.
 
 ## 3. Phases
@@ -282,7 +288,7 @@ before and after; Phase 1 changes no sample time and no alpha arithmetic.
 3. **Renderer tiers.** Ribbons and fret lines read the brightness rule; delete `HandWindow`,
    `hand_windows`, `tapPathLines`.
 4. **Rails and strike pops.** The tapped chord's hold end back on the strike (`release_seconds`);
-   the rails pass over both hands' tracks, white under tapped chords; `boxSidesAt`, per-hand
+   the rails pass over both hands' tracks, white under tapped chords; `highwayBoxSidesAt`, per-hand
    slots, per-hand colour, the one clamp rule.
 5. **Docs.** `docs/developer/the-3d-highway.md` "The two floor lights" → "The floor light"; the
    backlog entry closed with the commit reference; `harmonic-display-followups.md`'s `tap_onsets`
@@ -359,3 +365,9 @@ parameter named like an enclosing local); the merge's stretch count uses branche
 6. The rails after Phase 3.
 7. Beat-bar wings, rails and floor footprints still clip to the window when it is dark; not
    covered by any ruling — if they read as floating, that is a new item.
+8. The one pop clamp (ruled 2026-09-25 at the build): a fretted single's pop is no longer cut
+   short by a later boxed chord member on its fret — the old code's own comment called that
+   "erring toward discreteness", an arbitrary choice — and a tapped glide's landing and bend
+   pops are white. Also under the single rule: a bent note's strike pop is now clamped by its own
+   bend arrival on the same fret (the arrival then pops afresh), which most bends reach inside the
+   0.35 s release. Sight a single followed closely by a chord, and a bend.

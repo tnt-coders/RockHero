@@ -315,30 +315,4 @@ TEST_CASE("A fretted glide dims only across its slide-out leg", "[ui][highway]")
     CHECK_THAT(alpha_at(5.0), Catch::Matchers::WithinAbs(g_unpitched_slide_end_alpha, 1e-12));
 }
 
-// The density policy every glide-following mark subdivides by. Bounded at both ends so a
-// sub-fret wiggle still reads as a curve and a full-neck scrape cannot tessellate past a batch
-// budget, and monotone in between so a longer travel never draws with fewer slices.
-TEST_CASE("Glide slice count is bounded, four per fret, and monotone", "[ui][highway]")
-{
-    // The floor holds for anything under one and a half frets of travel.
-    CHECK(highwayGlideSliceCount(0.0) == g_glide_slice_min);
-    CHECK(highwayGlideSliceCount(1.0) == g_glide_slice_min);
-
-    // Four per fret past that.
-    CHECK(highwayGlideSliceCount(2.0) == 8);
-    CHECK(highwayGlideSliceCount(3.0) == 12);
-
-    // The ceiling holds from sixteen frets of travel on, a scrape's whole-neck leg included.
-    CHECK(highwayGlideSliceCount(16.0) == g_glide_slice_max);
-    CHECK(highwayGlideSliceCount(48.0) == g_glide_slice_max);
-
-    int previous = highwayGlideSliceCount(0.0);
-    for (int step = 1; step <= 40; ++step)
-    {
-        const int count = highwayGlideSliceCount(static_cast<double>(step) / 2.0);
-        CHECK(count >= previous);
-        previous = count;
-    }
-}
-
 } // namespace rock_hero::common::ui

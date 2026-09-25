@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_window.h>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <span>
 #include <vector>
 
@@ -69,6 +71,25 @@ namespace
         track, seconds, std::ranges::less{}, &HighwayHandArrival::seconds);
 }
 
+// THE ONE DENSITY POLICY every leg the sampler walks is sliced by, in slices per fret of travel.
+// Six slices flat sufficed for a tapped glide's few-fret travel but faceted a scrape's dozen-fret
+// leg into visible straights; four per fret keeps the eased curve under half a fret per slice at
+// its steepest, which makes the density a property of the TRAVEL rather than of the segment. The
+// floor keeps a travel of well under a fret reading as a curve, and the ceiling keeps a full-neck
+// sweep inside a batch's budget.
+constexpr double g_glide_slices_per_fret = 4.0;
+constexpr int g_glide_slice_min = 6;
+constexpr int g_glide_slice_max = 64;
+
+// How many straight slices a leg is drawn as, for its travel in fret units.
+[[nodiscard]] int glideSliceCount(const double sweep_frets) noexcept
+{
+    return std::clamp(
+        static_cast<int>(std::ceil(sweep_frets * g_glide_slices_per_fret)),
+        g_glide_slice_min,
+        g_glide_slice_max);
+}
+
 } // namespace
 
 // Rationale lives on the declaration in highway_window.h.
@@ -76,6 +97,65 @@ std::optional<HighwayHandLeg> highwayHandLegAt(
     const std::span<const HighwayHandArrival> track, const double seconds) noexcept
 {
     return legBefore(track, nextArrival(track, seconds), seconds);
+}
+
+// Rationale lives on the declaration in highway_window.h. The walk runs from the first arrival
+// after `from` through the first after `to`: an instant in between eases through the ramp of the
+// first arrival after it, so no later leg can move the window inside the range. An arrival's own
+// instant is the end of its leg's last slice, which is why the slices stop short of it.
+void highwayTrackSampleTimes(
+    const std::span<const HighwayHandArrival> track, const double from_seconds,
+    const double to_seconds, std::vector<double>& times)
+{
+    times.push_back(from_seconds);
+    times.push_back(to_seconds);
+    const auto keep_inside = [&](const double seconds) {
+        if (seconds > from_seconds && seconds < to_seconds)
+        {
+            times.push_back(seconds);
+        }
+    };
+    const auto first = nextArrival(track, from_seconds);
+    const auto past = nextArrival(track, to_seconds);
+    const auto last = past == track.end() ? past : std::next(past);
+    for (auto it = first; it != last; ++it)
+    {
+        const HighwayHandArrival& arrival = *it;
+        keep_inside(arrival.seconds);
+        if (it == track.begin() || arrival.ramp_seconds <= 0.0)
+        {
+            continue;
+        }
+        const HighwayHandArrival& previous = *std::prev(it);
+        const double sweep = std::max(
+            std::abs(arrival.low_line - previous.low_line),
+            std::abs(arrival.high_line - previous.high_line));
+        if (sweep <= 0.0)
+        {
+            continue;
+        }
+        const double ramp_start = arrival.seconds - arrival.ramp_seconds;
+        const int slices = glideSliceCount(sweep);
+        for (int slice = 0; slice < slices; ++slice)
+        {
+            keep_inside(
+                ramp_start +
+                (arrival.ramp_seconds * static_cast<double>(slice) / static_cast<double>(slices)));
+        }
+    }
+}
+
+// Rationale lives on the declaration in highway_window.h. Asks the same question as every other
+// same-instant test on the board — are these two highway times one moment — so it reads the same
+// named tolerance rather than repeating the number.
+void highwaySortUniqueTimes(std::vector<double>& times)
+{
+    std::ranges::sort(times);
+    const auto [first_duplicate, last_duplicate] =
+        std::ranges::unique(times, [](const double lhs, const double rhs) {
+            return std::abs(rhs - lhs) < g_onset_match_epsilon;
+        });
+    times.erase(first_duplicate, last_duplicate);
 }
 
 // Binary-searches the arrival-sorted track once, then eases through the leg in progress there.
@@ -135,6 +215,14 @@ HighwayHandWindow highwayLitWindowAt(
     const double seconds) noexcept
 {
     return highwayHandWindowAt(track, highwayLitTrackTime(track, stretch, seconds));
+}
+
+// Rationale lives on the declaration in highway_window.h.
+HighwayHandWindow highwayBoxSidesAt(
+    const std::span<const HighwayHandArrival> track, const double onset_seconds,
+    const double now_seconds) noexcept
+{
+    return highwayHandWindowAt(track, std::max(onset_seconds, now_seconds));
 }
 
 // Distance-to-edge coverage: saturates one lane inside either edge, so a settled integer window

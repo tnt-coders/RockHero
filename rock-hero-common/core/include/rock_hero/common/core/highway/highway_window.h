@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <span>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -109,6 +110,47 @@ The leg points into \p track, so it is valid only while the track is.
     std::span<const HighwayHandArrival> track, double seconds) noexcept;
 
 /*!
+\brief Appends the instants a mark following a hand's window samples it at over [from, to].
+
+THE ONE SAMPLING POLICY for everything drawn along a track — the floor light over the stretch it
+follows, the hand-shape rails, an open tail's band. It appends \p from_seconds, \p to_seconds, every
+arrival strictly between them, and, for each leg whose ramp overlaps that open range, the ramp's
+slices that fall strictly inside it — THE ONE DENSITY POLICY, four slices per fret of the leg's
+wider edge travel, never fewer than 6 nor more than 64, so a move cannot facet under one mark while
+staying smooth under another.
+Between two consecutive instants the window then moves along one slice of one leg or holds still, so
+straight segments between them follow the eased window. A settled stretch adds nothing: the window
+is constant there. A leg with no ramp, or one whose edges do not move, adds no slices.
+
+Only the legs that govern an instant in the range are walked — those of the arrivals from the first
+after \p from_seconds through the first after \p to_seconds, since the window eases through the
+ramp of the first arrival after an instant (\ref highwayHandWindowAt) — so the cost is two binary
+searches plus the samples, whatever the track's length.
+
+The list is appended to unsorted and may repeat an instant; the caller finishes it with
+\ref highwaySortUniqueTimes once it has appended everything it samples.
+
+\param track Arrivals in ascending order.
+\param from_seconds Start of the sampled range.
+\param to_seconds End of the sampled range; not before \p from_seconds.
+\param times List the instants are appended to.
+*/
+void highwayTrackSampleTimes(
+    std::span<const HighwayHandArrival> track, double from_seconds, double to_seconds,
+    std::vector<double>& times);
+
+/*!
+\brief Sorts a list of sample instants and drops repeats: instants closer than
+\ref g_onset_match_epsilon are one moment, so no two samples make a zero-length segment.
+
+Every sampler that appends instants unsorted — \ref highwayTrackSampleTimes, a tail's
+\ref makeHighwayTailSampleTimes — finishes its list here.
+
+\param times The instants to sort and deduplicate in place.
+*/
+void highwaySortUniqueTimes(std::vector<double>& times);
+
+/*!
 \brief Returns the instant a lit light reads its hand's track at: where the window it shows is
 taken from (\ref highwayLitWindowAt).
 
@@ -152,6 +194,23 @@ the light itself does not make.
 [[nodiscard]] HighwayHandWindow highwayLitWindowAt(
     std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
     double seconds) noexcept;
+
+/*!
+\brief Returns where a boxed strike's two sides stand at an instant: its hand's window at
+`max(onset, now)`.
+
+THE BOX-SIDES RULE, for both hands: an approaching box stands at its hand's window at its own onset,
+and a box at or past the hit line at the live window, so a chord gliding under a held box carries
+the box along. A strummed box reads the fretting hand's track, a tapped chord's box the picking
+hand's (\ref makePickHandLight).
+
+\param track The boxed hand's arrivals, ascending.
+\param onset_seconds The strike's onset.
+\param now_seconds The instant being drawn.
+\return The window the box's sides stand at.
+*/
+[[nodiscard]] HighwayHandWindow highwayBoxSidesAt(
+    std::span<const HighwayHandArrival> track, double onset_seconds, double now_seconds) noexcept;
 
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.

@@ -17,7 +17,6 @@ a time, so out here they gain the witness the draw pass can never have.
 #pragma once
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
@@ -178,39 +177,6 @@ curve. On any other note the dim is the terminal slide-out's own leg.
         .x_offset = highwayNoteFretboardX(note, last.fret, metrics, mirrored) - base_x,
         .alpha = alpha_at(stop_count - 1, seconds),
     };
-}
-
-/*!
-\brief Slices per fret of travel a gliding segment is subdivided into.
-
-Six slices flat sufficed for a tapped glide's few-fret travel but faceted a scrape's dozen-fret leg
-into visible straights. Four per fret keeps the eased curve under half a fret per slice at its
-steepest, which is what makes the density a property of the TRAVEL rather than of the segment.
-*/
-constexpr double g_glide_slices_per_fret = 4.0;
-
-/*! \brief Floor on the slice count, so a travel of well under a fret still reads as a curve. */
-constexpr int g_glide_slice_min = 6;
-
-/*! \brief Ceiling on the slice count, so a full-neck sweep stays inside a batch's budget. */
-constexpr int g_glide_slice_max = 64;
-
-/*!
-\brief How many straight slices a gliding segment is drawn as, for a travel in fret units.
-
-The one density policy every glide-following mark obeys — the tapping hand's light patches today,
-and any later mark that walks an eased segment — so a scrape cannot facet under one mark while
-staying smooth under another.
-
-\param sweep_frets Absolute travel across the segment in fret units; a finite, non-negative value.
-\return Slice count, never below \ref g_glide_slice_min nor above \ref g_glide_slice_max.
-*/
-[[nodiscard]] inline int highwayGlideSliceCount(double sweep_frets)
-{
-    return std::clamp(
-        static_cast<int>(std::ceil(sweep_frets * g_glide_slices_per_fret)),
-        g_glide_slice_min,
-        g_glide_slice_max);
 }
 
 } // namespace rock_hero::common::ui

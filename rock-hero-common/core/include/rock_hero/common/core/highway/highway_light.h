@@ -1,11 +1,12 @@
 /*!
 \file highway_light.h
-\brief When a hand's light is lit, and the one envelope every floor layer shapes it by.
+\brief When a hand's light is lit, the one envelope every floor layer shapes it by, and its pops.
 */
 
 #pragma once
 
 #include <compare>
+#include <optional>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -136,5 +137,45 @@ storage.
 */
 [[nodiscard]] std::vector<HighwayLitStretch> mergeLitEvidence(
     std::vector<HighwayLitStretch> items, double rest_seconds);
+
+/*!
+\brief One strike-glow pop of a hand: when it flashes, how long it fades, and which strips it lands
+on.
+
+A strike, a slide landing or a bend arrival pops the two wires bounding its slot; a boxed strike,
+and a lone open whose bar spans the window, pops the hand's box sides. The release is already
+clamped (\ref highwayHitGlowRelease) against the next pop of the same hand on the same strips, so
+the renderer reads it as a chart fact instead of re-deriving it per frame.
+*/
+struct HighwayStrikePop
+{
+    /*! \brief Absolute position the pop flashes. */
+    double onset_seconds{0.0};
+
+    /*! \brief How long the pop takes to fade, clamped against the next pop on its strips. */
+    double release_seconds{0.0};
+
+    /*!
+    \brief The fret whose slot's two wires pop; no value for a pop on the hand's box sides, which
+    stand wherever the hand's window stands.
+    */
+    std::optional<int> fret;
+
+    /*!
+    \brief Compares two pops by their stored fields.
+    \param lhs Left-hand pop.
+    \param rhs Right-hand pop.
+    \return True when both pops store equal values.
+
+    Exact field equality: pops are compared against values the projection produced, so is_eq keeps
+    GCC's -Wfloat-equal satisfied that the exactness is intended.
+    */
+    friend constexpr bool operator==(
+        const HighwayStrikePop& lhs, const HighwayStrikePop& rhs) noexcept
+    {
+        return std::is_eq(lhs.onset_seconds <=> rhs.onset_seconds) &&
+               std::is_eq(lhs.release_seconds <=> rhs.release_seconds) && lhs.fret == rhs.fret;
+    }
+};
 
 } // namespace rock_hero::common::core

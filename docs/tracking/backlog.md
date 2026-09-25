@@ -337,8 +337,9 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   `windowSampleTimes` neighbour already had. **The `windowSampleTimes` half of this entry was
   already STALE when written**: that function has filled the caller's buffer and binary-searched
   its own start since the fhp-window-motion work — it neither allocates nor walks the whole song.
-  Still full-song by design and correctly so: the strike glow's forward spacing walks, which look
-  PAST the visible run for the next same-geometry strike and stop at the clamp horizon.
+  The strike glow's forward spacing walks, once the one full-song exception, are gone: the pops and
+  their clamped releases are derived once per chart revision in core (`HighwayHandLight::pops`),
+  and the pass reads one binary-searched run per hand.
 - ~~**Per-frame allocation in the render path**~~ — **FIXED 2026-08-24**, with two named exceptions.
   Every fresh vector inside `draw()` now lives in `FrameScratch` and is cleared in
   `clearForFrame()`: the ten sequential furniture passes share one cleared-on-handout batch pair
@@ -354,13 +355,13 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   colour step of 3.9e-3. **The two exceptions:** `makeHighwayTailSampleTimes` returns its list by
   value, so `sample_times` is still one allocation per MODULATED tail per frame — that branch is
   gated on bend, vibrato, slide, tremolo or a moving open band, not on the tail being lit — until
-  that core seam fills a caller's buffer the way `windowSampleTimes` does; and each `BracketBatch`
-  still owns its own two vectors, so a visible arpeggio posture string allocates. Untouched and
-  still open from the same review: `StringLaneStyle` is derived per visible note with six of seven
-  fields unread, and slide-run boundaries are recomputed per tail sample. In the 2D lane, the
-  per-note bracket rescan and the per-chip HarfBuzz shaping are still per-song at minimum zoom,
-  and the shapes' visible range still scans from the song start for want of a prefix maximum of
-  span ends — exactly the table the highway just gained.
+  that core seam fills a caller's buffer the way `highwayTrackSampleTimes` does; and each
+  `BracketBatch` still owns its own two vectors, so a visible arpeggio posture string allocates.
+  Untouched and still open from the same review: `StringLaneStyle` is derived per visible note with
+  six of seven fields unread, and slide-run boundaries are recomputed per tail sample. In the 2D
+  lane, the per-note bracket rescan and the per-chip HarfBuzz shaping are still per-song at minimum
+  zoom, and the shapes' visible range still scans from the song start for want of a prefix maximum
+  of span ends — exactly the table the highway just gained.
 - **The song-select menu has no viewport.** `rock-hero-game/ui/src/game/game.cpp` draws one row
   per library entry from a fixed origin. At 100 songs on 1080p, rows past 64 are off-screen, the
   key-hint footer never appears, and selecting song 80 puts the highlight bar at y = 1328 — the
@@ -597,7 +598,8 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
   reader. Nothing about either survives in the code except what stands on its own (below); the
   built versions, their derivations, their tests and their sighting rigs are in the history at
   `eeb26eca` (both features) and `9731dcee` (the fixes and the hue rig).
-  - **PLANNED 2026-09-25 — `docs/plans/in-progress/one-floor-light.md` is the record.** Re-scoped
+  - **BUILT 2026-09-25** (e140568e, 706b9e8c, and this change). **PLANNED 2026-09-25 —
+    `docs/plans/in-progress/one-floor-light.md` is the record.** Re-scoped
     the same day (user) as the fret-hand glow on PROOF OF A GRIP, ONE light shared with the picking
     hand: one stretch type, one envelope, one rise / release / decay, one emission through floor,
     ribbons and fret-line tier; the hands differ only in what a note proves. Evidence: fretted

@@ -276,14 +276,14 @@ lack of it.
   from the fretting hand's stop-slot midpoint to the node, keyed on `harmonicOverPressedStop`, and
   collapses onto the node for a natural. It is pushed as the note's floor line at
   `highway_renderer.cpp:5065`.
-- The tap light comes from a separate derived stream. `makeHighwayTapOnsets`
-  (`rock-hero-common/core/include/rock_hero/common/core/highway/highway_view_state.h:601`) fills
-  `HighwayViewState::tap_onsets` with one entry per onset group carrying a right-hand note, and its
-  member filter is `if (!rightHandOnset(note.attack) || sounding_fret <= 0) { continue; }`
-  (`highway_view_state.h:686`). `rightHandOnset` is `Tap || isScrape`
-  (`.../core/chart/chart.h:439`), so an ARTIFICIAL harmonic — a picked onset carrying a node —
-  contributes no tap onset at all and the renderer's light passes (`highway_renderer.cpp:5518`,
-  `:5549`, `:5882`, `:6167`) never see it.
+- The tap light comes from the picking hand's own evidence. `makePickHandLight` (which builds
+  `HighwayViewState::pick_hand`) and `makeHighwayTapOnsets` (which fills
+  `HighwayViewState::tap_onsets`, one entry per onset group carrying a right-hand note) walk the
+  same groups, `forEachTapGroup` in `rock-hero-common/core/src/highway/highway_projection.cpp`,
+  whose member filter is `if (!rightHandOnset(note.attack) || sounding_fret <= 0) { continue; }`.
+  `rightHandOnset` is `Tap || isScrape` (`.../core/chart/chart.h:442`), so an ARTIFICIAL harmonic —
+  a picked onset carrying a node — contributes no picking-hand evidence and no tap onset at all, and
+  neither the picking hand's light nor its tapped box, rails and pops ever see it.
 
 A TAPPED harmonic already gets the light, and gets it at its node rather than its stop: the
 projection seeds and steps the light through `highwayDrawnStop(note, ...)`, whose comment states the

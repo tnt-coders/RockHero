@@ -8,6 +8,7 @@
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_light.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
@@ -125,7 +126,11 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
             ++group_end;
         }
         HighwayTapOnsetViewState strike{
-            .seconds = onset, .fret_low = 0, .fret_high = 0, .count = 0, .release_seconds = onset
+            .start_seconds = onset,
+            .fret_low = 0,
+            .fret_high = 0,
+            .count = 0,
+            .release_seconds = onset,
         };
         members.clear();
         for (std::size_t member = index; member < group_end; ++member)
@@ -173,7 +178,7 @@ void appendTapGroupPath(
     const std::span<const std::size_t> members, std::vector<HighwayHandArrival>& track)
 {
     const std::size_t head = track.size();
-    track.push_back(HighwayHandArrival{.seconds = strike.seconds});
+    track.push_back(HighwayHandArrival{.seconds = strike.start_seconds});
     for (const std::size_t member : members)
     {
         const NoteViewState& tap = notes[member];
@@ -240,6 +245,183 @@ void appendTapGroupPath(
     }
 }
 
+// The pops a note's scored arrivals after its onset make, appended to the list of the hand the note
+// belongs to — `right_hand` picks the right-hand-onset notes (rightHandOnset), so a tapped glide's
+// landings pop with the picking hand. Every arrival pops the wires of its fret (the game registers
+// these as hit-or-miss, and the editor previews 100%-perfect play). A marked slide keyframe
+// (highwayMarksKeyframe) is a fret arrival: the finger lands on a new fret. A bend target is a
+// pitch arrival on the fret the finger stays planted on: each curve point ending a sloped segment
+// (bend reached, release completed) within the ink end, while flat holds and the onset point are
+// not — the strike already covers the onset. Releases are left for clampStrikePops.
+void appendArrivalPops(
+    const std::vector<NoteViewState>& notes, const bool right_hand,
+    std::vector<HighwayStrikePop>& pops)
+{
+    for (const NoteViewState& note : notes)
+    {
+        if (rightHandOnset(note.attack) != right_hand)
+        {
+            continue;
+        }
+        for (const KeyframeViewState& keyframe : note.slides)
+        {
+            if (highwayMarksKeyframe(note, keyframe))
+            {
+                pops.push_back(
+                    HighwayStrikePop{
+                        .onset_seconds = keyframe.seconds,
+                        .release_seconds = 0.0,
+                        .fret = keyframe.fret,
+                    });
+            }
+        }
+        for (std::size_t point = 1; note.fret > 0 && point < note.bend.size(); ++point)
+        {
+            const BendPointViewState& segment_from = note.bend[point - 1];
+            const BendPointViewState& arrival = note.bend[point];
+            if (arrival.seconds > note.ink_end_seconds)
+            {
+                break; // the curve's remaining points lie in the ring's ending zone
+            }
+            if (std::is_neq(arrival.semitones <=> segment_from.semitones))
+            {
+                pops.push_back(
+                    HighwayStrikePop{
+                        .onset_seconds = arrival.seconds,
+                        .release_seconds = 0.0,
+                        .fret = note.fret,
+                    });
+            }
+        }
+    }
+}
+
+// THE POP CLAMP, one rule for every pop of both hands, applied once here: sorted by onset, each
+// pop's release is clamped (highwayHitGlowRelease) against the next pop of its hand landing on the
+// same strips — the same fret's wires, or the box sides — so a fast run keeps a discrete pop per
+// strike instead of fusing into a shimmer. Every box pop of one hand lands on the same two strips
+// (the hand's live window, wherever its chord's frets were), so each clamps against the next. Pops
+// within the onset epsilon of each other are one strike and never clamp each other. The scan stops
+// one nominal release plus the guard past the pop: a later partner would leave the nominal release.
+void clampStrikePops(
+    std::vector<HighwayStrikePop>& pops, const double nominal_release_seconds,
+    const double trough_guard_seconds)
+{
+    std::ranges::stable_sort(pops, std::ranges::less{}, &HighwayStrikePop::onset_seconds);
+    const double horizon = nominal_release_seconds + trough_guard_seconds;
+    for (std::size_t index = 0; index < pops.size(); ++index)
+    {
+        HighwayStrikePop& pop = pops[index];
+        double spacing = std::numeric_limits<double>::infinity();
+        for (std::size_t next = index + 1; next < pops.size(); ++next)
+        {
+            const double gap = pops[next].onset_seconds - pop.onset_seconds;
+            if (gap > horizon)
+            {
+                break;
+            }
+            if (gap >= g_onset_match_epsilon && pops[next].fret == pop.fret)
+            {
+                spacing = gap;
+                break;
+            }
+        }
+        pop.release_seconds =
+            highwayHitGlowRelease(nominal_release_seconds, trough_guard_seconds, spacing);
+    }
+}
+
+// THE FRETTING HAND'S POPS. Its strikes, walked as onset clusters under the chord boxes' own
+// grouping rule (notes within the onset epsilon strike together): a boxed cluster pops its box's
+// two sides INSTEAD of its fret lines — the box interior stays deliberately dark (what the interior
+// does instead is an open decision) — and a lone open pops the same two, because its bar spans the
+// window; an unboxed cluster's fretted notes each pop the wires bounding the slot they PRESS. Then
+// the fretting-hand notes' landings and bend arrivals (appendArrivalPops), and the one clamp.
+//
+// Whether a box covers a cluster is the projection's answer, not a member count here: a second
+// reading of "is there a box here" would light both, or neither, wherever the two disagreed. BOTH
+// PRODUCERS (review R2(b)): a strum's own chord box, and the ARPEGGIO mark its covering span draws.
+// A lone note under a bracket wears no chord box, so reading the box alone would light its per-fret
+// lines straight through a mark already standing over them.
+//
+// A fretted pop skips fret 0, which is a natural harmonic's stop (its finger is on the node and
+// presses nothing) as much as a true open string's, so no node reaches the wires and the
+// containing-fret ceil could only ever answer the note's own fret. Whether a natural's strike
+// should light anything at all is open, parked with the tabled harmonic node light in the backlog.
+[[nodiscard]] std::vector<HighwayStrikePop> makeFretHandPops(
+    const std::vector<NoteViewState>& notes, const std::vector<HighwayChordGroupViewState>& groups,
+    const std::vector<std::size_t>& note_group, const double nominal_release_seconds,
+    const double trough_guard_seconds)
+{
+    std::vector<HighwayStrikePop> pops;
+    for (std::size_t index = 0; index < notes.size();)
+    {
+        const double cluster_start = notes[index].start_seconds;
+        std::size_t cluster_end = index + 1;
+        while (cluster_end < notes.size() &&
+               std::abs(notes[cluster_end].start_seconds - cluster_start) < g_onset_match_epsilon)
+        {
+            ++cluster_end;
+        }
+        const auto members = std::span(notes).subspan(index, cluster_end - index);
+        const bool any_open = std::ranges::any_of(members, [](const NoteViewState& note) {
+            return !rightHandOnset(note.attack) && openString(note);
+        });
+        const HighwayChordGroupViewState& covering = groups[note_group[index]];
+        const bool boxed =
+            covering.box_treatment != HighwayChordBoxTreatment::None || covering.arpeggio_mark;
+        if (boxed || any_open)
+        {
+            pops.push_back(
+                HighwayStrikePop{
+                    .onset_seconds = cluster_start,
+                    .release_seconds = 0.0,
+                    .fret = std::nullopt,
+                });
+        }
+        for (const NoteViewState& note : members)
+        {
+            if (!boxed && !rightHandOnset(note.attack) && note.fret > 0)
+            {
+                pops.push_back(
+                    HighwayStrikePop{
+                        .onset_seconds = note.start_seconds,
+                        .release_seconds = 0.0,
+                        .fret = note.fret,
+                    });
+            }
+        }
+        index = cluster_end;
+    }
+    appendArrivalPops(notes, /*right_hand=*/false, pops);
+    clampStrikePops(pops, nominal_release_seconds, trough_guard_seconds);
+    return pops;
+}
+
+// THE PICKING HAND'S POPS. Its strikes: a tapped chord pops its box's two sides (the interior stays
+// dark like the strummed boxes), a single tap the wires of its own sounding slot like a fretted
+// single. Then the right-hand-onset notes' landings and bend arrivals, and the one clamp.
+[[nodiscard]] std::vector<HighwayStrikePop> makePickHandPops(
+    const std::vector<NoteViewState>& notes,
+    const std::vector<HighwayTapOnsetViewState>& tap_onsets, const double nominal_release_seconds,
+    const double trough_guard_seconds)
+{
+    std::vector<HighwayStrikePop> pops;
+    pops.reserve(tap_onsets.size());
+    for (const HighwayTapOnsetViewState& strike : tap_onsets)
+    {
+        pops.push_back(
+            HighwayStrikePop{
+                .onset_seconds = strike.start_seconds,
+                .release_seconds = 0.0,
+                .fret = tappedChord(strike) ? std::nullopt : std::optional<int>{strike.fret_low},
+            });
+    }
+    appendArrivalPops(notes, /*right_hand=*/true, pops);
+    clampStrikePops(pops, nominal_release_seconds, trough_guard_seconds);
+    return pops;
+}
+
 } // namespace
 
 // Rationale lives on the declaration in highway_projection.h.
@@ -268,7 +450,7 @@ HighwayHandLight makePickHandLight(
             {
                 items.push_back(
                     HighwayLitStretch{
-                        .start_seconds = strike.seconds,
+                        .start_seconds = strike.start_seconds,
                         .release_seconds = noteReleaseAt(notes[member]),
                         .rise_seconds = margin_rise[member],
                     });
@@ -276,7 +458,7 @@ HighwayHandLight makePickHandLight(
             // The hand has moved on: an earlier group's arrivals at or after this onset — the tail
             // of a leg still settling, or a release past this strike — are not where it stands.
             while (!light.track.empty() &&
-                   light.track.back().seconds > strike.seconds - g_onset_match_epsilon)
+                   light.track.back().seconds > strike.start_seconds - g_onset_match_epsilon)
             {
                 light.track.pop_back();
             }
@@ -370,20 +552,29 @@ HighwayViewState makeHighwayViewState(
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(
                 tempo_map, marginBefore(tempo_map, chart.notes[index].position))));
     }
-    // Both hands' lights and the tap onsets derive purely from the resolved scene.
-    state.tap_onsets = makeHighwayTapOnsets(notes);
-    state.pick_hand = makePickHandLight(notes, margin_rise_seconds);
-    state.fret_hand = HighwayHandLight{
-        .track = makeHighwayFretHand(state.chart),
-        .lit = makeFretHandLight(state.chart, margin_rise_seconds),
-    };
-
     // Onset groups and their repeat classification, derived here once per chart revision. The
     // rules look backward through the whole note stream, so the renderer's visible window could
     // neither afford them per frame nor even see everything they depend on.
     HighwayChordGrouping grouping = makeHighwayChordGroups(notes, state.chart.shapes);
     state.chord_groups = std::move(grouping.groups);
     state.note_group = std::move(grouping.note_group);
+
+    // Both hands' lights, their pops and the tap onsets derive purely from the resolved scene; the
+    // fretting hand's pops read the groups above for which clusters wear a box.
+    state.tap_onsets = makeHighwayTapOnsets(notes);
+    state.pick_hand = makePickHandLight(notes, margin_rise_seconds);
+    state.pick_hand.pops = makePickHandPops(
+        notes, state.tap_onsets, g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds);
+    state.fret_hand = HighwayHandLight{
+        .track = makeHighwayFretHand(state.chart),
+        .lit = makeFretHandLight(state.chart, margin_rise_seconds),
+        .pops = makeFretHandPops(
+            notes,
+            state.chord_groups,
+            state.note_group,
+            g_hit_glow_release_seconds,
+            g_hit_glow_trough_guard_seconds),
+    };
 
     // Every beat of the song grid, resolved once so beat bars never touch the tempo map per
     // frame. Beat indices ascend, so a forward cursor keeps this one pass over the anchors

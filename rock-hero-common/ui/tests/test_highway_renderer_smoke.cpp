@@ -486,6 +486,9 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         CHECK_FALSE(families.pick_hand.lit.empty());
         CHECK_FALSE(families.chord_groups.empty());
         CHECK_FALSE(families.tap_onsets.empty());
+        // A tapped CHORD, not only a tap: the picking hand's box, its rails and its box-side pop
+        // draw only for two or more taps struck together.
+        CHECK(std::ranges::any_of(families.tap_onsets, common::core::tappedChord));
         CHECK_FALSE(families.beats.empty());
         CHECK_FALSE(families.sections.empty());
         CHECK(

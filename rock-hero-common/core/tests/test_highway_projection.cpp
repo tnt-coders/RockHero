@@ -10,6 +10,7 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
@@ -322,6 +323,52 @@ namespace
         FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 5, .width = 4},
     };
     return chart;
+}
+
+// One note of the strike-pop fixtures, a beat long unless the case shortens it so that no ring
+// overlaps the next strike, with the keyframes the case gives it.
+[[nodiscard]] ChartNote popNote(
+    const GridPosition position, const int string, const int fret, const NoteAttack attack,
+    std::vector<Keyframe> keyframes, const Fraction sustain = Fraction{1})
+{
+    return ChartNote{
+        .position = position,
+        .string = string,
+        .fret = fret,
+        .sustain = sustain,
+        .attack = attack,
+        .bend = {},
+        .keyframes = std::move(keyframes),
+    };
+}
+
+// The board a strike-pop fixture projects to: its notes as the chart, over the 120 BPM map.
+[[nodiscard]] HighwayViewState popBoard(std::vector<ChartNote> notes)
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = std::move(notes);
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+    return makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {});
+}
+
+// A pop's release after THE POP CLAMP, for a partner `spacing` seconds later on the same strips.
+[[nodiscard]] double clampedRelease(const double spacing)
+{
+    return highwayHitGlowRelease(
+        g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing);
+}
+
+// Checks one derived pop against its expected onset, release and strips.
+void checkPop(
+    const HighwayStrikePop& pop, const double onset, const double release,
+    const std::optional<int> fret)
+{
+    CHECK(pop.onset_seconds == Catch::Approx(onset));
+    CHECK(pop.release_seconds == Catch::Approx(release));
+    // Compared as plain ints, with -1 standing for the box sides, so a failure prints its values.
+    CHECK(pop.fret.value_or(-1) == fret.value_or(-1));
 }
 
 } // namespace
@@ -1054,18 +1101,24 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes);
     REQUIRE(onsets.size() == 3);
     CHECK(
-        onsets[0] ==
-        HighwayTapOnsetViewState{
-            .seconds = 1.0, .fret_low = 12, .fret_high = 12, .count = 1, .release_seconds = 1.0
-        });
+        onsets[0] == HighwayTapOnsetViewState{
+                         .start_seconds = 1.0,
+                         .fret_low = 12,
+                         .fret_high = 12,
+                         .count = 1,
+                         .release_seconds = 1.0
+                     });
     CHECK(
-        onsets[1] ==
-        HighwayTapOnsetViewState{
-            .seconds = 2.0, .fret_low = 14, .fret_high = 14, .count = 1, .release_seconds = 2.0
-        });
+        onsets[1] == HighwayTapOnsetViewState{
+                         .start_seconds = 2.0,
+                         .fret_low = 14,
+                         .fret_high = 14,
+                         .count = 1,
+                         .release_seconds = 2.0
+                     });
     CHECK(
         onsets[2] == HighwayTapOnsetViewState{
-                         .seconds = 3.0,
+                         .start_seconds = 3.0,
                          .fret_low = 12,
                          .fret_high = 17,
                          .count = 3,
@@ -2833,6 +2886,125 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
     CHECK(grouping.groups[1].hold_cap_seconds == Catch::Approx(9.0));
     CHECK(grouping.groups[2].hold_cap_seconds == Catch::Approx(9.0));
     CHECK(std::isinf(grouping.groups[3].hold_cap_seconds));
+}
+
+// Every pop lands on its strips and belongs to its NOTE's hand: a fretted single pops its fret, a
+// slide landing and a bend arrival theirs, a strummed chord its box sides, all on the fretting
+// hand; a single tap pops its fret, a tapped chord its box sides, and a tapped glide's landing pops
+// on the PICKING hand. Only the bend's strike clamps, against its own arrival on the same fret.
+TEST_CASE("Highway strike pops land on their strips, in their note's hand", "[core][highway]")
+{
+    const HighwayViewState board = popBoard({
+        // A fretted slide from 5 to 7: its strike, and its landing half a beat later.
+        popNote(
+            GridPosition{.measure = 1, .beat = 1},
+            3,
+            5,
+            NoteAttack::Pick,
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
+        // A bend on fret 8: its strike, and its arrival half a beat later on the same fret.
+        popNote(
+            GridPosition{.measure = 1, .beat = 3},
+            2,
+            8,
+            NoteAttack::Pick,
+            {Keyframe{.offset = Fraction{1, 2}, .bend = 1.0}}),
+        // A tapped glide from 12 to 14.
+        popNote(
+            GridPosition{.measure = 2, .beat = 1},
+            1,
+            12,
+            NoteAttack::Tap,
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 14}}),
+        // A tapped chord.
+        popNote(GridPosition{.measure = 2, .beat = 3}, 1, 12, NoteAttack::Tap, {}),
+        popNote(GridPosition{.measure = 2, .beat = 3}, 2, 14, NoteAttack::Tap, {}),
+        // A strummed chord.
+        popNote(GridPosition{.measure = 3, .beat = 1}, 3, 5, NoteAttack::Pick, {}),
+        popNote(GridPosition{.measure = 3, .beat = 1}, 4, 5, NoteAttack::Pick, {}),
+    });
+
+    const std::vector<HighwayStrikePop>& fretting = board.fret_hand.pops;
+    REQUIRE(fretting.size() == 5);
+    checkPop(fretting[0], 0.0, g_hit_glow_release_seconds, 5);
+    checkPop(fretting[1], 0.25, g_hit_glow_release_seconds, 7);
+    checkPop(fretting[2], 1.0, clampedRelease(0.25), 8);
+    checkPop(fretting[3], 1.25, g_hit_glow_release_seconds, 8);
+    checkPop(fretting[4], 4.0, g_hit_glow_release_seconds, std::nullopt);
+
+    const std::vector<HighwayStrikePop>& picking = board.pick_hand.pops;
+    REQUIRE(picking.size() == 3);
+    checkPop(picking[0], 2.0, g_hit_glow_release_seconds, 12);
+    checkPop(picking[1], 2.25, g_hit_glow_release_seconds, 14);
+    checkPop(picking[2], 3.0, g_hit_glow_release_seconds, std::nullopt);
+}
+
+// THE POP CLAMP: a pop clamps against the next pop of its hand on the SAME strips only — never
+// against a pop on another fret in between; two pops at one instant are one strike and never clamp
+// each other; and every box pop of a hand lands on its live window's sides, so box pops clamp each
+// other whatever their chords' frets.
+TEST_CASE("Highway strike pops clamp against the next pop on the same strips", "[core][highway]")
+{
+    // Singles an eighth of a beat long, so no ring is still held at the next strike.
+    const Fraction short_ring{1, 8};
+    const HighwayViewState board = popBoard({
+        // Fret 5 at 0.0, fret 9 at 0.125 on another fret, fret 5 again at 0.1875.
+        popNote(GridPosition{.measure = 1, .beat = 1}, 3, 5, NoteAttack::Pick, {}, short_ring),
+        popNote(
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 4}},
+            1,
+            9,
+            NoteAttack::Pick,
+            {},
+            short_ring),
+        popNote(
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 8}},
+            4,
+            5,
+            NoteAttack::Pick,
+            {},
+            short_ring),
+        // A chord at 1.0 whose two notes both slide onto fret 7 at 1.25: one instant, one strips.
+        popNote(
+            GridPosition{.measure = 1, .beat = 3},
+            3,
+            5,
+            NoteAttack::Pick,
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
+        popNote(
+            GridPosition{.measure = 1, .beat = 3},
+            4,
+            6,
+            NoteAttack::Pick,
+            {Keyframe{.offset = Fraction{1, 2}, .fret = 7}}),
+        // Two strummed chords a half beat apart on different frets.
+        popNote(GridPosition{.measure = 2, .beat = 1}, 3, 5, NoteAttack::Pick, {}),
+        popNote(GridPosition{.measure = 2, .beat = 1}, 4, 5, NoteAttack::Pick, {}),
+        popNote(
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}},
+            3,
+            9,
+            NoteAttack::Pick,
+            {}),
+        popNote(
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 2}},
+            4,
+            10,
+            NoteAttack::Pick,
+            {}),
+    });
+
+    const std::vector<HighwayStrikePop>& pops = board.fret_hand.pops;
+    REQUIRE(pops.size() == 8);
+    checkPop(pops[0], 0.0, clampedRelease(0.1875), 5);
+    checkPop(pops[1], 0.125, g_hit_glow_release_seconds, 9);
+    checkPop(pops[2], 0.1875, g_hit_glow_release_seconds, 5);
+    checkPop(pops[3], 1.0, g_hit_glow_release_seconds, std::nullopt);
+    checkPop(pops[4], 1.25, g_hit_glow_release_seconds, 7);
+    checkPop(pops[5], 1.25, g_hit_glow_release_seconds, 7);
+    checkPop(pops[6], 2.0, clampedRelease(0.25), std::nullopt);
+    checkPop(pops[7], 2.25, g_hit_glow_release_seconds, std::nullopt);
+    CHECK(board.pick_hand.pops.empty());
 }
 
 } // namespace rock_hero::common::core

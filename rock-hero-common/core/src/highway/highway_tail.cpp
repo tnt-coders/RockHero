@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_tail.h>
+#include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <span>
 #include <vector>
@@ -251,16 +252,9 @@ std::vector<double> makeHighwayTailSampleTimes(
         times.push_back(from_seconds + ((to_seconds - from_seconds) * mix));
     }
 
-    std::ranges::sort(times);
-    // Dedupe with a tolerance: a uniform sample landing on a control point must not produce a
-    // zero-length segment. Asking the same question as every other same-instant test on the board —
-    // are these two highway times the same moment — so it reads the same named tolerance rather
-    // than repeating the number, which is how the two would drift apart.
-    const auto [first_dup, last_dup] =
-        std::ranges::unique(times, [](const double lhs, const double rhs) {
-            return std::abs(rhs - lhs) < g_onset_match_epsilon;
-        });
-    times.erase(first_dup, last_dup);
+    // Deduped with a tolerance: a uniform sample landing on a control point must not produce a
+    // zero-length segment.
+    highwaySortUniqueTimes(times);
     return times;
 }
 

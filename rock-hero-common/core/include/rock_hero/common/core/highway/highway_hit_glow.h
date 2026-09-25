@@ -9,6 +9,17 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The strike glow's nominal release: how long a pop takes to fade when nothing clamps it.
+
+The projection clamps every pop's release against this once (\ref HighwayStrikePop), and the
+renderer bounds its pop search by it, so the two read one number.
+*/
+inline constexpr double g_hit_glow_release_seconds = 0.35;
+
+/*! \brief The dark gap a clamped pop leaves before the next pop on its strips. */
+inline constexpr double g_hit_glow_trough_guard_seconds = 0.03;
+
+/*!
 \brief Returns the strike-glow intensity at a time offset from a note's crossing.
 
 The glow is a pure stateless function of the offset: zero before the crossing (strict zero

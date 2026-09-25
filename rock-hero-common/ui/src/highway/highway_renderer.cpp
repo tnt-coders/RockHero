@@ -15,8 +15,10 @@
 #include <cstddef>
 #include <cstring>
 #include <format>
+#include <functional>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_hit_glow.h>
@@ -39,18 +41,6 @@ namespace rock_hero::common::ui
 
 namespace
 {
-
-// Whether the board marks a keyframe: a pitched linked keyframe within the note's ink end. An
-// unpitched slide-out is a pressure release with no target to mark, a scrape's stops are the
-// PICKING hand's travel, and a keyframe past the ink end is in the ring's ending zone — this board
-// draws no reveal, so no mark of it appears. One predicate, asked by every consumer that draws or
-// pops a keyframe's fret, so none of them can disagree about which keyframes exist on the board.
-[[nodiscard]] bool marksKeyframe(
-    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe)
-{
-    return !common::core::isScrape(note.attack) && common::core::linkedKeyframe(keyframe) &&
-           keyframe.fret > 0 && common::core::keyframeDrawn(keyframe, note.ink_end_seconds);
-}
 
 // The shared resource table this renderer is built against. Pulled in unqualified because the draw
 // and creation code names a program or texture asset by enumerator many times over.
@@ -219,37 +209,36 @@ constexpr double g_capo_bar_overhang_strings = 0.3;
 // The rim's outset around the steel body, in fret widths.
 constexpr double g_capo_bar_rim_fraction = 0.05;
 
-// Strike glow (the additive hit light; fret-hit-light-effect plan): the nominal release and
-// dark-trough guard feeding highwayHitGlowRelease, the light's colour (a hot orange whose
-// blue-channel lift lets a peak white out over already-lit content), the soft-edge falloff, the
-// hot-core half-width of a fret-line strip, and the fade toward the face top that grounds the
-// light at the strings' crossing. The window-light mask reaches 1.0 only falloff / 2 inside an
-// edge, so a strip needs core_half >= falloff / 2 to actually peak at full intensity. The glow
-// pass walks its own onset window over state.chart.notes, so the release tunes freely — it is not
-// bounded by the passed-note fade.
-constexpr double g_hit_glow_release_seconds = 0.35;
-constexpr double g_hit_glow_trough_guard_seconds = 0.03;
+// Strike glow (the additive hit light; fret-hit-light-effect plan; its release and trough guard
+// live in core beside highwayHitGlowRelease, where the pops are derived): the light's colour (a
+// hot orange whose blue-channel lift lets a peak white out over already-lit content), the
+// soft-edge falloff, the hot-core half-width of a fret-line strip, and the fade toward the face
+// top that grounds the light at the strings' crossing. The window-light mask reaches 1.0 only
+// falloff / 2 inside an edge, so a strip needs core_half >= falloff / 2 to actually peak at full
+// intensity.
 constexpr ArgbColor g_hit_glow_color = 0xFFFFB040;
 constexpr double g_hit_glow_falloff = 0.2;
 constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
 constexpr double g_hit_glow_top_fade = 0.35;
 
 // What one hand's light looks like, stated once so both hands draw through one path and differ
-// only here: the lit lanes' lean toward the FHP orange, and the colour a strike pops in.
+// only here: the lit lanes' lean toward the FHP orange, and the colour the hand's marks wear.
 struct HandLightStyle
 {
     // How far the lit lane tint leans toward the FHP orange; zero keeps the lanes' own tint.
     double warm_mix;
-    // The colour this hand's strikes pop in.
-    ArgbColor strike_color;
+    // The colour this hand's strike pops and rails wear. The fretting hand's rails are the one
+    // exception: they take their posture span's own colour instead, because a span's colour says
+    // what kind of span it is (an arpeggio's purple), which a hand-wide colour would erase.
+    ArgbColor mark_color;
 };
 
 // The fretting hand keeps the lanes' own tint and pops in the hit-glow amber; the picking hand's
-// light leans warm so the two hands read apart at a glance, and its strikes pop white.
-constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .strike_color = g_hit_glow_color};
+// light leans warm so the two hands read apart at a glance, and its marks are white.
+constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .mark_color = g_hit_glow_color};
 constexpr HandLightStyle g_picking_hand_light{
     .warm_mix = g_tap_light_warm_mix,
-    .strike_color = 0xFFFFFFFF,
+    .mark_color = 0xFFFFFFFF,
 };
 
 // Anticipation ring window before a note lands (500 ms).
@@ -698,18 +687,24 @@ constexpr double g_inlay_double_string_spacings = 1.5;
     return cycle == 0 || cycle == 3 || cycle == 5 || cycle == 7 || cycle == 9;
 }
 
-// Continuous hand-window extent at a time, as sorted world-X edges: the core query's eased
-// fractional lines mapped through the fractional fret-line overload. Fret lines stay fixed —
-// these are the sliding window border's positions.
-[[nodiscard]] std::pair<double, double> handWindowXAt(
-    const common::core::HighwayViewState& state, const double seconds,
-    const common::core::HighwayMetrics& metrics, const bool mirrored)
+// A hand window's extent as sorted world-X edges: its fractional lines mapped through the
+// fractional fret-line overload. Fret lines stay fixed — these are the sliding window border's
+// positions, for either hand's window.
+[[nodiscard]] std::pair<double, double> handWindowX(
+    const common::core::HighwayHandWindow& window, const common::core::HighwayMetrics& metrics,
+    const bool mirrored)
 {
-    const common::core::HighwayHandWindow window =
-        common::core::highwayHandWindowAt(state.fret_hand.track, seconds);
     const double low_x = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
     const double high_x = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
     return {std::min(low_x, high_x), std::max(low_x, high_x)};
+}
+
+// A hand's continuous window extent at a time, as sorted world-X edges.
+[[nodiscard]] std::pair<double, double> handWindowXAt(
+    const std::span<const common::core::HighwayHandArrival> track, const double seconds,
+    const common::core::HighwayMetrics& metrics, const bool mirrored)
+{
+    return handWindowX(common::core::highwayHandWindowAt(track, seconds), metrics, mirrored);
 }
 
 // One note's floor footprint (highwayFloorFootprint) at a time, for geometry that follows the
@@ -724,7 +719,8 @@ constexpr double g_inlay_double_string_spacings = 1.5;
     const double fretted_half_width, const double seconds,
     const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
-    const std::pair<double, double> window_x = handWindowXAt(state, seconds, metrics, mirrored);
+    const std::pair<double, double> window_x =
+        handWindowXAt(state.fret_hand.track, seconds, metrics, mirrored);
     return highwayFloorFootprint(note, fretted_half_width, window_x, metrics, mirrored)
         .value_or(
             HighwayFloorFootprint{
@@ -773,73 +769,6 @@ constexpr double g_inlay_double_string_spacings = 1.5;
         .half_width = (std::abs(node_x - stop_x) / 2.0) + metrics.note_half_width +
                       (g_window_light_falloff / 2.0),
     };
-}
-
-// Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
-// per-ramp slice cap. Density follows the larger of duration and lateral travel: a slow glide
-// needs samples in time, while a margin-length morph across several frets covers most of its
-// travel in a fraction of a second and facets badly under time-only slicing.
-constexpr double g_window_slice_seconds = 0.0125;
-constexpr double g_window_slices_per_line = 16.0;
-constexpr int g_window_slice_cap = 160;
-
-// Ascending sample times covering [from, to] for window-following geometry: the endpoints, plus
-// every overlapping ramp's clamped bounds and interior slices. Settled stretches contribute no
-// interior samples — the window is constant there, so segments between samples stay straight.
-// Fills the caller's buffer rather than allocating (draw() calls this per shape rail and per
-// moving open tail), and visits only the arrivals that can overlap the span: arrivals ascend, so
-// the walk starts past `from` — and past the first arrival, whose window already holds from the
-// start of time — and once an arrival sits `max_ramp_seconds` past `to` neither it nor anything
-// later can reach back into the window. Returns whether any ramp overlapped the span at all —
-// the window MOVES inside it — which is the one scan's other answer: geometry spanning a span
-// where nothing moves holds one extent instead of sampling.
-bool windowSampleTimes(
-    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
-    const double max_ramp_seconds, std::vector<double>& times)
-{
-    bool moves = false;
-    times.clear();
-    times.push_back(from_seconds);
-    const std::vector<common::core::HighwayHandArrival>& track = state.fret_hand.track;
-    const auto start = static_cast<std::size_t>(
-        std::ranges::upper_bound(
-            track, from_seconds, std::ranges::less{}, &common::core::HighwayHandArrival::seconds) -
-        track.begin());
-    for (std::size_t index = std::max<std::size_t>(start, 1); index < track.size(); ++index)
-    {
-        const common::core::HighwayHandArrival& arrival = track[index];
-        if (arrival.seconds - max_ramp_seconds >= to_seconds)
-        {
-            break;
-        }
-        if (arrival.ramp_seconds <= 0.0 || arrival.seconds - arrival.ramp_seconds >= to_seconds)
-        {
-            continue;
-        }
-        moves = true;
-        const double t0 = std::max(arrival.seconds - arrival.ramp_seconds, from_seconds);
-        const double t1 = std::min(arrival.seconds, to_seconds);
-        // The wider-moving edge's travel in fret-line units, from the previous settled window.
-        const common::core::HighwayHandArrival& previous = track[index - 1];
-        const double travel_lines = std::max(
-            std::abs(arrival.low_line - previous.low_line),
-            std::abs(arrival.high_line - previous.high_line));
-        const int slices = std::clamp(
-            static_cast<int>(std::max(
-                (t1 - t0) / g_window_slice_seconds, travel_lines * g_window_slices_per_line)) +
-                1,
-            1,
-            g_window_slice_cap);
-        for (int slice = 0; slice <= slices; ++slice)
-        {
-            times.push_back(t0 + ((t1 - t0) * slice / slices));
-        }
-    }
-    times.push_back(to_seconds);
-    std::ranges::sort(times);
-    const auto duplicates = std::ranges::unique(times);
-    times.erase(duplicates.begin(), duplicates.end());
-    return moves;
 }
 
 // The stretches of one hand's lit list whose light can be seen anywhere in [from_seconds,
@@ -1817,9 +1746,10 @@ struct BoxDraw
     bool palm_mute;
     bool dead;
     const common::core::ShapeViewState* arpeggio_shape;
-    // A tapped chord box spans the taps' own fret extent instead of the fretting
-    // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
-    const common::core::HighwayTapOnsetViewState* tap;
+    // The track of the hand that struck the box, whose window its sides stand at
+    // (common::core::highwayBoxSidesAt): the fretting hand's for a strummed or arpeggio box, the
+    // picking hand's for a tapped chord box.
+    std::reference_wrapper<const std::vector<common::core::HighwayHandArrival>> track;
     // Build position, the sort's tiebreak: onset alone is not a total order (a
     // tap-and-strum instant emits two boxes), and the deterministic build order is what
     // keeps their overlap from flickering frame to frame.
@@ -1905,7 +1835,6 @@ struct FrameScratch
 
     std::vector<BracketBatch> bracket_batches;
     std::vector<BoxDraw> boxes;
-    std::vector<double> window_edge_onsets;
     // The accent light's column parameters, shared by the tail-glow segments and the open bar's
     // glow strip: the two build the same corner-clustered set through openBarEmission, and never
     // at the same time (a note's tail ribbon finishes before its head draws).
@@ -1970,7 +1899,6 @@ struct FrameScratch
         pass_textured_indices.clear();
         bracket_batches.clear();
         boxes.clear();
-        window_edge_onsets.clear();
         glow_columns.clear();
         tail_wobble_times.clear();
         tail_samples.clear();
@@ -2081,9 +2009,9 @@ struct HighwayRenderer::Impl
     // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
     // the draw path labels and suppresses from this table instead of re-walking every note.
     std::vector<common::core::HighwayNodeSeries> node_series;
-    // Longest fretting-hand approach ramp, for windowSampleTimes' exact early-out: an arrival
-    // this far past a window's end cannot reach back into it, and neither can any later arrival.
-    double max_fret_hand_ramp_seconds{0.0};
+    // The same companion table for the strikes' holds, which overlap freely too: the rails pass
+    // bounds the tapped chords whose hold reaches the hit line with it.
+    std::vector<double> tap_release_prefix_max;
     FrameScratch scratch;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -2228,20 +2156,19 @@ struct HighwayRenderer::Impl
 
     /*
     Appends the instants one light is sampled at inside the drawn span [span_from, span_to],
-    clipped to the light's own lit interval: the clip's two ends, the start and the release, and —
-    only where the light actually follows its track (highwayLitTrackTime, the reading rule) — every
-    arrival it reaches and each ramp it travels, subdivided by its sweep (highwayGlideSliceCount,
-    the one policy every glide-following mark subdivides by) so the light travels with the glide
-    instead of cutting straight across it. Between two samples every factor of the brightness rule
-    is linear or held, so these are all the breakpoints a layer needs. Unsorted; the caller sorts
-    once it has appended everything it samples.
+    clipped to the light's own lit interval: the light's own instants — the clip's two ends, the
+    start and the release — plus, only over the stretch where the light actually follows its track
+    (highwayLitTrackTime, the reading rule), the track's own samples (highwayTrackSampleTimes, the
+    one sampling policy every track-following mark shares), so the light travels with a glide
+    instead of cutting straight across it. That stretch's far end is where the light stops
+    following — the end of the leg in progress at its release. Between two samples every factor of
+    the brightness rule is linear or held, so these are all the breakpoints a layer needs. Unsorted;
+    the caller sorts once it has appended everything it samples.
 
     The reading rule never decreases, so the light moves only while its track is read between its
     readings at the clip's two ends; outside that stretch its window holds, and a sample there would
     only draw a segment that states nothing new. Inside it the reading IS the instant, so a track
-    instant is a drawn instant. highwayHandWindowAt eases an instant through the ramp of the FIRST
-    arrival after it, so the ramps walked are those of the arrivals from the first past the first
-    reading through the first past the last — two binary searches, whatever the track's length.
+    instant is a drawn instant.
     */
     static void appendLightSampleTimes(
         const common::core::HighwayHandLight& hand, const common::core::HighwayLitStretch& stretch,
@@ -2251,50 +2178,23 @@ struct HighwayRenderer::Impl
             common::core::highwayLitInterval(stretch, g_light_decay_seconds);
         const double from_seconds = std::max(lit.from_seconds, span_from);
         const double to_seconds = std::min(lit.to_seconds, span_to);
-        const std::vector<common::core::HighwayHandArrival>& track = hand.track;
-        const double follow_from = common::core::highwayLitTrackTime(track, stretch, from_seconds);
-        const double follow_to = common::core::highwayLitTrackTime(track, stretch, to_seconds);
-        const auto keep_in = [&](const double seconds, const double low, const double high) {
-            if (seconds >= low && seconds <= high)
+        const auto keep_in = [&](const double seconds) {
+            if (seconds >= from_seconds && seconds <= to_seconds)
             {
                 times.push_back(seconds);
             }
         };
-        const auto keep_followed = [&](const double seconds) {
-            keep_in(seconds, std::max(from_seconds, follow_from), std::min(to_seconds, follow_to));
-        };
         times.push_back(from_seconds);
         times.push_back(to_seconds);
-        keep_in(stretch.start_seconds, from_seconds, to_seconds);
-        keep_in(stretch.release_seconds, from_seconds, to_seconds);
-        // Where the light stops following: the end of the leg in progress at its release.
-        keep_followed(follow_to);
-        const auto first = std::ranges::upper_bound(
-            track, follow_from, std::ranges::less{}, &common::core::HighwayHandArrival::seconds);
-        const auto past = std::ranges::upper_bound(
-            track, follow_to, std::ranges::less{}, &common::core::HighwayHandArrival::seconds);
-        const auto last = past == track.end() ? past : std::next(past);
-        for (auto it = first; it != last; ++it)
+        keep_in(stretch.start_seconds);
+        keep_in(stretch.release_seconds);
+        const double followed_from = std::max(
+            from_seconds, common::core::highwayLitTrackTime(hand.track, stretch, from_seconds));
+        const double followed_to = std::min(
+            to_seconds, common::core::highwayLitTrackTime(hand.track, stretch, to_seconds));
+        if (followed_from <= followed_to)
         {
-            const common::core::HighwayHandArrival& b = *it;
-            keep_followed(b.seconds);
-            if (it == track.begin() || b.ramp_seconds <= 0.0)
-            {
-                continue;
-            }
-            const common::core::HighwayHandArrival& a = *std::prev(it);
-            const double sweep =
-                std::max(std::abs(b.low_line - a.low_line), std::abs(b.high_line - a.high_line));
-            if (sweep <= 0.0)
-            {
-                continue;
-            }
-            const double ramp_start = b.seconds - b.ramp_seconds;
-            const int slices = highwayGlideSliceCount(sweep);
-            for (int slice = 0; slice < slices; ++slice)
-            {
-                keep_followed(ramp_start + (b.ramp_seconds * static_cast<double>(slice) / slices));
-            }
+            common::core::highwayTrackSampleTimes(hand.track, followed_from, followed_to, times);
         }
     }
 
@@ -2615,12 +2515,9 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
         m_impl->state.chart.shapes |
         std::views::transform(&common::core::ShapeViewState::drawn_end_seconds));
     m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
-    m_impl->max_fret_hand_ramp_seconds = 0.0;
-    for (const common::core::HighwayHandArrival& arrival : m_impl->state.fret_hand.track)
-    {
-        m_impl->max_fret_hand_ramp_seconds =
-            std::max(m_impl->max_fret_hand_ramp_seconds, arrival.ramp_seconds);
-    }
+    m_impl->tap_release_prefix_max = common::core::makeSustainPrefixMax(
+        m_impl->state.tap_onsets |
+        std::views::transform(&common::core::HighwayTapOnsetViewState::release_seconds));
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
 }
@@ -3074,7 +2971,7 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = false,
                     .dead = false,
                     .arpeggio_shape = &shape,
-                    .tap = nullptr,
+                    .track = std::cref(state.fret_hand.track),
                     .build_index = boxes.size(),
                 });
         }
@@ -3137,34 +3034,35 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = group.all_palm_muted,
                     .dead = group.all_dead,
                     .arpeggio_shape = nullptr,
-                    .tap = nullptr,
+                    .track = std::cref(state.fret_hand.track),
                     .build_index = boxes.size(),
                 });
         }
         // Tapped chord boxes (right-hand-tap-lighting plan): two or more taps struck together
-        // get their own box on the taps' fret extent — the tapping hand's counterpart of the
-        // strummed box. Derived per onset; no repeat-box chain (taps are percussive). A box sits
-        // AT its onset with no envelope around it, so onsets ascending makes the two time skips
-        // the ends of a binary-searched range, exactly like the strummed groups' clamp above.
+        // get their own box at the picking hand's window — the tapping hand's counterpart of the
+        // strummed box, whose sides the same rule places. Derived per onset; no repeat-box chain
+        // (taps are percussive). A box sits AT its onset with no envelope around it, so onsets
+        // ascending makes the two time skips the ends of a binary-searched range, exactly like
+        // the strummed groups' clamp above.
         for (const common::core::HighwayTapOnsetViewState& tap : std::ranges::subrange(
                  std::ranges::lower_bound(
                      state.tap_onsets,
                      now_seconds,
                      std::ranges::less{},
-                     &common::core::HighwayTapOnsetViewState::seconds),
+                     &common::core::HighwayTapOnsetViewState::start_seconds),
                  std::ranges::upper_bound(
                      state.tap_onsets,
                      span_end_seconds,
                      std::ranges::less{},
-                     &common::core::HighwayTapOnsetViewState::seconds)))
+                     &common::core::HighwayTapOnsetViewState::start_seconds)))
         {
-            if (tap.count < 2)
+            if (!common::core::tappedChord(tap))
             {
                 continue;
             }
             boxes.push_back(
                 BoxDraw{
-                    .start_seconds = tap.seconds,
+                    .start_seconds = tap.start_seconds,
                     .box_only = false,
                     .with_top = tap.count > 2,
                     // A tapped box has no strummed group behind it to read an emphasis from; the
@@ -3173,7 +3071,7 @@ void HighwayRenderer::Impl::draw(
                     .palm_mute = false,
                     .dead = false,
                     .arpeggio_shape = nullptr,
-                    .tap = &tap,
+                    .track = std::cref(state.pick_hand.track),
                     .build_index = boxes.size(),
                 });
         }
@@ -3395,40 +3293,11 @@ void HighwayRenderer::Impl::draw(
                 push_span(0.0, box_frame.fade_start_y, lit, lit);
                 push_span(box_frame.fade_start_y, box_frame.side_y1, lit, clear);
             };
-            if (box.tap != nullptr)
-            {
-                // A tapped box spans the taps' own fret slots — their derived right-hand
-                // window — not the fretting hand's.
-                const double tap_low =
-                    common::core::highwayFretLineX(box.tap->fret_low - 1, metrics, mirrored);
-                const double tap_high =
-                    common::core::highwayFretLineX(box.tap->fret_high, metrics, mirrored);
-                push_box_accent_light(std::min(tap_low, tap_high), std::max(tap_low, tap_high));
-                pushChordBoxPanel(
-                    box_vertices,
-                    box_indices,
-                    std::min(tap_low, tap_high),
-                    std::max(tap_low, tap_high),
-                    z,
-                    full_height_y1,
-                    box.box_only,
-                    box.with_top,
-                    box_alpha,
-                    metrics.string_grid_base_y);
-                if (common::core::isAccented(box.emphasis))
-                {
-                    flush_box_panels();
-                }
-                continue;
-            }
-            // Display-time window: an approaching box takes the window at its own onset instant,
-            // and a box riding the hit line re-evaluates per frame, so a held arpeggio slides
-            // along with the chord sliding under it instead of staying frozen at its onset
-            // window.
-            const double window_seconds = std::max(box.start_seconds, now_seconds);
+            // The box's sides: its hand's window at max(onset, now), the one rule for both hands
+            // (common::core::highwayBoxSidesAt).
             const common::core::HighwayHandWindow window =
-                common::core::highwayHandWindowAt(state.fret_hand.track, window_seconds);
-            const auto [x0, x1] = handWindowXAt(state, window_seconds, metrics, mirrored);
+                common::core::highwayBoxSidesAt(box.track.get(), box.start_seconds, now_seconds);
+            const auto [x0, x1] = handWindowX(window, metrics, mirrored);
             push_box_accent_light(x0, x1);
             pushChordBoxPanel(
                 box_vertices,
@@ -3843,7 +3712,7 @@ void HighwayRenderer::Impl::draw(
             state.tap_onsets,
             now_seconds,
             std::ranges::less{},
-            &common::core::HighwayTapOnsetViewState::seconds);
+            &common::core::HighwayTapOnsetViewState::start_seconds);
         for (auto arrival = std::ranges::upper_bound(
                  pick_track,
                  now_seconds,
@@ -3852,21 +3721,23 @@ void HighwayRenderer::Impl::draw(
              arrival != pick_track.end() && arrival->seconds <= span_end_seconds;
              ++arrival)
         {
-            while (onset != state.tap_onsets.end() && onset->seconds < arrival->seconds)
+            while (onset != state.tap_onsets.end() && onset->start_seconds < arrival->seconds)
             {
                 ++onset;
             }
-            if (onset != state.tap_onsets.end() && std::is_eq(onset->seconds <=> arrival->seconds))
+            if (onset != state.tap_onsets.end() &&
+                std::is_eq(onset->start_seconds <=> arrival->seconds))
             {
                 const common::core::HighwayTapOnsetViewState& tap = *onset;
-                const bool repeat_established = onset != state.tap_onsets.begin() &&
-                                                std::prev(onset)->fret_low == tap.fret_low &&
-                                                std::prev(onset)->fret_high == tap.fret_high &&
-                                                tap.seconds - std::prev(onset)->release_seconds <
-                                                    common::core::g_hand_rest_seconds;
+                const bool repeat_established =
+                    onset != state.tap_onsets.begin() &&
+                    std::prev(onset)->fret_low == tap.fret_low &&
+                    std::prev(onset)->fret_high == tap.fret_high &&
+                    tap.start_seconds - std::prev(onset)->release_seconds <
+                        common::core::g_hand_rest_seconds;
                 if (!repeat_established)
                 {
-                    push_target_number(tap.fret_low, tap.seconds);
+                    push_target_number(tap.fret_low, tap.start_seconds);
                 }
                 continue;
             }
@@ -4264,12 +4135,23 @@ void HighwayRenderer::Impl::draw(
             const bool modulated =
                 !note.vibrato.empty() || note.tremolo || !note.bend.empty() || !note.slides.empty();
             // An open band whose window moves under it must sample its stations along the tail
-            // (the tail travels with the hand — fhp-window-motion plan). The one scan that
-            // answers whether it moves also leaves the ramp samples the wobble times take below.
-            const bool open_band_moves =
-                common::core::openString(note) &&
-                windowSampleTimes(
-                    state, tail_from, tail_to, max_fret_hand_ramp_seconds, scratch.window_times);
+            // (the tail travels with the hand — fhp-window-motion plan). The window's samples over
+            // the visible tail (highwayTrackSampleTimes, the one policy every track-following mark
+            // shares) are the samples the wobble times take below, and they say it moves when
+            // anything lies past the two ends: an arrival or a ramp slice inside the tail.
+            std::vector<double>& window_times = scratch.window_times;
+            window_times.clear();
+            bool open_band_moves = false;
+            if (common::core::openString(note))
+            {
+                const std::vector<common::core::HighwayHandArrival>& track = state.fret_hand.track;
+                common::core::highwayTrackSampleTimes(track, tail_from, tail_to, window_times);
+                // The end comparison catches a tail shorter than one slice inside a ramp, which
+                // has no interior sample while the window still moves between its ends.
+                open_band_moves = window_times.size() > 2 ||
+                                  common::core::highwayHandWindowAt(track, tail_from) !=
+                                      common::core::highwayHandWindowAt(track, tail_to);
+            }
             if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
@@ -4549,18 +4431,15 @@ void HighwayRenderer::Impl::draw(
                 }
                 if (open_band_moves)
                 {
-                    // The window's own ramp samples (taken with the move test above) join the
-                    // exact set so the band tracks the eased border exactly instead of aliasing
-                    // across it — and so they count against the one sample budget like every
-                    // other exact time.
+                    // The window's own samples (taken with the move test above) join the exact set
+                    // so the band tracks the eased border exactly instead of aliasing across it —
+                    // and so they count against the one sample budget like every other exact time.
                     wobble_times.insert(
-                        wobble_times.end(),
-                        scratch.window_times.begin(),
-                        scratch.window_times.end());
+                        wobble_times.end(), window_times.begin(), window_times.end());
                 }
                 // The one per-note allocation left on this path: makeHighwayTailSampleTimes
                 // returns its list, so banking it needs the core seam to fill a caller's buffer
-                // the way windowSampleTimes does.
+                // the way highwayTrackSampleTimes does.
                 const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
                     note, tail_from, tail_to, uniform_count, wobble_times, g_tail_sample_cap);
 
@@ -4903,7 +4782,8 @@ void HighwayRenderer::Impl::draw(
             // the full note color (the flat tail-width slab it replaces read as a plank). A bar
             // landing mid-transition takes the eased window at its own anchor instant, so a
             // pinned sounding bar follows the sliding window like its ringing tail does.
-            const auto [x0, x1] = handWindowXAt(state, head_seconds, metrics, mirrored);
+            const auto [x0, x1] =
+                handWindowXAt(state.fret_hand.track, head_seconds, metrics, mirrored);
             // L posts pointing inward from the bar ends (the chord box's bottom corner holders,
             // freestanding): one continuous two-leg ribbon per corner, its cross-section
             // turning 45 degrees at the corner station so the bands wrap the L outline unbroken
@@ -5508,8 +5388,8 @@ void HighwayRenderer::Impl::draw(
                 tint);
         }
 
-        // Each marked keyframe (marksKeyframe) gets its own post and line; an unmarked one gets
-        // no board furniture — only the rail's own dimming trail.
+        // Each marked keyframe (common::core::highwayMarksKeyframe) gets its own post and line; an
+        // unmarked one gets no board furniture — only the rail's own dimming trail.
         // A keyframe carries its own time, which can sit well past its note's onset, so each
         // marker culls to the same upcoming window as its floor fret number below: past span_end
         // it would float beyond the board's far edge, and behind the hit line it would stand at
@@ -5532,7 +5412,7 @@ void HighwayRenderer::Impl::draw(
                 // Only a marker the other member actually draws can stand in for this one.
                 for (const common::core::KeyframeViewState& other_keyframe : other.slides)
                 {
-                    if (marksKeyframe(other, other_keyframe) &&
+                    if (common::core::highwayMarksKeyframe(other, other_keyframe) &&
                         other_keyframe.fret == keyframe.fret &&
                         std::abs(other_keyframe.seconds - keyframe.seconds) < g_onset_match_epsilon)
                     {
@@ -5544,8 +5424,9 @@ void HighwayRenderer::Impl::draw(
         };
         for (const common::core::KeyframeViewState& keyframe : note.slides)
         {
-            if (marksKeyframe(note, keyframe) && keyframe.seconds > now_seconds &&
-                keyframe.seconds <= span_end_seconds && !stacked_below(keyframe))
+            if (common::core::highwayMarksKeyframe(note, keyframe) &&
+                keyframe.seconds > now_seconds && keyframe.seconds <= span_end_seconds &&
+                !stacked_below(keyframe))
             {
                 push_keyframe_marker(keyframe.fret, keyframe.seconds);
             }
@@ -5608,9 +5489,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
             appendLightSampleTimes(
                 hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
         });
-    std::ranges::sort(times);
-    const auto duplicates = std::ranges::unique(times);
-    times.erase(duplicates.begin(), duplicates.end());
+    common::core::highwaySortUniqueTimes(times);
 
     auto [vertices, indices] = scratch.colorBatch();
     // At least one strip per fret line, four vertices each.
@@ -5707,11 +5586,6 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
     };
     const double spill = g_window_light_falloff / 2.0;
     std::vector<double>& times = scratch.window_times;
-    const auto window_x = [&](const common::core::HighwayHandWindow& window) {
-        const double edge0 = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
-        const double edge1 = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
-        return std::pair{std::min(edge0, edge1), std::max(edge0, edge1)};
-    };
     forEachHand([&](const common::core::HighwayHandLight& hand, const HandLightStyle& style) {
         auto [vertices, indices] = scratch.texturedBatch();
         forEachLightOf(
@@ -5722,18 +5596,20 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
                 times.clear();
                 appendLightSampleTimes(
                     hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
-                std::ranges::sort(times);
-                const auto duplicates = std::ranges::unique(times);
-                times.erase(duplicates.begin(), duplicates.end());
+                common::core::highwaySortUniqueTimes(times);
                 double alpha_a = lightStrengthAt(hand, stretch, times.front());
-                auto [low_a, high_a] =
-                    window_x(common::core::highwayLitWindowAt(hand.track, stretch, times.front()));
+                auto [low_a, high_a] = handWindowX(
+                    common::core::highwayLitWindowAt(hand.track, stretch, times.front()),
+                    metrics,
+                    mirrored);
                 double za = timeToZ(frame, times.front());
                 for (std::size_t sample = 1; sample < times.size(); ++sample)
                 {
                     const double alpha_b = lightStrengthAt(hand, stretch, times[sample]);
-                    const auto [low_b, high_b] = window_x(
-                        common::core::highwayLitWindowAt(hand.track, stretch, times[sample]));
+                    const auto [low_b, high_b] = handWindowX(
+                        common::core::highwayLitWindowAt(hand.track, stretch, times[sample]),
+                        metrics,
+                        mirrored);
                     const double zb = timeToZ(frame, times[sample]);
                     // A slice dark at both ends draws nothing; every lane past the half-band spill
                     // outside both slice-end windows is fully dark, so it draws nothing either.
@@ -5820,7 +5696,7 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
                  std::ranges::less{},
                  &common::core::HighwayBeatViewState::seconds)))
     {
-        const auto [x0, x1] = handWindowXAt(state, beat.seconds, metrics, mirrored);
+        const auto [x0, x1] = handWindowXAt(state.fret_hand.track, beat.seconds, metrics, mirrored);
         const double z = timeToZ(frame, beat.seconds);
         if (beat.measure_downbeat)
         {
@@ -5858,34 +5734,41 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
     submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
 }
 
-// --- Hand-shape span rails: thick fading edge lines along each shape span at its hand
-// window's fret lines, riding the hit line while active (purple marks arpeggio spans). ---
+// --- Hand-shape rails: thick fading edge lines along a held hand's window edges, from the hold's
+// start to its end, riding the hit line while active. One pass draws every rail as (track, from,
+// to, colour), fed by both hands: the fretting hand's posture spans over its track in the span's
+// own colour (purple marks arpeggio spans), and the picking hand's tapped chords over its track
+// from the strike to the struck notes' release, in that hand's mark colour. A strike carries its
+// own hold end (HighwayTapOnsetViewState::release_seconds), so the picking hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
     auto [vertices, indices] = scratch.colorBatch();
-    for (const common::core::ShapeViewState& shape : frame.visible_shapes)
-    {
-        if (shape.drawn_end_seconds < frame.now_seconds ||
-            shape.start_seconds > frame.span_end_seconds)
+    const auto push_rail = [&](const std::vector<common::core::HighwayHandArrival>& track,
+                               const double from_seconds,
+                               const double to_seconds,
+                               const ArgbColor color) {
+        // The hold clipped to [now, span end]: empty once it has passed the hit line or while it
+        // lies beyond the drawn span.
+        const double rail_from = std::max(frame.now_seconds, from_seconds);
+        const double rail_to = std::min(to_seconds, frame.span_end_seconds);
+        if (rail_from > rail_to)
         {
-            continue;
+            return;
         }
-        const ArgbColor color =
-            shape.arpeggio ? g_arpeggio_color : (g_lane_border_color | 0xFF000000U);
         const std::uint32_t solid = packAbgr(color);
         const std::uint32_t clear = packAbgr(color, 0.0);
-        // Rails follow the hand window's edges, sampled so a mid-span window move (a chord
-        // slide under a held shape) sweeps them along with everything else; in settled
-        // stretches consecutive samples share one extent and the trapezoids stay straight.
-        const double rail_from = std::max(frame.now_seconds, shape.start_seconds);
-        const double rail_to = std::min(shape.drawn_end_seconds, frame.span_end_seconds);
+        // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
+        // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
+        // settled stretches consecutive samples share one extent and the trapezoids stay straight.
         std::vector<double>& times = scratch.window_times;
-        windowSampleTimes(state, rail_from, rail_to, max_fret_hand_ramp_seconds, times);
+        times.clear();
+        common::core::highwayTrackSampleTimes(track, rail_from, rail_to, times);
+        common::core::highwaySortUniqueTimes(times);
         for (std::size_t sample = 1; sample < times.size(); ++sample)
         {
-            const auto [a_x0, a_x1] = handWindowXAt(state, times[sample - 1], metrics, mirrored);
-            const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
+            const auto [a_x0, a_x1] = handWindowXAt(track, times[sample - 1], metrics, mirrored);
+            const auto [b_x0, b_x1] = handWindowXAt(track, times[sample], metrics, mirrored);
             const double za = std::max(0.0, timeToZ(frame, times[sample - 1]));
             const double zb = std::max(0.0, timeToZ(frame, times[sample]));
             // Solid core between fade-out wings, per edge (Charter's cross-section).
@@ -5927,6 +5810,31 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
                     solid,
                     clear);
             }
+        }
+    };
+    for (const common::core::ShapeViewState& shape : frame.visible_shapes)
+    {
+        push_rail(
+            state.fret_hand.track,
+            shape.start_seconds,
+            shape.drawn_end_seconds,
+            shape.arpeggio ? g_arpeggio_color : (g_lane_border_color | 0xFF000000U));
+    }
+    // Tapped chords whose hold reaches the drawn span: strikes ascend by onset but their holds
+    // overlap freely, so the range is visibleEventRange over the prefix maximum of the holds — the
+    // posture spans' own search; push_rail's clip still tests each hold.
+    const auto [tap_first, tap_last] = common::core::visibleEventRange(
+        state.tap_onsets, tap_release_prefix_max, frame.now_seconds, frame.span_end_seconds);
+    for (std::size_t index = tap_first; index < tap_last; ++index)
+    {
+        const common::core::HighwayTapOnsetViewState& tap = state.tap_onsets[index];
+        if (common::core::tappedChord(tap))
+        {
+            push_rail(
+                state.pick_hand.track,
+                tap.start_seconds,
+                tap.release_seconds,
+                g_picking_hand_light.mark_color);
         }
     }
     submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
@@ -6184,7 +6092,7 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
             std::clamp((label_z - label_z_faded) / (label_z_close - label_z_faded), 0.0, 1.0);
         (void)push_text(
             section.name,
-            handWindowXAt(state, section.seconds, metrics, mirrored).first,
+            handWindowXAt(state.fret_hand.track, section.seconds, metrics, mirrored).first,
             section_y,
             label_z,
             0.5,
@@ -6212,8 +6120,9 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
 // and pops identically on lit and unlit content. Deliberately the LAST board-view submission:
 // the premultiplied inlay skin would punch dark dot silhouettes through a glow drawn earlier,
 // and the hit-line text would dim it. The envelope is a stateless function of now - onset,
-// per-onset with an inter-onset release clamp, so fast sections keep a discrete pop per strike
-// instead of fusing into a shimmer. ---
+// per-onset with an inter-onset release clamp (applied once in core), so fast sections keep a
+// discrete pop per strike instead of fusing into a shimmer. Each hand pops in its own mark colour
+// (HandLightStyle::mark_color): amber for the fretting hand, white for the picking hand. ---
 void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
@@ -6221,313 +6130,97 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
     const double face_top_y = faceTopY();
     auto [vertices, indices] = scratch.texturedBatch();
     const double spill = g_hit_glow_falloff / 2.0;
-    const double clamp_horizon = g_hit_glow_release_seconds + g_hit_glow_trough_guard_seconds;
 
-    // One soft vertical strip on the face: hot core g_hit_glow_core_half wide, the window
-    // light's soft x edges, and the envelope in vertex alpha fading toward the face top so
-    // the light reads grounded at the strings' crossing (the mask itself is horizontal-only).
-    const auto push_strip = [&](const double center_x, const double envelope) {
-        const std::uint32_t bottom = packAbgr(g_hit_glow_color, envelope);
-        const std::uint32_t top = packAbgr(g_hit_glow_color, envelope * g_hit_glow_top_fade);
-        const auto vertex = [&](const double x, const double y, const std::uint32_t tint) {
-            return makeUvVertex(
-                x,
-                y,
-                0.0,
-                tint,
-                static_cast<float>((x - (center_x - g_hit_glow_core_half)) + spill),
-                static_cast<float>(((center_x + g_hit_glow_core_half) - x) + spill));
+    // One soft vertical strip on the face in its hand's mark colour: hot core g_hit_glow_core_half
+    // wide, the window light's soft x edges, and the envelope in vertex alpha fading toward the
+    // face top so the light reads grounded at the strings' crossing (the mask itself is
+    // horizontal-only).
+    const auto push_strip =
+        [&](const double center_x, const double envelope, const ArgbColor color) {
+            const std::uint32_t bottom = packAbgr(color, envelope);
+            const std::uint32_t top = packAbgr(color, envelope * g_hit_glow_top_fade);
+            const auto vertex = [&](const double x, const double y, const std::uint32_t tint) {
+                return makeUvVertex(
+                    x,
+                    y,
+                    0.0,
+                    tint,
+                    static_cast<float>((x - (center_x - g_hit_glow_core_half)) + spill),
+                    static_cast<float>(((center_x + g_hit_glow_core_half) - x) + spill));
+            };
+            const double x0 = center_x - g_hit_glow_core_half - spill;
+            const double x1 = center_x + g_hit_glow_core_half + spill;
+            pushQuad(
+                vertices,
+                indices,
+                vertex(x0, face_bottom_y, bottom),
+                vertex(x1, face_bottom_y, bottom),
+                vertex(x1, face_top_y, top),
+                vertex(x0, face_top_y, top));
         };
-        const double x0 = center_x - g_hit_glow_core_half - spill;
-        const double x1 = center_x + g_hit_glow_core_half + spill;
-        pushQuad(
-            vertices,
-            indices,
-            vertex(x0, face_bottom_y, bottom),
-            vertex(x1, face_bottom_y, bottom),
-            vertex(x1, face_top_y, top),
-            vertex(x0, face_top_y, top));
-    };
-    // Per-fret-line max envelopes: fretted singles, single taps, and tapped-box edge lines
-    // share these slots, so overlapping strikes on a shared line resolve by max, never
-    // additive stacking.
-    std::array<double, g_face_fret_count + 1> line_glow{};
-    const auto light_line = [&](const int line, const double envelope) {
-        if (line >= 0 && line <= g_face_fret_count)
+    // Each hand's pops are chart facts, derived once with their releases already clamped
+    // (HighwayHandLight::pops), so a frame only reads the ones still fading: onsets ascend and no
+    // release outlasts the nominal one, which makes them one binary-searched run up to now. A wire
+    // two pops of one hand share takes their max, never their sum, while the two hands' strips on
+    // one wire add. Box-side pops stand at the hand's live window: every one of them has struck,
+    // and past the hit line a box's sides are the live window (common::core::highwayBoxSidesAt), so
+    // a decay tail travels with the hand exactly like the light it brightens.
+    forEachHand([&](const common::core::HighwayHandLight& hand, const HandLightStyle& style) {
+        LineLight lines{};
+        double box_sides = 0.0;
+        for (const common::core::HighwayStrikePop& pop : std::ranges::subrange(
+                 std::ranges::lower_bound(
+                     hand.pops,
+                     frame.now_seconds - common::core::g_hit_glow_release_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayStrikePop::onset_seconds),
+                 std::ranges::upper_bound(
+                     hand.pops,
+                     frame.now_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayStrikePop::onset_seconds)))
         {
-            line_glow.at(static_cast<std::size_t>(line)) =
-                std::max(line_glow.at(static_cast<std::size_t>(line)), envelope);
-        }
-    };
-    // Strikes that light the two live window-edge frets: lone opens, and strummed chords —
-    // a strum glows only the chord box's left and right frets, the box interior stays
-    // deliberately dark (what the interior does instead is an open decision). Both kinds
-    // share the same two strips, so their onsets collect here in ascending order and each
-    // clamps against the next window-edge strike of either kind.
-    std::vector<double>& window_edge_onsets = scratch.window_edge_onsets;
-
-    // Fretting-hand onset clusters, walked over the glow's own onset window: glow tails
-    // outlive the passed-note fade, so the pass binary-searches state.chart.notes directly
-    // instead of reusing the visible range (which drops a sustainless note
-    // g_passed_fade_seconds after it crosses and would cap every tunable release). The walk
-    // extends one clamp horizon past now so strikes at the hit line clamp against strikes
-    // still approaching. Clusters use the chord boxes' own grouping rule: notes within the
-    // onset epsilon strike together, and only non-tap members count toward the box. Tap
-    // onsets are the other hand and glow from state.tap_onsets below.
-    const auto glow_begin = std::ranges::lower_bound(
-        state.chart.notes,
-        frame.now_seconds - g_hit_glow_release_seconds,
-        std::ranges::less{},
-        [](const common::core::NoteViewState& note) { return note.start_seconds; });
-    for (auto index = static_cast<std::size_t>(glow_begin - state.chart.notes.begin());
-         index < state.chart.notes.size();)
-    {
-        const double cluster_start = state.chart.notes[index].start_seconds;
-        if (cluster_start > frame.now_seconds + clamp_horizon)
-        {
-            break;
-        }
-        std::size_t cluster_end = index + 1;
-        while (cluster_end < state.chart.notes.size() &&
-               std::abs(state.chart.notes[cluster_end].start_seconds - cluster_start) <
-                   g_onset_match_epsilon)
-        {
-            ++cluster_end;
-        }
-        bool any_open = false;
-        for (std::size_t member = index; member < cluster_end; ++member)
-        {
-            const common::core::NoteViewState& note = state.chart.notes[member];
-            if (!common::core::rightHandOnset(note.attack))
-            {
-                any_open = any_open || common::core::openString(note);
-            }
-        }
-        // Whether a box covers this cluster is the projection's answer, not a member count of this
-        // loop's own: the glow lights a boxed cluster's window edges INSTEAD of its fret lines, so
-        // a second reading of "is there a box here" would light both, or neither, wherever the two
-        // disagreed — where the box rule itself ([C2], LAW IV's simultaneity) can move without
-        // this line needing a word changed.
-        //
-        // BOTH PRODUCERS (review R2(b)): a strum's own chord box, and the ARPEGGIO mark its
-        // covering span draws. A lone note under a bracket wears no chord box, so reading the box
-        // alone would light its per-fret lines straight through a mark already standing over them.
-        // Both answers are published per group, whole-song, so this stays one read of one
-        // authority.
-        const common::core::HighwayChordGroupViewState& covering =
-            state.chord_groups[state.note_group[index]];
-        const bool boxed = covering.box_treatment != common::core::HighwayChordBoxTreatment::None ||
-                           covering.arpeggio_mark;
-        if (boxed || any_open)
-        {
-            window_edge_onsets.push_back(cluster_start);
-        }
-        if (!boxed && cluster_start <= frame.now_seconds)
-        {
-            // Fretted singles (including a fretted note under a simultaneous tap): each
-            // lights its own fret lines. A later strike on the same fret clamps the tail
-            // even when it folds into a chord box whose edge frets miss these lines — the
-            // error is a slightly shorter tail, erring toward discreteness.
-            for (std::size_t member = index; member < cluster_end; ++member)
-            {
-                const common::core::NoteViewState& note = state.chart.notes[member];
-                if (common::core::rightHandOnset(note.attack) || note.fret <= 0)
-                {
-                    continue;
-                }
-                double spacing = std::numeric_limits<double>::infinity();
-                for (std::size_t next = cluster_end; next < state.chart.notes.size(); ++next)
-                {
-                    const common::core::NoteViewState& later = state.chart.notes[next];
-                    if (later.start_seconds - note.start_seconds > clamp_horizon)
-                    {
-                        break;
-                    }
-                    if (later.fret == note.fret)
-                    {
-                        spacing = later.start_seconds - note.start_seconds;
-                        break;
-                    }
-                }
-                const double envelope = common::core::highwayHitGlowIntensity(
-                    frame.now_seconds - note.start_seconds,
-                    common::core::highwayHitGlowRelease(
-                        g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
-                if (envelope > 0.0)
-                {
-                    // The wires bounding the slot this note PRESSES. Every note still here
-                    // presses one: the guard above skips fret 0, which is a natural harmonic's
-                    // stop (its finger is on the node and presses nothing) as much as a true open
-                    // string's, so no node reaches this line and the containing-fret ceil could
-                    // only ever answer the note's own fret. Whether a natural's strike should
-                    // light anything at all is open, parked with the tabled harmonic node light
-                    // in docs/tracking/backlog.md.
-                    light_line(note.fret - 1, envelope);
-                    light_line(note.fret, envelope);
-                }
-            }
-        }
-        index = cluster_end;
-    }
-
-    // Window-edge envelope: ascending onsets, each clamped against its successor (open or
-    // strum alike — they relight the same two strips), resolved by max into one shared
-    // intensity.
-    double window_edge_glow = 0.0;
-    for (std::size_t onset = 0; onset < window_edge_onsets.size(); ++onset)
-    {
-        if (window_edge_onsets[onset] > frame.now_seconds)
-        {
-            break;
-        }
-        const double spacing = onset + 1 < window_edge_onsets.size()
-                                   ? window_edge_onsets[onset + 1] - window_edge_onsets[onset]
-                                   : std::numeric_limits<double>::infinity();
-        window_edge_glow = std::max(
-            window_edge_glow,
-            common::core::highwayHitGlowIntensity(
-                frame.now_seconds - window_edge_onsets[onset],
-                common::core::highwayHitGlowRelease(
-                    g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing)));
-    }
-
-    // Slide landings and bend targets: every scored arrival pops the glow at its geometry
-    // (the game registers these as hit-or-miss, and the editor previews 100%-perfect play,
-    // so each one shows its success feedback). A pitched slide keyframe is a fret arrival —
-    // the finger lands on a new fret, the tail kinks there, the FHP window ramps there —
-    // and pops the landing's lines, whichever hand slides; unpitched slide-outs are
-    // pressure already releasing and contribute nothing (the tap light's rule). A bend
-    // target is a pitch arrival on the fret the finger stays planted on, so it pops that
-    // same line pair: each curve point ending a sloped segment (bend reached, release
-    // completed) is an arrival, while flat holds and the onset point are not — the strike
-    // already covers the onset. No inter-onset clamp: these are sparse, never the
-    // machine-gun case the clamp exists for, and the per-line max absorbs overlap. The
-    // sustain-aware range query covers a long sustain sliding or bending at its very end,
-    // whose onset left the cluster walk's window long ago.
-    const auto [keyframe_first, keyframe_last] = common::core::visibleEventRange(
-        state.chart.notes,
-        sustain_prefix_max,
-        frame.now_seconds - g_hit_glow_release_seconds,
-        frame.now_seconds);
-    for (std::size_t index = keyframe_first; index < keyframe_last; ++index)
-    {
-        const common::core::NoteViewState& note = state.chart.notes[index];
-        for (const common::core::KeyframeViewState& keyframe : note.slides)
-        {
-            // Exactly the keyframes the board marks pop a fret line: nothing undrawn is scored.
-            if (!marksKeyframe(note, keyframe))
+            const double envelope = common::core::highwayHitGlowIntensity(
+                frame.now_seconds - pop.onset_seconds, pop.release_seconds);
+            if (envelope <= 0.0)
             {
                 continue;
             }
-            const double envelope = common::core::highwayHitGlowIntensity(
-                frame.now_seconds - keyframe.seconds, g_hit_glow_release_seconds);
+            if (pop.fret.has_value())
+            {
+                for (const int line : {*pop.fret - 1, *pop.fret})
+                {
+                    if (line >= 0 && line <= g_face_fret_count)
+                    {
+                        double& slot = lines.at(static_cast<std::size_t>(line));
+                        slot = std::max(slot, envelope);
+                    }
+                }
+            }
+            else
+            {
+                box_sides = std::max(box_sides, envelope);
+            }
+        }
+        for (int line = 0; line <= g_face_fret_count; ++line)
+        {
+            const double envelope = lines.at(static_cast<std::size_t>(line));
             if (envelope > 0.0)
             {
-                light_line(keyframe.fret - 1, envelope);
-                light_line(keyframe.fret, envelope);
+                push_strip(
+                    common::core::highwayFretLineX(line, metrics, mirrored),
+                    envelope,
+                    style.mark_color);
             }
         }
-        for (std::size_t point = 1; note.fret > 0 && point < note.bend.size(); ++point)
+        if (box_sides > 0.0)
         {
-            const common::core::BendPointViewState& segment_from = note.bend[point - 1];
-            const common::core::BendPointViewState& arrival = note.bend[point];
-            if (arrival.seconds > note.ink_end_seconds)
-            {
-                break; // the curve's remaining points lie in the ring's ending zone
-            }
-            if (std::is_eq(arrival.semitones <=> segment_from.semitones))
-            {
-                continue; // a flat hold segment ends in no arrival
-            }
-            const double envelope = common::core::highwayHitGlowIntensity(
-                frame.now_seconds - arrival.seconds, g_hit_glow_release_seconds);
-            if (envelope > 0.0)
-            {
-                light_line(note.fret - 1, envelope);
-                light_line(note.fret, envelope);
-            }
+            const auto [low_x, high_x] =
+                handWindowXAt(hand.track, frame.now_seconds, metrics, mirrored);
+            push_strip(low_x, box_sides, style.mark_color);
+            push_strip(high_x, box_sides, style.mark_color);
         }
-    }
-
-    // Tapping-hand onsets: a tapped chord pops the two fret lines at its box's edges (the
-    // interior stays dark like the strummed boxes), a single tap pops its fret lines like a
-    // fretted single. Same-geometry means the same fret extent; partially overlapping
-    // extents are separate lights that max-resolve on any shared line.
-    //
-    // A tap's glow depends on its own onset alone (its path plays no part), so onsets
-    // ascending makes the lit ones one binary-searched run: from the first whose strike is
-    // still inside the release, up to the last that has already struck. The spacing walk
-    // below still reads onsets past that run — it looks FORWARD for the next same-geometry
-    // strike — which is why it indexes the whole list rather than the run.
-    const auto glow_first = static_cast<std::size_t>(
-        std::ranges::partition_point(
-            state.tap_onsets,
-            [&](const common::core::HighwayTapOnsetViewState& tap) {
-                return frame.now_seconds - tap.seconds >= g_hit_glow_release_seconds;
-            }) -
-        state.tap_onsets.begin());
-    const auto glow_last = static_cast<std::size_t>(
-        std::ranges::upper_bound(
-            state.tap_onsets,
-            frame.now_seconds,
-            std::ranges::less{},
-            &common::core::HighwayTapOnsetViewState::seconds) -
-        state.tap_onsets.begin());
-    for (std::size_t tap_index = glow_first; tap_index < glow_last; ++tap_index)
-    {
-        const common::core::HighwayTapOnsetViewState& tap = state.tap_onsets[tap_index];
-        const double since = frame.now_seconds - tap.seconds;
-        double spacing = std::numeric_limits<double>::infinity();
-        for (std::size_t next = tap_index + 1; next < state.tap_onsets.size(); ++next)
-        {
-            const common::core::HighwayTapOnsetViewState& later = state.tap_onsets[next];
-            if (later.seconds - tap.seconds > clamp_horizon)
-            {
-                break;
-            }
-            if (later.fret_low == tap.fret_low && later.fret_high == tap.fret_high &&
-                (later.count >= 2) == (tap.count >= 2))
-            {
-                spacing = later.seconds - tap.seconds;
-                break;
-            }
-        }
-        const double envelope = common::core::highwayHitGlowIntensity(
-            since,
-            common::core::highwayHitGlowRelease(
-                g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
-        if (envelope <= 0.0)
-        {
-            continue;
-        }
-        if (tap.count >= 2)
-        {
-            light_line(tap.fret_low - 1, envelope);
-            light_line(tap.fret_high, envelope);
-        }
-        else
-        {
-            light_line(tap.fret_low - 1, envelope);
-            light_line(tap.fret_low, envelope);
-        }
-    }
-
-    for (int line = 0; line <= g_face_fret_count; ++line)
-    {
-        const double envelope = line_glow.at(static_cast<std::size_t>(line));
-        if (envelope > 0.0)
-        {
-            push_strip(common::core::highwayFretLineX(line, metrics, mirrored), envelope);
-        }
-    }
-    if (window_edge_glow > 0.0)
-    {
-        // Chord-box edges and open strikes follow the live (possibly sliding) window, so a
-        // decay tail travels with the hand exactly like the window light it brightens.
-        const auto [low_x, high_x] = handWindowXAt(state, frame.now_seconds, metrics, mirrored);
-        push_strip(low_x, window_edge_glow);
-        push_strip(high_x, window_edge_glow);
-    }
+    });
 
     const std::array<float, 4> light_params{
         static_cast<float>(g_hit_glow_falloff), 0.0F, 0.0F, 0.0F

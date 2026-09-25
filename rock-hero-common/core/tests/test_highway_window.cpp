@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <cstddef>
 #include <numbers>
 #include <optional>
 #include <rock_hero/common/core/highway/highway_tail.h>
@@ -417,6 +419,162 @@ TEST_CASE("Lit window finishes the leg in progress at its release", "[core][high
     CHECK(
         highwayLitWindowAt(track, early, 5.5) ==
         HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
+}
+
+// THE ONE DENSITY POLICY, read through the sampler that applies it: a leg is sliced four times per
+// fret of its wider edge's travel, never fewer than six so a sub-fret wiggle still reads as a
+// curve, never more than sixty-four so a full-neck scrape cannot tessellate past a batch budget,
+// and monotone in between so a longer travel never draws with fewer slices.
+TEST_CASE("Track sampling slices a leg four per fret, bounded", "[core][highway][window]")
+{
+    // The slices one leg of `sweep` frets gets: a settled window, then a one-second ramp over
+    // 1.0-2.0, sampled over [0.5, 3] so every slice falls inside — the samples past the range's two
+    // ends and the arrival are the slices.
+    const auto slices_for = [](const double sweep) {
+        const std::vector<HighwayHandArrival> leg{
+            HighwayHandArrival{
+                .seconds = 0.0,
+                .low_line = 0.0,
+                .high_line = 4.0,
+                .ramp_seconds = 0.0,
+                .unpitched_ramp = false,
+                .settle_seconds = 0.0,
+            },
+            HighwayHandArrival{
+                .seconds = 2.0,
+                .low_line = sweep,
+                .high_line = 4.0 + sweep,
+                .ramp_seconds = 1.0,
+                .unpitched_ramp = false,
+                .settle_seconds = 0.0,
+            },
+        };
+        std::vector<double> times;
+        highwayTrackSampleTimes(leg, 0.5, 3.0, times);
+        highwaySortUniqueTimes(times);
+        return static_cast<int>(times.size()) - 3;
+    };
+
+    // The floor holds for anything under one and a half frets of travel.
+    CHECK(slices_for(0.25) == 6);
+    CHECK(slices_for(1.0) == 6);
+
+    // Four per fret past that.
+    CHECK(slices_for(2.0) == 8);
+    CHECK(slices_for(3.0) == 12);
+    CHECK(slices_for(7.0) == 28);
+
+    // The ceiling holds from sixteen frets of travel on, a scrape's whole-neck leg included.
+    CHECK(slices_for(16.0) == 64);
+    CHECK(slices_for(20.0) == 64);
+
+    int previous = slices_for(0.25);
+    for (int step = 1; step <= 40; ++step)
+    {
+        const int count = slices_for(static_cast<double>(step) / 2.0);
+        CHECK(count >= previous);
+        previous = count;
+    }
+}
+
+// Sample instants closer than the onset epsilon are one moment: sorted, the repeat is dropped, so
+// no two samples make a zero-length segment.
+TEST_CASE("Sorted sample times drop instants one epsilon apart", "[core][highway][window]")
+{
+    std::vector<double> times{3.0, 1.0 + 1.0e-12, 2.0, 1.0, 3.0};
+    highwaySortUniqueTimes(times);
+    REQUIRE(times.size() == 3);
+    CHECK(times[0] == Catch::Approx(1.0));
+    CHECK(std::is_eq(times[1] <=> 2.0));
+    CHECK(std::is_eq(times[2] <=> 3.0));
+}
+
+// THE ONE SAMPLING POLICY at its breakpoints: the range's ends are always sampled, and only once
+// each even where an arrival sits on one; a settled stretch and an empty track add nothing past
+// them; a ramp is sliced by the density policy only where it lies inside the range; and a leg that
+// arrives instantly, or whose edges do not move, adds its arrival and no slices.
+TEST_CASE("Track sample times slice only the ramps inside the range", "[core][highway][window]")
+{
+    // Lines 2-6 at 2.0, then a two-second ramp over 4.0-6.0 to lines 7-13: seven lines of travel.
+    std::vector<HighwayHandArrival> track = makePlacements();
+    const auto sampled = [&track](const double from_seconds, const double to_seconds) {
+        std::vector<double> times;
+        highwayTrackSampleTimes(track, from_seconds, to_seconds, times);
+        highwaySortUniqueTimes(times);
+        return times;
+    };
+    // Four slices per fret of the seven lines' travel.
+    constexpr int slices = 28;
+    const auto slice_at = [](const int slice) {
+        return 4.0 + (2.0 * static_cast<double>(slice) / static_cast<double>(slices));
+    };
+
+    // An empty track and a settled stretch both give the range's ends and nothing else.
+    std::vector<double> bare;
+    highwayTrackSampleTimes({}, 1.0, 3.0, bare);
+    CHECK(bare == std::vector<double>{1.0, 3.0});
+    CHECK(sampled(0.5, 1.5) == std::vector<double>{0.5, 1.5});
+
+    // An arrival AT the range's start is that start, appended once; the ramp after the range adds
+    // nothing.
+    std::vector<double> at_arrival;
+    highwayTrackSampleTimes(track, 2.0, 3.0, at_arrival);
+    CHECK(at_arrival == std::vector<double>{2.0, 3.0});
+
+    // A ramp straddling the range's start is sliced only inside it: the slice landing exactly on
+    // the start is the start itself, and the arrival inside the range is sampled.
+    std::vector<double> straddling{5.0, 6.0, 7.0};
+    for (int slice = 0; slice < slices; ++slice)
+    {
+        if (slice_at(slice) > 5.0)
+        {
+            straddling.push_back(slice_at(slice));
+        }
+    }
+    std::ranges::sort(straddling);
+    CHECK(sampled(5.0, 7.0) == straddling);
+
+    // A ramp wholly inside the range contributes every slice.
+    CHECK(sampled(3.0, 7.0).size() == static_cast<std::size_t>(slices) + 3);
+
+    // A zero-ramp step and a ramp that moves no edge each add their arrival and no slices.
+    track.push_back(
+        HighwayHandArrival{
+            .seconds = 8.0,
+            .low_line = 1.0,
+            .high_line = 5.0,
+            .ramp_seconds = 0.0,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        });
+    track.push_back(
+        HighwayHandArrival{
+            .seconds = 10.0,
+            .low_line = 1.0,
+            .high_line = 5.0,
+            .ramp_seconds = 1.0,
+            .unpitched_ramp = false,
+            .settle_seconds = 0.0,
+        });
+    CHECK(sampled(7.0, 11.0) == std::vector<double>{7.0, 8.0, 10.0, 11.0});
+}
+
+// THE BOX-SIDES RULE at its breakpoint: an approaching box stands at its hand's window at its own
+// onset, even while the window is still moving now, and from the onset on it rides the live window.
+TEST_CASE("Box sides hold the onset window, then ride the live one", "[core][highway][window]")
+{
+    const std::vector<HighwayHandArrival> track = makePlacements();
+
+    // Before the onset (mid-ramp at 5.0), the box reads the window at its onset, not at now.
+    CHECK(highwayBoxSidesAt(track, 5.0, 1.0) == highwayHandWindowAt(track, 5.0));
+    CHECK_FALSE(highwayBoxSidesAt(track, 5.0, 1.0) == highwayHandWindowAt(track, 1.0));
+
+    // At and after the onset, it reads the live window: still easing at 5.5, settled by 6.5.
+    CHECK(highwayBoxSidesAt(track, 5.0, 5.0) == highwayHandWindowAt(track, 5.0));
+    CHECK(highwayBoxSidesAt(track, 5.0, 5.5) == highwayHandWindowAt(track, 5.5));
+    CHECK(
+        highwayBoxSidesAt(track, 5.0, 6.5) ==
+        HighwayHandWindow{.low_line = 7.0, .high_line = 13.0});
 }
 
 } // namespace rock_hero::common::core
