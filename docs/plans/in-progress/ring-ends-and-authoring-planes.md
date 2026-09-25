@@ -4,7 +4,8 @@ Status: DESIGN DECIDED 2026-09-23, reviewed the same day (three read-only review
 folded in below). Phase 1 BUILT 2026-09-23 (1a `da74d79b`, 1b `a6cf2f88`, 1c `736adbe3`) and the
 alongside item (`df5ef1ab`), each with its own simplicity review folded in; phase 1 sighted
 2026-09-23..24 (fixes `db51a7fa`, `7a17b62e`, `3449f271`, `6fffd40f`); phase 2 BUILT 2026-09-24
-(`5d0cb384`), awaiting its entry-flow sighting. Merges and replaces
+(`5d0cb384`). Phases 1 and 2 both SIGHTED and signed 2026-09-24 (user), except phase 1b's end
+bend abutting a same-string head, deferred until bends are authorable. Merges and replaces
 `chart-lane-authoring-planes.md` and `ring-end-display.md`. Baseline: HEAD `ce0db3a2` (the
 tick-lattice follow-up has landed: every editor verb produces lattice positions, restored carets
 snap onto ticks). Re-verify every code claim below against the tree before a phase starts; line
@@ -399,30 +400,32 @@ it until the single form carries one.
   slide-out and an end bend abutting a same-string head, a free-ending slide-out, a dense
   sixteenth passage at 160–180 BPM, and a Guitar Pro bend-release written at 98% and 99% (imported
   points round onto the lattice, so two that round onto one tick stay apart) — each in 2D, in 3D
-  and under `Alt`. Confirm the margin against this picture.
+  and under `Alt`. Confirm the margin against this picture. **Signed 2026-09-24**, except the end
+  bend abutting a same-string head, deferred until bends are authorable.
 - **Docs:** `tab_paint_core.h`, `the-editor-2d-views.md`, `the-3d-highway.md`.
 
 ### Phase 1c — The caret peek returns
 
 - The caret peek comes back as a reveal that adds ink, the held-stop satellites with it and with
   the selection; the `tab_view` cull table follows. Sight the peek beside `Alt` and the selection.
+  **Signed 2026-09-24.**
 - **Docs:** `chart_reveal.h`, `the-editor-2d-views.md`, `keymap-matrix.md`'s reveal rows.
 
 ### Phase 2 — The keys
 
-**Built 2026-09-23, awaiting its sighting.** The rulings were re-read against phase 1's sighted
-lane before the build and stand as written above. The cut parameterizes nothing: `planCutRing` runs
-the split walk and replaces its second product with a struck head. The names the naming expert
-ruled are "Insert at Caret" (`InsertAtCaret`, `0x1707`), "Insert Point on Ring" (`InsertRingPoint`,
-`0x171C`) and "Type Digit N on Ring" (`TypeRingDigit0`–`9`, `0x1815`–`0x181E`). The digit
-dispatch reads operand then plane in `performActionImpl(TypeChartFretDigit)` and
-`chartEntryTarget(plane)`, pure — a target that addresses what stands is a retype over it, and the
-settle selects what every entry addressed or made, which is what gives `Insert` its "select where
-the digit would retype" rule. The simplicity review's findings were taken the same day: the note
-plane asks `chartObjectAt` (an interior point put back under the caret by undo is retyped, not
-cut), the ring redirect requires the caret armed on the one selected head, `planInsertNote` lost
-its replace-on-occupied path, and the entry beginnings are visited, so a fifth one fails to
-compile at every site.
+**Built 2026-09-23; sighted and signed 2026-09-24.** The rulings were re-read against phase 1's
+sighted lane before the build and stand as written above. The cut parameterizes nothing:
+`planCutRing` runs the split walk and replaces its second product with a struck head. The names
+the naming expert ruled are "Insert at Caret" (`InsertAtCaret`, `0x1707`), "Insert Point on
+Ring" (`InsertRingPoint`, `0x171C`) and "Type Digit N on Ring" (`TypeRingDigit0`–`9`,
+`0x1815`–`0x181E`). The digit dispatch reads operand then plane in
+`performActionImpl(TypeChartFretDigit)` and `chartEntryTarget(plane)`, pure — a target that
+addresses what stands is a retype over it, and the settle selects what every entry addressed or
+made, which is what gives `Insert` its "select where the digit would retype" rule. The
+simplicity review's findings were taken the same day: the note plane asks `chartObjectAt` (an
+interior point put back under the caret by undo is retyped, not cut), the ring redirect requires
+the caret armed on the one selected head, `planInsertNote` lost its replace-on-occupied path, and
+the entry beginnings are visited, so a fifth one fails to compile at every site.
 
 - `planCutRing` in `chart_edits.h`: the split walk with a fresh head (strike defaults, typed fret,
   picked attack). Tests: lossless inheritance of keyframes, channel states and the end statement;
@@ -449,7 +452,7 @@ compile at every site.
   `docs/developer/keyboard-input.md` (step 5 and the Alt-code paragraph),
   `docs/developer/the-editor-2d-views.md`, `derived-shift-slide.md` ~:56-76; the AltGr watch item.
 - Sight the entry flow: sequential entry, a cut into a long ring, an end statement at a shared
-  instant, a mixed-selection `Alt` press.
+  instant, a mixed-selection `Alt` press. **Signed 2026-09-24**, all four.
 
 ### Alongside, any time
 

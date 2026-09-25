@@ -28,27 +28,26 @@ Signed 2026-09-18: **P4** sections from the keyboard, **P6** the typed-note entr
 look was redrawn after signing: arrival on the head `3e5fceae`, chip dropped `6fffd40f`, one
 morph `db51a7fa` — the sighted fixes carry it). Already signed before that: P1, P2, P2b, P3, P9.
 
-Withdrawn: **P5**, the harmonic verbs `H` and `Shift+H` with the node picker, went back into ACTIVE
-WORK before being sighted. Its keymap rows stay PROVISIONAL and it needs a fresh sighting item once
-that work settles.
+Signed 2026-09-24: **P5**, the harmonic verbs `H` and `Shift+H` with the node picker (withdrawn
+2026-09-18 for more work; its keymap rows are no longer provisional), **#301 P10**'s three feel
+questions, and **#270**'s batch remainder, #112's chip yield included.
 
-Still open:
+The queue is empty apart from #298's end-to-end marker grammar pass (release plan, Phase 6).
 
-| Item | What |
-|---|---|
-| **#301 P10** | Settled: row chords stay positional. Still sight the three feel questions: whether the pinned chip shows its SELECTED state as you walk, how the sparse section row feels at a fine grid, and whether the tone row retoning what you hear at each boundary reads as helpful or as noise. |
-| **#270** | The 2026-09-02 batch remainder: the same-fret settle, the pinned tone chips, and #112's chip-yield ruling. The legend display form is already ruled and signed. |
+Found at the 2026-09-24 sighting: a PALM-MUTED PINCH harmonic drew its pinch mark over the palm
+mute in 3D (fixed the same day: the mute rungs sit at the top of the head-mark ladder); its 2D
+readability is in `docs/tracking/backlog.md`.
 
 ## Open fixes carried
 
-- **#271 — open strings ring far too long. FIXED 2026-09-19, awaiting a re-sighting.** In Chop
-  Suey an open G struck at 6:4 rang 49 beats. #186's lift was right and the PHRASE under it was
-  not: bounded by bar-long silence alone, a song with no such rest was one phrase, so the open G
-  rang toward a let-ring mark 36 bars later. A phrase is now a run of consecutive MARKED figures;
-  the note stores 1 beat. The corpus moves with it (arpeggio spans 1535 → 1399, since fewer
-  runaway open rings fold into span onsets); census re-pinned 2026-09-20 (`4a10e833`); the
-  current drift is registered in `docs/tracking/watch-items.md`; the Chop Suey re-sighting is
-  still owed.
+- **#271 — open strings ring far too long. FIXED 2026-09-19; re-sighted and CLOSED
+  2026-09-24.** In Chop Suey an open G struck at 6:4 rang 49 beats. #186's lift was right and
+  the PHRASE under it was not: bounded by bar-long silence alone, a song with no such rest was one
+  phrase, so the open G rang toward a let-ring mark 36 bars later. A phrase is now a run of
+  consecutive MARKED figures; the note stores 1 beat. The corpus moves with it (arpeggio spans
+  1535 → 1399, since fewer runaway open rings fold into span onsets); census re-pinned 2026-09-20
+  (`4a10e833`); the current drift is registered in `docs/tracking/watch-items.md`; the Chop Suey
+  re-sighting signed it 2026-09-24.
 
 ## Awaiting review
 

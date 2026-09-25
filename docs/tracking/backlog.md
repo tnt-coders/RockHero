@@ -28,6 +28,14 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found in the 2026-09-24 sighting
+
+- **A palm-muted pinch harmonic does not read well in 2D.** `drawNoteHeadBase`
+  (`tab_paint_core.cpp`) paints the pinch bar and then the mute icon over it, and the combined
+  head is hard to read as "muted squeal". The 3D order was fixed the same day (mute rungs on top of
+  the head-mark ladder). The 2D fix is a composition question for the pinch bar and the mute icon,
+  not designed yet; sight candidates before choosing.
+
 ## Found by the 2026-09-24 phase 2 review
 
 ### An undo transition can leave an armed caret over an unselected object

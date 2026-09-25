@@ -837,12 +837,15 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   (`arrivesIntoNextHead`); the release may park on the onset that silences the string; the capo
   floor lifts a release rather than stripping it; saved projects carrying `slideOut` re-import. What it buys: the falls-away chip is a selection citizen
   through the keyframe machinery with no new kind — click, ring, digit retype, Delete, the commit
-  law — and `Insert` at a bare tail END authors it from the fret in force (2026-09-22, replacing the
-  `Alt`+digit that authored it), so the FALL verb (`F`) is unnecessary. A silent one is no exception
+  law — and `Alt+Insert` at a bare tail END authors it from the fret in force (the ring plane,
+  `5d0cb384`; `Insert` alone did so from 2026-09-22 until then), so the FALL verb (`F`) is
+  unnecessary. A silent one is no exception
   to the commit law either: it draws its chip, so it lingers while its note is in focus and goes
   with every other silent point when focus leaves. The
   projection carries `KeyframeViewState::release` read off the STORED ring, because the drawn end
-  can also be a shift slide's trimmed arrival. UNSIGHTED.
+  can also be a shift slide's trimmed arrival. SIGHTED 2026-09-24
+  (`ring-ends-and-authoring-planes.md` phase 1b: a slide-out abutting a same-string head, a
+  free-ending slide-out, dense sixteenths).
 - **Keyframe creation needs no new gesture.** *(Which KEY carries it was re-ruled again, finally on
   2026-09-11 — see the entry-grammar note at the end of this bullet; what a planted point IS did
   not change.)*

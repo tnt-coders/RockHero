@@ -4,10 +4,10 @@
 2026-08-03; the projection and 2D tab 2026-08-04 (tail and junctions revised 2026-08-09); the
 highway treatment signed on sight 2026-08-05; the verb layer 2026-08-05. No sight gate remains:
 55-Q1's head was signed 2026-08-04, and the 3D mark was superseded 2026-08-06 by the split
-plectrum. Remaining: the acceptance bundle (the measure-20 sight sign, the measure-3 local byte
-check, corpus smoke) and the queued head-texture revision as its own later pass. The measure-20
-sight sign needs a fresh look: since 2026-09-24 (`eb5aaa3c`) a scrape's turnarounds take the
-pitched curve and only its terminal slide-out is unpitched. 55-Q2 (authoring) largely dissolved
+plectrum. The measure-20 sight sign is SIGNED 2026-09-24, on the look since `eb5aaa3c` (a
+scrape's turnarounds take the pitched curve and only its terminal slide-out is unpitched).
+Remaining: the acceptance bundle's measure-3 local byte check and corpus smoke, and the queued
+head-texture revision as its own later pass. 55-Q2 (authoring) largely dissolved
 into ordinary note verbs; the toggle is bound (`Shift+X`, `ChartPickSlideToggle`), so its
 remainder is path-keyframe reshaping only, which folds into plan 40.
 Baseline `master @ 84bdfe32`.
@@ -322,8 +322,8 @@ language on the 3D highway and the 2D tab.
    Deferred then: the toggle's UI surface and keybind — since bound (`Shift+X`,
    `ChartPickSlideToggle`); path-keyframe reshaping, the one remainder, awaits plan 40 Phase 7's
    curve editors.
-   **Exit.** Acceptance below in full — remaining: the measure-20 sight item (held with the
-   Phase 4 visual redesign), the measure-3 byte-identical clause (no committable baseline can
+   **Exit.** Acceptance below in full — the measure-20 sight item SIGNED 2026-09-24; remaining:
+   the measure-3 byte-identical clause (no committable baseline can
    exist under the corpus firewall; the figure class is value-pinned by regression test — the
    byte comparison is a manual local procedure), and corpus smoke (runner unbuilt, plan 23
    Phase 7). **Verify.** Build, full suites, pre-commit, the two-measure sight pass.

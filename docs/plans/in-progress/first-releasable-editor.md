@@ -168,17 +168,18 @@ unenforced rulings, and a set of defects on supported material.
   ordinary fretting-hand notes was considered the same day and SET ASIDE in favour of the authored
   span (see Phase 4, "an authored span swallows what validly fits"): the fact is span-level, and
   one authored fact beats two that must agree. `held` stays legal exactly where it is today.
-- **Re-sight the harmonic verbs.** P5 was withdrawn on 2026-09-18 when `H` / `Shift+H` went back
-  into active work; their keymap rows stay PROVISIONAL until a fresh sighting signs them.
+- **The harmonic verbs — SIGNED 2026-09-24.** P5, withdrawn on 2026-09-18 when `H` / `Shift+H`
+  went back into active work, was re-sighted and signed; their keymap rows are signed with it.
 - **The claimed stop (`held`) has no 3D face** (`chart-ruleset.md`, Open; the renderer says so at
   `highway_renderer.cpp`). An authored, supported fact the 3D preview does not state. Rule: build
   the mark, or record the divergence deliberately — see D4.
 - **Defects on supported material**, each a release blocker under corollary 1 unless D5 rules
-  otherwise: open strings ringing ~49 beats under the let-ring phrase cap (task #271 — FIXED
-  2026-09-19 by bounding the phrase at its marked run, census re-pinned 2026-09-20 `4a10e833`;
-  awaiting only its re-sighting); the all-palm-muted chord repeat box dropping other marks
+  otherwise: ~~open strings ringing ~49 beats under the let-ring phrase cap (#271)~~ — FIXED
+  2026-09-19 by bounding the phrase at its marked run, census re-pinned 2026-09-20 `4a10e833`,
+  re-sighted and closed 2026-09-24; the all-palm-muted chord repeat box dropping other marks
   (#267); ~~pick-slide turnaround easing (#268)~~ — closed 2026-09-24 (`eb5aaa3c`, curve
-  `3648d500`); chord bend/vibrato direction per onset group (#274); **undo not resyncing the
+  `3648d500`); ~~chord bend/vibrato direction per onset group (#274)~~ — closed 2026-09-24
+  (`ea2e5156`); **undo not resyncing the
   audible tone while paused** (`docs/tracking/backlog.md`; the fake's per-tone half is done, the
   harness half blocks).
 
@@ -211,6 +212,8 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
   (`docs/plans/completed/fret-hit-light-effect.md`, open decision 4).
 - **Bend authoring itself** — the `B` verb at the armed caret on a covered slot (plan 40 Phase 7),
   and `V` for a vibrato keyframe by the same grammar.
+- **One ring-ends sighting waits on it** — an end bend abutting a same-string head
+  (`ring-ends-and-authoring-planes.md` phase 1b), deferred 2026-09-24 until bends are authorable.
 
 Exit: bends can be created, adjusted, displayed and saved with the same confidence as slides.
 
@@ -291,10 +294,9 @@ Exit: a full song can be charted and revised without repeated one-object reconst
   release rather than shipping them. The external converter still emits `"accent"`
   (`docs/plans/completed/note-emphasis-axis.md` item 7), so its output must be fixed or retired
   first, or the row's "re-import" advice is untrue on that path.
-- Sighting passes: keyboard rows, marker rows (#301 P10's three feel questions, #270's batch
-  remainder, task #298 the marker grammar end to end), the release keyframe and slide margin work
-  marked UNSIGHTED in the walkthrough, hand markers, bends, New Chart, the loop region, and the
-  keybind dialog's in-action review (plan 46 Phase 3, by D3).
+- Sighting passes: keyboard rows, marker rows (task #298 the marker grammar end to end; #301
+  P10's feel questions and #270's remainder were signed 2026-09-24), hand markers, bends, New
+  Chart, the loop region, and the keybind dialog's in-action review (plan 46 Phase 3, by D3).
 - User documentation for the authoring workflow. `editing-interaction-model.md` defers the
   user-facing keybind docs "while the grammar is still being tuned" — this is where that ends.
 - Doc consolidation: `keymap-matrix.md` dissolves into `editing-interaction-model.md` when plan 53
@@ -371,10 +373,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   seams. An AUTHORED `held` is the charter stating the finger is there, and attaches to the span
   as today. Built with the pull-off span fix in Phase 2.
 - **D5 — Which listed defects block. RULED 2026-09-19 (user): all of them.** #271 (open-string
-  ring, fixed the same day) and undo-not-resyncing the tone make authored material play wrongly
-  (the section-insert position, listed here at the ruling, was already fixed by `14be7ce5`,
-  2026-09-13); #267 and #274 are display defects on supported techniques and both are fixed
-  before release — none is ruled tolerable; #268 closed 2026-09-24.
+  ring, fixed the same day, closed 2026-09-24) and undo-not-resyncing the tone make authored
+  material play wrongly (the section-insert position, listed here at the ruling, was already fixed
+  by `14be7ce5`, 2026-09-13); #267 is the one display defect on a supported technique left, and
+  it is fixed before release — none is ruled tolerable; #268 and #274 closed 2026-09-24.
 - **D6 — Forced chord naming** with a name-suggestion algorithm
   (`chart-span-and-selection-model.md` §3). **RULED 2026-09-19 (user):** it belongs to the template
   and chord-dictionary work (Phase 4, plan 60 Phase 5), and a span WITHOUT a template is acceptable
@@ -445,7 +447,7 @@ the only one that orders work.
 | `harmonic-display-followups.md` | Follow-ups #2, #4 live; #9 built; the rest parked | Phase 2 |
 | `refusal-flash.md` | Task #278's ruled direction, build shape and open questions F1–F7 | Phase 2 |
 | `derived-shift-slide.md` | SIGNED and BUILT record; key half superseded by the ring-ends plan | Phase 2 |
-| `ring-ends-and-authoring-planes.md` | The ring's-end display and the lane's two authoring planes; both phases BUILT, phase 2 awaiting its entry-flow sighting | Phase 2 |
+| `ring-ends-and-authoring-planes.md` | The ring's-end display and the lane's two authoring planes; both phases BUILT and signed 2026-09-24 | Phase 2 |
 | `keyframe-and-burst-ground-up.md` | Unsigned PROPOSAL, ground-up review of keyframes, the release and the undo burst | Phase 3 |
 | `highway-note-art-state.md` | 3D note-art state record; holds the bend anchor decision | Phase 3 |
 | `fhp-derivation-algorithm.md` | Evidence and the five rulings behind 60-Q1..Q5 | Phase 4 |
@@ -480,7 +482,7 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    `ce0db3a2`), the derived shift slide (`3e5fceae`, `dc20b003`), the ring-ends plan's two phases
    and its alongside gate (`da74d79b`..`5d0cb384`, `df5ef1ab`), per-leg vibrato (`cfe83edc`), the
    span-law fixes (`902da3de`, `9d095609`, `25640d82`), the pick-slide turnarounds (`eb5aaa3c`).
-   Ring-ends phase 2 still awaits its entry-flow sighting.
+   Ring-ends phases 1 and 2 were sighted and signed 2026-09-24 (one 1b item waits on bends).
 3. **Current.** Land the ungated work while gates are signed: the refusal flash
    (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
    signed before Phase 2's verbs are wired: #277's placement and the unstruck-tie default.
