@@ -128,6 +128,34 @@ TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][
     CHECK(highwayBendInverted(4, 5));
 }
 
+TEST_CASE("Highway bend inversion belongs to the onset group", "[core][highway][tail]")
+{
+    const auto note_on_string = [](const int string) {
+        NoteViewState note;
+        note.string = string;
+        return note;
+    };
+    const std::vector<NoteViewState> notes{
+        note_on_string(4),
+        note_on_string(3),
+        note_on_string(2),
+        note_on_string(4),
+        note_on_string(5),
+    };
+
+    const HighwayChordGroupViewState tied_g_and_d{.first = 0, .count = 2};
+    CHECK(highwayBendInverted(notes, tied_g_and_d, 0, 6, false));
+
+    const HighwayChordGroupViewState lower_majority_g_d_a{.first = 0, .count = 3};
+    CHECK_FALSE(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, false));
+
+    const HighwayChordGroupViewState upper_majority_g_b{.first = 3, .count = 2};
+    CHECK(highwayBendInverted(notes, upper_majority_g_b, 0, 6, false));
+
+    CHECK(highwayBendInverted(notes, lower_majority_g_d_a, 0, 6, true));
+    CHECK_FALSE(highwayBendInverted(notes, upper_majority_g_b, 0, 6, true));
+}
+
 // The lift is the physical displacement law: n semitones needs the tension ratio 2^(n/6), and
 // travel grows with the square root of the tension gain, anchored so a half step spans exactly
 // one lane gap. Each extra semitone moves the string less than the one before, which is what

@@ -221,6 +221,24 @@ the board — stated in display space so it holds for any string count and stack
 [[nodiscard]] bool highwayBendInverted(int displayed_lane, int string_count) noexcept;
 
 /*!
+\brief Returns whether an onset group's bend lift points downward.
+
+The direction belongs to the simultaneous onset rather than each member: a majority vote over the
+group's displayed members chooses one side for every bend and vibrato in that strike. Ties resolve
+to the upper displayed side, matching the majority-upper case.
+
+\param notes Full note stream the group indexes.
+\param group Onset group whose members are being drawn.
+\param extra_lanes Displayed lanes beyond the chart's own count.
+\param string_count Number of displayed lanes.
+\param invert_string_order True when the displayed string stack is inverted.
+\return True when the group's bend lift is inverted (downward).
+*/
+[[nodiscard]] bool highwayBendInverted(
+    std::span<const NoteViewState> notes, const HighwayChordGroupViewState& group, int extra_lanes,
+    int string_count, bool invert_string_order) noexcept;
+
+/*!
 \brief Returns the eased interpolation weight of a slide at a segment progress.
 
 Pitched slides ease symmetrically, leaving and arriving tangentially (the cosine ease

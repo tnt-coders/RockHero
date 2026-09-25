@@ -3979,15 +3979,17 @@ void HighwayRenderer::Impl::draw(
             mirrored,
             head_gesture_seconds);
 
-        // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted on the upper
-        // displayed half toward the roomier side, and holds the result inside the string grid --
+        // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted when the onset
+        // group votes for the upper displayed side, and holds the result inside the string grid --
         // the board containment this rule always claimed but did not enforce until the saturation
         // moved into the core seam. The chart-truth station is the curve's anchor-time value (a
         // pinned sounding head rides the curve with the tail centerline); an approaching pre-bent
         // head reveals that station progressively — see the reveal below.
-        const int displayed_lane = invert ? (displayed_count + 1 - lane) : lane;
         const double bend_direction =
-            common::core::highwayBendInverted(displayed_lane, displayed_count) ? -1.0 : 1.0;
+            common::core::highwayBendInverted(
+                state.chart.notes, group, extra_lanes, displayed_count, invert)
+                ? -1.0
+                : 1.0;
         // The tail shows the wobble's whole swing; only the head breathes at a fraction of it.
         constexpr double full_vibrato_swing = 1.0;
         // The centerline, from the two channels that move it: the bend curve and whatever vibrato

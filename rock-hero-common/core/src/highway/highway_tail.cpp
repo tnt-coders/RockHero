@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_tail.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <span>
 #include <vector>
 
@@ -113,6 +114,29 @@ bool highwayBendInverted(const int displayed_lane, const int string_count) noexc
 {
     // Strictly-upper-half lanes invert; the middle lane of an odd stack lifts upward.
     return 2 * displayed_lane > string_count + 1;
+}
+
+bool highwayBendInverted(
+    const std::span<const NoteViewState> notes, const HighwayChordGroupViewState& group,
+    const int extra_lanes, const int string_count, const bool invert_string_order) noexcept
+{
+    std::size_t inverted_count = 0;
+    std::size_t upright_count = 0;
+    const std::size_t end = std::min(notes.size(), group.first + group.count);
+    for (std::size_t index = group.first; index < end; ++index)
+    {
+        const int lane = displayedLane(notes[index].string, extra_lanes);
+        const int displayed_lane = invert_string_order ? (string_count + 1 - lane) : lane;
+        if (highwayBendInverted(displayed_lane, string_count))
+        {
+            ++inverted_count;
+        }
+        else
+        {
+            ++upright_count;
+        }
+    }
+    return inverted_count >= upright_count;
 }
 
 double highwaySlideEaseWeight(const double progress, const bool unpitched) noexcept

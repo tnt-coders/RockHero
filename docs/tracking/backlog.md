@@ -101,21 +101,6 @@ an armed caret is left with nothing selected, then delete that branch.
   form catches any type. Harmless today (the real old keys were a string and a number), but the
   older tripwire should be rewritten in the newer shape while both still exist.
 
-## Found in the 2026-08-15 highway visual pass
-
-Sighted by the user against the technique-showcase package; it carries a ruling.
-
-- **The two notes of a chord wobble in OPPOSITE directions under vibrato**, because
-  `highwayBendInverted` answers per note from that note's own lane, and a chord straddling the
-  middle of the stack therefore splits. Ruling (user, 2026-08-15): the direction belongs to the
-  ONSET GROUP, not the note — a majority vote over the group's members decides one direction for
-  all of them, counting members on the strings below G against those on G and above, with ties
-  resolved to the same side the majority-high case takes. **Confirm the orientation against the
-  user's own examples before building** (their colour language reads G+D as one way and G+D+A as
-  the other, which pins which side "above" names), and check whether a group-wide direction can
-  push a member into `highwayBentNoteY`'s saturation clamp — the per-note rule exists precisely
-  to pick the roomier side, so overriding it is what could make a bend hit the board edge.
-
 ## Found by the 2026-08-10 save/undo and timeline reviews
 
 The severe half shipped the same day: the package write is atomic, a NaN automation value is refused,
