@@ -28,11 +28,13 @@ hand on its own code path is a defect.
   window under it would read as a floating bar.
 - **The rest tolerance (F1).** Released at the drawn end, a fretted note's light would dip at every
   margin trim and strobe through a sustainless chug riff (25% between 16ths). So the fretting
-  hand's evidence merges across any gap SHORTER THAN A REST TOLERANCE, measured in beats
-  (`g_hand_rest_beats`, one constant, starting value 2.0 — a half note). Beats, not seconds:
-  a rest is a musical quantity the player counts in beats, and the rise already sits on the
-  lattice (`marginBefore`); a fixed second count would make a fast song blink at rests a slow song
-  holds through. The value is a sighting knob. The tolerance is the ONLY threshold; it is a
+  hand's evidence merges across any gap SHORTER THAN A REST TOLERANCE, measured in SECONDS
+  (`g_hand_rest_seconds`, one constant, starting value 1.0). Seconds, not beats, by the user's
+  ruling and the precedent: whether a dark gap reads as a flicker or as a rest is a readability
+  question, and the minimum sustain distance — the same question for tails — sighted more
+  consistently across slow and fast songs once it was time-based; this light's own rise and decay
+  are already in seconds; and the merge then needs no tempo map. The value is a sighting knob.
+  The tolerance is the ONLY threshold; it is a
   parameter of the merge, not a second mechanism, and it lets both hands share one release rule
   (`noteReleaseAt`: the drawn end, or the last pitched keyframe before a drawn slide-out) with no
   second "hold" authority. **The picking hand goes through the same merge with the same tolerance
@@ -119,11 +121,10 @@ HighwayLitStretch foldLitEvidence(std::span<const HighwayLitStretch>);
     // items within g_onset_match_epsilon of that start.
 HighwayLitStretch crowdedAfter(HighwayLitStretch, const HighwayLitStretch& previous);
     // THE crowding clamp: a stretch never rises back past the previous stretch's release.
-std::vector<HighwayLitStretch> mergeLitEvidence(std::vector<HighwayLitStretch>, const TempoMap&,
-                                                double rest_beats);
-    // THE merge: sort by start; gather each run whose next start lies within rest_beats (measured
-    // with TempoMap::beatPositionAtSeconds) of the run's latest release; fold each run; crowd each
-    // after the one before. Result: disjoint, ascending.
+std::vector<HighwayLitStretch> mergeLitEvidence(std::vector<HighwayLitStretch>, double rest_seconds);
+    // THE merge: sort by start; gather each run whose next start lies within rest_seconds of the
+    // run's latest release; fold each run; crowd each after the one before. Result: disjoint,
+    // ascending.
 ```
 
 Kept, one renamed: `memberReleaseAt` → `noteReleaseAt` (a note's release, not a chord member's;
@@ -145,7 +146,7 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
   brightened edges bridge the gaps") is the fallback if the merged light is rejected at sighting,
   reached by a per-hand tolerance of zero.
 - **Fretting hand — `makeFretHandLight(const ChartViewState&, std::span<const double>
-  margin_rise, const TempoMap&)`.** Evidence items:
+  margin_rise)`.** Evidence items:
   - every note with `!rightHandOnset(attack)`: `{start, noteReleaseAt(note), margin_rise[i]}`;
   - every right-hand onset with `note.held.value_or(0) > 0`, same extent — a tap lit through its
     claim. No authorship tier is needed: a DEFAULT held stop is above 0 only under a covering span,
@@ -154,7 +155,7 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
     at a note onset, which carries the rise, or tiles onto its predecessor as a carry-opened
     successor). Section 4 tests that claim; if it fails, the fix is a rise taken from the note at
     the span's start, never a silent 0.
-  - Result: `mergeLitEvidence(items, tempo_map, g_hand_rest_beats)`.
+  - Result: `mergeLitEvidence(items, g_hand_rest_seconds)`.
 
 **The hands differ only in what a note proves.** The fold, the merge, the crowding clamp, the
 envelope and the emission are stated once and run for both hands over the same shape. The picking
@@ -242,7 +243,7 @@ before and after; Phase 1 changes no sample time and no alpha arithmetic.
 
 1. **Core.** `HighwayHandLight` for both hands (`fret_hand` moves into its pair; `pick_hand` is
    built from the onset paths), `mergeLitEvidence`, `makeFretHandLight`, `makePickHandLight`, the
-   ungated margin-rise loop, `g_hand_rest_beats`. The renderer reads `pick_hand` for the tap light
+   ungated margin-rise loop, `g_hand_rest_seconds`. The renderer reads `pick_hand` for the tap light
    in this step so the tree stays green; the fretting light is still always on until step 2.
 2. **Renderer floor.** `drawFloorLight` over `forEachLight`; the universal motion dim; the spill
    lanes; delete `drawHandWindowLight`, `drawTappingHandLight`, `WindowLightSlice`.
@@ -267,7 +268,7 @@ Core tests beside the tap cases in `test_highway_projection.cpp`; merge and enve
 - **Merge:** overlapping evidence is one stretch; evidence a gap shorter than the tolerance apart is
   one stretch; a gap of the tolerance or more yields two; the rise comes from the items at the
   start only; `crowdedAfter` clamps the second stretch's rise to the gap; input order does not
-  change the result; a tempo change inside a gap measures the gap in beats, not seconds.
+  change the result.
 - **Evidence:** a lone open note is lit with a margin rise; a bare tap leaves `fret_hand_light`
   empty while `tap_onsets` still holds it; a tap with an authored held stop is lit; a tap under a
   covering span is lit; a pick slide without a claim is dark; a left tap and a natural harmonic
@@ -311,7 +312,7 @@ parameter named like an enclosing local); the merge's stretch count uses branche
 
 ## 7. Sightings the build owes
 
-1. The rest tolerance's value (`g_hand_rest_beats`), on a chug riff, a legato run, and a
+1. The rest tolerance's value (`g_hand_rest_seconds`), on a chug riff, a legato run, and a
    phrase with a real rest.
 2. The picking hand under the same tolerance: a dense tap run as one travelling light instead of
    a pulse per strike, and overlapping taps at different frets under one track. Rejecting either

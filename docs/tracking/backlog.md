@@ -606,7 +606,7 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
     string would read as a floating bar. A bare right-hand tap is not evidence; a tap with a held
     claim is lit through the claim. The "no threshold" wording of the first re-scope was withdrawn
     when the plan showed it strobes through chug riffs: evidence merges across gaps shorter than
-    ONE rest tolerance in beats (`g_hand_rest_beats`, sighted; both hands under it first). The
+    ONE rest tolerance in seconds (`g_hand_rest_seconds`, sighted; both hands under it first). The
     tap-at-claimed-stop split (#277) is unbuilt, so until it lands a span can keep the light lit a
     little past such a tap. The history below is the original.
   - **The FHP silence fade** — the fretting hand's backlight going out through a left-hand rest
