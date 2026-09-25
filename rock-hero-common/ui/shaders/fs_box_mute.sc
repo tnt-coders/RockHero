@@ -1,4 +1,4 @@
-$input v_color0, v_texcoord0
+$input v_color0, v_texcoord0, v_world_z
 
 // Repeat-box mute mark: lays the chords.png art out along correctly-angled arms. The texture is
 // the single source of truth for the mark's structure — at load the renderer measures each mark's
@@ -8,6 +8,7 @@ $input v_color0, v_texcoord0
 // a shape no fixed bitmap contains — so the art's line weights hold exactly on every box, while
 // v_color0 supplies hue and opacity so a color retune never needs a repaint.
 #include <bgfx_shader.sh>
+#include "highway_fade.sh"
 
 SAMPLER2D(s_atlas, 0);
 
@@ -55,5 +56,5 @@ void main()
     float u = clamp((stroke_half_width + d) / ramp_extent, 0.0, 1.0);
     vec4 art = texture2D(s_atlas, vec2(u, u_box_mute_arms.w));
     vec3 rgb = (art.r * v_color0.rgb) + vec3_splat(art.g);
-    gl_FragColor = vec4(rgb, art.b * v_color0.a);
+    gl_FragColor = vec4(rgb, art.b * v_color0.a * highwayFarFade(v_world_z));
 }

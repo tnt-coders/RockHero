@@ -94,6 +94,10 @@ Each layer has one job, and the boundaries are the reason the sharing works:
      the later of the onset and the hit line to the earlier of its own end and the horizon, empty
      when those cross), and `highwayFloorFootprint` is where a mark under one note lies on the fret
      axis and how wide (the note's anchor, or the hand window inset by the open-tail margin).
+     Nothing pops in at that horizon: every highway program fades its fragments in across the
+     last `HighwayMetrics::far_fade_length_z` world units before it (`highwayFarFade` in
+     `shaders/highway_fade.sh`, armed by `setFadeUniform` on every submit), so a drawn span ends
+     at the clamp and the fade dissolves it there.
    - `highway_slide_path.h` — `highwayNoteFretboardX` and `highwaySlideStateAt`, the fret axis and
      the glide, below.
 
@@ -270,12 +274,15 @@ light and the strike glow). Which downbeat a section belongs to is still decided
 camera-zone walk that snaps a mid-measure start forward for the framing cut.
 
 The section's **name** floats above the board at `faceTopY() + 1.5 * string_distance`, riding its
-own z out among the notes but submitted with `alwaysDepth` so a nearer note cannot eat it. It
-carries the floor furniture's distance fade like everything else on the board — dim at the hit
-line, opaque toward the horizon — baked into vertex colour from `fadeBandZ()`, because the glyph
-program has no fade uniform. That is the same trick the scrolling floor numbers use, and it is
-also what stops a label holding full alpha after it has crossed the hit line: past the band's near
-edge the scale is zero.
+own z out among the notes but submitted with `alwaysDepth` so a nearer note cannot eat it. Every
+program reads the one fade uniform (`u_fade_params`, `shaders/highway_fade.sh`), which carries two
+bands: the far-edge fade-in every program applies, and the floor furniture's near fade — dim at the
+hit line, opaque toward the horizon — which only the color-fade program applies, since heads, the
+board face and the hand-window light must stay full at the line. The label takes the near band
+baked into vertex colour from `fadeBandZ()`, as the scrolling floor numbers do, because the glyph
+program also draws the numbers pinned at the hit line in the same batch. That bake is also what
+stops a label holding full alpha after it has crossed the hit line: past the band's near edge the
+scale is zero.
 
 The capo is drawn too: the face from the nut to the capo's fret line dims (those frets do not exist
 to play, and an absolute-fret chart is unreadable without seeing where its floor sits) and the clamp
@@ -320,9 +327,9 @@ the note's landmark only inside the CURTAIN — a fixed window rising from the h
 fade an in-flight note carries as an IDENTICAL local copy anchored at its RESTING LANDMARK: the head
 for a plain tail, the last statement's offset (held to the ink end) where a technique plays out,
 and the ribbon's own ink end for a handed-over member, whose statement finishes at the takeover
-so the curtain owns none of it and the board publishes no window at all (`hasRestingRemainder`). The local copy fades in
-linearly across the approach and is full by the time that anchor reaches the fixed window's outer
-edge, so the hand-off at the line is an identity.
+so the curtain owns none of it and the board publishes no window at all (`hasRestingRemainder`). The local copy
+enters at the far edge under the far-edge fade every program applies and is otherwise identical to
+the fixed window, so the hand-off at the line is an identity.
 **THE CURTAIN IS UNIVERSAL**: it owns everything past the last always-visible landmark, on every
 fretting-hand tail whether or not a span stands over it, and the stated portion of a technique
 rides at full ink outside it. It is the one distance-scoped draw decision the execution form
@@ -566,6 +573,10 @@ Adding a new *shader program* is two declarations plus its use:
 1. The `.sc` sources in `rock-hero-common/ui/shaders/` (the `vs_`/`fs_` naming and the shared
    `varying.def.sc` are load-bearing: `rock_hero_stage_highway_shaders` derives the program list by
    globbing `vs_*.sc`, so a source drop is the CMake side of the change — there is no list to edit).
+   **Silent step:** the vertex shader must write `v_world_z` and the fragment shader must apply
+   `highwayFarFade` from `highway_fade.sh`, or the program's content pops in at the far edge while
+   everything else fades. Shared `.sh` includes beside the sources are tracked through shaderc's
+   depfile, so editing one rebuilds every program that includes it.
 2. A `HighwayShaderProgram` enumerator plus its base name in `highwayShaderProgramName`
    (`common/core/.../highway/highway_resources.h`), and a row in `g_highway_shader_programs`. Both
    loaders — the game's `loadHighwayShaderSet` and the editor's `loadPreviewHighwayShaders` — walk

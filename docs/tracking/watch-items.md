@@ -46,14 +46,6 @@ went stale within one branch), so nothing breaks either way —
 verify once when inspecting a packaged installer (dovetails with the Windows CI installer work),
 and re-check the moment a resolver method starts requiring one of those subdirectories.
 
-### shaderc include tracking — trigger: first project-owned shared `.sh` shader include
-
-`rock_hero_add_compiled_shader` tracks the `.sc` source and `varying.def.sc` but not includes;
-today's shaders (`rock-hero-common/ui/shaders/`) carry no project-owned `.sh` include, and the
-only include dir is immutable Conan package content, so rebuilds are correct. When a shared
-project-owned `.sh` include appears under that directory, switch the custom command to shaderc's
-`--depends` output via `DEPFILE` (bgfx's own `bgfxToolUtils.cmake` demonstrates the parse).
-
 ### Stale files in the deployed resources tree — trigger: resource renames become common
 
 `copy_directory` (build tree) and `install(DIRECTORY)` (install tree) are additive: a renamed or

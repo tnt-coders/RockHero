@@ -1,6 +1,7 @@
-$input v_color0, v_texcoord0, v_texcoord1
+$input v_color0, v_texcoord0, v_texcoord1, v_world_z
 
 #include <bgfx_shader.sh>
+#include "highway_fade.sh"
 
 // The accent light: a glow whose brightness comes from a SIGNED DISTANCE to the lit object's own
 // silhouette, evaluated per fragment.
@@ -92,7 +93,8 @@ void main()
     // green and blue are literally zero, would clip its red channel and simply stop, getting no
     // brighter and never desaturating.
     //
-    // The result is PREMULTIPLIED, which is what all three blend operators expect.
+    // The result is PREMULTIPLIED, which is what all three blend operators expect, so the far-edge
+    // fade scales every channel.
     vec3 lit = min(v_color0.rgb * (u_accent_glow_params.w * weight), vec3_splat(1.0));
-    gl_FragColor = vec4(lit, weight);
+    gl_FragColor = vec4(lit, weight) * highwayFarFade(v_world_z);
 }

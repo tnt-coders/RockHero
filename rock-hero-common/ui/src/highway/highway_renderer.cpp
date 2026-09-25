@@ -2187,11 +2187,18 @@ struct HighwayRenderer::Impl
         return common::core::highwayTimeToZ(seconds - frame.now_seconds, scroll_speed, metrics);
     }
 
-    // The floor furniture's distance fade, as the two board z values it runs between: fully
-    // faded near the hit line, opaque toward the horizon (Charter's fading shader constants,
-    // 50 ms to 250 ms out). The color-fade program takes the band as a uniform; the scrolling
-    // floor numbers bake it into vertex color instead, because the glyph program has no fade
-    // uniform. Both read the band from here rather than restating the two constants.
+    // Seconds of chart ahead of the hit line: the visibility window stretched by the scroll speed.
+    [[nodiscard]] double lookaheadSeconds() const noexcept
+    {
+        return metrics.visibility_window_seconds * scroll_speed;
+    }
+
+    // The floor furniture's near fade, as the two board z values it runs between: fully faded
+    // near the hit line, opaque toward the horizon (Charter's fading shader constants, 50 ms to
+    // 250 ms out). The color-fade program takes the band through the fade uniform; the scrolling
+    // floor numbers and section labels bake it into vertex color instead, because the glyph
+    // program also draws the numbers pinned at the hit line, which the band must not touch. Both
+    // read the band from here rather than restating the two constants.
     [[nodiscard]] std::pair<double, double> fadeBandZ() const noexcept
     {
         return {
@@ -2200,15 +2207,28 @@ struct HighwayRenderer::Impl
         };
     }
 
-    // Arms the distance fade for the next color-fade submit. A bgfx uniform is ambient state
-    // applied at the submit that follows, so every pass drawing through that program calls this
-    // itself instead of inheriting whatever a neighbour happened to leave behind.
-    void setFadeUniform() const
+    // Arms the distance fades (shaders/highway_fade.sh) for the submit that follows. Every
+    // program reads them, and a bgfx uniform is ambient state, so each submit arms them itself
+    // rather than inheriting a neighbour's. The board view gets both bands as an edge and an
+    // inverse length: the near band only the color-fade program applies, and the far-edge
+    // fade-in every program applies. Any other view is pixel space, where the zero vector turns
+    // both off.
+    void setFadeUniform(const bgfx::ViewId view) const
     {
-        const auto [faded_z, close_z] = fadeBandZ();
-        const std::array<float, 4> fade_uniform{
-            static_cast<float>(faded_z), static_cast<float>(close_z), 0.0F, 0.0F
-        };
+        std::array<float, 4> fade_uniform{};
+        if (view == g_board_view)
+        {
+            const auto [faded_z, close_z] = fadeBandZ();
+            const double far_edge_z =
+                common::core::highwayTimeToZ(lookaheadSeconds(), scroll_speed, metrics);
+            const double far_length = metrics.far_fade_length_z;
+            fade_uniform = {
+                static_cast<float>(close_z),
+                static_cast<float>(1.0 / (close_z - faded_z)),
+                static_cast<float>(far_edge_z - far_length),
+                static_cast<float>(far_length > 0.0 ? 1.0 / far_length : 0.0),
+            };
+        }
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
     }
 
@@ -2329,6 +2349,7 @@ struct HighwayRenderer::Impl
         {
             bgfx::setTexture(0, atlas_sampler.get(), *texture);
         }
+        setFadeUniform(view);
         bgfx::setState(render_state);
         bgfx::submit(view, program);
     }
@@ -2603,8 +2624,7 @@ void HighwayRenderer::Impl::draw(
     scratch.clearForFrame();
     const bool mirrored = state.options.mirrored;
     const bool invert = state.options.invert_string_order;
-    const double span_end_seconds =
-        now_seconds + (metrics.visibility_window_seconds * scroll_speed);
+    const double span_end_seconds = now_seconds + lookaheadSeconds();
     const double span_start_seconds = now_seconds - g_passed_fade_seconds;
     const StringColorPalette& palette = charterClassicPalette();
 
@@ -3478,9 +3498,8 @@ void HighwayRenderer::Impl::draw(
             g_board_view,
             g_depth_prime_state);
         // The shadow batch is floor furniture (span lines, glow posts, open-bar corner Ls), so
-        // it takes the floor's distance fade near the board face like every other floor
-        // element; heads, rails, and open bars are gameplay content and stay opaque.
-        setFadeUniform();
+        // it takes the floor's near fade at the board face like every other floor element;
+        // heads, rails, and open bars are gameplay content and stay opaque there.
         submitBatch(
             shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
         // The accent light, under every note of the group — and now under the RAILS too, which is
@@ -3866,8 +3885,9 @@ void HighwayRenderer::Impl::draw(
     // Drains every collected number strictly beyond `limit_seconds` into one glyph submit —
     // the numbers' slot in the painter order when the sweep reaches that time. Each glyph
     // billboards at its fret slot; alpha fades in between the hit line and z_close when the
-    // number requests it (Charter bakes the fade into the color, since the glyph program has
-    // no fade uniform), scaled by the number's own alpha (the window-coverage fades).
+    // number requests it (baked into the color, since the pinned numbers in the same batch must
+    // not take the near band; see fadeBandZ), scaled by the number's own alpha (the
+    // window-coverage fades).
     const auto submit_numbers_beyond = [&](const double limit_seconds) {
         while (next_floor_number < floor_numbers.size() &&
                floor_numbers[next_floor_number].seconds > limit_seconds)
@@ -4052,14 +4072,14 @@ void HighwayRenderer::Impl::draw(
         // meter and tempo), full at the hit line, fading to nothing at its outer edge — and, for a
         // note still in flight, a LOCAL curtain IDENTICAL to the fixed one, anchored at the note's
         // RESTING LANDMARK (its head for a whole-tail rest, its technique's play-out point for a
-        // split one) and riding with it, the stated portion at full ink outside the window. The
-        // local curtain FADES IN linearly across the approach, from nothing where the note enters
-        // the screen to full as the note reaches the fixed curtain's outer edge — the final lead
-        // rides at constant opacity, and at the threshold the local copy and the fixed curtain are
-        // the same function at the same place, so the fixed curtain takes over the masking with
-        // nothing left to change. The fixed curtain does not act on a tail before its note lands;
-        // the local one does not exist after. The tail is never shown longer or brighter than the
-        // curtain's own fade allows, in either form. The 2D lane draws the same length always.
+        // split one) and riding with it, the stated portion at full ink outside the window. At the
+        // threshold the local copy and the fixed curtain are the same function at the same place,
+        // so the fixed curtain takes over the masking with nothing left to change; the local
+        // curtain's entry at the far edge takes the far-edge fade every program applies, like
+        // anything else scrolling in. The fixed curtain does not act on a tail before its note
+        // lands; the local one does not exist after. The tail is never shown longer or brighter
+        // than the curtain's own fade allows, in either form. The 2D lane draws the same length
+        // always.
         //
         // The gradient multiplies into the per-position tail alpha envelope below, the channel
         // the tip and onset ramps already ride, so the per-onset-group ribbon batch and the
@@ -4076,23 +4096,6 @@ void HighwayRenderer::Impl::draw(
         // exactly and the fixed one simply takes over.
         const double reveal_anchor = std::max(now_seconds, note.reveal_from_seconds);
         const double reveal_far_edge = reveal_anchor + note.reveal_lead_seconds;
-        // The local curtain's fade-in: linear from nothing where the note enters the screen to
-        // FULL as the note comes within one lead of the line — where the fixed curtain's reach
-        // begins — so the whole final transit rides at constant opacity and the crossing has
-        // nothing left to change. A fade finishing at the line reads fine on one note but
-        // synchronizes across a chord's members into a burst at the strike; completing at the
-        // curtain's edge costs nothing and leaves the landing inert. A curtain deeper than the
-        // board leaves no fade room: those notes ride at full from entry, which reads smooth on
-        // charts that slow. Landed notes clamp to full, so the fixed curtain itself never fades.
-        const double fade_room = span_end_seconds - now_seconds - note.reveal_lead_seconds;
-        // Keyed on the ANCHOR's approach, never the head's: the one datum the whole curtain
-        // rides, so a whole-tail rest (anchor == head) is unchanged and a split note's curtain
-        // fades in on exactly the same law, completing as ITS anchor reaches the fixed
-        // curtain's outer edge.
-        const double reveal_fade_in =
-            rested && fade_room > 0.0
-                ? std::clamp((span_end_seconds - reveal_anchor) / fade_room, 0.0, 1.0)
-                : 1.0;
         if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.ink_end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())
@@ -4145,14 +4148,11 @@ void HighwayRenderer::Impl::draw(
                            : 1.0;
                 // The stated portion — everything before the resting landmark — rides at full
                 // outside the curtain entirely: the technique's ink must read at any distance,
-                // so neither the window's fade nor the approach fade-in touches it. Continuous
-                // at the landmark once the local curtain has faded in, and before that the
-                // remainder simply has not materialized yet, exactly as a whole-tail rest's.
-                const double reveal = rested && seconds < note.reveal_from_seconds
-                                          ? 1.0
-                                          : reveal_fade_in * std::max(
-                                                                 reveal_ramp * reveal_ramp,
-                                                                 g_tail_reveal_skirt * reveal_ramp);
+                // so the window's fade never touches it, and it is continuous at the landmark.
+                const double reveal =
+                    rested && seconds < note.reveal_from_seconds
+                        ? 1.0
+                        : std::max(reveal_ramp * reveal_ramp, g_tail_reveal_skirt * reveal_ramp);
                 return ghost_tail_alpha * reveal * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
@@ -5605,7 +5605,6 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
         }
     }
 
-    setFadeUniform();
     auto [vertices, indices] = scratch.colorBatch();
     // One full-length strip per fret line, four vertices each.
     vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));
@@ -5968,7 +5967,6 @@ void HighwayRenderer::Impl::drawTappingHandLight(const FrameContext& frame)
 void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
-    setFadeUniform();
 
     auto [vertices, indices] = scratch.colorBatch();
     // Beats ascend, so the two skip tests are the two ends of a binary-searched range — the
@@ -6028,7 +6026,6 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
-    setFadeUniform();
     auto [vertices, indices] = scratch.colorBatch();
     for (const common::core::ShapeViewState& shape : frame.visible_shapes)
     {
@@ -6110,6 +6107,7 @@ void HighwayRenderer::Impl::drawStringLines()
         // The board face lies at z <= 0, nearer than every note, so it would survive the note
         // pass's depth prepass under LEQUAL anyway. It says ALWAYS regardless: a pass that is
         // above the board by construction should state that, not depend on where it landed.
+        setFadeUniform(g_board_view);
         bgfx::setState(alwaysDepth(g_blended_state));
         bgfx::submit(g_board_view, color_program.get());
     }
@@ -6364,11 +6362,11 @@ void HighwayRenderer::Impl::drawSectionLabels(const FrameContext& frame)
     // rather than standing in a static row along the bottom of the face here.)
 
     // Section labels floating above the board at their arrival time, carrying the floor
-    // furniture's distance fade like everything else on the board. The glyph program has no fade
-    // uniform, so the band bakes into vertex color exactly as the scrolling floor numbers do it
-    // — and that is also what retires the label's second defect: past the near edge of the band
-    // the scale is zero, so a label that has crossed the hit line stops drawing instead of
-    // holding full alpha until the cull.
+    // furniture's near fade like everything else on the board. The glyph program applies only the
+    // far-edge fade, so the near band bakes into vertex color exactly as the scrolling floor
+    // numbers do it — and that is also what retires the label's second defect: past the near
+    // edge of the band the scale is zero, so a label that has crossed the hit line stops drawing
+    // instead of holding full alpha until the cull.
     const double section_y = faceTopY() + (metrics.string_distance * 1.5);
     const auto [label_z_faded, label_z_close] = fadeBandZ();
     // Sections ascend and a label is drawn at its own instant, so the two skip tests are the

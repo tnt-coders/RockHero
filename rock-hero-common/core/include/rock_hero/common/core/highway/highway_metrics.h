@@ -77,6 +77,18 @@ struct HighwayMetrics
     double visibility_window_seconds{1.6};
 
     /*!
+    \brief World length along the highway over which content entering at the far edge fades in.
+
+    Everything that scrolls into view — notes, tails, bars, labels, the floor under them — rises
+    from nothing at the far edge to full opacity this far nearer the hit line. Measured in world
+    units rather than seconds because the far edge sits at the same world z at every scroll
+    speed (\ref highwayTimeToZ divides by the speed the visibility window multiplies by), so the
+    band is one constant stretch of board. Zero turns the fade off. The value is a first choice,
+    still to be sighted.
+    */
+    double far_fade_length_z{4.0};
+
+    /*!
     \brief Note head half-width (Charter firstFretDistance 1.2 / 2.5).
 
     Deliberately NOT derived from the narrowed \ref first_fret_distance: the fret-width tuning

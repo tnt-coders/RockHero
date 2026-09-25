@@ -59,20 +59,21 @@ function(rock_hero_add_compiled_shader)
     endforeach()
 
     # The varying definition is a real input even though shaderc takes it as a flag, so declare
-    # it as a dependency to get correct rebuilds when only the varyings change. Includes are NOT
-    # tracked: today the only include dir is immutable Conan package content, so that is correct;
-    # the moment project-owned shared .sh includes appear, switch to shaderc's --depends output
-    # via DEPFILE (see docs/plans/todo/game-render-watch-items.md). The source rides plain DEPENDS,
-    # never MAIN_DEPENDENCY: both products compile the same shared sources, and a source file may
-    # be the main dependency of at most one custom command (benign under Ninja, silently drops a
-    # rule under other generators).
+    # it as a dependency to get correct rebuilds when only the varyings change. Includes are
+    # tracked through shaderc's --depends output: it writes <output>.d naming every file the
+    # preprocessor opened, which is what rebuilds each program when a shared project .sh include
+    # (resolved from the source's own directory, which shaderc always searches) changes. The
+    # source rides plain DEPENDS, never MAIN_DEPENDENCY: both products compile the same shared
+    # sources, and a source file may be the main dependency of at most one custom command (benign
+    # under Ninja, silently drops a rule under other generators).
     add_custom_command(
         OUTPUT "${ARG_OUTPUT}"
         COMMAND
             "${ROCK_HERO_BGFX_SHADERC}" -f "${ARG_SOURCE}" -o "${ARG_OUTPUT}" --type ${ARG_TYPE}
             --platform ${ARG_PLATFORM} -p ${ARG_PROFILE} -O 3 --varyingdef "${ARG_VARYING}" -i
-            "${BGFX_SHADER_INCLUDE_PATH}"
+            "${BGFX_SHADER_INCLUDE_PATH}" --depends
         DEPENDS "${ARG_SOURCE}" "${ARG_VARYING}"
+        DEPFILE "${ARG_OUTPUT}.d"
         COMMENT "Compiling ${ARG_TYPE} shader ${ARG_SOURCE} for ${ARG_PROFILE}")
 endfunction()
 

@@ -1,15 +1,13 @@
-$input v_color0, v_texcoord0
+$input v_color0, v_world_z
 
-// Distance-faded vertex color: alpha ramps linearly on world Z between u_fade_params.x (fully
-// transparent) and u_fade_params.y (fully opaque). Applying it here keeps the distance fade
-// separate from any x-taper already carried in the interpolated vertex color.
+// Floor furniture's vertex color: alpha takes the near fade toward the hit line as well as the
+// far-edge fade-in every program shares. Applying both here keeps the distance fades separate
+// from any x-taper already carried in the interpolated vertex color.
 #include <bgfx_shader.sh>
-
-uniform vec4 u_fade_params;
+#include "highway_fade.sh"
 
 void main()
 {
-    float ramp = clamp(
-        (v_texcoord0.x - u_fade_params.x) / (u_fade_params.y - u_fade_params.x), 0.0, 1.0);
+    float ramp = highwayNearFade(v_world_z) * highwayFarFade(v_world_z);
     gl_FragColor = vec4(v_color0.rgb, v_color0.a * ramp);
 }
