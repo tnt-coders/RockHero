@@ -233,11 +233,14 @@ by the establishment tolerance. The decay belongs to the layer, never to the han
 - **Rails** (`drawHandShapeRails` generalized): one pass drawing `(track, [from, to], colour)`;
   the fretting hand's posture spans over `fret_hand.track` as today (arpeggio or border colour),
   and every tapped chord (`count >= 2`) over `pick_hand.track` from its onset to its
-  `release_seconds`, in the SAME colour as a posture span's rails (the border teal): a rail
-  belongs to the box, and the tapped box already wears the box family's colour — the hand's
-  identity is the light's warm tint and the pops' white, never the rails (ruled 2026-09-25 after a
-  full-white rail glared; a dimmed white was considered and rejected as a third colour for one
-  thing). The strike's `release_seconds` is the struck
+  `release_seconds`, in the picking hand's furniture colour. *Ruled 2026-09-25, in three steps
+  at the sighting:* full white glared; the box's teal was tried; and then the box AND rails of a
+  tapped chord went to the hand's colour, defined as THE FRETTING FURNITURE HUE-LESS —
+  `hueless(color)` (Rec.601 luma grey, same alpha) of the box teal, its dark rim and the border
+  teal — so the brightness matches exactly by construction and the hands read apart at a glance
+  (a teal box says strum, a hue-less one says tap), for the same reason the picking light leans
+  warm and its pops are white. `HandLightStyle::box_color / box_dark_color / rail_color`, data
+  never a branch. The strike's `release_seconds` is the struck
   notes' TRUE ring end, not the drawn tail — the fretting hand's rule for its boxes, held to the
   musical close while the margin is ink spacing — so a chord with no drawn tail still wears rails
   (sighted 2026-09-25). Sampled by the one density policy (Phase 3).

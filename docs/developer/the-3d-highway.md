@@ -542,17 +542,24 @@ Three marks beside the lights, all on the raw window:
   by both hands: the fretting hand's posture spans over `fret_hand.track`, and every tapped chord
   (`tappedChord`) over `pick_hand.track` from its onset to its `release_seconds` — the members'
   true ring end, the close the fretting hand's chord heads hold to, so a tapped chord with no drawn
-  tail still has rails. A rail belongs to its BOX, never to its hand: it wears the box family's
-  teal (`g_box_rail_color`), or the purple of an arpeggio span, a kind a tapped chord never is; a
-  hand's identity is its light's warm tint and its pops' colour. A strike carries its own hold
-  end, so the picking hand needs no derived spans — a span object would restate the strike on a
-  second representation the 2D lane never shows. Singles get no rails on either hand.
+  tail still has rails. A rail wears its hand's furniture colour (`HandLightStyle::rail_color`),
+  except an arpeggio span's, whose purple names a kind of span. A strike carries its own hold end,
+  so the picking hand needs no derived spans — a span object would restate the strike on a second
+  representation the 2D lane never shows. Singles get no rails on either hand.
 - **Box sides** — `highwayBoxSidesAt(track, onset, now)` (`highway_window.h`) is the hand's
   window at `max(onset, now)`: an approaching box stands at its onset's window, and one riding the
   hit line follows the live window, so a gliding chord carries its box. It is the one rule for both
   hands — a strummed box reads the fretting hand's track, a tapped box the picking hand's, whose
   window at a tapped chord's onset is its taps' own slots (and, for an open-string tap harmonic,
   its node).
+- **Furniture colours** — a hand's chord box (`box_color`, `box_dark_color`, which its accent
+  light takes too) and its rails (`rail_color`) wear the hand's furniture colour on its
+  `HandLightStyle`. The fretting hand's is the teal family; the picking hand's is that same family
+  with the hue removed, `hueless` (the Rec.601 luma grey, alpha kept), so a teal box says strum and
+  a grey one says tap — the same reason the picking light leans warm and its pops are white — at
+  identical brightness by construction rather than by tuning: box `0xFF949494`, rim `0xFF2A2A2A`,
+  rails `0xFF686868`. The pops' `mark_color` is a separate colour, because a pop is additive glow
+  and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
   spans the window) its box's two sides. They are chart facts, `HighwayHandLight::pops`
