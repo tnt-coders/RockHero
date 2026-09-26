@@ -448,7 +448,7 @@ constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 // The emitter's half-width: the line the light comes from.
 constexpr double g_shape_rail_emitter_half_width = 0.03;
 // How far the light reaches past the emitter, and the shape of its falloff (see fs_accent_glow).
-constexpr double g_shape_rail_reach = 0.24;
+constexpr double g_shape_rail_reach = 0.28;
 constexpr double g_shape_rail_exponent = 2.0;
 // The radiance: over one lets the core clip toward white while the halo keeps its hue.
 constexpr double g_shape_rail_gain = 1.6;
