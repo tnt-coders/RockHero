@@ -435,19 +435,22 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Hand-shape rails on the floor: a thin core with SMOOTH fade-out wings. A rail wears its hand's
-// furniture colour (HandLightStyle::rail_color), except that an arpeggio span's rails wear
-// Charter's purple, which names a kind of span rather than a hand. Every rail is drawn at one
-// opacity, so the hands' rails dim together and keep their match. The wings fall off along the
-// raised cosine (common::core::raisedCosineEase), sampled in g_shape_rail_wing_slices steps: a
-// LINEAR ramp from a flat core leaves a slope break at the core's edge that the eye sees as a hard
-// line, where the cosine leaves and arrives with zero slope. Sighting knobs (sighted 2026-09-25:
-// full opacity with x9 linear wings read "in your face"; x6 read skinny and still hard-edged).
+// Hand-shape rails on the floor, drawn as LIGHT rather than paint: added to what they cover
+// (g_additive_state) instead of blended over it, with a light's cross-section — a hot, near-white
+// core and a long soft halo falling off as 1 / (1 + (d / r)^2) — so a rail reads as a line of
+// light on the dark board, never as a translucent stripe on it. The halo is lowered so it reaches
+// zero exactly at g_shape_rail_fade_half_width, and sampled at stations packed toward the core
+// where the curve is steep. A rail wears its hand's furniture colour (HandLightStyle::rail_color),
+// except that an arpeggio span's rails wear Charter's purple, which names a kind of span rather
+// than a hand; every rail takes one intensity, so the hands' rails move together. Sighting knobs
+// (sighted 2026-09-25: full opacity with x9 linear wings read "in your face"; x6 read skinny and
+// hard-edged; a raised-cosine stripe read as paint, not a light source).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
-constexpr double g_shape_rail_core_half_width = 0.05;
 constexpr double g_shape_rail_fade_half_width = 0.27;
-constexpr double g_shape_rail_opacity = 0.6;
-constexpr int g_shape_rail_wing_slices = 4;
+constexpr double g_shape_rail_glow_radius = 0.06;
+constexpr double g_shape_rail_intensity = 0.6;
+constexpr double g_shape_rail_core_heat = 0.6;
+constexpr int g_shape_rail_halo_slices = 6;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -5852,27 +5855,31 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         {
             return;
         }
-        // The rail's cross-section, stated once per rail: offsets from the window edge, outer wing
-        // to outer wing, each with its tint. Index g_shape_rail_wing_slices and the one after it
-        // bound the flat core.
+        // The rail's cross-section, stated once per rail: offsets from the window edge, outer halo
+        // to outer halo through the core at zero, each with its tint — the light's falloff in the
+        // alpha, and the core's heat as a lean toward white that fades out with it.
         struct RailStation
         {
             double offset{0.0};
             std::uint32_t tint{0};
         };
-        std::array<RailStation, (2 * g_shape_rail_wing_slices) + 2> profile{};
-        for (int slice = 0; slice <= g_shape_rail_wing_slices; ++slice)
+        const double halo_floor =
+            1.0 / (1.0 + std::pow(g_shape_rail_fade_half_width / g_shape_rail_glow_radius, 2.0));
+        std::array<RailStation, (2 * g_shape_rail_halo_slices) + 1> profile{};
+        for (int slice = 0; slice <= g_shape_rail_halo_slices; ++slice)
         {
-            const double toward_core =
-                static_cast<double>(slice) / static_cast<double>(g_shape_rail_wing_slices);
-            const double offset =
-                g_shape_rail_fade_half_width -
-                (toward_core * (g_shape_rail_fade_half_width - g_shape_rail_core_half_width));
-            const std::uint32_t tint =
-                packAbgr(color, g_shape_rail_opacity * common::core::raisedCosineEase(toward_core));
-            const auto inner = static_cast<std::size_t>(slice);
-            profile.at(inner) = RailStation{.offset = -offset, .tint = tint};
-            profile.at(profile.size() - 1 - inner) = RailStation{.offset = offset, .tint = tint};
+            const double fraction =
+                static_cast<double>(slice) / static_cast<double>(g_shape_rail_halo_slices);
+            const double distance = g_shape_rail_fade_half_width * fraction * fraction;
+            const double falloff =
+                ((1.0 / (1.0 + std::pow(distance / g_shape_rail_glow_radius, 2.0))) - halo_floor) /
+                (1.0 - halo_floor);
+            const ArgbColor hot = mixArgb(
+                color, (color & 0xFF000000U) | 0x00FFFFFFU, g_shape_rail_core_heat * falloff);
+            const std::uint32_t tint = packAbgr(hot, g_shape_rail_intensity * falloff);
+            const auto outer = static_cast<std::size_t>(g_shape_rail_halo_slices - slice);
+            profile.at(outer) = RailStation{.offset = -distance, .tint = tint};
+            profile.at(profile.size() - 1 - outer) = RailStation{.offset = distance, .tint = tint};
         }
         // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
         // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
@@ -5944,7 +5951,14 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
                 g_picking_hand_light.rail_color);
         }
     }
-    submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    submitBatch(
+        vertices,
+        indices,
+        posColorLayout(),
+        color_fade_program.get(),
+        nullptr,
+        g_board_view,
+        g_additive_state);
 }
 
 // --- String lines (retained), under the fret lines and nut, on the z = 0 plane. The board
