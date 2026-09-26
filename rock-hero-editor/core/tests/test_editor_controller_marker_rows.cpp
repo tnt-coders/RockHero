@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -95,9 +96,13 @@ struct MarkerRowEditor
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    // The deferring scheduler and clock the controller runs on, so a typed fret stays pending
+    // exactly until a further digit or the test settles it; declared before the controller, whose
+    // services read it.
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -120,6 +125,12 @@ struct MarkerRowEditor
             makeMarkerTempoMap(),
             std::move(tone_regions));
         REQUIRE(loaded);
+        // The deferring scheduler holds the load's own follow-up work too; run it, as
+        // test_chart_fret_entry does, so every case starts from a settled, published editor. That
+        // work restores the project's grid, so the quarter-note grid the loader pinned (and every
+        // step below is stated in) is pinned again after it.
+        static_cast<void>(pending.scheduler.runDelayed());
+        controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     }
 
     [[nodiscard]] const EditorViewState& state() const
@@ -1015,6 +1026,145 @@ TEST_CASE("A hand chip click selects what the hand-row jump selects", "[core][ma
     // An index naming no placement selects nothing.
     pointer.controller.onFretHandPositionSelected(9);
     CHECK(pointer.selectedHandIndex() == std::optional<std::size_t>{1});
+}
+
+// A selected placement is one more operand the digits retype: its fret. One typed value is one
+// undo entry, the placement stays selected, and undo restores the fret it had.
+TEST_CASE("A digit retypes the selected fret-hand position's fret", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(1);
+    const std::size_t entries_before = editor.undoEntryCount();
+
+    editor.controller.onChartFretDigitTyped(5);
+    REQUIRE(editor.placements().size() == 4);
+    CHECK(editor.placements()[1] == placementAt(downbeat(5), 5));
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK_FALSE(editor.state().chart_edit.pending_fret.has_value());
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+}
+
+// The placement's entry is the note retype's entry: the first digit decides, a second inside the
+// window widens it, and while it waits its box rides the placement's chip.
+TEST_CASE("Two digits in the window compose a fret-hand position's fret", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(0);
+    const std::size_t entries_before = editor.undoEntryCount();
+
+    editor.controller.onChartFretDigitTyped(1);
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    const std::optional<ChartPendingFretViewState>& pending =
+        editor.state().chart_edit.pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "1");
+        CHECK(pending->valid);
+        CHECK(pending->at == decltype(pending->at){ChartPendingFretHandPosition{.index = 0}});
+    }
+    // The value is previewed live, as a creation is: the published chip already states fret 1.
+    const std::shared_ptr<const common::core::ChartViewState>& tab = editor.state().tab;
+    REQUIRE(tab != nullptr);
+    REQUIRE_FALSE(tab->fret_hand_positions.empty());
+    CHECK(tab->fret_hand_positions.front().fret == 1);
+
+    editor.controller.onChartFretDigitTyped(2);
+    CHECK(editor.placements()[0] == placementAt(downbeat(1), 12));
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+}
+
+// A fret the board cannot hold — the open string, or an index finger too high for the narrowest
+// window — is refused by the stream's own rules: the box goes red, and the stream, the history and
+// the selection stay exactly as they were.
+TEST_CASE("A fret-hand position refuses a fret the board cannot hold", "[core][marker-rows]")
+{
+    SECTION("fret 0")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+        editor.controller.onFretHandPositionSelected(1);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onChartFretDigitTyped(0);
+        const std::optional<ChartPendingFretViewState>& pending =
+            editor.state().chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK_FALSE(pending->valid);
+        }
+        CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+        CHECK(editor.undoEntryCount() == entries_before);
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    }
+
+    SECTION("past the board")
+    {
+        MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+        editor.controller.onFretHandPositionSelected(1);
+        const std::size_t entries_before = editor.undoEntryCount();
+
+        editor.controller.onChartFretDigitTyped(2);
+        editor.controller.onChartFretDigitTyped(3);
+        const std::optional<ChartPendingFretViewState>& pending =
+            editor.state().chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK(pending->text == "23");
+            CHECK_FALSE(pending->valid);
+        }
+        CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+        CHECK(editor.undoEntryCount() == entries_before);
+        CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    }
+}
+
+// No ring reaches a placement, so the ring plane's digit does exactly what the bare one does, and
+// the `Insert` chords, which need an armed caret, do nothing while a placement holds the selection.
+TEST_CASE("The ring plane over a fret-hand position is the bare digit", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(1);
+
+    editor.controller.onRingPointInsertRequested();
+    editor.controller.onInsertAtCaretRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+
+    editor.controller.onChartRingDigitTyped(5);
+    CHECK(editor.placements()[1] == placementAt(downbeat(5), 5));
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+}
+
+// With no placement selected a digit keeps its caret-slot meaning: it types a note there and leaves
+// the placements alone.
+TEST_CASE("A digit with no placement selected still types at the caret", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.armAtMeasure(4);
+
+    editor.controller.onChartFretDigitTyped(5);
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    const common::core::Arrangement* const arrangement =
+        editor.controller.session().currentArrangement();
+    REQUIRE(arrangement != nullptr);
+    if (arrangement == nullptr)
+    {
+        return;
+    }
+    const std::optional<common::core::Chart>& chart = arrangement->chart;
+    REQUIRE(chart.has_value());
+    if (chart.has_value())
+    {
+        CHECK(std::ranges::any_of(chart->notes, [](const common::core::ChartNote& note) {
+            return note.position == downbeat(4) && note.string == 1 && note.fret == 5;
+        }));
+    }
 }
 
 } // namespace rock_hero::editor::core

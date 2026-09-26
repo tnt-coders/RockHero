@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <expected>
 #include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -198,6 +199,39 @@ void EditorController::Impl::moveSelectedFretHandPosition(
         selectMarker(FretHandPositionSelection{.position = target});
         followMovedMarker(target);
     }
+}
+
+// A placement's fret entry, planned the way the commit will judge it: the funnel's own front half
+// over the stream with the fret replaced, so the red box refuses exactly what the settle would. A
+// placement the selection no longer names plans nothing.
+std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> EditorController::Impl::planFretHandFret(
+    const common::core::GridPosition& position, const int fret) const
+{
+    const FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
+    FretHandPositionsSnapshot after = before;
+    const auto match = findPlacement(after.placements, position);
+    if (match == after.placements.end())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    match->fret = fret;
+    std::expected<FretHandPositionsSnapshot, MarkerModelRefusal> judged =
+        judgeMarkerModel(before, std::move(after));
+    if (!judged.has_value())
+    {
+        return std::unexpected{judged.error().reason};
+    }
+    return std::move(*judged);
+}
+
+// The settle of a placement's fret entry. Its selection names the placement by position, which the
+// fret does not move, so it stays selected with nothing to re-select.
+void EditorController::Impl::commitFretHandFret(FretHandPositionsSnapshot placements)
+{
+    static_cast<void>(commitMarkerModel(
+        FretHandPositionsSnapshot::capture(session()),
+        std::move(placements),
+        "Set Hand Position Fret"));
 }
 
 // Deletes the selected placement. Nothing refuses it — a chart with no placement left is the nut

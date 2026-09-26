@@ -1788,4 +1788,42 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
     CHECK(worstPixelDeltaInColumns(plain, selected, 40, chip.getX() - 10) == 0);
 }
 
+// A placement's pending fret entry wears its box on the placement's chip, the mark whose value the
+// digits are typing, and draws nothing anywhere else.
+TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    view.setVisibleTimeline(timeline);
+    view.setState(makeFurnitureTabState(), 0);
+    const juce::Image plain = renderOverCanvas(view);
+
+    view.setEditState(
+        core::ChartEditViewState{
+            .pending_fret = core::ChartPendingFretViewState{
+                .at = core::ChartPendingFretHandPosition{.index = 1},
+                .text = "7",
+                .valid = false,
+            },
+        });
+    const juce::Image pending = renderOverCanvas(view);
+
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
+    const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
+    const juce::Rectangle<int> chip =
+        common::ui::tabFhpChipBounds(metrics, second, metrics.x(second.seconds))
+            .getSmallestIntegerContainer();
+    REQUIRE_FALSE(chip.isEmpty());
+
+    CHECK(worstPixelDeltaInColumns(plain, pending, chip.getX(), chip.getRight()) > 0);
+    CHECK(worstPixelDeltaInColumns(plain, pending, 40, chip.getX() - 20) == 0);
+}
+
 } // namespace rock_hero::editor::ui

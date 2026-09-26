@@ -107,15 +107,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     // Every kind but the tone region is identified by its start; a region by its id, whose index is
     // its place in the track the starts were read from.
     const auto marker = [this](const MarkerRow row, const common::core::GridPosition& start) {
-        const std::vector<common::core::GridPosition> starts = markerStarts(row);
-        const auto found = std::ranges::find(starts, start);
-        return SelectedMarker{
-            .row = row,
-            .index =
-                found == starts.end()
-                    ? std::nullopt
-                    : std::optional{static_cast<std::size_t>(std::distance(starts.begin(), found))},
-        };
+        return SelectedMarker{.row = row, .index = markerIndex(row, start)};
     };
 
     if (const SongSectionSelection* const section = selectedSongSection())
@@ -316,12 +308,24 @@ void EditorController::Impl::onTimeSignatureSelected(const int measure)
 void EditorController::Impl::selectMarkerStartingAt(
     const MarkerRow row, const common::core::GridPosition& start)
 {
-    const std::vector<common::core::GridPosition> starts = markerStarts(row);
-    if (const auto found = std::ranges::find(starts, start); found != starts.end())
+    if (const std::optional<std::size_t> index = markerIndex(row, start); index.has_value())
     {
-        selectMarker(
-            markerSelectionAt(row, static_cast<std::size_t>(std::distance(starts.begin(), found))));
+        selectMarker(markerSelectionAt(row, *index));
     }
+}
+
+// A marker kind's identity is its start, so this is the one lookup every identity-to-index question
+// asks — the selection's own, a chip click's, a pending entry's box.
+std::optional<std::size_t> EditorController::Impl::markerIndex(
+    const MarkerRow row, const common::core::GridPosition& start) const
+{
+    const std::vector<common::core::GridPosition> starts = markerStarts(row);
+    const auto found = std::ranges::find(starts, start);
+    if (found == starts.end())
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(std::distance(starts.begin(), found));
 }
 
 // A tempo chip click selects the anchor it marks and seeks nothing, exactly as a section chip does.

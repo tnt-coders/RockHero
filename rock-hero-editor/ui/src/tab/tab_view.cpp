@@ -539,16 +539,36 @@ void TabView::paint(juce::Graphics& g)
     // affected head (or at the empty insert slot), red when it cannot apply — every affected
     // head marks together, because a relational refusal has no per-note attribution. Editor
     // chrome like the caret, but drawn through the paint core's one exported primitive so the
-    // digit's typography and plate cannot drift from the committed head's.
-    if (m_edit.pending_fret.has_value())
+    // digit's typography and plate cannot drift from the committed head's. The entry's text and
+    // its ink are read ONCE for every mark a box rides — a head, a satellite, a slot, a
+    // placement's chip: valid rides the dark plate in the digit's own white; invalid FLIPS the
+    // plate to the white ground with the theme's red — the polarity flip is itself the glance
+    // signal.
+    //
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<core::ChartPendingFretViewState>& pending = m_edit.pending_fret;
+    const bool pending_refused = pending.has_value() && !pending->valid;
+    const juce::String pending_text =
+        pending.has_value() ? juce::String{pending->text} : juce::String{};
+    const juce::Colour pending_ink =
+        pending_refused ? editorTheme().invalid : editorTheme().primary_text;
+    const auto paint_pending_box = [&](const common::core::NoteViewState* const head,
+                                       const float center_x,
+                                       const float center_y) {
+        common::ui::paintTabPendingEntryBox(
+            g,
+            metrics,
+            head,
+            center_x,
+            center_y,
+            pending_text,
+            pending_refused,
+            pending_ink,
+            accent);
+    };
+    if (pending.has_value())
     {
-        // Valid rides the dark plate in the digit's own white; invalid FLIPS the plate to the
-        // white ground with the theme's red — the polarity flip is itself the glance signal.
-        const bool invalid = !m_edit.pending_fret->valid;
-        const juce::Colour ink = invalid ? editorTheme().invalid : editorTheme().primary_text;
-        const juce::String text{m_edit.pending_fret->text};
-        if (const auto* const targets =
-                std::get_if<core::ChartPendingFretTargets>(&m_edit.pending_fret->at))
+        if (const auto* const targets = std::get_if<core::ChartPendingFretTargets>(&pending->at))
         {
             for (const std::size_t index : targets->notes)
             {
@@ -567,22 +587,12 @@ void TabView::paint(juce::Graphics& g)
                             common::ui::tabHeldStopLayout(metrics, note, revealed(index));
                         satellite.has_value())
                     {
-                        common::ui::paintTabPendingEntryBox(
-                            g,
-                            metrics,
-                            nullptr,
-                            satellite->center_x,
-                            satellite->center_y,
-                            text,
-                            invalid,
-                            ink,
-                            accent);
+                        paint_pending_box(nullptr, satellite->center_x, satellite->center_y);
                     }
                     continue;
                 }
                 const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-                common::ui::paintTabPendingEntryBox(
-                    g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
+                paint_pending_box(&note, layout.onset_x, layout.center_y);
             }
             // A selected keyframe's box rides the mark the paint core drew for it — the linked
             // head at a junction, which the note places exactly as it does its onset's digit, or
@@ -593,35 +603,19 @@ void TabView::paint(juce::Graphics& g)
                 [&](const common::core::NoteViewState& note,
                     const common::core::KeyframeViewState&,
                     const common::ui::TabKeyframeLayout& layout) {
-                    common::ui::paintTabPendingEntryBox(
-                        g,
-                        metrics,
-                        layout.chip ? nullptr : &note,
-                        layout.center_x,
-                        layout.center_y,
-                        text,
-                        invalid,
-                        ink,
-                        accent);
+                    paint_pending_box(
+                        layout.chip ? nullptr : &note, layout.center_x, layout.center_y);
                 });
         }
         else if (
-            const auto* const slot =
-                std::get_if<core::ChartSlotViewState>(&m_edit.pending_fret->at);
+            const auto* const slot = std::get_if<core::ChartSlotViewState>(&pending->at);
             slot != nullptr && slot->string >= 1 && slot->string <= tab.stringCount()
         )
         {
-            common::ui::paintTabPendingEntryBox(
-                g,
-                metrics,
-                nullptr,
-                metrics.x(slot->seconds),
-                metrics.laneY(slot->string),
-                text,
-                invalid,
-                ink,
-                accent);
+            paint_pending_box(nullptr, metrics.x(slot->seconds), metrics.laneY(slot->string));
         }
+        // A placement's box rides its chip, which the furniture pass draws later and above the
+        // lane content; that box is drawn there, over the chip.
     }
 
     // The lane's content is finished, so the panel's column is settled: everything below draws
@@ -635,20 +629,61 @@ void TabView::paint(juce::Graphics& g)
     // composition distinguishes it from the lane content.
     common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
 
-    // THE SELECTED FRET-HAND CHIP wears the accent outline a selected keyframe chip wears — one
-    // selection idiom for every boxed mark — traced on the scrolling chip at its own column, the
-    // box the paint core just drew. Editor furniture, so it stays out of the game-shared paint
-    // core. An index the projection has since outrun draws nothing.
-    if (const std::optional<std::size_t>& selected = m_edit.selected_fret_hand_position;
-        selected.has_value() && *selected < tab.fret_hand_positions.size())
+    // A placement's scrolling chip as the paint core just drew it: the placement and the box, from
+    // the one geometry authority, and nothing for an index the projection has since outrun or a
+    // lane that prints no text. The selection outline and the pending box both ride it.
+    struct ScrollingChip
     {
-        const common::core::FhpViewState& fhp = tab.fret_hand_positions[*selected];
-        const juce::Rectangle<float> chip =
+        const common::core::FhpViewState* fhp{nullptr};
+        juce::Rectangle<float> box{};
+    };
+    const auto scrolling_chip = [&tab, &metrics](const std::size_t index) {
+        if (index >= tab.fret_hand_positions.size())
+        {
+            return std::optional<ScrollingChip>{};
+        }
+        const common::core::FhpViewState& fhp = tab.fret_hand_positions[index];
+        const juce::Rectangle<float> box =
             common::ui::tabFhpChipBounds(metrics, fhp, metrics.x(fhp.seconds));
-        if (!chip.isEmpty())
+        return box.isEmpty() ? std::optional<ScrollingChip>{}
+                             : std::optional{ScrollingChip{.fhp = &fhp, .box = box}};
+    };
+
+    // THE SELECTED FRET-HAND CHIP wears the accent outline a selected keyframe chip wears — one
+    // selection idiom for every boxed mark — traced on the scrolling chip at its own column. Editor
+    // furniture, so it stays out of the game-shared paint core.
+    if (const std::optional<std::size_t>& selected = m_edit.selected_fret_hand_position;
+        selected.has_value())
+    {
+        if (const std::optional<ScrollingChip> chip = scrolling_chip(*selected); chip.has_value())
         {
             g.setColour(accent);
-            g.drawRect(chip, overlayRingStroke(chip.getHeight()));
+            g.drawRect(chip->box, overlayRingStroke(chip->box.getHeight()));
+        }
+    }
+
+    // A placement's pending fret entry fills the placement's own chip box, where the value will
+    // print, above the chip in the furniture's layer. A value that will apply is already the chip's
+    // own — the controller previews it into the projection, derived window included — so the plate
+    // carries the chip's text; a refused one previews nothing and carries what was typed.
+    if (pending.has_value())
+    {
+        if (const auto* const hand = std::get_if<core::ChartPendingFretHandPosition>(&pending->at);
+            hand != nullptr)
+        {
+            if (const std::optional<ScrollingChip> chip = scrolling_chip(hand->index);
+                chip.has_value())
+            {
+                common::ui::paintTabPendingEntryPlate(
+                    g,
+                    metrics,
+                    metrics.label_font,
+                    chip->box,
+                    pending_refused ? pending_text : common::ui::tabFhpChipText(*chip->fhp),
+                    pending_refused,
+                    pending_ink,
+                    accent);
+            }
         }
     }
 

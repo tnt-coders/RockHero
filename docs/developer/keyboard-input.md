@@ -364,10 +364,14 @@ TYPED, a click never creates, and every entry key has TWO PLANES**. Every entry 
 follows from that one sentence (`ring-ends-and-authoring-planes.md`, *The keys*, 2026-09-23). A key
 first finds its OPERAND — the selection, else the armed caret's slot — and its plane decides what it
 does there. The BARE digit (`TypeDigit0`–`9`, "Type Digit N") says "a note here": over a selection
-it retypes what is selected; at the caret, on an EMPTY slot and at a ring's EXACT END alike, a HEAD
-at the typed fret — at the end it is simply the next note, since the ring already stops there,
-which is why sequential entry is safe, whatever that end states — the head under the caret
-RETYPED, and STRICTLY INSIDE a ring the head that CUTS it (`ChartFretEntry::Cut` → `planCutRing`).
+it retypes what is selected — a selected fret-hand position included, whose FRET the digits state
+through the same entry (`ChartFretEntry::RetypeHandFret`, settled through the marker funnel as
+"Set Hand Position Fret", refused red by the funnel's own front half, `judgeMarkerModel`; the `Alt`
+digit does the same there, no ring reaching a placement); at the caret, on an EMPTY slot and at a
+ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply the next note, since the
+ring already stops there, which is why sequential entry is safe, whatever that end states — the
+head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
+(`ChartFretEntry::Cut` → `planCutRing`).
 The `ALT` digit (`TypeRingDigit0`–`9`, "Type Digit N on Ring") says "a point on the ring here": on
 the ring that covers or ends at the operand's instant, a POINT at the typed fret strictly inside,
 the END STATEMENT at the end, and a statement already standing there SELECTED and retyped, never

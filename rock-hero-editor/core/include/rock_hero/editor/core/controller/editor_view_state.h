@@ -681,6 +681,28 @@ struct ChartPendingFretTargets
 };
 
 /*!
+\brief Where a fret-hand placement's fret entry draws its box: filling the placement's lane chip.
+
+The chip is the placement's one mark on the lane, and its fret is the value the chip prints, so the
+box fills the chip's own box rather than a head's plate or a slot. A value that would apply is
+previewed into the published chart like a creating entry's product, so the chip already prints what
+the settle will leave — the committed text and its derived window — and the box carries that; a
+refused value carries the typed text.
+*/
+struct ChartPendingFretHandPosition
+{
+    /*! \brief Index of the placement in the tab projection's placement order. */
+    std::size_t index{};
+
+    /*!
+    \brief Compares two targets field by field.
+    \param other Target to compare with.
+    \return True when both name the same placement.
+    */
+    bool operator==(const ChartPendingFretHandPosition& other) const = default;
+};
+
+/*!
 \brief The in-flight pending fret entry's rendered state.
 
 While a typed value is provisional the lane draws an entry box over each affected head — the
@@ -693,19 +715,20 @@ red would claim a precision the refusal does not have.
 An entry that would CREATE something — a note at an empty caret, a point on a tail — wears its box
 at the slot it began on, and a value that would apply is already drawn beneath the box as the head
 or point it creates: the controller projects the plan into the published chart without storing
-it. The box is therefore the ONE thing that says "provisional" for every entry kind, and its
-disappearance is the settle becoming visible.
+it. A placement's fret is previewed the same way, and its box fills the placement's chip. The box
+is therefore the ONE thing that says "provisional" for every entry kind, and its disappearance is
+the settle becoming visible.
 */
 struct ChartPendingFretViewState
 {
     /*!
-    \brief Where the box draws: over every affected object (a retype entry) or at the slot a
-    create entry began on.
+    \brief Where the box draws: over every affected object (a retype entry), at the slot a create
+    entry began on, or on the chip of a selected fret-hand placement whose fret is being typed.
 
-    One alternative or the other, never both and never neither: the entry itself began either on
-    the selection or on the caret, and the two cases carry different data.
+    Exactly one alternative: the entry began on the chart selection, on the caret, or on a selected
+    placement, and the three cases carry different data.
     */
-    std::variant<ChartPendingFretTargets, ChartSlotViewState> at{};
+    std::variant<ChartPendingFretTargets, ChartSlotViewState, ChartPendingFretHandPosition> at{};
 
     /*! \brief The provisional value exactly as typed. */
     std::string text{};

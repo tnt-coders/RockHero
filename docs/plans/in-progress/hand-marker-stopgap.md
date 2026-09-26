@@ -61,8 +61,11 @@ when the derivation lands.*
    chord runs its target inside one action; no `Enter` arm until there is a payload to re-enter;
    the lane's chip press is gated by `marker_edits_enabled` like every marker surface.
 3. **Fret entry** on a selected placement — the one piece plan 60 may retire (or keep as the
-   override path). Key choice after a keymap check: `↑/↓` walk rows, so the typed-digit grammar
-   (type the fret, `Enter`) is the likely shape.
+   override path). No new key: the keymap's digit law already says a bare digit finds its operand
+   — the selection, else the caret's slot — and retypes a selection, so a selected placement is one
+   more operand `Type Digit N` retypes: the digits state its fret through the shared 750 ms
+   multi-digit entry, committed through the funnel ("Set Hand Position Fret"), refused with the
+   red box on the lane chip where the fret is illegal for the board. No `Enter` arm.
 
 ## 3. What survives plan 60
 

@@ -16,6 +16,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "chart/chart_edits.h"
 #include "chart/chart_hit_testing.h"
 #include "chart/chart_selection.h"
+#include "chart/fret_hand_positions_snapshot.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
@@ -255,6 +256,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Defined with its state below; forward-declared so armChartFretEntry can take the entry by
     // value.
     struct ChartFretEntry;
+    // A pending entry's note-stream change, carrying what its settle selects — the retyped
+    // objects, the planted or struck head, the point — decided where the change is planned, so the
+    // settle never reads the target again.
+    struct ChartFretNotePlan
+    {
+        ChartEditPlan plan;
+        std::vector<ChartSelectionKey> select;
+    };
+    // What a pending entry's settle applies, by the store it writes: the note stream through the
+    // chart history, or the placement stream through the marker funnel. Which one is the entry
+    // target's answer, made once where the entry is planned (replanChartFretEntry).
+    using ChartFretEntryPlan = std::variant<ChartFretNotePlan, FretHandPositionsSnapshot>;
+    // A selected placement's fret entry, planned: its stream with the placement at `position`
+    // taking `fret`, judged by the marker funnel's own front half (fret_hand_handlers.cpp).
+    [[nodiscard]] std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> planFretHandFret(
+        const common::core::GridPosition& position, int fret) const;
+    // Commits a settled placement fret through the marker funnel; the placement stays selected.
+    void commitFretHandFret(FretHandPositionsSnapshot placements);
     // Combining a digit into the pending entry: false = no live entry claimed it — an expired one
     // settled and the digit falls through to a fresh entry.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
@@ -294,7 +313,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // value; every other action settles first. Stated here so the prologue names no verb.
     [[nodiscard]] bool chartFretEntryContinuedBy(const EditorAction::Action& action) const;
     // One authority for what a pending entry would apply, run in full on every keystroke.
-    [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> replanChartFretEntry(
+    [[nodiscard]] std::expected<ChartFretEntryPlan, ChartPlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
@@ -1117,6 +1136,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             ChartSlotKey note{};
             common::core::Fraction offset{};
         };
+        // An entry begun over a selected fret-hand placement: the digits state the placement's
+        // FRET, the one payload a hand marker carries. The same entry the note retype is — one
+        // window, one first-key-decides rule, one red box — whose settle commits through the
+        // marker funnel rather than the chart-notes history, because a placement is a marker. It
+        // names the placement by position, its identity; the placement stays selected.
+        struct RetypeHandFret
+        {
+            common::core::GridPosition position{};
+        };
 
         // The typed fret so far.
         int value{};
@@ -1132,14 +1160,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // enclosing class completes -- so libstdc++, which constrains that constructor on
         // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
         // accepted it. With no initializer, no such constructor is ever instantiated here.
-        std::variant<InsertAt, Retype, CreateKeyframe, Cut> target;
+        std::variant<InsertAt, Retype, CreateKeyframe, Cut, RetypeHandFret> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
         // std::expected's value-state default, which would be an empty-but-valid plan.
-        std::expected<ChartEditPlan, ChartPlanRefusal> plan{
+        std::expected<ChartFretEntryPlan, ChartPlanRefusal> plan{
             std::unexpected{ChartPlanRefusal::NoChange}
         };
+        // Whether the typed value is REFUSED — the red box's one question, and the entry's open
+        // error state: a refused entry pends until a further digit, Esc or another intent ends it.
+        [[nodiscard]] bool refused() const
+        {
+            return !plan.has_value() && plan.error() == ChartPlanRefusal::Invalid;
+        }
         // Tick of the arming keystroke: the injected clock is the authority for the window, so
         // a wake that fires early (an immediate test scheduler) no-ops instead of settling.
         std::uint32_t armed_ms{};
@@ -1424,6 +1458,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // which is where the rules it enforces are written down.
     template <typename Snapshot>
     bool commitMarkerModel(Snapshot before, Snapshot after, std::string label);
+
+    // The funnel's front half, asked by the commit and by anything that must know in advance what
+    // the commit would do with a model (a pending fret entry's red box): the produced model
+    // normalized, refused Invalid where it breaks a rule (with the rule's diagnostic), NoChange
+    // where it matches `before`. Defined beside the commit in marker_model_commit.h.
+    struct MarkerModelRefusal
+    {
+        ChartPlanRefusal reason{ChartPlanRefusal::NoChange};
+        std::string detail;
+    };
+    template <typename Snapshot>
+    [[nodiscard]] std::expected<Snapshot, MarkerModelRefusal> judgeMarkerModel(
+        const Snapshot& before, Snapshot after) const;
+
+    // The index of the row's marker starting exactly at a position, or nothing where none does —
+    // the one position-to-index rule every marker lookup by identity asks.
+    [[nodiscard]] std::optional<std::size_t> markerIndex(
+        MarkerRow row, const common::core::GridPosition& start) const;
 
     // One row of the keyboard's vertical walk (docs/plans/completed/keyboard-focus-rows.md),
     // computed per press and never stored. The caret names a string or lane row; the selection

@@ -344,14 +344,18 @@ Four consequences worth knowing before touching this:
   keep reaching the statement itself.
 - **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed
   at an armed caret — a head on an empty slot or at a ring's exact end, a point on the path where a
-  ring covers it — wears the pending box at the slot, red where the gate
-  refuses the fret, and a valid value's plan is projected into the published chart at once, so what
-  it creates and its effect on the tail draw as ordinary marks under the box while the stored chart
-  and history stay unchanged. Discarding the entry drops the projection; settling stores exactly
-  what was drawn, and the box's disappearance is the settle. Nothing else needs previewing, because
-  nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it is held
-  is the ring REVEAL — every visible note drawn on to its stored ring end — not a preview of a
-  placement.
+  ring covers it — wears the pending box at the slot, red where the gate refuses the fret, and a
+  valid value's plan is projected into the published chart at once, so what it creates and its
+  effect on the tail draw as ordinary marks under the box while the stored chart and history stay
+  unchanged. Discarding the entry drops the projection; settling stores exactly what was drawn, and
+  the box's disappearance is the settle. A note retype's box rides what it retypes instead — every
+  affected head or satellite — and is not projected. A selected fret-hand position's fret IS
+  projected, like a creation (a fret change keeps every placement's index), and its box fills the
+  placement's own chip (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
+  `tabFhpChipBounds`), carrying the chip's committed text and derived window, or the typed text when
+  refused. Nothing else needs previewing, because nothing else authors: the pointer creates under
+  no modifier, and what `Alt` shows while it is held is the ring REVEAL — every visible note drawn
+  on to its stored ring end — not a preview of a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
   controller as its own action, and where the selection offers more than ONE CHANGE the CONTROLLER
   asks the view for the choice — after its settle prologue — through the port method
