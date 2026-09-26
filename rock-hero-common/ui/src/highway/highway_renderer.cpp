@@ -435,12 +435,16 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Hand-shape rails on the floor: a solid core with fade-out wings (fret thickness x3 and x9). A
-// rail wears its hand's furniture colour (HandLightStyle::rail_color), except that an arpeggio
-// span's rails wear Charter's purple, which names a kind of span rather than a hand.
+// Hand-shape rails on the floor: a core with fade-out wings (fret thickness x3 and x6). A rail
+// wears its hand's furniture colour (HandLightStyle::rail_color), except that an arpeggio span's
+// rails wear Charter's purple, which names a kind of span rather than a hand. Every rail is drawn
+// at one opacity, so the hands' rails dim together and keep their match; the opacity and the
+// wings' steepness are sighting knobs (both sighted "in your face" at full opacity and x9 wings,
+// 2026-09-25).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 constexpr double g_shape_rail_core_half_width = 0.075;
-constexpr double g_shape_rail_fade_half_width = 0.225;
+constexpr double g_shape_rail_fade_half_width = 0.15;
+constexpr double g_shape_rail_opacity = 0.6;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -5845,7 +5849,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         {
             return;
         }
-        const std::uint32_t solid = packAbgr(color);
+        const std::uint32_t solid = packAbgr(color, g_shape_rail_opacity);
         const std::uint32_t clear = packAbgr(color, 0.0);
         // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
         // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
