@@ -41,7 +41,8 @@ constexpr int g_camera_zone_measures = 2;
             HighwayHandArrival{
                 .seconds = fhp.seconds,
                 .low_line = static_cast<double>(fhp.fret - 1),
-                .high_line = static_cast<double>(fhp.fret + fhp.width - 1),
+                .high_line =
+                    static_cast<double>(FretWindow{.fret = fhp.fret, .width = fhp.width}.top()),
                 .ramp_seconds = fhp.ramp_seconds,
                 .unpitched_ramp = fhp.unpitched_ramp,
                 .settle_seconds = fhp.settle_seconds,

@@ -154,10 +154,9 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
-        // A window of no width and a position off the grid have no repair; where the window SITS
-        // is the normalizer's fit (above the capo, under the last fret, the whole width on the
-        // board), asked as the fixpoint.
-        if (fhp.width < 1 || !isValidGridPosition(fhp.position, tempo_map))
+        // A position off the grid has no repair; where the window SITS is the normalizer's fit
+        // (above the capo, the narrowest window under the last fret), asked as the fixpoint.
+        if (!isValidGridPosition(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
@@ -175,11 +174,14 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                            positionText(fhp.position),
             }};
         }
-        if (previous_fhp != nullptr && fhp.position < previous_fhp->position)
+        // Strictly ascending: two placements at one instant would leave "where the hand is" with
+        // two answers.
+        if (previous_fhp != nullptr && !(previous_fhp->position < fhp.position))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
-                .message = "fret-hand positions must be sorted at " + positionText(fhp.position),
+                .message = "fret-hand positions must be strictly ascending at " +
+                           positionText(fhp.position),
             }};
         }
         previous_fhp = &fhp;
@@ -572,22 +574,21 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
-    // The playable board is what lies above the capo; a window wider than that cannot fit
-    // anywhere, so the width shrinks first and the two placements below then always succeed.
+    // The window's reach is derived from the notes (deriveFretHandWidths), which never hold a fret
+    // past the board, so the index finger only has to leave room for the narrowest window. Every
+    // legal capo leaves that room above it; the floor still wins on a capo out of range, which the
+    // validator refuses after this runs.
+    static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
     const int floor = firstPlayableFret(tuning.capo);
-    const int playable = g_max_fret - tuning.capo;
-    bool past_board = position.width > playable;
-    position.width = std::min(position.width, playable);
+    const int overshoot =
+        FretWindow{.fret = position.fret, .width = g_min_fret_hand_width}.top() - g_max_fret;
+    const bool past_board = overshoot > 0;
+    if (past_board)
+    {
+        position.fret -= overshoot;
+    }
     const bool below_capo = position.fret < floor;
     position.fret = std::max(position.fret, floor);
-    // The whole window must fit under the last fret: bounding only the index finger let a wide
-    // hand run off the end. With the width already inside the playable board, this never pushes
-    // the finger back below the floor.
-    if (position.fret + position.width - 1 > g_max_fret)
-    {
-        past_board = true;
-        position.fret = g_max_fret - position.width + 1;
-    }
     std::vector<ChartRepair> repairs;
     if (past_board)
     {

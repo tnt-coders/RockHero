@@ -28,7 +28,7 @@ struct HighwayHandWindow
     double low_line{0.0};
 
     /*! \brief Fret-line coordinate of the window's high-fret edge. */
-    double high_line{4.0};
+    double high_line{static_cast<double>(g_min_fret_hand_width)};
 
     /*!
     \brief Compares two window extents by their stored fields.

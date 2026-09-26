@@ -1031,8 +1031,8 @@ struct FhpViewState
     /*! \brief Lowest fret under the index finger. */
     int fret{1};
 
-    /*! \brief Fret span covered by the hand. */
-    int width{4};
+    /*! \brief Fret span covered by the hand, derived from the notes (\ref deriveFretHandWidths). */
+    int width{g_min_fret_hand_width};
 
     /*!
     \brief Duration of the hand's eased approach ending at \ref seconds; zero arrives instantly.

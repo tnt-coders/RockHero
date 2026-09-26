@@ -141,7 +141,7 @@ enum class ChartErrorCode : std::uint8_t
     UnsortedOrDuplicateNotes,
     /*! \brief A keyframe is empty, misordered, outside its sustain, or states an illegal value. */
     InvalidNotePayload,
-    /*! \brief A fret-hand position entry is out of range or unsorted. */
+    /*! \brief A fret-hand position is out of range, or the stream is not strictly ascending. */
     InvalidFretHandPosition,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
     InvalidPickSlide
@@ -509,9 +509,10 @@ so applying this twice changes nothing the second time.
 /*!
 \brief Fits a fret-hand window onto the playable board, in place.
 
-The window's width shrinks to the frets above the capo when it is wider than that, its index
-finger lifts above the capo, and the whole window slides down until it fits under the last fret —
-in that order, so the ceiling can never push it back below the capo.
+The index finger lifts above the capo and drops until the narrowest window
+(\ref g_min_fret_hand_width) fits under the last fret. The window's reach past that is derived from
+the notes (\ref deriveFretHandWidths), which never state a fret off the board, so the finger is the
+only thing to fit.
 
 \param position Hand position to normalize.
 \param tuning Tuning the hand plays under; supplies the capo.
@@ -620,11 +621,11 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 (position, string) with no duplicate onsets, on valid grid positions, with every onset, ring end
 and keyframe on the tick lattice; strings in range;
 non-negative frets, and a strictly positive sustain on every note; keyframe offsets ascending
-strictly inside the sustain, each stating at least one channel and no negative fret or bend; sorted
-fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling
-bounds; pinch-requires-a-node; and, on the attack that cannot carry every technique, that the note
-already equals its own \ref savedChartNote form — a pick slide's pitched fields being in-memory
-latents the writer omits.
+strictly inside the sustain, each stating at least one channel and no negative fret or bend;
+fret-hand positions strictly ascending and unique by position; harmonic-node range,
+beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the attack that cannot
+carry every technique, that the note already equals its own \ref savedChartNote form — a pick
+slide's pitched fields being in-memory latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).

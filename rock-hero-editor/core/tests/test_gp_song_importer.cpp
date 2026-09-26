@@ -18,6 +18,7 @@
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
@@ -276,20 +277,35 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return common::core::chartResolutions(chart.notes, tempo_map).arrivals;
 }
 
-// Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
-// this to assert the slide-driven hand move rather than the whole generated track, whose shape is
-// the phrase-aware generator's own concern (generateFretHandPositions in gp_chart_builder.cpp).
-[[nodiscard]] const common::core::FretHandPosition* fretHandPositionAt(
+// Finds the index of the generated fret-hand position at an exact grid position, or nothing. The
+// slide tests use this to assert the slide-driven hand move rather than the whole generated track,
+// whose shape is the phrase-aware generator's own concern (generateFretHandPositions in
+// gp_chart_builder.cpp).
+[[nodiscard]] std::optional<std::size_t> fretHandPositionAt(
     const common::core::Chart& chart, const common::core::GridPosition& position)
 {
-    for (const common::core::FretHandPosition& fhp : chart.fret_hand_positions)
+    for (std::size_t index = 0; index < chart.fret_hand_positions.size(); ++index)
     {
-        if (fhp.position == position)
+        if (chart.fret_hand_positions[index].position == position)
         {
-            return &fhp;
+            return index;
         }
     }
-    return nullptr;
+    return std::nullopt;
+}
+
+// How far an imported hand window reaches. The chart stores only the index finger's fret and every
+// reader derives the reach from the notes (chart_fret_hand.h, whose rule is tested on its own in
+// common/core), so these assertions pin the importer's placements through that derivation.
+[[nodiscard]] int derivedWidthOf(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::size_t placement)
+{
+    return common::core::deriveFretHandWidths(
+        chart.notes,
+        common::core::chartClaimedStops(common::core::chartConnections(chart.notes, tempo_map)),
+        chart.fret_hand_positions,
+        tempo_map)[placement];
 }
 
 } // namespace
@@ -437,11 +453,14 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     // the two coverage demands merge into one. (The full track shape is the phrase-aware
     // generator's own concern, so this asserts the slide-driven move, not the whole sequence.)
     CHECK(chart.fret_hand_positions.front().fret == 5);
-    const common::core::FretHandPosition* const shift_glide =
+    const std::optional<std::size_t> shift_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    REQUIRE(shift_glide != nullptr);
-    CHECK(shift_glide->fret == 7);
-    CHECK(shift_glide->width == 4);
+    REQUIRE(shift_glide.has_value());
+    if (shift_glide.has_value())
+    {
+        CHECK(chart.fret_hand_positions[*shift_glide].fret == 7);
+        CHECK(derivedWidthOf(chart, song->tempo_map, *shift_glide) == 4);
+    }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -573,11 +592,14 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     // With no landing onset, hand movement at fret 9 comes from the pitched keyframe alone: the
     // glide drags the window up by its own +2 delta at the keyframe's mid-sustain position
     // (rule 9), landing a fret-7 window there.
-    const common::core::FretHandPosition* const legato_glide =
+    const std::optional<std::size_t> legato_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    REQUIRE(legato_glide != nullptr);
-    CHECK(legato_glide->fret == 7);
-    CHECK(legato_glide->width == 4);
+    REQUIRE(legato_glide.has_value());
+    if (legato_glide.has_value())
+    {
+        CHECK(chart.fret_hand_positions[*legato_glide].fret == 7);
+        CHECK(derivedWidthOf(chart, song->tempo_map, *legato_glide) == 4);
+    }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -779,10 +801,13 @@ TEST_CASE(
     // Minimal-shift coverage alone would leave the window at 5-8 through the glide; the slide
     // delta moves it anyway, to a fret-6 window where the arrival stands: the landing's own onset.
     CHECK(chart.fret_hand_positions.front().fret == 5);
-    const common::core::FretHandPosition* const in_window_glide =
+    const std::optional<std::size_t> in_window_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    REQUIRE(in_window_glide != nullptr);
-    CHECK(in_window_glide->fret == 6);
+    REQUIRE(in_window_glide.has_value());
+    if (in_window_glide.has_value())
+    {
+        CHECK(chart.fret_hand_positions[*in_window_glide].fret == 6);
+    }
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -790,12 +815,12 @@ TEST_CASE(
 // One 4/4 bar, quarter notes: a two-string chord holds frets 2 and 5, and the lower fret-2 note
 // shift-slides to a beat-2 landing while the fret-5 note keeps ringing.
 //
-// THE HULL-EXACT RESHAPE IS NOT THIS FIGURE'S: the arrival stands ON the beat-2 landing and the
+// THE HELD-FINGER COVER IS NOT THIS FIGURE'S: the arrival stands ON the beat-2 landing and the
 // fret-5 quarter note's ring ends exactly there, so at the instant the hand arrives no planted
-// finger is pinning an edge. What applies is rule 9's DRAG, stated at the head the arrival stands
-// on: the window translates by the glide's fret delta at the four-fret width. The reshape governs a
-// glide whose keyframe stands strictly INSIDE its ring — a legato merge or a slide-in — where a
-// partner really is still holding.
+// finger remains to cover. What applies is rule 9's DRAG, stated at the head the arrival stands
+// on: the window translates by the glide's fret delta. The cover governs a glide whose keyframe
+// stands strictly INSIDE its ring — a legato merge or a slide-in — where a partner really is still
+// holding.
 constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 <GPIF>
 <GPVersion>8.1.4</GPVersion>
@@ -854,8 +879,7 @@ constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8
 </GPIF>
 )";
 
-TEST_CASE(
-    "Guitar Pro import reshapes the hand around a held note during a slide", "[core][gp-import]")
+TEST_CASE("Guitar Pro import drags the hand by a chord member's slide", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_held_slide_test";
@@ -876,18 +900,21 @@ TEST_CASE(
         REQUIRE(song->arrangements.size() == 1);
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
-        // The opening hand spans the struck {2,5} chord at the usual four-fret width.
+        // The opening hand spans the struck {2,5} chord in four frets.
         REQUIRE_FALSE(chart.fret_hand_positions.empty());
         CHECK(chart.fret_hand_positions.front().fret == 2);
-        CHECK(chart.fret_hand_positions.front().width == 4);
+        CHECK(derivedWidthOf(chart, song->tempo_map, 0) == 4);
 
         // At the landing the sliding 2->3 brought the hand there, so the window drags by that +1
-        // delta to [3,6]. The fret-5 quarter note's ring ends exactly at this instant, so nothing
-        // pins an edge for a hull-exact reshape to be measured against.
-        const common::core::FretHandPosition* const dragged = fretHandPositionAt(chart, keyframe);
-        REQUIRE(dragged != nullptr);
-        CHECK(dragged->fret == 3);
-        CHECK(dragged->width == 4);
+        // delta to [3,6]. The fret-5 quarter note's ring ends exactly at this instant, so no
+        // planted finger remains for the hand to keep covering.
+        const std::optional<std::size_t> dragged = fretHandPositionAt(chart, keyframe);
+        REQUIRE(dragged.has_value());
+        if (dragged.has_value())
+        {
+            CHECK(chart.fret_hand_positions[*dragged].fret == 3);
+            CHECK(derivedWidthOf(chart, song->tempo_map, *dragged) == 4);
+        }
     }
 
     SECTION("a lower note sliding outward drags the window down by the glide's delta")
@@ -906,12 +933,15 @@ TEST_CASE(
         REQUIRE(song->arrangements.size() == 1);
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
-        // The sliding 2->1 drags the window down by its own -1 delta, to [1,4] at the usual
-        // width: the drag is the glide's, whichever way it runs.
-        const common::core::FretHandPosition* const dragged = fretHandPositionAt(chart, keyframe);
-        REQUIRE(dragged != nullptr);
-        CHECK(dragged->fret == 1);
-        CHECK(dragged->width == 4);
+        // The sliding 2->1 drags the window down by its own -1 delta, to [1,4]: the drag is the
+        // glide's, whichever way it runs.
+        const std::optional<std::size_t> dragged = fretHandPositionAt(chart, keyframe);
+        REQUIRE(dragged.has_value());
+        if (dragged.has_value())
+        {
+            CHECK(chart.fret_hand_positions[*dragged].fret == 1);
+            CHECK(derivedWidthOf(chart, song->tempo_map, *dragged) == 4);
+        }
     }
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -6578,15 +6608,16 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(*slide_out == common::core::g_max_fret);
-        // The hand never moves, so this is a slide-out: the exit window, at the stored end half a
-        // beat in, must still cover the clamped exit fret without running off the neck itself.
+        // The hand never moves, so this is a slide-out: the window standing at the stored end half
+        // a beat in must still cover the clamped exit fret without running off the neck itself.
+        // The opening window already sits as high as the neck allows, so the exit rides it at the
+        // same fret and restates nothing: the import states a placement only where the finger
+        // moves, and the one placement is the window the gesture ends in.
         CHECK(chart.notes[0].sustain == Fraction{1, 2});
-        const common::core::FretHandPosition* const exit = fretHandPositionAt(
-            chart, GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
-        REQUIRE(exit != nullptr);
-        CHECK(exit->fret >= 1);
-        CHECK(exit->fret <= common::core::g_max_fret);
-        CHECK(exit->fret + exit->width > common::core::g_max_fret);
+        REQUIRE(chart.fret_hand_positions.size() == 1);
+        const common::core::FretHandPosition& exit = chart.fret_hand_positions.front();
+        CHECK(exit.fret == common::core::g_max_fret - common::core::g_min_fret_hand_width + 1);
+        CHECK(exit.fret + derivedWidthOf(chart, built->tempo_map, 0) > common::core::g_max_fret);
     }
 
     SECTION("a lingering hand's abutting slide-out leaves the real placements alone")
@@ -6711,12 +6742,15 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
                 chart.fret_hand_positions[index - 1].position <
                 chart.fret_hand_positions[index].position);
         }
-        const common::core::FretHandPosition* const exit = fretHandPositionAt(
+        const std::optional<std::size_t> exit = fretHandPositionAt(
             chart, GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}});
-        REQUIRE(exit != nullptr);
+        REQUIRE(exit.has_value());
         // The lower string's downward exit (fret 4) owns the window, not the upper string's
         // upward one (fret 12) that yields to it.
-        CHECK(exit->fret < chart.fret_hand_positions.front().fret);
+        if (exit.has_value())
+        {
+            CHECK(chart.fret_hand_positions[*exit].fret < chart.fret_hand_positions.front().fret);
+        }
     }
 
     SECTION("the song's last note gets an exit and no restore")
@@ -9111,7 +9145,7 @@ TEST_CASE("Guitar Pro import pins the hand window to sounding rings", "[core][gp
     // nothing: the 10 has ended (end-exclusive) and the 2 already fits the standing window.
     CHECK(chart.fret_hand_positions[0].fret == 10);
     CHECK(chart.fret_hand_positions[1].fret == 2);
-    CHECK(chart.fret_hand_positions[1].width == 9);
+    CHECK(derivedWidthOf(chart, built->tempo_map, 1) == 9);
 }
 
 } // namespace rock_hero::editor::core

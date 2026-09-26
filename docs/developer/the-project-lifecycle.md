@@ -294,10 +294,11 @@ matching the chart model's own sustain unit.
 corpus-derived algorithm — the metrics and the source-corpus study behind these rules are in
 `docs/plans/todo/fhp-corpus-derived-generation.md`):
 
-5. **The hand is a window.** A position covers frets `[fret, fret + width - 1]` with width four,
-   widening only when a single onset spans more than four frets (wide chords); the next move
-   snaps the width back. A slide *reshape* (rule 9) is the exception to the four-fret floor: it
-   follows the exact sounding span and may be narrower than four.
+5. **The hand is a window.** The walk models a four-fret window `[fret, fret + 3]`, wider only
+   while a single onset spans more than four frets (wide chords). The import states a placement
+   only where the index finger moves — a fabricated one that restates the fret before it is
+   dropped — and stores the fret alone; how far each window reaches is derived from the notes
+   (`deriveFretHandWidths`).
 6. **Open strings never constrain, and taps float above.** Fret-zero notes are playable from
    anywhere and neither place nor move the window. A *tapped* note is likewise not a coverage event:
    two-hand taps sit far above the fretting hand (a median seven frets in the corpus), so the window
@@ -321,24 +322,20 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
 8. **Within a phrase, moves are minimal.** When an onset's fretted notes fall outside the current
    window mid-phrase, the anchor moves the shortest distance that covers them — it never jumps
    further than needed. Slides are the exception (rule 9).
-9. **Pitched slides reshape or carry the hand; unpitched slides do neither.** A pitched slide
-   keyframe (shift and legato alike) moves the window at its mid-sustain position, but *how*
-   depends on whether another finger stays planted:
-   - **Reshape — a finger stays planted.** When another fretted note is still ringing at the
-     keyframe and is not itself sliding there, it is a planted finger that pins the window's edge
-     on its side; the sliding note carries the opposite edge to its landing fret. The window
-     becomes the exact sounding hull `[lowest, highest]` — no width floor and no drag — so it
-     *shrinks* when an outer note slides inward (a `{2,5}` chord whose 2 slides to 3 under the
-     held 5 gives `[3,5]`, not `[3,6]`), *grows* when an outer note slides outward (2 slides to 1
-     gives `[1,5]`), and *holds* when the sliding note is interior and both edges are already
-     pinned. This is the fret hand deforming as one finger moves while the rest stay down.
+9. **Pitched slides carry the hand only when nothing else is held; unpitched slides do neither.**
+   A pitched slide keyframe (shift and legato alike) is a coverage demand at its mid-sustain
+   position, but *how* the hand meets it depends on whether another finger stays planted:
+   - **Cover — a finger stays planted.** When another fretted note is still ringing at the
+     keyframe and is not itself sliding there, it is a planted finger the hand must keep covering,
+     so the keyframe demands the sounding hull `[lowest, highest]` — the held frets plus the
+     slide's landing — and the window fits it like a struck onset, with no drag.
    - **Travel — nothing else is held.** A lone slide, or a whole chord gliding in lockstep by the
      same fret delta, has no planted finger, so the whole hand travels: the anchor drags by the
      keyframe's own fret delta — a five-to-nine glide moves the window up four frets — so the
      fretting finger keeps its slot even when the target would already fit. The dragged anchor
      clamps only as far as staying on the neck and covering the target requires. Simultaneous
      slides whose deltas disagree (a convergence or divergence) are not a rigid translation, so
-     they cancel the drag and reshape in place instead.
+     they cancel the drag and are fit in place instead.
 
    The window always rides an unpitched slide-out: an exit placement at the slide-out's stored
    end carries the window with the gesture. That placement rides the slide-out's OWN segment and

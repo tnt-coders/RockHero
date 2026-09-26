@@ -37,6 +37,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -658,7 +659,8 @@ struct DerivationCounters
     // THE FHP CONVERGENCE INVARIANT: FHP is the POSITION story and spans are the GRIP story,
     // never merged — so where they disagree, one of them is describing a hand that cannot exist.
     // Every FRETTED stop a span's posture holds should lie inside the reach of the fret-hand
-    // window covering that span's start ([fret, fret + width - 1]). Open strings are excluded: a 0
+    // window covering that span's start ([fret, fret + width - 1], the width derived from the
+    // notes as every surface derives it). Open strings are excluded: a 0
     // is a voicing member no finger holds.
     //
     // PINNED WHERE IT STANDS, NEVER RULED TO ZERO. The two derivations are independent by design
@@ -886,8 +888,9 @@ void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<Fraction>& ink_end,
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
-    const std::vector<common::core::FretHandPosition>& hand_positions, const TempoMap& tempo_map,
-    DerivationCounters& out)
+    const std::vector<common::core::FretHandPosition>& hand_positions,
+    const std::vector<int>& hand_widths, const std::vector<std::optional<int>>& claimed_stops,
+    const TempoMap& tempo_map, DerivationCounters& out)
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
     constexpr auto string_count = static_cast<std::size_t>(common::core::g_max_chart_strings);
@@ -906,15 +909,14 @@ void countDerivation(
         hand_position_beats.push_back(
             common::core::beatDistance(tempo_map, GridPosition{}, window.position));
     }
-    const auto window_covering = [&hand_positions, &hand_position_beats](
-                                     const Fraction beat) -> const common::core::FretHandPosition* {
+    const auto window_covering =
+        [&hand_position_beats](const Fraction beat) -> std::optional<std::size_t> {
         const auto after = std::ranges::upper_bound(hand_position_beats, beat);
         if (after == hand_position_beats.begin())
         {
-            return nullptr;
+            return std::nullopt;
         }
-        return &hand_positions[static_cast<std::size_t>(
-            std::distance(hand_position_beats.begin(), after) - 1)];
+        return static_cast<std::size_t>(std::distance(hand_position_beats.begin(), after) - 1);
     };
 
     // THE HAND-COUPLING GATE's placement classes, read once per track: which windows arrive
@@ -945,43 +947,53 @@ void countDerivation(
 
         // THE PINNED-FINGER CERTAINTY: rings struck strictly BEFORE a window's arrival and still
         // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
-        // fret lies outside the window's reach. A note struck AT the arrival belongs to the new
-        // window and is the convergence invariant's business, not a pin. The fret is read AT the
-        // arrival through ringStateAt — the same authority the generator's pin union reads — so
-        // a slid ring pins with the fret it is sounding, not the fret it was struck at.
-        struct FrettedRing
+        // fretting-hand stop lies outside the window's reach. A note struck AT the arrival belongs
+        // to the new window and is the convergence invariant's business, not a pin. The stop is
+        // read AT the arrival through fretHandStopAt — the one "where is this finger now"
+        // authority the width derivation reads — so a slid ring pins with the fret it is sounding,
+        // not the fret it was struck at, and a tap pins with its claim.
+        struct SoundingRing
         {
             Fraction onset;
             Fraction end;
             const ChartNote* note;
+            const std::optional<int>* claim;
         };
-        std::vector<FrettedRing> fretted;
-        for (const ChartNote& note : saved)
+        std::vector<SoundingRing> rings;
+        for (std::size_t note = 0; note < saved.size(); ++note)
         {
-            if (note.fret == 0)
-            {
-                continue;
-            }
             const Fraction beat =
-                common::core::beatDistance(tempo_map, GridPosition{}, note.position);
-            fretted.push_back(
-                FrettedRing{.onset = beat, .end = beat + note.sustain, .note = &note});
+                common::core::beatDistance(tempo_map, GridPosition{}, saved[note].position);
+            rings.push_back(
+                SoundingRing{
+                    .onset = beat,
+                    .end = beat + saved[note].sustain,
+                    .note = &saved[note],
+                    .claim = &claimed_stops[note],
+                });
         }
         for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
         {
             const Fraction& arrival = hand_position_beats[placement];
-            const int low = hand_positions[placement].fret;
-            const int high = low + hand_positions[placement].width - 1;
+            const common::core::FretWindow window{
+                .fret = hand_positions[placement].fret,
+                .width = hand_widths[placement],
+            };
             long long pinned = 0;
-            for (const FrettedRing& ring : fretted)
+            for (const SoundingRing& ring : rings)
             {
                 if (!(ring.onset < arrival && arrival < ring.end))
                 {
                     continue;
                 }
-                const std::optional<int> sounding =
-                    common::core::ringStateAt(*ring.note, arrival - ring.onset).fret;
-                if (sounding.has_value() && *sounding > 0 && (*sounding < low || *sounding > high))
+                const std::optional<ChartStop> stop =
+                    common::core::fretHandStopAt(*ring.note, *ring.claim, arrival - ring.onset);
+                if (!stop.has_value())
+                {
+                    continue;
+                }
+                const int fret = common::core::handFretOf(*stop);
+                if (fret > 0 && !window.covers(fret))
                 {
                     ++pinned;
                 }
@@ -1054,13 +1066,17 @@ void countDerivation(
         }
 
         // THE FHP CONVERGENCE INVARIANT: pinned where it stands, never ruled to zero.
-        if (const common::core::FretHandPosition* const window = window_covering(start);
-            window == nullptr)
+        // Bound once so the presence test and the read are provably the same object.
+        if (const std::optional<std::size_t> window = window_covering(start); !window.has_value())
         {
             ++out.fhp_unwindowed_spans;
         }
         else
         {
+            const common::core::FretWindow reach{
+                .fret = hand_positions[*window].fret,
+                .width = hand_widths[*window],
+            };
             long long out_of_reach = 0;
             for (const std::optional<ChartStop>& stop : posture)
             {
@@ -1076,14 +1092,13 @@ void countDerivation(
                 {
                     continue;
                 }
-                const int low = window->fret;
-                const int high = window->fret + window->width - 1;
-                if (fret >= low && fret <= high)
+                if (reach.covers(fret))
                 {
                     continue;
                 }
                 ++out_of_reach;
-                out.fhp_reach_overshoot.add(fret < low ? low - fret : fret - high);
+                out.fhp_reach_overshoot.add(
+                    fret < reach.fret ? reach.fret - fret : fret - reach.top());
             }
             out.fhp_out_of_reach_stops += out_of_reach;
             out.fhp_out_of_reach_spans += out_of_reach > 0 ? 1 : 0;
@@ -2368,6 +2383,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.postures,
                 resolutions.arrivals,
                 chart.fret_hand_positions,
+                common::core::deriveFretHandWidths(
+                    resolutions.connections.saved_notes,
+                    resolutions.claimed_stops,
+                    chart.fret_hand_positions,
+                    built->tempo_map),
+                resolutions.claimed_stops,
                 built->tempo_map,
                 census.derivation);
         }
@@ -2854,14 +2875,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // buys is that either derivation moving the disagreement FLAGS, which is the
                 // finding a reader needs. The stop row beside it is the same population counted
                 // per STOP, since one span can hold several out-of-reach fingers.
+                //
+                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a window reaches every
+                // stop held in its stretch, rings carried in included, and the import states a
+                // placement only where the fret changes.
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
-                .expected = 159.0,
+                .expected = 141.0,
             },
             CrossCheck{
                 .label = "  those out-of-reach stops",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
-                .expected = 211.0,
+                .expected = 191.0,
             },
             CrossCheck{
                 // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each
@@ -2869,28 +2894,39 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // should not have moved, and slide carriage is not subtracted — the figure is the
                 // refinement's whole reach. The shift row beside it counts the ARRIVALS, since
                 // one long span can be crossed more than once.
+                //
+                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a placement stores
+                // only its fret, and the import states one only where the fret changes, so no
+                // window that merely widens, narrows or restates its fret arrives inside a span.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 400.0,
+                .expected = 376.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 497.0,
+                .expected = 469.0,
             },
             CrossCheck{
                 // The generator's own output size, and the lone-open class inside it: a window
                 // arriving on a slot that sounds something but nothing FRETTED is a hand told to
                 // move with nothing to move for. FRETTED is the HAND's fret, so a natural
                 // harmonic counts as the finger it stands on and only the open string is unfretted.
+                //
+                // RE-PINNED by the derived-width rulings (user, 2026-09-25): a placement is stated
+                // only where the fret changes, so none exists to change the width alone or to
+                // restate the fret before it.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 18636.0,
+                .expected = 18149.0,
             },
             CrossCheck{
+                // UNSIGNED: the figure drifted from its signed pin before the derived-width
+                // rulings, with no build yet named as the cause (docs/tracking/backlog.md). Re-pin
+                // it once
+                // that drift is explained.
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 132.0,
             },
             CrossCheck{
                 // THE PINNED-FINGER CERTAINTY, the strongest wrongness class the model admits: a
@@ -2898,14 +2934,20 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // whose reach excludes that fret describes a hand that cannot exist. Pinned as a
                 // count and not ruled to zero for the same reason as the convergence row above —
                 // the number is evidence about the generator, and it has to be free to be read.
+                //
+                // RE-PINNED by the derived-width rulings (user, 2026-09-25). The rig counts rings
+                // sounding at a window's arrival whose fretting-hand stop (fretHandStopAt) the
+                // window does not cover. The window's reach is derived to cover every stop held in
+                // its stretch, so what the rig can still find is a finger held BELOW the index
+                // finger the placement authors.
                 .label = "windows arriving over a pinned finger",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_windows),
-                .expected = 186.0,
+                .expected = 88.0,
             },
             CrossCheck{
                 .label = "  those pinned rings",
                 .rig = static_cast<double>(census.derivation.fhp_pinned_finger_rings),
-                .expected = 232.0,
+                .expected = 107.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING that this rig's own fret-channel reading

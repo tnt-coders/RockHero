@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
@@ -618,10 +619,15 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // segment so a drawn hand travels with the note, any other placement morphs over the shared
     // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
     // the previous arrival rather than overlapping it. The synthetic pre-first nut window
-    // counts as arriving at the chart origin.
+    // counts as arriving at the chart origin. Each window's reach is derived once for the whole
+    // stream from the stops the notes state under it (deriveFretHandWidths); only the index
+    // finger's fret is stored.
+    const std::vector<int> fhp_widths = deriveFretHandWidths(
+        notes, resolutions.claimed_stops, chart.fret_hand_positions, tempo_map);
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
-    for (const FretHandPosition& fhp : chart.fret_hand_positions)
+    for (std::size_t fhp_index = 0; fhp_index < chart.fret_hand_positions.size(); ++fhp_index)
     {
+        const FretHandPosition& fhp = chart.fret_hand_positions[fhp_index];
         const double arrival_seconds =
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
@@ -653,7 +659,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             FhpViewState{
                 .seconds = arrival_seconds,
                 .fret = fhp.fret,
-                .width = fhp.width,
+                .width = fhp_widths[fhp_index],
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
                 .unpitched_ramp = unpitched_ramp,
                 .settle_seconds = settle_seconds,

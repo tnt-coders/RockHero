@@ -108,7 +108,7 @@ namespace
         },
     };
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1},
     };
     return Arrangement{
         .id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
@@ -807,7 +807,7 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     };
     // Exactly where the chart states the terminal, which is what a placement is authored against.
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9},
     };
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
@@ -1154,24 +1154,22 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
         });
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph.
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1},
         // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
         // so the morph shortens against it.
         FretHandPosition{
             .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
             .fret = 2,
-            .width = 4,
         },
         // Exactly on the fixture's pitched keyframe (3:1+1/2 advanced by its two-beat offset):
         // slide-locked to the glide segment.
         FretHandPosition{
             .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
             .fret = 6,
-            .width = 4,
         },
         // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
         // morph, arriving with the slide-out, never the whole-sustain segment.
-        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9},
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
@@ -1224,7 +1222,6 @@ TEST_CASE("Chart projection keeps a cropped shift slide's arrival ramp pitched",
         FretHandPosition{
             .position = GridPosition{.measure = 4, .beat = 2},
             .fret = 8,
-            .width = 4,
         });
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
@@ -1287,10 +1284,10 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
         },
     };
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 2}, .fret = 7, .width = 4},
-        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 2}, .fret = 9, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 2}, .fret = 7},
+        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 2}, .fret = 9},
         // An ordinary move with no glide under it: the margin morph.
-        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 1}, .fret = 2, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 1}, .fret = 2},
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
@@ -1366,7 +1363,7 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
         },
     };
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 2}, .fret = 7, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 2}, .fret = 7},
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
@@ -1409,8 +1406,8 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
             },
         });
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5, .width = 4},
-        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5},
+        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9},
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);

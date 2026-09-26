@@ -170,7 +170,10 @@ HighwayHandWindow highwayHandWindowAt(
     // motion, which also zeroes the light's motion dim.
     if (track.empty())
     {
-        return HighwayHandWindow{.low_line = 0.0, .high_line = 4.0};
+        return HighwayHandWindow{
+            .low_line = 0.0,
+            .high_line = static_cast<double>(g_min_fret_hand_width),
+        };
     }
     const auto next = nextArrival(track, seconds);
     const std::optional<HighwayHandLeg> leg = legBefore(track, next, seconds);

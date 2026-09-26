@@ -2024,8 +2024,12 @@ void drawShapeSpan(
 // geometry and by its drawing, so a measured width and a drawn width cannot disagree.
 [[nodiscard]] juce::String fhpChipText(const common::core::FhpViewState& fhp)
 {
-    return fhp.width == 4 ? juce::String{fhp.fret}
-                          : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
+    if (fhp.width == common::core::g_min_fret_hand_width)
+    {
+        return juce::String{fhp.fret};
+    }
+    const common::core::FretWindow window{.fret = fhp.fret, .width = fhp.width};
+    return juce::String{window.fret} + "-" + juce::String{window.top()};
 }
 
 // The chrome ground every boxed lane chip fills — the fret-hand chips and the capo chip alike.
