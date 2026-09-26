@@ -433,11 +433,31 @@ void clampStrikePops(
 } // namespace
 
 // Rationale lives on the declaration in highway_projection.h.
-std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(const std::vector<NoteViewState>& notes)
+std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
+    const std::vector<NoteViewState>& notes, const std::span<const double> margin_rise)
 {
+    assert(margin_rise.size() == notes.size() && "one margin per note");
     std::vector<HighwayTapOnsetViewState> onsets;
     forEachTapGroup(
-        notes, [&onsets](const HighwayTapOnsetViewState& strike, std::span<const std::size_t>) {
+        notes, [&](const HighwayTapOnsetViewState& struck, std::span<const std::size_t>) {
+            // The hold is DRAWN by rule 12a, as a posture span's is: a head standing where the
+            // struck rings close is kept one margin clear of.
+            HighwayTapOnsetViewState strike = struck;
+            const auto closing = std::ranges::lower_bound(
+                notes,
+                strike.release_seconds - g_onset_match_epsilon,
+                std::ranges::less{},
+                &NoteViewState::start_seconds);
+            std::optional<double> limit;
+            if (closing != notes.end() &&
+                std::abs(closing->start_seconds - strike.release_seconds) < g_onset_match_epsilon)
+            {
+                const auto head = static_cast<std::size_t>(std::distance(notes.begin(), closing));
+                limit = closing->start_seconds - margin_rise[head] - strike.start_seconds;
+            }
+            strike.release_seconds =
+                strike.start_seconds +
+                drawnHoldExtent(strike.release_seconds - strike.start_seconds, limit, 0.0);
             onsets.push_back(strike);
         });
     return onsets;
@@ -569,7 +589,7 @@ HighwayViewState makeHighwayViewState(
 
     // Both hands' lights, their pops and the tap onsets derive purely from the resolved scene; the
     // fretting hand's pops read the groups above for which clusters wear a box.
-    state.tap_onsets = makeHighwayTapOnsets(notes);
+    state.tap_onsets = makeHighwayTapOnsets(notes, margin_rise_seconds);
     state.pick_hand = makePickHandLight(notes, margin_rise_seconds);
     state.pick_hand.pops = makePickHandPops(
         notes, state.tap_onsets, g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds);

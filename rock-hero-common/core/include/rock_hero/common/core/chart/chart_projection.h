@@ -5,12 +5,43 @@
 
 #pragma once
 
+#include <algorithm>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 
 namespace rock_hero::common::core
 {
+
+/*!
+\brief RULE 12A: how far a hold's furniture is DRAWN, measured from the hold's start.
+
+A hold that a head closes keeps the minimum sustain distance before that head, so consecutive
+holds show the gap every other drawn element shows instead of butting exactly: the close is pulled
+back to \p limit, the head's position less one margin. The trim never retreats behind the last
+thing the hold STATES (\p stated), and where even that leaves nothing, the hold falls back to its
+musical close — exact adjacency, the sustain rules' own precedent. With no closing head there is
+no distance to keep, and the close stands. The same rule for a posture span's rails and a tapped
+chord's, in whatever unit the caller measures the hold in.
+
+\param close The musical close, from the hold's start.
+\param limit The closing head's position less one margin, from the hold's start; empty where no
+       head closed the hold.
+\param stated The extent of the hold's last statement; the trim's floor.
+\return The drawn extent: positive where the close is, and never past it.
+*/
+template <typename Extent>
+[[nodiscard]] constexpr Extent drawnHoldExtent(
+    const Extent close, const std::optional<Extent>& limit, const Extent stated)
+{
+    if (!limit.has_value())
+    {
+        return close;
+    }
+    const Extent trimmed = std::max(std::min(close, *limit), stated);
+    return Extent{} < trimmed ? trimmed : close;
+}
 
 /*!
 \brief Projects an arrangement's chart into the seconds-resolved scene both surfaces draw.

@@ -1098,7 +1098,8 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.000000000001, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::LeftTap); // The FRETTING hand's tap: no entry.
 
-    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes);
+    const std::vector<HighwayTapOnsetViewState> onsets =
+        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
     CHECK(
         onsets[0] == HighwayTapOnsetViewState{
@@ -1171,7 +1172,8 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     tap.attack = NoteAttack::Tap;
     tap.harmonic_node = 12.0;
 
-    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets({tap});
+    const std::vector<HighwayTapOnsetViewState> onsets =
+        makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
     REQUIRE(onsets.size() == 1);
     CHECK(onsets.front().count == 1);
     CHECK(onsets.front().fret_low == 12);
@@ -1188,7 +1190,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     // where it was meant to.
     NoteViewState open_tap = tap;
     open_tap.harmonic_node.reset();
-    CHECK(makeHighwayTapOnsets({open_tap}).empty());
+    CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
     const HighwayHandLight dark = makePickHandLight({open_tap}, std::vector<double>(1, 0.0));
     CHECK(dark.track.empty());
     CHECK(dark.lit.empty());
@@ -1307,7 +1309,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     // The STRIKE's hold end is the notes' true ring, not the light's release: a tapped chord's
     // rails run as long as the fretting hand's boxes hold, so the slide-out's strike holds to its
     // ring end although its light has already let go at the last pitched keyframe.
-    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(notes);
+    const std::vector<HighwayTapOnsetViewState> strikes =
+        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(strikes.size() == 3);
     CHECK(std::is_eq(strikes[0].release_seconds <=> held.ring_end_seconds));
     CHECK(std::is_eq(strikes[1].release_seconds <=> sliding.ring_end_seconds));
@@ -1330,7 +1333,7 @@ TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[cor
         return note;
     };
     const std::vector<HighwayTapOnsetViewState> strikes =
-        makeHighwayTapOnsets({tap(1, 12, 1.25), tap(2, 14, 1.5)});
+        makeHighwayTapOnsets({tap(1, 12, 1.25), tap(2, 14, 1.5)}, std::vector<double>(2, 0.0));
     REQUIRE(strikes.size() == 1);
     CHECK(tappedChord(strikes.front()));
     CHECK(std::is_eq(strikes.front().release_seconds <=> 1.5));
@@ -1339,6 +1342,44 @@ TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[cor
         makePickHandLight({tap(1, 12, 1.25), tap(2, 14, 1.5)}, std::vector<double>(2, 0.0));
     REQUIRE(light.lit.size() == 1);
     CHECK(std::is_eq(light.lit.front().release_seconds <=> 1.0));
+}
+
+// RULE 12A for a tapped chord, as for a posture span: where a head stands exactly at the close of
+// the struck rings, the hold is DRAWN one margin clear of it, so abutting holds show a gap; with no
+// head there, the hold runs to the ring end; and where the margin would leave nothing, it falls
+// back to the ring end — exact adjacency.
+TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", "[core][highway]")
+{
+    const auto tap =
+        [](const int string, const int fret, const double start, const double ring_end) {
+            NoteViewState note;
+            note.start_seconds = start;
+            note.ring_end_seconds = ring_end;
+            note.ink_end_seconds = start;
+            note.string = string;
+            note.fret = fret;
+            note.attack = NoteAttack::Tap;
+            return note;
+        };
+    // A chord ringing to 2.0, where the next chord strikes; its margin is 0.125.
+    const std::vector<NoteViewState> abutting{
+        tap(1, 12, 1.0, 2.0), tap(2, 14, 1.0, 2.0), tap(1, 12, 2.0, 3.0), tap(2, 14, 2.0, 3.0)
+    };
+    const std::vector<double> margins(abutting.size(), 0.125);
+    const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(abutting, margins);
+    REQUIRE(strikes.size() == 2);
+    CHECK(std::is_eq(strikes[0].release_seconds <=> 1.875));
+    // Nothing stands at the second chord's close: it holds to its ring end.
+    CHECK(std::is_eq(strikes[1].release_seconds <=> 3.0));
+
+    // A chord so short the margin would swallow it keeps its whole ring.
+    const std::vector<NoteViewState> crowded{
+        tap(1, 12, 1.0, 1.0625), tap(2, 14, 1.0, 1.0625), tap(1, 12, 1.0625, 2.0)
+    };
+    const std::vector<HighwayTapOnsetViewState> tight =
+        makeHighwayTapOnsets(crowded, std::vector<double>(crowded.size(), 0.125));
+    REQUIRE(tight.size() == 2);
+    CHECK(std::is_eq(tight[0].release_seconds <=> 1.0625));
 }
 
 // The release is the hold end: the ink end, except where a DRAWN unpitched slide-out follows, when

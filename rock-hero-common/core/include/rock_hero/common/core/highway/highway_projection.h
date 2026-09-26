@@ -29,10 +29,13 @@ skipped, and one past the last fret is held at the board's edge by \ref highwayD
 malformed chart cannot place a strike off the board at either end.
 
 \param notes Seconds-resolved notes sorted by start time.
+\param margin_rise Per-note margin in seconds, sized and ordered like \p notes: the arrival margin
+       before each note (\ref marginBefore), which a strike's hold keeps before the head that
+       closes it (\ref drawnHoldExtent).
 \return Tap onsets in ascending time order.
 */
 [[nodiscard]] std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
-    const std::vector<NoteViewState>& notes);
+    const std::vector<NoteViewState>& notes, std::span<const double> margin_rise);
 
 /*!
 \brief Derives the picking hand's light from the same onset groups \ref makeHighwayTapOnsets

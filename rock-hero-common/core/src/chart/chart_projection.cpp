@@ -57,16 +57,16 @@ namespace
 {
     // Bound to a local so the presence test and every read below are provably the same object.
     const std::optional<GridPosition>& closing = shape.closing_onset;
-    if (!closing.has_value())
+    std::optional<Fraction> limit;
+    if (closing.has_value())
     {
-        return shape.sustain;
+        // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a
+        // tempo change between the span's front and its close would otherwise measure it at the
+        // wrong rate.
+        limit = beatDistance(tempo_map, shape.position, *closing) -
+                minimumSustainDistanceBeats(tempo_map, *closing);
     }
-    // The margin at the CLOSING ONSET: it is that head's spacing that is being kept, and a tempo
-    // change between the span's front and its close would otherwise measure it at the wrong rate.
-    const Fraction margin = minimumSustainDistanceBeats(tempo_map, *closing);
-    const Fraction limit = beatDistance(tempo_map, shape.position, *closing) - margin;
-    const Fraction trimmed = std::max(std::min(shape.sustain, limit), shape.stated_extent);
-    return Fraction{} < trimmed ? trimmed : shape.sustain;
+    return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
 
 // The approach a fret-hand placement rides when the placement lands exactly on a glide arrival,
