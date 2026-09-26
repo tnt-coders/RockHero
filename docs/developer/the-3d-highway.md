@@ -557,13 +557,13 @@ Three marks beside the lights, all on the raw window:
   `HandLightStyle`. The fretting hand's is the teal family; the picking hand's is the board's one
   white — the achromatic string colour the 8th string wears, `g_achromatic_string_color` — so a
   teal box says strum and a white one says tap, the same reason the picking light leans warm and
-  its pops are white. The box wears that white as it is, dimmed only by the box's own alphas (the
-  teal at its own luma sighted as dirty grey: a neutral needs more luminance than a chromatic colour
-  to read as white); the rim is the grey at the teal rim's luma (`hueless`); the rail is the white
-  at the alpha that lands the fretting rail's luma over the dark board, so both hands' rails stay
-  equally dim. Dim white IS grey — white blended toward the dark board — so the white is cooled at
-  the same luma (the bluing effect: a faint blue cast reads white where a neutral reads dirty on the
-  cool board): box `0xFFB0B6C6`, rim `0xFF2A2A2A`, rails `0x91B0B6C6`. The pops' `mark_color` is a
+  its pops are white. "As bright as the teal" is matched in PERCEIVED lightness (CIELAB L* with
+  the Fairchild-Pirrotta Helmholtz-Kohlrausch correction), never in luma: a saturated colour looks
+  brighter than its luminance, so a luma-matched neutral looks darker and reads grey. The white is
+  the 8th string's hue cooled a touch (the bluing effect) and lifted to the teal box's perceived
+  81, worn under the box's own alphas; the rail is that white at the alpha whose blend over the
+  dark board lands the teal rail's 61; the rim is the grey at the teal rim's luma (`hueless`): box
+  `0xFFC0C7D8`, rim `0xFF2A2A2A`, rails `0xBAC0C7D8`. The pops' `mark_color` is a
   separate colour, because a pop is additive glow and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
