@@ -485,10 +485,14 @@ tolerance it is given — a parameter, never a branch. **`g_hand_rest_seconds`**
 RULE: a hand's position stays established across a gap shorter than it. The fretting hand's light
 merges under it (a sustainless chug riff would otherwise strobe at every margin trim), and a
 repeated tap within it keeps its number unprinted (a `HighwayTapOnsetViewState` carries its strike's
-hold end, `release_seconds`, for that test). Each stretch rises over its first note's arrival
-margin, clamped so it never reaches back past the previous release, holds to its release (the drawn
-end, or the last pitched keyframe before a drawn slide-out), and fades over
-`g_light_decay_seconds` — ONE decay for every layer, because a release is a gesture.
+hold end, `release_seconds` — its notes' true ring, since a position stays established while they
+ring — for that test). Each stretch rises over its first note's arrival margin, clamped so it never
+reaches back past the previous release, holds to its release (the drawn end, or the last pitched
+keyframe before a drawn slide-out), and fades over a decay that belongs to the LAYER drawing it,
+never to the hand: `g_light_decay_seconds` (0.1 s) under the hand — the floor patch and the
+fret-line tier — because a release is a gesture, and the slower `g_ribbon_decay_seconds` (0.45 s)
+on the lane-border ribbons, because a full-length runway strip flashing on every per-strike pulse
+of the picking hand reads as jarring (sighted twice, 2026-09-25 included).
 
 **THE BRIGHTNESS RULE** is the one formula every layer draws, at any fret line and instant:
 `max over lights of coverage(highwayLitWindowAt(track, stretch, t), line) ×
@@ -515,8 +519,9 @@ hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn
   (`HandLightStyle::warm_mix`). Alpha-blended rather than additive, so two lights at one position
   composite in submission order instead of summing toward white.
 - **`drawLaneBorderRibbons`** — the bright tier is the rule at now (`lineLightAt`); the mid tier is
-  the rule along z at each sample's time, so a line is lit only while its light is.
-- **`drawFretLines`** — the active tier is the rule at now.
+  the rule along z at each sample's time, so a line is lit only while its light is. Both tiers
+  fade over `g_ribbon_decay_seconds`.
+- **`drawFretLines`** — the active tier is the rule at now, on the light's own decay.
 
 **ONE SAMPLING POLICY.** Everything drawn along a hand's track — the floor light over the stretch
 it follows, the rails, an open tail's band — samples the window through
@@ -534,12 +539,14 @@ Three marks beside the lights, all on the raw window:
 - **Rails** (`drawHandShapeRails`) — the side highlights that run through a held chord's duration:
   a solid core between fade-out wings along both window edges, from the hold's start to its end,
   riding the hit line while it lasts. ONE pass draws every rail as `(track, from, to, colour)`, fed
-  by both hands: the fretting hand's posture spans over `fret_hand.track` in the span's own colour
-  (purple for an arpeggio, the lane-border teal otherwise — a span's colour says what kind of span
-  it is), and every tapped chord (`tappedChord`) over `pick_hand.track` from its onset to its
-  `release_seconds`, in the picking hand's white (`HandLightStyle::mark_color`). A strike carries
-  its own hold end, so the picking hand needs no derived spans — a span object would restate the
-  strike on a second representation the 2D lane never shows. Singles get no rails on either hand.
+  by both hands: the fretting hand's posture spans over `fret_hand.track`, and every tapped chord
+  (`tappedChord`) over `pick_hand.track` from its onset to its `release_seconds` — the members'
+  true ring end, the close the fretting hand's chord heads hold to, so a tapped chord with no drawn
+  tail still has rails. A rail belongs to its BOX, never to its hand: it wears the box family's
+  teal (`g_box_rail_color`), or the purple of an arpeggio span, a kind a tapped chord never is; a
+  hand's identity is its light's warm tint and its pops' colour. A strike carries its own hold
+  end, so the picking hand needs no derived spans — a span object would restate the strike on a
+  second representation the 2D lane never shows. Singles get no rails on either hand.
 - **Box sides** — `highwayBoxSidesAt(track, onset, now)` (`highway_window.h`) is the hand's
   window at `max(onset, now)`: an approaching box stands at its onset's window, and one riding the
   hit line follows the live window, so a gliding chord carries its box. It is the one rule for both

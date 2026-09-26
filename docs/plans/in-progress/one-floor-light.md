@@ -51,9 +51,9 @@ hand on its own code path is a defect.
   and `g_pick_light_rest_seconds` = 0.0 is the picking LIGHT's look (each strike its own light;
   overlapping strikes still merge, their gap being negative). The strike therefore carries its
   hold end (`release_seconds`) as a fact, which its rails run to as well. Two constants, one
-  merge, never a branch. Open sighting: with one decay for every layer, the
-  lane-border ribbons now pulse with the right hand's light; the old 0.45 s ribbon decay bridged
-  those pulses, and the user rules on sight whether that bridging comes back as a second decay.
+  merge, never a branch. Sighted the same day: with one decay for every layer the lane-border
+  ribbons flickered on every right-hand strike, so the ribbon layer's 0.45 s decay is back
+  (section 2.4).
 - **The motion dim (D2)** is universal: a light moving across lanes dims by its slope, whichever
   hand moves it.
 - **The soft edge (D3)** is drawn in full for both hands. The tap light today ends in a hard 50%
@@ -208,11 +208,14 @@ brightness(line, t) = max over lights of  coverage(highwayHandWindowAt(path, t),
                                         × motionDim(path, t)
 ```
 
-ONE decay for the whole light (`g_light_decay_seconds`, 0.1 s: a release is a gesture, so it
-fades over a short visual constant). *Ruled 2026-09-25 after the plan was written:* the ribbons'
-own slower decay (0.45 s) existed only to bridge the per-strike dips of the old pulsing tap light;
-under the rest tolerance a dense run is already one continuous light, so that job is gone and the
-second decay with it — bridging is the rest tolerance's rule, stated once, never a layer's.
+One decay per LAYER: the light's (`g_light_decay_seconds`, 0.1 s: a release is a gesture, so the
+floor patch and the face's fret lines fade over a short visual constant) and the lane-border
+ribbons' slower one (`g_ribbon_decay_seconds`, 0.45 s). *History, both ruled 2026-09-25:* the
+ribbon decay was first deleted as having no job once the rest tolerance merged runs — and then
+the picking hand was ruled back to a pulse per strike, and the sighting showed exactly what the
+constant's old doc said: a full-length strip flashing on every strike reads as jarring. The
+ribbons bridge the picking hand's pulses by their own decay; the fretting hand's runs are bridged
+by the establishment tolerance. The decay belongs to the layer, never to the hand.
 
 - **Floor** (`drawFloorLight`, replacing `drawHandWindowLight` and `drawTappingHandLight`): per
   visited light, today's tap-light sample list — the lit interval's ends, start, release, the
@@ -230,7 +233,14 @@ second decay with it — bridging is the rest tolerance's rule, stated once, nev
 - **Rails** (`drawHandShapeRails` generalized): one pass drawing `(track, [from, to], colour)`;
   the fretting hand's posture spans over `fret_hand.track` as today (arpeggio or border colour),
   and every tapped chord (`count >= 2`) over `pick_hand.track` from its onset to its
-  `release_seconds`, in the picking hand's white. Sampled by the one density policy (Phase 3).
+  `release_seconds`, in the SAME colour as a posture span's rails (the border teal): a rail
+  belongs to the box, and the tapped box already wears the box family's colour — the hand's
+  identity is the light's warm tint and the pops' white, never the rails (ruled 2026-09-25 after a
+  full-white rail glared; a dimmed white was considered and rejected as a third colour for one
+  thing). The strike's `release_seconds` is the struck
+  notes' TRUE ring end, not the drawn tail — the fretting hand's rule for its boxes, held to the
+  musical close while the margin is ink spacing — so a chord with no drawn tail still wears rails
+  (sighted 2026-09-25). Sampled by the one density policy (Phase 3).
 - **Strike pops** (`drawStrikeGlow`): `highwayBoxSidesAt(path, onset, now) = highwayHandWindowAt(path,
   max(onset, now))` is the ONE function the box panel and the pop both ask (D6), so a gliding tapped
   chord's box and pop follow its light exactly as a strum's follow the window. Pops are CHART
@@ -356,8 +366,8 @@ parameter named like an enclosing local); the merge's stretch count uses branche
 1. The fretting hand's rest tolerance (`g_hand_rest_seconds`, 1.0 s: "good for now, will
    continue sighting"), on a chug riff, a legato run, and a phrase with a real rest.
 2. SIGHTED 2026-09-25: the merged right hand was rejected in favour of the per-strike pulse
-   (`g_pick_light_rest_seconds` = 0). Still open: overlapping taps at different frets under one
-   track, and whether the ribbons pulsing with the right hand under one decay reads well.
+   (`g_pick_light_rest_seconds` = 0), and the ribbons flickering under one decay were fixed by the
+   ribbon layer's own decay. Still open: overlapping taps at different frets under one track.
 3. The tapped chord's white rails through its hold, and its sides after D3 and D6, against a
    strummed chord under a posture span over the same frets.
 4. The universal motion dim on a tapped glide.

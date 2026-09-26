@@ -1299,18 +1299,46 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                     });
 
     // The held tap and the plain slide release at their ink ends; the drawn slide-out releases at
-    // the last pitched keyframe, pressure already coming off. Each strike is its own light, and
-    // each strike's hold end is the same release.
+    // the last pitched keyframe, pressure already coming off. Each strike is its own light.
     REQUIRE(light.lit.size() == 3);
     CHECK(light.lit[0].release_seconds == Catch::Approx(held.ink_end_seconds));
     CHECK(light.lit[1].release_seconds == Catch::Approx(sliding.ink_end_seconds));
     CHECK(light.lit[2].release_seconds == Catch::Approx(trailing.slides.front().seconds));
+    // The STRIKE's hold end is the notes' true ring, not the light's release: a tapped chord's
+    // rails run as long as the fretting hand's boxes hold, so the slide-out's strike holds to its
+    // ring end although its light has already let go at the last pitched keyframe.
     const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(notes);
     REQUIRE(strikes.size() == 3);
-    for (std::size_t index = 0; index < strikes.size(); ++index)
-    {
-        CHECK(std::is_eq(strikes[index].release_seconds <=> light.lit[index].release_seconds));
-    }
+    CHECK(std::is_eq(strikes[0].release_seconds <=> held.ring_end_seconds));
+    CHECK(std::is_eq(strikes[1].release_seconds <=> sliding.ring_end_seconds));
+    CHECK(std::is_eq(strikes[2].release_seconds <=> trailing.ring_end_seconds));
+}
+
+// A tapped chord with no drawn tail (its ink end at the onset) still holds to its notes' true
+// ring: the strike's hold end is the latest member's ring end, the same close the fretting hand's
+// chord heads hold to, so its rails do not collapse to nothing under a sustainless chord.
+TEST_CASE("Highway tapped chord holds to its ring end with no drawn tail", "[core][highway]")
+{
+    const auto tap = [](const int string, const int fret, const double ring_end) {
+        NoteViewState note;
+        note.start_seconds = 1.0;
+        note.ring_end_seconds = ring_end;
+        note.ink_end_seconds = 1.0;
+        note.string = string;
+        note.fret = fret;
+        note.attack = NoteAttack::Tap;
+        return note;
+    };
+    const std::vector<HighwayTapOnsetViewState> strikes =
+        makeHighwayTapOnsets({tap(1, 12, 1.25), tap(2, 14, 1.5)});
+    REQUIRE(strikes.size() == 1);
+    CHECK(tappedChord(strikes.front()));
+    CHECK(std::is_eq(strikes.front().release_seconds <=> 1.5));
+    // The light still pulses per strike from the drawn end, which is the onset here.
+    const HighwayHandLight light =
+        makePickHandLight({tap(1, 12, 1.25), tap(2, 14, 1.5)}, std::vector<double>(2, 0.0));
+    REQUIRE(light.lit.size() == 1);
+    CHECK(std::is_eq(light.lit.front().release_seconds <=> 1.0));
 }
 
 // The release is the hold end: the ink end, except where a DRAWN unpitched slide-out follows, when

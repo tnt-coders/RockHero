@@ -154,7 +154,7 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
                 strike.count == 0 ? sounding_fret : std::min(strike.fret_low, sounding_fret);
             strike.fret_high = std::max(strike.fret_high, sounding_fret);
             ++strike.count;
-            strike.release_seconds = std::max(strike.release_seconds, noteReleaseAt(note));
+            strike.release_seconds = std::max(strike.release_seconds, note.ring_end_seconds);
             members.push_back(member);
         }
         index = group_end;
@@ -222,11 +222,19 @@ void appendTapGroupPath(
         ++kept;
     }
     track.resize(kept);
-    // The release extends the path only past its last stop: inside a cut leg it is where the light
-    // fades, never a stop the hand makes, and an arrival there would split the leg.
-    if (strike.release_seconds - track.back().seconds >= g_onset_match_epsilon)
+    // The LIGHT's release (the latest member's noteReleaseAt, the drawn end the per-strike pulse
+    // fades from) extends the path only past its last stop: inside a cut leg it is where the light
+    // fades, never a stop the hand makes, and an arrival there would split the leg. Not the
+    // strike's own hold end, which runs to the true ring and so could read a leg the rail never
+    // draws.
+    double light_release = strike.start_seconds;
+    for (const std::size_t member : members)
     {
-        track.push_back(HighwayHandArrival{.seconds = strike.release_seconds});
+        light_release = std::max(light_release, noteReleaseAt(notes[member]));
+    }
+    if (light_release - track.back().seconds >= g_onset_match_epsilon)
+    {
+        track.push_back(HighwayHandArrival{.seconds = light_release});
     }
     for (std::size_t at = head; at < track.size(); ++at)
     {

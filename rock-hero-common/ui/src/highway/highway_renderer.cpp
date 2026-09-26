@@ -97,15 +97,21 @@ constexpr double g_window_light_falloff = 0.55;
 // fraction darker at peak sweep speed and recovers by arrival (the sin-squared bell keeps the
 // overall feel gentler than a full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
-// THE LIGHT'S RELEASE FADE: how long a hand's light takes to go out after its release, on every
-// layer that draws it — the floor, both ribbon tiers, the fret-line tier. A lit stretch carries
-// only its rise, start and release (common::core::HighwayLitStretch), and every layer shapes the
-// one envelope (common::core::highwayLightLevel) with this one decay. The rise is an arrival,
-// derived from the chart; the decay is a short visual constant, because a release is a gesture,
-// not an arrival. No layer fades slower to bridge a run: whether a run is one light or a pulse per
-// note is the producer's merge tolerance (common::core::g_hand_rest_seconds for the fretting hand,
-// common::core::g_pick_light_rest_seconds for the picking hand), decided once for every layer.
+// THE LIGHT'S RELEASE FADE: how long a hand's light takes to go out after its release, on the
+// layers that sit under the hand — the floor patch and the face's fret-line tier. A lit stretch
+// carries only its rise, start and release (common::core::HighwayLitStretch), and every layer
+// shapes the one envelope (common::core::highwayLightLevel) with its own decay: the decay belongs
+// to the LAYER, never to the hand. The rise is an arrival, derived from the chart; the decay is a
+// short visual constant, because a release is a gesture, not an arrival. Whether a run is one
+// light or a pulse per note is the producer's merge tolerance (common::core::g_hand_rest_seconds
+// for the fretting hand, common::core::g_pick_light_rest_seconds for the picking hand).
 constexpr double g_light_decay_seconds = 0.1;
+// THE RIBBONS' RELEASE FADE: the lane-border ribbons' bright and mid tiers fade over this instead
+// of the light's own decay. A ribbon is a full-length runway strip, and one flashing per strike —
+// which the picking hand's per-strike pulse makes of every tap under the light's short decay —
+// reads as jarring (sighted twice, 2026-09-25 included), so the ribbon layer lets the light go out
+// slowly while the floor patch and the fret-line tier keep the light's own decay.
+constexpr double g_ribbon_decay_seconds = 0.45;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
 // wobble — read from shading alone even where screen-space lift is foreshortened at center
@@ -222,19 +228,17 @@ constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
 constexpr double g_hit_glow_top_fade = 0.35;
 
 // What one hand's light looks like, stated once so both hands draw through one path and differ
-// only here: the lit lanes' lean toward the FHP orange, and the colour the hand's marks wear.
+// only here: the lit lanes' lean toward the FHP orange, and the colour the hand's pops wear.
 struct HandLightStyle
 {
     // How far the lit lane tint leans toward the FHP orange; zero keeps the lanes' own tint.
     double warm_mix;
-    // The colour this hand's strike pops and rails wear. The fretting hand's rails are the one
-    // exception: they take their posture span's own colour instead, because a span's colour says
-    // what kind of span it is (an arpeggio's purple), which a hand-wide colour would erase.
+    // The colour this hand's strike pops wear.
     ArgbColor mark_color;
 };
 
 // The fretting hand keeps the lanes' own tint and pops in the hit-glow amber; the picking hand's
-// light leans warm so the two hands read apart at a glance, and its marks are white.
+// light leans warm so the two hands read apart at a glance, and its pops are white.
 constexpr HandLightStyle g_fretting_hand_light{.warm_mix = 0.0, .mark_color = g_hit_glow_color};
 constexpr HandLightStyle g_picking_hand_light{
     .warm_mix = g_tap_light_warm_mix,
@@ -449,8 +453,12 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
-// the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
+// Hand-shape rails on the floor: a solid core with fade-out wings (fret thickness x3 and x9). A
+// rail belongs to its BOX, never to its hand, so it wears the box family's colour: the opaque
+// lane-border teal for a held shape's box and a tapped chord's box alike, and Charter's purple for
+// an arpeggio span, a kind of span a tapped chord never is. A hand's identity is its light's warm
+// tint and its pops' colour, not its rails.
+constexpr ArgbColor g_box_rail_color = g_lane_border_color | 0xFF000000U;
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 constexpr double g_shape_rail_core_half_width = 0.075;
 constexpr double g_shape_rail_fade_half_width = 0.225;
@@ -772,15 +780,16 @@ constexpr double g_inlay_double_string_spacings = 1.5;
 }
 
 // The stretches of one hand's lit list whose light can be seen anywhere in [from_seconds,
-// to_seconds]. The list is disjoint, ascending and crowding-clamped (mergeLitEvidence): each rise
-// starts at or after the previous release, so the lit intervals' starts ascend as their ends do,
-// and both bounds are one binary search each — no prefix maximum, no padding by a longest rise.
+// to_seconds] on a layer fading over `decay_seconds`. The list is disjoint, ascending and
+// crowding-clamped (mergeLitEvidence): each rise starts at or after the previous release, so the
+// lit intervals' starts ascend as their ends do, and both bounds are one binary search each — no
+// prefix maximum, no padding by a longest rise.
 [[nodiscard]] std::span<const common::core::HighwayLitStretch> litRange(
     const std::span<const common::core::HighwayLitStretch> lit, const double from_seconds,
-    const double to_seconds) noexcept
+    const double to_seconds, const double decay_seconds) noexcept
 {
-    const auto interval = [](const common::core::HighwayLitStretch& stretch) {
-        return common::core::highwayLitInterval(stretch, g_light_decay_seconds);
+    const auto interval = [decay_seconds](const common::core::HighwayLitStretch& stretch) {
+        return common::core::highwayLitInterval(stretch, decay_seconds);
     };
     const auto first = std::ranges::partition_point(
         lit, [&](const auto& stretch) { return interval(stretch).to_seconds < from_seconds; });
@@ -1933,10 +1942,6 @@ struct FrameContext
     double span_start_seconds{0.0};
     double span_end_seconds{0.0};
 
-    // The brightness rule at the current instant, per fret line (Impl::lineLightAt): the bright
-    // ribbon tier and the fret lines' active tier both read it.
-    LineLight lines_lit_now{};
-
     // The hand-posture spans reaching the board this frame.
     std::span<const common::core::ShapeViewState> visible_shapes;
 };
@@ -2039,29 +2044,34 @@ struct HighwayRenderer::Impl
         visit(state.pick_hand, g_picking_hand_light);
     }
 
-    // One hand's lights whose lit interval reaches [from_seconds, to_seconds], ascending.
+    // One hand's lights whose lit interval on a layer fading over `decay_seconds` reaches
+    // [from_seconds, to_seconds], ascending.
     template <typename Visit>
     static void forEachLightOf(
         const common::core::HighwayHandLight& hand, const double from_seconds,
-        const double to_seconds, const Visit& visit)
+        const double to_seconds, const double decay_seconds, const Visit& visit)
     {
         for (const common::core::HighwayLitStretch& stretch :
-             litRange(hand.lit, from_seconds, to_seconds))
+             litRange(hand.lit, from_seconds, to_seconds, decay_seconds))
         {
             visit(stretch);
         }
     }
 
-    // Every light, of either hand, whose lit interval reaches [from_seconds, to_seconds], visited
-    // as (hand, stretch, style) in forEachHand's order and ascending within a hand.
+    // Every light, of either hand, whose lit interval on a layer fading over `decay_seconds`
+    // reaches [from_seconds, to_seconds], visited as (hand, stretch, style) in forEachHand's order
+    // and ascending within a hand.
     template <typename Visit>
-    void forEachLight(const double from_seconds, const double to_seconds, const Visit& visit) const
+    void forEachLight(
+        const double from_seconds, const double to_seconds, const double decay_seconds,
+        const Visit& visit) const
     {
         forEachHand([&](const common::core::HighwayHandLight& hand, const HandLightStyle& style) {
             forEachLightOf(
                 hand,
                 from_seconds,
                 to_seconds,
+                decay_seconds,
                 [&](const common::core::HighwayLitStretch& stretch) {
                     visit(hand, stretch, style);
                 });
@@ -2104,15 +2114,16 @@ struct HighwayRenderer::Impl
         return 1.0 - (depth * bell * bell);
     }
 
-    // One light's strength at an instant, before the window's coverage of any line: the envelope
-    // times the motion dim. The rule's time-dependent factors, stated once for every layer. The dim
-    // is read at the light's own track instant (highwayLitTrackTime), so a light holding still
-    // through its rise or its decay is never dimmed by a move it does not make.
+    // One light's strength at an instant on a layer fading over `decay_seconds`, before the
+    // window's coverage of any line: the envelope times the motion dim. The rule's time-dependent
+    // factors, stated once for every layer. The dim is read at the light's own track instant
+    // (highwayLitTrackTime), so a light holding still through its rise or its decay is never
+    // dimmed by a move it does not make.
     [[nodiscard]] double lightStrengthAt(
         const common::core::HighwayHandLight& hand, const common::core::HighwayLitStretch& stretch,
-        const double seconds) const noexcept
+        const double seconds, const double decay_seconds) const noexcept
     {
-        return common::core::highwayLightLevel(stretch, seconds, g_light_decay_seconds) *
+        return common::core::highwayLightLevel(stretch, seconds, decay_seconds) *
                motionDim(
                    hand.track, common::core::highwayLitTrackTime(hand.track, stretch, seconds));
     }
@@ -2122,20 +2133,21 @@ struct HighwayRenderer::Impl
     coverage of the line (highwayHandWindowLineCoverage over highwayLitWindowAt: the one morph both
     hands move by, read so a light never starts a leg outside its own stretch) times the light's
     strength there (the envelope times the motion dim, read at the same track instant).
-    Every layer that brightens lines asks this: the ribbons' bright tier and the fret lines'
-    active tier at now, the ribbons' mid tier along z. Lights max-combine, so two hands over one
-    line never sum.
+    Every layer that brightens lines asks this, with its own decay: the ribbons' bright tier at
+    now and mid tier along z, and the fret lines' active tier at now. Lights max-combine, so two
+    hands over one line never sum.
     */
-    void lineLightAt(const double seconds, LineLight& lines) const
+    void lineLightAt(const double seconds, const double decay_seconds, LineLight& lines) const
     {
         lines.fill(0.0);
         forEachLight(
             seconds,
             seconds,
+            decay_seconds,
             [&](const common::core::HighwayHandLight& hand,
                 const common::core::HighwayLitStretch& stretch,
                 const HandLightStyle&) {
-                const double strength = lightStrengthAt(hand, stretch, seconds);
+                const double strength = lightStrengthAt(hand, stretch, seconds, decay_seconds);
                 if (strength <= 0.0)
                 {
                     return;
@@ -2156,14 +2168,15 @@ struct HighwayRenderer::Impl
 
     /*
     Appends the instants one light is sampled at inside the drawn span [span_from, span_to],
-    clipped to the light's own lit interval: the light's own instants — the clip's two ends, the
-    start and the release — plus, only over the stretch where the light actually follows its track
-    (highwayLitTrackTime, the reading rule), the track's own samples (highwayTrackSampleTimes, the
-    one sampling policy every track-following mark shares), so the light travels with a glide
-    instead of cutting straight across it. That stretch's far end is where the light stops
-    following — the end of the leg in progress at its release. Between two samples every factor of
-    the brightness rule is linear or held, so these are all the breakpoints a layer needs. Unsorted;
-    the caller sorts once it has appended everything it samples.
+    clipped to the light's own lit interval on a layer fading over `decay_seconds`: the light's
+    own instants — the clip's two ends, the start and the release — plus, only over the stretch
+    where the light actually follows its track (highwayLitTrackTime, the reading rule), the track's
+    own samples (highwayTrackSampleTimes, the one sampling policy every track-following mark
+    shares), so the light travels with a glide instead of cutting straight across it. That
+    stretch's far end is where the light stops following — the end of the leg in progress at its
+    release. Between two samples every factor of the brightness rule is linear or held, so these
+    are all the breakpoints a layer needs. Unsorted; the caller sorts once it has appended
+    everything it samples.
 
     The reading rule never decreases, so the light moves only while its track is read between its
     readings at the clip's two ends; outside that stretch its window holds, and a sample there would
@@ -2172,10 +2185,11 @@ struct HighwayRenderer::Impl
     */
     static void appendLightSampleTimes(
         const common::core::HighwayHandLight& hand, const common::core::HighwayLitStretch& stretch,
-        const double span_from, const double span_to, std::vector<double>& times)
+        const double span_from, const double span_to, const double decay_seconds,
+        std::vector<double>& times)
     {
         const common::core::HighwayLitInterval lit =
-            common::core::highwayLitInterval(stretch, g_light_decay_seconds);
+            common::core::highwayLitInterval(stretch, decay_seconds);
         const double from_seconds = std::max(lit.from_seconds, span_from);
         const double to_seconds = std::min(lit.to_seconds, span_to);
         const auto keep_in = [&](const double seconds) {
@@ -2647,9 +2661,6 @@ void HighwayRenderer::Impl::draw(
     // for the hit-line presentation's pinned numbers.
     const common::core::HighwayHandWindow current_window =
         common::core::highwayHandWindowAt(state.fret_hand.track, now_seconds);
-    // The brightness rule at the current instant, per fret line, for the two tiers that read it.
-    LineLight lines_lit_now{};
-    lineLightAt(now_seconds, lines_lit_now);
 
     // Hand-posture spans reaching the board this frame. Spans ascend by start but overlap
     // freely, so the range is visibleEventRange over the prefix maximum of their ends — the note
@@ -2668,7 +2679,6 @@ void HighwayRenderer::Impl::draw(
         .now_seconds = now_seconds,
         .span_start_seconds = span_start_seconds,
         .span_end_seconds = span_end_seconds,
-        .lines_lit_now = lines_lit_now,
         .visible_shapes = visible_shapes,
     };
     // The z conversion the content scheduler below still reaches for by name; it delegates to
@@ -3729,6 +3739,8 @@ void HighwayRenderer::Impl::draw(
                 std::is_eq(onset->start_seconds <=> arrival->seconds))
             {
                 const common::core::HighwayTapOnsetViewState& tap = *onset;
+                // Measured from the previous strike's hold end, its notes' true ring: a position
+                // stays established while its notes ring, however short their drawn tails.
                 const bool repeat_established =
                     onset != state.tap_onsets.begin() &&
                     std::prev(onset)->fret_low == tap.fret_low &&
@@ -5483,12 +5495,21 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     forEachLight(
         frame.span_start_seconds,
         frame.span_end_seconds,
+        g_ribbon_decay_seconds,
         [&](const common::core::HighwayHandLight& hand,
             const common::core::HighwayLitStretch& stretch,
             const HandLightStyle&) {
             appendLightSampleTimes(
-                hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
+                hand,
+                stretch,
+                frame.span_start_seconds,
+                frame.span_end_seconds,
+                g_ribbon_decay_seconds,
+                times);
         });
+    // The bright tier: the rule at now, on the ribbons' own slower decay.
+    LineLight lit_now{};
+    lineLightAt(frame.now_seconds, g_ribbon_decay_seconds, lit_now);
     common::core::highwaySortUniqueTimes(times);
 
     auto [vertices, indices] = scratch.colorBatch();
@@ -5502,7 +5523,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
                                 const std::size_t to,
                                 const double mid_from,
                                 const double mid_to) {
-        const double bright = frame.lines_lit_now.at(static_cast<std::size_t>(line));
+        const double bright = lit_now.at(static_cast<std::size_t>(line));
         const auto tint = [&](const double mid) {
             const double base = 0.125 + (0.25 * mid);
             return packAbgr(g_lane_border_color | 0xFF000000U, base + ((1.0 - base) * bright));
@@ -5524,11 +5545,11 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     // the single full-length quad it always was, and the batch grows only where light moves.
     LineLight previous{};
     LineLight current{};
-    lineLightAt(times.front(), previous);
+    lineLightAt(times.front(), g_ribbon_decay_seconds, previous);
     std::array<std::size_t, g_face_fret_count + 1> held_from{};
     for (std::size_t sample = 1; sample < times.size(); ++sample)
     {
-        lineLightAt(times[sample], current);
+        lineLightAt(times[sample], g_ribbon_decay_seconds, current);
         for (int line = 0; line <= g_face_fret_count; ++line)
         {
             const auto slot = static_cast<std::size_t>(line);
@@ -5592,12 +5613,19 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
             hand,
             frame.span_start_seconds,
             frame.span_end_seconds,
+            g_light_decay_seconds,
             [&](const common::core::HighwayLitStretch& stretch) {
                 times.clear();
                 appendLightSampleTimes(
-                    hand, stretch, frame.span_start_seconds, frame.span_end_seconds, times);
+                    hand,
+                    stretch,
+                    frame.span_start_seconds,
+                    frame.span_end_seconds,
+                    g_light_decay_seconds,
+                    times);
                 common::core::highwaySortUniqueTimes(times);
-                double alpha_a = lightStrengthAt(hand, stretch, times.front());
+                double alpha_a =
+                    lightStrengthAt(hand, stretch, times.front(), g_light_decay_seconds);
                 auto [low_a, high_a] = handWindowX(
                     common::core::highwayLitWindowAt(hand.track, stretch, times.front()),
                     metrics,
@@ -5605,7 +5633,8 @@ void HighwayRenderer::Impl::drawFloorLight(const FrameContext& frame)
                 double za = timeToZ(frame, times.front());
                 for (std::size_t sample = 1; sample < times.size(); ++sample)
                 {
-                    const double alpha_b = lightStrengthAt(hand, stretch, times[sample]);
+                    const double alpha_b =
+                        lightStrengthAt(hand, stretch, times[sample], g_light_decay_seconds);
                     const auto [low_b, high_b] = handWindowX(
                         common::core::highwayLitWindowAt(hand.track, stretch, times[sample]),
                         metrics,
@@ -5736,10 +5765,11 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 
 // --- Hand-shape rails: thick fading edge lines along a held hand's window edges, from the hold's
 // start to its end, riding the hit line while active. One pass draws every rail as (track, from,
-// to, colour), fed by both hands: the fretting hand's posture spans over its track in the span's
-// own colour (purple marks arpeggio spans), and the picking hand's tapped chords over its track
-// from the strike to the struck notes' release, in that hand's mark colour. A strike carries its
-// own hold end (HighwayTapOnsetViewState::release_seconds), so the picking hand needs no spans. ---
+// to, colour), fed by both hands: the fretting hand's posture spans over its track, and the
+// picking hand's tapped chords over its track from the strike to the struck notes' ring end. Every
+// rail wears its box's colour (g_box_rail_color, or purple for an arpeggio span), never its hand's.
+// A strike carries its own hold end (HighwayTapOnsetViewState::release_seconds), so the picking
+// hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
@@ -5818,7 +5848,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             state.fret_hand.track,
             shape.start_seconds,
             shape.drawn_end_seconds,
-            shape.arpeggio ? g_arpeggio_color : (g_lane_border_color | 0xFF000000U));
+            shape.arpeggio ? g_arpeggio_color : g_box_rail_color);
     }
     // Tapped chords whose hold reaches the drawn span: strikes ascend by onset but their holds
     // overlap freely, so the range is visibleEventRange over the prefix maximum of the holds — the
@@ -5831,10 +5861,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         if (common::core::tappedChord(tap))
         {
             push_rail(
-                state.pick_hand.track,
-                tap.start_seconds,
-                tap.release_seconds,
-                g_picking_hand_light.mark_color);
+                state.pick_hand.track, tap.start_seconds, tap.release_seconds, g_box_rail_color);
         }
     }
     submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
@@ -5870,7 +5897,8 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
     const bool mirrored = state.options.mirrored;
     const double face_bottom_y = faceBottomY();
     const double face_top_y = faceTopY();
-    const LineLight& active = frame.lines_lit_now;
+    LineLight active{};
+    lineLightAt(frame.now_seconds, g_light_decay_seconds, active);
 
     // Strike brightening lives wholly in the additive glow pass at the end of the frame;
     // the lines themselves carry only the inactive/active hand-light state.

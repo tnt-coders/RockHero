@@ -280,11 +280,14 @@ struct HighwayTapOnsetViewState
     int count{0};
 
     /*!
-    \brief The strike's hold end: the latest release among the struck notes, never before the onset.
+    \brief The struck notes' hold end: the latest member's ring end, the true ring rather than the
+    drawn tail, so a tapped chord's rails run as long as the fretting hand's boxes hold.
 
-    A note releases at its drawn end, or at its last pitched keyframe when a drawn slide-out follows
-    (pressure is already coming off). Whether the next strike repeats an established position is
-    measured from here (\ref g_hand_rest_seconds).
+    The same rule as the fretting hand's chord heads, held to the musical close while the margin is
+    ink spacing (\ref ChartViewState::display_hold_ends). Whether the next strike repeats an
+    established position is measured from here too (\ref g_hand_rest_seconds): a position stays
+    established while its notes ring. The picking hand's LIGHT releases at the drawn end instead
+    (\ref makePickHandLight), because the per-strike pulse is its look.
     */
     double release_seconds{0.0};
 
