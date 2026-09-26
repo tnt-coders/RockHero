@@ -435,16 +435,19 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Hand-shape rails on the floor: a core with fade-out wings (fret thickness x3 and x6). A rail
-// wears its hand's furniture colour (HandLightStyle::rail_color), except that an arpeggio span's
-// rails wear Charter's purple, which names a kind of span rather than a hand. Every rail is drawn
-// at one opacity, so the hands' rails dim together and keep their match; the opacity and the
-// wings' steepness are sighting knobs (both sighted "in your face" at full opacity and x9 wings,
-// 2026-09-25).
+// Hand-shape rails on the floor: a thin core with SMOOTH fade-out wings. A rail wears its hand's
+// furniture colour (HandLightStyle::rail_color), except that an arpeggio span's rails wear
+// Charter's purple, which names a kind of span rather than a hand. Every rail is drawn at one
+// opacity, so the hands' rails dim together and keep their match. The wings fall off along the
+// raised cosine (common::core::raisedCosineEase), sampled in g_shape_rail_wing_slices steps: a
+// LINEAR ramp from a flat core leaves a slope break at the core's edge that the eye sees as a hard
+// line, where the cosine leaves and arrives with zero slope. Sighting knobs (sighted 2026-09-25:
+// full opacity with x9 linear wings read "in your face"; x6 read skinny and still hard-edged).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
-constexpr double g_shape_rail_core_half_width = 0.075;
-constexpr double g_shape_rail_fade_half_width = 0.15;
+constexpr double g_shape_rail_core_half_width = 0.05;
+constexpr double g_shape_rail_fade_half_width = 0.27;
 constexpr double g_shape_rail_opacity = 0.6;
+constexpr int g_shape_rail_wing_slices = 4;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -5849,8 +5852,28 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         {
             return;
         }
-        const std::uint32_t solid = packAbgr(color, g_shape_rail_opacity);
-        const std::uint32_t clear = packAbgr(color, 0.0);
+        // The rail's cross-section, stated once per rail: offsets from the window edge, outer wing
+        // to outer wing, each with its tint. Index g_shape_rail_wing_slices and the one after it
+        // bound the flat core.
+        struct RailStation
+        {
+            double offset{0.0};
+            std::uint32_t tint{0};
+        };
+        std::array<RailStation, (2 * g_shape_rail_wing_slices) + 2> profile{};
+        for (int slice = 0; slice <= g_shape_rail_wing_slices; ++slice)
+        {
+            const double toward_core =
+                static_cast<double>(slice) / static_cast<double>(g_shape_rail_wing_slices);
+            const double offset =
+                g_shape_rail_fade_half_width -
+                (toward_core * (g_shape_rail_fade_half_width - g_shape_rail_core_half_width));
+            const std::uint32_t tint =
+                packAbgr(color, g_shape_rail_opacity * common::core::raisedCosineEase(toward_core));
+            const auto inner = static_cast<std::size_t>(slice);
+            profile.at(inner) = RailStation{.offset = -offset, .tint = tint};
+            profile.at(profile.size() - 1 - inner) = RailStation{.offset = offset, .tint = tint};
+        }
         // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
         // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
         // settled stretches consecutive samples share one extent and the trapezoids stay straight.
@@ -5864,7 +5887,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             const auto [b_x0, b_x1] = handWindowXAt(track, times[sample], metrics, mirrored);
             const double za = std::max(0.0, timeToZ(frame, times[sample - 1]));
             const double zb = std::max(0.0, timeToZ(frame, times[sample]));
-            // Solid core between fade-out wings, per edge (Charter's cross-section).
+            // The cross-section laid along the leg, per window edge.
             const auto push_band = [&](const double xa_from,
                                        const double xa_to,
                                        const double xb_from,
@@ -5881,27 +5904,18 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             };
             for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
             {
-                push_band(
-                    xa - g_shape_rail_fade_half_width,
-                    xa - g_shape_rail_core_half_width,
-                    xb - g_shape_rail_fade_half_width,
-                    xb - g_shape_rail_core_half_width,
-                    clear,
-                    solid);
-                push_band(
-                    xa - g_shape_rail_core_half_width,
-                    xa + g_shape_rail_core_half_width,
-                    xb - g_shape_rail_core_half_width,
-                    xb + g_shape_rail_core_half_width,
-                    solid,
-                    solid);
-                push_band(
-                    xa + g_shape_rail_core_half_width,
-                    xa + g_shape_rail_fade_half_width,
-                    xb + g_shape_rail_core_half_width,
-                    xb + g_shape_rail_fade_half_width,
-                    solid,
-                    clear);
+                for (std::size_t station = 1; station < profile.size(); ++station)
+                {
+                    const RailStation& from = profile.at(station - 1);
+                    const RailStation& to = profile.at(station);
+                    push_band(
+                        xa + from.offset,
+                        xa + to.offset,
+                        xb + from.offset,
+                        xb + to.offset,
+                        from.tint,
+                        to.tint);
+                }
             }
         }
     };
