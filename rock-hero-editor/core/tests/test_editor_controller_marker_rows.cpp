@@ -895,7 +895,8 @@ TEST_CASE("The hand chord restates the placement at the cursor", "[core][marker-
     CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
 }
 
-// Delete removes the selected placement and leaves nothing selected; a chart may end with none.
+// Delete removes the selected placement and selects the one before it, as Shift+Tab from the
+// deleted start would; deleting the row's first leaves nothing selected; a chart may end with none.
 TEST_CASE("EditorController deletes the selected fret-hand position", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
@@ -906,8 +907,15 @@ TEST_CASE("EditorController deletes the selected fret-hand position", "[core][ma
     const std::vector<common::core::FretHandPosition> placements = editor.placements();
     REQUIRE(placements.size() == 3);
     CHECK(placements[1] == placementAt(downbeat(8), 2));
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+    CHECK(editor.state().selection_present);
+
+    // The row's first has nothing before it, so nothing stays selected.
+    editor.controller.onSelectionDeleteRequested();
+    REQUIRE(editor.placements().size() == 2);
     CHECK_FALSE(editor.selectedHandIndex().has_value());
     CHECK_FALSE(editor.state().selection_present);
+    editor.controller.onUndoRequested();
 
     editor.controller.onUndoRequested();
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
@@ -918,6 +926,7 @@ TEST_CASE("EditorController deletes the selected fret-hand position", "[core][ma
     REQUIRE(sole.placements().size() == 1);
     sole.controller.onSelectionDeleteRequested();
     CHECK(sole.placements().empty());
+    CHECK_FALSE(sole.selectedHandIndex().has_value());
 }
 
 // Alt+arrows step the selected placement one placement-quantum line, keep it selected, and bring

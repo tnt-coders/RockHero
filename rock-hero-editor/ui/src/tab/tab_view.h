@@ -357,6 +357,12 @@ private:
     // wantsNotationAt has already refused the press over.
     [[nodiscard]] std::optional<std::size_t> fretHandChipAt(juce::Point<float> local_point) const;
 
+    // The column the placement at `index` has its chip drawn at: the pin's while the panel pins it,
+    // else its own column. `index` must be inside the lane's placements.
+    [[nodiscard]] float fretHandChipX(
+        const common::ui::TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+        std::size_t index) const;
+
     // Recomputes the caret square's content-coordinate mask and pushes it to the sink when it
     // changed since the last publish. Called from every site that can move the square: edit-state
     // and projection pushes, and layout changes (resize/reposition). The caret is fixed to a string
@@ -412,8 +418,10 @@ private:
     // current-state column: an FHP is a region-scoped value exactly like a tempo, so the one in
     // force at the edge pins there. Empty before the song's first placement, and empty again once
     // the next placement's own chip has come close enough for the pin to yield to it — the ruler's
-    // pin law, which both rows read from one statement of it.
-    std::optional<common::core::FhpViewState> m_pinned_fhp{};
+    // pin law, which both rows read from one statement of it. Held as the placement's INDEX into
+    // the lane's placements, so the selection outline and a pending entry find the pinned chip as
+    // the placement it is.
+    std::optional<std::size_t> m_pinned_fhp{};
 
     // The pinned chip's box AT PIN ZERO, empty while nothing pins. Cached beside the legend column
     // and translated by the same number, so what a scroll repaints covers the chip as well as the
