@@ -1,5 +1,8 @@
 # The hand-marker stopgap: editable fret-hand positions before plan 60
 
+**Status: BUILT and merged to master 2026-09-26** (`753498f9`, `8b7831f7`, `391c0104`, with the
+sighting fixes `ac36e557` and `4298e161`). Plan 60 takes over from here.
+
 *Ruled 2026-09-25. Built on the branch `hand-marker-stopgap`. The user's words: "the BIGGEST pain
 with editing charts right now is no ability to insert or delete frethand positions"; plan 60
 (derived positions, markers as overrides) is deliberate and stands, and this is the interim form
