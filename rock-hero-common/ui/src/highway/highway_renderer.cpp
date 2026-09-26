@@ -435,22 +435,24 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Hand-shape rails on the floor, drawn as LIGHT rather than paint: added to what they cover
-// (g_additive_state) instead of blended over it, with a light's cross-section — a hot, near-white
-// core and a long soft halo falling off as 1 / (1 + (d / r)^2) — so a rail reads as a line of
-// light on the dark board, never as a translucent stripe on it. The halo is lowered so it reaches
-// zero exactly at g_shape_rail_fade_half_width, and sampled at stations packed toward the core
-// where the curve is steep. A rail wears its hand's furniture colour (HandLightStyle::rail_color),
-// except that an arpeggio span's rails wear Charter's purple, which names a kind of span rather
-// than a hand; every rail takes one intensity, so the hands' rails move together. Sighting knobs
-// (sighted 2026-09-25: full opacity with x9 linear wings read "in your face"; x6 read skinny and
-// hard-edged; a raised-cosine stripe read as paint, not a light source).
+// Hand-shape rails on the floor, drawn as LIGHT: each rail is an emitter line along its hand
+// window's edge, lit per fragment by the accent light's own program (fs_accent_glow: a signed
+// distance to the emitter, a falloff shaped by an exponent, and radiance over one clipped per
+// channel, which is what walks a bright colour's core to white) and ADDED to the board rather than
+// painted over it. A rail wears its hand's furniture colour (HandLightStyle::rail_color), except
+// that an arpeggio span's rails wear Charter's purple, which names a kind of span rather than a
+// hand; every rail takes one intensity, so the hands' rails move together. Sighting knobs, sighted
+// 2026-09-25 through painted stripes that read "in your face", skinny, hard-edged, then as paint
+// rather than as a light source.
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
-constexpr double g_shape_rail_fade_half_width = 0.27;
-constexpr double g_shape_rail_glow_radius = 0.06;
+// The emitter's half-width: the line the light comes from.
+constexpr double g_shape_rail_emitter_half_width = 0.03;
+// How far the light reaches past the emitter, and the shape of its falloff (see fs_accent_glow).
+constexpr double g_shape_rail_reach = 0.24;
+constexpr double g_shape_rail_exponent = 2.0;
+// The radiance: over one lets the core clip toward white while the halo keeps its hue.
+constexpr double g_shape_rail_gain = 1.6;
 constexpr double g_shape_rail_intensity = 0.6;
-constexpr double g_shape_rail_core_heat = 0.6;
-constexpr int g_shape_rail_halo_slices = 6;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -1887,6 +1889,8 @@ struct FrameScratch
     std::vector<std::uint16_t> box_marker_indices;
     std::vector<PosColorGlowVertex> box_glow_vertices;
     std::vector<std::uint16_t> box_glow_indices;
+    std::vector<PosColorGlowVertex> rail_glow_vertices;
+    std::vector<std::uint16_t> rail_glow_indices;
     std::vector<PosColorUvVertex> number_vertices;
     std::vector<std::uint16_t> number_indices;
     std::vector<std::size_t> visible;
@@ -1959,6 +1963,8 @@ struct FrameScratch
         box_marker_indices.clear();
         box_glow_vertices.clear();
         box_glow_indices.clear();
+        rail_glow_vertices.clear();
+        rail_glow_indices.clear();
         number_vertices.clear();
         number_indices.clear();
         visible.clear();
@@ -5842,7 +5848,17 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
     const bool mirrored = state.options.mirrored;
-    auto [vertices, indices] = scratch.colorBatch();
+    std::vector<PosColorGlowVertex>& vertices = scratch.rail_glow_vertices;
+    std::vector<std::uint16_t>& indices = scratch.rail_glow_indices;
+    // Every rail is the same emitter shape: a line of the emitter's half-width, unbounded along
+    // the rail (its local y stays zero, so no end cap ever falls off).
+    constexpr GlowShape rail_emitter{
+        .half_w = g_shape_rail_emitter_half_width,
+        .half_h = 1.0,
+        .corner = 0.0,
+        .rhombus = false,
+    };
+    constexpr double rail_half_extent = g_shape_rail_emitter_half_width + g_shape_rail_reach;
     const auto push_rail = [&](const std::vector<common::core::HighwayHandArrival>& track,
                                const double from_seconds,
                                const double to_seconds,
@@ -5855,32 +5871,9 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         {
             return;
         }
-        // The rail's cross-section, stated once per rail: offsets from the window edge, outer halo
-        // to outer halo through the core at zero, each with its tint — the light's falloff in the
-        // alpha, and the core's heat as a lean toward white that fades out with it.
-        struct RailStation
-        {
-            double offset{0.0};
-            std::uint32_t tint{0};
-        };
-        const double halo_floor =
-            1.0 / (1.0 + std::pow(g_shape_rail_fade_half_width / g_shape_rail_glow_radius, 2.0));
-        std::array<RailStation, (2 * g_shape_rail_halo_slices) + 1> profile{};
-        for (int slice = 0; slice <= g_shape_rail_halo_slices; ++slice)
-        {
-            const double fraction =
-                static_cast<double>(slice) / static_cast<double>(g_shape_rail_halo_slices);
-            const double distance = g_shape_rail_fade_half_width * fraction * fraction;
-            const double falloff =
-                ((1.0 / (1.0 + std::pow(distance / g_shape_rail_glow_radius, 2.0))) - halo_floor) /
-                (1.0 - halo_floor);
-            const ArgbColor hot = mixArgb(
-                color, (color & 0xFF000000U) | 0x00FFFFFFU, g_shape_rail_core_heat * falloff);
-            const std::uint32_t tint = packAbgr(hot, g_shape_rail_intensity * falloff);
-            const auto outer = static_cast<std::size_t>(g_shape_rail_halo_slices - slice);
-            profile.at(outer) = RailStation{.offset = -distance, .tint = tint};
-            profile.at(profile.size() - 1 - outer) = RailStation{.offset = distance, .tint = tint};
-        }
+        // The emitter's colour with the broadband pedestal every accent light carries, so its core
+        // can whiten under the gain.
+        const std::uint32_t tint = packAbgr(emitterSpectrum(color), g_shape_rail_intensity);
         // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
         // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
         // settled stretches consecutive samples share one extent and the trapezoids stay straight.
@@ -5894,35 +5887,22 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             const auto [b_x0, b_x1] = handWindowXAt(track, times[sample], metrics, mirrored);
             const double za = std::max(0.0, timeToZ(frame, times[sample - 1]));
             const double zb = std::max(0.0, timeToZ(frame, times[sample]));
-            // The cross-section laid along the leg, per window edge.
-            const auto push_band = [&](const double xa_from,
-                                       const double xa_to,
-                                       const double xb_from,
-                                       const double xb_to,
-                                       const std::uint32_t color_from,
-                                       const std::uint32_t color_to) {
+            // One lit quad per window edge over the leg, reaching the light's full extent either
+            // side of the edge; each vertex carries its offset from the emitter line, which the
+            // fragment stage turns into the light's distance.
+            for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
+            {
+                const auto vertex = [&](const double edge_x, const double z, const double offset) {
+                    return makeGlowVertex(
+                        edge_x + offset, 0.01, z, tint, offset, 0.0, rail_emitter);
+                };
                 pushQuad(
                     vertices,
                     indices,
-                    makeVertex(xa_from, 0.01, za, color_from),
-                    makeVertex(xa_to, 0.01, za, color_to),
-                    makeVertex(xb_to, 0.01, zb, color_to),
-                    makeVertex(xb_from, 0.01, zb, color_from));
-            };
-            for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
-            {
-                for (std::size_t station = 1; station < profile.size(); ++station)
-                {
-                    const RailStation& from = profile.at(station - 1);
-                    const RailStation& to = profile.at(station);
-                    push_band(
-                        xa + from.offset,
-                        xa + to.offset,
-                        xb + from.offset,
-                        xb + to.offset,
-                        from.tint,
-                        to.tint);
-                }
+                    vertex(xa, za, -rail_half_extent),
+                    vertex(xa, za, rail_half_extent),
+                    vertex(xb, zb, rail_half_extent),
+                    vertex(xb, zb, -rail_half_extent));
             }
         }
     };
@@ -5951,14 +5931,21 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
                 g_picking_hand_light.rail_color);
         }
     }
+    const std::array<float, 4> rail_light{
+        static_cast<float>(g_shape_rail_reach),
+        static_cast<float>(g_shape_rail_exponent),
+        static_cast<float>(g_glow_solid_emitter_depth),
+        static_cast<float>(g_shape_rail_gain),
+    };
+    bgfx::setUniform(accent_glow_params.get(), rail_light.data());
     submitBatch(
         vertices,
         indices,
-        posColorLayout(),
-        color_fade_program.get(),
+        posColorGlowLayout(),
+        accent_glow_program.get(),
         nullptr,
         g_board_view,
-        g_additive_state);
+        g_glow_add_state);
 }
 
 // --- String lines (retained), under the fret lines and nut, on the z = 0 plane. The board

@@ -537,8 +537,10 @@ per-station sampling.
 Three marks beside the lights, all on the raw window:
 
 - **Rails** (`drawHandShapeRails`) — the side highlights that run through a held chord's duration:
-  a solid core between fade-out wings along both window edges, from the hold's start to its end,
-  riding the hit line while it lasts. ONE pass draws every rail as `(track, from, to, colour)`, fed
+  a line of LIGHT along both window edges, from the hold's start to its end, riding the hit line
+  while it lasts. Each rail is an emitter lit per fragment by the accent light's own program
+  (`fs_accent_glow`: distance to the emitter, an exponent-shaped falloff, radiance over one that
+  clips a bright core toward white) and added to the board, never painted over it. ONE pass draws every rail as `(track, from, to, colour)`, fed
   by both hands: the fretting hand's posture spans over `fret_hand.track`, and every tapped chord
   (`tappedChord`) over `pick_hand.track` from its onset to its `release_seconds` — the members'
   true ring end, the close the fretting hand's chord heads hold to, so a tapped chord with no drawn
