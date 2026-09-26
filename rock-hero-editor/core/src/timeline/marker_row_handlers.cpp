@@ -17,9 +17,10 @@ namespace rock_hero::editor::core
 {
 
 // The marker rows (docs/plans/completed/keyboard-focus-rows.md): the ruler's section, tempo and
-// time-signature rows and the tone row, which the keyboard reaches by selecting a marker. Every row
-// answers the same questions — where its markers start, which one holds a position, which one the
-// selection names — so the walk, a chip click and Tab share one model of all four.
+// time-signature rows, the hand row and the tone row, which the keyboard reaches by selecting a
+// marker. Every row answers the same questions — where its markers start, which one holds a
+// position, which one the selection names — so the walk, a chip click and Tab share one model of
+// all five.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -58,6 +59,19 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             {
                 starts.push_back(
                     common::core::GridPosition{.measure = change.measure, .beat = 1, .offset = {}});
+            }
+            break;
+        }
+        case MarkerRow::Hand:
+        {
+            if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+                arrangement != nullptr && arrangement->chart.has_value())
+            {
+                for (const common::core::FretHandPosition& placement :
+                     arrangement->chart->fret_hand_positions)
+                {
+                    starts.push_back(placement.position);
+                }
             }
             break;
         }
@@ -118,6 +132,10 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
             MarkerRow::TimeSignature,
             common::core::GridPosition{.measure = signature->measure, .beat = 1, .offset = {}});
     }
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        return marker(MarkerRow::Hand, placement->position);
+    }
     if (const auto* const region = std::get_if<ToneRegionSelection>(&m_selection))
     {
         SelectedMarker selected{.row = MarkerRow::Tone, .index = std::nullopt};
@@ -153,6 +171,10 @@ EditorController::Impl::MarkerSelection EditorController::Impl::markerSelectionA
         case MarkerRow::TimeSignature:
         {
             return TimeSignatureSelection{.measure = start.measure};
+        }
+        case MarkerRow::Hand:
+        {
+            return FretHandPositionSelection{.position = start};
         }
         case MarkerRow::Tone:
         {
@@ -383,7 +405,8 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
 // Enter's verb, dispatched on the selection's kind here so the view opens what it names and
 // decides nothing: a section restates on its name, a tone region on its tone (until the signal
 // chain has a keyboard model to drill into, plan 53 Phase 5), the "+" row opens the parameter
-// picker, and every other kind has no restate.
+// picker, and every other kind has no restate — a fret-hand position included, until its fret has
+// an entry to re-open.
 RestateTarget EditorController::Impl::restateTarget() const
 {
     if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();

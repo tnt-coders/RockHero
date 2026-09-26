@@ -70,6 +70,17 @@ void TabView::setContextMenuCallback(ContextMenuCallback callback)
     m_context_menu_callback = std::move(callback);
 }
 
+void TabView::setFretHandChipCallback(FretHandChipCallback callback)
+{
+    m_fret_hand_chip_callback = std::move(callback);
+}
+
+// Adopts the core's published marker-plane availability.
+void TabView::setMarkerEditsEnabled(const bool marker_edits_enabled)
+{
+    m_marker_edits_enabled = marker_edits_enabled;
+}
+
 // Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
 void TabView::setEditState(core::ChartEditViewState edit)
 {
@@ -188,7 +199,55 @@ void TabView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
+    // A fret-hand chip is the hand row's marker, and a press on it selects that placement the way a
+    // ruler chip click selects its marker — instead of reaching the chart as a press on the top
+    // string the chip is drawn over. While the marker plane is closed there is no selection to
+    // make, so the press goes to the chart like any other, as a ruler chip column seeks then.
+    if (m_marker_edits_enabled && m_fret_hand_chip_callback != nullptr)
+    {
+        if (const std::optional<std::size_t> chip = fretHandChipAt(event.position);
+            chip.has_value())
+        {
+            m_fret_hand_chip_callback(*chip);
+            return;
+        }
+    }
+
     m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
+}
+
+// Chips sit at their placements' own columns, which ascend with the placements, so only a chip
+// starting at or left of the point can contain it. The scan runs back from the last of those — the
+// chip drawn on top where two overlap — and stops at the viewport's left edge: a chip starting
+// further left reaches into view only under the pinned chrome, where no press is taken, so the scan
+// stays bounded by what is on screen however long the song.
+std::optional<std::size_t> TabView::fretHandChipAt(const juce::Point<float> local_point) const
+{
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
+    const common::ui::TabLaneMetrics& metrics = lane->metrics;
+    const std::vector<common::core::FhpViewState>& placements = lane->tab.fret_hand_positions;
+    const auto column = [&metrics](const common::core::FhpViewState& fhp) {
+        return metrics.x(fhp.seconds);
+    };
+    const auto first = std::ranges::lower_bound(
+        placements, static_cast<float>(m_visible_content_left), std::ranges::less{}, column);
+    auto candidate =
+        std::ranges::upper_bound(placements, local_point.x, std::ranges::less{}, column);
+    while (candidate > first)
+    {
+        --candidate;
+        if (common::ui::tabFhpChipBounds(metrics, *candidate, column(*candidate))
+                .contains(local_point))
+        {
+            return static_cast<std::size_t>(std::distance(placements.begin(), candidate));
+        }
+    }
+    return std::nullopt;
 }
 
 void TabView::mouseDrag(const juce::MouseEvent& event)
@@ -575,6 +634,23 @@ void TabView::paint(juce::Graphics& g)
     // lands in the column. It is ONE pass called once per paint; only where it sits in the
     // composition distinguishes it from the lane content.
     common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
+
+    // THE SELECTED FRET-HAND CHIP wears the accent outline a selected keyframe chip wears — one
+    // selection idiom for every boxed mark — traced on the scrolling chip at its own column, the
+    // box the paint core just drew. Editor furniture, so it stays out of the game-shared paint
+    // core. An index the projection has since outrun draws nothing.
+    if (const std::optional<std::size_t>& selected = m_edit.selected_fret_hand_position;
+        selected.has_value() && *selected < tab.fret_hand_positions.size())
+    {
+        const common::core::FhpViewState& fhp = tab.fret_hand_positions[*selected];
+        const juce::Rectangle<float> chip =
+            common::ui::tabFhpChipBounds(metrics, fhp, metrics.x(fhp.seconds));
+        if (!chip.isEmpty())
+        {
+            g.setColour(accent);
+            g.drawRect(chip, overlayRingStroke(chip.getHeight()));
+        }
+    }
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel

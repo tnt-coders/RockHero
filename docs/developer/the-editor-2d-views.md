@@ -475,9 +475,19 @@ playing. It is never an entry gesture: a press CREATES NOTHING on this lane unde
 (2026-09-11), because every note is typed at the armed caret.
 With no chart the lane is pointer-transparent. One column of the claimed band answers
 nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
-pinned chrome is INERT" below). The yielding component is the *cursor overlay*, whose `hitTest`
-returns false wherever a pass-through predicate — installed in `editor_view.cpp`, asking
-`TabView::wantsPointerAt` first — declines the point. Its data is a seconds-resolved projection
+pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one press the lane
+resolves itself: the chip is the hand row's marker, measured in the lane's own label font
+(`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
+(`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
+press on the top string. The ruler resolves its own chips in its own view the same way, and on the
+same condition: only while the marker plane is open (`setMarkerEditsEnabled`, fed from
+`EditorViewState::marker_edits_enabled`). While it is closed there is no selection to make, so a
+chip press is an ordinary press — the ruler seeks, and this lane hands it to the chart. The
+selected placement's chip wears the accent outline, from
+`ChartEditViewState::selected_fret_hand_position`. The yielding
+component is the *cursor overlay*, whose `hitTest` returns false wherever a pass-through
+predicate — installed in `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the
+point. Its data is a seconds-resolved projection
 built once per edit in **common/core** (`chart/chart_projection.cpp`,
 `common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces draw,
 which is why it lives in common rather than editor core: the game's 2D tab view shares the same

@@ -57,9 +57,10 @@ namespace
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
-        // The section verbs edit the project the calibration prompt is parked over.
+        // The section and hand-marker verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
         {
             return true;
         }
@@ -83,6 +84,7 @@ namespace
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
+        case EditorAction::Id::SelectFretHandPosition:
         {
             return false;
         }
@@ -175,6 +177,8 @@ namespace
             case EditorAction::Id::RenameSongSection:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
+            case EditorAction::Id::SelectFretHandPosition:
+            case EditorAction::Id::AuthorFretHandPositionAtCursor:
             {
                 return false;
             }
@@ -315,6 +319,10 @@ namespace
         case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
+        // The fret-hand positions are the chart's own, so their marker verbs need a chart; paused-
+        // only like every other marker verb.
+        case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
         {
             return conditions.has_chart && !conditions.transport_playing;
         }
@@ -438,6 +446,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
+        case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
         {
             return false;
         }

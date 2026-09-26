@@ -21,6 +21,14 @@ member template needs its body where every marker handler translation unit can s
 namespace rock_hero::editor::core
 {
 
+// Logs a refused marker edit: THE refusal record every marker verb leaves, whether the funnel below
+// refused the produced model or a verb refused before it had a model to hand over, so the format
+// lives once.
+inline void logMarkerRefusal(const std::string_view label, const std::string_view detail)
+{
+    RH_LOG_WARNING("editor.marker", "Rejected marker edit label={:?} detail={:?}", label, detail);
+}
+
 // Commits one marker-model change as one undo entry and republishes. Every marker verb ends here,
 // whatever kind of marker it authored, so the commit rules live here once: the produced model is
 // normalized, then validated, and a model that breaks a rule is REFUSED whole — verbs build their
@@ -40,8 +48,7 @@ bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, 
     if (const std::optional<std::string> violation = after.validate(session());
         violation.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.marker", "Rejected marker edit label={:?} detail={:?}", label, *violation);
+        logMarkerRefusal(label, *violation);
         return false;
     }
 
@@ -52,11 +59,7 @@ bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, 
 
     if (!after.applyTo(m_session))
     {
-        RH_LOG_WARNING(
-            "editor.marker",
-            "Rejected marker edit label={:?} detail={:?}",
-            label,
-            std::string_view{"no model to apply onto"});
+        logMarkerRefusal(label, "no model to apply onto");
         return false;
     }
 

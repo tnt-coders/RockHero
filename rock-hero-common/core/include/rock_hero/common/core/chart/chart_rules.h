@@ -171,6 +171,20 @@ cannot drift between chart and song documents. A usable position lies on the tic
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
 
 /*!
+\brief Whether a timeline marker — a section, a tone change, a fret-hand position — may start at a
+position: on the tempo map's grid and strictly before its terminal anchor.
+
+THE one place rule for every marker kind, shared by each kind's validator and by the editor's
+projection of where its chord would land, so a chord never offers an insert the commit then
+refuses. A marker starting on the closing barline would govern a passage of no length.
+
+\param position Candidate start.
+\param tempo_map Tempo map the position must address.
+\return True when a marker may start there.
+*/
+[[nodiscard]] bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map);
+
+/*!
 \brief The repair a chart normalization applied — one value per rule the normalizer owns.
 
 The kinds exist so a load can report WHAT it changed and where, grouped by rule, and so an import
@@ -607,6 +621,23 @@ here — the hold test that wanted them belongs to the resolver.
 */
 [[nodiscard]] std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
+
+/*!
+\brief Validates the fret-hand placement stream: every position on the grid, every placement
+already in its normal form (\ref normalizeFretHandPosition), and the stream strictly ascending and
+unique by position.
+
+\ref validateChartRules asks this for the chart's own stream; the editor's hand-marker commit asks
+it of the stream alone, so a placement edit is judged by exactly the rule a package load applies.
+
+\param placements Placement stream to validate.
+\param tuning Tuning the placements sit under; supplies the capo floor.
+\param tempo_map Song tempo map the positions must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateFretHandPositions(
+    const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.

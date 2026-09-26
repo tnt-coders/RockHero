@@ -86,6 +86,23 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     CHECK(juce::TopLevelWindow::getNumTopLevelWindows() == windows_before);
 }
 
+// The hand chord has nothing to prompt for, so no verb is published for it: the view forwards the
+// press as it stands and the core decides what it does.
+TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
+        EditorCommandId::InsertFretHandPosition)};
+    CHECK(view.perform(info));
+    CHECK(controller.hand_chord_count == 1);
+    CHECK_FALSE(controller.last_selected_fret_hand_position.has_value());
+}
+
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
@@ -354,6 +371,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertSongSection,
          .value = 0x1402,
          .chords = {chord('m', command)}},
+        {.id = EditorCommandId::InsertFretHandPosition,
+         .value = 0x1406,
+         .chords = {chord('h', command)}},
         {.id = EditorCommandId::RestateSelection,
          .value = 0x1404,
          .chords = {chord(juce::KeyPress::returnKey)}},
@@ -419,6 +439,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::CaretJumpTimeSignatureRow,
          .value = 0x1513,
          .chords = {chord('/', command | shift)}},
+        {.id = EditorCommandId::CaretJumpHandRow,
+         .value = 0x1516,
+         .chords = {chord('h', command | shift)}},
         {.id = EditorCommandId::CaretJumpToneRow,
          .value = 0x1514,
          .chords = {chord('t', command | shift)}},
@@ -845,6 +868,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK_FALSE(acts(EditorCommandId::CaretJumpSectionRow));
     CHECK_FALSE(acts(EditorCommandId::InsertSongSection));
     CHECK_FALSE(acts(EditorCommandId::InsertToneChange));
+    CHECK_FALSE(acts(EditorCommandId::InsertFretHandPosition));
     CHECK_FALSE(acts(EditorCommandId::SaveProject));
     CHECK_FALSE(acts(EditorCommandId::Undo));
     CHECK_FALSE(acts(EditorCommandId::TogglePreview3D));

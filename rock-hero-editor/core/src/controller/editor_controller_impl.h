@@ -538,6 +538,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const SongSectionSelection& selection, ChartStepDirection direction);
     // Deletes the selected section (the Delete-key dispatch for the section alternative).
     void deleteSelectedSongSection(const SongSectionSelection& selection);
+    // Fret-hand positions (src/chart/fret_hand_handlers.cpp), the hand row's markers. Arrangement-
+    // scoped like the tone regions: the placements are the current chart's own stream.
+    // Moves the selected placement one placement-quantum line (the Alt+arrow dispatch for the
+    // fret-hand alternative). Left or Right only; the move dispatch refuses a vertical direction
+    // for every marker kind.
+    void moveSelectedFretHandPosition(
+        const FretHandPositionSelection& selection, ChartStepDirection direction);
+    // Deletes the selected placement (the Delete-key dispatch for the fret-hand alternative).
+    void deleteSelectedFretHandPosition(const FretHandPositionSelection& selection);
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position);
     // The one boundary move the pointer drag and the keyboard share: moves the start of a region
@@ -641,6 +650,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SelectSongSection& action);
     void performActionImpl(const EditorAction::SelectTempoAnchor& action);
     void performActionImpl(const EditorAction::SelectTimeSignature& action);
+    void performActionImpl(const EditorAction::SelectFretHandPosition& action);
+    void performActionImpl(EditorAction::AuthorFretHandPositionAtCursor action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
@@ -1330,20 +1341,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const AutomationLaneRow& row, const common::core::GridPosition& position);
 
     // The rows the keyboard reaches by SELECTING a marker rather than arming the caret: the ruler's
-    // section, tempo and time-signature rows above the strings, and the tone row below them. A
-    // marker's span runs from its start to the next marker's start, and the first marker also owns
-    // whatever precedes it.
+    // section, tempo and time-signature rows and the hand row above the strings, and the tone row
+    // below them. A marker's span runs from its start to the next marker's start, and the first
+    // marker also owns whatever precedes it.
     enum class MarkerRow : std::uint8_t
     {
         Section,
         Tempo,
         TimeSignature,
+        Hand,
         Tone,
     };
 
     // The starts of a marker row's markers, ascending: the song's sections, the tempo map's
-    // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, and
-    // the tone track's region starts.
+    // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, the
+    // chart's fret-hand positions, and the tone track's region starts.
     [[nodiscard]] std::vector<common::core::GridPosition> markerStarts(MarkerRow row) const;
 
     // The index of the marker holding a position: the last one starting at or before it, or the
@@ -1363,7 +1375,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The selection kinds that name a marker, one per row.
     using MarkerSelection = std::variant<
-        SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ToneRegionSelection>;
+        SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection,
+        FretHandPositionSelection, ToneRegionSelection>;
 
     // The selection naming a row's marker by index (selectedMarker's inverse). The index must be in
     // range of the row's markerStarts.

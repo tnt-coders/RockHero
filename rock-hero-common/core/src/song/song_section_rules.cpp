@@ -2,7 +2,6 @@
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <string>
 
 namespace rock_hero::common::core
@@ -26,14 +25,6 @@ std::string trimmedSongSectionName(std::string_view name)
 GridPosition songSectionDownbeat(const GridPosition& position) noexcept
 {
     return GridPosition{.measure = position.measure, .beat = 1, .offset = {}};
-}
-
-// Valid on the tempo map's grid and strictly before its terminal anchor. The downbeat snap is the
-// caller's (songSectionDownbeat); this answers only whether the snapped position may hold a
-// section.
-bool songSectionCanStartAt(const GridPosition& downbeat, const TempoMap& tempo_map)
-{
-    return isValidGridPosition(downbeat, tempo_map) && downbeat < terminalGridPosition(tempo_map);
 }
 
 // Walks the list once in stored order, because two of the four rules are about a section's relation
@@ -71,7 +62,7 @@ std::expected<void, SongSectionError> validateSongSectionRules(
 
         // The grid half already held above, so only the terminal half of the shared place rule can
         // fire here.
-        if (!songSectionCanStartAt(section.position, tempo_map))
+        if (!markerCanStartAt(section.position, tempo_map))
         {
             return std::unexpected{SongSectionError{
                 .code = SongSectionErrorCode::SectionPastTerminalAnchor,

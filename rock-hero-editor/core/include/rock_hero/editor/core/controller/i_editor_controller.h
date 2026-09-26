@@ -309,8 +309,9 @@ public:
     on the row its letter names. It lands exactly as the walk does — the marker holding the
     cursor is selected and an armed caret is demoted in place — and a following left/right arrow
     re-arms the caret on the row it last rode. Where the named row has nothing to hold the cursor —
-    in practice a song with no sections; a loaded arrangement always has a tone region and an
-    active tone — the press selects nothing, leaving an armed caret armed, though it still brings
+    in practice a song with no sections or a chart with no fret-hand positions; a loaded
+    arrangement always has a tone region and an active tone — the press selects nothing, leaving an
+    armed caret armed, though it still brings
     the cursor inside a marker selected elsewhere with the pointer, as every walk step does. Inert
     while playing, with the rest of the marker plane.
 
@@ -573,6 +574,31 @@ public:
     \param measure Measure the selected chip's signature change starts.
     */
     virtual void onTimeSignatureSelected(int measure) = 0;
+
+    /*!
+    \brief Handles a deliberate selection of a fret-hand position: a click on its chip in the tab
+    lane.
+
+    Selects the placement and seeks nothing, as a ruler chip click does; the selection is the
+    operand of Delete and Alt+arrows, and like every marker selection it is cleared by any cursor
+    move. An index naming no placement selects nothing.
+
+    \param index Index of the placement in the chart's stream, which the tab projection's
+           placement list mirrors one to one.
+    */
+    virtual void onFretHandPositionSelected(std::size_t index) = 0;
+
+    /*!
+    \brief Handles the hand chord (`Ctrl+H`): author a fret-hand position at the cursor.
+
+    The marker grammar, decided entirely in the core because the verb has nothing to prompt for: a
+    placement arriving exactly at the cursor is restated, which — with no fret entry yet — only
+    selects it; anywhere else a placement may start, one is inserted at the fret its stretch
+    defaults it to (the lowest fretting-hand stop the stretch holds, else the fret of the
+    placement before it, else fret 1) and left selected. Inert while playing, with no song, with
+    no chart, and on the song's closing barline.
+    */
+    virtual void onHandChordRequested() = 0;
 
     /*!
     \brief Handles a request to insert a song-structure section at the marker.

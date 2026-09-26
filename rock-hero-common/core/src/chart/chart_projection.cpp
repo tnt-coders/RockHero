@@ -622,8 +622,8 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // counts as arriving at the chart origin. Each window's reach is derived once for the whole
     // stream from the stops the notes state under it (deriveFretHandWidths); only the index
     // finger's fret is stored.
-    const std::vector<int> fhp_widths = deriveFretHandWidths(
-        notes, resolutions.claimed_stops, chart.fret_hand_positions, tempo_map);
+    const std::vector<int> fhp_widths =
+        deriveFretHandWidths(resolutions, chart.fret_hand_positions, tempo_map);
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (std::size_t fhp_index = 0; fhp_index < chart.fret_hand_positions.size(); ++fhp_index)
     {

@@ -948,10 +948,10 @@ void countDerivation(
         // THE PINNED-FINGER CERTAINTY: rings struck strictly BEFORE a window's arrival and still
         // sounding at it (end-exclusive: a ring ending exactly there released in time), whose
         // fretting-hand stop lies outside the window's reach. A note struck AT the arrival belongs
-        // to the new window and is the convergence invariant's business, not a pin. The stop is
-        // read AT the arrival through fretHandStopAt — the one "where is this finger now"
-        // authority the width derivation reads — so a slid ring pins with the fret it is sounding,
-        // not the fret it was struck at, and a tap pins with its claim.
+        // to the new window and is the convergence invariant's business, not a pin. The finger is
+        // read AT the arrival through heldFretAt — the one "is a finger down, and where" authority
+        // the width derivation reads — so a slid ring pins with the fret it is sounding, not the
+        // fret it was struck at, a tap pins with its claim, and an open string pins nothing.
         struct SoundingRing
         {
             Fraction onset;
@@ -986,14 +986,9 @@ void countDerivation(
                 {
                     continue;
                 }
-                const std::optional<ChartStop> stop =
-                    common::core::fretHandStopAt(*ring.note, *ring.claim, arrival - ring.onset);
-                if (!stop.has_value())
-                {
-                    continue;
-                }
-                const int fret = common::core::handFretOf(*stop);
-                if (fret > 0 && !window.covers(fret))
+                const std::optional<int> held =
+                    common::core::heldFretAt(*ring.note, *ring.claim, arrival - ring.onset);
+                if (held.has_value() && !window.covers(*held))
                 {
                     ++pinned;
                 }

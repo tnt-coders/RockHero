@@ -52,7 +52,14 @@ when the derivation lands.*
    `selectedMarker`, the focus-row stack between the time signature and the strings; the letter
    declared once in `editor_command_registry.cpp` and both chords composed from it; `Delete` and
    `Alt+←/→` arms; `commitMarkerModel` snapshot for the `fhps` stream; the lane's FHP chips are
-   the row's objects. Insert defaults the fret to the lowest stated stop at or after the cursor.
+   the row's objects. Insert defaults the fret to the lowest stop the new placement's stretch
+   holds, asked of the one held-stop fold the width reads (so a ring still sounding at the cursor
+   counts, and a new FIRST placement takes the notes before it, as the window does) — else the
+   previous placement's fret, else 1. *Refinements from the step's simplicity pass:* one
+   `markerCanStartAt` bound shared by every marker kind (the hand kind had none, and sections and
+   tones each carried a private copy); a kind with nothing to prompt for publishes no verb — its
+   chord runs its target inside one action; no `Enter` arm until there is a payload to re-enter;
+   the lane's chip press is gated by `marker_edits_enabled` like every marker surface.
 3. **Fret entry** on a selected placement — the one piece plan 60 may retire (or keep as the
    override path). Key choice after a keymap check: `↑/↓` walk rows, so the typed-digit grammar
    (type the fret, `Enter`) is the likely shape.

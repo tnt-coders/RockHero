@@ -1821,6 +1821,8 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     const std::vector<BuiltNote>& built, const std::size_t index, const Fraction instant)
 {
     const BuiltNote& entry = built[index];
+    // fretHandStopAt rather than heldFretAt: an open note is a statement here, one a grip can
+    // contradict.
     return common::core::fretHandStopAt(
         entry.note, common::core::claimedStop(entry.note), instant - entry.global_beat);
 }

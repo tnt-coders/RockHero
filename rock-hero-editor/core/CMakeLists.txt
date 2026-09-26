@@ -16,6 +16,9 @@ target_sources(
             src/chart/chart_navigation.cpp
             src/chart/chart_navigation.h
             src/chart/chart_reveal.cpp
+            src/chart/fret_hand_handlers.cpp
+            src/chart/fret_hand_positions_snapshot.cpp
+            src/chart/fret_hand_positions_snapshot.h
             src/chart/pick_slide_defaults.cpp
             src/chart/pick_slide_defaults.h
             src/chart/chart_selection.cpp
@@ -40,7 +43,7 @@ target_sources(
             src/controller/editor_undo_history.cpp
             src/controller/editor_undo_history.h
             # Private headers: the one marker commit funnel and the one whole-snapshot undo entry
-            # every marker verb (tone regions, song sections) shares.
+            # every marker verb (tone regions, song sections, fret-hand positions) shares.
             src/controller/marker_model_commit.h
             src/controller/marker_model_edit.h
             src/input_calibration/input_calibration_controller.cpp

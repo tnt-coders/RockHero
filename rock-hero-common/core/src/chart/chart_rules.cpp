@@ -116,6 +116,13 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
            isOnTickLattice(tempo_map, position);
 }
 
+// The grid rule plus the song's end: every marker kind asks this one question, so a section, a tone
+// change and a hand position can never disagree about where the song stops holding one.
+bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
+{
+    return isValidGridPosition(position, tempo_map) && position < terminalGridPosition(tempo_map);
+}
+
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
 {
     const auto string_count = static_cast<int>(chart.tuning.strings.size());
@@ -151,21 +158,38 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     // with the frets it reads — every one of them belongs to a note this validator judges — and a
     // derived span's length and order are properties of the walk that built it.
 
-    const FretHandPosition* previous_fhp = nullptr;
-    for (const FretHandPosition& fhp : chart.fret_hand_positions)
+    if (auto placements =
+            validateFretHandPositions(chart.fret_hand_positions, chart.tuning, tempo_map);
+        !placements.has_value())
     {
-        // A position off the grid has no repair; where the window SITS is the normalizer's fit
-        // (above the capo, the narrowest window under the last fret), asked as the fixpoint.
-        if (!isValidGridPosition(fhp.position, tempo_map))
+        return std::unexpected{std::move(placements.error())};
+    }
+
+    return validateChartNotes(chart.notes, chart.tuning, tempo_map);
+}
+
+// Separate from validateChartRules so a placement edit can be judged without re-judging every note
+// under it; the chart gate asks exactly this for its own stream.
+std::expected<void, ChartError> validateFretHandPositions(
+    const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
+    const TempoMap& tempo_map)
+{
+    const FretHandPosition* previous_fhp = nullptr;
+    for (const FretHandPosition& fhp : placements)
+    {
+        // A position off the grid or past the song has no repair; where the window SITS is the
+        // normalizer's fit (above the capo, the narrowest window under the last fret), asked as the
+        // fixpoint.
+        if (!markerCanStartAt(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
-                .message = "fret-hand position is invalid at " + positionText(fhp.position),
+                .message = "fret-hand position is off the grid or past the song at " +
+                           positionText(fhp.position),
             }};
         }
         FretHandPosition normal = fhp;
-        if (const std::vector<ChartRepair> repairs =
-                normalizeFretHandPosition(normal, chart.tuning);
+        if (const std::vector<ChartRepair> repairs = normalizeFretHandPosition(normal, tuning);
             !repairs.empty())
         {
             return std::unexpected{ChartError{
@@ -186,8 +210,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
         previous_fhp = &fhp;
     }
-
-    return validateChartNotes(chart.notes, chart.tuning, tempo_map);
+    return {};
 }
 
 std::string_view chartRepairText(const ChartRepair repair)

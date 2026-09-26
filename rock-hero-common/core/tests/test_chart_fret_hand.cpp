@@ -4,7 +4,9 @@
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -229,6 +231,38 @@ TEST_CASE("Chart projection publishes the derived fret-hand width", "[core][char
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].fret == 5);
     CHECK(state.fret_hand_positions[0].width == 7);
+}
+
+// The one fold reports both ends of what each stretch holds: its LOWEST stop is the default an
+// inserted placement's fret takes. An open string holds nothing and bounds nothing, and a stretch
+// holding no stop reports none.
+TEST_CASE("Held fret range spans a stretch's stops without the open string", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNote> notes{noteAt(1, 1, 1, 0), noteAt(1, 2, 2, 9), noteAt(1, 3, 3, 7)};
+    const std::vector<std::optional<HeldFretRange>> ranges = deriveHeldFretRanges(
+        notes,
+        chartClaimedStops(chartConnections(notes, tempo_map)),
+        {placementAt(1, 5), placementAt(3, 5)},
+        tempo_map);
+    REQUIRE(ranges.size() == 2);
+    CHECK(ranges[0] == std::optional{HeldFretRange{.lowest = 7, .highest = 9}});
+    CHECK_FALSE(ranges[1].has_value());
+}
+
+// A placement is a marker, so it may start only where every marker may: on the grid and strictly
+// before the closing barline, which governs a passage of no length.
+TEST_CASE("Fret-hand validation refuses a placement on the closing barline", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    const GridPosition terminal = terminalGridPosition(tempo_map);
+
+    CHECK_FALSE(validateFretHandPositions(
+                    {FretHandPosition{.position = terminal, .fret = 5}}, tuning, tempo_map)
+                    .has_value());
+    CHECK(validateFretHandPositions({placementAt(1, 5)}, tuning, tempo_map).has_value());
 }
 
 } // namespace rock_hero::common::core

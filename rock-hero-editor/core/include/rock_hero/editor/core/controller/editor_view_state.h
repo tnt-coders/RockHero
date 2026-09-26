@@ -816,6 +816,12 @@ struct ChartEditViewState
     */
     std::vector<ChartKeyframeRef> selected_keyframes{};
 
+    /*!
+    \brief Index of the selected fret-hand position in the tab projection's placement order, the
+    chip the lane outlines; empty while no placement is selected or the selected one is gone.
+    */
+    std::optional<std::size_t> selected_fret_hand_position{};
+
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};
 
@@ -891,7 +897,8 @@ struct EditorViewState
 
     Derived as the availability of \ref EditorActionId::SelectSongSection, the marker verb with the
     WEAKEST base condition — a project, and a paused transport — so it answers for every marker kind
-    (sections, tempo anchors, time signatures, tone regions, automation points) and for the "+" row
+    (sections, tempo anchors, time signatures, fret-hand positions, tone regions, automation
+    points) and for the "+" row
     at once. Every marker-row surface greys its affordances and refuses its gestures from this flag
     alone: no view derives marker enablement itself, and none reads the transport to decide it.
 

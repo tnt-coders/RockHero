@@ -4,7 +4,7 @@
 (see [The review pass](#the-review-pass-of-2026-09-13)). **The precedence was RE-RULED and BUILT
 2026-09-14: every chord authors at the cursor and never reads the selection, and the core publishes
 the VERB each chord would perform** — Phase 3 of `keyboard-focus-rows.md`, whose build record
-names the fields. Binding on every marker kind added from here, including the three still
+names the fields. Binding on every marker kind added from here, including the two still
 RESERVED. Decisions that were judgment calls rather than forced moves are collected under
 [Open questions for review](#open-questions-for-review) at the end; they are the ones to push on.*
 
@@ -305,10 +305,12 @@ recorded drift is fixed and its backlog entry removed.
 
 ## What a NEW marker kind must do
 
-The three reserved kinds — tempo anchor (`Ctrl+B`), meter (`Ctrl+/`), and the hand marker
-(`Ctrl+H`, ruled 2026-09-15; the fret-hand position and the span are ONE object since that day,
-plan 60's 60-H1, so the former `Ctrl+P` position marker is not a separate kind) — inherit all of the
-above. Building one means:
+The two reserved kinds — tempo anchor (`Ctrl+B`) and meter (`Ctrl+/`) — inherit all of the
+above, as the hand marker (`Ctrl+H`, ruled 2026-09-15; the fret-hand position and the span are ONE
+object since that day, plan 60's 60-H1, so the former `Ctrl+P` position marker is not a separate
+kind) did when its stopgap form shipped on 2026-09-25 (`hand-marker-stopgap.md`: the stored
+placement, position and fret, through this grammar; the span half and the derivation are plan 60's).
+Building one means:
 
 1. **Publish the kind's CHORD TARGET beside the section and tone targets** — a variant of
    nothing / restate-this / insert-here, chosen in the core under the kind's own quantum — and its
@@ -316,7 +318,10 @@ above. Building one means:
    else, and never re-derive the cursor on a surface: read `cursorPosition(quantum)` in the core
    and hand the UI a verb.
 2. In the UI, open exactly what the published verb names. The surface decides nothing, and holds no
-   position, predicate or gate of its own.
+   position, predicate or gate of its own. A kind with nothing to prompt for publishes no verb: it
+   runs its target inside its one author action (`AuthorFretHandPositionAtCursor`, whose target is
+   file-local to its handlers), and the UI only forwards the press — the tempo anchor will inherit
+   this shape.
 3. Select through `selectMarker`, in the core, so the mouse and the keyboard's focus rows share
    one select that demotes the caret and re-syncs the rig. A kind with its own ruler or track row
    joins `MarkerRow` — BOTH switches over the enum, `markerStarts` and `markerSelectionAt` in
@@ -335,9 +340,9 @@ above. Building one means:
    `editorCommandActsOnSelection` (same file), which decides whether the view keeps the acted-on
    selection in view; Navigation is absent from that list on purpose, the jumps and the walk
    selecting without moving the view.
-5. Add the kind to `RestateSelection`'s dispatch, to `RenameSelection`'s where it has a name, to
-   `Delete`'s and to `MoveSelection`'s, all of which switch on the selection's kind; a landed move
-   ends with `followMovedMarker(start)`.
+5. Add the kind to `RestateSelection`'s dispatch where the kind has a payload to re-enter, to
+   `RenameSelection`'s where it has a name, to `Delete`'s and to `MoveSelection`'s, all of which
+   switch on the selection's kind; a landed move ends with `followMovedMarker(start)`.
 6. Select the marker in the core after authoring or restating it, including a restate of a marker
    that was not selected.
 7. If the kind has no payload, its restate is a no-op that only selects — still needed, because it
@@ -347,7 +352,20 @@ above. Building one means:
    its result on a COPY of the captured model and never touches the live one, so a refusal costs
    nothing; the funnel owns the undo entry, the refusal log, the release of a selection naming a
    marker that is gone, and the publish. A verb must not call `updateView()` itself except to
-   publish a selection it makes AFTER a landed commit.
+   publish a selection it makes AFTER a landed commit. A verb that refuses before it has a model
+   to hand over logs through the funnel's own `logMarkerRefusal`, and where the kind may start is
+   `markerCanStartAt` (common core), asked by its validator and its chord alike.
+
+Three touchpoints no compiler reports, each missed once:
+
+- **`selection_present`** (`editor_controller.cpp`): count the kind's published selection, or
+  `Delete` stays unclaimed while it is selected.
+- **The chart lane's discovery menu** (`showChartDiscoveryMenu`, `editor_view.cpp`): add the kind's
+  jump to its navigate submenu, or the chord is undiscoverable there.
+- **The `marker_edits_enabled` surface gate** (`editor_view.cpp`, beside the other marker-row
+  surfaces): a surface that selects the kind's markers takes the flag through its own
+  `setMarkerEditsEnabled` and gates its select on it, so a closed plane leaves its presses to the
+  surface's ordinary behaviour.
 
 The grammar is stated for readers in `docs/plans/in-progress/keymap-matrix.md`, in the Markers
 section intro, which was updated in `cb33ca39` from the old two-move form.

@@ -328,6 +328,14 @@ namespace
         {
             return "SelectTimeSignature";
         }
+        case EditorAction::Id::SelectFretHandPosition:
+        {
+            return "SelectFretHandPosition";
+        }
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        {
+            return "AuthorFretHandPositionAtCursor";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -410,6 +418,7 @@ namespace
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
+            case EditorAction::Id::AuthorFretHandPositionAtCursor:
             {
                 return "input-calibration-prompt";
             }
@@ -432,6 +441,7 @@ namespace
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
+            case EditorAction::Id::SelectFretHandPosition:
             {
                 break;
             }
@@ -528,6 +538,8 @@ namespace
         case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
+        case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
         {
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
@@ -1164,6 +1176,16 @@ void EditorController::onTempoAnchorSelected(const common::core::GridPosition po
 void EditorController::onTimeSignatureSelected(const int measure)
 {
     m_impl->onTimeSignatureSelected(measure);
+}
+
+void EditorController::onFretHandPositionSelected(const std::size_t index)
+{
+    m_impl->runAction(EditorAction::SelectFretHandPosition{.index = index});
+}
+
+void EditorController::onHandChordRequested()
+{
+    m_impl->runAction(EditorAction::AuthorFretHandPositionAtCursor{});
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -3007,6 +3029,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // yet, so counting it would swallow the key for a verb that does nothing.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
+        state.chart_edit.selected_fret_hand_position.has_value() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(
             state.sections, [](const SongSectionViewState& section) { return section.selected; }) ||

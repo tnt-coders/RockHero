@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -90,6 +91,12 @@ public:
     using ContextMenuCallback = std::function<void(juce::Point<int>)>;
 
     /*!
+    \brief Sink receiving a press on a scrolling fret-hand chip, as the index of the placement it
+    states in the projection's placement order.
+    */
+    using FretHandChipCallback = std::function<void(std::size_t)>;
+
+    /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
     \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
     */
@@ -110,6 +117,31 @@ public:
     \param callback Callback receiving the lane-local position of the popup gesture.
     */
     void setContextMenuCallback(ContextMenuCallback callback);
+
+    /*!
+    \brief Installs the sink that selects the fret-hand placement whose chip a press lands on.
+
+    The chip is hit-tested here rather than by the controller's chart hit model because its box is
+    measured in this lane's label font (common::ui::tabFhpChipBounds), which the headless core does
+    not have — the ruler's chips are hit-tested by their view for the same reason. A press on a
+    chip goes to this sink and never reaches the chart pointer path, so it neither seeks nor lands
+    on the string drawn under the chip.
+
+    \param callback Callback receiving the pressed placement's index; empty leaves chips inert.
+    */
+    void setFretHandChipCallback(FretHandChipCallback callback);
+
+    /*!
+    \brief Publishes whether the marker plane is open for selection and editing.
+
+    The core's availability answer as published in \ref core::EditorViewState::marker_edits_enabled;
+    this lane derives nothing of its own from it. While false a press on a fret-hand chip is not a
+    selection — there is none to make — so it goes to the chart like any other press on the lane,
+    exactly as a ruler chip column seeks while the plane is closed.
+
+    \param marker_edits_enabled Published marker-plane availability.
+    */
+    void setMarkerEditsEnabled(bool marker_edits_enabled);
 
     /*!
     \brief Applies the chart-editing overlay state (selection, caret, marquee, pending entry).
@@ -320,6 +352,11 @@ private:
     // Builds the chart pointer event for a mouse event using the currently painted geometry.
     [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
 
+    // The index of the scrolling fret-hand chip under a lane-local point, the one drawn last where
+    // chips overlap; nothing off every chip. The pinned chip is not asked: it is chrome, which
+    // wantsNotationAt has already refused the press over.
+    [[nodiscard]] std::optional<std::size_t> fretHandChipAt(juce::Point<float> local_point) const;
+
     // Recomputes the caret square's content-coordinate mask and pushes it to the sink when it
     // changed since the last publish. Called from every site that can move the square: edit-state
     // and projection pushes, and layout changes (resize/reposition). The caret is fixed to a string
@@ -342,6 +379,12 @@ private:
 
     // Raises the keybind-discovery menu; empty until the shell installs it.
     ContextMenuCallback m_context_menu_callback{};
+
+    // Selects the placement a chip press names; empty leaves chips inert.
+    FretHandChipCallback m_fret_hand_chip_callback{};
+
+    // The published marker-plane availability; chips are markers only while it is open.
+    bool m_marker_edits_enabled{false};
 
     // Last caret mask handed to the sink, so a republish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};

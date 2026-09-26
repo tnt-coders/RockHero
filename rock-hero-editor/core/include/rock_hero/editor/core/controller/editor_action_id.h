@@ -211,6 +211,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Select a time-signature chip on the ruler (the change it marks). */
     SelectTimeSignature,
 
+    /*! \brief Select a fret-hand position: a click on its tab-lane hand chip. */
+    SelectFretHandPosition,
+
+    /*! \brief Author a fret-hand position at the cursor: restate the one there, else insert one. */
+    AuthorFretHandPositionAtCursor,
+
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,
 

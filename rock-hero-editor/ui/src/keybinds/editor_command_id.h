@@ -158,6 +158,19 @@ enum class EditorCommandId : std::uint16_t
     */
     RenameSelection = 0x1405,
 
+    /*!
+    \brief Insert a fret-hand position at the cursor, or restate the one arriving there (`Ctrl+H`).
+
+    Shares the tone change's marker grammar, read at the same placement quantum: a placement
+    arriving exactly at the cursor is restated — which, with no fret entry yet, only selects it —
+    and anywhere else a new one is inserted at the fret the core defaults it to (the lowest stop its
+    stretch holds) and left selected. With nothing to prompt for, the view forwards the press and
+    the core decides and acts in one action; the press is inert while the transport plays, with no
+    song, with no chart, or on the closing barline. The walk, Tab, the jump and a chip click are the
+    ways onto an existing placement; `Delete` and `Alt+Left/Right` are its verbs.
+    */
+    InsertFretHandPosition = 0x1406,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 
@@ -191,18 +204,18 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief Jump to the nearest row of the group of rows above (`Ctrl+Up`).
 
-    The groups are the ruler's section, tempo and time-signature rows, the strings, the tone row,
-    the automation lanes and the "+" row beneath them, and the jump lands on the destination group's
-    nearest row: from any string the time-signature row, from any lane the tone row, from the "+"
-    row the last lane.
+    The groups are the ruler's section, tempo and time-signature rows, the hand row, the strings,
+    the tone row, the automation lanes and the "+" row beneath them, and the jump lands on the
+    destination group's nearest row: from any string the hand row (the time-signature row on a chart
+    with no fret-hand positions), from any lane the tone row, from the "+" row the last lane.
     */
     CaretJumpSurfaceAbove = 0x150B,
 
     /*!
     \brief Jump to the nearest row of the group of rows below (`Ctrl+Down`).
 
-    From the time-signature row this reaches the top string, from any string the tone row, and from
-    any lane the "+" row.
+    From the hand row this reaches the top string (from the time-signature row, the hand row where
+    the chart has fret-hand positions), from any string the tone row, and from any lane the "+" row.
     */
     CaretJumpSurfaceBelow = 0x150C,
 
@@ -261,6 +274,13 @@ enum class EditorCommandId : std::uint16_t
     this editor uses `Ctrl+Shift+A` for select-none.
     */
     CaretJumpAddLaneRow = 0x1515,
+
+    /*!
+    \brief Jump keyboard focus onto the hand row, the chart's fret-hand positions (`Ctrl+Shift+H`).
+
+    Silent on a chart with no placements, where the row has nothing to hold the cursor.
+    */
+    CaretJumpHandRow = 0x1516,
 
     /*! \brief Extend the time selection one grid slot left (`Shift+Left`). */
     TimeSelectionExtendLeft = 0x1601,

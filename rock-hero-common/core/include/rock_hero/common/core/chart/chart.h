@@ -2094,7 +2094,9 @@ is read where it now is and a natural harmonic at its node — at the onset, exa
        exists, or the field's own reading (\ref claimedStop) on a stream not yet resolved.
 \param offset Beat-fraction offset from the note's onset.
 
-\return The stop the fretting hand holds at that instant, or nothing where it holds none.
+\return The stop the note states at that instant; nothing only under a right-hand onset with no
+        claim. An open string answers `frettedStop(0)` — a statement that no finger is down, which
+        a reader asking whether a finger IS down reads through \ref heldFretAt.
 */
 [[nodiscard]] inline std::optional<ChartStop> fretHandStopAt(
     const ChartNote& note, const std::optional<int>& claim, const Fraction offset)
@@ -2104,6 +2106,29 @@ is read where it now is and a natural harmonic at its node — at the onset, exa
         return claim.has_value() ? std::optional{frettedStop(*claim)} : std::nullopt;
     }
     return frettingStopAt(note, ringStateAt(note, offset).fret);
+}
+
+/*!
+\brief THE FINGER-DOWN READING of \ref fretHandStopAt: the fret slot a fretting finger occupies at
+an instant, or nothing where no finger is down — an open string, or a right-hand onset claiming no
+stop.
+
+\param note Note whose ring is read.
+\param claim The note's claimed stop, as \ref fretHandStopAt takes it.
+\param offset Beat-fraction offset from the note's onset.
+
+\return The occupied fret (\ref handFretOf), or nothing where no finger is down.
+*/
+[[nodiscard]] inline std::optional<int> heldFretAt(
+    const ChartNote& note, const std::optional<int>& claim, const Fraction offset)
+{
+    const std::optional<ChartStop> stop = fretHandStopAt(note, claim, offset);
+    if (!stop.has_value())
+    {
+        return std::nullopt;
+    }
+    const int fret = handFretOf(*stop);
+    return fret > 0 ? std::optional{fret} : std::nullopt;
 }
 
 /*!

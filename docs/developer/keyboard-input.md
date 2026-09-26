@@ -258,7 +258,10 @@ picker or prompt that variant names. The chords read the CURSOR and never the se
 caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's
 slot and at the tick for the section's measure downbeat). "Nothing" carries the playback and no-song
 gates, stated once in the projection rather than in five UI guards, so a chord typed while the
-transport rolls finds no verb to perform. `F3`/`F8` are commands that
+transport rolls finds no verb to perform. `Ctrl+H` (the hand chord) has nothing to prompt for, so
+it publishes no verb at all: its `perform` forwards `onHandChordRequested()`, and the core decides
+the same precedence and acts on it inside ONE action (`AuthorFretHandPositionAtCursor`, whose
+`handChordTarget` is file-local to `fret_hand_handlers.cpp`). `F3`/`F8` are commands that
 toggle UI panels directly — trigger-only commands with no core policy. Two more UI-only families
 ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
@@ -536,14 +539,15 @@ the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a 
 automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
 does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
-— the ruler's section, tempo and time-signature rows, the strings, the tone-region row, the visible
+— the ruler's section, tempo and time-signature rows, the hand row (the chart's fret-hand
+positions, whose lane chips are its markers), the strings, the tone-region row, the visible
 lanes, the "+" row — and every landing goes
 through `landOnRow`, which arms a string or lane row and selects the marker holding the cursor on a
 marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a landing that
-keeps the marker's row arms on. The four marker rows share one model in
+keeps the marker's row arms on. The five marker rows share one model in
 `rock-hero-editor/core/src/timeline/marker_row_handlers.cpp` — `markerStarts`, `markerHolderIndex`,
 `adjacentMarkerStart` (the next or previous start strictly beyond the CURSOR, which is how `Tab` and
-`Shift+Tab` step every one of the four rows, so from a cursor inside a marker past its start
+`Shift+Tab` step every one of the five rows, so from a cursor inside a marker past its start
 `Shift+Tab` lands on that marker's own start first rather than skipping to the one before),
 `selectedMarker` and its inverse `markerSelectionAt`, and `selectMarker`, the one select every
 pointer and keyboard path to a marker goes through;
@@ -557,7 +561,8 @@ selected and an armed caret demotes in place exactly as a step would leave it. B
 rows through one non-const `rowsFromFocus`, which folds the column rule (`moveCursorIntoSelectedMarker`,
 so a marker selected far from the cursor is where the target row is read) and `focusRowStack` in that
 order, so neither can list before reconciling. **Stack membership is the silence rule**: a row the
-stack does not list — a song with no sections, a track with no regions — is not landed on at all, so
+stack does not list — a song with no sections, a chart with no fret-hand positions — is not landed
+on at all, so
 the press does nothing and leaves an armed caret armed, where indexing that row's markers would have
 thrown. The jump never calls `prepareLandingRow`, which is the rule for landings that KEEP the row.
 
@@ -571,7 +576,8 @@ or rename the selected region's TONE document — and is silently inert on every
 an empty target, so a press with nothing to restate neither beeps nor lies.
 
 **The whole marker plane is paused-only** (ruled 2026-09-14): while the transport plays, no marker
-of any kind — section, tempo anchor, time signature, tone region, the "+" row, an automation point —
+of any kind — section, tempo anchor, time signature, fret-hand position, tone region, the "+" row,
+an automation point —
 can be selected and no marker edit can land. The decision is the core's, in
 `editor_action_availability.cpp`, and it reaches the views as ONE published flag,
 `EditorViewState::marker_edits_enabled`, so no surface derives it and none reads the transport to
@@ -801,7 +807,8 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    see the Alt-code note under Decoding). One command per
    (chord, verb) pair: a `Ctrl` precision/reach tier is its own command, per the interaction
    model's operation-not-key rule. **A marker kind's letter is declared ONCE** — the file-local
-   `g_section_key`, `g_tempo_key`, `g_time_signature_key`, `g_tone_key`, `g_add_lane_key` — and both
+   `g_section_key`, `g_tempo_key`, `g_time_signature_key`, `g_hand_key`, `g_tone_key`,
+   `g_add_lane_key` — and both
    of its chords are composed from it by `markerAuthorChord` (`Ctrl`+letter, authors at the cursor)
    and `markerJumpChord` (`Ctrl+Shift`+letter, jumps focus onto the row), so the pair cannot drift.
    A new marker kind adds one constant and two rows, never two hand-written chords. All three live
@@ -811,7 +818,8 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    whether a command triggers rule 2 of the window follow — read the selection's first member before
    the command and centre it afterwards if it was off screen. Today Selection, Authoring, Value Entry
    and Marker act on the selection; Navigation does not (the walk and the jumps SELECT, and selecting
-   never scrolls), nor do the section and tone-change author chords (they act at the cursor), nor Esc.
+   never scrolls), nor do the section, tone-change and hand author chords (they act at the cursor),
+   nor Esc.
    A category nobody classified silently falls to "does not act on the selection".
 4. **One owner per chord is a WRITE-side law, not a lookup-side one.** Every path that binds a chord
    goes through `assignKeyPressToCommand` (`keymap_ownership.h`), which strips the chord from

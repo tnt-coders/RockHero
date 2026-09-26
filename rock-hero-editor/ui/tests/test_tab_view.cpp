@@ -1704,4 +1704,88 @@ TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
     CHECK(image.getPixelAt(50, 30).getARGB() == 0);
 }
 
+// A SCROLLING fret-hand chip is the hand row's marker: while the marker plane is open a press on
+// it names that placement to the chip sink and never reaches the chart pointer path, so it neither
+// seeks nor lands on the string under the chip; a press anywhere else, and any press while the
+// plane is closed, still goes to the chart.
+TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    view.setVisibleTimeline(timeline);
+
+    int pointer_events = 0;
+    view.setPointerEventCallback(
+        [&pointer_events](core::ChartPointerPhase, const core::ChartPointerEvent&) {
+            ++pointer_events;
+        });
+    std::optional<std::size_t> pressed_chip;
+    view.setFretHandChipCallback(
+        [&pressed_chip](const std::size_t index) { pressed_chip = index; });
+    view.setMarkerEditsEnabled(true);
+    view.setState(makeFurnitureTabState(), 0);
+
+    // The second placement's chip starts at its own column, 12.0s of a 20s window over 200 pixels,
+    // well clear of the legend panel at the window's left.
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
+    const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
+    const juce::Rectangle<float> chip =
+        common::ui::tabFhpChipBounds(metrics, second, metrics.x(second.seconds));
+    REQUIRE_FALSE(chip.isEmpty());
+
+    view.mouseDown(testing::makeMouseDownEvent(view, chip.getCentreX(), chip.getCentreY()));
+    CHECK(pressed_chip == std::optional<std::size_t>{1});
+    CHECK(pointer_events == 0);
+
+    // Below the chips, the same column is the chart's.
+    view.mouseDown(testing::makeMouseDownEvent(view, chip.getCentreX(), 80.0f));
+    CHECK(pointer_events == 1);
+
+    // With the marker plane closed there is no selection to make, so the chip press goes to the
+    // chart like any other press on the lane, as a ruler chip column seeks then.
+    pressed_chip.reset();
+    view.setMarkerEditsEnabled(false);
+    view.mouseDown(testing::makeMouseDownEvent(view, chip.getCentreX(), chip.getCentreY()));
+    CHECK_FALSE(pressed_chip.has_value());
+    CHECK(pointer_events == 2);
+}
+
+// The selected placement's chip wears the accent outline, and nothing else in the lane changes.
+TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    view.setVisibleTimeline(timeline);
+    view.setState(makeFurnitureTabState(), 0);
+    const juce::Image plain = renderOverCanvas(view);
+
+    view.setEditState(core::ChartEditViewState{.selected_fret_hand_position = 1});
+    const juce::Image selected = renderOverCanvas(view);
+
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6);
+    const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
+    const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
+    const juce::Rectangle<int> chip =
+        common::ui::tabFhpChipBounds(metrics, second, metrics.x(second.seconds))
+            .getSmallestIntegerContainer();
+    REQUIRE_FALSE(chip.isEmpty());
+
+    CHECK(worstPixelDeltaInColumns(plain, selected, chip.getX(), chip.getRight()) > 0);
+    // Well left of the chip the two renders agree.
+    CHECK(worstPixelDeltaInColumns(plain, selected, 40, chip.getX() - 10) == 0);
+}
+
 } // namespace rock_hero::editor::ui
