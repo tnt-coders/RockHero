@@ -2275,27 +2275,64 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
         deleteSelectedAutomationPoint(selected);
         return;
     }
-    if (const SongSectionSelection* const section = selectedSongSection())
-    {
-        const SongSectionSelection selected = *section;
-        deleteSelectedSongSection(selected);
-        return;
-    }
-    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
-    {
-        const FretHandPositionSelection selected = *placement;
-        deleteSelectedFretHandPosition(selected);
-        return;
-    }
     if (!chartSelection().empty())
     {
         deleteChartSelection();
         return;
     }
-    if (std::string region_id = selectedToneRegionId(); !region_id.empty())
+    deleteSelectedMarker();
+}
+
+// Deletes the selected MARKER, whatever its row, and then selects the one before it on that row —
+// exactly what Shift+Tab from the deleted marker's start would land on, cursor included — so a
+// run of deletes walks back along the row instead of dropping the keyboard off it. Where the
+// deleted marker was the row's first, nothing is left selected, as Shift+Tab is inert there. A
+// note's delete is not this rule: it leaves the caret on the emptied slot, which is the entry
+// plane's own continuation. A row with no delete verb (the tempo anchor and the time signature,
+// until their verbs ship) deletes nothing, and the selection stays.
+void EditorController::Impl::deleteSelectedMarker()
+{
+    const std::optional<SelectedMarker> marker = selectedMarker();
+    if (!marker.has_value() || !marker->index.has_value())
+    {
+        return;
+    }
+    const MarkerRow row = marker->row;
+    const std::vector<common::core::GridPosition> before = markerStarts(row);
+    if (*marker->index >= before.size())
+    {
+        return;
+    }
+    const common::core::GridPosition start = before[*marker->index];
+
+    if (const SongSectionSelection* const section = selectedSongSection())
+    {
+        const SongSectionSelection selected = *section;
+        deleteSelectedSongSection(selected);
+    }
+    else if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        const FretHandPositionSelection selected = *placement;
+        deleteSelectedFretHandPosition(selected);
+    }
+    else if (std::string region_id = selectedToneRegionId(); !region_id.empty())
     {
         onToneRegionDeleteRequested(std::move(region_id));
     }
+
+    const std::vector<common::core::GridPosition> after = markerStarts(row);
+    if (std::ranges::contains(after, start))
+    {
+        return; // nothing was deleted: no verb on this row, or the commit refused
+    }
+    if (const std::optional<common::core::GridPosition> previous =
+            adjacentPosition(after, start, false);
+        previous.has_value())
+    {
+        moveCursorTo(*previous);
+        selectMarkerStartingAt(row, *previous);
+    }
+    updateView();
 }
 
 // Typed digits are PROVISIONAL (the W3 pending model): the value being typed lives in the

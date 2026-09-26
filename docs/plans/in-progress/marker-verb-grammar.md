@@ -64,7 +64,12 @@ And four rules ride along with it:
   `←/→` re-arms it exactly where it stood. Since 2026-09-14 a restate can reach a marker that
   was NOT selected, so the core's restate verbs select their target after the commit, as the inserts
   already do — rule 4, now stated in the core rather than holding for free.
-- **`Esc` drops the selection**, and `Delete` leaves nothing selected behind it.
+- **`Esc` drops the selection**, and **`Delete` selects the marker before the one it removed** on
+  the same row, cursor included — exactly what `Shift+Tab` from the deleted start lands on — so a
+  run of deletes walks back along the row; nothing stays selected where the deleted marker was the
+  row's first (ruled 2026-09-25, superseding "Delete leaves nothing selected"; one rule for every
+  marker row, `deleteSelectedMarker`). A NOTE's delete is not this rule: it leaves the caret on the
+  emptied slot, the entry plane's own continuation.
 
 **Superseded 2026-09-14.** The form built 2026-09-13 read three rules: a SELECTED marker is restated
 wherever the cursor is; else a marker exactly at the cursor is SELECTED; else one is inserted — and
@@ -444,8 +449,9 @@ Each of these was a judgment call. The forced moves are not listed; these are.
 4. **Minting lives inside the retone rather than in an action of its own.** That kept one undo
    entry and avoided a new action id along with its exhaustive switches. The counter-case: one
    action now has two shapes, and a sum-typed payload is a branch by another name.
-5. **Delete leaves nothing selected, but a merging retone selects the survivor.** Delete's target
-   is gone and nothing inherits it. A retone that merges the selected region into its predecessor
+5. **Delete leaves nothing selected, but a merging retone selects the survivor.** *Settled
+   2026-09-25: Delete now selects the marker before the deleted one, as `Shift+Tab` would — see
+   the rules above.* Delete's target is gone and nothing inherits it. A retone that merges the selected region into its predecessor
    selects that predecessor, on the grounds that it now holds what the charter just made. The
    opposing reading: the marker the charter pointed at was dissolved, so nothing should stay
    selected there either, exactly as after Delete.

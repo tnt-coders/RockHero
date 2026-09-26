@@ -566,6 +566,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const FretHandPositionSelection& selection, ChartStepDirection direction);
     // Deletes the selected placement (the Delete-key dispatch for the fret-hand alternative).
     void deleteSelectedFretHandPosition(const FretHandPositionSelection& selection);
+    // The Delete key over a selected marker of any row: deletes it through its row's verb, then
+    // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
+    void deleteSelectedMarker();
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position);
     // The one boundary move the pointer drag and the keyboard share: moves the start of a region

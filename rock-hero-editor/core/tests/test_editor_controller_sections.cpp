@@ -559,6 +559,22 @@ TEST_CASE("EditorController deletes the selected section", "[core][sections]")
     CHECK(editor.sections().front().name == "Chorus");
 }
 
+// Deleting a section selects the one before it on the row, as Shift+Tab from its start would, so a
+// run of deletes walks back along the row.
+TEST_CASE("Deleting a section selects the section before it", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(2), .name = "Verse"},
+         SongSection{.position = downbeat(3), .name = "Chorus"}})};
+    editor.controller.onSongSectionSelected(downbeat(3));
+
+    editor.controller.onSelectionDeleteRequested();
+    const std::vector<SongSectionViewState> published = editor.publishedSections();
+    REQUIRE(published.size() == 1);
+    CHECK(published[0].selected);
+    CHECK(editor.selectionPresent());
+}
+
 // The selection is an alternative of the one editor-wide selection, so it publishes through the
 // same view state every other kind does, and it is what Delete finds.
 TEST_CASE("A section selection round-trips through the view state", "[core][sections]")
