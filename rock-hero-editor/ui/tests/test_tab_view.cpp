@@ -1788,6 +1788,32 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
     CHECK(worstPixelDeltaInColumns(plain, selected, 40, chip.getX() - 10) == 0);
 }
 
+// A selected placement the panel PINS is outlined where it is drawn — on the pinned chip — because
+// its own column lies under the panel there: selecting it from the keyboard (the hand row's jump
+// lands on the placement governing the cursor) must still show which placement is selected.
+TEST_CASE("TabView outlines a selected fret-hand chip where it is pinned", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeFurnitureTabState(), 0);
+    // Scrolled past the first placement (2.0s, x = 20), which then governs the edge and pins.
+    view.setVisibleContentLeft(60);
+    const juce::Image plain = renderOverCanvas(view);
+
+    view.setEditState(core::ChartEditViewState{.selected_fret_hand_position = 0});
+    const juce::Image selected = renderOverCanvas(view);
+
+    const juce::Rectangle<int> panel = view.legendBounds();
+    REQUIRE_FALSE(panel.isEmpty());
+    CHECK(worstPixelDeltaInColumns(plain, selected, panel.getX(), panel.getX() + 20) > 0);
+}
+
 // A placement's pending fret entry wears its box on the placement's chip, the mark whose value the
 // digits are typing, and draws nothing anywhere else.
 TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")

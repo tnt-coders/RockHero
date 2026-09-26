@@ -216,6 +216,17 @@ void TabView::mouseDown(const juce::MouseEvent& event)
     m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
 }
 
+// The column a placement's chip is drawn at: the pin's for the placement the panel pins (its own
+// column lies under the panel there), else its own. The one answer the chip, its selection outline
+// and its pending box all read.
+float TabView::fretHandChipX(
+    const common::ui::TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+    const std::size_t index) const
+{
+    return m_pinned_fhp == index ? static_cast<float>(legendBounds().getX())
+                                 : metrics.x(tab.fret_hand_positions[index].seconds);
+}
+
 // Chips sit at their placements' own columns, which ascend with the placements, so only a chip
 // starting at or left of the point can contain it. The scan runs back from the last of those — the
 // chip drawn on top where two overlap — and stops at the viewport's left edge: a chip starting
@@ -629,33 +640,55 @@ void TabView::paint(juce::Graphics& g)
     // composition distinguishes it from the lane content.
     common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
 
-    // A placement's scrolling chip as the paint core just drew it: the placement and the box, from
-    // the one geometry authority, and nothing for an index the projection has since outrun or a
-    // lane that prints no text. The selection outline and the pending box both ride it.
-    struct ScrollingChip
+    // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
+    // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
+    // is not only a name column but a current-state column — which string is which, and where the
+    // hand is. The ORDINARY chip, drawn through the same one authority every scrolling placement
+    // draws through, and simply given the pin's column instead of its own (fretHandChipX). Which
+    // placement (and whether it has yielded to the next one) is refreshPinnedFhp's answer,
+    // re-derived when the window moves rather than per paint.
+    //
+    // In the furniture's own layer, because it IS one of these chips: above the tint and the
+    // canvas showing through it, above whatever else the furniture drew, and under the letters
+    // like everything else on this lane.
+    //
+    // Bound to a local so the presence test and the read are provably one object.
+    if (const std::optional<std::size_t>& pinned = m_pinned_fhp;
+        pinned.has_value() && *pinned < tab.fret_hand_positions.size())
+    {
+        common::ui::drawTabFhpChip(
+            g, metrics, tab.fret_hand_positions[*pinned], fretHandChipX(metrics, tab, *pinned));
+    }
+
+    // A placement's chip WHERE IT IS DRAWN — pinned on the panel or scrolling at its own column
+    // (fretHandChipX) — the placement and the box, from the one geometry authority, and nothing for
+    // an index the projection has since outrun or a lane that prints no text. The selection
+    // outline and the pending box both ride it, so a selected or pending placement is marked
+    // wherever it shows, the pinned chip included.
+    struct DrawnChip
     {
         const common::core::FhpViewState* fhp{nullptr};
         juce::Rectangle<float> box{};
     };
-    const auto scrolling_chip = [&tab, &metrics](const std::size_t index) {
+    const auto drawn_chip = [this, &tab, &metrics](const std::size_t index) {
         if (index >= tab.fret_hand_positions.size())
         {
-            return std::optional<ScrollingChip>{};
+            return std::optional<DrawnChip>{};
         }
         const common::core::FhpViewState& fhp = tab.fret_hand_positions[index];
         const juce::Rectangle<float> box =
-            common::ui::tabFhpChipBounds(metrics, fhp, metrics.x(fhp.seconds));
-        return box.isEmpty() ? std::optional<ScrollingChip>{}
-                             : std::optional{ScrollingChip{.fhp = &fhp, .box = box}};
+            common::ui::tabFhpChipBounds(metrics, fhp, fretHandChipX(metrics, tab, index));
+        return box.isEmpty() ? std::optional<DrawnChip>{}
+                             : std::optional{DrawnChip{.fhp = &fhp, .box = box}};
     };
 
     // THE SELECTED FRET-HAND CHIP wears the accent outline a selected keyframe chip wears — one
-    // selection idiom for every boxed mark — traced on the scrolling chip at its own column. Editor
+    // selection idiom for every boxed mark — traced on the chip where it is drawn. Editor
     // furniture, so it stays out of the game-shared paint core.
     if (const std::optional<std::size_t>& selected = m_edit.selected_fret_hand_position;
         selected.has_value())
     {
-        if (const std::optional<ScrollingChip> chip = scrolling_chip(*selected); chip.has_value())
+        if (const std::optional<DrawnChip> chip = drawn_chip(*selected); chip.has_value())
         {
             g.setColour(accent);
             g.drawRect(chip->box, overlayRingStroke(chip->box.getHeight()));
@@ -671,8 +704,7 @@ void TabView::paint(juce::Graphics& g)
         if (const auto* const hand = std::get_if<core::ChartPendingFretHandPosition>(&pending->at);
             hand != nullptr)
         {
-            if (const std::optional<ScrollingChip> chip = scrolling_chip(hand->index);
-                chip.has_value())
+            if (const std::optional<DrawnChip> chip = drawn_chip(hand->index); chip.has_value())
             {
                 common::ui::paintTabPendingEntryPlate(
                     g,
@@ -685,25 +717,6 @@ void TabView::paint(juce::Graphics& g)
                     accent);
             }
         }
-    }
-
-    // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
-    // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
-    // is not only a name column but a current-state column — which string is which, and where the
-    // hand is. The ORDINARY chip, drawn through the same one authority every scrolling placement
-    // draws through, and simply given the pin's column instead of its own. Which placement (and
-    // whether it has yielded to the next one) is refreshPinnedFhp's answer, re-derived when the
-    // window moves rather than per paint.
-    //
-    // In the furniture's own layer, because it IS one of these chips: above the tint and the
-    // canvas showing through it, above whatever else the furniture drew, and under the letters
-    // like everything else on this lane.
-    //
-    // Bound to a local so the presence test and the read are provably one object.
-    const std::optional<common::core::FhpViewState>& pinned = m_pinned_fhp;
-    if (pinned.has_value())
-    {
-        common::ui::drawTabFhpChip(g, metrics, *pinned, static_cast<float>(panel.getX()));
     }
 
     // THE STRING LEGEND'S LETTERS, last of everything: each string's own pitch name on its own
@@ -805,7 +818,7 @@ void TabView::refreshPinnedFhp(const std::optional<DrawableLane>& lane)
         return;
     }
 
-    m_pinned_fhp = governing;
+    m_pinned_fhp = static_cast<std::size_t>(std::distance(placements.begin(), incoming) - 1);
     m_pinned_fhp_column = chip;
 }
 
