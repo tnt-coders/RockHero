@@ -2079,6 +2079,59 @@ written for the hand that makes the shape and not guarded here.
 }
 
 /*!
+\brief THE FRETTING HAND'S STOP a sounding note states at an instant along its ring — the one
+answer every "where is this finger now" reader asks.
+
+Under a RIGHT-HAND onset (\ref rightHandOnset) the note's own fret and keyframes are the picking
+hand's, so the fretting hand's stop is the claim beside it, for the whole ring: a plain tap's or a
+pick slide's planted finger, a tapped harmonic's pressed stop, or nothing. Every other note states
+\ref frettingStopAt at the fret its channel has reached by then (\ref ringStateAt), so a slid finger
+is read where it now is and a natural harmonic at its node — at the onset, exactly the stop
+\ref fretFor places the hand on.
+
+\param note Note whose ring is read.
+\param claim The note's claimed stop: the resolved column (\ref chartClaimedStops) wherever one
+       exists, or the field's own reading (\ref claimedStop) on a stream not yet resolved.
+\param offset Beat-fraction offset from the note's onset.
+
+\return The stop the note states at that instant; nothing only under a right-hand onset with no
+        claim. An open string answers `frettedStop(0)` — a statement that no finger is down, which
+        a reader asking whether a finger IS down reads through \ref heldFretAt.
+*/
+[[nodiscard]] inline std::optional<ChartStop> fretHandStopAt(
+    const ChartNote& note, const std::optional<int>& claim, const Fraction offset)
+{
+    if (rightHandOnset(note.attack))
+    {
+        return claim.has_value() ? std::optional{frettedStop(*claim)} : std::nullopt;
+    }
+    return frettingStopAt(note, ringStateAt(note, offset).fret);
+}
+
+/*!
+\brief THE FINGER-DOWN READING of \ref fretHandStopAt: the fret slot a fretting finger occupies at
+an instant, or nothing where no finger is down — an open string, or a right-hand onset claiming no
+stop.
+
+\param note Note whose ring is read.
+\param claim The note's claimed stop, as \ref fretHandStopAt takes it.
+\param offset Beat-fraction offset from the note's onset.
+
+\return The occupied fret (\ref handFretOf), or nothing where no finger is down.
+*/
+[[nodiscard]] inline std::optional<int> heldFretAt(
+    const ChartNote& note, const std::optional<int>& claim, const Fraction offset)
+{
+    const std::optional<ChartStop> stop = fretHandStopAt(note, claim, offset);
+    if (!stop.has_value())
+    {
+        return std::nullopt;
+    }
+    const int fret = handFretOf(*stop);
+    return fret > 0 ? std::optional{fret} : std::nullopt;
+}
+
+/*!
 \brief The last stop the note's fret channel states STRICTLY INSIDE its ring — the onset's where it
 states none.
 
@@ -2133,7 +2186,56 @@ is why the connection resolver disqualifies a scrape before ever asking this.
     return arrival != nullptr ? *arrival : fretBeforeEnd(note);
 }
 
-/*! \brief Fret-hand position: where the hand sits on the neck from this point on. */
+/*!
+\brief The fewest frets a fret-hand window spans: one finger per fret from the index up.
+
+The floor of every derived window width (\ref deriveFretHandWidths), and so also how HIGH a
+placement's index finger may sit: the narrowest window must still end on the board
+(\ref normalizeFretHandPosition).
+*/
+inline constexpr int g_min_fret_hand_width{4};
+
+/*!
+\brief A fret-hand window on the neck: the frets `[fret, top()]` one hand covers.
+
+The one spelling of a window's extent, so no site writes `fret + width - 1` or its coverage test
+for itself.
+*/
+struct FretWindow
+{
+    /*! \brief Lowest fret under the index finger. */
+    int fret{1};
+
+    /*! \brief Frets the window spans, counting the index finger's. */
+    int width{g_min_fret_hand_width};
+
+    /*!
+    \brief The highest fret the window covers.
+    \return The window's top fret.
+    */
+    [[nodiscard]] constexpr int top() const noexcept
+    {
+        return fret + width - 1;
+    }
+
+    /*!
+    \brief Reports whether the window covers a fret.
+    \param stop Fret to test.
+    \return True when the fret lies within `[fret, top()]`.
+    */
+    [[nodiscard]] constexpr bool covers(const int stop) const noexcept
+    {
+        return stop >= fret && stop <= top();
+    }
+};
+
+/*!
+\brief Fret-hand position: where the hand sits on the neck from this point on.
+
+Only WHERE the index finger sits is authored. How far the window reaches is derived from the stops
+the notes hold while the placement stands (\ref deriveFretHandWidths), so a stored span could only
+ever disagree with the notes under it.
+*/
 struct FretHandPosition
 {
     /*! \brief Musical position the hand arrives at this placement. */
@@ -2141,9 +2243,6 @@ struct FretHandPosition
 
     /*! \brief Lowest fret under the index finger. */
     int fret{1};
-
-    /*! \brief Fret span covered by the hand; four unless the passage stretches wider. */
-    int width{4};
 
     /*!
     \brief Compares two fret-hand positions by their stored fields.
@@ -2204,7 +2303,7 @@ struct Chart
     /*! \brief Every note, sorted by (position, string), holding one slot at most once. */
     std::vector<ChartNote> notes;
 
-    /*! \brief Fret-hand positions, sorted by position. */
+    /*! \brief Fret-hand positions, strictly ascending and unique by position. */
     std::vector<FretHandPosition> fret_hand_positions;
 
     /*!

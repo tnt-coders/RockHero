@@ -141,7 +141,7 @@ enum class ChartErrorCode : std::uint8_t
     UnsortedOrDuplicateNotes,
     /*! \brief A keyframe is empty, misordered, outside its sustain, or states an illegal value. */
     InvalidNotePayload,
-    /*! \brief A fret-hand position entry is out of range or unsorted. */
+    /*! \brief A fret-hand position is out of range, or the stream is not strictly ascending. */
     InvalidFretHandPosition,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
     InvalidPickSlide
@@ -169,6 +169,20 @@ cannot drift between chart and song documents. A usable position lies on the tic
 \return True when the position's measure, beat, and sub-beat offset are all usable.
 */
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
+
+/*!
+\brief Whether a timeline marker — a section, a tone change, a fret-hand position — may start at a
+position: on the tempo map's grid and strictly before its terminal anchor.
+
+THE one place rule for every marker kind, shared by each kind's validator and by the editor's
+projection of where its chord would land, so a chord never offers an insert the commit then
+refuses. A marker starting on the closing barline would govern a passage of no length.
+
+\param position Candidate start.
+\param tempo_map Tempo map the position must address.
+\return True when a marker may start there.
+*/
+[[nodiscard]] bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map);
 
 /*!
 \brief The repair a chart normalization applied — one value per rule the normalizer owns.
@@ -509,9 +523,10 @@ so applying this twice changes nothing the second time.
 /*!
 \brief Fits a fret-hand window onto the playable board, in place.
 
-The window's width shrinks to the frets above the capo when it is wider than that, its index
-finger lifts above the capo, and the whole window slides down until it fits under the last fret —
-in that order, so the ceiling can never push it back below the capo.
+The index finger lifts above the capo and drops until the narrowest window
+(\ref g_min_fret_hand_width) fits under the last fret. The window's reach past that is derived from
+the notes (\ref deriveFretHandWidths), which never state a fret off the board, so the finger is the
+only thing to fit.
 
 \param position Hand position to normalize.
 \param tuning Tuning the hand plays under; supplies the capo.
@@ -608,6 +623,23 @@ here — the hold test that wanted them belongs to the resolver.
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
 
 /*!
+\brief Validates the fret-hand placement stream: every position on the grid, every placement
+already in its normal form (\ref normalizeFretHandPosition), and the stream strictly ascending and
+unique by position.
+
+\ref validateChartRules asks this for the chart's own stream; the editor's hand-marker commit asks
+it of the stream alone, so a placement edit is judged by exactly the rule a package load applies.
+
+\param placements Placement stream to validate.
+\param tuning Tuning the placements sit under; supplies the capo floor.
+\param tempo_map Song tempo map the positions must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateFretHandPositions(
+    const std::vector<FretHandPosition>& placements, const ChartTuning& tuning,
+    const TempoMap& tempo_map);
+
+/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
@@ -620,11 +652,11 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 (position, string) with no duplicate onsets, on valid grid positions, with every onset, ring end
 and keyframe on the tick lattice; strings in range;
 non-negative frets, and a strictly positive sustain on every note; keyframe offsets ascending
-strictly inside the sustain, each stating at least one channel and no negative fret or bend; sorted
-fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling
-bounds; pinch-requires-a-node; and, on the attack that cannot carry every technique, that the note
-already equals its own \ref savedChartNote form — a pick slide's pitched fields being in-memory
-latents the writer omits.
+strictly inside the sustain, each stating at least one channel and no negative fret or bend;
+fret-hand positions strictly ascending and unique by position; harmonic-node range,
+beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the attack that cannot
+carry every technique, that the note already equals its own \ref savedChartNote form — a pick
+slide's pitched fields being in-memory latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).

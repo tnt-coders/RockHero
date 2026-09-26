@@ -65,6 +65,19 @@ struct TimeSignatureSelection
         default;
 };
 
+// A formally selected fret-hand position (the tab lane's hand chip): the placement it marks,
+// identified by the position it arrives at, which is unique because placements strictly advance.
+// Arrangement-scoped like the tone region, and like every marker selection single-select and
+// cleared by any cursor move.
+struct FretHandPositionSelection
+{
+    // Musical position the selected placement arrives at.
+    common::core::GridPosition position{};
+
+    friend bool operator==(
+        const FretHandPositionSelection& lhs, const FretHandPositionSelection& rhs) = default;
+};
+
 // A grid-locked time span across every surface (the Shift+arrow / Shift+click time selection).
 // Both endpoints are display-grid positions — a boundary is never off-grid (decision B) — stored
 // as an anchor (the fixed end) and a focus (the end an extend moves), so extension knows which
@@ -124,9 +137,9 @@ struct AddAutomationLaneRowSelection
 };
 
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone
-// region, a song section, a tempo or time-signature chip, an automation point, the "+" row, and a
-// time span are alternatives of one sum type, so selecting on any surface structurally replaces
-// the selection on every other —
+// region, a song section, a tempo or time-signature chip, a fret-hand position, an automation
+// point, the "+" row, and a time span are alternatives of one sum type, so selecting on any surface
+// structurally replaces the selection on every other —
 // two live selections are unrepresentable and Delete needs no precedence ladder to disambiguate.
 // std::monostate is "nothing selected"; a held-but-empty ChartSelection means the same thing.
 // Selection kinds keep their shipped lifecycles: chart selection and the time span survive seeks
@@ -136,6 +149,7 @@ struct AddAutomationLaneRowSelection
 // evicts the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection, TempoAnchorSelection,
-    TimeSignatureSelection, AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
+    TimeSignatureSelection, FretHandPositionSelection, AutomationPointSelection,
+    AddAutomationLaneRowSelection, TimeSelection>;
 
 } // namespace rock_hero::editor::core

@@ -11,6 +11,7 @@ member template needs its body where every marker handler translation unit can s
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_model_edit.h"
 
+#include <expected>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/logger.h>
@@ -20,6 +21,38 @@ member template needs its body where every marker handler translation unit can s
 
 namespace rock_hero::editor::core
 {
+
+// Logs a refused marker edit: THE refusal record every marker verb leaves, whether the funnel below
+// refused the produced model or a verb refused before it had a model to hand over, so the format
+// lives once.
+inline void logMarkerRefusal(const std::string_view label, const std::string_view detail)
+{
+    RH_LOG_WARNING("editor.marker", "Rejected marker edit label={:?} detail={:?}", label, detail);
+}
+
+// The funnel's front half: the produced model normalized, then validated, then compared with the
+// one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
+// about what the commit would refuse.
+template <typename Snapshot>
+std::expected<Snapshot, EditorController::Impl::MarkerModelRefusal> EditorController::Impl::
+    judgeMarkerModel(const Snapshot& before, Snapshot after) const
+{
+    after.normalize();
+    if (std::optional<std::string> violation = after.validate(session()); violation.has_value())
+    {
+        return std::unexpected{MarkerModelRefusal{
+            .reason = ChartPlanRefusal::Invalid,
+            .detail = std::move(*violation),
+        }};
+    }
+    if (after == before)
+    {
+        return std::unexpected{
+            MarkerModelRefusal{.reason = ChartPlanRefusal::NoChange, .detail = {}}
+        };
+    }
+    return after;
+}
 
 // Commits one marker-model change as one undo entry and republishes. Every marker verb ends here,
 // whatever kind of marker it authored, so the commit rules live here once: the produced model is
@@ -35,34 +68,26 @@ namespace rock_hero::editor::core
 template <typename Snapshot>
 bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, std::string label)
 {
-    after.normalize();
-
-    if (const std::optional<std::string> violation = after.validate(session());
-        violation.has_value())
+    std::expected<Snapshot, MarkerModelRefusal> judged = judgeMarkerModel(before, std::move(after));
+    if (!judged.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.marker", "Rejected marker edit label={:?} detail={:?}", label, *violation);
-        return false;
-    }
-
-    if (after == before)
-    {
+        if (judged.error().reason == ChartPlanRefusal::Invalid)
+        {
+            logMarkerRefusal(label, judged.error().detail);
+            return false;
+        }
         return true;
     }
 
-    if (!after.applyTo(m_session))
+    if (!judged->applyTo(m_session))
     {
-        RH_LOG_WARNING(
-            "editor.marker",
-            "Rejected marker edit label={:?} detail={:?}",
-            label,
-            std::string_view{"no model to apply onto"});
+        logMarkerRefusal(label, "no model to apply onto");
         return false;
     }
 
     pushUndoEntry(
         std::make_unique<MarkerModelEdit<Snapshot>>(
-            std::move(before), std::move(after), std::move(label)));
+            std::move(before), std::move(*judged), std::move(label)));
     releaseMarkerSelectionNamingNothing();
     syncAudibleTone();
     updateView();

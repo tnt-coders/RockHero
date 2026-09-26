@@ -42,18 +42,23 @@ funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the pro
 validates it, refuses it whole, records nothing when nothing changed, releases a selection naming a
 marker that is gone, resyncs the audible tone and publishes once. Verbs build their result on a
 COPY and hand both sides over, so a refusal leaves the live model untouched by construction —
-there is no restore path. Two snapshots plug in today: `ToneModelSnapshot` (`tone_model_snapshot.h`
-— the whole tone model, catalog plus track, behind split, delete, retone, rename and
-boundary-move; its `normalize` prunes catalog tones no region references and its `validate` is
-`validateToneTrackRules` plus catalog coverage) and `SongSectionsSnapshot`
+there is no restore path. Three snapshots plug in today: `ToneModelSnapshot`
+(`tone_model_snapshot.h` — the whole tone model, catalog plus track, behind split, delete, retone,
+rename and boundary-move; its `normalize` prunes catalog tones no region references and its
+`validate` is `validateToneTrackRules` plus catalog coverage), `SongSectionsSnapshot`
 (`song_sections_snapshot.h` — the whole song-level section list behind add, rename, move and
 delete; its `normalize` sorts by position and its `validate` is the shared
-`validateSongSectionRules`). Whole-model in both cases because a tone delete or retone can MERGE
-regions and a section move re-sorts the list, so an inverse command would have to know every record
-the edit took; a handful of small structs costs nothing to copy, and the round trip is exact by
-assignment. The section snapshot reaches `Session::songSections()`, needs no arrangement, and never
-re-runs the fret-hand phrase-boundary generator: that generator reads section starts at IMPORT
-only, so re-running it on an authored edit would overwrite hand positions the charter placed),
+`validateSongSectionRules`) and `FretHandPositionsSnapshot`
+(`chart/fret_hand_positions_snapshot.h` — the current chart's whole fret-hand placement stream
+behind the hand marker's add, move and delete; its `normalize` sorts by position, its `validate`
+is the chart gate's own `validateFretHandPositions`, and its apply writes through
+`Session::currentChart()` so the chart revision the projections are keyed on advances).
+Whole-model in every case because a tone delete or retone can MERGE regions and a section or
+placement move re-sorts the list, so an inverse command would have to know every record the edit
+took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.
+The section snapshot reaches `Session::songSections()`, needs no arrangement, and never re-runs
+the fret-hand phrase-boundary generator: that generator reads section starts at IMPORT only, so
+re-running it on an authored edit would overwrite hand positions the charter placed),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:
 

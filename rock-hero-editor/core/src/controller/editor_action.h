@@ -859,6 +859,31 @@ struct EditorAction
     };
 
     /*!
+    \brief Select a fret-hand position: a click on its tab-lane hand chip.
+
+    Addressed by the placement's index in the chart's stream, which the tab projection's placement
+    list mirrors one to one, because the lane that reports the click draws from that projection
+    and carries no musical position of its own.
+    */
+    struct SelectFretHandPosition
+    {
+        /*! \brief Index of the placement; an index naming no placement selects nothing. */
+        std::size_t index{};
+    };
+
+    /*!
+    \brief The hand chord: author a fret-hand position at the cursor.
+
+    Carries nothing, because the verb has nothing to prompt for: the core reads the cursor and
+    decides the marker grammar's precedence inside this one action — restate (select) the placement
+    arriving exactly there, else insert one at the fret its stretch defaults it to — so no verb is
+    published for a surface to hand back.
+    */
+    struct AuthorFretHandPositionAtCursor
+    {
+    };
+
+    /*!
     \brief Insert a song-structure section at a position's measure downbeat.
 
     Carries the position the surface captured AT THE PRESS, exactly as the tone-change insert
@@ -919,7 +944,8 @@ struct EditorAction
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         SetChartLeftTap, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, StepToRowObject, JumpToFocusRow>;
+        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, SelectFretHandPosition,
+        AuthorFretHandPositionAtCursor, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

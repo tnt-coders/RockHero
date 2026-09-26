@@ -344,14 +344,18 @@ Four consequences worth knowing before touching this:
   keep reaching the statement itself.
 - **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed
   at an armed caret — a head on an empty slot or at a ring's exact end, a point on the path where a
-  ring covers it — wears the pending box at the slot, red where the gate
-  refuses the fret, and a valid value's plan is projected into the published chart at once, so what
-  it creates and its effect on the tail draw as ordinary marks under the box while the stored chart
-  and history stay unchanged. Discarding the entry drops the projection; settling stores exactly
-  what was drawn, and the box's disappearance is the settle. Nothing else needs previewing, because
-  nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it is held
-  is the ring REVEAL — every visible note drawn on to its stored ring end — not a preview of a
-  placement.
+  ring covers it — wears the pending box at the slot, red where the gate refuses the fret, and a
+  valid value's plan is projected into the published chart at once, so what it creates and its
+  effect on the tail draw as ordinary marks under the box while the stored chart and history stay
+  unchanged. Discarding the entry drops the projection; settling stores exactly what was drawn, and
+  the box's disappearance is the settle. A note retype's box rides what it retypes instead — every
+  affected head or satellite — and is not projected. A selected fret-hand position's fret IS
+  projected, like a creation (a fret change keeps every placement's index), and its box fills the
+  placement's own chip (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
+  `tabFhpChipBounds`), carrying the chip's committed text and derived window, or the typed text when
+  refused. Nothing else needs previewing, because nothing else authors: the pointer creates under
+  no modifier, and what `Alt` shows while it is held is the ring REVEAL — every visible note drawn
+  on to its stored ring end — not a preview of a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
   controller as its own action, and where the selection offers more than ONE CHANGE the CONTROLLER
   asks the view for the choice — after its settle prologue — through the port method
@@ -475,9 +479,19 @@ playing. It is never an entry gesture: a press CREATES NOTHING on this lane unde
 (2026-09-11), because every note is typed at the armed caret.
 With no chart the lane is pointer-transparent. One column of the claimed band answers
 nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
-pinned chrome is INERT" below). The yielding component is the *cursor overlay*, whose `hitTest`
-returns false wherever a pass-through predicate — installed in `editor_view.cpp`, asking
-`TabView::wantsPointerAt` first — declines the point. Its data is a seconds-resolved projection
+pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one press the lane
+resolves itself: the chip is the hand row's marker, measured in the lane's own label font
+(`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
+(`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
+press on the top string. The ruler resolves its own chips in its own view the same way, and on the
+same condition: only while the marker plane is open (`setMarkerEditsEnabled`, fed from
+`EditorViewState::marker_edits_enabled`). While it is closed there is no selection to make, so a
+chip press is an ordinary press — the ruler seeks, and this lane hands it to the chart. The
+selected placement's chip wears the accent outline, from
+`ChartEditViewState::selected_fret_hand_position`. The yielding
+component is the *cursor overlay*, whose `hitTest` returns false wherever a pass-through
+predicate — installed in `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the
+point. Its data is a seconds-resolved projection
 built once per edit in **common/core** (`chart/chart_projection.cpp`,
 `common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces draw,
 which is why it lives in common rather than editor core: the game's 2D tab view shares the same

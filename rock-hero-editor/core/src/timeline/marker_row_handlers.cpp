@@ -17,9 +17,10 @@ namespace rock_hero::editor::core
 {
 
 // The marker rows (docs/plans/completed/keyboard-focus-rows.md): the ruler's section, tempo and
-// time-signature rows and the tone row, which the keyboard reaches by selecting a marker. Every row
-// answers the same questions — where its markers start, which one holds a position, which one the
-// selection names — so the walk, a chip click and Tab share one model of all four.
+// time-signature rows, the hand row and the tone row, which the keyboard reaches by selecting a
+// marker. Every row answers the same questions — where its markers start, which one holds a
+// position, which one the selection names — so the walk, a chip click and Tab share one model of
+// all five.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -61,6 +62,19 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             }
             break;
         }
+        case MarkerRow::Hand:
+        {
+            if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+                arrangement != nullptr && arrangement->chart.has_value())
+            {
+                for (const common::core::FretHandPosition& placement :
+                     arrangement->chart->fret_hand_positions)
+                {
+                    starts.push_back(placement.position);
+                }
+            }
+            break;
+        }
         case MarkerRow::Tone:
         {
             if (const common::core::Arrangement* const arrangement = session().currentArrangement())
@@ -93,15 +107,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     // Every kind but the tone region is identified by its start; a region by its id, whose index is
     // its place in the track the starts were read from.
     const auto marker = [this](const MarkerRow row, const common::core::GridPosition& start) {
-        const std::vector<common::core::GridPosition> starts = markerStarts(row);
-        const auto found = std::ranges::find(starts, start);
-        return SelectedMarker{
-            .row = row,
-            .index =
-                found == starts.end()
-                    ? std::nullopt
-                    : std::optional{static_cast<std::size_t>(std::distance(starts.begin(), found))},
-        };
+        return SelectedMarker{.row = row, .index = markerIndex(row, start)};
     };
 
     if (const SongSectionSelection* const section = selectedSongSection())
@@ -117,6 +123,10 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
         return marker(
             MarkerRow::TimeSignature,
             common::core::GridPosition{.measure = signature->measure, .beat = 1, .offset = {}});
+    }
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        return marker(MarkerRow::Hand, placement->position);
     }
     if (const auto* const region = std::get_if<ToneRegionSelection>(&m_selection))
     {
@@ -153,6 +163,10 @@ EditorController::Impl::MarkerSelection EditorController::Impl::markerSelectionA
         case MarkerRow::TimeSignature:
         {
             return TimeSignatureSelection{.measure = start.measure};
+        }
+        case MarkerRow::Hand:
+        {
+            return FretHandPositionSelection{.position = start};
         }
         case MarkerRow::Tone:
         {
@@ -294,12 +308,24 @@ void EditorController::Impl::onTimeSignatureSelected(const int measure)
 void EditorController::Impl::selectMarkerStartingAt(
     const MarkerRow row, const common::core::GridPosition& start)
 {
-    const std::vector<common::core::GridPosition> starts = markerStarts(row);
-    if (const auto found = std::ranges::find(starts, start); found != starts.end())
+    if (const std::optional<std::size_t> index = markerIndex(row, start); index.has_value())
     {
-        selectMarker(
-            markerSelectionAt(row, static_cast<std::size_t>(std::distance(starts.begin(), found))));
+        selectMarker(markerSelectionAt(row, *index));
     }
+}
+
+// A marker kind's identity is its start, so this is the one lookup every identity-to-index question
+// asks — the selection's own, a chip click's, a pending entry's box.
+std::optional<std::size_t> EditorController::Impl::markerIndex(
+    const MarkerRow row, const common::core::GridPosition& start) const
+{
+    const std::vector<common::core::GridPosition> starts = markerStarts(row);
+    const auto found = std::ranges::find(starts, start);
+    if (found == starts.end())
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(std::distance(starts.begin(), found));
 }
 
 // A tempo chip click selects the anchor it marks and seeks nothing, exactly as a section chip does.
@@ -383,7 +409,8 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
 // Enter's verb, dispatched on the selection's kind here so the view opens what it names and
 // decides nothing: a section restates on its name, a tone region on its tone (until the signal
 // chain has a keyboard model to drill into, plan 53 Phase 5), the "+" row opens the parameter
-// picker, and every other kind has no restate.
+// picker, and every other kind has no restate — a fret-hand position included, until its fret has
+// an entry to re-open.
 RestateTarget EditorController::Impl::restateTarget() const
 {
     if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();

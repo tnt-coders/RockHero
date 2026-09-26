@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -824,7 +825,7 @@ ToneChordTarget EditorController::Impl::toneChordTarget() const
             .region_id = region->id, .tone_document_ref = region->tone_document_ref
         };
     }
-    if (!common::core::toneRegionCanStartAt(*position, session().song().tempo_map))
+    if (!common::core::markerCanStartAt(*position, session().song().tempo_map))
     {
         return {};
     }

@@ -27,6 +27,7 @@ namespace
 constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
+constexpr int g_hand_key = 'h';
 constexpr int g_tone_key = 't';
 constexpr int g_add_lane_key = 'a';
 
@@ -195,6 +196,16 @@ constexpr int g_add_lane_key = 'a';
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::InsertFretHandPosition,
+            // Ctrl+H, the hand's letter on the marker plane: the placement arriving at the cursor
+            // is restated (selected, until its fret can be re-entered), a free slot takes a new one
+            // at the fret its stretch's notes default it to.
+            .name = "Insert or Restate Hand Position at Cursor",
+            .category = "Hand",
+            .default_keypresses = {markerAuthorChord(g_hand_key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::RestateSelection,
             // Enter edits what is selected, which on a marker is whatever that marker states: a
             // section's name, a region's tone. Bare Enter is free — nothing else in the editor
@@ -318,6 +329,10 @@ constexpr int g_add_lane_key = 'a';
         "Jump to Time Signature Row",
         "Navigation",
         {markerJumpChord(g_time_signature_key)});
+    add(EditorCommandId::CaretJumpHandRow,
+        "Jump to Hand Row",
+        "Navigation",
+        {markerJumpChord(g_hand_key)});
     add(EditorCommandId::CaretJumpToneRow,
         "Jump to Tone Row",
         "Navigation",
@@ -623,8 +638,8 @@ bool editorCommandActsOnSelection(const EditorCommandSpec& spec)
     }
     // Navigation is absent on purpose: the walk and the jumps SELECT, and selecting never moves
     // the view; the keys that move a position (steps, Tab) are followed through the moved position
-    // itself. The section and tone-change author chords are absent too: they act at the cursor,
-    // select nothing, and complete in a prompt.
+    // itself. The section, tone-change and hand author chords are absent too: they act at the
+    // cursor, which is in view already, and the first two complete in a prompt.
     static constexpr std::array<std::string_view, 4> g_selection_categories{
         "Selection",
         "Authoring",

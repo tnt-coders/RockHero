@@ -716,21 +716,24 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             {
                 return std::unexpected{std::move(position.error())};
             }
-            for (const char* const key : {"fret", "width"})
+            // The fret is the whole of what a placement states, so it is required with no default,
+            // as a note's ring is. A note's missing fret reads as a sentinel the validator
+            // refuses, but a placement's fret passes the normalizer first, which would lift any
+            // sentinel onto the board and invent the placement; so a missing one is refused here.
+            const juce::var& fret_json = Json::value(fhp_json, "fret");
+            if (fret_json.isVoid())
             {
-                const juce::var& property = Json::value(fhp_json, key);
-                if (!property.isVoid() && !property.isInt())
-                {
-                    return std::unexpected{malformed(
-                        "chart hand position \"" + std::string{key} + "\" has the wrong type")};
-                }
+                return std::unexpected{malformed("chart hand position is missing \"fret\"")};
             }
-            // The width's default is the type's own, stated once in chart.h.
+            if (!fret_json.isInt())
+            {
+                return std::unexpected{malformed(
+                    "chart hand position \"fret\" has the wrong type")};
+            }
             chart.fret_hand_positions.push_back(
                 FretHandPosition{
                     .position = *position,
                     .fret = Json::readOptionalInt(fhp_json, "fret", 0),
-                    .width = Json::readOptionalInt(fhp_json, "width", FretHandPosition{}.width),
                 });
         }
     }
@@ -781,14 +784,8 @@ namespace
 
     append_array("notes", chart.notes, noteLine);
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
-        std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
-                           R"(", "fret": )" + std::to_string(fhp.fret);
-        if (fhp.width != FretHandPosition{}.width)
-        {
-            line += R"(, "width": )" + std::to_string(fhp.width);
-        }
-        line += " }";
-        return line;
+        return R"({ "position": ")" + formatGridPositionToken(fhp.position) + R"(", "fret": )" +
+               std::to_string(fhp.fret) + " }";
     });
 
     // Drop the trailing comma from the final array before closing the document.

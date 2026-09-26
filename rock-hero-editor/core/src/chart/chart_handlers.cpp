@@ -117,6 +117,12 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
+    // The hand row's selection is outlined on the lane's chip: the placement's index in the chart's
+    // stream is its index in the projection too, one placement projecting to one chip.
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        edit.selected_fret_hand_position = markerIndex(MarkerRow::Hand, placement->position);
+    }
     // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
     // check re-derives it here.
     if (const ChartCaret* const caret = armedChartCaret();
@@ -1407,6 +1413,8 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     push_marker_row(MarkerRow::Section);
     push_marker_row(MarkerRow::Tempo);
     push_marker_row(MarkerRow::TimeSignature);
+    // The hand row sits over the strings, where the lane draws its fret-hand chips along the top.
+    push_marker_row(MarkerRow::Hand);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
     for (int string = string_count; string >= 1; --string)
     {
@@ -1770,6 +1778,8 @@ EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const Focus
             return MarkerFocusRow{.row = MarkerRow::Tempo};
         case FocusRowJump::TimeSignature:
             return MarkerFocusRow{.row = MarkerRow::TimeSignature};
+        case FocusRowJump::Hand:
+            return MarkerFocusRow{.row = MarkerRow::Hand};
         case FocusRowJump::Tone:
             return MarkerFocusRow{.row = MarkerRow::Tone};
         case FocusRowJump::AddAutomationLane:
@@ -2019,6 +2029,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedSongSection(selected, direction);
         return;
     }
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        const FretHandPositionSelection selected = *placement;
+        moveSelectedFretHandPosition(selected, direction);
+        return;
+    }
     if (!chartSelection().empty())
     {
         moveChartSelection(direction);
@@ -2265,6 +2281,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelecti
         deleteSelectedSongSection(selected);
         return;
     }
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        const FretHandPositionSelection selected = *placement;
+        deleteSelectedFretHandPosition(selected);
+        return;
+    }
     if (!chartSelection().empty())
     {
         deleteChartSelection();
@@ -2326,9 +2348,8 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
     // An INVALID entry is an open error state: its red box is visibly live however long it has
     // sat, so a digit always extends it. The window expiry binds valid entries only — and there
     // it is a belt, because the wake should already have settled an expired one.
-    const bool invalid = !m_chart_fret_entry->plan.has_value() &&
-                         m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid;
-    if (!invalid && now_ms - m_chart_fret_entry->armed_ms > g_fret_entry_window_ms)
+    if (!m_chart_fret_entry->refused() &&
+        now_ms - m_chart_fret_entry->armed_ms > g_fret_entry_window_ms)
     {
         settleChartFretEntry();
         return false;
@@ -2352,10 +2373,24 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
 // the combined value at its slot (undo removes the note), a cut entry plans the ring's division
 // with the value as the new head's fret, a point entry plans the keyframe it states, and a retype
 // entry replans the whole selection from the pre-entry base, so a widened value can never
-// compound on its own earlier digit.
-std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanChartFretEntry(
-    const ChartFretEntry& entry) const
+// compound on its own earlier digit. Each note-stream plan carries what its settle selects — the
+// head it planted, the ring site it struck or pointed, the objects it retyped — so the settle
+// never reads the target again. A hand placement's retype is the one whose plan is not a
+// note-stream change: its stream with the placement's fret replaced (planFretHandFret).
+std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> EditorController::Impl::
+    replanChartFretEntry(const ChartFretEntry& entry) const
 {
+    using Planned = std::expected<ChartFretEntryPlan, ChartPlanRefusal>;
+    // Pairs a note-stream plan, or its refusal, with the selection its settle leaves.
+    const auto selecting = [](std::expected<ChartEditPlan, ChartPlanRefusal> plan,
+                              std::vector<ChartSelectionKey>
+                                  select) -> Planned {
+        if (!plan.has_value())
+        {
+            return std::unexpected{plan.error()};
+        }
+        return ChartFretNotePlan{.plan = std::move(*plan), .select = std::move(select)};
+    };
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
@@ -2365,37 +2400,47 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     return std::visit(
         Overloaded{
-            [&](const ChartFretEntry::InsertAt& insert) {
+            [&](const ChartFretEntry::InsertAt& insert) -> Planned {
                 common::core::ChartNote note;
                 note.position = insert.slot.position;
                 note.string = insert.slot.string;
                 note.fret = entry.value;
-                return planInsertNote(chart, tempo_map, std::move(note), m_grid_note_value);
+                return selecting(
+                    planInsertNote(chart, tempo_map, std::move(note), m_grid_note_value),
+                    {ChartNoteKey{.slot = insert.slot}});
             },
-            [&](const ChartFretEntry::Cut& cut) {
-                return planCutRing(chart, tempo_map, cut.note, cut.offset, entry.value);
+            [&](const ChartFretEntry::Cut& cut) -> Planned {
+                return selecting(
+                    planCutRing(chart, tempo_map, cut.note, cut.offset, entry.value),
+                    {ChartNoteKey{.slot = chartRingSiteSlot(cut.note, cut.offset)}});
             },
             // A point on a ring plans the keyframe it states — planted for real at the settle
             // and selected. The commit law is not asked here: a typed value the path already
             // passes through is a point that says nothing, authoring state like any such point —
             // no entry, gone when the note leaves focus. One law, one place.
-            [&](const ChartFretEntry::CreateKeyframe& create) {
-                return planInsertKeyframe(
-                    chart, tempo_map, create.note, create.offset, entry.value);
+            [&](const ChartFretEntry::CreateKeyframe& create) -> Planned {
+                return selecting(
+                    planInsertKeyframe(chart, tempo_map, create.note, create.offset, entry.value),
+                    {ChartKeyframeKey{.note = create.note, .offset = create.offset}});
             },
             // No guard for an empty operand here: the planner answers NoChange for one, and
             // calling that Invalid is what armed a red pending box — the display of a REFUSAL —
             // over a press that had simply found nothing to retype. The two emptinesses stay
             // distinct, as everywhere else.
-            [&](const ChartFretEntry::Retype& retype) {
-                return planRetypeFrets(
-                    chart,
-                    tempo_map,
-                    retype.base_notes,
-                    retype.keys,
-                    retype.keyframe_keys,
-                    ChartFretSet{.fret = entry.value},
-                    retype.channel);
+            [&](const ChartFretEntry::Retype& retype) -> Planned {
+                return selecting(
+                    planRetypeFrets(
+                        chart,
+                        tempo_map,
+                        retype.base_notes,
+                        retype.keys,
+                        retype.keyframe_keys,
+                        ChartFretSet{.fret = entry.value},
+                        retype.channel),
+                    chartRetypeKeys(retype));
+            },
+            [&](const ChartFretEntry::RetypeHandFret& hand) -> Planned {
+                return planFretHandFret(hand.position, entry.value);
             },
         },
         entry.target);
@@ -2420,32 +2465,25 @@ void EditorController::Impl::settleChartFretEntry()
     settleChartFretEntry(std::move(entry));
 }
 
-// The settle selects what the entry addressed or made — the retyped objects, the planted or
-// struck head, the point — so the caret stays armed on it and the next digit retypes it. Bound
-// before the call so the move and the sibling read never share one argument list.
+// The settle applies the plan to the store it names: a note-stream plan selects what the entry
+// addressed or made (the plan carries it), so the caret stays armed on it and the next digit
+// retypes it; a placement's fret commits through the marker funnel, and the placement simply stays
+// selected, since its position, which names it, is not what the digits changed.
 void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
 {
     if (entry.plan.has_value())
     {
-        std::vector<ChartSelectionKey> select_exactly = std::visit(
+        std::visit(
             Overloaded{
-                [](const ChartFretEntry::InsertAt& insert) {
-                    return std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert.slot}};
+                [this](ChartFretNotePlan& notes) {
+                    static_cast<void>(
+                        applyChartEditPlan(std::move(notes.plan), std::move(notes.select)));
                 },
-                [this](const ChartFretEntry::Cut& cut) {
-                    return std::vector<ChartSelectionKey>{
-                        ChartNoteKey{.slot = chartRingSiteSlot(cut.note, cut.offset)}
-                    };
+                [this](FretHandPositionsSnapshot& placements) {
+                    commitFretHandFret(std::move(placements));
                 },
-                [](const ChartFretEntry::CreateKeyframe& create) {
-                    return std::vector<ChartSelectionKey>{
-                        ChartKeyframeKey{.note = create.note, .offset = create.offset}
-                    };
-                },
-                [](const ChartFretEntry::Retype& retype) { return chartRetypeKeys(retype); },
             },
-            entry.target);
-        static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
+            *entry.plan);
     }
     updateView();
 }
@@ -2457,8 +2495,7 @@ void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
 // valid value settles in the same keystroke.
 void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
 {
-    const bool invalid = !entry.plan.has_value() && entry.plan.error() == ChartPlanRefusal::Invalid;
-    if (invalid || chartFretValueExtendable(entry.value))
+    if (entry.refused() || chartFretValueExtendable(entry.value))
     {
         armChartFretEntry(std::move(entry));
         return;
@@ -2509,8 +2546,7 @@ void EditorController::Impl::scheduleChartFretEntryWake()
             // An INVALID value outlives its window: the red box IS the refusal display, and a
             // display that vanishes on a timer is barely a display. It stays until a further digit
             // extends it or Esc / any other intent discards it.
-            if (!m_chart_fret_entry->plan.has_value() &&
-                m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
+            if (m_chart_fret_entry->refused())
             {
                 return;
             }
@@ -2545,6 +2581,13 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
         return std::nullopt;
+    }
+    // A SELECTED fret-hand placement is a selection like any other, and the digits retype what is
+    // selected: here, the placement's fret. Selecting it demoted the caret, so no slot competes.
+    // Both planes land here: no ring reaches a placement, so `Alt`+digit is the bare digit.
+    if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
+    {
+        return ChartFretEntry::RetypeHandFret{.position = placement->position};
     }
     const std::vector<ChartSlotKey>& notes = chartSelection().notes();
     const std::vector<ChartKeyframeKey>& keyframes = chartSelection().keyframes();
@@ -2707,6 +2750,7 @@ std::optional<ChartSlotKey> EditorController::Impl::chartFretEntryCreationSlot(
                 return std::optional<ChartSlotKey>{chartRingSiteSlot(create.note, create.offset)};
             },
             [](const ChartFretEntry::Retype&) { return std::optional<ChartSlotKey>{}; },
+            [](const ChartFretEntry::RetypeHandFret&) { return std::optional<ChartSlotKey>{}; },
         },
         target);
 }
@@ -3649,8 +3693,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
     // discards and the caret survives for an immediate retype. A VALID pending value is not a
     // cancellable thing — it falls through to the caret rung below and commits on the way through
     // the uniform settle, because a value you typed is a value you meant.
-    if (m_chart_fret_entry.has_value() && !m_chart_fret_entry->plan.has_value() &&
-        m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
+    if (m_chart_fret_entry.has_value() && m_chart_fret_entry->refused())
     {
         discardChartFretEntry();
         return true;

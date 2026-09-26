@@ -28,6 +28,14 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-09-25 derived-width build
+
+- **The lone-open census row drifted 132 → 67 between 2026-09-20 and 09-24, unexplained.** The
+  local corpus census's "... arriving where nothing fretted sounds" row
+  (`test_corpus_census.cpp`) already measured 67 against its signed 132 before the derived-width
+  rulings, and they did not move it. Its `expected` is unset until a build is named as the cause;
+  re-pin it once explained.
+
 ## Found in the 2026-09-24 sighting
 
 - **A palm-muted pinch harmonic does not read well in 2D.** `drawNoteHeadBase`

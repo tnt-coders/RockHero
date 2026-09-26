@@ -28,8 +28,11 @@ The compiler then demands, in `rock-hero-editor/core/src/controller/`:
   (`actionBlockedByInputCalibrationPrompt`, `actionAvailableWhenIdle`, `actionSupersedesBusy`) —
   these force you to *decide* the action's gating, which is the point;
 - the `performActionImpl` overload declared in `editor_controller_impl.h`;
-- the exhaustive `EditorActionId` switch in
-  `rock-hero-editor/ui/src/main_window/editor_view.cpp` (unsaved-changes prompt wording);
+- the exhaustive `actionIdText` switch and the two in `actionUnavailableReason`
+  (`editor_controller.cpp`: the log name, the calibration-prompt reason, the state reason);
+- the two exhaustive `EditorActionId` switches in
+  `rock-hero-editor/ui/src/main_window/editor_view.cpp` (the tone and project unsaved-changes
+  prompt wording);
 - if you add a public `IEditorController` entry point: the override in `EditorController` and in
   the test double `RecordingEditorController`
   (`rock-hero-editor/core/tests/include/.../testing/recording_editor_controller.h`).
@@ -39,11 +42,13 @@ The compiler then demands, in `rock-hero-editor/core/src/controller/`:
 These are the loose ends. Check each one deliberately.
 
 1. **The handler body's location.** Define `performActionImpl` in the feature's handler file
-   (`chart_handlers.cpp`, `tone_handlers.cpp`, `section_handlers.cpp`, `project_handlers.cpp`,
-   `signal_chain_handlers.cpp`, `tone_designer_handlers.cpp`, `input_calibration_handlers.cpp`,
-   `audio_device_handlers.cpp`) — never in `editor_controller.cpp` for convenience.
-2. **`actionUnavailableReason`** (`editor_controller.cpp`) — the rejection-logging text. A missing
-   case degrades diagnostics without failing anything.
+   (`chart_handlers.cpp`, `fret_hand_handlers.cpp`, `tone_handlers.cpp`, `section_handlers.cpp`,
+   `project_handlers.cpp`, `signal_chain_handlers.cpp`, `tone_designer_handlers.cpp`,
+   `input_calibration_handlers.cpp`, `audio_device_handlers.cpp`) — never in
+   `editor_controller.cpp` for convenience.
+2. **`actionUnavailableReason`** (`editor_controller.cpp`) — the rejection-logging text. Its
+   switches are exhaustive, so the compiler makes you name a reason; a WRONG one degrades
+   diagnostics without failing anything.
 3. **Undo.** If the action mutates undoable state, write an `IEdit` in the feature's `*_edits.h`
    / `*_edits.cpp` pair, capture the before-state *before* mutating, and push exactly one entry
    per user gesture via `pushUndoEntry`. Nothing reminds you: an action without an edit simply

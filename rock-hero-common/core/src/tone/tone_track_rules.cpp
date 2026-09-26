@@ -2,20 +2,12 @@
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <set>
 #include <string>
 
 namespace rock_hero::common::core
 {
-
-// Valid on the tempo map's grid and strictly before its terminal anchor; the twin of the section
-// rule's songSectionCanStartAt.
-bool toneRegionCanStartAt(const GridPosition& start, const TempoMap& tempo_map)
-{
-    return isValidGridPosition(start, tempo_map) && start < terminalGridPosition(tempo_map);
-}
 
 std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
@@ -67,7 +59,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
 
         // The grid half already held above, so only the terminal half of the shared place rule can
         // fire here; it is asked the same way the tone chord's projection asks it.
-        if (!toneRegionCanStartAt(region.start, tempo_map))
+        if (!markerCanStartAt(region.start, tempo_map))
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,

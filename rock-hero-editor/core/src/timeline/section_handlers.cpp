@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <string>
 #include <utility>
@@ -54,7 +55,7 @@ SectionChordTarget EditorController::Impl::sectionChordTarget() const
     {
         return RenameSectionTarget{.position = downbeat, .name = standing->name};
     }
-    if (!common::core::songSectionCanStartAt(downbeat, session().song().tempo_map))
+    if (!common::core::markerCanStartAt(downbeat, session().song().tempo_map))
     {
         return {};
     }

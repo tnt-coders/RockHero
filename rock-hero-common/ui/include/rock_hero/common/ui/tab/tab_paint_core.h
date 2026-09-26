@@ -268,19 +268,44 @@ void paintTabKeyframeHead(
     const common::core::KeyframeViewState& keyframe);
 
 /*!
-\brief Draws the editor's pending fret entry box: the mute number-plate's own geometry and font
-carrying a provisional value.
+\brief Draws the editor's pending entry plate on a given box — THE polarity rule of a provisional
+value, whatever mark it rides.
 
-Host chrome, not notation — the game renders no keyboard entry — but exported from the core
-rather than restated in the host so the provisional digit's typography and placement CANNOT
-drift from the committed head's (the one-primitive rule of the pending-entry design; the insert
-ghost's shape drifted exactly this way once). The plate rect is the same authority the mute
-number-plate draws and the font is the head digit's own. The GROUND flips with validity, and
-both grounds are known and internal: a valid value sits on the lane's near-black exactly like a
-committed plated digit, and an invalid one flips to a white plate — red-on-white is the error
-idiom at full contrast, and the plate polarity flip itself carries the signal in full
-monochrome, the glance mechanism the mute plate-flip design established. The border and inks
-are the host's, because pending is an editor state and this core owns no editor colors.
+Host chrome, not notation — the game renders no keyboard entry — but exported from the core so
+every pending box draws one way: the GROUND flips with validity, and both grounds are known and
+internal. A valid value sits on the lane's near-black exactly like a committed plated digit, and
+an invalid one flips to a white plate — red-on-white is the error idiom at full contrast, and the
+plate polarity flip itself carries the signal in full monochrome, the glance mechanism the mute
+plate-flip design established. The border and inks are the host's, because pending is an editor
+state and this core owns no editor colors.
+
+The box and font are the caller's, because they are the MARK's: a head's digit plate in the fret
+font (\ref paintTabPendingEntryBox), or a fret-hand chip's box in the label font
+(\ref tabFhpChipBounds), so the provisional value sits exactly where the committed one prints.
+
+\param g Graphics context to draw into.
+\param metrics Metrics of the lane being painted; a lane that prints no text draws no text here.
+\param font The font the mark's committed value prints in.
+\param plate The box the mark's value fills.
+\param text The text the plate carries.
+\param light_plate True flips the plate to the white invalid ground; false is the dark valid one.
+\param text_color Text ink: the host's digit white while the value would apply, red when not.
+\param border_color Plate border: the host's editor accent.
+*/
+void paintTabPendingEntryPlate(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const TabLaneFont& font,
+    juce::Rectangle<float> plate, const juce::String& text, bool light_plate,
+    juce::Colour text_color, juce::Colour border_color);
+
+/*!
+\brief Draws the editor's pending fret entry box over a head or an empty slot: the mute
+number-plate's own geometry and font carrying a provisional value, in
+\ref paintTabPendingEntryPlate's polarity.
+
+Exported rather than restated in the host so the provisional digit's typography and placement
+CANNOT drift from the committed head's (the one-primitive rule of the pending-entry design; the
+insert ghost's shape drifted exactly this way once). The plate rect is the same authority the mute
+number-plate draws and the font is the head digit's own.
 
 The box follows the head's own digit PLACEMENT too: a plectrum raises its number to fit the
 silhouette, so the box over a scrape rides the same raise — the provisional digit must sit
@@ -288,9 +313,9 @@ exactly where the committed one will land.
 
 \param g Graphics context to draw into.
 \param metrics Metrics of the lane being painted.
-\param note Note whose head the box rides, or null at an empty insert slot; supplies the head
-       shape the digit placement follows.
-\param center_x Box center on the time axis — a head's onset x, or an empty insert slot's x.
+\param note Note whose head the box rides, or null where no head stands (an empty insert slot, a
+       held stop's satellite); supplies the head shape the digit placement follows.
+\param center_x Box center on the time axis — a head's onset x, a satellite's, or a slot's.
 \param center_y The head's center on the lane's string line; the box derives the digit's own
        center from it.
 \param text Provisional value exactly as typed.
@@ -407,6 +432,18 @@ width derived from this lane's own label font.
 */
 [[nodiscard]] juce::Rectangle<float> tabFhpChipBounds(
     const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp, float left_x);
+
+/*!
+\brief THE ONE STATEMENT of what a fret-hand-position chip says: the index-finger fret for the
+standard four-fret hand, the full inclusive range ("3-7") for a wider or narrower one.
+
+Exported so a host drawing over a chip — the editor's pending fret entry — prints exactly the text
+the chip itself prints, in the box \ref tabFhpChipBounds measured for it.
+
+\param fhp The placement the chip states.
+\return The chip's text.
+*/
+[[nodiscard]] juce::String tabFhpChipText(const common::core::FhpViewState& fhp);
 
 /*!
 \brief Draws one fret-hand-position chip with its left edge at \p left_x.

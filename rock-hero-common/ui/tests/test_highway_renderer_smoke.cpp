@@ -327,10 +327,10 @@ using common::core::NoteEmphasis;
     };
     chart.fret_hand_positions = {
         common::core::FretHandPosition{
-            .position = GridPosition{.measure = 2, .beat = 1}, .fret = 4, .width = 4
+            .position = GridPosition{.measure = 2, .beat = 1}, .fret = 4
         },
         common::core::FretHandPosition{
-            .position = GridPosition{.measure = 5, .beat = 1}, .fret = 12, .width = 4
+            .position = GridPosition{.measure = 5, .beat = 1}, .fret = 12
         },
     };
 
@@ -366,7 +366,7 @@ using common::core::NoteEmphasis;
     };
     chart.fret_hand_positions = {
         common::core::FretHandPosition{
-            .position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4
+            .position = GridPosition{.measure = 2, .beat = 1}, .fret = 1
         },
     };
 

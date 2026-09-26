@@ -509,6 +509,12 @@ public:
     /*! \copydoc IEditorController::onTimeSignatureSelected */
     void onTimeSignatureSelected(int measure) override;
 
+    /*! \copydoc IEditorController::onFretHandPositionSelected */
+    void onFretHandPositionSelected(std::size_t index) override;
+
+    /*! \copydoc IEditorController::onHandChordRequested */
+    void onHandChordRequested() override;
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override;

@@ -367,6 +367,18 @@ public:
         last_selected_time_signature = measure;
     }
 
+    /*! \copydoc IEditorController::onFretHandPositionSelected */
+    void onFretHandPositionSelected(std::size_t index) override
+    {
+        last_selected_fret_hand_position = index;
+    }
+
+    /*! \copydoc IEditorController::onHandChordRequested */
+    void onHandChordRequested() override
+    {
+        hand_chord_count += 1;
+    }
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override
@@ -936,6 +948,12 @@ public:
 
     /*! \brief Last measure reported through onTimeSignatureSelected(). */
     std::optional<int> last_selected_time_signature{};
+
+    /*! \brief Last placement index reported through onFretHandPositionSelected(). */
+    std::optional<std::size_t> last_selected_fret_hand_position{};
+
+    /*! \brief Number of onHandChordRequested() intents received. */
+    int hand_chord_count{0};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

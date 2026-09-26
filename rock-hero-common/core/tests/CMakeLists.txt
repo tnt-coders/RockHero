@@ -17,6 +17,7 @@ target_link_libraries(rock_hero_common_core_testing INTERFACE rock_hero::common:
 add_executable(
     rock_hero_common_core_tests
     test_chart.cpp
+    test_chart_fret_hand.cpp
     test_chart_presentation.cpp
     test_chart_projection.cpp
     test_chart_shapes.cpp

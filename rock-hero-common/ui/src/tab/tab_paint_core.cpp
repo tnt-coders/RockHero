@@ -2018,16 +2018,6 @@ void drawShapeSpan(
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 }
 
-// THE ONE STATEMENT of what a fret-hand-position chip says: the standard four-fret hand shows just
-// the index-finger fret, and a wider or narrower placement spells out its full inclusive range
-// ("3-7") because the unusual span is exactly what the player needs to see. Read by the chip's
-// geometry and by its drawing, so a measured width and a drawn width cannot disagree.
-[[nodiscard]] juce::String fhpChipText(const common::core::FhpViewState& fhp)
-{
-    return fhp.width == 4 ? juce::String{fhp.fret}
-                          : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
-}
-
 // The chrome ground every boxed lane chip fills — the fret-hand chips and the capo chip alike.
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
 
@@ -2331,19 +2321,11 @@ void paintTabKeyframeHead(
 // 0xff101010, the lane's own established near-black; light is pure white, so the invalid red reads
 // at the error idiom's full pop and the PLATE POLARITY FLIP itself signals invalid even in full
 // monochrome. It uses the same glance mechanism the mute plate-flip design established.
-juce::Rectangle<float> paintTabPendingEntryBox(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
-    const float center_x, const float center_y, const juce::String& text, const bool light_plate,
+void paintTabPendingEntryPlate(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const TabLaneFont& font,
+    const juce::Rectangle<float> plate, const juce::String& text, const bool light_plate,
     const juce::Colour text_color, const juce::Colour border_color)
 {
-    // The box rides the head's own digit placement — the plectrum raise included — so the
-    // provisional number sits exactly where the committed one will land. An empty insert slot
-    // has no head and takes the string-line center, which is where its plain round head's digit
-    // will sit.
-    const float digit_raise =
-        note != nullptr ? headDigitRaise(headShapeFor(*note), metrics.headSize()) : 0.0f;
-    const juce::Rectangle<float> plate =
-        headTextPlate(metrics, text, center_x, center_y - digit_raise);
     // The valid ground is the lane's own near-black (the head backing's ink) and the invalid one is
     // the light plate, the same two inks every plated digit already wears.
     g.setColour(light_plate ? juce::Colours::white : g_note_background_color);
@@ -2353,9 +2335,37 @@ juce::Rectangle<float> paintTabPendingEntryBox(
     if (metrics.draw_text)
     {
         g.setColour(text_color);
-        metrics.fret_font.draw(g, text, plate);
+        font.draw(g, text, plate);
     }
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::Rectangle<float> paintTabPendingEntryBox(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
+    const float center_x, const float center_y, const juce::String& text, const bool light_plate,
+    const juce::Colour text_color, const juce::Colour border_color)
+{
+    // The box rides the head's own digit placement — the plectrum raise included — so the
+    // provisional number sits exactly where the committed one will land. Where no head stands the
+    // box takes the string-line center, which is where a plain round head's digit would sit.
+    const float digit_raise =
+        note != nullptr ? headDigitRaise(headShapeFor(*note), metrics.headSize()) : 0.0f;
+    const juce::Rectangle<float> plate =
+        headTextPlate(metrics, text, center_x, center_y - digit_raise);
+    paintTabPendingEntryPlate(
+        g, metrics, metrics.fret_font, plate, text, light_plate, text_color, border_color);
     return plate;
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::String tabFhpChipText(const common::core::FhpViewState& fhp)
+{
+    if (fhp.width == common::core::g_min_fret_hand_width)
+    {
+        return juce::String{fhp.fret};
+    }
+    const common::core::FretWindow window{.fret = fhp.fret, .width = fhp.width};
+    return juce::String{window.fret} + "-" + juce::String{window.top()};
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
@@ -2494,7 +2504,7 @@ juce::Rectangle<float> tabFhpChipBounds(
     return juce::Rectangle<float>{
         left_x,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        static_cast<float>(metrics.label_font.width(fhpChipText(fhp))) + 6.0f,
+        static_cast<float>(metrics.label_font.width(tabFhpChipText(fhp))) + 6.0f,
         g_lane_chip_height
     };
 }
@@ -2515,7 +2525,7 @@ void drawTabFhpChip(
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, 2.0f);
     g.setColour(juce::Colours::white.withAlpha(0.85f));
-    metrics.label_font.draw(g, fhpChipText(fhp), box);
+    metrics.label_font.draw(g, tabFhpChipText(fhp), box);
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, sustain tails with their

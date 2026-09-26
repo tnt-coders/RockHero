@@ -190,7 +190,7 @@ constexpr Fraction g_fixture_ring{1, 8};
     };
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7, .width = 5},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7},
     };
     return chart;
 }
@@ -2346,21 +2346,56 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     CHECK(validateChartRules(chart, makeTempoMap()).has_value());
 }
 
-// The WHOLE hand window must fit on the neck: bounding only the index finger let a wide hand run
-// off the end. With g_max_fret = 24, fret 20 width 5 spans 20..24 and stands, while fret 22
-// width 5 wants 22..26 and is refused.
-TEST_CASE("Chart rules bound the whole hand window by the neck", "[core][chart]")
+// The narrowest hand window must fit on the neck: with g_max_fret = 24 an index finger at 21 spans
+// 21..24 and stands, while one at 22 wants 22..25 and is refused. The reach past four frets is
+// derived from notes, which never state a fret off the board.
+TEST_CASE("Chart rules bound the narrowest hand window by the neck", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart = makeFullChart();
     REQUIRE_FALSE(chart.fret_hand_positions.empty());
 
-    chart.fret_hand_positions.back().fret = 20;
-    chart.fret_hand_positions.back().width = 5;
+    chart.fret_hand_positions.back().fret = g_max_fret - g_min_fret_hand_width + 1;
     CHECK(validateChartRules(chart, tempo_map).has_value());
 
-    chart.fret_hand_positions.back().fret = 22;
+    chart.fret_hand_positions.back().fret = g_max_fret - g_min_fret_hand_width + 2;
     CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+}
+
+// The placement stream is strictly ascending: two placements at one instant leave "where the hand
+// is" with two answers, so the validator refuses the repeat even though the stream is sorted.
+TEST_CASE("Chart rules refuse two hand positions at one position", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart = makeFullChart();
+    REQUIRE_FALSE(chart.fret_hand_positions.empty());
+    chart.fret_hand_positions.push_back(
+        FretHandPosition{
+            .position = chart.fret_hand_positions.back().position,
+            .fret = chart.fret_hand_positions.back().fret + 1,
+        });
+
+    const auto result = validateChartRules(chart, tempo_map);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == ChartErrorCode::InvalidFretHandPosition);
+}
+
+// A placement states only its fret, so a document omitting it states no placement at all: the
+// reader refuses it rather than inventing one the normalizer would then lift onto the board.
+TEST_CASE("Chart document refuses a hand position without a fret", "[core][chart]")
+{
+    const Chart chart = makeFullChart();
+    REQUIRE_FALSE(chart.fret_hand_positions.empty());
+    std::string text = chartDocumentText(chart, makeTempoMap());
+    const std::string fret_key =
+        R"(, "fret": )" + std::to_string(chart.fret_hand_positions[0].fret);
+    const std::size_t fret_at = text.find(fret_key, text.find(R"("fhps")"));
+    REQUIRE(fret_at != std::string::npos);
+    text.erase(fret_at, fret_key.size());
+
+    const auto parsed = parseChartDocument(text);
+    REQUIRE_FALSE(parsed.has_value());
+    CHECK(parsed.error().code == ChartErrorCode::MalformedDocument);
 }
 
 TEST_CASE("Chart rules reject structural violations", "[core][chart]")
@@ -2998,36 +3033,20 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
     SECTION("a hand window fits onto the playable board")
     {
         // Index finger on a capo'd fret: lifts above the capo.
-        FretHandPosition low{
-            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 2, .width = 4
-        };
+        FretHandPosition low{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 2};
         CHECK(
             normalizeFretHandPosition(low, tuning) ==
             std::vector<ChartRepair>{ChartRepair::FretBelowCapo});
         CHECK(low.fret == tuning.capo + 1);
-        CHECK(low.width == 4);
+        CHECK(normalizeFretHandPosition(low, tuning).empty());
 
-        // Running off the end: slides down until the whole width fits under the last fret.
-        FretHandPosition high{
-            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 23, .width = 4
-        };
+        // Running off the end: drops until the narrowest window fits under the last fret.
+        FretHandPosition high{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 23};
         CHECK(
             normalizeFretHandPosition(high, tuning) ==
             std::vector<ChartRepair>{ChartRepair::FretPastBoard});
-        CHECK(high.fret == g_max_fret - 3);
-        CHECK(high.width == 4);
-
-        // Wider than the frets above the capo: the width shrinks first, so the placement that
-        // follows always succeeds and never pushes the finger back below the capo.
-        FretHandPosition wide{
-            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 1, .width = 40
-        };
-        CHECK(
-            normalizeFretHandPosition(wide, tuning) ==
-            std::vector<ChartRepair>{ChartRepair::FretPastBoard, ChartRepair::FretBelowCapo});
-        CHECK(wide.width == g_max_fret - tuning.capo);
-        CHECK(wide.fret == tuning.capo + 1);
-        CHECK(normalizeFretHandPosition(wide, tuning).empty());
+        CHECK(high.fret == g_max_fret - g_min_fret_hand_width + 1);
+        CHECK(normalizeFretHandPosition(high, tuning).empty());
     }
 
     SECTION("the whole chart normalizes in one call, with the settle sweep last")
@@ -3049,9 +3068,7 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
         claim.attack = NoteAttack::Legato;
         chart.notes = {released, overlapping, claim, restrike};
         chart.fret_hand_positions.push_back(
-            FretHandPosition{
-                .position = GridPosition{.measure = 1, .beat = 1}, .fret = 1, .width = 4
-            });
+            FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 1});
         CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
 
         const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);

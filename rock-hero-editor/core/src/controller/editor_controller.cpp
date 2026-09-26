@@ -328,6 +328,14 @@ namespace
         {
             return "SelectTimeSignature";
         }
+        case EditorAction::Id::SelectFretHandPosition:
+        {
+            return "SelectFretHandPosition";
+        }
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        {
+            return "AuthorFretHandPositionAtCursor";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -410,6 +418,7 @@ namespace
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
+            case EditorAction::Id::AuthorFretHandPositionAtCursor:
             {
                 return "input-calibration-prompt";
             }
@@ -432,6 +441,7 @@ namespace
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
+            case EditorAction::Id::SelectFretHandPosition:
             {
                 break;
             }
@@ -528,6 +538,8 @@ namespace
         case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
+        case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
         {
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
@@ -1164,6 +1176,16 @@ void EditorController::onTempoAnchorSelected(const common::core::GridPosition po
 void EditorController::onTimeSignatureSelected(const int measure)
 {
     m_impl->onTimeSignatureSelected(measure);
+}
+
+void EditorController::onFretHandPositionSelected(const std::size_t index)
+{
+    m_impl->runAction(EditorAction::SelectFretHandPosition{.index = index});
+}
+
+void EditorController::onHandChordRequested()
+{
+    m_impl->runAction(EditorAction::AuthorFretHandPositionAtCursor{});
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -2854,24 +2876,42 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_arrangement_id = arrangement->id;
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
-        // A typed value that would CREATE something — every beginning but a retype: a note at an
-        // empty caret, a point on a ring, a head cutting one — draws as the thing it creates the
-        // moment the digit lands: the plan is applied to a copy and projected, so the marks the
-        // settle will leave are the ordinary ones, while the stored chart and the history stay
-        // untouched until the entry settles. The pending box published below is what says
-        // "provisional". A refused value projects nothing and keeps only its red box, and
-        // discarding the entry drops this one-push projection. Clicks are unaffected: a press
-        // settles the entry before the controller hit-tests it, and a settle stores exactly this
-        // plan.
-        if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value() &&
-            !std::holds_alternative<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target))
+        // A typed value that would CREATE something — a note at an empty caret, a point on a
+        // ring, a head cutting one (every beginning with a creation slot) — or restate a
+        // placement's fret draws as what it makes the moment the digit lands: the plan is applied
+        // to a copy and projected, so the marks the settle will leave are the ordinary ones, while
+        // the stored chart and the history stay untouched until the entry settles. A placement's
+        // fret keeps every placement index, so its chip draws the committed text and derived
+        // window at once. The pending box published below is what says "provisional". A refused
+        // value projects nothing and keeps only its red box, and discarding the entry drops this
+        // one-push projection. Clicks are unaffected: a press settles the entry before the
+        // controller hit-tests it, and a settle stores exactly this plan.
+        if (m_chart_fret_entry.has_value() && m_chart_fret_entry->plan.has_value())
         {
-            common::core::Arrangement preview = *arrangement;
-            if (preview.chart.has_value() &&
-                applyChartChange(*preview.chart, *m_chart_fret_entry->plan).has_value())
-            {
+            const Impl::ChartFretEntryPlan& plan = *m_chart_fret_entry->plan;
+            const auto project = [&state](const common::core::Arrangement& preview) {
                 state.tab = std::make_shared<const common::core::ChartViewState>(
                     common::core::makeChartViewState(preview, state.tempo_map));
+            };
+            if (const auto* const notes = std::get_if<Impl::ChartFretNotePlan>(&plan);
+                notes != nullptr &&
+                chartFretEntryCreationSlot(m_chart_fret_entry->target).has_value())
+            {
+                common::core::Arrangement preview = *arrangement;
+                if (preview.chart.has_value() &&
+                    applyChartChange(*preview.chart, notes->plan).has_value())
+                {
+                    project(preview);
+                }
+            }
+            else if (const auto* const placements = std::get_if<FretHandPositionsSnapshot>(&plan))
+            {
+                common::core::Arrangement preview = *arrangement;
+                if (preview.chart.has_value())
+                {
+                    preview.chart->fret_hand_positions = placements->placements;
+                    project(preview);
+                }
             }
         }
         state.highway = m_highway_view_state;
@@ -2926,8 +2966,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 // NoChange stays valid, because a no-op is not a refusal and must not read red.
                 // One expression rather than one per branch, so the two cannot answer differently.
                 const std::string text = std::to_string(entry.value);
-                const bool valid =
-                    entry.plan.has_value() || entry.plan.error() != ChartPlanRefusal::Invalid;
+                const bool valid = !entry.refused();
                 if (const std::optional<ChartSlotKey> slot =
                         chartFretEntryCreationSlot(entry.target);
                     slot.has_value())
@@ -2939,6 +2978,24 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         .text = text,
                         .valid = valid,
                     };
+                }
+                else if (
+                    const auto* const hand =
+                        std::get_if<Impl::ChartFretEntry::RetypeHandFret>(&entry.target)
+                )
+                {
+                    // A placement's fret entry wears its box on the placement's own lane chip,
+                    // named by its index in the stream, which the projection mirrors one to one.
+                    if (const std::optional<std::size_t> index =
+                            markerIndex(MarkerRow::Hand, hand->position);
+                        index.has_value())
+                    {
+                        state.chart_edit.pending_fret = ChartPendingFretViewState{
+                            .at = ChartPendingFretHandPosition{.index = *index},
+                            .text = text,
+                            .valid = valid,
+                        };
+                    }
                 }
                 else
                 {
@@ -3007,6 +3064,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // yet, so counting it would swallow the key for a verb that does nothing.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
+        state.chart_edit.selected_fret_hand_position.has_value() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(
             state.sections, [](const SongSectionViewState& section) { return section.selected; }) ||

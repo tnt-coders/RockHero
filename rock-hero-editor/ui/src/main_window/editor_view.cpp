@@ -279,6 +279,8 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::RenameSongSection:
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
+            case core::EditorActionId::SelectFretHandPosition:
+            case core::EditorActionId::AuthorFretHandPositionAtCursor:
             {
                 return "Save your tone before continuing?";
             }
@@ -367,6 +369,8 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::RenameSongSection:
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
+        case core::EditorActionId::SelectFretHandPosition:
+        case core::EditorActionId::AuthorFretHandPositionAtCursor:
         {
             return "Save changes before continuing?";
         }
@@ -444,6 +448,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_tab_view.setComponentID("tab_view");
     m_tab_view.setContextMenuCallback(
         [this](juce::Point<int> position) { showChartDiscoveryMenu(position); });
+    m_tab_view.setFretHandChipCallback(
+        [this](const std::size_t index) { m_controller.onFretHandPositionSelected(index); });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -802,10 +808,11 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setSelectedTempoMapChips(
         m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 
-    // One published fact reaches all three marker-row surfaces, pushed as its own setter exactly as
+    // One published fact reaches all four marker-row surfaces, pushed as its own setter exactly as
     // the placement quantum is: every one greys and refuses from this alone, so none derives marker
     // enablement itself and none reads the transport to decide it.
     m_track_viewport->setMarkerEditsEnabled(m_state.marker_edits_enabled);
+    m_tab_view.setMarkerEditsEnabled(m_state.marker_edits_enabled);
     m_tone_track_view.setMarkerEditsEnabled(m_state.marker_edits_enabled);
     m_tone_automation_lanes_view.setMarkerEditsEnabled(m_state.marker_edits_enabled);
 
@@ -1273,6 +1280,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(navigate_menu, EditorCommandId::CaretJumpSectionRow);
     add(navigate_menu, EditorCommandId::CaretJumpTempoRow);
     add(navigate_menu, EditorCommandId::CaretJumpTimeSignatureRow);
+    add(navigate_menu, EditorCommandId::CaretJumpHandRow);
     add(navigate_menu, EditorCommandId::CaretJumpToneRow);
     add(navigate_menu, EditorCommandId::CaretJumpAddLaneRow);
     navigate_menu.addSeparator();
@@ -1623,6 +1631,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // — so perform self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::InsertSongSection:
+        case EditorCommandId::InsertFretHandPosition:
         case EditorCommandId::RestateSelection:
         case EditorCommandId::RenameSelection:
         case EditorCommandId::OpenFileMenu:
@@ -1647,6 +1656,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretJumpSectionRow:
         case EditorCommandId::CaretJumpTempoRow:
         case EditorCommandId::CaretJumpTimeSignatureRow:
+        case EditorCommandId::CaretJumpHandRow:
         case EditorCommandId::CaretJumpToneRow:
         case EditorCommandId::CaretJumpAddLaneRow:
         case EditorCommandId::TimeSelectionExtendLeft:
@@ -1915,12 +1925,13 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
-        // The four marker verbs below open exactly the prompt or picker the core's published verb
-        // names — the marker grammar (restate a marker standing at the cursor, else insert; Enter
-        // and Ctrl+R act on the selection) is decided in the core and published as the verb, so
+        // The marker verbs below open exactly the prompt or picker the core's published verb names
+        // — the marker grammar (restate a marker standing at the cursor, else insert; Enter and
+        // Ctrl+R act on the selection) is decided in the core and published as the verb, so
         // nothing here looks a marker up or gates on the transport or the project: a verb of
         // nothing is inert rather than declined, which is what keeps JUCE from sounding the alert
-        // for a chord its mapping set matched.
+        // for a chord its mapping set matched. A chord with nothing to prompt for (the hand's)
+        // publishes no verb at all and simply forwards: the core decides and acts in one action.
         case EditorCommandId::InsertToneChange:
         {
             if (const auto* const retone =
@@ -1935,6 +1946,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
             {
                 splitToneRegion(*split);
             }
+            return true;
+        }
+        case EditorCommandId::InsertFretHandPosition:
+        {
+            m_controller.onHandChordRequested();
             return true;
         }
         case EditorCommandId::RestateSelection:
@@ -2233,6 +2249,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::CaretJumpTimeSignatureRow:
         {
             m_controller.onFocusRowJumpRequested(core::FocusRowJump::TimeSignature);
+            return true;
+        }
+        case EditorCommandId::CaretJumpHandRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Hand);
             return true;
         }
         case EditorCommandId::CaretJumpToneRow:

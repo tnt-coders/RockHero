@@ -117,7 +117,7 @@ namespace
         },
     };
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1},
     };
 
     return Arrangement{
@@ -319,8 +319,8 @@ namespace
         },
     };
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 4, .width = 4},
-        FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 5, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 4},
+        FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 5},
     };
     return chart;
 }
@@ -1753,14 +1753,23 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
             .bend = {},
             .keyframes = {},
         },
+        // Stated under the last placement, a fret-2 hand: its reach derives to five frets.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 3,
+            .fret = 6,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .keyframes = {},
+        },
     };
     const GridPosition slide_out_arrival{.measure = 2, .beat = 1};
     chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
         // Exactly on the slide-out's terminal: rides the slide-out's own segment, unpitched.
-        FretHandPosition{.position = slide_out_arrival, .fret = 9, .width = 4},
+        FretHandPosition{.position = slide_out_arrival, .fret = 9},
         // An ordinary move with no glide under it: the margin morph.
-        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 2, .width = 5},
+        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 2},
     };
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
