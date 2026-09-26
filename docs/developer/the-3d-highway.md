@@ -561,7 +561,9 @@ Three marks beside the lights, all on the raw window:
   teal at its own luma sighted as dirty grey: a neutral needs more luminance than a chromatic colour
   to read as white); the rim is the grey at the teal rim's luma (`hueless`); the rail is the white
   at the alpha that lands the fretting rail's luma over the dark board, so both hands' rails stay
-  equally dim: box `0xFFB6B6B6`, rim `0xFF2A2A2A`, rails `0x91B6B6B6`. The pops' `mark_color` is a
+  equally dim. Dim white IS grey — white blended toward the dark board — so the white is cooled at
+  the same luma (the bluing effect: a faint blue cast reads white where a neutral reads dirty on the
+  cool board): box `0xFFB0B6C6`, rim `0xFF2A2A2A`, rails `0x91B0B6C6`. The pops' `mark_color` is a
   separate colour, because a pop is additive glow and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar

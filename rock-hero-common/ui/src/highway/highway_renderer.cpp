@@ -668,7 +668,14 @@ struct GlowShape
 // luma, since a rim's job is to be dark. Its rail — a solid, opaque strip on the fretting hand —
 // is the white at the alpha that lands the fretting rail's luma over the dark board, so both
 // hands' rails stay equally dim while the picking hand's reads white rather than grey.
-constexpr ArgbColor g_picking_furniture_white = g_achromatic_string_color;
+//
+// Dim white IS grey — white blended toward a dark board by the furniture's alphas — so the white
+// is COOLED at the achromatic string colour's own luma (182): a neutral grey on the dark, cool
+// board reads dirty and warm by contrast, while a faint blue cast at the same luminance reads as
+// white (the bluing effect). Every brightness match below is unchanged by construction. The cast
+// is a sighting knob; the 8th string itself stays neutral.
+constexpr ArgbColor g_picking_furniture_white = 0xFFB0B6C6;
+static_assert(luma(g_picking_furniture_white) == luma(g_achromatic_string_color));
 
 // What one hand looks like, stated once so both hands draw through one path and differ only here:
 // the lit lanes' lean toward the FHP orange, the colour the hand's pops wear, and the hand's
@@ -707,9 +714,9 @@ constexpr HandLightStyle g_picking_hand_light{
         g_picking_furniture_white,
         (luma(g_fretting_hand_light.rail_color) * 255U) / luma(g_picking_furniture_white)),
 };
-static_assert(g_picking_hand_light.box_color == 0xFFB6B6B6U);
+static_assert(g_picking_hand_light.box_color == 0xFFB0B6C6U);
 static_assert(g_picking_hand_light.box_dark_color == 0xFF2A2A2AU);
-static_assert(g_picking_hand_light.rail_color == 0x91B6B6B6U);
+static_assert(g_picking_hand_light.rail_color == 0x91B0B6C6U);
 
 /*
 Gives an accent light's colour the broadband pedestal every real emitter has.
