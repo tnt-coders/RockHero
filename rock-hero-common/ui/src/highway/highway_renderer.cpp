@@ -634,21 +634,41 @@ struct GlowShape
     return result;
 }
 
-// THE PICKING HAND'S FURNITURE RULE: a colour with its hue removed — the same alpha, the RGB
-// replaced by its Rec.601 luma grey (0.299 R + 0.587 G + 0.114 B, rounded half up in integer
-// arithmetic so it stays constexpr). A hand's box and rails wear the hand's furniture colour: the
-// fretting hand's is the teal family, the picking hand's is that family hue-less, so the two hands
-// read apart at a glance — a teal box says strum, a hue-less one says tap, the same reason the
-// picking light leans warm and its pops are white — at identical brightness, by construction
-// rather than by tuning.
-[[nodiscard]] constexpr ArgbColor hueless(const ArgbColor argb) noexcept
+// A colour's Rec.601 luma (0.299 R + 0.587 G + 0.114 B), 0-255, rounded half up in integer
+// arithmetic so it stays constexpr: the one brightness measure the furniture rules below compare
+// by.
+[[nodiscard]] constexpr ArgbColor luma(const ArgbColor argb) noexcept
 {
     const ArgbColor red = (argb >> 16U) & 0xFFU;
     const ArgbColor green = (argb >> 8U) & 0xFFU;
     const ArgbColor blue = argb & 0xFFU;
-    const ArgbColor luma = ((299U * red) + (587U * green) + (114U * blue) + 500U) / 1000U;
-    return (argb & 0xFF000000U) | (luma << 16U) | (luma << 8U) | luma;
+    return ((299U * red) + (587U * green) + (114U * blue) + 500U) / 1000U;
 }
+
+// The grey of a colour's own luma: its hue removed, its brightness kept, its alpha kept.
+[[nodiscard]] constexpr ArgbColor hueless(const ArgbColor argb) noexcept
+{
+    const ArgbColor grey = luma(argb);
+    return (argb & 0xFF000000U) | (grey << 16U) | (grey << 8U) | grey;
+}
+
+// The same RGB under another alpha.
+[[nodiscard]] constexpr ArgbColor withAlpha(const ArgbColor argb, const ArgbColor alpha) noexcept
+{
+    return (alpha << 24U) | (argb & 0x00FFFFFFU);
+}
+
+// THE PICKING HAND'S FURNITURE RULE. A hand's box and rails wear the hand's furniture colour: the
+// fretting hand's is the teal family, the picking hand's is the board's one WHITE — the achromatic
+// string colour the 8th string wears (g_achromatic_string_color) — so the two hands read apart at
+// a glance: a teal box says strum, a white one says tap, the same reason the picking light leans
+// warm and its pops are white. The box wears that white as it is, dimmed only by the box's own
+// alphas; the teal at its own luma sighted as dirty grey, because a neutral needs more luminance
+// than a chromatic colour to read as white at all. Its dark rim is the grey at the teal rim's
+// luma, since a rim's job is to be dark. Its rail — a solid, opaque strip on the fretting hand —
+// is the white at the alpha that lands the fretting rail's luma over the dark board, so both
+// hands' rails stay equally dim while the picking hand's reads white rather than grey.
+constexpr ArgbColor g_picking_furniture_white = g_achromatic_string_color;
 
 // What one hand looks like, stated once so both hands draw through one path and differ only here:
 // the lit lanes' lean toward the FHP orange, the colour the hand's pops wear, and the hand's
@@ -670,8 +690,7 @@ struct HandLightStyle
 
 // The fretting hand keeps the lanes' own tint, pops in the hit-glow amber, and wears the teal box
 // family (the rails the opaque lane-border teal). The picking hand's light leans warm, its pops are
-// white, and its box and rails are the same family hue-less (hueless): the two hands read apart at
-// a glance at one brightness.
+// white, and its box and rails wear the board's white by the furniture rule above.
 constexpr HandLightStyle g_fretting_hand_light{
     .warm_mix = 0.0,
     .mark_color = g_hit_glow_color,
@@ -682,13 +701,15 @@ constexpr HandLightStyle g_fretting_hand_light{
 constexpr HandLightStyle g_picking_hand_light{
     .warm_mix = g_tap_light_warm_mix,
     .mark_color = 0xFFFFFFFF,
-    .box_color = hueless(g_fretting_hand_light.box_color),
+    .box_color = g_picking_furniture_white,
     .box_dark_color = hueless(g_fretting_hand_light.box_dark_color),
-    .rail_color = hueless(g_fretting_hand_light.rail_color),
+    .rail_color = withAlpha(
+        g_picking_furniture_white,
+        (luma(g_fretting_hand_light.rail_color) * 255U) / luma(g_picking_furniture_white)),
 };
-static_assert(g_picking_hand_light.box_color == 0xFF949494U);
+static_assert(g_picking_hand_light.box_color == 0xFFB6B6B6U);
 static_assert(g_picking_hand_light.box_dark_color == 0xFF2A2A2AU);
-static_assert(g_picking_hand_light.rail_color == 0xFF686868U);
+static_assert(g_picking_hand_light.rail_color == 0x91B6B6B6U);
 
 /*
 Gives an accent light's colour the broadband pedestal every real emitter has.

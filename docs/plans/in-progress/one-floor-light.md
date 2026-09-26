@@ -235,12 +235,16 @@ by the establishment tolerance. The decay belongs to the layer, never to the han
   and every tapped chord (`count >= 2`) over `pick_hand.track` from its onset to its
   `release_seconds`, in the picking hand's furniture colour. *Ruled 2026-09-25, in three steps
   at the sighting:* full white glared; the box's teal was tried; and then the box AND rails of a
-  tapped chord went to the hand's colour, defined as THE FRETTING FURNITURE HUE-LESS —
-  `hueless(color)` (Rec.601 luma grey, same alpha) of the box teal, its dark rim and the border
-  teal — so the brightness matches exactly by construction and the hands read apart at a glance
-  (a teal box says strum, a hue-less one says tap), for the same reason the picking light leans
-  warm and its pops are white. `HandLightStyle::box_color / box_dark_color / rail_color`, data
-  never a branch. The strike's `release_seconds` is the struck
+  tapped chord went to the hand's colour. First tried as the fretting furniture hue-less (the teal
+  at its own luma), which sighted as dirty grey — a neutral needs more luminance than a chromatic
+  colour to read as white — so the rule became: the picking hand's furniture is THE BOARD'S ONE
+  WHITE, the achromatic string colour the 8th string wears (`g_achromatic_string_color`,
+  `B6B6B6`); the box wears it as it is, dimmed only by the box's own alphas; the rim is the grey at
+  the teal rim's luma; the rail is that white at the alpha that lands the fretting rail's luma, so
+  both hands' rails stay equally dim. The hands read apart at a glance (a teal box says strum, a
+  white one says tap), for the same reason the picking light leans warm and its pops are white.
+  `HandLightStyle::box_color / box_dark_color / rail_color`, data never a branch. The strike's
+  `release_seconds` is the struck
   notes' TRUE ring end, not the drawn tail — the fretting hand's rule for its boxes, held to the
   musical close while the margin is ink spacing — so a chord with no drawn tail still wears rails
   (sighted 2026-09-25). Sampled by the one density policy (Phase 3).

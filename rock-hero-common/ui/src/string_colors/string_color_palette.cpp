@@ -55,8 +55,8 @@ constexpr StringColorPalette g_charter_classic_palette{
             0xffd22cf8, // purple (highest string)
         },
     .extended = {
-        0xff00b5a0, // teal (7th string, RYB blue-green tertiary)
-        0xffb6b6b6, // near-white gray (8th string, achromatic — no visible-light identity)
+        0xff00b5a0,                // teal (7th string, RYB blue-green tertiary)
+        g_achromatic_string_color, // near-white (8th string; its doc says why achromatic)
     },
 };
 

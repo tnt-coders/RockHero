@@ -554,12 +554,15 @@ Three marks beside the lights, all on the raw window:
   its node).
 - **Furniture colours** — a hand's chord box (`box_color`, `box_dark_color`, which its accent
   light takes too) and its rails (`rail_color`) wear the hand's furniture colour on its
-  `HandLightStyle`. The fretting hand's is the teal family; the picking hand's is that same family
-  with the hue removed, `hueless` (the Rec.601 luma grey, alpha kept), so a teal box says strum and
-  a grey one says tap — the same reason the picking light leans warm and its pops are white — at
-  identical brightness by construction rather than by tuning: box `0xFF949494`, rim `0xFF2A2A2A`,
-  rails `0xFF686868`. The pops' `mark_color` is a separate colour, because a pop is additive glow
-  and the furniture is solid.
+  `HandLightStyle`. The fretting hand's is the teal family; the picking hand's is the board's one
+  white — the achromatic string colour the 8th string wears, `g_achromatic_string_color` — so a
+  teal box says strum and a white one says tap, the same reason the picking light leans warm and
+  its pops are white. The box wears that white as it is, dimmed only by the box's own alphas (the
+  teal at its own luma sighted as dirty grey: a neutral needs more luminance than a chromatic colour
+  to read as white); the rim is the grey at the teal rim's luma (`hueless`); the rail is the white
+  at the alpha that lands the fretting rail's luma over the dark board, so both hands' rails stay
+  equally dim: box `0xFFB6B6B6`, rim `0xFF2A2A2A`, rails `0x91B6B6B6`. The pops' `mark_color` is a
+  separate colour, because a pop is additive glow and the furniture is solid.
 - **Strike pops** — the brief additive flash at a strike or an arrival: a single note, a slide
   landing and a bend arrival pop their slot's two wires, a boxed strike (and a lone open, whose bar
   spans the window) its box's two sides. They are chart facts, `HighwayHandLight::pops`
