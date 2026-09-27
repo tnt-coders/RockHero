@@ -1258,9 +1258,12 @@ against the tree on the date above.
   Verdana Bold measurements). Sighted as better but not perfect. Full equivalence is geometrically
   out of reach (two stacked digits cannot both be figure height inside the chip). Next steps, in
   order: tune the scale within 1.25–1.35; if it still reads small, measure the real Direct2D output's
-  small-digit stems from a framebuffer capture rather than the PIL re-render. Two other fixes were
-  built and REJECTED on sight and should not be retried: full-size slash fractions ("1/2", "1 1/4")
-  and a hand-built side-by-side diagonal fraction at 0.68 of the chip text.
+  small-digit stems from a framebuffer capture rather than the PIL re-render. Two specific versions
+  were built and REJECTED on sight: full-size slash fractions ("1/2", "1 1/4"), and one hand-built
+  diagonal fraction (digits at 0.68 of the chip text, laid side by side with no tuck under the
+  slash, so the plain shrink also lost stroke weight). Drawing the fraction ourselves is still open
+  (user, 2026-09-27): only that version looked worse. A redraw worth trying tucks the digits under
+  the slash and keeps their stroke weight at the figures', which is what that one lacked.
 - **The view half of undo focus has no test.** `EditorView::setState` centres
   `selection_start_seconds` when `transition_focus_count` changes and the selection is off screen,
   but the window glide it starts is animated with no test hook, so no UI test asserts where the
