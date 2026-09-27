@@ -23,7 +23,10 @@ remove) — the keyframe idea makes those handles permanent, visible, typed toke
 ## Settled sub-decisions (survive the park)
 
 - **Zero sits at the tail box floor; upward motion is the bend** (user, 2026-08-04).
-- **The 2D pitch mapping is linear; the 3D lift is the physical non-linear one** (user).
+- ~~**The 2D pitch mapping is linear; the 3D lift is the physical non-linear one** (user).~~
+  **REVERSED 2026-09-26 (user):** the 2D curve draws the same physical travel law as the 3D lift
+  (`bendTravel`), as a share of the three-whole-step travel — a half step rises about a third of
+  the way. This also answers the amplitude cost on common bends noted below.
 - **The 2D scale must represent up to 3 whole steps** — the Guitar Pro maximum — with no
   compression and no clamping inside that range (user, 2026-08-05). A fixed linear
   3-steps-at-the-ceiling scale satisfies this, keeps heights comparable across notes, and

@@ -533,7 +533,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         {
             view.bend.reserve(note.keyframes.size() + 1);
             view.bend.push_back(
-                BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
+                BendPointViewState{
+                    .seconds = view.start_seconds, .semitones = note.bend, .states_fret = true
+                });
         }
         view.slides.reserve(note.keyframes.size());
         // THE ONE FLAG that isolates every surface (noteSlidesOut): false draws a linked arrival
@@ -595,12 +597,16 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             }
             // Bound to locals so each optional check and its access are provably the same object.
             const std::optional<double>& bend = keyframe.bend;
+            const std::optional<int>& fret = keyframe.fret;
             if (bend.has_value())
             {
                 view.bend.push_back(
-                    BendPointViewState{.seconds = keyframe_seconds, .semitones = *bend});
+                    BendPointViewState{
+                        .seconds = keyframe_seconds,
+                        .semitones = *bend,
+                        .states_fret = fret.has_value(),
+                    });
             }
-            const std::optional<int>& fret = keyframe.fret;
             if (fret.has_value())
             {
                 view.slides.push_back(

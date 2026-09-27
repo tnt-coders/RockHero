@@ -6,7 +6,7 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 
 namespace rock_hero::common::core
@@ -376,17 +376,8 @@ flips the stacking for players who prefer the mirrored string order.
 /*!
 \brief Returns how far a bent tail lifts above its unbent lane, for a pitch offset in half steps.
 
-The lift is the PHYSICAL displacement law, scaled so a half-step bend spans exactly one
-string-lane gap. Lateral travel d stretches the string by about d squared and Hooke turns that
-stretch into tension, so displacement squared is proportional to the tension GAIN — and reaching
-n semitones means raising the tension ratio to 2^(n/6), because pitch is logarithmic in frequency
-and frequency rises with the square root of tension (a full three-whole-step bend literally
-doubles the tension). Every string-gauge, scale-length, and fret-position specific lands in one
-constant, which the half-step anchor divides out, so this one curve is exact for every note. The
-travel relative to the first semitone runs 1.00, 1.46, 1.84, 2.19, 2.53, 2.86: each extra
-semitone moves the string less than the one before even as the force keeps climbing, which is
-what makes the drawn shape read as a string being bent rather than a pitch plot. Negative offsets
-mirror the same curve.
+The lift is the PHYSICAL displacement law (\ref bendTravel, the one statement of it both surfaces
+draw), scaled so a half-step bend spans exactly one string-lane gap.
 
 The one-gap anchor at a half step is why the rate is the string spacing itself rather than a
 constant stored beside it. Two alternatives are deliberately rejected: Charter's separate
@@ -408,10 +399,7 @@ the board.
 */
 [[nodiscard]] inline double highwayBendLiftY(double semitones, const HighwayMetrics& metrics)
 {
-    const double tension_gain = std::exp2(std::abs(semitones) / 6.0) - 1.0;
-    const double half_step_gain = std::exp2(1.0 / 6.0) - 1.0;
-    return std::copysign(std::sqrt(tension_gain / half_step_gain), semitones) *
-           metrics.string_distance;
+    return bendTravel(semitones) * metrics.string_distance;
 }
 
 /*!

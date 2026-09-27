@@ -72,7 +72,7 @@ namespace
             .keyframes =
                 {
                     Keyframe{.offset = Fraction{1}, .bend = 2.0},
-                    Keyframe{.offset = Fraction{2}, .fret = 9},
+                    Keyframe{.offset = Fraction{2}, .fret = 9, .bend = 0.0},
                 },
         },
         // The strum's second struck string: two members are what open a span at all.
@@ -181,11 +181,16 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(sliding.ink_end_seconds == Catch::Approx(10.5 * beat));
     // The curve opens at the ONSET: the note's own bend value is the channel's first statement,
     // so a bent note's polyline always starts at its head and the stated point follows.
-    REQUIRE(sliding.bend.size() == 2);
+    REQUIRE(sliding.bend.size() == 3);
     CHECK(sliding.bend[0].seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.bend[0].semitones == Catch::Approx(0.0));
     CHECK(sliding.bend[1].seconds == Catch::Approx(9.5 * beat));
     CHECK(sliding.bend[1].semitones == Catch::Approx(2.0));
+    // Which points state a fret as well, each already marked by its own head or chip: the onset,
+    // and a keyframe carrying a fret. Only the bend-only point between them needs a dot.
+    CHECK(sliding.bend[0].states_fret);
+    CHECK_FALSE(sliding.bend[1].states_fret);
+    CHECK(sliding.bend[2].states_fret);
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);

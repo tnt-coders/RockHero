@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -80,6 +81,19 @@ struct StringStyle;
 // chartTextHeight). No shape name is drawn on any surface, so nothing reads it as a bar height.
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
+
+// The chrome ground every boxed lane chip fills — the fret-hand chips, the capo chip and the bend
+// amount chips alike — with its text and its corner rounding.
+const juce::Colour g_lane_chip_ground{0xff2a2f36};
+const juce::Colour g_lane_chip_text{juce::Colours::white.withAlpha(0.85f)};
+constexpr float g_lane_chip_corner_radius{2.0f};
+
+// Height of a boxed lane chip, which the lane's top edge seats them all at.
+constexpr float g_lane_chip_height = 12.0f;
+
+// A bend-only point's dot, as a fraction of the tail height: the automation lanes' point, scaled
+// to the tail it rides so it stays inside the lane at every density.
+constexpr float g_bend_dot_radius_tails{0.25f};
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
 // blue channel read too loud next to the blue, so the arpeggio tier sits darker.
 constexpr double g_shape_mark_brightness{1.5};
@@ -1370,34 +1384,41 @@ void drawKeyframeHeads(
     }
 }
 
-// Draws Charter's bend presentation: a white two-pixel polyline stepping between bend heights
-// over the tail, then a flat run to the tail end, with a "<slur><amount>" chip at each bend
-// point (white text on the string's lane color darkened twice).
+// Draws the bend presentation: a white two-pixel polyline stepping between bend heights over the
+// tail, then a flat run to the tail end, with a "<slur><amount>" lane chip at each bend point. A
+// bend-only point also collects a dot, the automation lanes' point mark, drawn by the caller
+// outside the technique clip so the band's edge cannot shave it; a point that states a fret is
+// marked by its head instead.
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end,
-    const std::optional<TailFade>& fade)
+    std::vector<LabelChip>& bend_chips, std::vector<juce::Point<float>>& bend_dots,
+    const float opacity, const double drawn_end, const std::optional<TailFade>& fade)
 {
     if (note.bend.empty())
     {
         return;
     }
 
-    // Charter maps bend height across the tail, full at three whole steps — compressed into the
-    // tail's INTERIOR with the stroke included, like the vibrato sine, so the polyline meets the
-    // rails scaled instead of being cut by the technique clip: rest sits on the interior's floor,
-    // three whole steps on its ceiling.
+    // The height is how far the string physically travels (bendTravel, the law the 3D lift draws
+    // too) as a share of the travel three whole steps take — compressed into the tail's INTERIOR
+    // with the stroke included, like the vibrato sine, so the polyline meets the rails scaled
+    // instead of being cut by the technique clip: rest sits on the interior's floor, three whole
+    // steps on its ceiling. A half step therefore rises about a third of the way, the first of the
+    // travel being the longest, exactly as the fretting hand feels it.
     constexpr float line_thickness = g_technique_line_thickness;
+    constexpr double ceiling_semitones = 6.0;
+    const double ceiling_travel = common::core::bendTravel(ceiling_semitones);
     const TailInterior interior = tailInterior(metrics, center_y);
     const float rest_y = interior.bottom - line_thickness / 2.0f;
     const float full_y = interior.top + line_thickness / 2.0f;
     const auto bend_y = [&](double semitones) {
-        const double steps = std::clamp(semitones / 2.0, 0.0, 3.0);
-        return rest_y - static_cast<float>(steps / 3.0) * (rest_y - full_y);
+        const double share =
+            common::core::bendTravel(std::clamp(semitones, 0.0, ceiling_semitones)) /
+            ceiling_travel;
+        return rest_y - static_cast<float>(share) * (rest_y - full_y);
     };
 
-    const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
     // The polyline ends where the ribbon it rides does — the drawn extent — so it cannot outlast
     // the tail under it.
     const float end_x = metrics.x(drawn_end);
@@ -1432,16 +1453,16 @@ void drawBendLines(
                 endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head && at_ring_end)
                     .value_or(
                         over_head ? center_y - metrics.note_height / 2.0f -
-                                        metrics.bend_font.height() / 2.0f - 1.0f
+                                        metrics.label_font.height() / 2.0f - 1.0f
                                   : to.y - metrics.tail_height / 2.0f);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
                     .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} +
                             charterBendText(point.semitones),
-                    .background = chip_background,
-                    .border = chip_background,
-                    .ink = style[Ink::Digit],
+                    .background = g_lane_chip_ground,
+                    .border = g_lane_chip_ground,
+                    .ink = g_lane_chip_text,
                     .opacity = opacity,
                     .opaque_ink = false,
                 });
@@ -1449,6 +1470,10 @@ void drawBendLines(
         if (cut)
         {
             return;
+        }
+        if (!point.states_fret)
+        {
+            bend_dots.push_back(to);
         }
         last = {to.x + 1.0f, to.y};
         last_semitones = point.semitones;
@@ -2018,12 +2043,6 @@ void drawShapeSpan(
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 }
 
-// The chrome ground every boxed lane chip fills — the fret-hand chips and the capo chip alike.
-const juce::Colour g_lane_chip_ground{0xff2a2f36};
-
-// Height of a boxed lane chip, which the lane's top edge seats them all at.
-constexpr float g_lane_chip_height = 12.0f;
-
 // Draws the capo chip pinned in the lane's top-left corner, in the FHP chips' boxed style. The
 // chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
 // drawn content says where the string floor sits — this chip is the 2D capo indication (roadmap
@@ -2045,8 +2064,8 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
         g_lane_chip_height
     };
     g.setColour(g_lane_chip_ground);
-    g.fillRoundedRectangle(box, 2.0f);
-    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
+    g.setColour(g_lane_chip_text);
     metrics.label_font.draw(g, text, box);
 }
 
@@ -2420,8 +2439,6 @@ TabLaneMetrics makeTabLaneMetrics(
     // one number rather than two that happen to agree.
     metrics.fret_font =
         TabLaneFont{juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")}};
-    metrics.bend_font =
-        TabLaneFont{juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}}};
     metrics.label_font =
         TabLaneFont{juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")}};
     return metrics;
@@ -2523,8 +2540,8 @@ void drawTabFhpChip(
     }
 
     g.setColour(g_lane_chip_ground);
-    g.fillRoundedRectangle(box, 2.0f);
-    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
+    g.setColour(g_lane_chip_text);
     metrics.label_font.draw(g, tabFhpChipText(fhp), box);
 }
 
@@ -2667,6 +2684,8 @@ void paintTabLane(
     // Floating labels collected during the note passes and drawn above every head.
     std::vector<LabelChip> slide_labels;
     std::vector<LabelChip> bend_chips;
+    // One note's bend-only points, reused across notes so the pass allocates once.
+    std::vector<juce::Point<float>> bend_dots;
 
     // Tails first so normal heads cover their own tail starts (Charter's noteTails layer). A ghost
     // instead draws its head here inside the same flattened group as its tail.
@@ -2773,9 +2792,22 @@ void paintTabLane(
                 onset_x,
                 center_y,
                 bend_chips,
+                bend_dots,
                 note_opacity,
                 drawn_end,
                 fade);
+        }
+        // A bend-only point's dot rides the curve at the band's edge where the bend rests, so it
+        // draws past the technique clip; the heads drawn later still cover it.
+        if (!bend_dots.empty())
+        {
+            const float radius = metrics.tail_height * g_bend_dot_radius_tails;
+            setTailInk(g, style[Ink::TechniqueLine], fade);
+            for (const juce::Point<float>& dot : bend_dots)
+            {
+                g.fillEllipse(dot.x - radius, dot.y - radius, 2.0f * radius, 2.0f * radius);
+            }
+            bend_dots.clear();
         }
 
         if (grouped)
@@ -2997,11 +3029,11 @@ void paintTabLane(
                     chip_layer.emplace(g, chip_bounds, chip.opacity);
                 }
                 g.setColour(chip.background);
-                g.fillRect(box);
+                g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
                 if (chip.border != chip.background)
                 {
                     g.setColour(chip.border);
-                    g.drawRect(box, 1.0f);
+                    g.drawRoundedRectangle(box, g_lane_chip_corner_radius, 1.0f);
                 }
                 if (chip.opaque_ink)
                 {
@@ -3014,7 +3046,7 @@ void paintTabLane(
     if (metrics.draw_text)
     {
         draw_chips(slide_labels, metrics.fret_font, 3.0f);
-        draw_chips(bend_chips, metrics.bend_font, 2.0f);
+        draw_chips(bend_chips, metrics.label_font, 3.0f);
     }
 }
 

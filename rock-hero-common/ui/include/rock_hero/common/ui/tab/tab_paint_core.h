@@ -203,10 +203,7 @@ struct TabLaneMetrics : TabLaneGeometry
     /*! \brief Bold fret-number font derived from the note height. */
     TabLaneFont fret_font;
 
-    /*! \brief Bend amount chip font derived from the note height. */
-    TabLaneFont bend_font;
-
-    /*! \brief Bold label font for hand-shape and fret-hand-position chips. */
+    /*! \brief Bold label font for every boxed lane chip: fret-hand, capo, and bend amount. */
     TabLaneFont label_font;
 
     /*!

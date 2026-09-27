@@ -143,6 +143,15 @@ struct BendPointViewState
     double semitones{0.0};
 
     /*!
+    \brief True where the same statement also states a fret: the onset, or a keyframe carrying a
+    fret.
+
+    A fret-stating point already wears a head of its own (or the slide-out chip), so it is marked by
+    that; only a bend-only point needs a mark of its own on the curve.
+    */
+    bool states_fret{false};
+
+    /*!
     \brief Compares two bend points by their stored fields.
     \param lhs Left-hand point.
     \param rhs Right-hand point.
@@ -156,7 +165,7 @@ struct BendPointViewState
         // equality is intended; the ordering query expresses it warning-free with identical
         // semantics (NaN compares unequal either way).
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.semitones <=> rhs.semitones);
+               std::is_eq(lhs.semitones <=> rhs.semitones) && lhs.states_fret == rhs.states_fret;
     }
 };
 
