@@ -856,6 +856,15 @@ void EditorView::setState(const core::EditorViewState& state)
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_audio_device_failure_overlay.setPrompt(m_state.audio_device_failure_prompt);
     m_busy_overlay.setBusyState(m_state.busy);
+    // An undo or redo that brought its change into focus keeps it in sight: centred when it landed
+    // off screen. Judged here, once every surface holds the new state, so the glyph asked about is
+    // the one the change left — never the selection the command found.
+    const std::optional<double>& focus_start = m_state.selection_start_seconds;
+    if (m_state.transition_focus_count != previous_state.transition_focus_count &&
+        focus_start.has_value() && !selectionGlyphVisible(*focus_start))
+    {
+        m_track_viewport->centerOnTime(*focus_start);
+    }
     repaint();
 }
 

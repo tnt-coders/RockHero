@@ -77,4 +77,40 @@ std::optional<std::string> ToneModelSnapshot::validate(const common::core::Sessi
     return std::nullopt;
 }
 
+EditFocus ToneModelSnapshot::focusReplacing(const ToneModelSnapshot& replaced) const
+{
+    if (const std::optional<ChangedRecord<common::core::ToneRegion>> changed =
+            firstChangedRecord(tone_track.regions, replaced.tone_track.regions);
+        changed.has_value())
+    {
+        const common::core::ToneRegion& region = *changed->record;
+        MarkerEditFocus marker{.marker = {}, .start = region.start};
+        if (changed->present)
+        {
+            marker.marker = ToneRegionSelection{.region_id = region.id};
+        }
+        return marker;
+    }
+    // The track is untouched, so only the catalog changed — a rename — and the change shows on the
+    // chip of the first region sounding the changed tone.
+    const std::optional<ChangedRecord<common::core::Tone>> changed_tone =
+        firstChangedRecord(tones, replaced.tones);
+    if (!changed_tone.has_value())
+    {
+        return {};
+    }
+    const auto region = std::ranges::find(
+        tone_track.regions,
+        changed_tone->record->tone_document_ref,
+        &common::core::ToneRegion::tone_document_ref);
+    if (region == tone_track.regions.end())
+    {
+        return {};
+    }
+    return MarkerEditFocus{
+        .marker = ToneRegionSelection{.region_id = region->id},
+        .start = region->start,
+    };
+}
+
 } // namespace rock_hero::editor::core

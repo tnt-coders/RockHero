@@ -49,7 +49,7 @@ flowchart TB
 bubble up the parent chain to `MainWindow`, where the command mapping set matches registered
 chords. Everything else is plumbing that keeps focus in the right place:
 
-- **The window follows the keyboard by three rules.** (1) *A moved position keeps its measure in
+- **The window follows the keyboard by four rules.** (1) *A moved position keeps its measure in
   view.* The controller publishes where the keyboard stands (`EditorViewState::keyboard_position`:
   the armed caret's slot, else a time selection's moving edge, else the paused cursor, with its
   measure's span; nothing while playing) and `EditorView::setState` fits that measure into view
@@ -74,7 +74,13 @@ chords. Everything else is plumbing that keeps focus in the right place:
   (3) *Selecting never scrolls*: a chip click, a click on an existing note
   and a walk onto the marker that already holds the cursor publish no moved position and act on
   nothing; a walk whose column rule seeks the cursor into a far-off marker is a move, and rule 1
-  follows it. Zoom (`applyZoomAroundCursor`)
+  follows it. (4) *Undo and redo keep their change in sight.* A transition selects what it changed
+  and moves the keyboard position onto it ("Undo is never blind" in \ref guide_undo), and the
+  controller counts each one that did (`EditorViewState::transition_focus_count`); when the count
+  changes, `EditorView::setState` centres `selection_start_seconds` if it is not fully on screen.
+  Judged AFTER the transition, unlike rule 2, because where the change landed is the whole question
+  — and keyed on the published count rather than on the command, because a transition that loads a
+  plugin completes later and one off the timeline focuses nothing. Zoom (`applyZoomAroundCursor`)
   pivots on the cursor in place while it is on screen and centres on it first when it is not, for
   keys and wheel alike. A new registry category must be classified in
   `editorCommandActsOnSelection`.

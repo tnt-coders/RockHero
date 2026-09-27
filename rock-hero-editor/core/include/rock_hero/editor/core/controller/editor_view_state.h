@@ -1046,6 +1046,19 @@ struct EditorViewState
     std::optional<double> selection_start_seconds{};
 
     /*!
+    \brief How many undo or redo transitions have brought their change into focus.
+
+    Undo and redo select what they changed and move the keyboard position onto it; a change of
+    this count tells the view one just did, and the view centres \ref selection_start_seconds when
+    that is not fully on screen. Judged after the transition rather than before it like a
+    selection verb, because where the change lands is the whole question — and published rather
+    than inferred from the command, because a transition that loads a plugin completes later and
+    one off the timeline focuses nothing. Counted, not flagged, so two transitions in a row each
+    register.
+    */
+    std::uint64_t transition_focus_count{0};
+
+    /*!
     \brief What the section chord (`Ctrl+M`) would do at the cursor right now.
 
     The marker grammar, published as the VERB rather than as a position for the view to reason

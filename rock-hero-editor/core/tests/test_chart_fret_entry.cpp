@@ -814,11 +814,10 @@ TEST_CASE("EditorController projects nothing for a refused pending insert", "[co
     CHECK(chart->notes.back().fret == 12);
 }
 
-// A bare digit on a head under an unselected caret RETYPES it, never replaces it: the entry opens
-// over the head, so its techniques survive, and the settle leaves it selected. The slot is
-// reachable without contrivance — a caret does not move on undo, so undoing a delete leaves one
-// armed over a restored note with an empty selection.
-TEST_CASE("EditorController retypes the head under a bare caret", "[core][chart]")
+// A bare digit on a head an undo restored RETYPES it, never replaces it: the undo brings the note
+// back selected under the caret, the entry opens over the head, so its techniques survive, and the
+// settle leaves it selected.
+TEST_CASE("EditorController retypes the head an undo restores", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -838,8 +837,7 @@ TEST_CASE("EditorController retypes the head under a bare caret", "[core][chart]
     static_cast<void>(pending.scheduler.runDelayed());
 
     // Plant a palm-muted note at the empty caret (measure 4 beat 1, string 1), then delete it and
-    // undo: the note is back under the caret, and the selection the delete emptied does not come
-    // back with it.
+    // undo: the note is back under the caret, selected as the change the undo brought back.
     click(controller, 120.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -852,15 +850,13 @@ TEST_CASE("EditorController retypes the head under a bare caret", "[core][chart]
     REQUIRE(chartOrNull(controller)->notes.size() == occupied - 1);
     controller.onUndoRequested();
     REQUIRE(chartOrNull(controller)->notes.size() == occupied);
-    REQUIRE(state->chart_edit.selected_notes.empty());
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{occupied - 1});
     // The earlier entries' window wakes are spent here (each is a no-op past its own settle), so
     // the count below is this entry's own timer and nothing else.
     static_cast<void>(pending.scheduler.runDelayed());
 
-    // The digit boxes the head as a retype target, in its ordinary (non-red) form; the selection
-    // follows at the settle.
+    // The digit boxes the head as a retype target, in its ordinary (non-red) form.
     controller.onChartFretDigitTyped(1);
-    CHECK(state->chart_edit.selected_notes.empty());
     REQUIRE(state->chart_edit.pending_fret.has_value());
     if (state->chart_edit.pending_fret.has_value())
     {

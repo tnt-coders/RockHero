@@ -110,6 +110,13 @@ struct ToneAutomationPointsEdit final : public IEdit
     /*! \copydoc IEdit::label */
     [[nodiscard]] std::string label() const override;
 
+    /*!
+    \brief Brings into focus the point the direction changed, on this parameter's lane.
+    \param direction Undo lands on the points before the edit, redo on the points after it.
+    \return The automation focus, or nothing when both lists hold the same points.
+    */
+    [[nodiscard]] EditFocus focus(EditorUndoDirection direction) const override;
+
     /*! \brief Durable plugin id keying the arrangement entry. */
     std::string plugin_id;
 

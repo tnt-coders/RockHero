@@ -1445,6 +1445,13 @@ struct [[nodiscard]] ChartEdit final : IEdit
     \return Human-readable label for the planned change. */
     [[nodiscard]] std::string label() const override;
 
+    /*!
+    \brief Selects the notes the direction writes back, fronted by the first slot it touches.
+    \param direction Which half of the plan the transition lands on.
+    \return The chart focus, or nothing for a plan that changes no note.
+    */
+    [[nodiscard]] EditFocus focus(EditorUndoDirection direction) const override;
+
     /*! \brief The applied plan replayed by undo and redo. */
     ChartEditPlan plan;
 };

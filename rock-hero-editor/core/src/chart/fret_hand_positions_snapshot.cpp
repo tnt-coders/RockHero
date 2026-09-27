@@ -61,4 +61,21 @@ std::optional<std::string> FretHandPositionsSnapshot::validate(
     return std::nullopt;
 }
 
+EditFocus FretHandPositionsSnapshot::focusReplacing(const FretHandPositionsSnapshot& replaced) const
+{
+    const std::optional<ChangedRecord<common::core::FretHandPosition>> changed =
+        firstChangedRecord(placements, replaced.placements);
+    if (!changed.has_value())
+    {
+        return {};
+    }
+    const common::core::GridPosition start = changed->record->position;
+    MarkerEditFocus marker{.marker = {}, .start = start};
+    if (changed->present)
+    {
+        marker.marker = FretHandPositionSelection{.position = start};
+    }
+    return marker;
+}
+
 } // namespace rock_hero::editor::core

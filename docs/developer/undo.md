@@ -147,6 +147,32 @@ Note the first hop: Cmd/Ctrl+Z pressed inside a hosted plugin's *own editor wind
 intercepted and forwarded to this same global history — plugins never see it (see
 \ref guide_signal_chain).
 
+# Undo is never blind — the transition's focus
+
+A committed transition brings what it changed into focus: it becomes the selection and the
+keyboard position moves onto it, and the view centres it when it lands off screen. The edit
+answers, because it already holds exactly what it changed: `IEdit::focus(direction)` returns an
+`EditFocus` (`controller/edit_focus.h`), and `completeUndoTransition` hands it to
+`focusUndoTransition` after the selection repair.
+
+- **Chart** (`ChartEdit::focus`): the notes the direction writes back, or — on a note rewritten in
+  place with its head untouched — the keyframes it writes back, since that change lives along the
+  ring. One object arms the caret on it; several are selected with the passive cursor at the
+  first; none (undoing an insert, redoing a delete) leaves the caret on the emptied slot, selecting
+  nothing.
+- **Markers** (`MarkerModelEdit::focus`, which asks the landing snapshot's
+  `focusReplacing(replaced)`): the marker the transition added, moved or rewrote is selected with
+  the cursor at its start; one it removed leaves nothing selected and the cursor where it stood.
+  `firstChangedRecord` is the one diff every snapshot uses; the tone model falls back to the first
+  region sounding a renamed tone when only the catalog changed.
+- **Tone automation** (`ToneAutomationPointsEdit::focus`): the lane caret lands on the changed
+  point's slot and selects the point if it is still there.
+- **Off the timeline** (plugin chain, Tone Designer): the default, nothing; the selection repair
+  alone answers there. Plugin tiles have no selection yet.
+
+Skipped while the transport plays: playback follow owns the view and no caret may arm. The view
+half is rule 4 of the window rules in \ref guide_keyboard.
+
 # Where plugin edits come from
 
 Users mostly edit plugins inside plugin GUIs, which the editor cannot see directly. The engine
@@ -174,5 +200,8 @@ you write an edit whose failure path cannot restore the before-state, returning
    around it.
 3. Push through `pushUndoEntry` at gesture end, once per gesture (preview changes push nothing —
    see the output-gain preview/commit split in \ref guide_signal_chain).
-4. Tests: round-trip every edit (do → undo → assert exact before-state → redo → assert
+4. If the domain is on the timeline, override `IEdit::focus` so its transitions bring their
+   change into focus. Nothing fails to compile without it — the default focuses nothing, and the
+   transition is silently blind again.
+5. Tests: round-trip every edit (do → undo → assert exact before-state → redo → assert
    after-state) in `test_editor_undo_history.cpp` style, plus the failure/abort path.

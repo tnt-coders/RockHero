@@ -2098,6 +2098,10 @@ void EditorController::Impl::completeUndoTransition(
     // transition that moved no note finds every key still naming its object and changes nothing.
     dropChartSelectionKeysNamingNothing();
     releaseMarkerSelectionNamingNothing();
+    // Never blind: what the transition changed becomes the selection and the keyboard position
+    // moves onto it. After the pruning above, which still answers for an edit with no focus of its
+    // own (the plugin chain, the tone designer).
+    focusUndoTransition(pending.edit->focus(pending.direction));
     reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
@@ -2123,6 +2127,74 @@ void EditorController::Impl::completeUndoTransition(
     }
 
     updateView();
+}
+
+void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
+{
+    if (m_transport.state().playing || std::holds_alternative<std::monostate>(focus))
+    {
+        return;
+    }
+    std::visit(
+        [this](const auto& kind) {
+            if constexpr (!std::is_same_v<std::decay_t<decltype(kind)>, std::monostate>)
+            {
+                applyEditFocus(kind);
+            }
+        },
+        focus);
+    ++m_transition_focus_count;
+}
+
+void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
+{
+    const ChartSlotKey front = chartCaretSlotFor(session().song().tempo_map, focus.front);
+    // One object or none: the caret lands on the change, naming the object it wrote back (a head
+    // and a keyframe can share an instant, so the slot alone cannot say which), and an emptied
+    // slot selects nothing — the armed-caret invariant's own reading.
+    if (focus.selected.size() <= 1)
+    {
+        armChartCaret(
+            front.position,
+            front.string,
+            common::core::ChartStopChannel::Sounding,
+            focus.selected.empty() ? std::nullopt : std::optional{focus.selected.front()});
+        return;
+    }
+    // Several objects cannot all sit under one caret, so the passive cursor takes the change's
+    // front, remembering its string for the next arming.
+    chartSelectionMutable().replaceWith(focus.selected);
+    m_chart_marker = ChartCursor{.string = front.string, .lane = {}, .column = {}};
+    moveCursorTo(front.position);
+}
+
+void EditorController::Impl::applyEditFocus(const MarkerEditFocus& focus)
+{
+    std::visit(
+        [this](const auto& marker) {
+            if constexpr (std::is_same_v<std::decay_t<decltype(marker)>, std::monostate>)
+            {
+                // A marker the transition took away leaves nothing to select, exactly as Delete
+                // does; the cursor still goes to where it stood.
+                dissolveChartCaretInPlace();
+                setSelection(std::monostate{});
+            }
+            else
+            {
+                selectMarker(marker);
+            }
+        },
+        focus.marker);
+    moveCursorTo(focus.start);
+}
+
+void EditorController::Impl::applyEditFocus(const AutomationEditFocus& focus)
+{
+    // The lane caret selects the point standing at the slot, or nothing where the transition
+    // removed it.
+    armLaneCaret(
+        focus.position,
+        AutomationLaneRow{.instance_id = focus.instance_id, .param_id = focus.param_id});
 }
 
 // Defers a plugin-instantiating undo/redo until the loading overlay has painted, matching insert.
@@ -2692,6 +2764,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             state.selection_start_seconds = secondsAtGridPosition(state.tempo_map, *start);
         }
     }
+    state.transition_focus_count = m_transition_focus_count;
     // Where a marker verb would land, from the one authority that decides it, so no surface needs
     // a marker rule of its own: the raw position the tone chord compares against region starts,
     // and the measure downbeat the section chord snaps to.

@@ -60,6 +60,8 @@ the selection, authoring, value-entry and marker verbs act on the selection or a
 Navigation does not — the walk and the jumps select, and selecting never moves the view, while a
 step or Tab moves a position the view follows on its own. File, edit-history, view, transport, grid
 and menu commands do not either, and a saved file or a toggled panel must never scroll the window.
+Undo and redo keep their change in sight by a different rule, judged after they land
+(\ref core::EditorViewState::transition_focus_count).
 One row answers against its category and is named here: Cancel dismisses although it sits with the
 selection verbs.
 

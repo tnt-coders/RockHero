@@ -44,4 +44,21 @@ std::optional<std::string> SongSectionsSnapshot::validate(
     return std::nullopt;
 }
 
+EditFocus SongSectionsSnapshot::focusReplacing(const SongSectionsSnapshot& replaced) const
+{
+    const std::optional<ChangedRecord<common::core::SongSection>> changed =
+        firstChangedRecord(sections, replaced.sections);
+    if (!changed.has_value())
+    {
+        return {};
+    }
+    const common::core::GridPosition start = changed->record->position;
+    MarkerEditFocus marker{.marker = {}, .start = start};
+    if (changed->present)
+    {
+        marker.marker = SongSectionSelection{.position = start};
+    }
+    return marker;
+}
+
 } // namespace rock_hero::editor::core

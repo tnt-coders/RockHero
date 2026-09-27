@@ -363,6 +363,17 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.automation().lanes.size() == 1);
     CHECK(std::is_eq(editor.automation().lanes.front().points.front().norm_value <=> 0.6F));
+    // The redo brings the point it wrote back into focus: the lane caret on it, the point selected.
+    const std::optional<ToneAutomationLaneCaretRef>& caret = editor.automation().lane_caret;
+    REQUIRE(caret.has_value());
+    if (caret.has_value())
+    {
+        CHECK(caret->lane_index == 0);
+        CHECK(caret->position == pointAt(1, 2));
+    }
+    CHECK(
+        editor.automation().selected_point ==
+        std::optional{ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 0}});
 }
 
 TEST_CASE(

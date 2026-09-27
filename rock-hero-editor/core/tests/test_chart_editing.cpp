@@ -1,11 +1,15 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -573,6 +577,111 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
     CHECK(
         common::core::sustainEndPosition(tempo_map, off_grid_note) ==
         adjacentTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, tick_slot, true));
+}
+
+// Undo and redo are never blind: a note the transition writes back becomes the selection with the
+// caret on it, and one it takes away leaves the caret on the emptied slot — wherever the caret
+// stood when the transition ran. Each such transition is counted for the view to keep in sight.
+TEST_CASE("EditorController brings an undone chart change into focus", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    // The armed caret's time, read through one named binding so the optional's guard and its read
+    // are provably the same object.
+    const auto caret_seconds = [state]() -> std::optional<double> {
+        const std::optional<ChartCaretViewState>& caret = state->chart_edit.caret;
+        if (caret.has_value())
+        {
+            return caret->seconds;
+        }
+        return std::nullopt;
+    };
+
+    click(controller, 40.0f, 220.0f);
+    REQUIRE(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    REQUIRE(caret_seconds().has_value());
+    const double note_seconds = caret_seconds().value_or(-1.0);
+    const std::size_t notes = chartOrNull(controller)->notes.size();
+    controller.onSelectionDeleteRequested();
+
+    // The caret leaves for an empty slot far from the deleted note before the history moves.
+    click(controller, 120.0f, 220.0f);
+    REQUIRE(caret_seconds().has_value());
+    REQUIRE(caret_seconds().value_or(note_seconds) > note_seconds + 1.0);
+    const std::uint64_t focused_before = state->transition_focus_count;
+
+    controller.onUndoRequested();
+    REQUIRE(chartOrNull(controller)->notes.size() == notes);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    REQUIRE(caret_seconds().has_value());
+    CHECK(caret_seconds().value_or(-1.0) == Catch::Approx(note_seconds));
+    CHECK(state->transition_focus_count == focused_before + 1);
+
+    // The redo takes the note away again: nothing left to select, the caret on its emptied slot.
+    controller.onRedoRequested();
+    REQUIRE(chartOrNull(controller)->notes.size() == notes - 1);
+    CHECK(state->chart_edit.selected_notes.empty());
+    REQUIRE(caret_seconds().has_value());
+    CHECK(caret_seconds().value_or(-1.0) == Catch::Approx(note_seconds));
+    CHECK(state->transition_focus_count == focused_before + 2);
+}
+
+// Several notes cannot all sit under one caret, so a transition writing several back selects them
+// all and brings the passive cursor to the first — and a transition off the timeline (the output
+// gain) focuses nothing and leaves both the selection and the count alone.
+TEST_CASE("EditorController focuses a chord an undo restores with the cursor", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+
+    // Marquee both measure-2 chord members and delete them, then park the caret elsewhere.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+    REQUIRE(state->chart_edit.selected_notes.size() == 2);
+    REQUIRE(state->selection_start_seconds.has_value());
+    const double chord_seconds = state->selection_start_seconds.value_or(0.0);
+    controller.onSelectionDeleteRequested();
+    click(controller, 120.0f, 220.0f);
+
+    controller.onUndoRequested();
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0, 1});
+    CHECK_FALSE(state->chart_edit.caret.has_value());
+    CHECK(transport.position().seconds == Catch::Approx(chord_seconds));
+    const std::uint64_t focused = state->transition_focus_count;
+
+    controller.onOutputGainChanged(-12.0);
+    controller.onUndoRequested();
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0, 1});
+    CHECK(state->transition_focus_count == focused);
 }
 
 } // namespace rock_hero::editor::core

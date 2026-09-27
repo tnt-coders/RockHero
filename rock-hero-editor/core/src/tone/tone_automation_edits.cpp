@@ -95,6 +95,22 @@ std::string ToneAutomationPointsEdit::label() const
     return "Automate " + (param_name.empty() ? std::string{"Parameter"} : param_name);
 }
 
+EditFocus ToneAutomationPointsEdit::focus(const EditorUndoDirection direction) const
+{
+    const bool undoing = direction == EditorUndoDirection::Undo;
+    const std::optional<ChangedRecord<common::core::ToneAutomationPoint>> changed =
+        firstChangedRecord(undoing ? before : after, undoing ? after : before);
+    if (!changed.has_value())
+    {
+        return {};
+    }
+    return AutomationEditFocus{
+        .instance_id = instance_id,
+        .param_id = param_id,
+        .position = changed->record->position,
+    };
+}
+
 std::expected<void, EditorUndoFailureCode> ToneAutomationPointsEdit::applyPoints(
     EditorEditContext& context, const std::vector<common::core::ToneAutomationPoint>& points) const
 {

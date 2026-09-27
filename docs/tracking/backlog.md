@@ -1249,3 +1249,16 @@ against the tree on the date above.
   (a coplanar second pass, an arch over the board, a per-section floor tint) and the sub-pixel bar
   calibration there; the projection's camera-zone walk still decides which downbeat a section
   belongs to, so a new mark reads that decision rather than re-deriving it.
+
+## Found while making undo focus its change (2026-09-27)
+
+- **Plugin-chain and Tone Designer undo is still blind.** Timeline edits now bring their change
+  into focus (`IEdit::focus`), but a plugin insert, move, removal or state change and a Tone
+  Designer document edit keep the default and focus nothing, because plugin tiles have no
+  selection yet. When tile selection exists, the plugin edits in `signal_chain_edits.h` override
+  `focus` to select the tile they changed.
+- **The view half of undo focus has no test.** `EditorView::setState` centres
+  `selection_start_seconds` when `transition_focus_count` changes and the selection is off screen,
+  but the window glide it starts is animated with no test hook, so no UI test asserts where the
+  window lands; the sibling "verb on a selection" rule in `EditorView::perform` is untested the same
+  way. Both want one glide hook (or a synchronous test path) and a test each.

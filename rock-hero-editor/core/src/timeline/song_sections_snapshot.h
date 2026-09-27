@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "controller/edit_focus.h"
+
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/song.h>
@@ -56,6 +58,14 @@ struct SongSectionsSnapshot
     \return The violation to report, or empty when the list satisfies every rule.
     */
     [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;
+
+    /*!
+    \brief The section an undo or redo landing on this list brings into focus.
+    \param replaced The list the transition replaces.
+    \return The first section it added, moved or renamed — else the first it removed, shown by its
+            former position — or nothing when the lists hold the same sections.
+    */
+    [[nodiscard]] EditFocus focusReplacing(const SongSectionsSnapshot& replaced) const;
 
     /*!
     \brief Compares two snapshots by their stored values.

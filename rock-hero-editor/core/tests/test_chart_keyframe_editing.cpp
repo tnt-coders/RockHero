@@ -1377,26 +1377,21 @@ TEST_CASE("A click inside a tail arms the caret and creates nothing", "[core][ch
     CHECK(publishedState(fixture.view).undo_history.labels.size() == entries_before);
 }
 
-// AN UNDO/REDO TRANSITION KEEPS A SELECTION THE CHART STILL HOLDS, and the end's own statement is
-// no exception: the transition's repair asks whether the chart holds what each key NAMES, not
-// whether a landing at its slot would address it — a slide-out chip is a real object no landing
-// reaches, and losing its selection to an unrelated undo would be a loss the screen never explains.
-TEST_CASE("An undo transition keeps a selected end statement", "[core][chart]")
+// A TRANSITION WITH NO FOCUS OF ITS OWN KEEPS A SELECTION THE CHART STILL HOLDS, and the end's own
+// statement is no exception: the transition's repair asks whether the chart holds what each key
+// NAMES, not whether a landing at its slot would address it — a slide-out chip is a real object no
+// landing reaches. A chart transition selects what it changed instead, so the repair is what
+// answers for an edit off the timeline, the output gain here.
+TEST_CASE("A transition with no focus keeps a selected end statement", "[core][chart]")
 {
     KeyframeFixture fixture{makeSlideOutGlideChart()};
-
-    // An unrelated note on another string, placed LATER than the glide so the glide keeps its own
-    // index: a published keyframe ref is a drawn position, and re-indexing is not what is under
-    // test here.
-    click(fixture.controller, g_holding_tail_x, g_string_2_y);
-    fixture.controller.onChartFretDigitTyped(4);
-    REQUIRE(currentChart(fixture.controller).notes.size() == 2);
 
     click(fixture.controller, g_ring_end_x, g_string_3_y);
     fixture.controller.onRowObjectStepRequested(false, false);
     const std::vector<ChartKeyframeRef> selected =
         publishedState(fixture.view).chart_edit.selected_keyframes;
     REQUIRE(selected.size() == 1);
+    fixture.controller.onOutputGainChanged(-12.0);
 
     // Both directions of the transition leave the glide and its slide-out exactly as authored, so
     // the key goes on naming the statement it named.
@@ -1680,13 +1675,15 @@ TEST_CASE("Insert at the caret states a note at the fret in force", "[core][char
     SECTION("on a head, it selects the head and edits nothing")
     {
         KeyframeFixture fixture;
-        // Delete then undo leaves the caret armed over the restored head with nothing selected.
+        // Delete then undo leaves the caret armed over the restored head, which the transition
+        // selects as the change it brought back.
         click(fixture.controller, g_onset_x, g_string_3_y);
         fixture.controller.onSelectionDeleteRequested();
         fixture.controller.onUndoRequested();
         const common::core::Chart restored = currentChart(fixture.controller);
         REQUIRE(restored.notes.size() == 1);
-        REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
+        REQUIRE(
+            publishedState(fixture.view).chart_edit.selected_notes == std::vector<std::size_t>{0});
         const std::size_t entries_before = publishedState(fixture.view).undo_history.labels.size();
 
         fixture.controller.onInsertAtCaretRequested();

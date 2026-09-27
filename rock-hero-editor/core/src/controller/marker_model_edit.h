@@ -69,6 +69,17 @@ template <typename Snapshot> struct [[nodiscard]] MarkerModelEdit final : IEdit
         return edit_label;
     }
 
+    /*!
+    \brief Brings into focus the marker the direction changed, as the model it lands on reports it.
+    \param direction Undo lands on the model before the verb, redo on the one it produced.
+    \return The marker focus, or nothing when the two models hold the same markers.
+    */
+    [[nodiscard]] EditFocus focus(const EditorUndoDirection direction) const override
+    {
+        return direction == EditorUndoDirection::Undo ? before.focusReplacing(after)
+                                                      : after.focusReplacing(before);
+    }
+
     /*! \brief Marker model as it stood before the verb ran. */
     Snapshot before;
 

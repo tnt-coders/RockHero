@@ -430,6 +430,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // past it a key resolving to nothing simply swallows the next digit into a retype that finds no
     // operand.
     void dropChartSelectionKeysNamingNothing();
+    // Brings what an undo or redo transition left into focus (IEdit::focus): it becomes the
+    // selection and the keyboard position moves onto it, so the view keeps it in sight and centres
+    // it when it lands off screen (EditorView::setState). Skipped while the transport plays:
+    // playback follow owns the view then and no caret may arm.
+    void focusUndoTransition(const EditFocus& focus);
+    // One typed case per kind of focus, dispatched by focusUndoTransition.
+    void applyEditFocus(const ChartEditFocus& focus);
+    void applyEditFocus(const MarkerEditFocus& focus);
+    void applyEditFocus(const AutomationEditFocus& focus);
     // Arms the caret at a slot and takes the landing's own object as the selection, or re-derives
     // one from what sits under it (a note selects, an empty slot clears). The channel names WHICH
     // stop of that note the caret sits on; it defaults to the one every note has, and a Held
@@ -1027,6 +1036,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Product-level undo history for tone edits currently covered by the implementation plan.
     EditorUndoHistory m_undo_history;
+
+    // Undo/redo transitions that brought their change into focus, published so the view can keep
+    // each one in sight (EditorViewState::transition_focus_count).
+    std::uint64_t m_transition_focus_count{0};
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};

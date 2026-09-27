@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "controller/edit_focus.h"
+
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/tone/tone_track.h>
@@ -65,6 +67,18 @@ struct ToneModelSnapshot
     \return The violation to report, or empty when the model satisfies every rule.
     */
     [[nodiscard]] std::optional<std::string> validate(const common::core::Session& session) const;
+
+    /*!
+    \brief The region an undo or redo landing on this model brings into focus.
+
+    A region the transition added, moved or retoned, else one it removed (shown by its former
+    start); where the track is untouched and only the catalog changed — a rename — the first region
+    sounding a changed tone, since that region's chip is where the change shows.
+
+    \param replaced The model the transition replaces.
+    \return The focus, or nothing when the models hold the same regions and tones.
+    */
+    [[nodiscard]] EditFocus focusReplacing(const ToneModelSnapshot& replaced) const;
 
     /*!
     \brief Compares two snapshots by their stored values.

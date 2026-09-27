@@ -136,6 +136,11 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     // law rather than a reversal (the window itself is pinned in the round-trip case above).
     controller.onUndoRequested();
     controller.onRedoRequested();
+    // Redo selects only what it changed, and that was one member, so the whole chord is
+    // marqueed again for the press below.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
     // Now all-scrape: the same intent reverts the whole selection in one entry.
     controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
@@ -307,6 +312,11 @@ TEST_CASE("EditorController emphasis toggle applies uniform scope", "[core][char
 
     controller.onUndoRequested();
     controller.onRedoRequested();
+    // Redo selects only what it changed, and that was one member, so the whole chord is
+    // marqueed again for the press below.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
     controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
     chart = chartOrNull(controller);
@@ -353,6 +363,11 @@ TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
     // rather than a reversal.
     controller.onUndoRequested();
     controller.onRedoRequested();
+    // Redo selects only what it changed, and that was one member, so the whole chord is
+    // marqueed again for the press below.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
     controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     chart = chartOrNull(controller);
@@ -493,6 +508,11 @@ TEST_CASE("EditorController vibrato toggle levels a mixed selection", "[core][ch
     // Now every anchor stands at the tier, so the same press clears the whole selection.
     controller.onUndoRequested();
     controller.onRedoRequested();
+    // Redo selects only what it changed, and that was one member, so the whole chord is
+    // marqueed again for the press below.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
     controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].vibrato == common::core::VibratoState::None);
@@ -556,6 +576,11 @@ TEST_CASE("EditorController tap toggle levels a chord and then clears it", "[cor
     // verb's law rather than reversing the one above.
     fixture.controller.onUndoRequested();
     fixture.controller.onRedoRequested();
+    // Redo selects only what it changed, and that was one member, so the whole chord is
+    // marqueed again for the press below.
+    fixture.controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    fixture.controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    fixture.controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
     fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Tap);
     chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);

@@ -948,6 +948,27 @@ TEST_CASE("EditorController moves the selected fret-hand position", "[core][mark
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
 }
 
+// Undo and redo bring the placement they change into focus — selected, with the cursor at its start
+// — even after the selection moved on to another placement.
+TEST_CASE("EditorController brings an undone placement move into focus", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(1);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    editor.controller.onFretHandPositionSelected(3);
+    REQUIRE(editor.selectedHandIndex() == std::optional<std::size_t>{3});
+
+    // Back at the measure-5 downbeat, 8.0s.
+    editor.controller.onUndoRequested();
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(8.0));
+
+    // Measure 5 is 3/4 at 90 BPM, so its second beat sits two thirds of a second past 8.0s.
+    editor.controller.onRedoRequested();
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(8.0 + 2.0 / 3.0));
+}
+
 // A move onto a start another placement holds, off the chart's start, or onto the song's closing
 // barline is refused whole: the stream, the selection and the history stay exactly as they were.
 TEST_CASE("Fret-hand move refuses an occupied start and both chart ends", "[core][marker-rows]")
