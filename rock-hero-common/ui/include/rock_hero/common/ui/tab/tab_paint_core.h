@@ -198,13 +198,19 @@ struct TabLaneMetrics : TabLaneGeometry
     /*! \brief Full tablature lane bounds in the graphics context's space. */
     juce::Rectangle<int> bounds;
 
-    // The placeholder font is replaced by makeTabLaneMetrics before any drawing.
+    // The placeholder fonts are replaced by makeTabLaneMetrics before any drawing.
 
     /*!
     \brief Bold fret-number font derived from the note height, and the text of every lane chip —
     fret-hand, capo, slide label and bend amount — so chips scale with the lane as the digits do.
     */
     TabLaneFont fret_font;
+
+    /*!
+    \brief The fret font scaled up for a bend amount's vulgar-fraction glyph, whose own digits are
+    drawn small: at this size they match a whole number's weight beside them.
+    */
+    TabLaneFont fraction_font;
 
     /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.

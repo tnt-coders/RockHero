@@ -85,6 +85,12 @@ const juce::Colour g_lane_chip_ground{0xff2a2f36};
 const juce::Colour g_lane_chip_text{juce::Colours::white.withAlpha(0.85f)};
 constexpr float g_lane_chip_corner_radius{2.0f};
 
+// A bend amount's vulgar-fraction glyph against the chip text. The glyph's own digits are about
+// 0.63 of a figure's height and 0.74 of its stroke; at 1.30 they reach 0.81 of the height and 0.97
+// of the stroke, so the fraction reads as the same weight as a whole number beside it while the
+// glyph's whole ink box, about a figure's height, still clears the chip's border.
+constexpr float g_bend_fraction_scale{1.30f};
+
 // A lane chip's height: one line of its text with a pixel above and below, the same for the boxed
 // chips seated at the lane's top edge and the floating ones riding the tails. Every chip prints in
 // the lane's fret font, so chips scale with the lane exactly as the digits on the heads do.
@@ -337,6 +343,9 @@ struct LabelChip
 {
     juce::Point<float> position;
     juce::String text;
+    // Printed after the text in the lane's fraction font; empty on every chip but a bend amount
+    // with a quarter-step part (charterBendText).
+    juce::String fraction;
     juce::Colour background;
     juce::Colour border;
 
@@ -420,9 +429,16 @@ void drawStringLines(
     }
 }
 
-// Charter formats bend amounts in whole steps with quarter fractions ("0", "1/2", "1 1/4", ...
-// rendered with vulgar-fraction glyphs).
-[[nodiscard]] juce::String charterBendText(double semitones)
+// A bend amount in Charter's notation — whole steps with quarter fractions ("0", "1/2", "1 1/4",
+// ...) — split into the text the chip prints in the fret font and the vulgar-fraction glyph it
+// prints after that in the lane's fraction font (TabLaneMetrics::fraction_font).
+struct BendAmountText
+{
+    juce::String text;
+    juce::String fraction;
+};
+
+[[nodiscard]] BendAmountText charterBendText(double semitones)
 {
     const auto quarter_steps = static_cast<int>(std::lround(semitones * 2.0));
     const int full_steps = quarter_steps / 4;
@@ -433,15 +449,14 @@ void drawStringLines(
 
     if (full_steps == 0)
     {
-        return quarters == 0 ? juce::String{"0"} : fragment;
+        return BendAmountText{
+            .text = quarters == 0 ? juce::String{"0"} : juce::String{}, .fraction = fragment
+        };
     }
-
-    juce::String text{full_steps};
-    if (quarters != 0)
-    {
-        text += " " + fragment;
-    }
-    return text;
+    // The space stays with the whole steps, in their own font, so "1 1/4" keeps its gap.
+    return BendAmountText{
+        .text = juce::String{full_steps} + (quarters != 0 ? " " : ""), .fraction = fragment
+    };
 }
 
 // The stretch of a tail that has to be generated, as distances from the onset. Both wavy tail
@@ -1270,6 +1285,7 @@ void drawSlideLines(
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
                     .text = tabNoteHeadText(note, stop.fret),
+                    .fraction = {},
                     .background =
                         charterDarker(charterDarker(charterDarker(style[Ink::LinkedInner]))),
                     .border = style[Ink::LinkedInner],
@@ -1457,11 +1473,12 @@ void drawBendLines(
                         over_head ? center_y - metrics.note_height / 2.0f -
                                         metrics.fret_font.height() / 2.0f - 1.0f
                                   : to.y - metrics.tail_height / 2.0f);
+            const BendAmountText amount = charterBendText(point.semitones);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
-                    .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} +
-                            charterBendText(point.semitones),
+                    .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} + amount.text,
+                    .fraction = amount.fraction,
                     // The string's own head inks, ring and fill, so the amount reads as the
                     // string's; the fret-hand chips' neutral chrome is the lane's, not a string's.
                     .background = style[Ink::Inner],
@@ -2443,6 +2460,9 @@ TabLaneMetrics makeTabLaneMetrics(
     // one number rather than two that happen to agree.
     metrics.fret_font =
         TabLaneFont{juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")}};
+    metrics.fraction_font = TabLaneFont{juce::Font{
+        juce::FontOptions{metrics.fretTextHeight() * g_bend_fraction_scale}.withStyle("Bold")
+    }};
     return metrics;
 }
 
@@ -3017,7 +3037,11 @@ void paintTabLane(
         [&](const std::vector<LabelChip>& chips, const TabLaneFont& font, float pad) {
             for (const LabelChip& chip : chips)
             {
-                const auto text_width = static_cast<float>(font.width(chip.text));
+                const auto fraction_width =
+                    chip.fraction.isEmpty()
+                        ? 0.0f
+                        : static_cast<float>(metrics.fraction_font.width(chip.fraction));
+                const auto text_width = static_cast<float>(font.width(chip.text)) + fraction_width;
                 const juce::Rectangle<float> box{
                     chip.position.x - text_width / 2.0f - pad,
                     chip.position.y - font.height() / 2.0f - 1.0f,
@@ -3042,7 +3066,19 @@ void paintTabLane(
                     chip_layer.reset();
                 }
                 g.setColour(chip.ink);
-                font.draw(g, chip.text, box);
+                // The text keeps the box the fraction leaves it, and the fraction follows it; each
+                // font centres its own ink on the chip's centre line, so the two sit level.
+                const juce::Rectangle<float> text_box = box.withTrimmedRight(fraction_width);
+                font.draw(g, chip.text, text_box);
+                if (!chip.fraction.isEmpty())
+                {
+                    metrics.fraction_font.draw(
+                        g,
+                        chip.fraction,
+                        juce::Rectangle<float>{
+                            text_box.getRight() - pad, box.getY(), fraction_width, box.getHeight()
+                        });
+                }
             }
         };
     if (metrics.draw_text)

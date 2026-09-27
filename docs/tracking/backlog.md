@@ -1251,13 +1251,16 @@ against the tree on the date above.
   Designer document edit keep the default and focus nothing, because plugin tiles have no
   selection yet. When tile selection exists, the plugin edits in `signal_chain_edits.h` override
   `focus` to select the tile they changed.
-- **Bend-chip fractions read small.** A bend amount's quarter fraction prints as the font's
-  vulgar-fraction glyph (¼ ½ ¾, `charterBendText`), whose digits most fonts draw at about half
-  height, so at the 12.5 px chip text they are readable but small. Two fixes were built and
-  REJECTED on sight (2026-09-27): full-size slash fractions ("1/2", "1 1/4") changed the chip's
-  style, and a hand-built diagonal fraction at 0.68 of the chip text did not look better than the
-  glyph. Revisit only with a different idea — a font whose fraction glyphs are larger, for one —
-  not either of those again.
+- **Bend-chip fractions still read a little small (improved 2026-09-27).** The vulgar-fraction
+  glyph (¼ ½ ¾) now prints at 1.30× the chip text in its own lane font
+  (`TabLaneMetrics::fraction_font`, `g_bend_fraction_scale`), which lifts its small digits from
+  0.63 to about 0.81 of a figure's height and its stroke from 0.74 to 0.97 (the ui-design-expert's
+  Verdana Bold measurements). Sighted as better but not perfect. Full equivalence is geometrically
+  out of reach (two stacked digits cannot both be figure height inside the chip). Next steps, in
+  order: tune the scale within 1.25–1.35; if it still reads small, measure the real Direct2D output's
+  small-digit stems from a framebuffer capture rather than the PIL re-render. Two other fixes were
+  built and REJECTED on sight and should not be retried: full-size slash fractions ("1/2", "1 1/4")
+  and a hand-built side-by-side diagonal fraction at 0.68 of the chip text.
 - **The view half of undo focus has no test.** `EditorView::setState` centres
   `selection_start_seconds` when `transition_focus_count` changes and the selection is off screen,
   but the window glide it starts is animated with no test hook, so no UI test asserts where the
