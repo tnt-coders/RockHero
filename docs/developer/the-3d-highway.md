@@ -432,10 +432,11 @@ silent about.
 **An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
 derivation publishes that anchor per span (`ChartShape::bracket_position`) rather than leaving each
 surface to re-scan for it: a span an EVENT states carries its own FRONT, since that is the
-statement's own extent and the rails run from it — for an ACCUMULATION that front is its earliest
-uncovered member's onset, so the bracket stands from the figure's first note and the later members'
-heads arrive under it — and a rule 11b landing-opened successor carries its first interior sounding
-instead, because nothing is struck at a landing and the ink follows the sound. The projection
+statement's own extent and the rails run from it — for an ACCUMULATION that front is where its
+earliest uncovered member's statement began, its onset or the landing a glide brought it to, so the
+bracket stands from the figure's first stop and the later members' heads arrive under it — and a
+rule 11b landing-opened successor carries its first interior sounding instead, because its whole
+grip slid in, its landing states nothing new, and the ink follows the sound. The projection
 consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
 publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather
 than a corner case: a landing is not a sounding, so a successor classifies by the ordinary triggers

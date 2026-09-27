@@ -277,11 +277,10 @@ struct OpenSpan
     // evidence; they reach the published posture only at emit, on strings the grip left empty.
     std::vector<StopClaim> claims;
 
-    // Where this span's opening mark draws, published to \ref ChartShape::bracket_position: the
-    // first SOUNDING at or after the front. Every span an event states seeds it with its front
-    // where a strike stands there, and with the founding slot where the front is a landing the
-    // tie doctrine dated it to; a landing successor seeds nothing and the first sounding inside it
-    // fills the slot — the ink follows the sound (rule 12 of the law's display section).
+    // Where this span's opening mark draws, published to \ref ChartShape::bracket_position. Every
+    // span an event states seeds it with its front, where its first member's statement began — a
+    // strike or a glide's landing alike; a landing successor seeds nothing and the first sounding
+    // inside it fills the slot (rule 12 of the law's display section).
     std::optional<GridPosition> bracket_position{};
 
     // The last instant an EVENT stated this span's shape; empty only on a landing successor
@@ -376,18 +375,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         }
         return static_cast<std::size_t>(note.string - 1);
     };
-    // The SOUNDING onsets as a sorted set — the membership the slot walk applies per member (a
-    // string the model knows), so the opening mark's "is the front a strike" question answers with
-    // the same filter. `onset_beat` itself is an index-parallel table and never a set.
-    std::vector<Fraction> sounding_onset_beats;
-    for (std::size_t note = 0; note < saved_notes.size(); ++note)
-    {
-        if (note_string_index(saved_notes[note]).has_value())
-        {
-            sounding_onset_beats.push_back(onset_beat[note]);
-        }
-    }
-
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
 
@@ -1593,24 +1580,15 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 const GridPosition front =
                     advanceGridPosition(tempo_map, slot.position, front_beat - slot.beat);
                 const bool silent = slot.struck == 0 && total == slot.claims.size();
-                // THE INK FOLLOWS THE SOUND (rule 12): the opening mark draws at the first
-                // SOUNDING at or after the front. The front is where a member's statement began,
-                // and that is a strike for a member dated by its own onset — the mark draws there,
-                // the accumulation's chord frame — but a LANDING for a member the tie doctrine
-                // dated to a glide's arrival (rule 10). Nothing sounds at a landing, so a mark
-                // there would frame the chord a quantum ahead of its own heads and print every
-                // digit twice; this slot is the first sounding after it and takes the mark, exactly
-                // as a landing successor defers its own to its first interior sounding. Onsets
-                // ascend with the notes, so the front is a strike iff some SOUNDING onset lands
-                // on it — a front measured back to a landing has none.
-                const bool front_sounds =
-                    std::ranges::binary_search(sounding_onset_beats, front_beat);
+                // The opening mark draws at the front: the chord frame states the grip where its
+                // first member's statement began, and a glide's landing begins one exactly as a
+                // strike does, so a front dated to a landing takes the mark there too.
                 open = OpenSpan{
                     .position = front,
                     .front_beat = front_beat,
                     .stops = std::move(stops),
                     .claims = {},
-                    .bracket_position = front_sounds ? front : slot.position,
+                    .bracket_position = front,
                     .last_stated_beat = slot.beat,
                     .silent_only = silent,
                     .struck_in_parts = false,

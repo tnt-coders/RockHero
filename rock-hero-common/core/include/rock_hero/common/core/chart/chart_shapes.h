@@ -295,19 +295,17 @@ struct ChartShape
 
     Every span an EVENT states — a strum, an authored hold — carries its own FRONT here (\ref
     position), because that is the statement's own extent and the rails run from it. An ACCUMULATION
-    is no exception and needs no clause: its front is its earliest uncovered member's onset, which
-    is where the statement began, so the bracket starts there and the later members' heads arrive
-    under it. A LANDING SUCCESSOR carries its first INTERIOR sounding instead: nothing at all is
-    stated at a landing, so THE INK FOLLOWS THE SOUND. One that never sounds interiorly carries
-    nothing and draws no mark at all — the rails and the chord name changing there are its whole
-    statement.
+    is no exception and needs no clause: its front is where its earliest uncovered member's
+    statement began — that member's onset, or the landing a glide brought it to — so the bracket
+    starts there and the later members' heads arrive under it. A LANDING SUCCESSOR carries its
+    first INTERIOR sounding instead: the whole grip slid in, so its landing states nothing the
+    predecessor's mark did not, and THE INK FOLLOWS THE SOUND. One that never sounds interiorly
+    carries nothing and draws no mark at all — the rails and the chord name changing there are its
+    whole statement.
 
     ONE field with one write rule, which is what makes those cases one law rather than a branch on
     \ref landing_opened: the seed happens where a span opens and the fill happens at the first
-    sounding, so the second only ever lands where the first did not. The seed itself is the first
-    SOUNDING at or after the front: a span whose front the tie doctrine dated to a glide's LANDING
-    seeds at its founding slot, not at the landing, because nothing sounds at a landing and a mark
-    there would frame the chord a quantum ahead of its own heads.
+    sounding, so the second only ever lands where the first did not.
 
     Consulted only where a BRACKET actually draws — an ARPEGGIO-classified span (\ref
     chartShapeArrivals). A box-class span states itself with its strums' own boxes, so its anchor is

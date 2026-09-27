@@ -658,10 +658,12 @@ expected inside the covering FHP window.
 **BRACKETS state MEMBERSHIP at statement boundaries.** A bracket is ARPEGGIO furniture: a box-class
 span states itself with its strums' own boxes and publishes no bracket at all. Where a span's one
 opening mark draws is published by the walk (`ChartShape::bracket_position`) rather than re-scanned
-downstream, with one write rule: every span an EVENT states carries its own FRONT — or the founding
-slot where the tie doctrine dated that front to a landing, since nothing sounds at a landing and a
-mark there would frame the chord a quantum ahead of its own heads — and a landing-opened successor
-carries its first interior SOUNDING, or nothing at all where it never sounds interiorly. The
+downstream, with one write rule: every span an EVENT states carries its own FRONT — a front dated
+to a glide's LANDING included, because a landing begins a member's statement exactly as an onset
+does (ruled 2026-09-26, retiring the deferral to the founding slot, which printed a slid stop late
+and after heads it should frame) — and a landing-opened successor carries its first interior
+SOUNDING, or nothing at all where it never sounds interiorly: its whole grip slid in, so its
+landing states nothing the predecessor's mark did not. The
 projection resolves it into `ShapeViewState::bracket_seconds`: where both surfaces draw the mark,
 where the posture digits are decided, and what a claim's own face rides.
 

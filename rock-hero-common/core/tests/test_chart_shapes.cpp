@@ -3884,37 +3884,23 @@ TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][c
         CHECK_FALSE(derived.shapes[1].bracket_position.has_value());
     }
 
-    SECTION(
-        "the opening mark draws at the first sounding, never at a landing the front was dated to")
+    SECTION("an accumulation dated to a glide's landing draws its mark at the landing")
     {
-        // The sighted slide-into-chord: two glides arrive a quarter beat (more than the margin)
-        // before a chord that restrikes exactly where they landed, over two open strings still
-        // ringing from the figure before.
-        // The chord's span fronts at the landing (the tie doctrine: the slid fingers' statements
-        // began there), but nothing SOUNDS at a landing, so the bracket draws at the chord — the
-        // first sounding at or after the front — where a mark at the landing framed the chord a
-        // quantum ahead of its heads and printed every fret twice.
-        //
-        // The section above defers a mark to a sounding a WHOLE BEAT past the landing; this one
-        // puts the restrike on the very next quantum, which is where a front dated to the landing
-        // and a mark drawn at the sounding are nearest to being confused.
+        // The sighted figure: a slide lands on 13 and rings on while an open string and then a
+        // fret sound around it, founding the span at the fret. The slid finger's statement began
+        // at the landing, so the span fronts there — and a landing begins a statement exactly as
+        // a strike does, so the mark draws there too. Deferred to the founding strike it printed
+        // the 13 a beat late, after the open string's own head.
         const ChartShapes derived = deriveFrom(streamOf({
-            travellingAt(noteAt(2, Fraction{}, 4, 6, Fraction{3, 2}), {{Fraction{5, 4}, 2}}),
-            travellingAt(noteAt(2, Fraction{1, 2}, 5, 8, Fraction{1}), {{Fraction{3, 4}, 4}}),
-            noteAt(2, Fraction{1, 2}, 6, 0, Fraction{2}),
-            noteAt(3, Fraction{1, 2}, 3, 4, Fraction{1}),
-            noteAt(3, Fraction{1, 2}, 4, 2, Fraction{1}),
-            noteAt(3, Fraction{1, 2}, 5, 4, Fraction{1}),
+            travellingAt(noteAt(2, Fraction{}, 3, 11, Fraction{5, 2}), {{Fraction{1, 2}, 13}}),
+            noteAt(3, Fraction{}, 4, 0, Fraction{3, 2}),
+            noteAt(3, Fraction{1, 2}, 5, 12, Fraction{1, 2}),
         }));
-        const GridPosition landing{.measure = 1, .beat = 3, .offset = Fraction{1, 4}};
-        const GridPosition chord{.measure = 1, .beat = 3, .offset = Fraction{1, 2}};
-        bool marked_at_chord = false;
-        for (const ChartShape& shape : derived.shapes)
-        {
-            CHECK(shape.bracket_position != std::optional{landing});
-            marked_at_chord = marked_at_chord || shape.bracket_position == std::optional{chord};
-        }
-        CHECK(marked_at_chord);
+
+        REQUIRE(derived.shapes.size() == 1);
+        const GridPosition landing{.measure = 1, .beat = 2, .offset = Fraction{1, 2}};
+        CHECK(derived.shapes.front().position == landing);
+        CHECK(derived.shapes.front().bracket_position == std::optional{landing});
         everySpanIsPositive(derived);
     }
 }
