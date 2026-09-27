@@ -1251,6 +1251,13 @@ against the tree on the date above.
   Designer document edit keep the default and focus nothing, because plugin tiles have no
   selection yet. When tile selection exists, the plugin edits in `signal_chain_edits.h` override
   `focus` to select the tile they changed.
+- **Bend-chip fractions read small.** A bend amount's quarter fraction prints as the font's
+  vulgar-fraction glyph (¼ ½ ¾, `charterBendText`), whose digits most fonts draw at about half
+  height, so at the 12.5 px chip text they are readable but small. Two fixes were built and
+  REJECTED on sight (2026-09-27): full-size slash fractions ("1/2", "1 1/4") changed the chip's
+  style, and a hand-built diagonal fraction at 0.68 of the chip text did not look better than the
+  glyph. Revisit only with a different idea — a font whose fraction glyphs are larger, for one —
+  not either of those again.
 - **The view half of undo focus has no test.** `EditorView::setState` centres
   `selection_start_seconds` when `transition_focus_count` changes and the selection is off screen,
   but the window glide it starts is animated with no test hook, so no UI test asserts where the
