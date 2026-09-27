@@ -709,7 +709,7 @@ void TabView::paint(juce::Graphics& g)
                 common::ui::paintTabPendingEntryPlate(
                     g,
                     metrics,
-                    metrics.label_font,
+                    metrics.fret_font,
                     chip->box,
                     pending_refused ? pending_text : common::ui::tabFhpChipText(*chip->fhp),
                     pending_refused,

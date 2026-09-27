@@ -77,19 +77,21 @@ const juce::Colour g_plate_rim{0xff7d7d7d};
 struct StringStyle;
 [[nodiscard]] PlatePalette platePalette(const StringStyle& style, Hand hand);
 
-// Bold text height for the lane's boxed chips — the fret-hand chips and the capo chip (Charter
-// chartTextHeight). No shape name is drawn on any surface, so nothing reads it as a bar height.
-constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 
-// The chrome ground every boxed lane chip fills — the fret-hand chips, the capo chip and the bend
-// amount chips alike — with its text and its corner rounding.
+// The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
+// text. Every chip in the lane, boxed or floating, shares the corner rounding.
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
 const juce::Colour g_lane_chip_text{juce::Colours::white.withAlpha(0.85f)};
 constexpr float g_lane_chip_corner_radius{2.0f};
 
-// Height of a boxed lane chip, which the lane's top edge seats them all at.
-constexpr float g_lane_chip_height = 12.0f;
+// A lane chip's height: one line of its text with a pixel above and below, the same for the boxed
+// chips seated at the lane's top edge and the floating ones riding the tails. Every chip prints in
+// the lane's fret font, so chips scale with the lane exactly as the digits on the heads do.
+[[nodiscard]] float laneChipHeight(const TabLaneFont& font)
+{
+    return font.height() + 2.0f;
+}
 
 // A bend-only point's dot, as a fraction of the tail height: the automation lanes' point, scaled
 // to the tail it rides so it stays inside the lane at every density.
@@ -1385,7 +1387,7 @@ void drawKeyframeHeads(
 }
 
 // Draws the bend presentation: a white two-pixel polyline stepping between bend heights over the
-// tail, then a flat run to the tail end, with a "<slur><amount>" lane chip at each bend point. A
+// tail, then a flat run to the tail end, with a "<slur><amount>" chip at each bend point. A
 // bend-only point also collects a dot, the automation lanes' point mark, drawn by the caller
 // outside the technique clip so the band's edge cannot shave it; a point that states a fret is
 // marked by its head instead.
@@ -1453,16 +1455,18 @@ void drawBendLines(
                 endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head && at_ring_end)
                     .value_or(
                         over_head ? center_y - metrics.note_height / 2.0f -
-                                        metrics.label_font.height() / 2.0f - 1.0f
+                                        metrics.fret_font.height() / 2.0f - 1.0f
                                   : to.y - metrics.tail_height / 2.0f);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
                     .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} +
                             charterBendText(point.semitones),
-                    .background = g_lane_chip_ground,
-                    .border = g_lane_chip_ground,
-                    .ink = g_lane_chip_text,
+                    // The string's own head inks, ring and fill, so the amount reads as the
+                    // string's; the fret-hand chips' neutral chrome is the lane's, not a string's.
+                    .background = style[Ink::Inner],
+                    .border = style[Ink::BorderInner],
+                    .ink = style[Ink::Digit],
                     .opacity = opacity,
                     .opaque_ink = false,
                 });
@@ -2056,17 +2060,17 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     }
 
     const juce::String text = "Capo " + juce::String{capo};
-    const float width = static_cast<float>(metrics.label_font.width(text)) + 6.0f;
+    const float width = static_cast<float>(metrics.fret_font.width(text)) + 6.0f;
     const juce::Rectangle<float> box{
         static_cast<float>(metrics.bounds.getX()) + 2.0f,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
         width,
-        g_lane_chip_height
+        laneChipHeight(metrics.fret_font)
     };
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
     g.setColour(g_lane_chip_text);
-    metrics.label_font.draw(g, text, box);
+    metrics.fret_font.draw(g, text, box);
 }
 
 // The visible time span one paint call can show: the clip, held to the lane's own bounds and
@@ -2439,8 +2443,6 @@ TabLaneMetrics makeTabLaneMetrics(
     // one number rather than two that happen to agree.
     metrics.fret_font =
         TabLaneFont{juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")}};
-    metrics.label_font =
-        TabLaneFont{juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")}};
     return metrics;
 }
 
@@ -2521,8 +2523,8 @@ juce::Rectangle<float> tabFhpChipBounds(
     return juce::Rectangle<float>{
         left_x,
         static_cast<float>(metrics.bounds.getY()) + 1.0f,
-        static_cast<float>(metrics.label_font.width(tabFhpChipText(fhp))) + 6.0f,
-        g_lane_chip_height
+        static_cast<float>(metrics.fret_font.width(tabFhpChipText(fhp))) + 6.0f,
+        laneChipHeight(metrics.fret_font)
     };
 }
 
@@ -2542,7 +2544,7 @@ void drawTabFhpChip(
     g.setColour(g_lane_chip_ground);
     g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
     g.setColour(g_lane_chip_text);
-    metrics.label_font.draw(g, tabFhpChipText(fhp), box);
+    metrics.fret_font.draw(g, tabFhpChipText(fhp), box);
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, sustain tails with their
@@ -3020,7 +3022,7 @@ void paintTabLane(
                     chip.position.x - text_width / 2.0f - pad,
                     chip.position.y - font.height() / 2.0f - 1.0f,
                     text_width + pad * 2.0f,
-                    font.height() + 2.0f
+                    laneChipHeight(font)
                 };
                 std::optional<ScopedTransparencyLayer> chip_layer;
                 const juce::Rectangle<int> chip_bounds = box.getSmallestIntegerContainer();
@@ -3046,7 +3048,7 @@ void paintTabLane(
     if (metrics.draw_text)
     {
         draw_chips(slide_labels, metrics.fret_font, 3.0f);
-        draw_chips(bend_chips, metrics.label_font, 3.0f);
+        draw_chips(bend_chips, metrics.fret_font, 3.0f);
     }
 }
 

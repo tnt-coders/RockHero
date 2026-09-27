@@ -198,13 +198,13 @@ struct TabLaneMetrics : TabLaneGeometry
     /*! \brief Full tablature lane bounds in the graphics context's space. */
     juce::Rectangle<int> bounds;
 
-    // The placeholder fonts are replaced by makeTabLaneMetrics before any drawing.
+    // The placeholder font is replaced by makeTabLaneMetrics before any drawing.
 
-    /*! \brief Bold fret-number font derived from the note height. */
+    /*!
+    \brief Bold fret-number font derived from the note height, and the text of every lane chip —
+    fret-hand, capo, slide label and bend amount — so chips scale with the lane as the digits do.
+    */
     TabLaneFont fret_font;
-
-    /*! \brief Bold label font for every boxed lane chip: fret-hand, capo, and bend amount. */
-    TabLaneFont label_font;
 
     /*!
     \brief Base color for a chart string, accounting for extra user lanes below the chart.
@@ -277,7 +277,7 @@ plate-flip design established. The border and inks are the host's, because pendi
 state and this core owns no editor colors.
 
 The box and font are the caller's, because they are the MARK's: a head's digit plate in the fret
-font (\ref paintTabPendingEntryBox), or a fret-hand chip's box in the label font
+font (\ref paintTabPendingEntryBox), or a fret-hand chip's box, which prints in the fret font too
 (\ref tabFhpChipBounds), so the provisional value sits exactly where the committed one prints.
 
 \param g Graphics context to draw into.

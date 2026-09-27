@@ -976,12 +976,6 @@ written down.
 
 ## Found while settling the focus reveal (2026-09-15)
 
-- **`g_shape_label_height` in `rock-hero-common/ui/src/tab/tab_paint_core.cpp` names a label
-  bar that no longer exists.** The 2026-09-15 doc sweep corrected its comment: the constant is the
-  bold text height of the lane's boxed chips (the fret-hand chips and the capo chip) and feeds only
-  `metrics.label_font`; no shape name is drawn on any surface. Rename it to say so (a code change,
-  so not done in the sweep).
-
 - **"Zoom to fit selection", one toggling verb with restore.** Every DAW ships it as a separate
   verb beside plain zoom (Ableton `Z`/`X`, Pro Tools Zoom Toggle, REAPER "View: Zoom time
   selection" + "Restore previous zoom level", Bitwig "Zoom to Fit Selection or Previous"). Plain

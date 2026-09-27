@@ -480,7 +480,7 @@ playing. It is never an entry gesture: a press CREATES NOTHING on this lane unde
 With no chart the lane is pointer-transparent. One column of the claimed band answers
 nothing: the string legend's and the fret-hand chip pinned on it, which are inert chrome (see "The
 pinned chrome is INERT" below). A press on a SCROLLING fret-hand chip is the one press the lane
-resolves itself: the chip is the hand row's marker, measured in the lane's own label font
+resolves itself: the chip is the hand row's marker, measured in the lane's own fret font
 (`tabFhpChipBounds`), so `TabView::fretHandChipAt` hit-tests it and the press goes to the chip sink
 (`setFretHandChipCallback` → `onFretHandPositionSelected(index)`) instead of reaching the chart as a
 press on the top string. The ruler resolves its own chips in its own view the same way, and on the
