@@ -8,6 +8,13 @@ Phase 1 and docs/plans/roadmap/12-playback-clock.md Phases 1–4 must carry a pl
 survive loop-region seeks from day one. Everything else in this file waits until its dependencies
 land.
 
+**Revised 2026-09-26 (master @ `2a68ac0a`), no implementation:** the time-stretch backend was
+re-researched and the recommendation moved from SoundTouch to **Rubber Band's R3 ("finer") engine
+through Tracktion's existing Rubber Band backend** (§5 "Backend research", §8 question 1), and
+Phase 0 now opens with an offline listening A/B before anything is wired. The §5 inventory rows
+for the transport port and the backing-clip setup were re-verified against the code on that date;
+the rest of §5 still carries its 2026-07-06 verification.
+
 ## 2. Goal
 
 A player who cannot yet play a passage at full speed can practice it: pick a section (or a
@@ -67,15 +74,22 @@ Repo state (all paths repo-relative):
   position-sorted vector (`song.h:76-77`), shared by every arrangement and by the 3D board.
   Sections have no end — a section spans to the next section's start or the song end. Anything
   here taking a `Chart` therefore takes `(sections, tempo_map)` instead.
-- The shared transport port has play/pause/stop/seek/state/position only, message-thread-only, no
-  speed and no loop API
-  (`rock-hero-common/audio/include/rock_hero/common/audio/transport/i_transport.h:67-112`;
-  `TransportState` carries a single `playing` flag, `transport/transport_state.h:12-24`).
+- The shared transport port already carries the speed and loop surface this plan needs
+  (re-verified 2026-09-26): `setPlaybackSpeed`/`playbackSpeed` and
+  `setLoopRegion`/`clearLoopRegion`/`loopRegion`
+  (`rock-hero-common/audio/include/rock_hero/common/audio/transport/i_transport.h:105-146`). The
+  loop is functional (landed with docs/plans/roadmap/47-editor-loop-selection.md); the speed
+  setter returns `TransportErrorCode::SpeedNotSupported` for any factor other than 1.0
+  (`rock-hero-common/audio/src/engine/engine_transport.cpp:210-220`), and the plan-12 clock
+  snapshot already carries `playback_rate`, which its extrapolator multiplies elapsed time by
+  (`clock/playback_clock_snapshot.h:41`, `src/clock/playback_clock_extrapolator.cpp:26`).
 - The engine already routes the backing clip through Tracktion's real-time path in anticipation
-  of practice speed: `rock-hero-common/audio/src/engine/engine_song_audio.cpp:142-154` disables
+  of practice speed: `rock-hero-common/audio/src/engine/engine_song_audio.cpp:157-169` disables
   the clip proxy with a load-bearing comment — "Practice-speed playback time-stretches this clip
   live... Proxy-off routes through WaveNodeRealTime's elastique reader... responds to speed
-  changes immediately" — and `engine_song_audio.cpp:163` sets `transport.looping = false`.
+  changes immediately" (the comment names elastique; the backend actually compiled in is decided
+  here) — and `:175` pins the clip to absolute seconds (`Clip::syncAbsolute`), which bears on
+  Phase 0 checkpoint b.
 - BUT no time-stretch backend is compiled in: repo-wide search (excluding `external/`) finds zero
   `TRACKTION_ENABLE_TIMESTRETCH_*` definitions and zero uses of `setTimeStretchMode`,
   `setSpeedRatio`, `setAutoTempo`, or `PitchShiftPlugin`. The comment above describes an
@@ -134,6 +148,65 @@ under `external/tracktion_engine/modules/tracktion_engine/`):
   dual-licence terms (site knowledge, not in-tree).
 
 Verified against code on 2026-07-06, refactor @ 13e82fb0.
+
+### Backend research (2026-09-26)
+
+The recommendation in §8 question 1 rests on this record. Quality claims below are published
+reputation and one third-party evaluation, not our own listening; Phase 0 step 0 is what confirms
+them on our material.
+
+- **Rubber Band (recommended, R3 engine).** v4.0.0 (2024-10-25), GPL-2.0-or-later or commercial.
+  R3 ("finer", since v3.0.0) is the upstream's higher-quality engine for "complex mixes, vocals…
+  and music with substantial bass content", at roughly three times R2's CPU; both run in real time.
+  The Audionaut project shipped Signalsmith Stretch, evaluated it against Bungee, Rubber Band R3
+  and SoundTouch at nine ratios (listening plus contract tests), and switched to R3, measuring
+  1.4–5.2% of one core per stereo voice — we run one voice, the backing clip. Tracktion already
+  drives Rubber Band: our fork builds it from its single-file source
+  (`timestretch/tracktion_TimeStretch.cpp:650-657`, `<rubberband/single/RubberBandSingle.cpp>`,
+  no FFT or resampler dependency) and uses the modern start-delay/start-pad API. **But it selects
+  R2:** its option flags are real-time + `OptionPitchHighConsistency` + `OptionWindowShort`
+  (`:681-693`), with no `OptionEngineFiner`. R3 is a one-flag patch to our fork
+  (`tnt-coders/tracktion_engine`, which already carries patches of its own), dropping
+  `OptionWindowShort` with it, since in R3 that trades quality for latency. Not on Conan Center
+  (checked 2026-09-26); vcpkg ports 4.0.0. Sourcing is a local recipe in `conan-recipes`
+  exporting the source tree so the single-file include resolves, the way `bgfx` and `libebur128`
+  are carried. GPL-2.0-or-later may be used under GPLv3, which may be combined with our AGPLv3; a
+  closed-source release would need Rubber Band's commercial licence, the same position JUCE and
+  Tracktion already put us in.
+- **Signalsmith Stretch (runner-up).** MIT, header-only (plus the header-only, MIT Signalsmith
+  Linear), active (v1.4.0; last commit 2026-09-25), neither package on Conan Center (PFFFT, its
+  optional faster FFT, is). `process()` does not allocate once configured — its one buffer resize
+  is capped at the size `configure()` reserved and its peak list is reserved to its maximum (read
+  from source, not measured) — and `splitComputation` spreads the FFT burst across callbacks for
+  one extra 30 ms interval. The default preset is 120 ms blocks; debug builds run up to 10x
+  slower. It loses on the two facts that matter most here: its own README says time-stretching
+  "sounds best for more modest changes (between 0.75x and 1.5x)", below the 50% this plan wants,
+  and Audionaut found that at ratios ≤ 0.5 "nearly every re-prime came up short: the first block
+  after a clip start played silence" — and a re-prime happens at every seek and loop wrap, the
+  core of practice. Not a Tracktion backend: adopting it means adding one to our fork's
+  `TimeStretcher::Stretcher` interface. Wins only if Phase 0's listening holds up at 50%.
+- **SoundTouch (fallback).** LGPL v2.1, fully vendored in the Tracktion submodule, one macro. A
+  time-domain WSOLA stretcher: cheapest and lowest-latency, fine near 0.8–1.0x, audibly echoey at
+  50% on dense mixes. It stays the zero-dependency fallback.
+- **Bungee (not chosen).** MPL-2.0; Eigen + PFFFT; its distinction is seamless variable,
+  zero and reverse speed and arbitrary playhead motion, none of which practice needs. The
+  open-source version is a plain phase vocoder its own vendor positions below the commercial
+  Bungee Pro, and Audionaut passed on it.
+- **Ruled out.** élastique (zplane), Superpowered, ZTX: closed commercial SDKs, which cannot be
+  linked into an AGPL release. StaffPad's stretcher exists only inside Audacity's tree
+  (`au3/libraries/au3-time-and-pitch/StaffPad/`), under Audacity's licence, with no standalone
+  release and a stated tested range of 0.5–2.0. Sonic targets speech; PaulStretch targets extreme
+  ambient stretches.
+
+Sources: [Audionaut PR #78](https://github.com/kvoltmer/Audionaut/pull/78);
+[Rubber Band: why R3](https://breakfastquay.com/rubberband/why.html);
+[Rubber Band performance post](https://thebreakfastpost.com/2022/09/30/performance-improvements-in-rubber-band-library/);
+[Rubber Band CHANGELOG](https://github.com/breakfastquay/rubberband/blob/default/CHANGELOG);
+[Signalsmith Stretch README](https://github.com/Signalsmith-Audio/signalsmith-stretch/blob/main/README.md);
+[Bungee](https://github.com/bungee-audio-stretch/bungee);
+[Bungee's comparison page](https://bungee.parabolaresearch.com/compare-audio-stretch-tempo-pitch-change);
+[Mixxx on R3](https://mixxx.discourse.group/t/rubberband-r3-rubberband-better-huge-leap-in-quality/32794);
+[zplane licensing](https://licensing.zplane.de/licensing).
 
 ## 6. Dependencies
 
@@ -211,17 +284,19 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 ## 8. Open questions for the user
 
-1. **Time-stretch backend.** Options: (A) SoundTouch — vendored in the submodule, enabled with
-   one macro, LGPL v2.1 (license-compatible with our AGPLv3 per docs/design/architecture.md
-   "Licensing" table pattern), moderate quality, ~8192-frame worst-case feed; (B) RubberBand —
-   better quality reputation, NOT vendored, GPL/commercial dual license that must be verified and
-   the source supplied by us; (C) Elastique — commercial closed SDK, incompatible with a
-   zero-cost AGPLv3 distribution. **Recommendation: A (SoundTouch)** for v1; re-evaluate B only
-   if Phase 0 listening tests fail. Requires adding a SoundTouch row to the architecture.md
-   licensing table (design-doc update + user confirmation per CLAUDE.md).
+1. **Time-stretch backend** (revised 2026-09-26; evidence in §5 "Backend research"). Options:
+   (A) Rubber Band R3 through Tracktion's Rubber Band backend — best free quality at 50–75% on a
+   full mix, GPL-2.0-or-later, sourced by a local Conan recipe, plus a one-flag patch to our
+   Tracktion fork selecting R3; (B) Signalsmith Stretch — MIT and tiny, but self-described as
+   best at 0.75–1.5x with a reported re-prime flaw at ≤ 0.5x, and it needs a new backend in the
+   fork; (C) SoundTouch — vendored, one macro, LGPL v2.1, weakest at 50%; (D) élastique and the
+   other commercial SDKs — cannot be linked into an AGPL release. **Recommendation: A (Rubber Band
+   R3)**, confirmed by Phase 0's listening A/B against B, C and Rubber Band R2 before anything is
+   wired; C stays the fallback. Requires a Rubber Band row in the architecture.md licensing table
+   (design-doc update + user confirmation per CLAUDE.md).
 2. **Speed range and step.** Options: (A) 50–100% in 5% steps (safe for all backends); (B)
-   25–100% (Elastique's realtime floor is 0.25x; SoundTouch has no hard floor but quality
-   degrades); (C) include over-speed 100–125% for burst training. **Recommendation: A for the v1
+   25–100% (Tracktion clamps the stretch ratio to 0.25–4.0; every candidate's quality degrades
+   fastest below 50%, which Phase 0 step 0 can hear); (C) include over-speed 100–125% for burst training. **Recommendation: A for the v1
    UI with the port accepting 0.25–1.5 so the range is a UI policy, not an interface limit.**
 3. **What practice runs record.** Options: (A) accuracy-only, nothing persisted; (B) full verdict
    log persisted to a separate practice-stats store (keyed chart hash, arrangement, section span,
@@ -248,11 +323,25 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 ### Phase 0 — Backend enablement and verification spike (STOP gate)
 
 Scope: turn the compiled-out stretch path into a measured, working facility on a scratch branch.
-Assumes open question 1 answered (default assumption: SoundTouch).
+Assumes open question 1 answered (default assumption: Rubber Band R3).
 
-- Define `TRACKTION_ENABLE_TIMESTRETCH_SOUNDTOUCH=1` on the Tracktion module targets (mirror
-  `examples/DemoRunner/CMakeLists.txt:99`); confirm `TimeStretcher::defaultMode` becomes
-  SoundTouch-backed. This is a CMake change to our Tracktion consumption, not to the submodule.
+- **Step 0 — offline listening A/B, before anything is wired.** Every candidate ships a
+  command-line stretcher (Rubber Band's `rubberband`, whose `-3` selects R3; Signalsmith's `cmd/`;
+  SoundTouch's `soundstretch`). Render one dense full-mix backing track from the local song list at
+  50% and 75% through Rubber Band R3, Rubber Band R2, Signalsmith Stretch and SoundTouch, and hand
+  the user the WAVs to A/B. The render files are scratch artifacts outside the repository. The
+  user's pick settles question 1; the steps below assume Rubber Band and change only in the
+  enablement bullet if another candidate wins. Offline rendering flatters every engine
+  slightly — real-time mode is what ships — so step 0 ranks candidates and checkpoint f confirms
+  the winner live.
+- **Enable Rubber Band R3 in our Tracktion consumption.** Add a local `conan-recipes` recipe for
+  Rubber Band 4.0.0 that exports its source tree so `<rubberband/single/RubberBandSingle.cpp>`
+  resolves; define `TRACKTION_ENABLE_TIMESTRETCH_RUBBERBAND=1` and `TRACKTION_BUILD_RUBBERBAND=1` on
+  the Tracktion module targets; and patch our fork's `RubberBandStretcher::getOptionFlags`
+  (`timestretch/tracktion_TimeStretch.cpp:681-693`) to add `OptionEngineFiner` and drop
+  `OptionWindowShort`. Confirm `TimeStretcher::defaultMode` becomes Rubber Band-backed. The recipe
+  and the defines are CMake/Conan changes on our side; the option flag is the one change to the
+  fork.
 - Verification checkpoints (each cites or closes an expert open uncertainty; run with
   juce-tracktion-expert before writing production code):
   a. `WaveNodeRealTime` at mode `disabled` — confirm today's 1.0-speed playback is byte-plain
@@ -268,15 +357,22 @@ Assumes open question 1 answered (default assumption: SoundTouch).
      backing latency shifts backing-vs-live alignment and must be reported to the calibration
      model in docs/plans/roadmap/13-audio-device-settings-and-calibration.md.
   d. Confirm 1.0 speed pays no stretch cost (engine comment claims "stays cheap at 1x",
-     `engine_song_audio.cpp:152-153` — written for elastique; re-verify for SoundTouch).
-  e. Loop range semantics on `tracktion::engine::TransportControl` (shared checkpoint with
-     docs/plans/roadmap/47-editor-loop-selection.md Phase 1 — the expected first implementer of the
-     Tracktion-backed loop — and docs/plans/roadmap/21 Phase 1; if either has landed the functional
-     loop, this reduces to re-verifying the landed surface).
-- Deliverable: a findings note (quality listening result at 50%/75%, CPU per buffer, measured
-  latency delta, PDC answer) appended to this plan.
+     `engine_song_audio.cpp:167-168` — written for elastique; re-verify for Rubber Band).
+  e. Loop range semantics on `tracktion::engine::TransportControl`. The functional loop has
+     landed (docs/plans/roadmap/47-editor-loop-selection.md), so this reduces to re-verifying the
+     landed surface under a non-1.0 speed.
+  f. Stretch at the seams practice lives on: a seek and a loop wrap at 50% re-prime the
+     stretcher, and the first block after each must not play silence or shift the clip (the
+     failure Audionaut measured in Signalsmith at ≤ 0.5x). Measure Rubber Band's start delay
+     (`getStartDelay`) at 50% and 75%, which the backing path must absorb.
+  g. CPU per buffer for R3 at 50% measured in the `relwithdebinfo` preset (CLAUDE.md "Runtime
+     Performance": no performance claim from a debug build), and separately whether the `debug`
+     editor still keeps up in real time. If it does not, compile the Rubber Band translation unit
+     optimized in debug rather than accept dropouts in everyday editor use.
+- Deliverable: a findings note (the step 0 pick, real-time listening at 50%/75%, CPU per buffer,
+  measured latency delta, re-prime behavior, PDC answer) appended to this plan.
 - Exit criteria: **STOP — present findings and get user sign-off on backend and route.** Phases
-  1+ assume outcome: SoundTouch, clip-`setSpeedRatio`-shaped route (adjust here if b says
+  1+ assume outcome: Rubber Band R3, clip-`setSpeedRatio`-shaped route (adjust here if b says
   otherwise).
 - Verification commands (spike branch only):
 
@@ -428,10 +524,14 @@ at 50% in three packages of different tunings, confirming tone-region correctnes
 
 ## 11. Rollback/abort notes
 
-- **Phase 0 quality failure** (SoundTouch artifacts unacceptable at 50–75%): do not silently
-  escalate to RubberBand — its license and sourcing are an explicit user decision (open question
-  1). Interim fallback: ship section looping WITHOUT slow-down (loop + pre-roll + per-section
-  accuracy are independently valuable); the port keeps returning the typed error for non-1.0.
+- **Phase 0 backend failure.** If R3's real-time CPU does not fit (checkpoint g), step down to R2
+  — the fork's current flags, still ahead of SoundTouch on a full mix — before leaving Rubber
+  Band. If Rubber Band's licence or sourcing is declined, the step 0 runner-up takes its place
+  (Signalsmith needs a new backend in the fork; SoundTouch needs only its macro). None of these
+  swaps is silent: each is an explicit user decision (open question 1). Interim fallback if no
+  backend is acceptable at 50–75%: ship section looping WITHOUT slow-down (loop + pre-roll +
+  per-section accuracy are independently valuable); the port keeps returning the typed error for
+  non-1.0.
 - **Phase 0 checkpoint b failure** (Edit timeline does not stay in song seconds under the chosen
   route): STOP — this breaks plan 12's clock semantics for every consumer. Re-route via the
   alternative (auto-tempo/tempo-sequence scaling) before any production code; if both fail,
