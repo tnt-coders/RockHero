@@ -1203,7 +1203,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         // The stop every object has: the satellite branch above took every target that addresses
         // another one.
         const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-        armChartCaret(slot.position, slot.string, common::core::ChartStopChannel::Sounding, *key);
+        armChartCaret(slot.position, slot.string, common::core::ChartStopChannel::Sounding, key);
     }
     updateView();
 }
@@ -1282,7 +1282,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 // answer, so a click on a mark a head shares its instant with keeps the mark.
                 const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
                 armChartCaret(
-                    slot.position, slot.string, common::core::ChartStopChannel::Sounding, *key);
+                    slot.position, slot.string, common::core::ChartStopChannel::Sounding, key);
             }
         }
         updateView();
