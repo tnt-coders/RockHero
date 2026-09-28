@@ -13,11 +13,11 @@ namespace
 {
 
 // View translation: camera-relative world coordinates.
-[[nodiscard]] HighwayMat4 makeViewTranslation(const HighwayCameraPose& camera)
+[[nodiscard]] HighwayMat4 makeViewTranslation(const HighwayCameraPose& camera, const double height)
 {
     HighwayMat4 translation = HighwayMat4::identity();
     translation.m[3] = -camera.x;
-    translation.m[7] = -camera.y;
+    translation.m[7] = -height;
     translation.m[11] = -camera.z;
     return translation;
 }
@@ -45,7 +45,7 @@ namespace
 // world-vertical project exactly screen-vertical — the property the regression tests pin at the
 // shipped defaults. Reintroducing a pitch would break it.
 [[nodiscard]] HighwayMat4 makePinnedProjection(
-    const HighwayCameraPose& camera, double aspect_ratio, const bool mirrored,
+    const HighwayCameraPose& camera, const double height, double aspect_ratio, const bool mirrored,
     const HighwayMetrics& metrics)
 {
     const double aspect = std::max(aspect_ratio, 1.0e-6);
@@ -80,7 +80,7 @@ namespace
     // The lefty mirror reflects world X, so the yaw must flip with it for the mirrored picture
     // to be the true reflection of the unmirrored one.
     const double yaw = mirrored ? -metrics.camera_yaw_radians : metrics.camera_yaw_radians;
-    const HighwayMat4 view = makeRotationY(yaw) * makeViewTranslation(camera);
+    const HighwayMat4 view = makeRotationY(yaw) * makeViewTranslation(camera, height);
     HighwayMat4 projection = perspective * view;
 
     // The board pin: project the anchor (focus X, board surface, hit line) and translate the
@@ -96,6 +96,20 @@ namespace
     }
 
     return projection;
+}
+
+// The height that holds the visibility window's far edge at far_edge_ndc_y. Height enters the
+// pinned projection only as a vertical offset divided by eye depth, and eye depth never reads it,
+// so the far edge's rise above the pinned hit line is exactly proportional to height: project once
+// at unit height through the real chain and scale. The mirror is irrelevant — it flips the yaw's
+// sign, and a point on the focus column sees only its cosine.
+[[nodiscard]] double farEdgeHoldingHeight(
+    const HighwayCameraPose& camera, const double aspect_ratio, const HighwayMetrics& metrics)
+{
+    const HighwayMat4 unit_height = makePinnedProjection(camera, 1.0, aspect_ratio, false, metrics);
+    const double rise_per_height =
+        unit_height.projectPoint(camera.x, 0.0, highwayFarEdgeZ(metrics))[1] - metrics.ndc_pin_y;
+    return (metrics.far_edge_ndc_y - metrics.ndc_pin_y) / rise_per_height;
 }
 
 } // namespace
@@ -347,22 +361,24 @@ void HighwayCamera::reset() noexcept
     m_span_accel = 0.0;
 }
 
-// Height and pull-back derive from the smoothed span around the reference hand width.
+// The pull-back derives from the smoothed span around the reference hand width.
 HighwayCameraPose HighwayCamera::pose(const HighwayMetrics& metrics) const
 {
-    const double extra_span = m_span - metrics.camera_reference_span;
     return HighwayCameraPose{
         .x = m_focus_x,
-        .y = metrics.camera_y_base + (metrics.camera_span_gain * extra_span),
-        .z = metrics.camera_z_base - (metrics.camera_span_gain * extra_span),
+        .z = metrics.camera_z_base -
+             (metrics.camera_span_gain * (m_span - metrics.camera_reference_span)),
     };
 }
 
+// The board's height is the one that holds its far edge on screen, so it is derived here, where
+// the viewport shape it depends on is known.
 HighwayMat4 makeHighwayWorldToClip(
     const HighwayCameraPose& pose, double aspect_ratio, const bool mirrored,
     const HighwayMetrics& metrics)
 {
-    return makePinnedProjection(pose, aspect_ratio, mirrored, metrics);
+    return makePinnedProjection(
+        pose, farEdgeHoldingHeight(pose, aspect_ratio, metrics), aspect_ratio, mirrored, metrics);
 }
 
 HighwayMat4 makeHighwayBackgroundWorldToClip(
@@ -375,10 +391,14 @@ HighwayMat4 makeHighwayBackgroundWorldToClip(
         std::sin(2.0 * std::numbers::pi * metrics.background_sway_hertz * time_seconds);
     const HighwayCameraPose background_pose{
         .x = (pose.x / divisor) + sway,
-        .y = pose.y / divisor,
         .z = pose.z / divisor,
     };
-    return makePinnedProjection(background_pose, aspect_ratio, mirrored, metrics);
+    return makePinnedProjection(
+        background_pose,
+        farEdgeHoldingHeight(pose, aspect_ratio, metrics) / divisor,
+        aspect_ratio,
+        mirrored,
+        metrics);
 }
 
 } // namespace rock_hero::common::core

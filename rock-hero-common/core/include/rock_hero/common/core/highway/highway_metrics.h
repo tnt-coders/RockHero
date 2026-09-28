@@ -108,16 +108,35 @@ struct HighwayMetrics
     */
     double note_half_height{0.48};
 
-    /*! \brief Camera height above the board at the reference fret span. */
-    double camera_y_base{5.0};
+    /*!
+    \brief Screen height, in NDC, the far edge of the visibility window is held at.
+
+    The camera's height is DERIVED from this rather than stored: at every zoom and every window
+    shape it is the height that lands the far edge (on the focus column) here, with the hit line
+    pinned at \ref ndc_pin_y. The camera has no pitch (\ref camera_yaw_radians), so height alone
+    decides how top-down the view reads: a higher far edge sees the board more from above, spreading
+    the time axis up the screen while the board's width and the string spacing at the hit line stay
+    put. Zooming out pulls the camera back (\ref camera_span_gain), and the height rises with it to
+    hold the edge, so the composition never sinks as the view widens.
+
+    0.2 reproduces Charter's fixed 5.0-unit height at the reference span and 16:9; other window
+    shapes sit higher (about 6.7 at 4:3) or lower (about 4.4 at 21:9), which is exactly what
+    holds the edge where a fixed height let it drift. Must stay above
+    \ref ndc_pin_y, and at or below 1 for the whole window to show.
+    */
+    double far_edge_ndc_y{0.2};
 
     /*! \brief Camera Z behind the hit line at the reference fret span. */
     double camera_z_base{-2.5};
 
-    /*! \brief Extra camera height and pull-back per fret of span beyond the reference span. */
+    /*!
+    \brief Extra camera pull-back per fret of span beyond the reference span: the out-zoom.
+
+    Only the pull-back is authored; the height follows from \ref far_edge_ndc_y.
+    */
     double camera_span_gain{0.2};
 
-    /*! \brief Fret span that uses the base camera position (Charter's 4-fret hand). */
+    /*! \brief Fret span that uses the base pull-back (Charter's 4-fret hand). */
     double camera_reference_span{4.0};
 
     /*!
@@ -471,6 +490,20 @@ only on a bend that already has.
     double seconds_from_now, double scroll_speed, const HighwayMetrics& metrics)
 {
     return seconds_from_now * metrics.z_per_second / std::max(scroll_speed, 0.01);
+}
+
+/*!
+\brief World Z of the visibility window's far edge.
+
+The same at every scroll speed: the window's seconds scale with the speed that
+\ref highwayTimeToZ divides back out, so the far edge is one constant stretch of board. The camera
+holds this edge on screen and the renderer fades content in toward it.
+\param metrics World-space constants.
+\return World Z of the far edge.
+*/
+[[nodiscard]] inline double highwayFarEdgeZ(const HighwayMetrics& metrics)
+{
+    return metrics.visibility_window_seconds * metrics.z_per_second;
 }
 
 } // namespace rock_hero::common::core

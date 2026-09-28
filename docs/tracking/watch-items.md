@@ -361,7 +361,25 @@ onset pole over a slower body double-pole) was built and removed this session an
 from history; or shorten the framing zones via `g_camera_zone_measures` in `highway_projection.cpp`
 (so the target refreshes more often). Separately, the reference footage's zoom-out reads "more
 vertical" than ours (height-vs-pullback balance, possibly a span-coupled pitch) — a distinct axis
-from motion timing, still open.
+from motion timing. The balance is DERIVED since 2026-09-28: the height holds the far edge at
+`HighwayMetrics::far_edge_ndc_y`, so zooming out now raises the camera more (about 8.6 against 6.6
+at a 12-fret span). That needs a fresh sighting against the footage before this half is judged.
+
+**The user raised the lateness directly on 2026-09-28** (*"should also probably shift slightly
+earlier between positions than it does"*); analysed the same day, no defect found. The frame covers
+the current zone and the next, so a new position enters it a full zone early (about 4 s at 120 bpm
+in 4/4). For a move from A to B at a zone boundary, the frame widens to A plus B one zone early. It
+tightens and centers on B only when A's zone ends, which is the moment of the move. The smoother
+then starts from rest: halfway in about 2.0 s, 90% in about 4.1 s. So the camera settles on B
+2-4 s after the hand is already there; B was always in view, just not centered. This is
+inherent, not a defect: centering on B means letting A go, and A must stay framed until the hand
+leaves it. **A lead buys nothing for it:** the target always includes the hand window active at
+`now`, so shifting the zone schedule T seconds early still tightens onto B only at the move (when
+the active window changes). It only widens toward what is coming even earlier, and can drop A's
+notes outside the hand window (taps, scrapes, nodes) early. The faster rate is the only remedy for
+the settle: at 1.6-2.0 the camera gets halfway in about 1.3-1.7 s. First confirm it is the camera and not the hand
+WINDOW's own move that reads late; that one is the FHP window motion
+(`docs/plans/completed/fhp-window-motion-plan.md`).
 
 ## Guitar Pro import
 

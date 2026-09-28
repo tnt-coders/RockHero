@@ -2321,8 +2321,7 @@ struct HighwayRenderer::Impl
         if (view == g_board_view)
         {
             const auto [faded_z, close_z] = fadeBandZ();
-            const double far_edge_z =
-                common::core::highwayTimeToZ(lookaheadSeconds(), scroll_speed, metrics);
+            const double far_edge_z = common::core::highwayFarEdgeZ(metrics);
             const double far_length = metrics.far_fade_length_z;
             fade_uniform = {
                 static_cast<float>(close_z),

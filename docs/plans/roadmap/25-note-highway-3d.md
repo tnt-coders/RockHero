@@ -182,7 +182,9 @@ this tree on 2026-07-06):
     the pin never disturbs verticality. Reproduce exactly.
   - **Fret focus**: scan fret-hand positions in `[now, now + 3000ms]`; camera X target = world
     middle of the min/max fret range, blended 10% toward a fixed whole-neck weighted position;
-    fret-span target drives out-zoom (`camY = 5 + 0.2*(span-4)`, `camZ = -2.5 - 0.2*(span-4)`);
+    fret-span target drives out-zoom (`camY = 5 + 0.2*(span-4)`, `camZ = -2.5 - 0.2*(span-4)`;
+    ours since 2026-09-28 keeps only the pull-back and DERIVES the height, holding the far edge of
+    the visibility window at one screen height, `HighwayMetrics::far_edge_ndc_y`, at every zoom);
     both targets approached with exponential smoothing `mix = 1 - pow(1 - 0.7, frameTime)` —
     frame-rate independent, ~70% of remaining distance per second.
   - Background gets a separate matrix: same camera with position/parallax divided by 4 plus a

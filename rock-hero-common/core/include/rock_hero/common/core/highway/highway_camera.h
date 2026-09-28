@@ -71,19 +71,22 @@ struct HighwayCameraTarget
     // needed, hand-write it with std::is_eq per the coding conventions.
 };
 
-/*! \brief Smoothed world-space camera position. */
+/*!
+\brief Smoothed world-space camera position: the focus and the pull-back.
+
+Carries no height. The height is a property of the projection, not of the smoothed state: it is
+the one that holds the far edge of the visibility window at HighwayMetrics::far_edge_ndc_y, which
+depends on the viewport's shape, so the matrix builders derive it where the aspect is known.
+*/
 struct HighwayCameraPose
 {
     /*! \brief Camera world X (the smoothed fret focus). */
     double x{0.0};
 
-    /*! \brief Camera height above the board. */
-    double y{0.0};
-
     /*! \brief Camera Z behind the hit line (negative). */
     double z{0.0};
 
-    // Deliberately NOT comparable, exactly like HighwayCameraTarget above: three own doubles, and
+    // Deliberately NOT comparable, exactly like HighwayCameraTarget above: two own doubles, and
     // nothing compares whole poses. Hand-write with std::is_eq if a comparison is ever needed.
 };
 
@@ -156,8 +159,9 @@ public:
     /*!
     \brief Returns the smoothed world-space camera position.
 
-    Height and pull-back derive from the smoothed span: wider hand windows lift and retreat the
-    camera by the configured gain around the reference span.
+    The pull-back derives from the smoothed span: wider hand windows retreat the camera by the
+    configured gain around the reference span. The height is not part of the pose
+    (\ref HighwayCameraPose).
 
     \param metrics World-space constants.
     \return Smoothed camera pose.
@@ -178,6 +182,10 @@ private:
 
 /*!
 \brief Builds the world-to-clip transform: the camera chain plus the board pin.
+
+The camera's height is derived here: it is the one that lands the far edge of the visibility
+window (on the focus column) at HighwayMetrics::far_edge_ndc_y for this viewport, so the highway
+ends at the same screen height at every zoom and window shape.
 
 The chain is: view translation, the single small yaw that gives the board its held-guitar-neck
 reading (it slopes the strings ~2-3 degrees and magnifies the body-side neck end), a very wide

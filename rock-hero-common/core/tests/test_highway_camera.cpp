@@ -239,7 +239,7 @@ TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core
 
 // The smoother is frame-rate independent (two half steps equal one full step; it is the exact
 // closed-form solution over the frame), converges toward a fixed target, the first advance
-// snaps, and the pose derives height/pull-back from the smoothed span.
+// snaps, and the pose derives its pull-back from the smoothed span.
 TEST_CASE("Highway camera smoother is frame-rate independent", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
@@ -256,10 +256,10 @@ TEST_CASE("Highway camera smoother is frame-rate independent", "[core][highway][
     half_steps.advance(target, 0.25, metrics);
 
     CHECK(whole_step.pose(metrics).x == Catch::Approx(half_steps.pose(metrics).x));
-    CHECK(whole_step.pose(metrics).y == Catch::Approx(half_steps.pose(metrics).y));
+    CHECK(whole_step.pose(metrics).z == Catch::Approx(half_steps.pose(metrics).z));
 
-    // Convergence: after enough seconds the camera rests at the target, and the pose derives
-    // height/pull-back from the smoothed span. The loop is generous (20 s) so it converges
+    // Convergence: after enough seconds the camera rests at the target, and the pose derives the
+    // pull-back from the smoothed span. The loop is generous (20 s) so it converges
     // across the slow settle of the languid default rate.
     HighwayCamera converged;
     converged.advance(start, 0.0, metrics);
@@ -269,9 +269,6 @@ TEST_CASE("Highway camera smoother is frame-rate independent", "[core][highway][
     }
     const HighwayCameraPose pose = converged.pose(metrics);
     CHECK(pose.x == Catch::Approx(10.0).margin(1.0e-3));
-    CHECK(
-        pose.y ==
-        Catch::Approx(metrics.camera_y_base + (4.0 * metrics.camera_span_gain)).margin(1.0e-3));
     CHECK(
         pose.z ==
         Catch::Approx(metrics.camera_z_base - (4.0 * metrics.camera_span_gain)).margin(1.0e-3));
@@ -339,13 +336,9 @@ TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core
     {
         for (const double span : {4.0, 8.0, 12.0})
         {
-            const HighwayCameraPose pose{
-                .x = focus_x,
-                .y = metrics.camera_y_base +
-                     ((span - metrics.camera_reference_span) * metrics.camera_span_gain),
-                .z = metrics.camera_z_base -
-                     ((span - metrics.camera_reference_span) * metrics.camera_span_gain),
-            };
+            HighwayCamera camera;
+            camera.advance(HighwayCameraTarget{.focus_x = focus_x, .span = span}, 0.0, metrics);
+            const HighwayCameraPose pose = camera.pose(metrics);
             for (const double aspect : {16.0 / 9.0, 4.0 / 3.0, 21.0 / 9.0})
             {
                 const HighwayMat4 world_to_clip =
@@ -371,7 +364,7 @@ TEST_CASE(
     "Highway camera default rotations keep verticals exactly vertical", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
-    const HighwayCameraPose pose{.x = 5.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayCameraPose pose{.x = 5.0, .z = metrics.camera_z_base};
     const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
 
     for (const double x : {0.0, 6.0, 14.4})
@@ -399,7 +392,7 @@ TEST_CASE("Highway camera projects square pixels at every aspect", "[core][highw
 {
     HighwayMetrics metrics{};
     metrics.camera_yaw_radians = 0.0;
-    const HighwayCameraPose pose{.x = 6.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayCameraPose pose{.x = 6.0, .z = metrics.camera_z_base};
     constexpr double extent = 2.0;
 
     // Both branches of the projection's min() pair, plus the seam at exactly 2:1.
@@ -428,9 +421,7 @@ TEST_CASE(
 
     for (const double focus_x : {0.0, 2.4, 12.0, 28.8})
     {
-        const HighwayCameraPose pose{
-            .x = focus_x, .y = metrics.camera_y_base, .z = metrics.camera_z_base
-        };
+        const HighwayCameraPose pose{.x = focus_x, .z = metrics.camera_z_base};
         const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
 
         const auto anchor = world_to_clip.projectPoint(focus_x, 0.0, 0.0);
@@ -465,12 +456,8 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
     CHECK(mirrored_target.focus_x == Catch::Approx(-plain_target.focus_x));
     CHECK(mirrored_target.span == Catch::Approx(plain_target.span));
 
-    const HighwayCameraPose plain_pose{
-        .x = plain_target.focus_x, .y = metrics.camera_y_base, .z = metrics.camera_z_base
-    };
-    const HighwayCameraPose mirrored_pose{
-        .x = mirrored_target.focus_x, .y = metrics.camera_y_base, .z = metrics.camera_z_base
-    };
+    const HighwayCameraPose plain_pose{.x = plain_target.focus_x, .z = metrics.camera_z_base};
+    const HighwayCameraPose mirrored_pose{.x = mirrored_target.focus_x, .z = metrics.camera_z_base};
     // The mirrored projection flips the yaw with the geometry, keeping the reflection exact.
     const HighwayMat4 plain_clip = makeHighwayWorldToClip(plain_pose, 16.0 / 9.0, false, metrics);
     const HighwayMat4 mirrored_clip =
@@ -493,7 +480,7 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
 TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
-    const HighwayCameraPose pose{.x = 12.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayCameraPose pose{.x = 12.0, .z = metrics.camera_z_base};
 
     const HighwayMat4 background =
         makeHighwayBackgroundWorldToClip(pose, 16.0 / 9.0, 0.0, false, metrics);
@@ -509,6 +496,45 @@ TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][hi
     CHECK(swayed_anchor[0] != Catch::Approx(anchor[0]).margin(1.0e-6));
 }
 
+// THE FAR EDGE HOLDS: the height is derived so the visibility window's far edge lands at one
+// screen height at every zoom and every window shape, with the hit line still pinned — so zooming
+// out raises the camera instead of letting the highway's end sink. At the reference span and 16:9
+// the derived height reproduces the fixed 5.0 it replaced: a point 5.0 above the board is then at
+// eye level, which projects to one screen height at every depth.
+TEST_CASE("Highway camera holds the far edge at one screen height", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+    const double far_edge_z = highwayFarEdgeZ(metrics);
+
+    for (const double span : {4.0, 8.0, 12.0})
+    {
+        HighwayCamera camera;
+        camera.advance(HighwayCameraTarget{.focus_x = 6.0, .span = span}, 0.0, metrics);
+        const HighwayCameraPose pose = camera.pose(metrics);
+        for (const double aspect : {4.0 / 3.0, 16.0 / 9.0, 21.0 / 9.0})
+        {
+            for (const bool mirrored : {false, true})
+            {
+                const HighwayMat4 world_to_clip =
+                    makeHighwayWorldToClip(pose, aspect, mirrored, metrics);
+                CHECK(
+                    world_to_clip.projectPoint(pose.x, 0.0, far_edge_z)[1] ==
+                    Catch::Approx(metrics.far_edge_ndc_y).margin(1.0e-9));
+                CHECK(
+                    world_to_clip.projectPoint(pose.x, 0.0, 0.0)[1] ==
+                    Catch::Approx(metrics.ndc_pin_y).margin(1.0e-9));
+            }
+        }
+    }
+
+    const HighwayCameraPose reference{.x = 6.0, .z = metrics.camera_z_base};
+    const HighwayMat4 reference_clip =
+        makeHighwayWorldToClip(reference, 16.0 / 9.0, false, metrics);
+    CHECK(
+        reference_clip.projectPoint(reference.x, 5.0, 4.0)[1] ==
+        Catch::Approx(reference_clip.projectPoint(reference.x, 5.0, 24.0)[1]).margin(1.0e-3));
+}
+
 // Depth regression (plan-25 Phase 3): the near plane must be camera-relative (eye depth),
 // never anchored at world Z. The hit line (world z = 0) and the short passed-note region behind
 // it sit inside the depth volume, and depth stays monotonic along the time axis so far-to-near
@@ -516,7 +542,7 @@ TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][hi
 TEST_CASE("Highway camera keeps the hit line inside the depth volume", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
-    const HighwayCameraPose pose{.x = 6.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayCameraPose pose{.x = 6.0, .z = metrics.camera_z_base};
     const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
 
     const auto hit_line = world_to_clip.projectPoint(pose.x, 0.0, 0.0);

@@ -1285,22 +1285,3 @@ against the tree on the date above.
   agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One
   `actionBlocker(id, conditions) -> std::optional<std::string_view>` with
   `isActionAvailable = !actionBlocker(...).has_value()` deletes one switch.
-
-## 3D camera feel (user, 2026-09-28)
-
-A value tune, not a redesign: the zone-scoped stepped framing and the smoother stay.
-
-- **A BIT more top-down.** The camera has NO pitch, deliberately: `makePinnedProjection`
-  (`highway_camera.cpp`) keeps yaw as its only rotation, so world-vertical projects exactly
-  screen-vertical, and regression tests check that property at the shipped defaults. Steepen the
-  view without a rotation: raise `HighwayMetrics::camera_y_base` (5.0) and/or bring
-  `camera_z_base` (-2.5) toward the hit line, then re-check `ndc_pin_y` (-0.9) so the board anchor
-  still sits where it should. Adding a pitch is a design change, not a tune.
-- **Shift slightly earlier between positions.** The framing target steps the instant a zone
-  boundary shifts the scan window, and `focus_spring_per_second` (1.3, settling in about 8 / value
-  seconds) is the only thing between that step and the camera. There are two ways to get
-  "earlier", and they feel different. A faster rate starts at the same moment but arrives sooner,
-  and gets twitchier on busy charts. A lead steps the target a fixed time before the zone
-  boundary, keeping the calm hover but starting it sooner. Sight both before picking one. If the
-  hand WINDOW's own move, not the camera, is what feels late, that is the FHP window motion
-  instead (`docs/plans/completed/fhp-window-motion-plan.md`).
