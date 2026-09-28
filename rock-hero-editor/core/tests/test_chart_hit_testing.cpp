@@ -659,7 +659,7 @@ TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][char
             .keyframes = {common::core::KeyframeViewState{
                 .seconds = 6.0,
                 .offset = common::core::Fraction{2},
-                .mark = common::core::KeyframeBendMark{.semitones = 2.0},
+                .mark = common::core::KeyframeCurveMark{},
             }},
             .vibrato = {},
         },
