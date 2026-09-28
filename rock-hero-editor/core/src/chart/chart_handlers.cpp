@@ -475,7 +475,7 @@ void EditorController::Impl::dropChartSelectionKeysNamingNothing()
         {
             return std::ranges::binary_search(notes, note_key->slot, {}, slot_of);
         }
-        const ChartKeyframeKey& keyframe_key = std::get<ChartKeyframeKey>(key);
+        const auto& keyframe_key = std::get<ChartKeyframeKey>(key);
         const auto carrier = std::ranges::lower_bound(notes, keyframe_key.note, {}, slot_of);
         return carrier != notes.end() && slot_of(*carrier) == keyframe_key.note &&
                std::ranges::find(
