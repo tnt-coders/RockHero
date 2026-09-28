@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <iterator>
 #include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 
@@ -137,6 +139,28 @@ float bendCurveY(
     const double share = common::core::bendTravel(std::clamp(semitones, 0.0, ceiling)) /
                          common::core::bendTravel(ceiling);
     return rest_y - static_cast<float>(share) * (rest_y - full_y);
+}
+
+float bendCurveYAt(
+    const TabLaneGeometry& geometry, const float center_y,
+    const std::vector<common::core::BendPointViewState>& curve, const double seconds) noexcept
+{
+    // The first point at or after the instant; the leg into it is the one the instant lies on.
+    const auto next = std::ranges::lower_bound(
+        curve, seconds, std::ranges::less{}, &common::core::BendPointViewState::seconds);
+    if (next == curve.end())
+    {
+        return bendCurveY(geometry, center_y, curve.empty() ? 0.0 : curve.back().semitones);
+    }
+    const float next_y = bendCurveY(geometry, center_y, next->semitones);
+    if (next == curve.begin() || !(seconds < next->seconds))
+    {
+        return next_y;
+    }
+    const auto previous = std::prev(next);
+    const float previous_y = bendCurveY(geometry, center_y, previous->semitones);
+    const double progress = (seconds - previous->seconds) / (next->seconds - previous->seconds);
+    return previous_y + static_cast<float>(progress) * (next_y - previous_y);
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.

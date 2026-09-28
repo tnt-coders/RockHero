@@ -188,12 +188,12 @@ enum class TabKeyframeShape : std::uint8_t
     /*! \brief A chip: the slide-out's, or the destination chip at the crop — a box. */
     Chip,
 
-    /*! \brief A bend-only point's dot on the bend curve — a disc. */
+    /*! \brief A point riding the bend curve: its dot there — a disc. */
     Dot,
 };
 
 /*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, a chip, or a
-bend-only point's dot on the curve. */
+point's dot on the bend curve. */
 struct TabKeyframeLayout
 {
     /*! \brief The mark's center column: the keyframe's instant, or the drawn extent for a
@@ -252,10 +252,10 @@ extent the note is drawn to.
 
 THE ONE statement of where any keyframe's mark stands, whatever it states (\ref
 common::core::KeyframeMark): a keyframe stating a position wears its stop's mark (\ref
-tabSlideStopLayout); one stating only a bend wears the curve's dot at the height the curve stands
-at there (\ref bendCurveY); any other wears a linked head on the string line at its instant. Read by
-the paint core, the hit tester and the host's selection overlays alike, so a mark and its target
-cannot part.
+tabSlideStopLayout); one changing the vibrato wears a linked head on the string line at its
+instant; any other rides the bend curve, its dot where the drawn curve runs (\ref bendCurveYAt).
+Read by the paint core, the hit tester and the host's selection overlays alike, so a mark and its
+target cannot part.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the keyframe belongs to; its string places the mark.

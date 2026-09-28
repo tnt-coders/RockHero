@@ -189,7 +189,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // Every keyframe is published as a statement wearing its mark: the bend-only point between the
     // onset and the slide-out wears the curve's dot, and the slide-out its stop's own mark.
     REQUIRE(sliding.keyframes.size() == 2);
-    CHECK(sliding.keyframes[0].mark == KeyframeMark{KeyframeBendMark{.semitones = 2.0}});
+    CHECK(sliding.keyframes[0].mark == KeyframeMark{KeyframeCurveMark{}});
     CHECK(sliding.keyframes[1].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
@@ -437,7 +437,7 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
         CHECK(note.keyframes[index].offset == stored_offsets[index]);
     }
     CHECK(note.keyframes[0].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
-    CHECK(note.keyframes[1].mark == KeyframeMark{KeyframeBendMark{.semitones = 2.0}});
+    CHECK(note.keyframes[1].mark == KeyframeMark{KeyframeCurveMark{}});
     CHECK(note.keyframes[2].mark == KeyframeMark{KeyframeStopMark{.stop = 1}});
     REQUIRE(note.slides.size() == 2);
     CHECK_FALSE(note.slides[0].slide_out);
@@ -754,9 +754,10 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
 }
 
 // Every stored keyframe reaches the lane as a statement wearing the mark of what it states: a
-// position wears its stop's mark, a bend ALONE the curve's dot, and anything else — a vibrato
-// change with or without a bend beside it — a linked head printing the fret in force, where the
-// hand rests.
+// position wears its stop's mark, a vibrato change — with or without a bend beside it — a linked
+// head printing the fret in force, where the hand rests, and anything else the curve's dot: a
+// bend alone, or a point stating nothing, mid-slide included, a bend being all it can go on to
+// state there.
 TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -776,6 +777,7 @@ TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[
                 Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
                 Keyframe{.offset = Fraction{5, 2}, .bend = 2.0, .vibrato = VibratoState::Wide},
                 Keyframe{.offset = Fraction{3}, .bend = 1.0, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{13, 4}, .vibrato = VibratoState::Wide},
                 Keyframe{.offset = Fraction{7, 2}},
             },
         },
@@ -786,9 +788,9 @@ TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.notes.size() == 1);
     const NoteViewState& note = state.notes.front();
-    REQUIRE(note.keyframes.size() == 6);
-    // A bend alone, even mid-travel toward the 7: the curve's dot at the amount it states.
-    CHECK(note.keyframes[0].mark == KeyframeMark{KeyframeBendMark{.semitones = 1.0}});
+    REQUIRE(note.keyframes.size() == 7);
+    // A bend alone, even mid-travel toward the 7: the curve's dot.
+    CHECK(note.keyframes[0].mark == KeyframeMark{KeyframeCurveMark{}});
     // A position: the one stop the gesture has.
     CHECK(note.keyframes[1].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
     REQUIRE(note.slides.size() == 1);
@@ -797,8 +799,11 @@ TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[
     CHECK(note.keyframes[2].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
     CHECK(note.keyframes[3].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
     // A bend on a leg whose width it only carries changes nothing but the bend: a dot again.
-    CHECK(note.keyframes[4].mark == KeyframeMark{KeyframeBendMark{.semitones = 1.0}});
-    CHECK(note.keyframes[5].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
+    CHECK(note.keyframes[4].mark == KeyframeMark{KeyframeCurveMark{}});
+    // A point stating nothing — its width repeats the leg's — rides the curve too.
+    CHECK(note.keyframes[5].mark == KeyframeMark{KeyframeCurveMark{}});
+    // The bare vibrato end changes the vibrato: a head.
+    CHECK(note.keyframes[6].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
 }
 
 // A shift slide's arrival head is its own note, so its width is its own first leg's: the head

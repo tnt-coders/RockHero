@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -397,14 +398,14 @@ of THIS stroke, so a divergence would push one of them back onto the rails.
 inline constexpr float g_technique_line_thickness = 2.0f;
 
 /*!
-\brief A bend-only point's dot radius, as a fraction of the tail height: the automation lanes'
-point mark, scaled to the tail it rides.
+\brief The dot radius of a point riding the bend curve, as a fraction of the tail height: the
+automation lanes' point mark, scaled to the tail it rides.
 */
 inline constexpr float g_bend_dot_radius_tails = 0.25f;
 
 /*!
 \brief Where the bend curve stands at an amount: THE one curve height, read by the painter that
-draws the polyline and the manifest that places a bend-only point's dot.
+draws the polyline and the manifest that places a curve point's dot (\ref bendCurveYAt).
 
 The height is how far the string physically travels (\ref common::core::bendTravel, the law the 3D
 lift draws too) as a share of the travel three whole steps take — compressed into the tail's
@@ -420,6 +421,25 @@ the way, the first of the travel being the longest, exactly as the fretting hand
 */
 [[nodiscard]] float bendCurveY(
     const TabLaneGeometry& geometry, float center_y, double semitones) noexcept;
+
+/*!
+\brief Where the DRAWN bend curve runs at an instant along a note: the one height a point riding the
+curve is placed at, read by the manifest that lays its dot out.
+
+The lane draws the curve as straight legs between its points' heights (\ref bendCurveY) and flat
+past the last one, so this is that polyline's own height — exactly a point's at its instant, and
+between two points where the drawn leg crosses — never a height the curve is interpolated to by
+some other law. A note whose curve is empty never leaves rest.
+
+\param geometry Lane geometry supplying the tail's interior.
+\param center_y The note's string line.
+\param curve The note's bend points (\ref common::core::NoteViewState::bend), in time order.
+\param seconds The instant, on or after the onset.
+\return The curve's center on the vertical axis at that instant.
+*/
+[[nodiscard]] float bendCurveYAt(
+    const TabLaneGeometry& geometry, float center_y,
+    const std::vector<common::core::BendPointViewState>& curve, double seconds) noexcept;
 
 /*!
 \brief Where a chip stating a stop on the tail sits: just outside the sustain envelope, above it

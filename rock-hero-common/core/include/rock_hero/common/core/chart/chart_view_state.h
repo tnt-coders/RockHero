@@ -374,38 +374,33 @@ struct KeyframeStopMark
 };
 
 /*!
-\brief The mark of a keyframe that states ONLY a bend: the bend curve's dot, at the value it states.
+\brief The mark of a keyframe that states no position and changes no vibrato: a dot on the bend
+curve, at the height the curve stands at the keyframe's instant.
 
-The point is a place the curve passes through, and nothing else about the ring changes there, so
-its mark rides the curve rather than the string line — wherever it stands, mid-travel included.
+A bend point, or a point stating nothing at all: either way a place the curve passes through with
+nothing else about the ring changing there, and a bend is the one thing such a point can go on to
+state wherever it stands, mid-slide included — so its mark rides the curve rather than the string
+line. It carries no value, the drawn curve being the one authority on where it stands.
 */
-struct KeyframeBendMark
+struct KeyframeCurveMark
 {
-    /*! \brief The bend the keyframe states, in semitones: the curve's height at the dot. */
-    double semitones{0.0};
-
     /*!
-    \brief Compares two bend marks by their stored fields.
+    \brief Compares two curve marks; all are equal, the mark carrying nothing.
     \param lhs Left-hand mark.
     \param rhs Right-hand mark.
-    \return True when both marks store equal values.
+    \return Always true.
     */
     friend constexpr bool operator==(
-        const KeyframeBendMark& lhs, const KeyframeBendMark& rhs) noexcept
-    {
-        // Hand-written for the float member, like every other float-bearing view state here.
-        return std::is_eq(lhs.semitones <=> rhs.semitones);
-    }
+        const KeyframeCurveMark& lhs, const KeyframeCurveMark& rhs) noexcept = default;
 };
 
 /*!
-\brief The mark of every other keyframe — a vibrato change, with or without a bend beside it, or a
-bare point — a linked head printing the fret in force.
+\brief The mark of a keyframe that states no position but changes the vibrato — with or without a
+bend beside it — a linked head printing the fret in force.
 
 The keyframe says nothing about position, so its head prints where the hand already is: the last
 stated stop. That IS where the hand is, because no vibrato change stands strictly inside travel
-(\ref shedMidTravelVibrato); a point saying nothing at all is authoring state that the commit law
-sweeps (\ref keyframeSaysNothingNew).
+(\ref shedMidTravelVibrato).
 */
 struct KeyframeRestMark
 {
@@ -425,10 +420,10 @@ struct KeyframeRestMark
 /*!
 \brief How a keyframe shows on the 2D lane, as the sum of what it can state.
 
-A sum rather than flags beside an index, so a keyframe that names a stop and draws a dot, or a dot
-with no value, is not spellable: each alternative carries exactly what its mark needs to draw.
+A sum rather than flags beside an index, so a keyframe that names a stop and draws a dot, or a head
+with no fret, is not spellable: each alternative carries exactly what its mark needs to draw.
 */
-using KeyframeMark = std::variant<KeyframeStopMark, KeyframeBendMark, KeyframeRestMark>;
+using KeyframeMark = std::variant<KeyframeStopMark, KeyframeCurveMark, KeyframeRestMark>;
 
 /*!
 \brief One stored keyframe of a note, resolved to an absolute timeline second: the statement a
@@ -892,8 +887,8 @@ a stop of the gesture (\ref NoteViewState::slides) are drawn by the one rule.
 \brief The fret a keyframe's linked HEAD prints, or nothing where its mark is not a head.
 
 A linked stop prints the fret it states and a resting keyframe the fret in force; a slide-out wears
-its chip instead, and a bend-only point its dot on the curve (\ref KeyframeMark). Whether the head
-is DRAWN is the extent's question (\ref instantDrawn), not this one's.
+its chip instead, and a point riding the bend curve its dot there (\ref KeyframeMark). Whether the
+head is DRAWN is the extent's question (\ref instantDrawn), not this one's.
 
 \param note Note the keyframe rides; its stops resolve a \ref KeyframeStopMark.
 \param keyframe One of the note's \ref NoteViewState::keyframes entries.
@@ -908,7 +903,7 @@ is DRAWN is the extent's question (\ref instantDrawn), not this one's.
                 const SlideStopViewState& slide = note.slides[stop.stop];
                 return linkedKeyframe(slide) ? std::optional<int>{slide.fret} : std::nullopt;
             },
-            [](const KeyframeBendMark&) -> std::optional<int> { return std::nullopt; },
+            [](const KeyframeCurveMark&) -> std::optional<int> { return std::nullopt; },
             [](const KeyframeRestMark& rest) -> std::optional<int> { return rest.fret; },
         },
         keyframe.mark);

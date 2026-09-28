@@ -874,23 +874,6 @@ anything — the existing slide tail is the one shape it must NOT reuse unexamin
 `docs/plans/in-progress/harmonic-display-followups.md` item 7, which is where the surrounding
 harmonic display rulings live.
 
-### A silent bare point mid-slide wears a head where the hand is not — trigger: a sighting shows it, or the user rules its mark
-
-Every fret-less keyframe that is not bend-only wears a linked head printing the fret in force
-(`KeyframeRestMark`, 2026-09-27). That head is honest because no vibrato CHANGE may stand
-mid-slide (`shedMidTravelVibrato`) — but a point stating NOTHING at all is not a change, so the
-shed leaves it, and such a point is legal in memory until its note leaves focus (the commit law's
-authoring state). Reachable by clearing the width of a vibrato-end point on a hold and then
-retyping the next stop's fret so the hold becomes travel: the bare point then sits mid-slide and
-its head prints the stop the travel left from. Transient — it dissolves when the note leaves
-focus, and no saved chart can hold it — so accepted for now. Found by the 2026-09-27 simplicity
-review.
-
-**Trigger**: a sighting shows the lying head, or the user rules the mark of a point that says
-nothing. **Remedy**: the user's ruling; the two shapes on the table are a law that no fret-less
-keyframe but a bend-only one stands inside travel (the shed grown to cover silent points), or a
-distinct mark for a point that says nothing.
-
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
@@ -1187,6 +1170,25 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
   is one line on the shared `audibilityHorizonFrom` helper.
 
 ## Retired
+
+### ~~A silent bare point mid-slide wears a head where the hand is not~~ — RETIRED 2026-09-27: the user ruled its mark
+
+Every fret-less keyframe that is not bend-only wears a linked head printing the fret in force
+(`KeyframeRestMark`, 2026-09-27). That head is honest because no vibrato CHANGE may stand
+mid-slide (`shedMidTravelVibrato`) — but a point stating NOTHING at all is not a change, so the
+shed leaves it, and such a point is legal in memory until its note leaves focus (the commit law's
+authoring state). Reachable by clearing the width of a vibrato-end point on a hold and then
+retyping the next stop's fret so the hold becomes travel: the bare point then sits mid-slide and
+its head prints the stop the travel left from. Transient — it dissolves when the note leaves
+focus, and no saved chart can hold it — so accepted for now. Found by the 2026-09-27 simplicity
+review.
+
+**Trigger**: a sighting shows the lying head, or the user rules the mark of a point that says
+nothing. **Remedy**: the user's ruling; the two shapes on the table are a law that no fret-less
+keyframe but a bend-only one stands inside travel (the shed grown to cover silent points), or a
+distinct mark for a point that says nothing.
+
+**Retired** the same day by the user's ruling: "Empty point on a slide would probably need to view as a bend point since bends are the only thing valid there." A point stating no position and changing no vibrato — a bend alone, or nothing at all — now rides the bend curve as its dot (`KeyframeCurveMark`, placed by `bendCurveYAt`), so no head is drawn where the hand is not; the linked head is left to vibrato changes, which cannot stand mid-slide.
 
 ### ~~Arpeggio spans completely suppress their members' tails~~ — RETIRED 2026-09-01
 

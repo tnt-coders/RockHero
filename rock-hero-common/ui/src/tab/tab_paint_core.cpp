@@ -1340,7 +1340,7 @@ void drawKeyframeHeads(
     }
 }
 
-// Draws the dot a bend-only keyframe wears on the curve, within the extent the note is drawn to.
+// Draws the dot a keyframe riding the bend curve wears, within the extent the note is drawn to.
 // Outside the technique clip, so the band's edge cannot shave a dot riding the curve where the bend
 // rests; the heads drawn later still cover it.
 void drawBendDots(
@@ -1352,7 +1352,7 @@ void drawBendDots(
     bool inked_any = false;
     for (const common::core::KeyframeViewState& keyframe : note.keyframes)
     {
-        if (!std::holds_alternative<common::core::KeyframeBendMark>(keyframe.mark) ||
+        if (!std::holds_alternative<common::core::KeyframeCurveMark>(keyframe.mark) ||
             !common::core::instantDrawn(keyframe.seconds, drawn_end))
         {
             continue;
@@ -1370,7 +1370,7 @@ void drawBendDots(
 
 // Draws the bend presentation: a white two-pixel polyline stepping between bend heights over the
 // tail, then a flat run to the tail end, with a "<slur><amount>" chip at each bend point. A
-// bend-only point's dot is its keyframe's mark, drawn by drawBendDots.
+// point riding the curve wears its keyframe's dot, drawn by drawBendDots.
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
@@ -1383,7 +1383,7 @@ void drawBendLines(
     }
 
     // The curve's height at an amount is the lane layout's one statement (bendCurveY), shared
-    // with the dot a bend-only point wears.
+    // with the dot a point riding the curve wears.
     constexpr float line_thickness = g_technique_line_thickness;
     const auto bend_y = [&](const double semitones) {
         return bendCurveY(metrics, center_y, semitones);

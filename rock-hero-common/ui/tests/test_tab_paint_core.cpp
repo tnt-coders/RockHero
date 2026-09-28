@@ -2741,10 +2741,11 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
     CHECK(worstPixelDelta(composed, painted(cropped, [](std::size_t) { return true; })) > 0);
 }
 
-// EVERY KEYFRAME WEARS A MARK, whatever it states. A point stating only a bend wears the curve's
-// dot where the curve stands at its amount; a point stating no position but a vibrato change wears
-// a linked head printing the fret in force. Each is measured against the same note with the
-// statement's channel geometry but no keyframe, so what differs is the mark alone.
+// EVERY KEYFRAME WEARS A MARK, whatever it states. A point stating no position but a vibrato change
+// wears a linked head printing the fret in force; any other point stating no position — a bend
+// alone, or nothing at all — wears the curve's dot where the drawn curve runs at its instant. Each
+// is measured against the same note with the statement's channel geometry but no keyframe, so
+// what differs is the mark alone.
 TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2797,7 +2798,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
         const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
             .seconds = 5.0,
             .offset = common::core::Fraction{3},
-            .mark = common::core::KeyframeBendMark{.semitones = 2.0},
+            .mark = common::core::KeyframeCurveMark{},
         }});
         const TabKeyframeLayout layout =
             tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
@@ -2807,6 +2808,24 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             layout.center_y,
             Catch::Matchers::WithinULP(bendCurveY(metrics, metrics.laneY(3), 2.0), 0));
         CHECK(layout.center_y < metrics.laneY(3));
+        CHECK(box_differs(painted(note), unmarked, layout.box));
+    }
+
+    SECTION("a point stating nothing rides the drawn curve between its points")
+    {
+        // Halfway along the leg from rest at the onset (2.0s) to the whole step at 5.0s: the dot
+        // stands where that drawn leg crosses 3.5s, halfway between the two heights.
+        const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
+            .seconds = 3.5,
+            .offset = common::core::Fraction{3, 2},
+            .mark = common::core::KeyframeCurveMark{},
+        }});
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+        REQUIRE(layout.shape == TabKeyframeShape::Dot);
+        const float rest_y = bendCurveY(metrics, metrics.laneY(3), 0.0);
+        const float step_y = bendCurveY(metrics, metrics.laneY(3), 2.0);
+        CHECK_THAT(layout.center_y, Catch::Matchers::WithinAbs((rest_y + step_y) / 2.0f, 1e-3));
         CHECK(box_differs(painted(note), unmarked, layout.box));
     }
 

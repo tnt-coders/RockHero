@@ -344,8 +344,10 @@ Four consequences worth knowing before touching this:
   keep reaching the statement itself. EVERY keyframe is published and reachable
   (`NoteViewState::keyframes`), whatever it states, and wears the mark of what it states
   (`KeyframeMark`, decided once by the projection): a position wears its stop's linked head or
-  chip, a bend ALONE the curve's dot at its amount (`bendCurveY`), and anything else — a vibrato
-  change, with or without a bend beside it — a linked head printing the fret in force.
+  chip, a vibrato change — with or without a bend beside it — a linked head printing the fret in
+  force, and anything else — a bend alone, or a point stating nothing — the curve's dot where the
+  drawn curve runs at its instant (`bendCurveYAt`), a bend being all such a point can go on to
+  state.
   `tabKeyframeLayout` lays every one out for the paint, the click and the accent ring alike (a
   disc around a dot). That head prints where the hand really is because no vibrato change may
   stand mid-slide (`shedMidTravelVibrato`); a bend may, and its dot rides the curve, not the

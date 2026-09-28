@@ -270,8 +270,9 @@ Keep this list and the session task list in step.
     INHERITS the fret in force — storage always did; the defect was the view state publishing only
     the fret-stating keyframes, so nothing else could be drawn or reached. Every keyframe is now
     published (`NoteViewState::keyframes`) with the mark of what it states (`KeyframeMark`): a
-    position wears its stop's linked head or chip, a bend ALONE the bend curve's dot, and anything
-    else (a vibrato change, with or without a bend) a linked head printing the fret in force. With
+    position wears its stop's linked head or chip, a vibrato change (with or without a bend) a
+    linked head printing the fret in force, and anything else — a bend alone, or a point stating
+    nothing (ruled the same day: "bends are the only thing valid there") — the bend curve's dot. With
     it, a chart rule the head relies on: NO VIBRATO CHANGE MID-SLIDE (`shedMidTravelVibrato`,
     repair `MidTravelVibrato`) — a width may run through a glide but not start, stop or step inside
     one. Bends MAY change mid-slide, since Guitar Pro can state that and the dot rides the curve,

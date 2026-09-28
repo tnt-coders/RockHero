@@ -131,8 +131,9 @@ TabKeyframeLayout tabSlideStopLayout(
     return layout;
 }
 
-// A stop's keyframe defers to the stop's own layout. A bend-only point's dot stands where
-// drawBendDots fills it, on the curve at the amount it states; a resting keyframe's head is the
+// A stop's keyframe defers to the stop's own layout. A point riding the curve stands where
+// drawBendDots fills its dot, where the drawn curve runs at its instant; a resting keyframe's head
+// is the
 // linked head at its instant, exactly as a stop's.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
@@ -148,9 +149,10 @@ TabKeyframeLayout tabKeyframeLayout(
             [&](const common::core::KeyframeStopMark& stop) {
                 return tabSlideStopLayout(geometry, note, stop.stop, drawn_end);
             },
-            [&](const common::core::KeyframeBendMark& bend) {
+            [&](const common::core::KeyframeCurveMark&) {
                 TabKeyframeLayout layout = at_instant;
-                layout.center_y = bendCurveY(geometry, layout.center_y, bend.semitones);
+                layout.center_y =
+                    bendCurveYAt(geometry, layout.center_y, note.bend, keyframe.seconds);
                 layout.shape = TabKeyframeShape::Dot;
                 layout.box =
                     centeredSquare(layout.center_x, layout.center_y, layout.head_size / 2.0f);

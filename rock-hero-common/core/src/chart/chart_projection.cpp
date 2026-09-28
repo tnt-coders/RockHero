@@ -603,8 +603,8 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                     BendPointViewState{.seconds = keyframe_seconds, .semitones = *bend});
             }
             // The keyframe's mark, decided here once from what it states: the stop it states, else
-            // the curve's dot where a bend is ALL it states, else a head at the fret in force.
-            KeyframeMark mark = KeyframeRestMark{.fret = ring.fret};
+            // a head at the fret in force where it changes the vibrato, else the curve's dot.
+            KeyframeMark mark = KeyframeCurveMark{};
             if (fret.has_value())
             {
                 mark = KeyframeStopMark{.stop = view.slides.size()};
@@ -615,9 +615,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                         .slide_out = slides_out && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
-            else if (bend.has_value() && ring.vibrato == was)
+            else if (ring.vibrato != was)
             {
-                mark = KeyframeBendMark{.semitones = *bend};
+                mark = KeyframeRestMark{.fret = ring.fret};
             }
             view.keyframes.push_back(
                 KeyframeViewState{
