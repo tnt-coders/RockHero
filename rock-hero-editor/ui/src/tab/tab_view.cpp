@@ -492,7 +492,7 @@ void TabView::paint(juce::Graphics& g)
             const common::core::KeyframeViewState& keyframe,
             const common::ui::TabKeyframeLayout& layout) {
             const common::ui::TabLayoutRect& box = layout.box;
-            const juce::Rectangle<float> bounds{box.x, box.y, box.width, box.height};
+            const juce::Rectangle<float> mark_bounds{box.x, box.y, box.width, box.height};
             switch (layout.shape)
             {
                 case common::ui::TabKeyframeShape::Head:
@@ -508,11 +508,11 @@ void TabView::paint(juce::Graphics& g)
                     break;
                 case common::ui::TabKeyframeShape::Chip:
                     g.setColour(accent);
-                    g.drawRect(bounds, overlayRingStroke(layout.head_size));
+                    g.drawRect(mark_bounds, overlayRingStroke(layout.head_size));
                     break;
                 case common::ui::TabKeyframeShape::Dot:
                     g.setColour(accent);
-                    g.drawEllipse(bounds, overlayRingStroke(box.width));
+                    g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
                     break;
             }
         });
