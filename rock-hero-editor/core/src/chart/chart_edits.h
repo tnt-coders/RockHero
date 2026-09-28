@@ -761,7 +761,7 @@ struct ChartLegatoRefusal
     ChartSlotKey note;
 
     /*! \brief Why the resolver refused a claim on that note. */
-    ChartLegatoSkip reason;
+    ChartLegatoSkip reason{};
 };
 
 /*!
