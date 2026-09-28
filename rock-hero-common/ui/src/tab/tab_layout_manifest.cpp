@@ -90,9 +90,9 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 // own head size, centred on the stop's instant and the note's string line. Same square as the
 // onset head, one column along the tail. A chip — the slide-out's at its instant, the destination
 // chip at the crop — sits a third of a head above the tail envelope when the leg into it rises and
-// below it when it falls, or on the side the shared instant gives it (both from one authority),
-// and its box is the chip's ground: the fret text height with the chip's one-pixel margins, and
-// the two-digit width the satellite column already states for this lane's digits.
+// below it when it falls, ending short of the head where the ring ends on one (both from one
+// authority), and its box is the chip's ground: the fret text height with the chip's one-pixel
+// margins, and the two-digit width the satellite column already states for this lane's digits.
 TabKeyframeLayout tabSlideStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const std::size_t stop, const double drawn_end) noexcept
@@ -113,15 +113,19 @@ TabKeyframeLayout tabSlideStopLayout(
     const int previous_fret = stop == 0 ? note.fret : note.slides[stop - 1].fret;
     const bool upward = slide.fret >= previous_fret;
     layout.shape = TabKeyframeShape::Chip;
-    // Both bands are the shared authority's (slideOutChipY, endMarkYAtSharedInstant), so the box
-    // the click is bounded in cannot land on the other side of the envelope from the chip. Only a
-    // DRAWN chip can stand at the shared instant: a chip at the crop stands a margin before it.
-    layout.center_y =
-        endMarkYAtSharedInstant(geometry, layout.center_y, drawn && note.ends_on_next_head)
-            .value_or(slideOutChipY(geometry, layout.center_y, upward));
+    // The band and the end's column are the shared authorities' (slideOutChipY and
+    // endChipRightLimit), so the box the click is bounded in cannot part from the chip. The painted
+    // chip centres on this box and is never wider, so the limit holds for its ink too.
+    layout.center_y = slideOutChipY(geometry, layout.center_y, upward);
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;
+    if (const std::optional<float> limit =
+            endChipRightLimit(geometry, note, slide.seconds, drawn_end);
+        limit.has_value())
+    {
+        layout.center_x = std::min(layout.center_x, *limit - width / 2.0f);
+    }
     layout.box = TabLayoutRect{
         .x = layout.center_x - width / 2.0f,
         .y = layout.center_y - height / 2.0f,

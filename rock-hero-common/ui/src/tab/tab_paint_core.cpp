@@ -340,6 +340,10 @@ struct LaneStyles
 struct LabelChip
 {
     juce::Point<float> position;
+    // Where set, the box shifts left until its right edge is at or before this x (a chip stating a
+    // ring's end short of the head standing there, endChipRightLimit). Applied where the box is
+    // measured, so no second copy of the chip's width exists.
+    std::optional<float> right_limit;
     juce::String text;
     // Printed after the text in the lane's fraction font; empty on every chip but a bend amount
     // with a quarter-step part (tabBendAmountText).
@@ -1223,6 +1227,9 @@ void drawSlideLines(
             slide_labels.push_back(
                 LabelChip{
                     .position = {layout.center_x, layout.center_y},
+                    // The manifest's box already ends short of a head at the end, and the painted
+                    // chip is never wider than that box.
+                    .right_limit = std::nullopt,
                     // Through the same head-label rule, not a raw fret: a stopped harmonic labels
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
@@ -1413,22 +1420,18 @@ void drawBendLines(
             !cut || (std::is_neq(point.semitones <=> last_semitones) && inked(note, drawn_end));
         if (chip && metrics.draw_text)
         {
-            // Chips sit on the bend line, or above the head when the bend is at the onset — except
-            // at the ring's END where it stands on a head of its own string, which is the band
-            // conditional's (endMarkYAtSharedInstant): a chip left on the curve there would sit
-            // over that head's top.
+            // Chips sit on the bend line, or above the head when the bend is at the onset. At the
+            // ring's END where it stands on a head of its own string, the chip ends short of that
+            // head (endChipRightLimit), so it reads as the ribbon's value and not the head's.
             const bool over_head = to.x <= onset_x + metrics.note_height / 2.0f;
-            const bool at_ring_end = std::is_eq(point.seconds <=> note.ring_end_seconds);
-            const float chip_y =
-                endMarkYAtSharedInstant(metrics, center_y, note.ends_on_next_head && at_ring_end)
-                    .value_or(
-                        over_head ? center_y - metrics.note_height / 2.0f -
-                                        metrics.fret_font.height() / 2.0f - 1.0f
-                                  : to.y - metrics.tail_height / 2.0f);
+            const float chip_y = over_head ? center_y - metrics.note_height / 2.0f -
+                                                 metrics.fret_font.height() / 2.0f - 1.0f
+                                           : to.y - metrics.tail_height / 2.0f;
             const TabBendAmountText amount = tabBendAmountText(point.semitones);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
+                    .right_limit = endChipRightLimit(metrics, note, point.seconds, drawn_end),
                     .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} + amount.text,
                     .fraction = amount.fraction,
                     // The string's own head inks, ring and fill, so the amount reads as the
@@ -3000,10 +3003,15 @@ void paintTabLane(
                         ? 0.0f
                         : static_cast<float>(metrics.fraction_font.width(chip.fraction));
                 const auto text_width = static_cast<float>(font.width(chip.text)) + fraction_width;
+                const float box_width = text_width + pad * 2.0f;
+                const float centered_x = chip.position.x - box_width / 2.0f;
+                const float box_x = chip.right_limit.has_value()
+                                        ? std::min(centered_x, *chip.right_limit - box_width)
+                                        : centered_x;
                 const juce::Rectangle<float> box{
-                    chip.position.x - text_width / 2.0f - pad,
+                    box_x,
                     chip.position.y - font.height() / 2.0f - 1.0f,
-                    text_width + pad * 2.0f,
+                    box_width,
                     laneChipHeight(font)
                 };
                 std::optional<ScopedTransparencyLayer> chip_layer;

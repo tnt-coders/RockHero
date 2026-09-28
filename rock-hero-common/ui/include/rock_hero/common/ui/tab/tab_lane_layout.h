@@ -457,22 +457,26 @@ click, so the box and the mark can never land on opposite sides of the envelope.
     const TabLaneGeometry& geometry, float center_y, bool upward) noexcept;
 
 /*!
-\brief The band a mark stating a ring's END must take where that end stands on a head of its own
-string — or nothing where the mark keeps the place its own rule gives it.
+\brief The x a chip stating a ring's END may not reach past where that end stands on a head of its
+own string — or nothing where the chip keeps the column its own rule gives it.
 
-THE BAND CONDITIONAL, stated once for every reader: the painter that draws the chip and the manifest
-that bounds the click. At a shared instant two marks stand at one x, and the instant belongs to the
-HEAD — its own marks keep their side of the envelope, and every mark of the ring that ENDS there
-takes the band BELOW (\ref slideOutChipY with a falling leg), so nothing overlaps and nothing
-changes band as the reveal goes down. What it costs is that a slide-out chip's side does not double
-as the last leg's direction at such an end; the diagonal already says that.
+Stated once for the painter that draws the chip and the manifest that bounds its click. At a shared
+instant the instant's COLUMN belongs to the head, so the ending ring's chip keeps its ordinary
+height and ends where its ribbon visibly ends: at the drawn extent, and never inside the head's
+square (under the reveal the ribbon runs on beneath the head). Resolving the meeting sideways
+keeps every chip in its own lane, since the band below one string's envelope is the band above the
+next string's head, where that head's own pre-bend chip stands. A chip beside the head also reads
+as the ribbon's value, never as the head's.
 
-\param geometry Lane geometry supplying the tail height and the note height the lift is measured in.
-\param center_y The note's string line.
-\param ends_on_next_head The pair fact (\ref common::core::NoteViewState::ends_on_next_head).
-\return The mark's center on the vertical axis, or nothing where the ordinary rule stands.
+\param geometry Lane geometry supplying the time mapping and the head size.
+\param note The ring the chip belongs to.
+\param mark_seconds The instant the chip states.
+\param drawn_end How far the note is drawn (\ref common::core::drawnEndSeconds).
+\return The limit for the chip's right edge, or nothing where the chip does not state an end that
+        stands on a head.
 */
-[[nodiscard]] std::optional<float> endMarkYAtSharedInstant(
-    const TabLaneGeometry& geometry, float center_y, bool ends_on_next_head) noexcept;
+[[nodiscard]] std::optional<float> endChipRightLimit(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, double mark_seconds,
+    double drawn_end) noexcept;
 
 } // namespace rock_hero::common::ui

@@ -633,17 +633,17 @@ is deliberately single-sourced:
   draws its linked head, and a slide-out toward the fret already in force draws its chip. That is what
   gives a statement saying nothing a face to select, retype and delete, so one focus-leave sweep can
   own every silent point (`dissolveSilentKeyframes`) with no rule of its own for the end.
-- **AT A SHARED INSTANT THE INSTANT BELONGS TO THE HEAD**, and the band conditional is the whole of
-  it: where a ring ENDS exactly on a head of its own string
-  (`common::core::NoteViewState::ends_on_next_head`, resolved in the connections pass beside the
-  arrival relation), every mark of the ring that ends there takes the side of the envelope opposite
-  the head's own marks — the slide-out chip and an end bend chip below, the head's pre-bend chip above —
-  so a rising slide-out chip and a pre-bend chip at one column cannot overlap, and nothing changes band
-  as the reveal goes down. It is stated ONCE, in `endMarkYAtSharedInstant` (`tab_lane_layout.h`),
-  which both the painter and the layout manifest read, so the chip's ink and the box the click is
-  bounded in can never land on opposite sides; the band itself is `slideOutChipY` beside it, the one
-  spelling of where a tail chip sits. The cost, accepted: a slide-out chip's side does not double as the
-  last leg's direction at such an end — the diagonal already says that.
+- **AT A SHARED INSTANT THE INSTANT'S COLUMN BELONGS TO THE HEAD**: where a ring ENDS exactly on a
+  head of its own string (`common::core::NoteViewState::ends_on_next_head`, resolved in the
+  connections pass beside the arrival relation), a chip stating that end — the slide-out's, an end
+  bend's — keeps its ordinary height and ends where its ribbon visibly ends: at the drawn extent, and
+  never inside the head's square. So it reads as the ribbon's value, never as the head's, and it
+  stays in its own lane. The meeting used to be resolved vertically, by moving the ending ring's chips
+  below the envelope; that put them in the band above the next string's head, onto that head's own
+  pre-bend chip (sighted 2026-09-28). The limit is stated ONCE, in `endChipRightLimit`
+  (`tab_lane_layout.h`), which the painter and the layout manifest both read, so the chip's ink and
+  the box its click is bounded in cannot part; the height is `slideOutChipY` beside it, the one
+  spelling of where a tail chip sits.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the

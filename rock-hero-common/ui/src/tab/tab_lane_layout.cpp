@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <functional>
 #include <iterator>
 #include <rock_hero/common/core/chart/bend_travel.h>
@@ -173,13 +174,16 @@ float slideOutChipY(
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.
-std::optional<float> endMarkYAtSharedInstant(
-    const TabLaneGeometry& geometry, const float center_y, const bool ends_on_next_head) noexcept
+std::optional<float> endChipRightLimit(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const double mark_seconds, const double drawn_end) noexcept
 {
-    // BELOW, whatever the leg's own direction: the instant belongs to the head, whose pre-bend chip
-    // is what sits above the envelope, so the ring that ENDS there takes the other band.
-    return ends_on_next_head ? std::optional{slideOutChipY(geometry, center_y, false)}
-                             : std::nullopt;
+    if (!note.ends_on_next_head || std::is_neq(mark_seconds <=> note.ring_end_seconds))
+    {
+        return std::nullopt;
+    }
+    return std::min(
+        geometry.x(drawn_end), geometry.x(note.ring_end_seconds) - geometry.headSize() / 2.0f);
 }
 
 } // namespace rock_hero::common::ui

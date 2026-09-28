@@ -761,10 +761,10 @@ struct NoteViewState
     \brief True when the ring ENDS exactly on the next head of its own string, so a mark stating the
     end and that head's own marks stand at one x.
 
-    THE BAND CONDITIONAL'S one input (\ref ChartConnections::ends_on_next_head): at a shared instant
-    the instant belongs to the HEAD, so the head's marks keep their side of the envelope and every
-    mark of the ring that ENDS there takes the other. An arrival and an abutting slide-out both land
-    here, because what collides is geometry rather than gesture.
+    The shared instant's one input (\ref ChartConnections::ends_on_next_head): the instant's column
+    belongs to the HEAD, so a chip stating the end of the ring that ENDS there stops short of it. An
+    arrival and an abutting slide-out both land here, because what collides is geometry rather than
+    gesture.
     */
     bool ends_on_next_head{false};
 

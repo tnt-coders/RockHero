@@ -2384,8 +2384,8 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
 // force travels nowhere, so no diagonal is drawn for it — but the chip still is, exactly as an
 // interior same-fret point still draws its linked head, which is what gives a statement that says
 // nothing a face to select, retype and delete. And where the ring ENDS on a head of its own string,
-// the chips of the ring that ends there take the band opposite the head's own marks, so two marks
-// at one column never overlap.
+// a chip stating that end keeps its own band and ends short of the head's column, so it never
+// reads as the head's and never leaves its lane.
 TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2479,7 +2479,7 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
         CHECK(envelope_agrees(image, bare));
     }
 
-    SECTION("at a shared instant the ending ring's chip takes the band below the envelope")
+    SECTION("at a shared instant the ending ring's chip ends short of the head's column")
     {
         // A slide-out that travels, landing exactly where the next head of its own string is
         // struck, and that head carrying the PRE-BEND whose chip sits above it.
@@ -2498,20 +2498,40 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
             .keyframes = {},
             .vibrato = {},
         };
-        const TabKeyframeLayout shared =
-            tabSlideStopLayout(metrics, glide, 0, common::core::drawnEndSeconds(glide, false));
+        const double drawn_end = common::core::drawnEndSeconds(glide, false);
+        const TabKeyframeLayout shared = tabSlideStopLayout(metrics, glide, 0, drawn_end);
+        const float head_left = metrics.x(8.0) - metrics.headSize() / 2.0f;
         CHECK(shared.shape == TabKeyframeShape::Chip);
-        CHECK(shared.center_y > span.bottom);
-        // And the band is the RELATION's, not the leg's: the same rising slide-out takes the band
-        // above where nothing shares its instant.
+        // The rising leg's own band, above the envelope, whatever shares the instant...
+        CHECK(shared.center_y < span.top);
+        // ...ending short of both the ribbon's drawn end and the head's square.
+        CHECK(shared.box.x + shared.box.width <= std::min(metrics.x(drawn_end), head_left));
+        // The column is the RELATION's: where nothing shares its instant the chip centres on it.
         const common::core::NoteViewState alone = ringing({slide_out}, false);
-        CHECK(
+        CHECK_THAT(
             tabSlideStopLayout(metrics, alone, 0, common::core::drawnEndSeconds(alone, false))
-                .center_y < span.top);
+                .center_x,
+            Catch::Matchers::WithinULP(metrics.x(8.0), 0));
 
-        // The head's own marks keep the band above it, so the two never meet: the chip's ink is
-        // below the envelope and the pre-bend's above the head.
+        // The chip's ink is in its box and none of it in the head's column, where the head's own
+        // pre-bend chip still stands above the head.
         const juce::Image image = painted({glide, landing});
+        const juce::Image without_slide_out = painted({ringing({}, true), landing});
+        const auto differs_in_head_column = [&] {
+            for (int y = juce::roundToInt(span.top) - 20; y < juce::roundToInt(span.top); ++y)
+            {
+                for (int x = juce::roundToInt(head_left) + 1; x <= juce::roundToInt(metrics.x(8.0));
+                     ++x)
+                {
+                    if (image.getPixelAt(x, y) != without_slide_out.getPixelAt(x, y))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        CHECK_FALSE(differs_in_head_column());
         const juce::Image without_pre_bend = painted(
             {glide,
              common::core::NoteViewState{
@@ -2541,6 +2561,54 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
             return false;
         };
         CHECK(differs_above_head());
+    }
+
+    SECTION("an end bend at a shared instant keeps its chip on the curve, short of the head")
+    {
+        // A bend still rising to a whole step as the next head of its own string is struck unbent.
+        // Its chip used to drop below the envelope, into the band the next string's pre-bend chip
+        // stands in; it now rides its own curve and stops before the head's square.
+        common::core::NoteViewState bent = ringing({}, true);
+        bent.bend = {common::core::BendPointViewState{.seconds = 8.0, .semitones = 2.0}};
+        const common::core::NoteViewState unbent = ringing({}, true);
+        const common::core::NoteViewState landing{
+            .start_seconds = 8.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 10.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+        };
+        const juce::Image image = painted({bent, landing});
+        const juce::Image without_bend = painted({unbent, landing});
+        const int head_left = juce::roundToInt(metrics.x(8.0) - metrics.headSize() / 2.0f);
+        // Whether anything differs in a block of rows between the two renders.
+        const auto differs =
+            [&](const int from_x, const int to_x, const int from_y, const int to_y) {
+                for (int y = from_y; y <= to_y; ++y)
+                {
+                    for (int x = from_x; x <= to_x; ++x)
+                    {
+                        if (image.getPixelAt(x, y) != without_bend.getPixelAt(x, y))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+        const int above_top = juce::roundToInt(span.top) - 16;
+        const int above_bottom = juce::roundToInt(span.top) - 1;
+        // The chip stands above the envelope, before the head...
+        CHECK(differs(head_left - 30, head_left - 1, above_top, above_bottom));
+        // ...none of it in the head's column...
+        CHECK_FALSE(differs(head_left + 1, head_left + 30, above_top, above_bottom));
+        // ...and nothing below the envelope: the band the next string's marks own.
+        const int below_top = juce::roundToInt(span.bottom) + 1;
+        CHECK_FALSE(differs(head_left - 30, head_left + 30, below_top, below_top + 16));
     }
 }
 
