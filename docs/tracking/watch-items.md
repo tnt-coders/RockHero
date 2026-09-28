@@ -985,6 +985,57 @@ evaluation happens, or either cost reads wrong in practice. **Remedy**: sight in
 the tips standing proud of the ring are the mark's legibility, so any change is a re-signing,
 not a tune.
 
+## Bend display
+
+Registered 2026-09-28, when bend authoring closed on the user's sighting: "I think the current
+graphics display it pretty well so we can probably table that as a watch item"
+(`docs/plans/in-progress/first-releasable-editor.md` Phase 3).
+
+### The bend display anchor is unsigned — trigger: a bend reads too tall or too short on the highway, or per-string physical accuracy becomes a goal
+
+`highwayBendLiftY` (`highway_metrics.h`) draws a half step as exactly one string gap on every
+string. The curve's SHAPE is verified physics; the anchor is a display choice nobody signed. The
+leading alternative scales a three-whole-step bend to two gaps, about 0.70 gaps per half step,
+which trades away physical accuracy for legibility. Real travel is per-string (high E ≈ 1.5 gaps, G
+≈ 0.9). **Remedy**: sight the alternative per `highway-note-art-state.md` Open decision 1, where
+the arithmetic lives. Any anchor above about 1.0 must first clear `highwayDrawnNoteY`'s saturation
+guard, which would otherwise clamp legal bends.
+
+### The 2D bend look-and-feel study was never run — trigger: a bend figure reads wrong in the tab lane, or whammy support begins
+
+The shipped 2D bend (a curve through the tail with amount chips and point dots) was built
+directly, not from the study's candidate sheets. **Remedy**: re-open
+`docs/plans/todo/bend-display-study.md` from its settled foundations. Its whammy clause already
+requires a real analysis before a bar channel draws anything. The parked
+`docs/plans/todo/2d-bend-waypoint-redesign.md` holds the corpus evidence and the rejected visual
+options.
+
+### 3D has no per-point bend segment display — trigger: a chord whose strings bend by different amounts reads wrong in 3D, or a charter cannot tell where a bend point sits on the highway
+
+The highway states a bend only through each tail's curving centerline. Per-keyframe floor posts
+were built and reverted: two notes on adjacent strings at one fret commonly bend by different
+amounts, and one post in the shared fret slot cannot show both. **Remedy**: a per-string display
+on or beside the tails, never per slot (`docs/plans/completed/fret-hit-light-effect.md`, open
+decision 4).
+
+### An end bend chip repeats the next head's own bend — trigger: the repeat reads as clutter in real charts
+
+Where a ring ends on a head of its own string (`ends_on_next_head`), its end bend chip is kept even
+when the head's own bend chip states the same amount. The bend then just continues into the head,
+so the chip says nothing new. **Remedy**: drop the end chip in that case, as the slide arrival
+already drops its chip beside the head it lands on (sighted 2026-09-24). The user was unsure
+(2026-09-28), so it stays until real charts decide.
+
+### An end chip can touch the next head's chip when zoomed far out — trigger: the overlap reads badly at a zoom charters actually use
+
+`endChipRightLimit` ends the chip at the crop, one margin (50 ms) before the head, which is about
+16 px at the default zoom (316 px/s). The head's own pre-bend chip is centred on the head and
+reaches back half its width, about 10 px at the shipped lane size, so zoomed well out the two can
+touch, within one lane. The head's chip draws later, so it covers the end chip there. Estimated,
+not measured. **Remedy**: raise a
+selected end keyframe's chip over the head's (the selection overlay already redraws a selected
+arrival over its head), or suppress the end chip below a zoom floor.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

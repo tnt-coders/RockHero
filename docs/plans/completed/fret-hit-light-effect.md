@@ -8,8 +8,8 @@ home, release/fade invariant). Closed 2026-09-19: moved to completed/ after veri
 the tree.
 
 **Where the open decisions went.** Decisions 1–3 and 5 below are tuning calls, not blockers; they
-moved to `docs/tracking/backlog.md`. Decision 4 (bend segment display in 3D) is carried by
-`docs/plans/in-progress/first-releasable-editor.md` Phase 3.
+moved to `docs/tracking/backlog.md`. Decision 4 (bend segment display in 3D) is a watch item since
+2026-09-28 (`docs/tracking/watch-items.md`, "3D has no per-point bend segment display").
 **Scope:** the editor app's 3D preview (shared highway renderer, so it also lands in the game
 highway). The trigger here is deterministic *note arrival*; a later input-gated game version reuses
 the same light pass unchanged (only the trigger source changes).

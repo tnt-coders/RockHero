@@ -374,6 +374,15 @@ into a pre-bent same-string head, and a rising fall abutting a pre-bent head, at
 height and just above the text floor — falsified by any partially covered digit, any chip crossing
 the neighbouring envelope, or any mark changing band as `Alt` goes down.
 
+**(1) REVERSED 2026-09-28 on sighting.** The band below one string's envelope is the band above
+the next string's head, so an end bend chip dropped there landed on the NEXT string's pre-bend
+chip at the same instant, which the measurement above never counted (it measured one lane). The
+x offset rejected above is what replaced it: the ending ring's chip keeps its ordinary height and
+ends short of the head's square (`endChipRightLimit`, `423e2bf9`), so every chip stays in its own
+lane. The retreat that rejection feared is bounded by the head's own half-width, and the chip
+sitting over its ribbon rather than above the head is what keeps it from reading as the head's
+bend (the user's sighting). (2) stands.
+
 **Reaching the end from the keyboard** (the user, 2026-09-21: the caret is nearly always on the
 head, clicking the previous note is not acceptable, all authoring must be possible from the
 keyboard; proposed `Ctrl+Alt` as a quasimode that hides the head. Second ui-design-expert pass,

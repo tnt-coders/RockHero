@@ -178,10 +178,9 @@ Keep this list and the session task list in step.
   equal or absent same-string predecessor — lands as a plain `Pick` with a counted conversion note,
   through the shared settle sweep the importer runs at build completion, i.e. the same code every
   load path uses. Import must not create what the verb would refuse.
-- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below. **Open: W9-F,
-  to be ruled together with W9-D's open glyph choice — both are the one question of how 2D says
-  *pitched* versus *falls away* — and W9-G, which waits on the bend study with it.** Everything else
-  from that review was fixed in place.
+- [x] **W9 — Rulings the deep review needs.** Twelve questions, in the section below. **All closed
+  2026-09-28:** W9-F resolved by the slide-out rework (with W9-D's glyph, the shipped linked head),
+  and W9-G ruled onset-only. Everything else from that review was fixed in place.
 - [x] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law.** BUILT whole 2026-09-12 as
   "Split or Join at Selection" (`planToggleJunctions`): the join is the split's exact inverse, and
   the tie falls out of the commit law rather than being built. The pending-intent mechanism and the
@@ -536,8 +535,8 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   after is a real technique — 3D renders it correctly by straightening the tail where an unpitched
   exit dims away — so making that state illegal was withdrawn, and `slide_out`'s own doc now says it
   plainly: never a sounded landing, and a glide INTO a note is fret-stating keyframe data whose note
-  renders its own head. **Open, and deliberately entangled with W9-F:** which glyph states it. The
-  direction is the keyframe's own head rather than the unpitched chip — sized to the TAIL's height
+  renders its own head. **Which glyph states it, entangled with W9-F: SETTLED 2026-09-28** by the
+  shipped linked head at the note's own head size (see W9-F). As first proposed, the direction was the keyframe's own head rather than the unpitched chip — sized to the TAIL's height
   so it reads as part of the tail rather than as an event, which moves the strike/no-strike
   distinction onto the size channel instead of fill darkness alone (`headShapeFor`'s
   plectrum-at-turnarounds behaviour must survive it). Being linked is already a shared READ,
@@ -575,12 +574,23 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   (`docs/plans/roadmap/56-head-atlas-mipmapping.md`) states the same constraint from its own side —
   mipmapping and mark distance-legibility work "should be judged together", since mips alone make
   every annotated note relatively less conspicuous at the horizon — so the two belong in one pass.
-- [ ] **W9-F — Should 2D distinguish an unpitched slide?** Every slide diagonal is stroked plain
+- [x] **W9-F — Should 2D distinguish an unpitched slide? RESOLVED 2026-09-28: it already does,
+  since the slide-out rework (`88b21344`).** Unpitched travel now exists only as the slide-out
+  terminal, the keyframe at the ring's end. 2D marks it with its fret chip and no head, while every
+  pitched stop wears a linked head (`drawSlideLines`), so a note that glides 5 to 7 and then trails
+  off draws a head on 7 and then a chip. The two diagonals are still stroked alike; the stop's mark
+  is what tells them apart, and the user saw no remaining problem. This also settles W9-D's open
+  glyph: the pitched arrival states its fret with the linked head as shipped.
+  *Was:* Every slide diagonal is stroked plain
   white whatever the stop's `unpitched` says, while the highway dims an unpitched run to a quarter
   alpha. So a note that glides 5 to 7 and then trails off shows two identical diagonals in 2D and
   two visibly different ones in 3D. D17 already named the lever — "the unpitched diagonal's own
   treatment, broken rather than solid". Options: pull it now, or record the divergence deliberately.
-- [ ] **W9-G — Does a mute restate at each slide junction?** A linked junction head draws the full
+- [x] **W9-G — Does a mute restate at each slide junction? RULED 2026-09-28: NO — onset only.**
+  The user: the white X "is more an indication of the 'attack' not where the slide currently is at
+  a turnaround point." A junction continues or turns around the same unsplit slide, and nothing is
+  attacked there, so its linked head carries no mute mark.
+  *Was:* A linked junction head draws the full
   layered head with a plain white number and neither the X nor the mute plate the onset head gets,
   so a muted slide's continuation asserts a pitched landing. Partly mitigated by the linked fill
   reading darker. Options: the mute restates at every junction, or it is a once-at-the-onset

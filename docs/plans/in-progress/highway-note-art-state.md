@@ -393,6 +393,8 @@ it.
 ## Open decisions
 
 1. **The bend display anchor** — is *half step = exactly one string gap, every string* right?
+   **Moved to `docs/tracking/watch-items.md` 2026-09-28** ("The bend display anchor is unsigned"):
+   the shipped one-gap anchor reads well on sight and nobody has asked for the change.
 
    **The leading candidate:** anchor it so a THREE-WHOLE-STEP bend travels exactly **two string
    spacings** — a full bend on one lane reaches the lane two away and touches it. The curve's shape

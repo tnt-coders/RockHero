@@ -4,9 +4,9 @@ Status: DESIGN DECIDED 2026-09-23, reviewed the same day (three read-only review
 folded in below). Phase 1 BUILT 2026-09-23 (1a `da74d79b`, 1b `a6cf2f88`, 1c `736adbe3`) and the
 alongside item (`df5ef1ab`), each with its own simplicity review folded in; phase 1 sighted
 2026-09-23..24 (fixes `db51a7fa`, `7a17b62e`, `3449f271`, `6fffd40f`); phase 2 BUILT 2026-09-24
-(`5d0cb384`). Phases 1 and 2 both SIGHTED and signed 2026-09-24 (user), except phase 1b's end
-bend abutting a same-string head, deferred until bends are authorable. Merges and replaces
-`chart-lane-authoring-planes.md` and `ring-end-display.md`. Baseline: HEAD `ce0db3a2` (the
+(`5d0cb384`). Phases 1 and 2 both SIGHTED and signed 2026-09-24 (user); phase 1b's end bend
+abutting a same-string head, deferred until bends were authorable, was signed 2026-09-28.
+Merges and replaces `chart-lane-authoring-planes.md` and `ring-end-display.md`. Baseline: HEAD `ce0db3a2` (the
 tick-lattice follow-up has landed: every editor verb produces lattice positions, restored carets
 snap onto ticks). Re-verify every code claim below against the tree before a phase starts; line
 numbers are as of the baseline.
@@ -413,8 +413,9 @@ it until the single form carries one.
   slide-out and an end bend abutting a same-string head, a free-ending slide-out, a dense
   sixteenth passage at 160–180 BPM, and a Guitar Pro bend-release written at 98% and 99% (imported
   points round onto the lattice, so two that round onto one tick stay apart) — each in 2D, in 3D
-  and under `Alt`. Confirm the margin against this picture. **Signed 2026-09-24**, except the end
-  bend abutting a same-string head, deferred until bends are authorable.
+  and under `Alt`. Confirm the margin against this picture. **Signed 2026-09-24**; the end bend
+  abutting a same-string head was signed 2026-09-28, once bends were authorable. Its chip now ends
+  short of the head rather than dropping below the envelope (`endChipRightLimit`).
 - **Docs:** `tab_paint_core.h`, `the-editor-2d-views.md`, `the-3d-highway.md`.
 
 ### Phase 1c — The caret peek returns

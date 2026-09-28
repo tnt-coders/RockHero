@@ -58,7 +58,7 @@ phase it blocks cannot start without it.
 |---|---|---|
 | **G41-TS** — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/41-tempo-map-authoring.md` Q1 | Nothing now — Phase 1's time-signature work may start on A |
 | **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
-| **The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G** | `technique-review-walkthrough.md` W9, `highway-note-art-state.md` Open decisions | Phase 3 |
+| ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session | `docs/plans/roadmap/60-hand-markers.md` §9 | Phase 4 (Phase 0 of plan 60 is ungated) |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
 
@@ -194,41 +194,48 @@ through save and reopen, and draws the same fact on both surfaces.
 
 ### 3. Bend authoring
 
-The G9 bundle (tasks #261–#264). Rulings first, then the verb.
+**CLOSED 2026-09-28 on the user's sighting** ("bend editing has landed and actually looks quite
+clean"). The G9 bundle (tasks #261–#264), item by item:
 
-- **Bend display anchor** — name the constant, sight, sign (`highway-note-art-state.md`, Open
-  decision 1; one coupling flagged there: `highwayDrawnNoteY`'s saturation guard).
-- **The keyframe ruling bundle** (task #262), signed in one pass with the anchor since both decide
-  drawn bend geometry. No other document enumerates the eight, so they are listed here: (1) the trim
-  floor's value (the floor itself is gone with the ring-ends plan; `g_minimum_slide_window` now
-  lives in the editor's `pick_slide_defaults.h`); (2) the
-  coincident-onset vibrato overwrite; (3) the importer's vibrato-anchor wording (2 and 3 may be
-  overtaken by per-leg vibrato, `cfe83edc` / `21f96ed2`; re-verify before the session); (4) the
-  disconnect's split product — RULED 2026-09-25 struck, stored `Pick` (Phase 2), so this item is
-  closed; (5) W9-F; (6) W9-G; (7) legato-merged bend chains gain the onset chip; (8) a bend across a
-  junction gains its glow arrival.
-- **W9-F with W9-D's glyph** — how 2D says *pitched* versus *falls away*; 3D already dims an
-  unpitched run and 2D does not, so the surfaces diverge today. **W9-G** (does a mute restate at
-  each slide junction) rides the same session.
+- **Bend authoring itself** — `B` and `V`, BUILT 2026-09-27 and SIGHTED 2026-09-28. Bare `B` on a
+  covered slot plants a bend point, on a selection states each anchor, `Alt+B` the ring twin, with
+  a quarter-step picker (`keymap-matrix.md` `B` rows). Bare `V` / `Shift+V` on a covered slot
+  plants a fret-less point carrying the width of the leg it begins, refused on a travel leg; no
+  `Alt` twin, since a ring's exact end has no leg to vibrate.
+- **Both deferred sightings SIGNED 2026-09-28**: the end bend abutting a same-string head
+  (`ring-ends-and-authoring-planes.md` phase 1b) and the chord bend direction shipped by
+  `ea2e5156`.
+- **The end bend at a shared instant** — the one defect the sighting found. The ending ring's
+  chips used to drop below the envelope at an instant a same-string head owns, which put them in
+  the band above the next string's head, onto that head's own pre-bend chip. They now keep their
+  ordinary height and end short of the head's square (`endChipRightLimit`, `423e2bf9`). The user
+  also asked whether a head and a ring ending on it at one instant should be forced to agree on a
+  bend value; RULED NO — a bend peaking as the next note is struck unbent is real playing, and
+  Guitar Pro writes it routinely. Whether to DROP the end chip where the head's own bend repeats
+  its value is unruled (the user is unsure) and waits as a watch item.
+- **W9-F** — RESOLVED: the slide-out rework made it stale. Unpitched travel exists only as the
+  slide-out terminal, which 2D marks with its fret chip and no head, while a pitched stop wears a
+  linked head. **W9-G** — RULED 2026-09-28: the mute X is the ATTACK's mark and stays on the
+  onset only (`technique-review-walkthrough.md`).
 - ~~**A keyframe that states no fret draws nothing** (W13)~~ — RESOLVED 2026-09-27: a fret-less
   keyframe inherits the fret in force (storage always did; the view dropped it), every keyframe is
   published and reachable with the mark of what it states, and no vibrato change may stand
-  mid-slide (`technique-review-walkthrough.md` W13). It was: no pointer reached a bend-only
-  keyframe because `KeyframeViewState::fret` was non-optional. This had to be answered before bends could be
-  authored on the keyframe substrate.
-- **Bend segment display in 3D** — per-string, not per-slot; built once and reverted
+  mid-slide (`technique-review-walkthrough.md` W13).
+- **Keyframe bundle items (7) and (8)** — legato-merged bend chains gaining the onset chip, and a
+  bend across a junction gaining its glow arrival — closed on the same sighting ("things are
+  sighting pretty well in general"). Item (4), the disconnect's split product, was RULED
+  2026-09-25 (struck, stored `Pick`).
+- **Moved to `docs/tracking/watch-items.md`** (2026-09-28, the user: the current graphics display
+  bends well): the bend display anchor (`highway-note-art-state.md`, Open decision 1), the 2D
+  look-and-feel study (`docs/plans/todo/bend-display-study.md`, with the parked
+  `2d-bend-waypoint-redesign.md`), and the per-string bend segment display in 3D
   (`docs/plans/completed/fret-hit-light-effect.md`, open decision 4).
-- **Bend authoring itself** — the `B` verb at the armed caret on a covered slot (plan 40 Phase 7),
-  and `V` for a vibrato keyframe by the same grammar. `B` BUILT 2026-09-27, unsighted (bare `B` on
-  a covered slot plants a bend point, on a selection states each anchor, `Alt+B` the ring twin; a
-  quarter-step picker; `keymap-matrix.md` `B` rows). `V` BUILT 2026-09-27, unsighted: bare `V` /
-  `Shift+V` on a covered slot plants a fret-less point carrying the width of the leg it begins,
-  refused on a travel leg; no `Alt` twin, since a ring's exact end has no leg to vibrate.
-- **Two sightings wait on it**, both deferred 2026-09-24 until bends are authorable: an end bend
-  abutting a same-string head (`ring-ends-and-authoring-planes.md` phase 1b), and the chord bend
-  direction shipped by `ea2e5156` — confirm the vote's side against the G+D and G+D+A examples
-  the 2026-08-15 ruling named, and whether a group-wide direction ever pushes a low-string member
-  into `highwayDrawnNoteY`'s board-edge clamp.
+- **Carried, not blocking bends**: keyframe bundle items (1) the trim floor's value (the floor is
+  gone with the ring-ends plan; `g_minimum_slide_window` lives in the editor's
+  `pick_slide_defaults.h`), (2) the coincident-onset vibrato overwrite and (3) the importer's
+  vibrato-anchor wording — 2 and 3 may be overtaken by per-leg vibrato (`cfe83edc` / `21f96ed2`);
+  re-verify before ruling. All three stay listed as open sign-offs in
+  `docs/plans/todo/unified-waypoint-model.md`.
 
 Exit: bends can be created, adjusted, displayed and saved with the same confidence as slides.
 
@@ -310,8 +317,8 @@ Exit: a full song can be charted and revised without repeated one-object reconst
   (`docs/plans/completed/note-emphasis-axis.md` item 7), so its output must be fixed or retired
   first, or the row's "re-import" advice is untrue on that path.
 - Sighting passes: keyboard rows, marker rows (task #298 the marker grammar end to end; #301
-  P10's feel questions and #270's remainder were signed 2026-09-24), hand markers, bends, New
-  Chart, the loop region, and the keybind dialog's in-action review (plan 46 Phase 3, by D3).
+  P10's feel questions and #270's remainder were signed 2026-09-24), hand markers, ~~bends~~
+  (sighted 2026-09-28, Phase 3), New Chart, the loop region, and the keybind dialog's in-action review (plan 46 Phase 3, by D3).
 - User documentation for the authoring workflow. `editing-interaction-model.md` defers the
   user-facing keybind docs "while the grammar is still being tuned" — this is where that ends.
 - Doc consolidation: `keymap-matrix.md` dissolves into `editing-interaction-model.md` when plan 53
@@ -497,11 +504,12 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    `ce0db3a2`), the derived shift slide (`3e5fceae`, `dc20b003`), the ring-ends plan's two phases
    and its alongside gate (`da74d79b`..`5d0cb384`, `df5ef1ab`), per-leg vibrato (`cfe83edc`), the
    span-law fixes (`902da3de`, `9d095609`, `25640d82`), the pick-slide turnarounds (`eb5aaa3c`).
-   Ring-ends phases 1 and 2 were sighted and signed 2026-09-24 (one 1b item waits on bends).
+   Ring-ends phases 1 and 2 were sighted and signed 2026-09-24; the 1b item that waited on bends
+   was signed 2026-09-28.
 3. **Current.** Land the ungated work while gates are signed: the refusal flash
    (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
    signed before Phase 2's verbs are wired — both RULED 2026-09-25: #277 (a tap at a claimed
    stop is legal; the derivation split is a Phase 2 build) and the split product (struck, built).
 4. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own
-   sighting (G43 is narrowed to Q6 by D1), then the bend bundle, then G60-RULINGS (carrying #4,
+   sighting (G43 is narrowed to Q6 by D1), the bend bundle closed 2026-09-28, then G60-RULINGS (carrying #4,
    #59 and the authored-span extend law) and G52-RANGE-EDIT.

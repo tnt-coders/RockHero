@@ -1,6 +1,8 @@
 # 2D Bend Display Study — how bend and bar keyframes draw in a 15 px lane
 
-Status: **PROPOSED 2026-08-26, whammy scope RULED 2026-08-26 (see below).** This is the study
+Status: **TABLED 2026-09-28 as a watch item** (`docs/tracking/watch-items.md`, "The 2D bend
+look-and-feel study was never run"): bend authoring shipped and the user judged the current
+graphics to display bends well. PROPOSED 2026-08-26, whammy scope RULED 2026-08-26 (see below). This is the study
 record assembled for a user ruling: the constraint arithmetic, the precedent survey, the
 candidate trail with its kills, one recommended display language with its traded-away constraints
 named, the whammy forward-compatibility statement, the `B` verb, the 3D-parity obligation, and
