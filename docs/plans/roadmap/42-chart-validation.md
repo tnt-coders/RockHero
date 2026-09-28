@@ -282,7 +282,6 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   | Token | Rule | Default |
   |---|---|---|
   | `sustain_overlap` | same-string sustain strictly past next onset (endpoint == onset is legal adjacency) | Warning (Q1) |
-  | `open_string_bend` | bend payload on fret 0 | Warning |
   | `slide_to_open` | slide keyframe targeting fret 0 | Warning |
   | `impossible_span` | fretted-span width over threshold: simultaneous notes at one onset, chord-template posture, or FHP width | Warning |
   | `unused_template` | chord template never referenced by any shape | Info |

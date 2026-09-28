@@ -125,9 +125,8 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     onset, or any point on the tail — read through `ringStateAt`, like every other coverage
     source. A special mark for the behind-the-nut bend itself was considered and deferred; FHP 1
     is the clean first step, and it asserts only what the chart proves (the hand is at the nut).
-    *Related:* `docs/plans/roadmap/42-chart-validation.md` lists `open_string_bend` as a Warning.
-    That lint now flags a legitimate technique, so re-judge its severity (or drop it) when plan 42
-    is executed.
+    The behind-the-nut bend is a supported technique (`technique-compatibility-and-hardening.md`
+    E28), so plan 42's `open_string_bend` lint was withdrawn.
 
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 
