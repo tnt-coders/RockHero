@@ -366,20 +366,37 @@ from motion timing. The balance is DERIVED since 2026-09-28: the height holds th
 at a 12-fret span). That needs a fresh sighting against the footage before this half is judged.
 
 **The user raised the lateness directly on 2026-09-28** (*"should also probably shift slightly
-earlier between positions than it does"*); analysed the same day, no defect found. The frame covers
-the current zone and the next, so a new position enters it a full zone early (about 4 s at 120 bpm
-in 4/4). For a move from A to B at a zone boundary, the frame widens to A plus B one zone early. It
-tightens and centers on B only when A's zone ends, which is the moment of the move. The smoother
-then starts from rest: halfway in about 2.0 s, 90% in about 4.1 s. So the camera settles on B
-2-4 s after the hand is already there; B was always in view, just not centered. This is
-inherent, not a defect: centering on B means letting A go, and A must stay framed until the hand
-leaves it. **A lead buys nothing for it:** the target always includes the hand window active at
-`now`, so shifting the zone schedule T seconds early still tightens onto B only at the move (when
-the active window changes). It only widens toward what is coming even earlier, and can drop A's
-notes outside the hand window (taps, scrapes, nodes) early. The faster rate is the only remedy for
-the settle: at 1.6-2.0 the camera gets halfway in about 1.3-1.7 s. First confirm it is the camera and not the hand
-WINDOW's own move that reads late; that one is the FHP window motion
-(`docs/plans/completed/fhp-window-motion-plan.md`).
+earlier between positions than it does"*). Analysed and sighted the same day; the original camera
+stands, and the item stays open because *"SOMETHING still looks off with this and I can't quite
+pinpoint exactly what it is yet."*
+
+What the code does: the pan and the zoom share ONE target, the hull of the current and next zone.
+For a move from A to B at a zone boundary, the frame widens to A plus B one zone early (about 4 s
+at 120 bpm in 4/4), so the pan sits halfway between them for that whole zone. It centers on B only
+when A's zone ends, which is the moment of the move. The smoother then starts from rest: halfway in
+about 2.0 s, 90% in about 4.1 s. So the camera settles on B 2-4 s after the hand is already there.
+That is NOT forced by framing: the visible board at the hit line is about 13-14 frets wide at the
+reference span (about +-7.5 world units at 16:9), far wider than a typical move, so the pan could
+lean toward B early with A still on screen. The camera research describes the zoom as
+structure-scoped and the pan as separately following the hand, and ours couples the two.
+
+Three pan variants were built and sighted against it (zoom unchanged in each):
+
+1. **The pan chases the hand window active one half-settle ahead** (about 2 s). REJECTED: the
+   screen reads as *"continuously being forcefully PULLED left and right"*. That is the July
+   rolling-window verdict again: a target that changes at every hand move never lets the smoother
+   rest. Whatever fixes the timing must keep the target changing only at zone boundaries.
+2. **The pan aims at the next zone alone** (the hand window active as it begins plus everything
+   in it), still stepping only at boundaries. Calm, but *"SLIGHTLY too early"*.
+3. **Halfway between the union's middle and the next zone's middle.** Read *"about the same good"*
+   as the original, so the original was kept.
+
+The sightings found no clear winner on timing, so the unnamed "off" may not be timing at all.
+Untried: a faster `focus_spring_per_second` (at 1.6-2.0 the camera gets halfway in about 1.3-1.7 s),
+and the zoom-axis "more vertical" question above. Variant 3 is a small change inside
+`makeHighwayCameraTarget`: scan the next zone into its own range and `std::lerp` the two world
+middles by a lead weight. First confirm it is the camera and not the hand WINDOW's own move that
+reads off; that one is the FHP window motion (`docs/plans/completed/fhp-window-motion-plan.md`).
 
 ## Guitar Pro import
 
