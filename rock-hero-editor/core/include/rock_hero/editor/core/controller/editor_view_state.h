@@ -835,7 +835,7 @@ struct ChartBendAmountChoice
 };
 
 /*!
-\brief The "No bend point" row of the bend picker: choosing it takes the bend statement away from
+\brief The "No bend" row of the bend picker: choosing it takes the bend statement away from
 every point the question names, leaving whatever else each point states.
 
 Offered only where a named point states a bend, since an onset's bend is always stated — its rest
@@ -845,28 +845,26 @@ struct ChartBendClearChoice
 {
 };
 
-/*! \brief One row of the bend picker: an amount to state, or no bend point at all. */
+/*! \brief One row of the bend picker: an amount to state, or no bend at all. */
 using ChartBendChoice = std::variant<ChartBendAmountChoice, ChartBendClearChoice>;
 
 /*!
-\brief The bend picker the controller asks the view to show: where its question is asked, the
-rows, and which row Return takes.
+\brief The bend picker the controller asks the view to show: where its question is asked, and the
+rows.
 
 The anchor is an INSTANT on a string rather than a note, because the question may be about a point
 along a ring that does not exist yet — a bare `B` on a covered slot plants one — and the view
 anchors the popup on the lane there. The amounts ascend from rest; the clear, when offered, is
-FIRST.
+FIRST. The first row opens selected, so Return takes the clear where it is offered and rest
+elsewhere: the answer that changes the least.
 */
 struct ChartBendPicker
 {
     /*! \brief The instant and string the question is asked at: where the popup anchors. */
     ChartSlotViewState anchor{};
 
-    /*! \brief The rows to offer, in the order to show them. */
+    /*! \brief The rows to offer, in the order to show them; the first opens selected. */
     std::vector<ChartBendChoice> choices{};
-
-    /*! \brief Index into `choices` of the row that opens selected, so Return takes it. */
-    std::size_t preselected{};
 };
 
 /*!

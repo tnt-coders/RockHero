@@ -3559,16 +3559,12 @@ namespace
 constexpr long g_bend_picker_top_row = static_cast<long>(
     common::core::g_bend_ceiling_semitones / common::core::g_bend_quarter_step_semitones);
 
-// The row a bend press most often means where nothing is stated yet: a whole step.
-constexpr long g_bend_picker_whole_step_row = 4;
-
 } // namespace
 
 // The bend verb's QUESTION (`B`, `Alt+B`): which anchors the key addresses (chartModifierAnchors),
 // and what amount they should state, asked through the picker; nothing is committed until the
 // answer returns through SetChartBend. Every amount is offered, ticked where every anchor already
-// states it, and the picker opens on that stated amount — or on a whole step at rest or where
-// nothing uniform is stated. The clear is offered only where a point states a bend to take away.
+// states it; the clear leads, offered only where a point states a bend to take away.
 void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartBend& action)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3612,22 +3608,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartBe
             ? stated.front()
             : std::nullopt;
 
-    // Opened on the amount stated — its nearest row, clamped onto the grid, so an amount off it
-    // still opens beside itself — and at rest or where nothing uniform is stated on a whole step,
-    // so Return never writes what already stands.
-    const long opening =
-        uniform.has_value() && std::is_gt(*uniform <=> 0.0)
-            ? std::clamp(
-                  std::lround(*uniform / common::core::g_bend_quarter_step_semitones),
-                  1L,
-                  g_bend_picker_top_row)
-            : g_bend_picker_whole_step_row;
     ChartBendPicker picker{
         .anchor = chartSlotViewState(
             session().song().tempo_map,
             chartCaretSlotFor(session().song().tempo_map, anchors.keys().front())),
         .choices = {},
-        .preselected = static_cast<std::size_t>(opening) + (clear_offered ? 1U : 0U),
     };
     if (clear_offered)
     {

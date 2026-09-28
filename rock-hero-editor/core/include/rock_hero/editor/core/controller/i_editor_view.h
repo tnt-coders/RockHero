@@ -78,18 +78,16 @@ public:
 
     /*!
     \brief Asks the view to offer the bend picker: the amounts from rest to three whole steps in
-    quarter steps, the stated one ticked, led by a "No bend point" row where a named point states a
-    bend.
+    quarter steps, the stated one ticked, led by a "No bend" row where a named point states a bend.
 
     A one-shot request like the harmonic picker, for the same reason: `B` reaches it after the
     settle prologue, so the question always describes the chart the answer will land on, and with no
     view attached it is dropped. The view presents the rows as a popup at the anchor's instant on
-    its string with the named row preselected (\ref ChartBendPicker::preselected), and returns the
-    chosen row's answer — an amount, or none for the clear row — through
+    its string with the first row preselected (\ref ChartBendPicker), and returns the chosen row's
+    answer — an amount, or none for the clear row — through
     \ref IEditorController::onChartBendChosen; dismissing chooses nothing and changes nothing.
 
-    \param picker Where the question is asked, the rows in the order to show them, and which opens
-    selected.
+    \param picker Where the question is asked, and the rows in the order to show them.
     */
     virtual void showChartBendPicker(ChartBendPicker picker) = 0;
 

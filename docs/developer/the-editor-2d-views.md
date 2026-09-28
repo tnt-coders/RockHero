@@ -411,12 +411,12 @@ Four consequences worth knowing before touching this:
   (`ChooseChartBend`) commits nothing and HOLDS those anchors (`m_chart_bend_question`), because
   nothing may be selected at a planted point's instant yet; the answer (`SetChartBend`,
   `planSetBend`) writes them in one entry and hands them to `applyChartEditPlan` as the selection,
-  so a planted point wears its ring. The payload is
-  `ChartBendPicker{anchor, choices, preselected}` — the anchor an INSTANT on a string, laid out by
-  `TabView::slotHeadBounds` — the rows every amount from rest to three whole steps in quarter
-  steps, spelled by the lane's own chip authority (`tabBendAmountText`), the stated amount ticked,
-  a "No bend point" row first where a named point states a bend. It opens on the stated amount,
-  or on a whole step at rest, so `Return` never writes what already stands.
+  so a planted point wears its ring. The payload is `ChartBendPicker{anchor, choices}` — the
+  anchor an INSTANT on a string, laid out by `TabView::slotHeadBounds` — the rows every amount
+  from rest to three whole steps in quarter steps, spelled by the lane's own chip authority
+  (`tabBendAmountText`), the stated amount ticked, a "No bend" row first where a named point
+  states a bend. It carries no preselected row because it always opens on its FIRST: `Return`
+  takes the clear where offered and rest elsewhere, the answer that changes least.
 - **`V` reaches the ring by the same operand, with no question and no ring twin.** The technique
   toggle reads `chartModifierAnchors` too, so bare `V` / `Shift+V` on a covered slot flips the
   width of the leg from that instant to the next keyframe, planting a fret-less point that wears

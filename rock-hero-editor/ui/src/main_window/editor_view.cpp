@@ -1433,18 +1433,18 @@ void EditorView::showChartBendPicker(core::ChartBendPicker picker)
         }
         else if (std::holds_alternative<core::ChartBendClearChoice>(picker.choices[index]))
         {
-            menu.addItem(item, "No bend point");
+            menu.addItem(item, "No bend");
             if (index + 1 < picker.choices.size())
             {
                 menu.addSeparator();
             }
         }
     }
-    const std::size_t preselected = picker.preselected;
+    // Return takes the first row: the clear where offered, else rest (ChartBendPicker).
     const std::optional<juce::Rectangle<float>> anchor = m_tab_view.slotHeadBounds(picker.anchor);
     showChartQuestion(
         std::move(menu),
-        preselected,
+        0,
         anchor,
         [this, owned_choices = std::move(picker.choices)](const std::size_t row) {
             if (row >= owned_choices.size())

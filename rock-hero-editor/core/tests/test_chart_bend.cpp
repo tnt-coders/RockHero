@@ -78,7 +78,7 @@ struct BendFixture
 
 // A BARE `B` ON A COVERED SLOT ASKS ABOUT THE RING THERE. A bend can create no note and split no
 // ring, so on a slot a ring covers the key has one meaning: a point on that ring. The question
-// names the instant, commits nothing, and opens on a whole step; the answer plants the point with
+// names the instant, commits nothing, and opens on rest; the answer plants the point with
 // the amount alone — no fret, so the glide it sits on is untouched — as one entry, and selects it.
 TEST_CASE("A bare bend on a covered slot plants a bend point on the ring", "[core][chart]")
 {
@@ -93,13 +93,14 @@ TEST_CASE("A bare bend on a covered slot plants a bend point on the ring", "[cor
     {
         CHECK_THAT(picker->anchor.seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
         CHECK(picker->anchor.string == 3);
-        // Nothing stated there yet: every amount, no clear, and Return takes a whole step.
+        // Nothing stated there yet: every amount and no clear, so Return takes the first row,
+        // rest.
         REQUIRE(picker->choices.size() == g_amount_rows);
-        const std::optional<double> opening = rowAmount(picker->choices[picker->preselected]);
+        const std::optional<double> opening = rowAmount(picker->choices.front());
         REQUIRE(opening.has_value());
         if (opening.has_value())
         {
-            CHECK_THAT(*opening, Catch::Matchers::WithinULP(2.0, 0));
+            CHECK_THAT(*opening, Catch::Matchers::WithinULP(0.0, 0));
         }
     }
     const common::core::Chart* chart = chartOrNull(fixture.controller);
@@ -134,6 +135,29 @@ TEST_CASE("A bare bend on a covered slot plants a bend point on the ring", "[cor
     CHECK(chart->notes[0].keyframes.size() == 1);
 }
 
+// Return on a bare ring takes rest, which the ring already holds: the point it plants says nothing,
+// so the answer leaves no entry, and the point is silent authoring state that dissolves once focus
+// leaves the note.
+TEST_CASE("Rest on a covered slot writes nothing", "[core][chart]")
+{
+    BendFixture fixture;
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    const common::core::Chart original = *chart;
+    click(fixture.controller, g_covered_x, g_string_3_y);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartBendRequested();
+    fixture.controller.onChartBendChosen(std::optional{0.0});
+    CHECK(fixture.undoEntries() == entries_before);
+
+    click(fixture.controller, g_empty_x, g_string_3_y);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(*chart == original);
+    CHECK(fixture.undoEntries() == entries_before);
+}
+
 // On an empty slot there is no ring and nothing to bend, so the key asks nothing.
 TEST_CASE("A bend on an empty slot is inert", "[core][chart]")
 {
@@ -144,8 +168,7 @@ TEST_CASE("A bend on an empty slot is inert", "[core][chart]")
 }
 
 // A SELECTED HEAD'S ANCHOR IS ITS ONSET, whose value is the pre-bend: the question ticks the rest
-// it states and still opens on a whole step, so Return never writes what already stands, and the
-// answer states the pre-bend.
+// it states, and the answer states the pre-bend.
 TEST_CASE("A bend on a selected head states its pre-bend", "[core][chart]")
 {
     BendFixture fixture;
@@ -163,7 +186,6 @@ TEST_CASE("A bend on a selected head states its pre-bend", "[core][chart]")
         {
             CHECK(rest->current);
         }
-        CHECK(picker->preselected == 4);
     }
 
     fixture.controller.onChartBendChosen(std::optional{3.0});
@@ -172,8 +194,8 @@ TEST_CASE("A bend on a selected head states its pre-bend", "[core][chart]")
     CHECK_THAT(chart->notes[0].bend, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// A POINT STATING A BEND can have the statement taken away, so its question leads with the clear,
-// opens on the amount it states, and the clear leaves the point's other channels alone.
+// A POINT STATING A BEND can have the statement taken away, so its question leads with the clear —
+// the row Return takes — and the clear leaves the point's other channels alone.
 TEST_CASE("A bend point's question offers the clear", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
@@ -189,11 +211,17 @@ TEST_CASE("A bend point's question offers the clear", "[core][chart]")
     {
         REQUIRE(picker->choices.size() == g_amount_rows + 1);
         CHECK(std::holds_alternative<ChartBendClearChoice>(picker->choices.front()));
-        const std::optional<double> opening = rowAmount(picker->choices[picker->preselected]);
-        REQUIRE(opening.has_value());
-        if (opening.has_value())
+        const std::optional<double> stated = rowAmount(picker->choices[3]);
+        REQUIRE(stated.has_value());
+        if (stated.has_value())
         {
-            CHECK_THAT(*opening, Catch::Matchers::WithinULP(1.0, 0));
+            CHECK_THAT(*stated, Catch::Matchers::WithinULP(1.0, 0));
+        }
+        const auto* const ticked = std::get_if<ChartBendAmountChoice>(&picker->choices[3]);
+        REQUIRE(ticked != nullptr);
+        if (ticked != nullptr)
+        {
+            CHECK(ticked->current);
         }
     }
 
