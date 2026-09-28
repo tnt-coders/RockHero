@@ -421,6 +421,18 @@ enum class EditorCommandId : std::uint16_t
     InsertRingPoint = 0x171C,
 
     /*!
+    \brief Ask for a bend amount (`B`): at the selected heads and points, else on the ring at the
+    chart caret — a point there, or one the answer plants.
+    */
+    ChartBend = 0x171D,
+
+    /*!
+    \brief The ring plane of \ref EditorCommandId::ChartBend (`Alt+B`): the ring at the caret's
+    instant, which differs from the bare key only where a ring ends on the selected head.
+    */
+    ChartRingBend = 0x171E,
+
+    /*!
     \brief Type digit 0 into the armed row's payload (`0`, numpad `0`).
 
     Every object on the chart lane is typed, and the digits are how. A digit says "a note here":

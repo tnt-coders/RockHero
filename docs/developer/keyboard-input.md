@@ -314,7 +314,7 @@ one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCare
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `InsertRingPoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`ChooseChartHarmonic`, `SetChartHarmonicNode`, `SetChartLeftTap`,
+`ChooseChartHarmonic`, `SetChartHarmonicNode`, `ChooseChartBend`, `SetChartBend`, `SetChartLeftTap`,
 `ToggleChartJunction`) — so
 path (b) is path (a) with
 a different trigger: the availability policy

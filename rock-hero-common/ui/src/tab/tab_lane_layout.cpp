@@ -130,12 +130,12 @@ TailInterior tailInterior(const TabLaneGeometry& geometry, const float center_y)
 float bendCurveY(
     const TabLaneGeometry& geometry, const float center_y, const double semitones) noexcept
 {
-    constexpr double ceiling_semitones = 6.0;
+    constexpr double ceiling = common::core::g_bend_ceiling_semitones;
     const TailInterior interior = tailInterior(geometry, center_y);
     const float rest_y = interior.bottom - g_technique_line_thickness / 2.0f;
     const float full_y = interior.top + g_technique_line_thickness / 2.0f;
-    const double share = common::core::bendTravel(std::clamp(semitones, 0.0, ceiling_semitones)) /
-                         common::core::bendTravel(ceiling_semitones);
+    const double share = common::core::bendTravel(std::clamp(semitones, 0.0, ceiling)) /
+                         common::core::bendTravel(ceiling);
     return rest_y - static_cast<float>(share) * (rest_y - full_y);
 }
 

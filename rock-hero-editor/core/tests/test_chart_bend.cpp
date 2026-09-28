@@ -1,0 +1,260 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
+#include <optional>
+#include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/editor/core/testing/chart_editing_fixture.h>
+#include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <utility>
+#include <variant>
+#include <vector>
+
+namespace rock_hero::editor::core
+{
+
+namespace
+{
+
+// The glide chart's lane at 20 px per second: its onset (2.0s), a covered slot two beats in (3.0s,
+// on the travel toward the junction), the junction (4.0s), the ring's end (6.0s), and an empty slot
+// past it (8.0s), all on string 3.
+constexpr float g_onset_x{40.0f};
+constexpr float g_covered_x{60.0f};
+constexpr float g_ring_end_x{120.0f};
+constexpr float g_empty_x{160.0f};
+constexpr float g_string_3_y{140.0f};
+
+// Rest to three whole steps in quarter steps: thirteen amounts.
+constexpr std::size_t g_amount_rows{13};
+
+struct BendFixture
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+
+    explicit BendFixture(common::core::Chart chart = makeGlideChart())
+    {
+        controller.attachView(view);
+        // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time, and
+        // the never-run mention reads a moved-from operand that CI's use-after-move check sees.
+        const bool loaded =
+            loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+        REQUIRE(loaded);
+    }
+
+    // The LAST question the view was handed, or nothing when no press asked one.
+    [[nodiscard]] std::optional<ChartBendPicker> lastPicker() const
+    {
+        return view.shown_bend_pickers.empty()
+                   ? std::nullopt
+                   : std::optional<ChartBendPicker>{view.shown_bend_pickers.back()};
+    }
+
+    [[nodiscard]] std::size_t undoEntries() const
+    {
+        const EditorViewState* const state = stateOrNull(view.last_state);
+        return state == nullptr ? 0 : state->undo_history.labels.size();
+    }
+};
+
+// The amount a row states, or nothing for the clear row.
+[[nodiscard]] std::optional<double> rowAmount(const ChartBendChoice& choice)
+{
+    const auto* const amount = std::get_if<ChartBendAmountChoice>(&choice);
+    return amount != nullptr ? std::optional<double>{amount->semitones} : std::nullopt;
+}
+
+} // namespace
+
+// A BARE `B` ON A COVERED SLOT ASKS ABOUT THE RING THERE. A bend can create no note and split no
+// ring, so on a slot a ring covers the key has one meaning: a point on that ring. The question
+// names the instant, commits nothing, and opens on a whole step; the answer plants the point with
+// the amount alone — no fret, so the glide it sits on is untouched — as one entry, and selects it.
+TEST_CASE("A bare bend on a covered slot plants a bend point on the ring", "[core][chart]")
+{
+    BendFixture fixture;
+    click(fixture.controller, g_covered_x, g_string_3_y);
+    const std::size_t entries_before = fixture.undoEntries();
+
+    fixture.controller.onChartBendRequested();
+    const std::optional<ChartBendPicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        CHECK_THAT(picker->anchor.seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        CHECK(picker->anchor.string == 3);
+        // Nothing stated there yet: every amount, no clear, and Return takes a whole step.
+        REQUIRE(picker->choices.size() == g_amount_rows);
+        const std::optional<double> opening = rowAmount(picker->choices[picker->preselected]);
+        REQUIRE(opening.has_value());
+        if (opening.has_value())
+        {
+            CHECK_THAT(*opening, Catch::Matchers::WithinULP(2.0, 0));
+        }
+    }
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].keyframes.size() == 1);
+    CHECK(fixture.undoEntries() == entries_before);
+
+    fixture.controller.onChartBendChosen(std::optional{1.0});
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes[0].keyframes.size() == 2);
+    const common::core::Keyframe& point = chart->notes[0].keyframes[0];
+    CHECK(point.offset == common::core::Fraction{2});
+    CHECK_FALSE(point.fret.has_value());
+    const std::optional<double>& bend = point.bend;
+    REQUIRE(bend.has_value());
+    if (bend.has_value())
+    {
+        CHECK_THAT(*bend, Catch::Matchers::WithinULP(1.0, 0));
+    }
+    CHECK(fixture.undoEntries() == entries_before + 1);
+    // The planted point is the selection, so it wears its ring and the keys act on it next.
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(
+        state->chart_edit.selected_keyframes ==
+        std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}});
+
+    fixture.controller.onUndoRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->notes[0].keyframes.size() == 1);
+}
+
+// On an empty slot there is no ring and nothing to bend, so the key asks nothing.
+TEST_CASE("A bend on an empty slot is inert", "[core][chart]")
+{
+    BendFixture fixture;
+    click(fixture.controller, g_empty_x, g_string_3_y);
+    fixture.controller.onChartBendRequested();
+    CHECK(fixture.view.shown_bend_pickers.empty());
+}
+
+// A SELECTED HEAD'S ANCHOR IS ITS ONSET, whose value is the pre-bend: the question ticks the rest
+// it states and still opens on a whole step, so Return never writes what already stands, and the
+// answer states the pre-bend.
+TEST_CASE("A bend on a selected head states its pre-bend", "[core][chart]")
+{
+    BendFixture fixture;
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onChartBendRequested();
+    const std::optional<ChartBendPicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        CHECK_THAT(picker->anchor.seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        REQUIRE(picker->choices.size() == g_amount_rows);
+        const auto* const rest = std::get_if<ChartBendAmountChoice>(&picker->choices.front());
+        REQUIRE(rest != nullptr);
+        if (rest != nullptr)
+        {
+            CHECK(rest->current);
+        }
+        CHECK(picker->preselected == 4);
+    }
+
+    fixture.controller.onChartBendChosen(std::optional{3.0});
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK_THAT(chart->notes[0].bend, Catch::Matchers::WithinULP(3.0, 0));
+}
+
+// A POINT STATING A BEND can have the statement taken away, so its question leads with the clear,
+// opens on the amount it states, and the clear leaves the point's other channels alone.
+TEST_CASE("A bend point's question offers the clear", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].bend = 1.0;
+    BendFixture fixture{std::move(chart)};
+    // The junction carries the bend beside its fret; the caret walks onto it and selects it.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onRowObjectStepRequested(true, false);
+    fixture.controller.onChartBendRequested();
+    const std::optional<ChartBendPicker> picker = fixture.lastPicker();
+    REQUIRE(picker.has_value());
+    if (picker.has_value())
+    {
+        REQUIRE(picker->choices.size() == g_amount_rows + 1);
+        CHECK(std::holds_alternative<ChartBendClearChoice>(picker->choices.front()));
+        const std::optional<double> opening = rowAmount(picker->choices[picker->preselected]);
+        REQUIRE(opening.has_value());
+        if (opening.has_value())
+        {
+            CHECK_THAT(*opening, Catch::Matchers::WithinULP(1.0, 0));
+        }
+    }
+
+    fixture.controller.onChartBendChosen(std::nullopt);
+    const common::core::Chart* const edited = chartOrNull(fixture.controller);
+    REQUIRE(edited != nullptr);
+    REQUIRE(edited->notes[0].keyframes.size() == 1);
+    CHECK_FALSE(edited->notes[0].keyframes[0].bend.has_value());
+    CHECK(edited->notes[0].keyframes[0].fret == 9);
+}
+
+// THE TWO PLANES PART ONLY WHERE TWO ANCHORS COLLIDE: a ring's end on which the next head of its
+// string is struck. With that head selected under the caret, the bare key bends the head and `Alt`
+// bends the ring that ends there — its final value, at the end.
+TEST_CASE("Alt bend reaches the ring ending on the selected head", "[core][chart]")
+{
+    SECTION("the ring plane states the ending ring's final bend")
+    {
+        BendFixture fixture{makeAbuttingStringChart(false)};
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onChartRingBendRequested();
+        REQUIRE(fixture.lastPicker().has_value());
+        fixture.controller.onChartBendChosen(std::optional{1.0});
+        const common::core::Chart* const chart = chartOrNull(fixture.controller);
+        REQUIRE(chart != nullptr);
+        REQUIRE(chart->notes.size() == 2);
+        const common::core::Keyframe& end = chart->notes[0].keyframes.back();
+        CHECK(end.offset == chart->notes[0].sustain);
+        CHECK(end.bend.has_value());
+        CHECK_THAT(chart->notes[1].bend, Catch::Matchers::WithinULP(0.0, 0));
+    }
+    SECTION("the bare key states the head's pre-bend")
+    {
+        BendFixture fixture{makeAbuttingStringChart(false)};
+        click(fixture.controller, g_ring_end_x, g_string_3_y);
+        fixture.controller.onChartBendRequested();
+        fixture.controller.onChartBendChosen(std::optional{1.0});
+        const common::core::Chart* const chart = chartOrNull(fixture.controller);
+        REQUIRE(chart != nullptr);
+        REQUIRE(chart->notes.size() == 2);
+        CHECK_THAT(chart->notes[1].bend, Catch::Matchers::WithinULP(1.0, 0));
+        CHECK(chart->notes[0].keyframes.size() == 1);
+    }
+}
+
+// The rules gate the answer as they gate every write: a dead note sounds no pitch to bend, so the
+// answer changes nothing and records no entry.
+TEST_CASE("A bend answer the rules refuse changes nothing", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes.clear();
+    chart.notes[0].dead = true;
+    BendFixture fixture{std::move(chart)};
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    const std::size_t entries_before = fixture.undoEntries();
+    fixture.controller.onChartBendRequested();
+    fixture.controller.onChartBendChosen(std::optional{2.0});
+    const common::core::Chart* const edited = chartOrNull(fixture.controller);
+    REQUIRE(edited != nullptr);
+    CHECK_THAT(edited->notes[0].bend, Catch::Matchers::WithinULP(0.0, 0));
+    CHECK(fixture.undoEntries() == entries_before);
+}
+
+} // namespace rock_hero::editor::core

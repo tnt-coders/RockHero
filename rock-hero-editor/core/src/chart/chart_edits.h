@@ -1345,6 +1345,32 @@ meanwhile, which is what a second press inside the verb window reverses through.
     common::core::VibratoState set, std::string_view label);
 
 /*!
+\brief Plans the bend verb's write: one amount at every anchor it names, or the statement taken
+away.
+
+A NOTE's anchor is its onset, whose value is the pre-bend (\ref common::core::ChartNote::bend) and
+always stated, so only an amount writes it and taking the statement away leaves it be. A KEYFRAME
+key names an instant along its note's ring, and the point need not stand there yet: stating a bend
+where the ring has none plants one (\ref common::core::keyframeAt), carrying the leg's width, which
+is how a bend is authored mid-ring or at the ring's end. Taking the statement away leaves whatever
+else the point states, and a point left saying nothing is the commit law's to sweep; a key naming
+no point writes nothing then.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param note_keys Notes whose onset bend changes, sorted ascending (the ChartSelection order).
+\param keyframe_keys Instants whose bend changes, sorted ascending, same precondition.
+\param semitones Amount written at every anchor; absent takes the points' statements away.
+\param label User-visible undo label.
+\return The plan; NoChange when nothing changes, Invalid when the gate refuses the result (a bend
+        on a dead note or a fret-hand harmonic, or an instant outside the ring).
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
+    std::optional<double> semitones, std::string_view label);
+
+/*!
 \brief The law one technique's toggle verb runs: what to call it, whether the selection already
 carries it, and the planner that writes or clears it.
 

@@ -308,6 +308,14 @@ namespace
         {
             return "SetChartHarmonicNode";
         }
+        case EditorAction::Id::ChooseChartBend:
+        {
+            return "ChooseChartBend";
+        }
+        case EditorAction::Id::SetChartBend:
+        {
+            return "SetChartBend";
+        }
         case EditorAction::Id::SetChartLeftTap:
         {
             return "SetChartLeftTap";
@@ -414,6 +422,8 @@ namespace
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::ChooseChartHarmonic:
             case EditorAction::Id::SetChartHarmonicNode:
+            case EditorAction::Id::ChooseChartBend:
+            case EditorAction::Id::SetChartBend:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
@@ -553,6 +563,8 @@ namespace
             return conditions.transport_playing ? "transport-playing" : "no-armed-caret";
         }
         case EditorAction::Id::TypeChartFretDigit:
+        case EditorAction::Id::ChooseChartBend:
+        case EditorAction::Id::SetChartBend:
         {
             return "no-chart";
         }
@@ -1141,6 +1153,21 @@ void EditorController::onChartTechniqueToggleRequested(const ChartTechnique tech
 void EditorController::onChartHarmonicRequested()
 {
     m_impl->runAction(EditorAction::ChooseChartHarmonic{});
+}
+
+void EditorController::onChartBendRequested()
+{
+    m_impl->runAction(EditorAction::ChooseChartBend{.plane = ChartEntryPlane::Note});
+}
+
+void EditorController::onChartRingBendRequested()
+{
+    m_impl->runAction(EditorAction::ChooseChartBend{.plane = ChartEntryPlane::Ring});
+}
+
+void EditorController::onChartBendChosen(const std::optional<double> semitones)
+{
+    m_impl->runAction(EditorAction::SetChartBend{.semitones = semitones});
 }
 
 void EditorController::onChartHarmonicNodeRequested(const std::optional<int> partial)
@@ -2602,17 +2629,6 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 namespace
 {
 
-// The view slot a chart slot draws at: its onset on the seconds axis, and its string lane. Spelled
-// once so every overlay that rides a slot — each beginning of the pending fret box among them —
-// maps it the same way the caret does.
-[[nodiscard]] ChartSlotViewState chartSlotViewState(
-    const common::core::TempoMap& tempo_map, const ChartSlotKey& slot)
-{
-    return ChartSlotViewState{
-        .seconds = caretTimeBounds(tempo_map, slot.position).seconds, .string = slot.string
-    };
-}
-
 // Builds the switcher entries for every arrangement of the loaded song, ordered Lead, Rhythm,
 // Bass regardless of how the song stores its arrangements. The Part enum already ranks the parts
 // in that order, and a stable sort keeps the original order within each part so duplicate
@@ -3215,6 +3231,15 @@ void EditorController::Impl::requestChartHarmonicNodePicker(ChartHarmonicNodePic
     if (m_view != nullptr)
     {
         m_view->showChartHarmonicNodePicker(std::move(picker));
+    }
+}
+
+// Asks the attached view for the bend picker, dropped like the harmonic question with no view.
+void EditorController::Impl::requestChartBendPicker(ChartBendPicker picker)
+{
+    if (m_view != nullptr)
+    {
+        m_view->showChartBendPicker(std::move(picker));
     }
 }
 

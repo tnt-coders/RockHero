@@ -254,6 +254,30 @@ void strokeTabNoteHeadOutline(
     float extent, float stroke_thickness);
 
 /*!
+\brief A bend amount in Charter's notation — whole steps with quarter fractions ("0", "1/2",
+"1 1/4", ...) — split into the whole steps and the vulgar-fraction glyph after them.
+
+THE one spelling of an amount, read by the lane's bend chips, which print the two parts in
+different fonts, and by a host's menus, which join them; so a row and the chip it produces read the
+same. An amount rounds to the nearest quarter step.
+*/
+struct TabBendAmountText
+{
+    /*! \brief The whole steps, with a trailing space where a fraction follows; "0" at rest. */
+    juce::String text;
+
+    /*! \brief The quarter-step glyph (1/4, 1/2 or 3/4), empty on a whole step. */
+    juce::String fraction;
+};
+
+/*!
+\brief Spells a bend amount in Charter's notation (\ref TabBendAmountText).
+\param semitones The amount, in semitones.
+\return The whole steps and the fraction glyph.
+*/
+[[nodiscard]] TabBendAmountText tabBendAmountText(double semitones);
+
+/*!
 \brief Redraws one keyframe's LINKED HEAD — the mark and its digit — over whatever is already there.
 
 THE SELECTED OBJECT DRAWS LAST: the lane paints in chart order, so an ARRIVAL at a head's own

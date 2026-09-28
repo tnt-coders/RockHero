@@ -155,6 +155,20 @@ reached — while this one function takes every caret path from the object back 
     const common::core::TempoMap& tempo_map, const ChartSelectionKey& key);
 
 /*!
+\brief The view slot a chart slot draws at: its onset on the seconds axis, and its string lane.
+
+Spelled once so everything that rides a slot — each beginning of the pending fret box, the bend
+picker's anchor — maps it the same way the caret does.
+
+\param tempo_map Tempo map the slot's position lies on.
+\param slot The chart slot.
+
+\return Where the slot draws.
+*/
+[[nodiscard]] ChartSlotViewState chartSlotViewState(
+    const common::core::TempoMap& tempo_map, const ChartSlotKey& slot);
+
+/*!
 \brief The slot one chart note occupies.
 \param note Note to key.
 \return The note's slot key.

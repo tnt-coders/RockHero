@@ -512,6 +512,12 @@ constexpr int g_add_lane_key = 'a';
     // every change the selection allows, writes the one when there is only one, and asks when
     // there are several. Hence the ellipsis in the label.
     add(EditorCommandId::ChartHarmonic, "Harmonic...", "Authoring", {chord('h')});
+    // `B` asks for an amount, hence the ellipsis. A bend can create no note and split no ring, so
+    // on a covered slot the bare key has one meaning — the ring — and needs no modifier to reach
+    // it; `Alt+B` is its ring-plane twin, which differs only where a ring ends on the selected
+    // head.
+    add(EditorCommandId::ChartBend, "Bend...", "Authoring", {chord('b')});
+    add(EditorCommandId::ChartRingBend, "Bend Ring...", "Authoring", {chord('b', alt)});
     add(EditorCommandId::ChartPinchHarmonicToggle,
         "Toggle Pinch Harmonic",
         "Authoring",

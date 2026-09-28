@@ -154,6 +154,9 @@ public:
     /*! \copydoc core::IEditorView::showChartHarmonicNodePicker */
     void showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picker) override;
 
+    /*! \copydoc core::IEditorView::showChartBendPicker */
+    void showChartBendPicker(core::ChartBendPicker picker) override;
+
     /*!
     \brief Runs a callback after the busy overlay paints.
     \param callback Callback to run after the overlay paint fence is crossed.
@@ -594,6 +597,14 @@ private:
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
     // window survives closes so its tree state is kept.
     void showActionsWindow();
+
+    // Shows one of the controller's chart questions — the harmonic and bend pickers — as a popup
+    // over the tab lane: `menu` holds the rows numbered from 1 in the order given, `preselected`
+    // is the row Return takes, and the popup sits on `anchor` where the lane can place it, on the
+    // lane itself otherwise. `answer` receives the chosen row's index; dismissing calls nothing.
+    void showChartQuestion(
+        juce::PopupMenu menu, std::size_t preselected, std::optional<juce::Rectangle<float>> anchor,
+        std::function<void(std::size_t)> answer);
 
     // Raises the chart lane's keybind-discovery menu at a lane-local position. The lane detects
     // the gesture; the menu is built here because its items are registered commands invoked

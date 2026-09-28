@@ -281,6 +281,10 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
+    // The bend verb is the digit's shape: the selection, else the ring at the armed caret, so it
+    // opens with the chart and the verb decides which; its answer writes what the question named.
+    CHECK(isActionAvailable(ActionId::ChooseChartBend, conditions));
+    CHECK(isActionAvailable(ActionId::SetChartBend, conditions));
     // The selection verbs wait for a chart selection.
     CHECK_FALSE(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AdjustChartSustain, conditions));
@@ -320,9 +324,12 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ChooseChartBend, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetChartBend, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ChooseChartHarmonic));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::ChooseChartBend));
 }
 
 // One rule for the whole marker plane: while the transport plays, no marker can be selected and no

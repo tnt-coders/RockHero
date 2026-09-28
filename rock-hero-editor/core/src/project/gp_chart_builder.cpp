@@ -415,22 +415,6 @@ struct BendCurvePoint
     double semitones{0.0};
 };
 
-// Finds or creates the keyframe at `offset`, keeping the array ascending. Every statement at one
-// instant shares ONE keyframe — that is the model's whole point — so a producer that would have
-// written a second entry beside an existing moment merges into it instead. A created keyframe
-// carries the width of the leg it divides (chart.h keyframeInLeg), so a bend point inside a
-// vibrated segment keeps the segment vibrating.
-[[nodiscard]] Keyframe& keyframeAt(ChartNote& note, const Fraction offset)
-{
-    const auto at =
-        std::ranges::lower_bound(note.keyframes, offset, std::ranges::less{}, &Keyframe::offset);
-    if (at != note.keyframes.end() && at->offset == offset)
-    {
-        return *at;
-    }
-    return *note.keyframes.insert(at, keyframeInLeg(note, offset));
-}
-
 // The offset of the last keyframe that states a bend, or zero — the onset, which always states
 // one — when none does. Where the note's bend channel currently ends, which is what a tie or
 // legato merge folds its own curve in strictly after.
@@ -513,8 +497,7 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const VibratoState v
     // a second voice's note at that very beat), and the LATER one's width is the leg's, exactly
     // as their shared keyframe's fret already takes the later value. Where no keyframe stands, a
     // width equal to the leg before it states nothing — that leg already covers the segment.
-    const bool standing =
-        std::ranges::find(note.keyframes, offset, &Keyframe::offset) != note.keyframes.end();
+    const bool standing = standingKeyframe(note, offset) != nullptr;
     if (standing || vibrato != vibratoBefore(note, offset))
     {
         keyframeAt(note, offset).vibrato = vibrato;

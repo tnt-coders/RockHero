@@ -292,6 +292,19 @@ public:
     [[nodiscard]] std::optional<juce::Rectangle<float>> noteHeadBounds(std::size_t index) const;
 
     /*!
+    \brief The head-sized square at one slot, in this component's coordinates.
+
+    The anchor for a popup about an instant rather than a note — the bend picker opens on the
+    point along a ring it asks about, which may not exist yet. Empty when the lane has no metrics
+    or the slot's string is not on it.
+
+    \param slot The instant and string.
+    \return The square's bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> slotHeadBounds(
+        const core::ChartSlotViewState& slot) const;
+
+    /*!
     \brief Returns the string legend's panel column at the current pin, or an empty rectangle.
 
     Published for the CANVAS BENEATH this lane. The panel is an exclusion plus a tint rather than a

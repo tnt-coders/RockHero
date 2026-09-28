@@ -117,6 +117,12 @@ public:
         shown_harmonic_pickers.push_back(std::move(picker));
     }
 
+    // Records each bend picker request, in request order.
+    void showChartBendPicker(ChartBendPicker picker) override
+    {
+        shown_bend_pickers.push_back(std::move(picker));
+    }
+
     // Runs or stores a busy-overlay paint fence callback for controller tests.
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
@@ -187,6 +193,7 @@ public:
     // Every one-shot notice shown, in order.
     std::vector<ShownNotice> shown_notices{};
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
+    std::vector<ChartBendPicker> shown_bend_pickers{};
 
     // Durable state that was current when each one-shot error was shown.
     std::vector<std::optional<EditorViewState>> states_seen_at_errors{};

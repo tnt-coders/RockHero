@@ -338,6 +338,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
     void performActionImpl(const EditorAction::ChooseChartHarmonic& action);
     void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
+    void performActionImpl(const EditorAction::ChooseChartBend& action);
+    void performActionImpl(const EditorAction::SetChartBend& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
     // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
@@ -907,6 +909,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportError(const std::string& message);
     void reportNotice(const std::string& title, const std::string& message);
     void requestChartHarmonicNodePicker(ChartHarmonicNodePicker picker);
+    void requestChartBendPicker(ChartBendPicker picker);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
@@ -1207,6 +1210,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // over it, and the settle (or `Insert`) is what selects it.
     [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartEntryTarget(
         ChartEntryPlane plane) const;
+    // THE OPERAND'S ONE SLOT, when it has one, for every key that finds its operand: the armed
+    // caret's slot, standing on nothing or on the one selected head. A wider selection — two heads,
+    // any keyframe — has no one slot, and a head selected without the caret on it (a marquee) is
+    // not a slot the keys stand at.
+    [[nodiscard]] std::optional<ChartSlotKey> chartOperandSlot() const;
+    // The anchors a MODIFYING key addresses — one that states a value on what stands and can
+    // create no note (the bend verb) — as the selection it writes: the selection's heads and
+    // points, else what the operand's slot holds. On the NOTE plane that is the object standing at
+    // the slot, else the ring covering or ending there, a covered slot's only meaning; the RING
+    // plane asks the ring first, which differs only where a ring ends on the head at the slot. A
+    // key naming an instant with no point is the keyframe key the answer plants at. Empty where
+    // the key addresses nothing.
+    [[nodiscard]] ChartSelection chartModifierAnchors(ChartEntryPlane plane) const;
     // The note plane at one slot: the object standing there retyped (chartObjectAt), a ring rung
     // through cut, an empty slot or a ring's end given a head.
     [[nodiscard]] decltype(ChartFretEntry::target) chartCaretEntryTarget(
@@ -1298,6 +1314,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         ChartVerbWindowVerb verb;
     };
     std::optional<ChartVerbWindow> m_chart_verb_window{};
+    // The anchors the open bend question names, which its answer writes: set by the question
+    // (ChooseChartBend), consumed by the answer (SetChartBend); empty while none is open. Held
+    // rather than re-read, because a bare `B` on a covered slot asks about an instant nothing is
+    // selected at, and selecting it on the question would let a dismissed picker change the
+    // selection; a dismissed question is simply replaced by the next one.
+    ChartSelection m_chart_bend_question{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

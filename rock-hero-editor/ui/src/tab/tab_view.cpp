@@ -915,7 +915,7 @@ std::optional<juce::Rectangle<float>> TabView::selectedNoteHeadBounds() const
     return noteHeadBounds(m_edit.selected_notes.front());
 }
 
-// One note's head by projection index; the one place the head-rectangle arithmetic lives.
+// One note's head by projection index: the head a slot at its onset would wear.
 std::optional<juce::Rectangle<float>> TabView::noteHeadBounds(const std::size_t index) const
 {
     const std::optional<DrawableLane> lane = laneMetrics();
@@ -924,11 +924,22 @@ std::optional<juce::Rectangle<float>> TabView::noteHeadBounds(const std::size_t 
         return std::nullopt;
     }
     const common::core::NoteViewState& note = lane->tab.notes[index];
-    const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(lane->metrics, note);
-    const float half = layout.head_size / 2.0f;
-    return juce::Rectangle<float>{
-        layout.onset_x - half, layout.center_y - half, layout.head_size, layout.head_size
-    };
+    return slotHeadBounds(
+        core::ChartSlotViewState{.seconds = note.start_seconds, .string = note.string});
+}
+
+// A head-sized square at a slot, through the manifest's one statement of it.
+std::optional<juce::Rectangle<float>> TabView::slotHeadBounds(
+    const core::ChartSlotViewState& slot) const
+{
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value() || slot.string < 1 || slot.string > lane->tab.stringCount())
+    {
+        return std::nullopt;
+    }
+    const common::ui::TabLayoutRect head =
+        common::ui::tabSlotHeadSquare(lane->metrics, slot.seconds, slot.string);
+    return juce::Rectangle<float>{head.x, head.y, head.width, head.height};
 }
 
 // The caret square: centered on the caret's slot, one pixel larger than a note head so it
@@ -961,8 +972,9 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
             bracket.half_height * 2.0f
         };
     }
-    const float size = metrics.headSize();
-    return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
+    const common::ui::TabLayoutRect head =
+        common::ui::tabSlotHeadSquare(metrics, m_edit.caret->seconds, m_edit.caret->string);
+    return juce::Rectangle<float>{head.x, head.y, head.width, head.height};
 }
 
 } // namespace rock_hero::editor::ui

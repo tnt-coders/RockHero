@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -64,26 +65,17 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
     return std::holds_alternative<ChartHeldStopHit>(target);
 }
 
-// The note a tail rides. The tail names a note of this very stream (chartPathTailAt), so the search
-// lands on it; null only where a caller hands over a tail the stream no longer holds.
-[[nodiscard]] const common::core::ChartNote* tailCarrier(
-    const std::vector<common::core::ChartNote>& notes, const ChartPathTail& tail)
+// The note a ring instant rides — a tail's, or an anchor's. The slot names a note of this very
+// stream (chartPathTailAt, the selection), so the search lands on it; null only where a caller
+// hands over a slot the stream no longer holds.
+[[nodiscard]] const common::core::ChartNote* ringCarrier(
+    const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& note)
 {
     const auto carrier =
-        std::ranges::lower_bound(notes, tail.note, {}, [](const common::core::ChartNote& note) {
-            return chartSlotKeyOf(note);
+        std::ranges::lower_bound(notes, note, {}, [](const common::core::ChartNote& candidate) {
+            return chartSlotKeyOf(candidate);
         });
     return carrier != notes.end() ? &*carrier : nullptr;
-}
-
-// The keyframe standing at exactly the tail's offset, or null where the ring states none there.
-// Exact rationals, so equality is the test.
-[[nodiscard]] const common::core::Keyframe* keyframeAtTail(
-    const common::core::ChartNote& carrier, const ChartPathTail& tail)
-{
-    const auto standing =
-        std::ranges::find(carrier.keyframes, tail.offset, &common::core::Keyframe::offset);
-    return standing != carrier.keyframes.end() ? &*standing : nullptr;
 }
 
 } // namespace
@@ -206,6 +198,7 @@ void EditorController::Impl::clearChartEditingState()
     clearSelection();
     m_chart_gesture.reset();
     disarmChartVerbWindow();
+    m_chart_bend_question.clear();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
@@ -435,8 +428,8 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     {
         return std::nullopt;
     }
-    const common::core::ChartNote* const carrier = tailCarrier(notes, *tail);
-    if (carrier != nullptr && keyframeAtTail(*carrier, *tail) != nullptr)
+    const common::core::ChartNote* const carrier = ringCarrier(notes, tail->note);
+    if (carrier != nullptr && standingKeyframe(*carrier, tail->offset) != nullptr)
     {
         return ChartKeyframeKey{.note = tail->note, .offset = tail->offset};
     }
@@ -2623,19 +2616,7 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     const std::vector<ChartSlotKey>& notes = chartSelection().notes();
     const std::vector<ChartKeyframeKey>& keyframes = chartSelection().keyframes();
     const bool nothing_selected = notes.empty() && keyframes.empty();
-    // THE OPERAND'S ONE SLOT, when it has one: the caret's, armed on nothing or on the one
-    // selected head. A wider selection — two heads, any keyframe — has no one slot, and a head
-    // selected without the caret on it (a marquee) is not a slot the keys stand at.
-    const ChartCaret* const caret = armedChartStringCaret();
-    std::optional<ChartSlotKey> slot;
-    if (caret != nullptr)
-    {
-        const ChartSlotKey at{.position = caret->position, .string = caret->string};
-        if (nothing_selected || (keyframes.empty() && notes.size() == 1 && notes.front() == at))
-        {
-            slot = at;
-        }
-    }
+    const std::optional<ChartSlotKey> slot = chartOperandSlot();
     // THE RING PLANE FIRST, falling through to the bare key's meaning where no ring reaches the
     // slot: at a slot holding both a head and a previous ring's end, the bare key is the head and
     // the `Alt` key is the ring, with nothing between.
@@ -2658,6 +2639,69 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
         return std::nullopt;
     }
     return chartCaretEntryTarget(stream, *slot);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+std::optional<ChartSlotKey> EditorController::Impl::chartOperandSlot() const
+{
+    const ChartCaret* const caret = armedChartStringCaret();
+    if (caret == nullptr)
+    {
+        return std::nullopt;
+    }
+    const std::vector<ChartSlotKey>& notes = chartSelection().notes();
+    const ChartSlotKey at{.position = caret->position, .string = caret->string};
+    const bool on_nothing = notes.empty() && chartSelection().keyframes().empty();
+    const bool on_one_head =
+        chartSelection().keyframes().empty() && notes.size() == 1 && notes.front() == at;
+    if (on_nothing || on_one_head)
+    {
+        return at;
+    }
+    return std::nullopt;
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The ring at a slot is the one
+// chartPathTailAt names, the same the ring plane of the digits reaches: its instant is where the
+// statement stands or will stand, whether a point is there yet or not.
+ChartSelection EditorController::Impl::chartModifierAnchors(const ChartEntryPlane plane) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::optional<ChartSlotKey> slot = chartOperandSlot();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || !slot.has_value())
+    {
+        return chartSelection();
+    }
+    // The ring covering or ending at the slot, and the instant on it the key names.
+    const std::optional<ChartPathTail> tail = chartPathTailAt(
+        arrangement->chart->notes, session().song().tempo_map, slot->position, slot->string);
+    ChartSelection anchors;
+    // The ring plane asks the ring first: over the one selected head, the ring ENDING there.
+    if (plane == ChartEntryPlane::Ring && tail.has_value())
+    {
+        anchors.replaceWith(ChartKeyframeKey{.note = tail->note, .offset = tail->offset});
+        return anchors;
+    }
+    // Otherwise a selection is the operand itself.
+    if (!chartSelection().empty())
+    {
+        return chartSelection();
+    }
+    // With nothing selected the note plane asks what STANDS at the slot — met only through a
+    // transition that put it back under an armed caret, arming on an object selecting it — and
+    // then the ring, a covered slot's only meaning for a key that modifies; an empty slot holds
+    // nothing to bend.
+    if (const std::optional<ChartSelectionKey> standing =
+            chartObjectAt(slot->position, slot->string);
+        standing.has_value())
+    {
+        anchors.replaceWith(*standing);
+    }
+    else if (tail.has_value())
+    {
+        anchors.replaceWith(ChartKeyframeKey{.note = tail->note, .offset = tail->offset});
+    }
+    return anchors;
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h. An object standing at the slot
@@ -2705,12 +2749,12 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     {
         return std::nullopt;
     }
-    const common::core::ChartNote* const carrier = tailCarrier(notes, *tail);
+    const common::core::ChartNote* const carrier = ringCarrier(notes, tail->note);
     if (carrier == nullptr)
     {
         return std::nullopt;
     }
-    if (keyframeAtTail(*carrier, *tail) != nullptr)
+    if (standingKeyframe(*carrier, tail->offset) != nullptr)
     {
         return chartRetypeTarget(
             {}, {ChartKeyframeKey{.note = tail->note, .offset = tail->offset}});
@@ -3505,6 +3549,125 @@ void EditorController::Impl::commitChartHarmonic(const std::optional<int> partia
                              pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
         },
         ChartHarmonicGesture{}));
+}
+
+namespace
+{
+
+// The bend picker's amounts, rest to the ceiling the curve is scaled to, one row per quarter step;
+// the rows are numbered by quarter steps, so a stated amount names its row directly.
+constexpr long g_bend_picker_top_row = static_cast<long>(
+    common::core::g_bend_ceiling_semitones / common::core::g_bend_quarter_step_semitones);
+
+// The row a bend press most often means where nothing is stated yet: a whole step.
+constexpr long g_bend_picker_whole_step_row = 4;
+
+} // namespace
+
+// The bend verb's QUESTION (`B`, `Alt+B`): which anchors the key addresses (chartModifierAnchors),
+// and what amount they should state, asked through the picker; nothing is committed until the
+// answer returns through SetChartBend. Every amount is offered, ticked where every anchor already
+// states it, and the picker opens on that stated amount — or on a whole step at rest or where
+// nothing uniform is stated. The clear is offered only where a point states a bend to take away.
+void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartBend& action)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    ChartSelection anchors = chartModifierAnchors(action.plane);
+    if (arrangement == nullptr || !arrangement->chart.has_value() || anchors.empty())
+    {
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+
+    // What each anchor states now: an onset always states its pre-bend, a point states a bend only
+    // where one stands with the channel stated.
+    std::vector<std::optional<double>> stated;
+    for (const std::size_t index : slotIndicesForKeys(chart.notes, anchors.notes()))
+    {
+        stated.emplace_back(chart.notes[index].bend);
+    }
+    bool clear_offered = false;
+    for (const ChartKeyframeKey& key : anchors.keyframes())
+    {
+        std::optional<double> bend;
+        if (const common::core::ChartNote* const carrier = ringCarrier(chart.notes, key.note))
+        {
+            if (const common::core::Keyframe* const point =
+                    common::core::standingKeyframe(*carrier, key.offset))
+            {
+                bend = point->bend;
+            }
+        }
+        clear_offered = clear_offered || bend.has_value();
+        stated.push_back(bend);
+    }
+    // The one amount every anchor states, when they agree — compared as optionals, so an unstated
+    // anchor agrees with none.
+    const std::optional<double> uniform =
+        !stated.empty() && std::ranges::all_of(
+                               stated,
+                               [&stated](const std::optional<double>& bend) {
+                                   return std::is_eq(bend <=> stated.front());
+                               })
+            ? stated.front()
+            : std::nullopt;
+
+    // Opened on the amount stated — its nearest row, clamped onto the grid, so an amount off it
+    // still opens beside itself — and at rest or where nothing uniform is stated on a whole step,
+    // so Return never writes what already stands.
+    const long opening =
+        uniform.has_value() && std::is_gt(*uniform <=> 0.0)
+            ? std::clamp(
+                  std::lround(*uniform / common::core::g_bend_quarter_step_semitones),
+                  1L,
+                  g_bend_picker_top_row)
+            : g_bend_picker_whole_step_row;
+    ChartBendPicker picker{
+        .anchor = chartSlotViewState(
+            session().song().tempo_map,
+            chartCaretSlotFor(session().song().tempo_map, anchors.keys().front())),
+        .choices = {},
+        .preselected = static_cast<std::size_t>(opening) + (clear_offered ? 1U : 0U),
+    };
+    if (clear_offered)
+    {
+        picker.choices.emplace_back(ChartBendClearChoice{});
+    }
+    for (long row = 0; row <= g_bend_picker_top_row; ++row)
+    {
+        const double semitones =
+            static_cast<double>(row) * common::core::g_bend_quarter_step_semitones;
+        picker.choices.emplace_back(
+            ChartBendAmountChoice{
+                .semitones = semitones,
+                .current = uniform.has_value() && std::is_eq(semitones <=> *uniform),
+            });
+    }
+    m_chart_bend_question = std::move(anchors);
+    requestChartBendPicker(std::move(picker));
+}
+
+// The bend picker's ANSWER: the amount written at every anchor the question named, planting a point
+// where none stands, as one entry; the anchors are then the selection, so a planted point is
+// selected and wears its ring. Taking the statement away leaves each point's other channels.
+void EditorController::Impl::performActionImpl(const EditorAction::SetChartBend& action)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || m_chart_bend_question.empty())
+    {
+        return;
+    }
+    const ChartSelection anchors = std::exchange(m_chart_bend_question, ChartSelection{});
+    const std::string_view label = action.semitones.has_value() ? "Bend" : "Remove Bend";
+    static_cast<void>(applyChartEditPlan(
+        planSetBend(
+            *arrangement->chart,
+            session().song().tempo_map,
+            anchors.notes(),
+            anchors.keyframes(),
+            action.semitones,
+            label),
+        anchors.keys()));
 }
 
 // The one technique toggle verb. Uniform scope, one compound undo entry: a selection where every

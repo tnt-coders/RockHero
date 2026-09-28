@@ -819,6 +819,57 @@ struct ChartHarmonicNodePicker
 };
 
 /*!
+\brief One amount row of the bend picker (\ref IEditorView::showChartBendPicker): the push the
+anchors take, in semitones — quarter steps from rest to three whole steps.
+*/
+struct ChartBendAmountChoice
+{
+    /*! \brief The amount this row states, in semitones. */
+    double semitones{};
+
+    /*!
+    \brief True when every anchor the question names already states this amount, so the row is
+    drawn ticked: the menu shows the value before it is changed.
+    */
+    bool current{};
+};
+
+/*!
+\brief The "No bend point" row of the bend picker: choosing it takes the bend statement away from
+every point the question names, leaving whatever else each point states.
+
+Offered only where a named point states a bend, since an onset's bend is always stated — its rest
+is the amount 0 — and a point stating none has nothing to take away.
+*/
+struct ChartBendClearChoice
+{
+};
+
+/*! \brief One row of the bend picker: an amount to state, or no bend point at all. */
+using ChartBendChoice = std::variant<ChartBendAmountChoice, ChartBendClearChoice>;
+
+/*!
+\brief The bend picker the controller asks the view to show: where its question is asked, the
+rows, and which row Return takes.
+
+The anchor is an INSTANT on a string rather than a note, because the question may be about a point
+along a ring that does not exist yet — a bare `B` on a covered slot plants one — and the view
+anchors the popup on the lane there. The amounts ascend from rest; the clear, when offered, is
+FIRST.
+*/
+struct ChartBendPicker
+{
+    /*! \brief The instant and string the question is asked at: where the popup anchors. */
+    ChartSlotViewState anchor{};
+
+    /*! \brief The rows to offer, in the order to show them. */
+    std::vector<ChartBendChoice> choices{};
+
+    /*! \brief Index into `choices` of the row that opens selected, so Return takes it. */
+    std::size_t preselected{};
+};
+
+/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the

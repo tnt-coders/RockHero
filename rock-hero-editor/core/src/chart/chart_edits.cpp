@@ -1888,19 +1888,53 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             // holds and never authors one.
             for (const common::core::Fraction& offset : selectedOffsetsOn(keyframe_keys, slot))
             {
-                const auto standing =
-                    std::ranges::find(written.keyframes, offset, &common::core::Keyframe::offset);
-                if (standing == written.keyframes.end())
+                if (common::core::standingKeyframe(written, offset) == nullptr)
                 {
                     continue;
                 }
                 if (common::core::hasVibrato(set))
                 {
-                    standing->vibrato = set;
+                    common::core::keyframeAt(written, offset).vibrato = set;
                 }
                 else
                 {
                     common::core::endVibratoAt(written, offset);
+                }
+            }
+            return true;
+        });
+}
+
+std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
+    const std::optional<double> semitones, const std::string_view label)
+{
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        notesTouchedBy(note_keys, keyframe_keys),
+        label,
+        StrandedStrikeRepair::Flatten,
+        [&note_keys, &keyframe_keys, semitones](
+            const common::core::ChartNote& note, common::core::ChartNote& written) {
+            const ChartSlotKey slot = chartSlotKeyOf(note);
+            // The onset statement, written only when the NOTE itself is named — a note reached
+            // solely through one of its instants keeps the pre-bend it opens with — and only by an
+            // amount: an onset always states its bend, so there is no statement to take away.
+            if (semitones.has_value() && std::ranges::binary_search(note_keys, slot))
+            {
+                written.bend = *semitones;
+            }
+            for (const common::core::Fraction& offset : selectedOffsetsOn(keyframe_keys, slot))
+            {
+                if (semitones.has_value())
+                {
+                    common::core::keyframeAt(written, offset).bend = semitones;
+                }
+                else if (common::core::standingKeyframe(written, offset) != nullptr)
+                {
+                    common::core::keyframeAt(written, offset).bend.reset();
                 }
             }
             return true;

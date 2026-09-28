@@ -1215,6 +1215,33 @@ TEST_CASE("keyframeInLeg carries the width of the leg it divides", "[core][chart
     }
 }
 
+// Every statement at one instant shares ONE keyframe: keyframeAt reaches the one standing there,
+// and plants one carrying the leg's width, in order, only where none stands.
+TEST_CASE(
+    "keyframeAt reaches the keyframe at an instant, planting one only where none stands",
+    "[core][chart]")
+{
+    ChartNote note =
+        vibratoLegNote(VibratoState::Narrow, {Keyframe{.offset = Fraction{2}, .fret = 5}});
+
+    SECTION("a keyframe standing there is the one reached")
+    {
+        keyframeAt(note, Fraction{2}).bend = 1.0;
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0].fret == 5);
+        CHECK(note.keyframes[0].bend.has_value());
+    }
+    SECTION("where none stands one is planted in order, carrying the leg's width")
+    {
+        keyframeAt(note, Fraction{1}).bend = 1.0;
+        REQUIRE(note.keyframes.size() == 2);
+        CHECK(note.keyframes[0].offset == Fraction{1});
+        CHECK_FALSE(note.keyframes[0].fret.has_value());
+        CHECK(note.keyframes[0].vibrato == VibratoState::Narrow);
+        CHECK(note.keyframes[1].offset == Fraction{2});
+    }
+}
+
 // The one stored form of a vibrato ending: the keyframe at the instant takes width None, bare
 // where it states nothing else, and none is created where the leg before it did not vibrate.
 // Nothing is ever erased here — a silent point is the commit law's to sweep.

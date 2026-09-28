@@ -55,6 +55,8 @@ namespace
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
+        case EditorAction::Id::ChooseChartBend:
+        case EditorAction::Id::SetChartBend:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
         // The section and hand-marker verbs edit the project the calibration prompt is parked over.
@@ -170,6 +172,8 @@ namespace
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::ChooseChartHarmonic:
             case EditorAction::Id::SetChartHarmonicNode:
+            case EditorAction::Id::ChooseChartBend:
+            case EditorAction::Id::SetChartBend:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::SelectSongSection:
@@ -337,8 +341,12 @@ namespace
             return conditions.has_loaded_arrangement && conditions.has_armed_caret &&
                    !conditions.transport_playing;
         }
-        // A digit inserts at an armed caret or retypes the selection; which, the verb decides.
+        // A digit inserts at an armed caret or retypes the selection; which, the verb decides. The
+        // bend verb is the same shape — the selection, else the ring at the armed caret — and its
+        // answer writes the anchors its question named.
         case EditorAction::Id::TypeChartFretDigit:
+        case EditorAction::Id::ChooseChartBend:
+        case EditorAction::Id::SetChartBend:
         {
             return conditions.has_chart;
         }
@@ -439,6 +447,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
+        case EditorAction::Id::ChooseChartBend:
+        case EditorAction::Id::SetChartBend:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
         case EditorAction::Id::SelectSongSection:

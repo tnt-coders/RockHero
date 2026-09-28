@@ -105,6 +105,18 @@ struct TabNoteLayout
 };
 
 /*!
+\brief The head-sized square at a slot — THE one statement of where a head stands, whatever stands
+there or will: the note head, the caret riding a slot, a popup anchored on an instant along a ring.
+
+\param geometry Lane geometry the notation was painted with.
+\param seconds The slot's instant.
+\param chart_string One-based chart string of the slot.
+\return The square, centred on the instant and the string line.
+*/
+[[nodiscard]] TabLayoutRect tabSlotHeadSquare(
+    const TabLaneGeometry& geometry, double seconds, int chart_string) noexcept;
+
+/*!
 \brief Computes the pixel layout of one note's head under the given lane geometry.
 
 The rectangle is the DRAWN, clickable extent of the note's HEAD, which is the whole of what a note

@@ -1,5 +1,7 @@
 #include "chart/chart_selection.h"
 
+#include "chart/chart_navigation.h"
+
 #include <algorithm>
 #include <functional>
 #include <iterator>
@@ -134,6 +136,14 @@ ChartSlotKey chartCaretSlotFor(
     };
 }
 
+ChartSlotViewState chartSlotViewState(
+    const common::core::TempoMap& tempo_map, const ChartSlotKey& slot)
+{
+    return ChartSlotViewState{
+        .seconds = caretTimeBounds(tempo_map, slot.position).seconds, .string = slot.string
+    };
+}
+
 std::vector<std::size_t> selectedNoteIndices(
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection)
 {
@@ -212,8 +222,7 @@ std::vector<ChartSelectionKey> chartOnsetGroupKeys(
             }
             const common::core::Fraction offset =
                 common::core::beatDistance(tempo_map, note.position, instant);
-            if (std::ranges::find(note.keyframes, offset, &common::core::Keyframe::offset) !=
-                note.keyframes.end())
+            if (common::core::standingKeyframe(note, offset) != nullptr)
             {
                 keys.emplace_back(ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = offset});
             }

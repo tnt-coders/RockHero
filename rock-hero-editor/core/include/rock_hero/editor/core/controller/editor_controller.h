@@ -491,6 +491,15 @@ public:
     /*! \copydoc IEditorController::onChartHarmonicNodeRequested */
     void onChartHarmonicNodeRequested(std::optional<int> partial) override;
 
+    /*! \copydoc IEditorController::onChartBendRequested */
+    void onChartBendRequested() override;
+
+    /*! \copydoc IEditorController::onChartRingBendRequested */
+    void onChartRingBendRequested() override;
+
+    /*! \copydoc IEditorController::onChartBendChosen */
+    void onChartBendChosen(std::optional<double> semitones) override;
+
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override;
 

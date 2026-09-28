@@ -401,6 +401,20 @@ Four consequences worth knowing before touching this:
     viewport starts the window-follow glide that will centre it, while the popup is placed from
     where the head sits when the press lands, so it can open at a screen edge and stay there while
     the lane scrolls under it. With no head to anchor on the popup falls back to the lane.
+- **The bend picker is the harmonic picker's sibling, asked about ANCHORS rather than a
+  selection.** `B` (and its ring twin `Alt+B`) finds its operand like a digit — the selection, else
+  the armed caret's slot — but a bend can create no note and split no ring, so on a covered slot the
+  bare key reaches the RING (`chartModifierAnchors`, over the shared `chartOperandSlot`): the
+  instant along it, where a point stands or the answer will plant one. The question
+  (`ChooseChartBend`) commits nothing and HOLDS those anchors (`m_chart_bend_question`), because
+  nothing may be selected at a planted point's instant yet; the answer (`SetChartBend`,
+  `planSetBend`) writes them in one entry and hands them to `applyChartEditPlan` as the selection,
+  so a planted point wears its ring. The payload is
+  `ChartBendPicker{anchor, choices, preselected}` — the anchor an INSTANT on a string, laid out by
+  `TabView::slotHeadBounds` — the rows every amount from rest to three whole steps in quarter
+  steps, spelled by the lane's own chip authority (`tabBendAmountText`), the stated amount ticked,
+  a "No bend point" row first where a named point states a bend. It opens on the stated amount,
+  or on a whole step at rest, so `Return` never writes what already stands.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than

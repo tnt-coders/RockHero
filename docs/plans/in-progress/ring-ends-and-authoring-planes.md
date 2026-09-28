@@ -252,6 +252,17 @@ notes or keyframes alike (decided 2026-09-23, replacing the per-element rule of 
 a single selected head where a ring ends is the one case where `Alt` reaches that ring's end
 statement, and no planner ever has to compose a retype with a creation.
 
+**A MODIFYING letter reaches the ring bare** (amended 2026-09-27, user, after the UI expert's
+review). The rule above gives `Alt` its meaning where a key has TWO readings at a slot — the digit's
+bare "a note here" cuts a ring, so its point on that ring needs `Alt`. A letter that states a channel
+on what stands, and can create no note and split no ring — `B` today, `V` next — has ONE reading on
+a covered slot, the ring, so the bare key reaches it (`chartModifierAnchors`, beside
+`chartEntryTarget` over the shared `chartOperandSlot`). Its `Alt` twin keeps this section's rule
+unchanged and differs from the bare key only at the one slot where two anchors collide: a ring's end
+on the one selected head. The cost the review named: a bare key targets a ring the lane may show
+only through the caret peek, which the picker's anchor answers for `B`; `V`, with no picker, leans on
+the refusal flash for a press mid-slide.
+
 **A bare digit on a head RETYPES it** — a behaviour change: today it replaces the note, dropping
 its techniques and keyframes. The entry routes to `Retype` over that slot.
 

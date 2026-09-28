@@ -11,6 +11,22 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The finest bend a charter writes, in semitones: a quarter step.
+
+The grid every bend amount is spelled on — the chips' "1 1/4" and the picker's rows alike.
+*/
+inline constexpr double g_bend_quarter_step_semitones = 0.5;
+
+/*!
+\brief The largest bend the surfaces scale to, in semitones: three whole steps, Guitar Pro's
+maximum.
+
+The 2D curve's ceiling, and the top of the amounts a charter is offered; the corpus puts 99.9% of
+real bends at or below half of it.
+*/
+inline constexpr double g_bend_ceiling_semitones = 6.0;
+
+/*!
 \brief Returns how far a string travels sideways to bend \p semitones, in units of the travel a
 half step takes.
 

@@ -501,6 +501,37 @@ public:
     virtual void onChartHarmonicNodeRequested(std::optional<int> partial) = 0;
 
     /*!
+    \brief Handles the bend verb (`B`): asks for an amount at what the key addresses.
+
+    Its OPERAND is the selection — a selected head's anchor is its onset, whose value is the
+    pre-bend, and a selected point's is the point itself — else the armed caret's slot, where the
+    anchor is the instant on the ring that covers or ends there: a point standing there, or one the
+    answer will plant. A bare key reaches the ring because a bend can create no note and split no
+    ring, so on a covered slot it has no other meaning; on an empty slot, with no ring, it is inert.
+    Nothing is committed: the question goes to \ref IEditorView::showChartBendPicker and the answer
+    returns through \ref onChartBendChosen.
+    */
+    virtual void onChartBendRequested() = 0;
+
+    /*!
+    \brief Handles the bend verb on the ring plane (`Alt+B`): the ring at the operand's instant.
+
+    Where the bare key already reaches the ring this is the same press. It differs at the one slot
+    where two anchors collide — a ring's end on which the next head of its string is struck, that
+    head selected under the caret — where the bare key bends the head and this bends the ending
+    ring's final statement. Over a selection of more than one element the plane is ignored.
+    */
+    virtual void onChartRingBendRequested() = 0;
+
+    /*!
+    \brief Handles the bend picker's answer: one amount written at every anchor the question named,
+    or the bend statement taken away. One undo entry; a planted point is selected.
+
+    \param semitones The amount in semitones, or absent to take the statement away.
+    */
+    virtual void onChartBendChosen(std::optional<double> semitones) = 0;
+
+    /*!
     \brief Handles a request to set the selected notes to the left-hand tap attack.
 
     The stating verb beside the inferring toggle, and the sole author of the left-hand tap: the

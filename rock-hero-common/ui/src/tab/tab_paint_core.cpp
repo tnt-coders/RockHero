@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -341,7 +342,7 @@ struct LabelChip
     juce::Point<float> position;
     juce::String text;
     // Printed after the text in the lane's fraction font; empty on every chip but a bend amount
-    // with a quarter-step part (charterBendText).
+    // with a quarter-step part (tabBendAmountText).
     juce::String fraction;
     juce::Colour background;
     juce::Colour border;
@@ -424,36 +425,6 @@ void drawStringLines(
             g.fillRect(juce::Rectangle<float>{cursor, row, right - cursor, 1.0f});
         }
     }
-}
-
-// A bend amount in Charter's notation — whole steps with quarter fractions ("0", "1/2", "1 1/4",
-// ...) — split into the text the chip prints in the fret font and the vulgar-fraction glyph it
-// prints after that in the lane's fraction font (TabLaneMetrics::fraction_font).
-struct BendAmountText
-{
-    juce::String text;
-    juce::String fraction;
-};
-
-[[nodiscard]] BendAmountText charterBendText(double semitones)
-{
-    const auto quarter_steps = static_cast<int>(std::lround(semitones * 2.0));
-    const int full_steps = quarter_steps / 4;
-    const int quarters = quarter_steps % 4;
-    constexpr std::array<const char*, 4> fragments{"", "\xC2\xBC", "\xC2\xBD", "\xC2\xBE"};
-    const juce::String fragment{juce::CharPointer_UTF8{fragments.at(
-        static_cast<std::size_t>(std::max(0, quarters)))}};
-
-    if (full_steps == 0)
-    {
-        return BendAmountText{
-            .text = quarters == 0 ? juce::String{"0"} : juce::String{}, .fraction = fragment
-        };
-    }
-    // The space stays with the whole steps, in their own font, so "1 1/4" keeps its gap.
-    return BendAmountText{
-        .text = juce::String{full_steps} + (quarters != 0 ? " " : ""), .fraction = fragment
-    };
 }
 
 // The stretch of a tail that has to be generated, as distances from the onset. Both wavy tail
@@ -1454,7 +1425,7 @@ void drawBendLines(
                         over_head ? center_y - metrics.note_height / 2.0f -
                                         metrics.fret_font.height() / 2.0f - 1.0f
                                   : to.y - metrics.tail_height / 2.0f);
-            const BendAmountText amount = charterBendText(point.semitones);
+            const TabBendAmountText amount = tabBendAmountText(point.semitones);
             bend_chips.push_back(
                 LabelChip{
                     .position = {to.x, chip_y},
@@ -2315,6 +2286,29 @@ void strokeTabNoteHeadOutline(
             break;
     }
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+TabBendAmountText tabBendAmountText(const double semitones)
+{
+    const auto quarter_steps =
+        static_cast<int>(std::lround(semitones / common::core::g_bend_quarter_step_semitones));
+    const int full_steps = quarter_steps / 4;
+    const int quarters = quarter_steps % 4;
+    constexpr std::array<const char*, 4> fragments{"", "\xC2\xBC", "\xC2\xBD", "\xC2\xBE"};
+    const juce::String fragment{juce::CharPointer_UTF8{fragments.at(
+        static_cast<std::size_t>(std::max(0, quarters)))}};
+
+    if (full_steps == 0)
+    {
+        return TabBendAmountText{
+            .text = quarters == 0 ? juce::String{"0"} : juce::String{}, .fraction = fragment
+        };
+    }
+    // The space stays with the whole steps, in their own font, so "1 1/4" keeps its gap.
+    return TabBendAmountText{
+        .text = juce::String{full_steps} + (quarters != 0 ? " " : ""), .fraction = fragment
+    };
 }
 
 // Rationale lives on the declaration in tab_paint_core.h. Through the lane's own drawers, in the

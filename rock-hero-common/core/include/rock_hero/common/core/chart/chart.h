@@ -1116,6 +1116,46 @@ record and states its own channels on top.
 }
 
 /*!
+\brief The keyframe standing at `offset`, planted there (\ref keyframeInLeg) where none stands —
+THE one way a writer reaches the statement at an instant.
+
+Every statement at one instant shares ONE keyframe, which is the model's whole point, so a writer
+stating a channel beside an existing moment merges into it instead of writing a second entry; the
+array stays ascending.
+
+\param note Note whose keyframe is reached.
+\param offset Beat offset from the onset, strictly inside the ring or at its end.
+\return The keyframe at that offset.
+*/
+[[nodiscard]] inline Keyframe& keyframeAt(ChartNote& note, const Fraction offset)
+{
+    const auto at =
+        std::ranges::lower_bound(note.keyframes, offset, std::ranges::less{}, &Keyframe::offset);
+    if (at != note.keyframes.end() && at->offset == offset)
+    {
+        return *at;
+    }
+    return *note.keyframes.insert(at, keyframeInLeg(note, offset));
+}
+
+/*!
+\brief The keyframe standing at exactly `offset` along the note's ring, or null where none stands —
+the read twin of \ref keyframeAt, which plants.
+
+Exact rationals, so equality is the test. A writer that must not plant asks this first and reaches
+the standing keyframe through \ref keyframeAt.
+
+\param note Note whose keyframes are read.
+\param offset Beat offset from the onset.
+\return The keyframe at that offset, or null.
+*/
+[[nodiscard]] inline const Keyframe* standingKeyframe(const ChartNote& note, const Fraction offset)
+{
+    const auto standing = std::ranges::find(note.keyframes, offset, &Keyframe::offset);
+    return standing != note.keyframes.end() ? &*standing : nullptr;
+}
+
+/*!
 \brief Clears channels across a note's keyframes, spelled once for every rule that sheds one.
 
 Such a rule clears CHANNELS rather than whole keyframes — a capo floor takes the fret, not the
@@ -1165,25 +1205,12 @@ here; after an unvibrated leg nothing is created either, there being nothing to 
 */
 inline void endVibratoAt(ChartNote& note, const Fraction offset)
 {
-    const auto at =
-        std::ranges::lower_bound(note.keyframes, offset, std::ranges::less{}, &Keyframe::offset);
-    if (at != note.keyframes.end() && at->offset == offset)
-    {
-        at->vibrato = VibratoState::None;
-        return;
-    }
-    if (!hasVibrato(vibratoBefore(note, offset)))
+    const bool standing = std::ranges::contains(note.keyframes, offset, &Keyframe::offset);
+    if (!standing && !hasVibrato(vibratoBefore(note, offset)))
     {
         return;
     }
-    note.keyframes.insert(
-        at,
-        Keyframe{
-            .offset = offset,
-            .fret = std::nullopt,
-            .bend = std::nullopt,
-            .vibrato = VibratoState::None,
-        });
+    keyframeAt(note, offset).vibrato = VibratoState::None;
 }
 
 /*!

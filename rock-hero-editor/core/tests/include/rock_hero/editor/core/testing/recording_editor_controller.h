@@ -332,6 +332,24 @@ public:
         chart_harmonic_node_partials.push_back(partial);
     }
 
+    /*! \copydoc IEditorController::onChartBendRequested */
+    void onChartBendRequested() override
+    {
+        chart_bend_requests += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartRingBendRequested */
+    void onChartRingBendRequested() override
+    {
+        chart_ring_bend_requests += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartBendChosen */
+    void onChartBendChosen(const std::optional<double> semitones) override
+    {
+        chart_bend_answers.push_back(semitones);
+    }
+
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override
     {
@@ -930,6 +948,15 @@ public:
 
     /*! \brief Every harmonic-node answer chosen through the picker, in order (absent clears). */
     std::vector<std::optional<int>> chart_harmonic_node_partials{};
+
+    /*! \brief Number of onChartBendRequested() intents received. */
+    int chart_bend_requests{0};
+
+    /*! \brief Number of onChartRingBendRequested() intents received. */
+    int chart_ring_bend_requests{0};
+
+    /*! \brief Every bend answer chosen through the picker, in order (absent clears). */
+    std::vector<std::optional<double>> chart_bend_answers{};
 
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};

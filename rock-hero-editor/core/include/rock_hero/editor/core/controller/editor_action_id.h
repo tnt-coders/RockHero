@@ -190,6 +190,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Take the harmonic node picker's answer: one partial's node, or no harmonic at all. */
     SetChartHarmonicNode,
 
+    /*! \brief Ask for a bend amount at what the bend key addresses: the picker's question. */
+    ChooseChartBend,
+
+    /*! \brief Take the bend picker's answer: one amount, or no bend point at all. */
+    SetChartBend,
+
     /*! \brief Set the chart selection to the left-hand tap attack. */
     SetChartLeftTap,
 

@@ -821,6 +821,26 @@ struct EditorAction
         std::optional<int> partial{};
     };
 
+    /*!
+    \brief The bend verb (`B`, `Alt+B`): resolves the anchors it addresses and asks the view for an
+    amount there, committing nothing. See \ref IEditorController::onChartBendRequested.
+    */
+    struct ChooseChartBend
+    {
+        /*! \brief The plane the key acts on: the operand itself, or the ring at it. */
+        ChartEntryPlane plane{ChartEntryPlane::Note};
+    };
+
+    /*!
+    \brief The bend picker's answer: the amount written at every anchor the question named, or
+    absent to take the bend statement away.
+    */
+    struct SetChartBend
+    {
+        /*! \brief Amount in semitones, or absent to take the statement away. */
+        std::optional<double> semitones{};
+    };
+
     /*! \brief Set the chart selection to the left-hand tap attack. */
     struct SetChartLeftTap
     {
@@ -943,9 +963,9 @@ struct EditorAction
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
-        SetChartLeftTap, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, SelectFretHandPosition,
-        AuthorFretHandPositionAtCursor, StepToRowObject, JumpToFocusRow>;
+        ChooseChartBend, SetChartBend, SetChartLeftTap, ToggleChartJunction, SelectSongSection,
+        InsertSongSection, RenameSongSection, SelectTempoAnchor, SelectTimeSignature,
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

@@ -32,6 +32,12 @@ namespace
 // testimony — and because a tail rectangle would be the one rectangle in this manifest that does
 // not bound what the lane draws: it spans the whole inked ring while a member under a span's
 // ink draws no ribbon at all, so it would claim pixels nothing painted.
+TabLayoutRect tabSlotHeadSquare(
+    const TabLaneGeometry& geometry, const double seconds, const int chart_string) noexcept
+{
+    return centeredSquare(geometry.x(seconds), geometry.laneY(chart_string), geometry.headSize());
+}
+
 TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
@@ -39,7 +45,7 @@ TabNoteLayout tabNoteLayout(
     layout.onset_x = geometry.x(note.start_seconds);
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
-    layout.head = centeredSquare(layout.onset_x, layout.center_y, layout.head_size);
+    layout.head = tabSlotHeadSquare(geometry, note.start_seconds, note.string);
     return layout;
 }
 

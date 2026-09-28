@@ -32,6 +32,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>
@@ -272,6 +273,8 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ToggleChartTechnique:
             case core::EditorActionId::ChooseChartHarmonic:
             case core::EditorActionId::SetChartHarmonicNode:
+            case core::EditorActionId::ChooseChartBend:
+            case core::EditorActionId::SetChartBend:
             case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartJunction:
             case core::EditorActionId::SelectSongSection:
@@ -361,6 +364,8 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::AdjustChartSustain:
         case core::EditorActionId::ChooseChartHarmonic:
         case core::EditorActionId::SetChartHarmonicNode:
+        case core::EditorActionId::ChooseChartBend:
+        case core::EditorActionId::SetChartBend:
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartJunction:
@@ -1254,6 +1259,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartGhostToggle);
     add(note_menu, EditorCommandId::ChartHarmonic);
     add(note_menu, EditorCommandId::ChartPinchHarmonicToggle);
+    add(note_menu, EditorCommandId::ChartBend);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartWideVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
@@ -1389,32 +1395,90 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
             }
         }
     }
-    juce::PopupMenu::Options options =
-        juce::PopupMenu::Options{}.withDeletionCheck(*this).withInitiallySelectedItem(
-            static_cast<int>(picker.preselected) + 1);
-    if (const std::optional<juce::Rectangle<float>> head = m_tab_view.noteHeadBounds(picker.note);
-        head.has_value())
-    {
-        options = options.withTargetComponent(&m_tab_view)
-                      .withTargetScreenArea(
-                          m_tab_view.localAreaToGlobal(head->getSmallestIntegerContainer()));
-    }
-    else
-    {
-        options = options.withTargetComponent(&m_tab_view);
-    }
-    menu.showMenuAsync(
-        options, [this, owned_choices = std::move(picker.choices)](const int result) {
-            if (result <= 0 || static_cast<std::size_t>(result) > owned_choices.size())
+    const std::size_t preselected = picker.preselected;
+    const std::optional<juce::Rectangle<float>> anchor = m_tab_view.noteHeadBounds(picker.note);
+    showChartQuestion(
+        std::move(menu),
+        preselected,
+        anchor,
+        [this, owned_choices = std::move(picker.choices)](const std::size_t row) {
+            if (row >= owned_choices.size())
             {
                 return;
             }
-            const core::ChartHarmonicChoice& chosen =
-                owned_choices[static_cast<std::size_t>(result) - 1];
-            const auto* const node = std::get_if<core::ChartHarmonicNodeChoice>(&chosen);
+            const auto* const node =
+                std::get_if<core::ChartHarmonicNodeChoice>(&owned_choices[row]);
             m_controller.onChartHarmonicNodeRequested(
                 node != nullptr ? std::optional{node->partial} : std::nullopt);
         });
+}
+
+// The bend picker the bend verb asks for: every amount from rest to three whole steps, spelled as
+// the lane's bend chips spell them (tabBendAmountText), so a row and the chip it produces read the
+// same. Anchored at the instant the question is about — a head's onset, or the point along a ring,
+// which may not exist yet — and answered through onChartBendChosen; dismissing chooses nothing.
+void EditorView::showChartBendPicker(core::ChartBendPicker picker)
+{
+    juce::PopupMenu menu;
+    for (std::size_t index = 0; index < picker.choices.size(); ++index)
+    {
+        const int item = static_cast<int>(index) + 1;
+        if (const auto* const amount =
+                std::get_if<core::ChartBendAmountChoice>(&picker.choices[index]);
+            amount != nullptr)
+        {
+            const common::ui::TabBendAmountText text =
+                common::ui::tabBendAmountText(amount->semitones);
+            menu.addItem(item, text.text + text.fraction, true, amount->current);
+        }
+        else if (std::holds_alternative<core::ChartBendClearChoice>(picker.choices[index]))
+        {
+            menu.addItem(item, "No bend point");
+            if (index + 1 < picker.choices.size())
+            {
+                menu.addSeparator();
+            }
+        }
+    }
+    const std::size_t preselected = picker.preselected;
+    const std::optional<juce::Rectangle<float>> anchor = m_tab_view.slotHeadBounds(picker.anchor);
+    showChartQuestion(
+        std::move(menu),
+        preselected,
+        anchor,
+        [this, owned_choices = std::move(picker.choices)](const std::size_t row) {
+            if (row >= owned_choices.size())
+            {
+                return;
+            }
+            const auto* const amount =
+                std::get_if<core::ChartBendAmountChoice>(&owned_choices[row]);
+            m_controller.onChartBendChosen(
+                amount != nullptr ? std::optional{amount->semitones} : std::nullopt);
+        });
+}
+
+// Rationale lives on the declaration in editor_view.h.
+void EditorView::showChartQuestion(
+    juce::PopupMenu menu, const std::size_t preselected,
+    const std::optional<juce::Rectangle<float>> anchor, std::function<void(std::size_t)> answer)
+{
+    juce::PopupMenu::Options options =
+        juce::PopupMenu::Options{}
+            .withDeletionCheck(*this)
+            .withInitiallySelectedItem(static_cast<int>(preselected) + 1)
+            .withTargetComponent(&m_tab_view);
+    if (anchor.has_value())
+    {
+        options = options.withTargetScreenArea(
+            m_tab_view.localAreaToGlobal(anchor->getSmallestIntegerContainer()));
+    }
+    menu.showMenuAsync(options, [owned_answer = std::move(answer)](const int result) {
+        if (result > 0)
+        {
+            owned_answer(static_cast<std::size_t>(result) - 1);
+        }
+    });
 }
 
 // Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes so
@@ -1692,6 +1756,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::ChartWideVibratoToggle:
         case EditorCommandId::ChartHarmonic:
+        case EditorCommandId::ChartBend:
+        case EditorCommandId::ChartRingBend:
         case EditorCommandId::ChartPinchHarmonicToggle:
         case EditorCommandId::ChartTapToggle:
         case EditorCommandId::ChartSlapToggle:
@@ -2131,6 +2197,22 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartHarmonicRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartBend:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartBendRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartRingBend:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartRingBendRequested();
             }
             return true;
         }
