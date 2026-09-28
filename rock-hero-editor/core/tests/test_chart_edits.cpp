@@ -39,6 +39,22 @@ namespace
     return common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
 }
 
+// One 4/4 measure pair, then 6/8 from measure 3: a beat is a quarter note before the change and an
+// eighth note from it, so a beat count carried across the barline is not the same duration.
+[[nodiscard]] common::core::TempoMap makeMeterChangeMap()
+{
+    return common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 31.0},
+        },
+    };
+}
+
 [[nodiscard]] ChartSlotKey keyAt(common::core::GridPosition position, int string)
 {
     return ChartSlotKey{.position = position, .string = string};
@@ -7326,22 +7342,6 @@ TEST_CASE("The held channel authors at a bare tap's default satellite", "[core][
     // the fret the picking hand sounds.
     CHECK(tap->fret == 12);
     CHECK(tap->attack == common::core::NoteAttack::Tap);
-}
-
-// One 4/4 measure pair, then 6/8 from measure 3: a beat is a quarter note before the change and an
-// eighth note from it, so a beat count carried across the barline is not the same duration.
-[[nodiscard]] common::core::TempoMap makeMeterChangeMap()
-{
-    return common::core::TempoMap{
-        std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 3, .numerator = 6, .denominator = 8},
-        },
-        std::vector{
-            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-            common::core::BeatAnchor{.measure = 21, .beat = 1, .seconds = 31.0},
-        },
-    };
 }
 
 // EVERY VERB PRODUCES TICK-LATTICE POSITIONS. Validation refuses an instant between two ticks, so
