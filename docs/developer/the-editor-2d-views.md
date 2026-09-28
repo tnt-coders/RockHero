@@ -417,6 +417,11 @@ Four consequences worth knowing before touching this:
   steps, spelled by the lane's own chip authority (`tabBendAmountText`), the stated amount ticked,
   a "No bend point" row first where a named point states a bend. It opens on the stated amount,
   or on a whole step at rest, so `Return` never writes what already stands.
+- **`V` reaches the ring by the same operand, with no question and no ring twin.** The technique
+  toggle reads `chartModifierAnchors` too, so bare `V` / `Shift+V` on a covered slot flips the
+  width of the leg from that instant to the next keyframe, planting a fret-less point that wears
+  a linked head (`KeyframeRestMark`, since it changes the vibrato) and selecting it. It has no
+  `Alt` twin: at a ring's exact end there is no leg left to vibrate, and `Alt+V` is the View menu.
 - **`selection.empty()` is not "this verb has no operand", and the difference bites.** The key
   being a sum splits one question into two: a verb can see a non-empty selection with `notes()`
   empty — a keyframe-only selection — and reading a `front()` off it is out of bounds rather than

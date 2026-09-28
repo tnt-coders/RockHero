@@ -221,8 +221,9 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
 - **Bend authoring itself** — the `B` verb at the armed caret on a covered slot (plan 40 Phase 7),
   and `V` for a vibrato keyframe by the same grammar. `B` BUILT 2026-09-27, unsighted (bare `B` on
   a covered slot plants a bend point, on a selection states each anchor, `Alt+B` the ring twin; a
-  quarter-step picker; `keymap-matrix.md` `B` rows). `V` on a covered slot is next; its ring twin
-  cannot be `Alt+V` (the View menu), so that chord waits on a ruling.
+  quarter-step picker; `keymap-matrix.md` `B` rows). `V` BUILT 2026-09-27, unsighted: bare `V` /
+  `Shift+V` on a covered slot plants a fret-less point carrying the width of the leg it begins,
+  refused on a travel leg; no `Alt` twin, since a ring's exact end has no leg to vibrate.
 - **Two sightings wait on it**, both deferred 2026-09-24 until bends are authorable: an end bend
   abutting a same-string head (`ring-ends-and-authoring-planes.md` phase 1b), and the chord bend
   direction shipped by `ea2e5156` — confirm the vote's side against the G+D and G+D+A examples

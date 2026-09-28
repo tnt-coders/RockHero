@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -374,6 +375,131 @@ TEST_CASE("Clearing the vibrato at a keyframe dissolves the statement it wrote",
     CHECK(currentChart(fixture.controller) == cleared);
     fixture.controller.onUndoRequested();
     CHECK(currentChart(fixture.controller) == vibrating);
+}
+
+// A BARE `V` ON A COVERED SLOT STARTS THE VIBRATO THERE. The key can create no note and split no
+// ring, so on a slot a ring covers it has one meaning: the width of the leg from that instant on,
+// which plants a fret-less point carrying it and selects that point. The second press inside the
+// verb window takes the whole write back, leaving no history trace.
+TEST_CASE("A bare vibrato on a covered slot vibrates the ring from there", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+
+    const common::core::Chart vibrating = currentChart(fixture.controller);
+    REQUIRE(vibrating.notes.size() == 1);
+    REQUIRE(vibrating.notes[0].keyframes.size() == 2);
+    const common::core::Keyframe& point = vibrating.notes[0].keyframes[1];
+    CHECK(point.offset == common::core::Fraction{6});
+    CHECK_FALSE(point.fret.has_value());
+    CHECK(point.vibrato == common::core::VibratoState::Wide);
+    // The ring still opens still, and the junction before the point is untouched.
+    CHECK_FALSE(common::core::hasVibrato(vibrating.notes[0].vibrato));
+    CHECK_FALSE(common::core::hasVibrato(vibrating.notes[0].keyframes[0].vibrato));
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}});
+
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
+}
+
+// THE WIDTH IS A LEG'S, so a press on a covered slot vibrates only up to the next point: a later
+// point that states nothing about the vibrato begins a leg without it.
+TEST_CASE("A bare vibrato on a covered slot stops at the next point", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes.push_back(
+        common::core::Keyframe{.offset = common::core::Fraction{7}, .bend = 1.0});
+    KeyframeFixture fixture{std::move(chart)};
+
+    click(fixture.controller, g_holding_tail_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+
+    const common::core::Chart vibrating = currentChart(fixture.controller);
+    REQUIRE(vibrating.notes.size() == 1);
+    REQUIRE(vibrating.notes[0].keyframes.size() == 3);
+    CHECK(vibrating.notes[0].keyframes[1].offset == common::core::Fraction{6});
+    CHECK(vibrating.notes[0].keyframes[1].vibrato == common::core::VibratoState::Narrow);
+    CHECK_FALSE(common::core::hasVibrato(vibrating.notes[0].keyframes[2].vibrato));
+
+    const std::shared_ptr<const common::core::ChartViewState>& tab =
+        publishedState(fixture.view).tab;
+    REQUIRE(tab != nullptr);
+    const std::vector<common::core::NoteViewState>& notes = tab->notes;
+    REQUIRE(notes.size() == 1);
+    REQUIRE(notes[0].vibrato.size() == 1);
+    CHECK_THAT(notes[0].vibrato[0].start_seconds, Catch::Matchers::WithinAbs(5.0, 1e-9));
+    CHECK_THAT(notes[0].vibrato[0].end_seconds, Catch::Matchers::WithinAbs(5.5, 1e-9));
+}
+
+// The hand cannot shake a string it is sliding along, so a covered slot on a travel leg takes no
+// vibrato: the press is refused and the chart keeps what it held.
+TEST_CASE("A bare vibrato on a travel leg is refused", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_travel_tail_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
+}
+
+// Inside a leg already vibrating at the key's own tier the press reads that leg's width, so it
+// CLEARS from the instant on: the point it plants begins a leg without vibrato. At the other tier
+// it replaces the width from the instant on instead.
+TEST_CASE("A bare vibrato inside a vibrating leg changes it from there", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].vibrato = common::core::VibratoState::Narrow;
+
+    // Copied into each section: a move in both would read, to the use-after-move check, as a
+    // second move of one object, since it cannot see that Catch2 runs one section per pass.
+    SECTION("the key's own tier clears")
+    {
+        KeyframeFixture fixture{chart};
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+
+        const common::core::Chart cleared = currentChart(fixture.controller);
+        REQUIRE(cleared.notes.size() == 1);
+        REQUIRE(cleared.notes[0].keyframes.size() == 2);
+        CHECK(cleared.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+        CHECK(cleared.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK_FALSE(common::core::hasVibrato(cleared.notes[0].keyframes[1].vibrato));
+    }
+
+    SECTION("the other tier replaces")
+    {
+        KeyframeFixture fixture{chart};
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::WideVibrato);
+
+        const common::core::Chart widened = currentChart(fixture.controller);
+        REQUIRE(widened.notes.size() == 1);
+        REQUIRE(widened.notes[0].keyframes.size() == 2);
+        CHECK(widened.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+        CHECK(widened.notes[0].keyframes[1].offset == common::core::Fraction{6});
+        CHECK(widened.notes[0].keyframes[1].vibrato == common::core::VibratoState::Wide);
+    }
+}
+
+// A ring's exact end begins no leg, so a vibrato there has nothing to vibrate and the press is
+// inert — which is why `V` needs no `Alt` twin to reach that slot.
+TEST_CASE("A bare vibrato at a ring's end is inert", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_ring_end_x, g_string_3_y);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
 }
 
 // Delete reaches keyframes exactly as it reaches notes: it takes every statement

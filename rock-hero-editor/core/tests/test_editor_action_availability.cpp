@@ -281,21 +281,21 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::JumpChartCaret, conditions));
     CHECK(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
-    // The bend verb is the digit's shape: the selection, else the ring at the armed caret, so it
-    // opens with the chart and the verb decides which; its answer writes what the question named.
+    // The bend and technique verbs are the digit's shape: the selection, else what the armed
+    // caret's slot holds, so they open with the chart and the verb decides which; the bend's answer
+    // writes what the question named.
     CHECK(isActionAvailable(ActionId::ChooseChartBend, conditions));
     CHECK(isActionAvailable(ActionId::SetChartBend, conditions));
+    CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     // The selection verbs wait for a chart selection.
     CHECK_FALSE(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AdjustChartSustain, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 
     conditions.has_chart_selection = true;
     CHECK(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK(isActionAvailable(ActionId::AdjustChartSustain, conditions));
-    CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 

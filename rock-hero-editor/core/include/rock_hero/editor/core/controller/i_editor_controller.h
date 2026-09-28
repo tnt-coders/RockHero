@@ -424,7 +424,12 @@ public:
     virtual void onChartSustainAdjustRequested(int direction) = 0;
 
     /*!
-    \brief Handles a request to toggle one technique on the selected notes.
+    \brief Handles a request to toggle one technique on its operand: the selection, else what the
+    armed caret's slot holds.
+
+    On a covered slot that operand is an instant along the ring, where only the vibrato pair has a
+    meaning: it flips the width of the leg from that instant to the next keyframe, planting a point
+    there. The operand becomes the selection once the press writes.
 
     One verb for every technique (\ref ChartTechnique), under one law: uniform scope and one
     compound undo entry — a selection already carrying the technique on every note clears it,

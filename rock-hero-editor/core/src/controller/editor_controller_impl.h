@@ -345,10 +345,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
     // no keyframe selected.
     void performActionImpl(const EditorAction::ToggleChartJunction& action);
-    // The body both mute verbs share, so the uniform-scope law and the toggle window are written
-    // once: the two verbs differ only in which flag they write, which window they arm, and the
-    // noun their undo labels are built from.
-    void toggleChartLegato(const std::vector<ChartSlotKey>& keys);
+    // The legato row of the technique toggle, planned through the resolver rather than
+    // chartTechniqueLaw; the operand's heads are claimed or cleared, and the operand becomes the
+    // selection.
+    void toggleChartLegato(const ChartSelection& operand);
     void disarmChartVerbWindow() noexcept;
     // The proof every coalescing window rests on, written once for both verbs: the window's
     // selection is still the live one, and the entry it names is still the history top this burst
@@ -1216,12 +1216,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // not a slot the keys stand at.
     [[nodiscard]] std::optional<ChartSlotKey> chartOperandSlot() const;
     // The anchors a MODIFYING key addresses — one that states a value on what stands and can
-    // create no note (the bend verb) — as the selection it writes: the selection's heads and
-    // points, else what the operand's slot holds. On the NOTE plane that is the object standing at
-    // the slot, else the ring covering or ending there, a covered slot's only meaning; the RING
-    // plane asks the ring first, which differs only where a ring ends on the head at the slot. A
-    // key naming an instant with no point is the keyframe key the answer plants at. Empty where
-    // the key addresses nothing.
+    // create no note (the bend and technique verbs) — as the selection it writes: the selection's
+    // heads and points, else what the operand's slot holds. On the NOTE plane that is the object
+    // standing at the slot, else the ring covering or ending there, a covered slot's only meaning;
+    // the RING plane asks the ring first, which differs only where a ring ends on the head at the
+    // slot. A key naming an instant with no point is the keyframe key the write plants at. Empty
+    // where the key addresses nothing.
     [[nodiscard]] ChartSelection chartModifierAnchors(ChartEntryPlane plane) const;
     // The note plane at one slot: the object standing there retyped (chartObjectAt), a ring rung
     // through cut, an empty slot or a ring's end given a head.

@@ -1879,19 +1879,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
             {
                 written.vibrato = set;
             }
-            // A width is the leg's own statement. Clearing ends the vibrato at the point through
-            // the one authority for that ending's stored form (endVibratoAt): the point stays as
-            // the bare beginning of an unvibrated leg, which ends the vibrato before it, and where
-            // that leg was not vibrated the point is silent authoring state the commit law
-            // sweeps when the note leaves focus. A key naming no keyframe (one an earlier sweep
-            // dissolved) writes nothing: this verb states the channel on keyframes the chart
-            // holds and never authors one.
+            // A key names an instant, a point standing there or not; setting plants one.
             for (const common::core::Fraction& offset : selectedOffsetsOn(keyframe_keys, slot))
             {
-                if (common::core::standingKeyframe(written, offset) == nullptr)
-                {
-                    continue;
-                }
                 if (common::core::hasVibrato(set))
                 {
                     common::core::keyframeAt(written, offset).vibrato = set;
@@ -2174,21 +2164,17 @@ template <typename Carries>
     return !selected.empty() && std::ranges::all_of(selected, carries);
 }
 
-// The WIDTH the vibrato channel is in force at where one selected keyframe stands — its OWN
+// The WIDTH the vibrato channel is in force at a keyframe key's instant — a point's OWN
 // statement included, which is what `ringStateAt` reads and what makes "which tier does this point
 // carry" the same question at a point as at an onset. Returns the width rather than a flag so each
 // tier's verb compares against its own value: a wide point must read as NOT carrying the ordinary
 // tier, or `V` over it would clear instead of replacing.
 //
-// A key naming no note, or naming a keyframe an earlier press dissolved, reads the state the ring
-// actually holds there — after a clearing press, no vibrato — so the next press means SET. What
-// that press can then do is bounded by `planSetVibrato`, which states the channel on keyframes the
-// chart HOLDS and never authors one: a key whose point dissolved therefore plans to NoChange. The
-// dissolved point returns through the verb window's exact reversal (the second press of the pair),
-// which is what the lingering key exists for; once that window closes the key is inert until the
-// selection next changes. Restating a dissolved point is authoring a keyframe at an offset, which
-// is the `B` verb's business and not this one's.
-[[nodiscard]] common::core::VibratoState selectedKeyframeVibrato(
+// A key naming an instant with no point — `V` on a covered slot, or a point an earlier press
+// dissolved — reads the state the ring actually holds there, the leg that instant lies in, so the
+// press flips THAT leg's width from the instant on (`planSetVibrato` plants the point). A dissolved
+// point's own return is the verb window's exact reversal, the second press of the pair.
+[[nodiscard]] common::core::VibratoState vibratoAtKey(
     const common::core::Chart& chart, const ChartKeyframeKey& key)
 {
     const auto found = std::ranges::lower_bound(
@@ -2215,10 +2201,10 @@ template <common::core::VibratoState Tier>
     return ChartTechniqueLaw{
         .noun = noun,
         // The one row family with two scopes, because vibrato is the one technique here that is a
-        // fact about a LEG: a selected note carries the tier when its first leg is at it, and a
-        // selected keyframe when the leg it begins is at it. Both are read for
-        // the same uniform-scope answer, so a press over a mixed selection clears only when every
-        // anchor in it already stands at this tier.
+        // fact about a LEG: a note carries the tier when its first leg is at it, and a keyframe
+        // key when the leg its instant lies in is at it. Both are read for the same uniform-scope
+        // answer, so a press over a mixed operand clears only when every anchor in it already
+        // stands at this tier.
         .carried =
             [](const common::core::Chart& chart, const ChartSelection& selection) {
                 // Asked of the RESOLVED anchors, like every other row's everySelectedNoteCarries: a
@@ -2238,7 +2224,7 @@ template <common::core::VibratoState Tier>
                            }) &&
                        std::ranges::all_of(
                            selection.keyframes(), [&chart](const ChartKeyframeKey& key) {
-                               return selectedKeyframeVibrato(chart, key) == Tier;
+                               return vibratoAtKey(chart, key) == Tier;
                            });
             },
         .plan =

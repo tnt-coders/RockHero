@@ -1324,17 +1324,21 @@ press that replaces one tier with the other is one write of the new width and no
 by a set. Nothing here knows which key was pressed.
 
 The caller has already decided the direction under the uniform-scope law, so this writes the width
-at every selected anchor, or ends the vibrato there through \ref common::core::endVibratoAt, the
-one authority for a vibrato ending's stored form: the point stays as the bare beginning of an
+at every anchor, or ends the vibrato there through \ref common::core::endVibratoAt, the one
+authority for a vibrato ending's stored form: the point stays as the bare beginning of an
 unvibrated leg, ending the vibrato before it, and where that leg was not vibrated it is silent
 authoring state that dissolves when the note leaves focus — lingering as a selection key
-meanwhile, which is what a second press inside the verb window reverses through.
+meanwhile, which is what a second press inside the verb window reverses through. A keyframe key
+names an INSTANT, whether a point stands there yet or not: setting plants one there
+(\ref common::core::keyframeAt), carrying its width to the next keyframe, which is how `V` on a
+covered slot starts a vibrato mid-ring.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
-\param keyframe_keys Keyframes whose statement changes, sorted ascending, same precondition.
-\param set Width written at every selected anchor; `None` takes it off.
+\param keyframe_keys Instants along a ring whose leg's width changes, a point standing there or
+       not, sorted ascending, same precondition.
+\param set Width written at every anchor; `None` takes it off.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
         a redundant statement is a no-op), Invalid when the gate refuses the result.
@@ -1378,10 +1382,11 @@ The one table behind the toggle verb, so a technique joining the family adds a r
 in the controller: the verb reads `carried` to decide set-or-clear (the uniform-scope law), plans
 through `plan`, and labels the entry and its reversal from `noun`.
 
-Both members take the whole SELECTION rather than one note, because the selection is what the
-uniform-scope law scopes a verb to and not every technique lives in one place: vibrato is a channel
-along the ring, so a selected keyframe carries it and takes it exactly as a selected note does,
-while every row but its two reads `selection.notes()` and nothing else. Handing each row one
+Both members take the whole OPERAND rather than one note — the selection, else what the armed
+caret's slot holds — because the operand is what the uniform-scope law scopes a verb to and not
+every technique lives in one place: vibrato is a channel along the ring, so a keyframe key (an
+instant, a point standing there or not) carries it and takes it exactly as a note does, while every
+row but its two reads `selection.notes()` and nothing else. Handing each row one
 operand and letting it read the parts it has a meaning for is what keeps a technique with no
 keyframe scope from carrying a guard about keyframes.
 */

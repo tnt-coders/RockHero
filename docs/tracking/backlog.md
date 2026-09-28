@@ -1269,3 +1269,19 @@ against the tree on the date above.
   but the window glide it starts is animated with no test hook, so no UI test asserts where the
   window lands; the sibling "verb on a selection" rule in `EditorView::perform` is untested the same
   way. Both want one glide hook (or a synchronous test path) and a test each.
+
+## Found while building bare `V` on a tail (2026-09-27)
+
+- **The slot-key → note lookup is written six times, and one copy lies.** `ringCarrier`
+  (`chart_handlers.cpp`, anonymous namespace) returns the `lower_bound` with no equality check, so
+  a slot the stream no longer holds yields the NEXT note, not the null its comment promises. The
+  same lookup is restated in `vibratoAtKey` and twice more in `chart_edits.cpp`, and twice in
+  `chart_handlers.cpp`; `B` resolves anchors through `ringCarrier` while `V` resolves the same keys
+  through `vibratoAtKey`, so the two disagree on a stale key. One `findChartNote(notes, slot)` in
+  `chart_selection.h`, beside `slotIndicesForKeys` ("THE key resolution"), replaces every copy and
+  deletes `ringCarrier`. No stale-key case has been constructed in practice.
+- **Action availability is stated twice.** `isActionAvailable` (`editor_action_availability.cpp`)
+  and `actionUnavailableReason` (`editor_controller.cpp`) are parallel exhaustive switches that must
+  agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One
+  `actionBlocker(id, conditions) -> std::optional<std::string_view>` with
+  `isActionAvailable = !actionBlocker(...).has_value()` deletes one switch.

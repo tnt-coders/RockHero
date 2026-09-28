@@ -433,8 +433,12 @@ how the keys reach a ring's end statement once the walk or a click has selected 
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, wide vibrato, accent, ghost,
 pick slide, right-hand tap, slap, pop, pinch harmonic, and legato, each a row of
 `chartTechniqueLaw` in `chart_edits.h` except legato, which plans through the resolver;
-uniform scope over the selection, one compound undo entry, one toggle
-window. Every row but the vibrato pair reads `selection.notes()` alone. **Vibrato has two
+uniform scope over its OPERAND — the selection, else what the armed caret's slot holds
+(`chartModifierAnchors`), the ring on a covered slot — one compound undo entry, one toggle
+window, and an operand the caret named becomes the selection once the press writes. Every row but
+the vibrato pair reads `selection.notes()` alone, so on a covered slot only `V` / `Shift+V` write:
+a keyframe key names an INSTANT, and `planSetVibrato` plants a fret-less point there carrying the
+width of the leg it begins. **Vibrato has two
 authoring scopes because it is the one interval STATE here**: the note's own field is the
 channel's statement at offset zero and a selected KEYFRAME states a change from there, so one
 planner (`planSetVibrato`) writes both. It is also one of two technique FAMILIES sharing a field

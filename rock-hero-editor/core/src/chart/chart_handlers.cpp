@@ -2690,7 +2690,7 @@ ChartSelection EditorController::Impl::chartModifierAnchors(const ChartEntryPlan
     // With nothing selected the note plane asks what STANDS at the slot — met only through a
     // transition that put it back under an armed caret, arming on an object selecting it — and
     // then the ring, a covered slot's only meaning for a key that modifies; an empty slot holds
-    // nothing to bend.
+    // nothing to modify.
     if (const std::optional<ChartSelectionKey> standing =
             chartObjectAt(slot->position, slot->string);
         standing.has_value())
@@ -3683,7 +3683,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
 {
     const ChartTechnique technique = action.technique;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
+    // The OPERAND a modifying key addresses: the selection, else what the caret's slot holds —
+    // the ring on a covered slot, where only a channel along the ring (the vibrato) has a meaning
+    // and every other technique plans to NoChange.
+    const ChartSelection operand = chartModifierAnchors(ChartEntryPlane::Note);
+    if (arrangement == nullptr || !arrangement->chart.has_value() || operand.empty())
     {
         return;
     }
@@ -3697,18 +3701,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     }
     if (technique == ChartTechnique::Legato)
     {
-        toggleChartLegato(chartSelection().notes());
+        toggleChartLegato(operand);
         return;
     }
 
-    // The law reads the whole SELECTION for both halves of the toggle: which objects a technique
-    // has a meaning for is the row's own business, so a press over a selection this technique
-    // reaches nothing in simply plans to NoChange instead of being filtered out here.
+    // The law reads the whole OPERAND for both halves of the toggle: which objects a technique
+    // has a meaning for is the row's own business, so a press over an operand this technique
+    // reaches nothing in simply plans to NoChange instead of being filtered out here. The operand
+    // becomes the selection, as the bend's anchors do, so a point the caret's slot planted is
+    // selected and a second press reverses it through the window.
     const ChartTechniqueLaw law = chartTechniqueLaw(technique);
-    const bool all_carry = law.carried(*arrangement->chart, chartSelection());
+    const bool all_carry = law.carried(*arrangement->chart, operand);
     const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
-    if (applyChartEditPlan(law.plan(
-            *arrangement->chart, session().song().tempo_map, chartSelection(), !all_carry, label)))
+    if (applyChartEditPlan(
+            law.plan(*arrangement->chart, session().song().tempo_map, operand, !all_carry, label),
+            operand.keys()))
     {
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
@@ -3725,8 +3732,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
 // than by what the selection already holds is what keeps a rider note from stranding the toggle in
 // apply mode forever. The clear flattens only the stored claims: a left-hand tap riding the
 // selection keeps its attack, since Ctrl+H is its sole author.
-void EditorController::Impl::toggleChartLegato(const std::vector<ChartSlotKey>& keys)
+void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
 {
+    const std::vector<ChartSlotKey>& keys = operand.notes();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
@@ -3736,7 +3744,7 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartSlotKey>& 
         planSetLegato(*arrangement->chart, session().song().tempo_map, keys, "Legato");
     if (planned.plan.has_value())
     {
-        if (applyChartEditPlan(std::move(*planned.plan)))
+        if (applyChartEditPlan(std::move(*planned.plan), operand.keys()))
         {
             m_chart_verb_window = ChartVerbWindow{
                 .keys = chartSelection().keys(),
@@ -3765,7 +3773,7 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartSlotKey>& 
     if (clear_plan.has_value())
     {
         // The clear press arms the window too: reversing it restores the exact previous mix.
-        if (applyChartEditPlan(std::move(clear_plan)))
+        if (applyChartEditPlan(std::move(clear_plan), operand.keys()))
         {
             m_chart_verb_window = ChartVerbWindow{
                 .keys = chartSelection().keys(),

@@ -342,22 +342,23 @@ namespace
                    !conditions.transport_playing;
         }
         // A digit inserts at an armed caret or retypes the selection; which, the verb decides. The
-        // bend verb is the same shape — the selection, else the ring at the armed caret — and its
-        // answer writes the anchors its question named.
+        // bend and technique verbs are the same shape — the selection, else what the armed caret's
+        // slot holds, the ring on a covered one — and the bend's answer writes the anchors its
+        // question named.
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
+        case EditorAction::Id::ToggleChartTechnique:
         {
             return conditions.has_chart;
         }
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
-        case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
-        // The junction toggle is selection-scoped like the technique verbs beside it: its operand
-        // is a selected keyframe or head, however that selection was made.
+        // The junction toggle is selection-scoped like the verbs beside it: its operand is a
+        // selected keyframe or head, however that selection was made.
         case EditorAction::Id::ToggleChartJunction:
         {
             return conditions.has_chart && conditions.has_chart_selection;

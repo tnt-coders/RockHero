@@ -565,12 +565,12 @@ namespace
         case EditorAction::Id::TypeChartFretDigit:
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
+        case EditorAction::Id::ToggleChartTechnique:
         {
             return "no-chart";
         }
         case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::AdjustChartSustain:
-        case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::SetChartLeftTap:
