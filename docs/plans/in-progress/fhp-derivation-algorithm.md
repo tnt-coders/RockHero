@@ -50,7 +50,8 @@ One O(n) forward pass over onset groups, bounded lookahead (the run scan), in ex
 Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
 
 1. **[LAW — 99.97% zone invariant]** A coverage group is the fretted, non-tap notes of one onset
-   instant; open strings and tapped notes never constrain the window.
+   instant; open strings and tapped notes never constrain the window — save a BENT open string,
+   which is a behind-the-nut bend (rule 13).
 2. **[LAW — 9,958/9,958 corpus slides]** A pitched slide contributes its destination fret as a
    coverage demand at the slide's end; the slide is the sanctioned carrier of any shift it
    causes.
@@ -115,6 +116,18 @@ Tags: **[LAW]** fixed in code; **[PARAM]** a named parameter with a default.
     enters the hull only later, at the pull-off's own onset, so the window covers the waiting
     finger only by luck of width. `chartPlantedStops` reaches the importer solely through the
     let-ring figure law (`:3646`, `letRingFigureEnds`), which decides ring ends, never windows.
+
+13. **[LAW — RULED 2026-09-28, user; amends rule 1]** A BEND ON AN OPEN STRING is a
+    **behind-the-nut bend**: the fretting hand pushes the string on the headstock side of the nut,
+    so the hand is at the nut. Such a note is a coverage demand at **fret 1**, so the run it
+    belongs to anchors at FHP 1, and it is the one open-string note that constrains the window.
+    "Bent" means the bend channel leaves rest anywhere along the note's ring — a pre-bend at the
+    onset, or any point on the tail — read through `ringStateAt`, like every other coverage
+    source. A special mark for the behind-the-nut bend itself was considered and deferred; FHP 1
+    is the clean first step, and it asserts only what the chart proves (the hand is at the nut).
+    *Related:* `docs/plans/roadmap/42-chart-validation.md` lists `open_string_bend` as a Warning.
+    That lint now flags a legitimate technique, so re-judge its severity (or drop it) when plan 42
+    is executed.
 
 ### Measured score of exactly this algorithm (all 4,555 arrangements)
 
