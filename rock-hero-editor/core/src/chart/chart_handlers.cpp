@@ -2872,7 +2872,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     }
     if (caret->lane.has_value())
     {
-        insertLanePointAtCaret(*caret);
+        // Copied so the planting (a full action dispatch that re-points the selection and may
+        // touch the marker) never reads back through the marker variant it aliases.
+        const ChartCaret armed = *caret;
+        insertLanePointAtCaret(armed);
         return;
     }
     insertAtChartCaret(ChartEntryPlane::Note);

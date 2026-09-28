@@ -1715,8 +1715,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // or the string row's note at the fret in force (insertAtChartCaret). A no-op without an
     // armed marker.
     void performActionImpl(const EditorAction::InsertAtCaret& action);
-    // The lane half: this lane's own on-curve point at the caret's slot.
-    void insertLanePointAtCaret(const ChartCaret& armed_caret);
+    // The lane half: this lane's own on-curve point at the caret's slot. `caret` must be a copy,
+    // never a reference into the marker, which the planting may re-point.
+    void insertLanePointAtCaret(const ChartCaret& caret);
 
     // The chart lane's ring-plane insert (Alt+Insert): the point at the caret's instant on the
     // ring there, carrying the fret in force. A no-op without a caret armed on a string row.

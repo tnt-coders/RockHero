@@ -1822,11 +1822,8 @@ std::vector<common::core::ToneAutomationPoint> EditorController::Impl::
 // — the keyboard mirror of the on-curve Alt+click landing — selected once planted. A slot that
 // already holds a point is a no-op here (the lane's Insert never mutates an existing point), as
 // is an unresolved parameter (no live line to land on).
-void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& armed_caret)
+void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
 {
-    // Copied so the planting (a full action dispatch that re-points the selection and may touch
-    // the marker) never reads back through the marker variant it aliases.
-    const ChartCaret caret = armed_caret;
     if (!caret.lane.has_value())
     {
         return;
