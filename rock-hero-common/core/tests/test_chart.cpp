@@ -3132,8 +3132,9 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     // Two notes a beat apart on one string, the first ringing exactly to the second: the shape
-    // every clause below varies one field of.
-    const auto pair_with = [&tempo_map](const ChartNote& first, const ChartNote& second) {
+    // every clause below varies one field of. Returns `bool`, never a deduced type: an element of a
+    // std::vector<bool> is a proxy into `connections`, which dies at the return.
+    const auto pair_with = [&tempo_map](const ChartNote& first, const ChartNote& second) -> bool {
         const std::vector<ChartNote> notes{first, second};
         const ChartConnections connections = chartConnections(notes, tempo_map);
         REQUIRE(connections.arrives_into.size() == 2);
@@ -3243,7 +3244,10 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
 TEST_CASE("The connections report a ring ending on the next head", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    const auto ends_on_next_head = [&tempo_map](const ChartNote& first, const ChartNote& second) {
+    // Returns `bool` for the same reason the arrival's pair_with does: a deduced return would hand
+    // back a std::vector<bool> proxy into the dying `connections`.
+    const auto ends_on_next_head =
+        [&tempo_map](const ChartNote& first, const ChartNote& second) -> bool {
         const std::vector<ChartNote> notes{first, second};
         const ChartConnections connections = chartConnections(notes, tempo_map);
         REQUIRE(connections.ends_on_next_head.size() == 2);
