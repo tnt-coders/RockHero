@@ -93,7 +93,7 @@ namespace
 {
     if (key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9)
     {
-        return static_cast<char32_t>(U'0' + (key_code - juce::KeyPress::numberPad0));
+        return U'0' + static_cast<char32_t>(key_code - juce::KeyPress::numberPad0);
     }
     if (key_code == juce::KeyPress::numberPadAdd)
     {
