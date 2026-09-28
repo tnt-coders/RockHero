@@ -667,7 +667,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
         });
     common::core::Keyframe point = common::core::keyframeInLeg(*target, offset);
     point.fret = fret;
-    target->keyframes.insert(at, std::move(point));
+    target->keyframes.insert(at, point);
 
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
 }
