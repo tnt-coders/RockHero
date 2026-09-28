@@ -5019,6 +5019,7 @@ TEST_CASE(
     };
     GpScore score = makeLinearScore(1, syncs);
     std::vector<GpBeat> run;
+    run.reserve(7);
     for (int index = 0; index < 7; ++index)
     {
         run.push_back(noteBeat(Fraction{1, 28}, 5 + index, 2));
