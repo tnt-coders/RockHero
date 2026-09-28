@@ -163,7 +163,7 @@ std::vector<ChartKeyframeRef> keyframeIndicesForKeys(
             continue;
         }
         const std::vector<common::core::KeyframeViewState>& keyframes =
-            projected[note_index].slides;
+            projected[note_index].keyframes;
         const auto found =
             std::ranges::find(keyframes, key.offset, &common::core::KeyframeViewState::offset);
         if (found == keyframes.end())

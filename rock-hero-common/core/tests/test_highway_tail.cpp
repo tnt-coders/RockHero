@@ -772,9 +772,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
         BendPointViewState{.seconds = 9.0, .semitones = 0.5},  // outside: dropped
         BendPointViewState{.seconds = 15.0, .semitones = 0.0}, // outside: dropped
     };
-    // Hand-built view states carry no authored offset: these fixtures resolve no tempo map, and
-    // nothing on the highway path reads the field (it is the editor's selection identity).
-    note.slides = {KeyframeViewState{.seconds = 12.7, .fret = 7, .offset = Fraction{}}};
+    note.slides = {SlideStopViewState{.seconds = 12.7, .fret = 7}};
 
     const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
 

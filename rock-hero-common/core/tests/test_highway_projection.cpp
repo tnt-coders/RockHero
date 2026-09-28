@@ -520,7 +520,7 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK(scrape.slides.back().slide_out);
     CHECK(linkedKeyframe(scrape.slides[0]));
     CHECK_FALSE(linkedKeyframe(scrape.slides[1]));
-    CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.ring_end_seconds));
+    CHECK(scrape.slides[1].seconds == Catch::Approx(scrape.ring_end_seconds));
 
     // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
     // picking-hand light the scrape drives — derived beside the scene, never inside it.
@@ -1219,9 +1219,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     sliding.ink_end_seconds = 4.0;
     sliding.fret = 12;
     sliding.attack = NoteAttack::Tap;
-    // Hand-built view states carry no authored offset: these fixtures resolve no tempo map, and
-    // nothing on the highway path reads the field (it is the editor's selection identity).
-    sliding.slides = {KeyframeViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
+    sliding.slides = {SlideStopViewState{.seconds = 4.0, .fret = 15}};
     notes.push_back(sliding);
 
     // Tapped slide with an unpitched slide-out: the pitched glide ends at 6.0; the trail to 6.5
@@ -1233,8 +1231,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
     trailing.slides = {
-        KeyframeViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 6.5, .fret = 8, .offset = Fraction{}, .slide_out = true},
+        SlideStopViewState{.seconds = 6.0, .fret = 13},
+        SlideStopViewState{.seconds = 6.5, .fret = 8, .slide_out = true},
     };
     notes.push_back(trailing);
 
@@ -1394,11 +1392,11 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
     trailing.slides = {
-        KeyframeViewState{.seconds = 1.5, .fret = 12, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 2.0, .fret = 13, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 2.5, .fret = 8, .offset = Fraction{}, .slide_out = true},
+        SlideStopViewState{.seconds = 1.5, .fret = 12},
+        SlideStopViewState{.seconds = 2.0, .fret = 13},
+        SlideStopViewState{.seconds = 2.5, .fret = 8, .slide_out = true},
     };
-    REQUIRE(keyframeDrawn(trailing.slides.back(), trailing.ink_end_seconds));
+    REQUIRE(instantDrawn(trailing.slides.back().seconds, trailing.ink_end_seconds));
 
     const HighwayHandLight drawn = makePickHandLight({trailing}, std::vector<double>(1, 0.0));
     REQUIRE(drawn.lit.size() == 1);
@@ -1411,7 +1409,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     // light holds to the ink end and releases there, which extends the path by a release arrival.
     NoteViewState cut = trailing;
     cut.ink_end_seconds = 2.25;
-    REQUIRE_FALSE(keyframeDrawn(cut.slides.back(), cut.ink_end_seconds));
+    REQUIRE_FALSE(instantDrawn(cut.slides.back().seconds, cut.ink_end_seconds));
     const HighwayHandLight undrawn = makePickHandLight({cut}, std::vector<double>(1, 0.0));
     REQUIRE(undrawn.lit.size() == 1);
     CHECK(undrawn.lit.front().release_seconds == Catch::Approx(cut.ink_end_seconds));
@@ -1439,10 +1437,10 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
     tap.fret = 12;
     tap.attack = NoteAttack::Tap;
     tap.slides = {
-        KeyframeViewState{.seconds = 2.0, .fret = 15, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 2.5, .fret = 17, .offset = Fraction{}},
+        SlideStopViewState{.seconds = 2.0, .fret = 15},
+        SlideStopViewState{.seconds = 2.5, .fret = 17},
     };
-    REQUIRE_FALSE(keyframeDrawn(tap.slides.front(), tap.ink_end_seconds));
+    REQUIRE_FALSE(instantDrawn(tap.slides.front().seconds, tap.ink_end_seconds));
 
     const HighwayHandLight light = makePickHandLight({tap}, std::vector<double>(1, 0.0));
     REQUIRE(light.lit.size() == 1);
@@ -1477,7 +1475,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     low.ink_end_seconds = 4.0;
     low.fret = 12;
     low.attack = NoteAttack::Tap;
-    low.slides = {KeyframeViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
+    low.slides = {SlideStopViewState{.seconds = 4.0, .fret = 15}};
     NoteViewState high;
     high.start_seconds = 3.0;
     high.ring_end_seconds = 5.0;
@@ -1485,7 +1483,7 @@ TEST_CASE("Highway tap light eases each chord member along its own rail", "[core
     high.string = 1;
     high.fret = 14;
     high.attack = NoteAttack::Tap;
-    high.slides = {KeyframeViewState{.seconds = 5.0, .fret = 18, .offset = Fraction{}}};
+    high.slides = {SlideStopViewState{.seconds = 5.0, .fret = 18}};
 
     const HighwayHandLight light = makePickHandLight({low, high}, std::vector<double>(2, 0.0));
     REQUIRE(light.lit.size() == 1);
@@ -1579,9 +1577,9 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(view.bend.empty());
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides.back().slide_out);
-    REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
-    CHECK_FALSE(glideStopAt(view, 0).unpitched);
-    CHECK(glideStopAt(view, 1).unpitched);
+    REQUIRE(instantDrawn(view.slides.back().seconds, view.ink_end_seconds));
+    CHECK_FALSE(view.slides[0].slide_out);
+    CHECK(view.slides[1].slide_out);
     // The right-hand light rides the scrape: one onset, and the picking hand's track follows the
     // traveled keyframes (17 at the onset, 3 at the reversal, 9 at the end), each fret's window
     // spanning lines fret - 1 to fret.
@@ -1632,11 +1630,11 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     scrape.fret = 17;
     scrape.attack = NoteAttack::PickSlide;
     scrape.slides = {
-        KeyframeViewState{.seconds = 1.25, .fret = 3, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 1.5, .fret = 9, .offset = Fraction{}, .slide_out = true},
+        SlideStopViewState{.seconds = 1.25, .fret = 3},
+        SlideStopViewState{.seconds = 1.5, .fret = 9, .slide_out = true},
     };
-    REQUIRE(keyframeDrawn(scrape.slides[0], scrape.ink_end_seconds));
-    REQUIRE_FALSE(keyframeDrawn(scrape.slides[1], scrape.ink_end_seconds));
+    REQUIRE(instantDrawn(scrape.slides[0].seconds, scrape.ink_end_seconds));
+    REQUIRE_FALSE(instantDrawn(scrape.slides[1].seconds, scrape.ink_end_seconds));
 
     const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
     REQUIRE(light.lit.size() == 1);
@@ -1686,9 +1684,9 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
     scrape.fret = 12;
     scrape.attack = NoteAttack::PickSlide;
     scrape.slides = {
-        KeyframeViewState{.seconds = 1.25, .fret = 3, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 1.5, .fret = 10, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 1.75, .fret = 2, .offset = Fraction{}, .slide_out = true},
+        SlideStopViewState{.seconds = 1.25, .fret = 3},
+        SlideStopViewState{.seconds = 1.5, .fret = 10},
+        SlideStopViewState{.seconds = 1.75, .fret = 2, .slide_out = true},
     };
 
     const HighwayHandLight light = makePickHandLight({scrape}, std::vector<double>(1, 0.0));
@@ -1894,7 +1892,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.fret = 5;
     note.attack = NoteAttack::Tap;
     note.harmonic_node = 17.0;
-    note.slides = {KeyframeViewState{.seconds = 2.0, .fret = 9, .offset = Fraction{}}};
+    note.slides = {SlideStopViewState{.seconds = 2.0, .fret = 9}};
 
     const std::vector<NoteViewState> notes{note};
     const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(1, 0.0));
@@ -2069,11 +2067,11 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
     trailing.ink_end_seconds = 2.5;
     trailing.fret = 10;
     trailing.slides = {
-        KeyframeViewState{.seconds = 1.5, .fret = 12, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 2.0, .fret = 13, .offset = Fraction{}},
-        KeyframeViewState{.seconds = 2.5, .fret = 8, .offset = Fraction{}, .slide_out = true},
+        SlideStopViewState{.seconds = 1.5, .fret = 12},
+        SlideStopViewState{.seconds = 2.0, .fret = 13},
+        SlideStopViewState{.seconds = 2.5, .fret = 8, .slide_out = true},
     };
-    REQUIRE(keyframeDrawn(trailing.slides.back(), trailing.ink_end_seconds));
+    REQUIRE(instantDrawn(trailing.slides.back().seconds, trailing.ink_end_seconds));
     ChartViewState scene;
     scene.notes = {trailing};
     const std::vector<double> rise{0.125};
@@ -2084,7 +2082,7 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
         });
 
     scene.notes.front().ink_end_seconds = 2.25;
-    REQUIRE_FALSE(keyframeDrawn(scene.notes.front().slides.back(), 2.25));
+    REQUIRE_FALSE(instantDrawn(scene.notes.front().slides.back().seconds, 2.25));
     CHECK(
         makeFretHandLight(scene, rise) ==
         std::vector<HighwayLitStretch>{
@@ -2226,7 +2224,7 @@ TEST_CASE("Pick-hand track leaves an earlier strike at the next onset", "[core][
     NoteViewState gliding = tapAt(1.0, 1, 12);
     gliding.ring_end_seconds = 2.0;
     gliding.ink_end_seconds = 2.0;
-    gliding.slides = {KeyframeViewState{.seconds = 2.0, .fret = 15, .offset = Fraction{}}};
+    gliding.slides = {SlideStopViewState{.seconds = 2.0, .fret = 15}};
     const std::vector<NoteViewState> notes{gliding, tapAt(1.5, 2, 17)};
 
     const HighwayHandLight light = makePickHandLight(notes, std::vector<double>(2, 0.125));

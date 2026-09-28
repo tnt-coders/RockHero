@@ -210,8 +210,11 @@ The G9 bundle (tasks #261–#264). Rulings first, then the verb.
 - **W9-F with W9-D's glyph** — how 2D says *pitched* versus *falls away*; 3D already dims an
   unpitched run and 2D does not, so the surfaces diverge today. **W9-G** (does a mute restate at
   each slide junction) rides the same session.
-- **A keyframe that states no fret draws nothing** (W13), so no pointer reaches a bend-only
-  keyframe: `KeyframeViewState::fret` is non-optional. This must be answered before bends can be
+- ~~**A keyframe that states no fret draws nothing** (W13)~~ — RESOLVED 2026-09-27: a fret-less
+  keyframe inherits the fret in force (storage always did; the view dropped it), every keyframe is
+  published and reachable with the mark of what it states, and no vibrato change may stand
+  mid-slide (`technique-review-walkthrough.md` W13). It was: no pointer reached a bend-only
+  keyframe because `KeyframeViewState::fret` was non-optional. This had to be answered before bends could be
   authored on the keyframe substrate.
 - **Bend segment display in 3D** — per-string, not per-slot; built once and reverted
   (`docs/plans/completed/fret-hit-light-effect.md`, open decision 4).

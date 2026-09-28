@@ -21,6 +21,7 @@
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/common/core/testing/view_state_fixtures.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -435,6 +436,7 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
                 .legato = motion,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             },
         };
@@ -493,6 +495,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
                 .emphasis = emphasis,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             },
         };
@@ -515,6 +518,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
         .fret = 7,
         .bend = {},
         .slides = {},
+        .keyframes = {},
         .vibrato = {},
     };
     const TabNoteLayout layout = tabNoteLayout(referenceMetrics(6), probe);
@@ -583,6 +587,7 @@ TEST_CASE("Tab paint core draws a left-hand tap as the light tap plate", "[ui][t
                 .legato = motion,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             },
         };
@@ -633,6 +638,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
             .tremolo = tremolo,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = vibrato ? wholeTailVibrato(2.0, 8.0)
                                : std::vector<common::core::VibratoSpanViewState>{},
         };
@@ -649,6 +655,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
         .fret = 7,
         .bend = {},
         .slides = {},
+        .keyframes = {},
         .vibrato = {},
     };
     state.notes = {
@@ -752,6 +759,7 @@ TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[u
                 .fret = 7,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = std::move(vibrato),
             },
         };
@@ -848,24 +856,25 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     common::core::ChartViewState state;
     state.open_strings = common::core::testing::standardTuning();
     state.notes = {
-        common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .ring_end_seconds = 8.0,
-            .ink_end_seconds = 8.0,
-            .string = 1,
-            .fret = 5,
-            // A stored claim plus the motion it resolved to: the mark comes from the resolution, so
-            // the projection's answer is what the paint core has to be handed.
-            .attack = common::core::NoteAttack::Legato,
-            .legato = common::core::LegatoMotion::Hammer,
-            .palm_mute = true,
-            .emphasis = common::core::NoteEmphasis::Accent,
-            .bend = {common::core::BendPointViewState{.seconds = 4.0, .semitones = 2.0}},
-            .slides = {common::core::KeyframeViewState{
-                .seconds = 7.0, .fret = 9, .offset = common::core::Fraction{}
-            }},
-            .vibrato = wholeTailVibrato(2.0, 8.0),
-        },
+        common::core::testing::withStops(
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 8.0,
+                .ink_end_seconds = 8.0,
+                .string = 1,
+                .fret = 5,
+                // A stored claim plus the motion it resolved to: the mark comes from the
+                // resolution, so the projection's answer is what the paint core has to be handed.
+                .attack = common::core::NoteAttack::Legato,
+                .legato = common::core::LegatoMotion::Hammer,
+                .palm_mute = true,
+                .emphasis = common::core::NoteEmphasis::Accent,
+                .bend = {common::core::BendPointViewState{.seconds = 4.0, .semitones = 2.0}},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = wholeTailVibrato(2.0, 8.0),
+            },
+            {common::core::SlideStopViewState{.seconds = 7.0, .fret = 9}}),
         common::core::NoteViewState{
             .start_seconds = 3.0,
             .ring_end_seconds = 6.0,
@@ -876,6 +885,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .tremolo = true,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -891,6 +901,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1047,6 +1058,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .fret = 7,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = wholeTailVibrato(7.0, 17.0),
         },
         // The tap: span-start onset on the same string at a fret the posture does not hold.
@@ -1059,6 +1071,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .attack = common::core::NoteAttack::Tap,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1399,6 +1412,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .attack = common::core::NoteAttack::PickSlide,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1409,6 +1423,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1420,6 +1435,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .dead = true,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1431,6 +1447,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .harmonic_node = 5.0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         // The widest number the raise has to hold, on its own lane: two digits reach far enough
@@ -1444,6 +1461,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .attack = common::core::NoteAttack::PickSlide,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1454,6 +1472,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .fret = 12,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1642,6 +1661,7 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1654,6 +1674,7 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
             .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1665,6 +1686,7 @@ TEST_CASE("Tab paint core draws a pinch as a diamond that prints its fret", "[ui
             .harmonic_node = 5.0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1869,6 +1891,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         };
         if (scrape)
@@ -1876,20 +1899,17 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             note.attack = common::core::NoteAttack::PickSlide;
             // The attack makes the path the pick's travel; the last entry is the required
             // terminal, the SLIDE-OUT, which sits at the ring's end by definition.
-            note.slides = {
-                common::core::KeyframeViewState{
-                    .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{}
-                },
-                common::core::KeyframeViewState{
-                    .seconds = 10.0, .fret = 3, .offset = common::core::Fraction{}
-                },
-                common::core::KeyframeViewState{
-                    .seconds = 12.0,
-                    .fret = 12,
-                    .offset = common::core::Fraction{},
-                    .slide_out = true,
-                },
-            };
+            note = common::core::testing::withStops(
+                note,
+                {
+                    common::core::SlideStopViewState{.seconds = 6.0, .fret = 9},
+                    common::core::SlideStopViewState{.seconds = 10.0, .fret = 3},
+                    common::core::SlideStopViewState{
+                        .seconds = 12.0,
+                        .fret = 12,
+                        .slide_out = true,
+                    },
+                });
         }
         else
         {
@@ -2085,6 +2105,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
             .tremolo = true,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -2095,6 +2116,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
             .fret = 9,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = wholeTailVibrato(1.0, 18.0),
         },
     };
@@ -2183,6 +2205,7 @@ TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-pai
                     .emphasis = emphasis,
                     .bend = {},
                     .slides = {},
+                    .keyframes = {},
                     .vibrato = {},
                 },
             };
@@ -2320,18 +2343,21 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
     {
         CHECK(mark_reaches(
             painted(
-                common::core::NoteViewState{
-                    .start_seconds = 5.0,
-                    .ring_end_seconds = 9.0,
-                    .ink_end_seconds = 9.0,
-                    .string = 3,
-                    .fret = 5,
-                    .bend = {},
-                    .slides = {common::core::KeyframeViewState{
+                common::core::testing::withStops(
+                    common::core::NoteViewState{
+                        .start_seconds = 5.0,
+                        .ring_end_seconds = 9.0,
+                        .ink_end_seconds = 9.0,
+                        .string = 3,
+                        .fret = 5,
+                        .bend = {},
+                        .slides = {},
+                        .keyframes = {},
+                        .vibrato = {},
+                    },
+                    {common::core::SlideStopViewState{
                         .seconds = 9.0, .fret = 9, .slide_out = true
-                    }},
-                    .vibrato = {},
-                }),
+                    }})),
             end_x - 1));
     }
 
@@ -2347,6 +2373,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .fret = 5,
                     .bend = {common::core::BendPointViewState{.seconds = 7.0, .semitones = 2.0}},
                     .slides = {},
+                    .keyframes = {},
                     .vibrato = {},
                 }),
             end_x - 1));
@@ -2375,19 +2402,22 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
         return image;
     };
     // The ring under test: six seconds on string 3 at fret 7, carrying whatever stop is passed.
-    const auto ringing = [](std::vector<common::core::KeyframeViewState> slides,
+    const auto ringing = [](std::vector<common::core::SlideStopViewState> slides,
                             const bool ends_on_next_head) {
-        return common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .ring_end_seconds = 8.0,
-            .ink_end_seconds = 8.0,
-            .string = 3,
-            .fret = 7,
-            .bend = {},
-            .slides = std::move(slides),
-            .vibrato = {},
-            .ends_on_next_head = ends_on_next_head,
-        };
+        return common::core::testing::withStops(
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 8.0,
+                .ink_end_seconds = 8.0,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+                .ends_on_next_head = ends_on_next_head,
+            },
+            std::move(slides));
     };
     const float center_y = metrics.laneY(3);
     const TailSpan span = tailSpan(metrics, center_y);
@@ -2425,27 +2455,27 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
 
     SECTION("a slide-out toward the fret in force draws its chip and no diagonal")
     {
-        const common::core::KeyframeViewState slide_out{
+        const common::core::SlideStopViewState slide_out{
             .seconds = 8.0, .fret = 7, .slide_out = true
         };
         const common::core::NoteViewState note = ringing({slide_out}, false);
         const juce::Image image = painted({note});
         const TabKeyframeLayout layout =
-            tabKeyframeLayout(metrics, note, slide_out, common::core::drawnEndSeconds(note, false));
-        CHECK(layout.chip);
-        CHECK(box_differs(image, bare, layout.head));
+            tabSlideStopLayout(metrics, note, 0, common::core::drawnEndSeconds(note, false));
+        CHECK(layout.shape == TabKeyframeShape::Chip);
+        CHECK(box_differs(image, bare, layout.box));
         CHECK(envelope_agrees(image, bare));
     }
 
     SECTION("an interior same-fret point draws its linked head and no diagonal")
     {
-        const common::core::KeyframeViewState hold{.seconds = 6.0, .fret = 7, .slide_out = false};
+        const common::core::SlideStopViewState hold{.seconds = 6.0, .fret = 7, .slide_out = false};
         const common::core::NoteViewState note = ringing({hold}, false);
         const juce::Image image = painted({note});
         const TabKeyframeLayout layout =
-            tabKeyframeLayout(metrics, note, hold, common::core::drawnEndSeconds(note, false));
-        CHECK_FALSE(layout.chip);
-        CHECK(box_differs(image, bare, layout.head));
+            tabSlideStopLayout(metrics, note, 0, common::core::drawnEndSeconds(note, false));
+        CHECK(layout.shape == TabKeyframeShape::Head);
+        CHECK(box_differs(image, bare, layout.box));
         CHECK(envelope_agrees(image, bare));
     }
 
@@ -2453,7 +2483,7 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
     {
         // A slide-out that travels, landing exactly where the next head of its own string is
         // struck, and that head carrying the PRE-BEND whose chip sits above it.
-        const common::core::KeyframeViewState slide_out{
+        const common::core::SlideStopViewState slide_out{
             .seconds = 8.0, .fret = 12, .slide_out = true
         };
         const common::core::NoteViewState glide = ringing({slide_out}, true);
@@ -2465,18 +2495,18 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
             .fret = 5,
             .bend = {common::core::BendPointViewState{.seconds = 8.0, .semitones = 2.0}},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         };
-        const TabKeyframeLayout shared = tabKeyframeLayout(
-            metrics, glide, slide_out, common::core::drawnEndSeconds(glide, false));
-        CHECK(shared.chip);
+        const TabKeyframeLayout shared =
+            tabSlideStopLayout(metrics, glide, 0, common::core::drawnEndSeconds(glide, false));
+        CHECK(shared.shape == TabKeyframeShape::Chip);
         CHECK(shared.center_y > span.bottom);
         // And the band is the RELATION's, not the leg's: the same rising slide-out takes the band
         // above where nothing shares its instant.
         const common::core::NoteViewState alone = ringing({slide_out}, false);
         CHECK(
-            tabKeyframeLayout(
-                metrics, alone, slide_out, common::core::drawnEndSeconds(alone, false))
+            tabSlideStopLayout(metrics, alone, 0, common::core::drawnEndSeconds(alone, false))
                 .center_y < span.top);
 
         // The head's own marks keep the band above it, so the two never meet: the chip's ink is
@@ -2492,9 +2522,10 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
                  .fret = 5,
                  .bend = {},
                  .slides = {},
+                 .keyframes = {},
                  .vibrato = {},
              }});
-        CHECK(box_differs(image, painted({landing}), shared.head));
+        CHECK(box_differs(image, painted({landing}), shared.box));
         const int head_x = juce::roundToInt(metrics.x(8.0));
         const auto differs_above_head = [&] {
             for (int y = juce::roundToInt(span.top) - 12; y < juce::roundToInt(span.top); ++y)
@@ -2607,6 +2638,7 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
         .legato = common::core::LegatoMotion::Unjustified,
         .bend = {},
         .slides = {},
+        .keyframes = {},
         .vibrato = {},
     };
     const int plain_top = top_ink_row(painted_box(nullptr), juce::Colour{0xffffffff});
@@ -2670,6 +2702,7 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
                 .fret = 7,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             },
             common::core::NoteViewState{
@@ -2680,6 +2713,7 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
                 .fret = 5,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             },
         };
@@ -2707,6 +2741,90 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
     CHECK(worstPixelDelta(composed, painted(cropped, [](std::size_t) { return true; })) > 0);
 }
 
+// EVERY KEYFRAME WEARS A MARK, whatever it states. A point stating only a bend wears the curve's
+// dot where the curve stands at its amount; a point stating no position but a vibrato change wears
+// a linked head printing the fret in force. Each is measured against the same note with the
+// statement's channel geometry but no keyframe, so what differs is the mark alone.
+TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    const auto painted = [&metrics](const common::core::NoteViewState& note) {
+        common::core::ChartViewState state;
+        state.open_strings = common::core::testing::standardTuning();
+        state.notes = {note};
+        indexVisibleRanges(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state);
+        return image;
+    };
+    // Six seconds on string 3 at fret 7, bent to a whole step at 5.0s (x = 100).
+    const auto bent = [](std::vector<common::core::KeyframeViewState> keyframes) {
+        return common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 8.0,
+            .string = 3,
+            .fret = 7,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 5.0, .semitones = 2.0}},
+            .slides = {},
+            .keyframes = std::move(keyframes),
+            .vibrato = {},
+        };
+    };
+    const auto box_differs =
+        [](const juce::Image& lhs, const juce::Image& rhs, const TabLayoutRect& box) {
+            for (int y = juce::roundToInt(box.y); y < juce::roundToInt(box.y + box.height); ++y)
+            {
+                for (int x = juce::roundToInt(box.x); x < juce::roundToInt(box.x + box.width); ++x)
+                {
+                    if (lhs.getPixelAt(x, y) != rhs.getPixelAt(x, y))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+    const juce::Image unmarked = painted(bent({}));
+
+    SECTION("a bend-only point wears the curve's dot at its amount")
+    {
+        const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
+            .seconds = 5.0,
+            .offset = common::core::Fraction{3},
+            .mark = common::core::KeyframeBendMark{.semitones = 2.0},
+        }});
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+        REQUIRE(layout.shape == TabKeyframeShape::Dot);
+        // On the curve, which a whole step lifts off the string line.
+        CHECK_THAT(
+            layout.center_y,
+            Catch::Matchers::WithinULP(bendCurveY(metrics, metrics.laneY(3), 2.0), 0));
+        CHECK(layout.center_y < metrics.laneY(3));
+        CHECK(box_differs(painted(note), unmarked, layout.box));
+    }
+
+    SECTION("a vibrato change with no position wears a linked head at the fret in force")
+    {
+        const common::core::NoteViewState note = bent({common::core::KeyframeViewState{
+            .seconds = 6.0,
+            .offset = common::core::Fraction{4},
+            .mark = common::core::KeyframeRestMark{.fret = 7},
+        }});
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+        REQUIRE(layout.shape == TabKeyframeShape::Head);
+        CHECK_THAT(layout.center_y, Catch::Matchers::WithinULP(metrics.laneY(3), 0));
+        CHECK(box_differs(painted(note), unmarked, layout.box));
+    }
+}
+
 // THE CROP ENDS THE INK, AND THE REVEAL DRAWS ON TO THE STORED RING. A tail cropped short of its
 // ring dissolves over the stretch before its ink end and stops inking exactly there, and a keyframe
 // stored past that end is not drawn there at all; revealing the note draws the same ribbon on to
@@ -2718,20 +2836,23 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
 
     // One note on string 3 from 2.0s (x = 40): ink to 6.0s (x = 120), ring to 12.0s (x = 240),
     // and a linked slide keyframe at 10.0s (x = 200), past the ink end but within the ring.
-    const common::core::KeyframeViewState keyframe{.seconds = 10.0, .fret = 9, .slide_out = false};
+    const common::core::SlideStopViewState keyframe{.seconds = 10.0, .fret = 9, .slide_out = false};
     common::core::ChartViewState state;
     state.open_strings = common::core::testing::standardTuning();
     state.notes = {
-        common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .ring_end_seconds = 12.0,
-            .ink_end_seconds = 6.0,
-            .string = 3,
-            .fret = 7,
-            .bend = {},
-            .slides = {keyframe},
-            .vibrato = {},
-        },
+        common::core::testing::withStops(
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 12.0,
+                .ink_end_seconds = 6.0,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+            },
+            {keyframe}),
     };
     indexVisibleRanges(state);
     const auto painted = [&metrics, &state](const bool reveal) {
@@ -2804,6 +2925,7 @@ TEST_CASE("Tab paint core dissolves a tail at its tip unless revealed", "[ui][ta
             .emphasis = emphasis,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = with_vibrato ? wholeTailVibrato(2.0, 12.0)
                                     : std::vector<common::core::VibratoSpanViewState>{},
         };
@@ -2953,17 +3075,20 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
     // One note on string 3 from 2.0s (x = 40) at fret 7, ringing to 12.0s (x = 240), inked to
     // `ink_end`, and carrying whatever stops are passed.
     const auto ringing =
-        [](const double ink_end, std::vector<common::core::KeyframeViewState> slides) {
-            return common::core::NoteViewState{
-                .start_seconds = 2.0,
-                .ring_end_seconds = 12.0,
-                .ink_end_seconds = ink_end,
-                .string = 3,
-                .fret = 7,
-                .bend = {},
-                .slides = std::move(slides),
-                .vibrato = {},
-            };
+        [](const double ink_end, std::vector<common::core::SlideStopViewState> slides) {
+            return common::core::testing::withStops(
+                common::core::NoteViewState{
+                    .start_seconds = 2.0,
+                    .ring_end_seconds = 12.0,
+                    .ink_end_seconds = ink_end,
+                    .string = 3,
+                    .fret = 7,
+                    .bend = {},
+                    .slides = {},
+                    .keyframes = {},
+                    .vibrato = {},
+                },
+                std::move(slides));
         };
     const TailSpan span = tailSpan(metrics, metrics.laneY(3));
     // Row limits for the probe below: a head's whole box, or a chip's rows above the envelope.
@@ -2996,92 +3121,94 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
     SECTION("a linked keyframe past the crop: its chip at the crop, its head only when revealed")
     {
         // Rising 7 -> 9 toward 10.0s (x = 200); the ink ends at 6.0s (x = 120).
-        const common::core::KeyframeViewState keyframe{
+        const common::core::SlideStopViewState keyframe{
             .seconds = 10.0, .fret = 9, .slide_out = false
         };
         const common::core::NoteViewState note = ringing(6.0, {keyframe});
         const TabKeyframeLayout at_crop =
-            tabKeyframeLayout(metrics, note, keyframe, note.ink_end_seconds);
+            tabSlideStopLayout(metrics, note, 0, note.ink_end_seconds);
         const TabKeyframeLayout at_instant =
-            tabKeyframeLayout(metrics, note, keyframe, note.ring_end_seconds);
-        REQUIRE(at_crop.chip);
+            tabSlideStopLayout(metrics, note, 0, note.ring_end_seconds);
+        REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
         CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
         // The rising leg's chip stands above the envelope, so its probe rows exist.
-        REQUIRE(at_crop.head.y < span.top - 1.0f);
-        CHECK_FALSE(at_instant.chip);
+        REQUIRE(at_crop.box.y < span.top - 1.0f);
+        CHECK(at_instant.shape == TabKeyframeShape::Head);
 
         const juce::Image cropped = painted(note, false);
         const juce::Image revealed = painted(note, true);
 
         // Cropped: the chip at the crop, and nothing at the keyframe's own instant.
-        CHECK(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
-        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.head, every_row));
+        CHECK(differs_in(cropped, bare_cropped, at_crop.box, above_envelope));
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.box, every_row));
         // Revealed: the head at the keyframe's instant, and nothing left at the crop.
-        CHECK(differs_in(revealed, bare_revealed, at_instant.head, every_row));
-        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.head, above_envelope));
+        CHECK(differs_in(revealed, bare_revealed, at_instant.box, every_row));
+        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.box, above_envelope));
     }
 
     SECTION("a shift slide's arrival past the crop wears no chip: the next head shows the landing")
     {
         // Rising 7 -> 9 into the next head at the ring's end (x = 240); the ink ends at 6.0s.
-        const common::core::KeyframeViewState keyframe{
+        const common::core::SlideStopViewState keyframe{
             .seconds = 12.0, .fret = 9, .slide_out = false
         };
         common::core::NoteViewState note = ringing(6.0, {keyframe});
         note.ends_on_next_head = true;
         const TabKeyframeLayout at_crop =
-            tabKeyframeLayout(metrics, note, keyframe, note.ink_end_seconds);
-        REQUIRE(at_crop.chip);
-        REQUIRE(at_crop.head.y < span.top - 1.0f);
+            tabSlideStopLayout(metrics, note, 0, note.ink_end_seconds);
+        REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
+        REQUIRE(at_crop.box.y < span.top - 1.0f);
 
         const juce::Image cropped = painted(note, false);
         // The cut leg is still drawn, but nothing stands at the crop above the envelope.
-        CHECK_FALSE(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_crop.box, above_envelope));
         // The same leg toward a stop that is NOT the next head keeps its chip: the head is what
         // makes the chip redundant, not the ring's end.
         common::core::NoteViewState free_end = ringing(6.0, {keyframe});
         free_end.ends_on_next_head = false;
-        CHECK(differs_in(painted(free_end, false), bare_cropped, at_crop.head, above_envelope));
+        CHECK(differs_in(painted(free_end, false), bare_cropped, at_crop.box, above_envelope));
     }
 
     SECTION("a slide-out past the crop: its chip at the crop, and at its instant when revealed")
     {
         // A slide-out at the ring's end (x = 240), rising 7 -> 9.
-        const common::core::KeyframeViewState slide_out{
+        const common::core::SlideStopViewState slide_out{
             .seconds = 12.0, .fret = 9, .slide_out = true
         };
         const common::core::NoteViewState note = ringing(6.0, {slide_out});
         const TabKeyframeLayout at_crop =
-            tabKeyframeLayout(metrics, note, slide_out, note.ink_end_seconds);
+            tabSlideStopLayout(metrics, note, 0, note.ink_end_seconds);
         const TabKeyframeLayout at_instant =
-            tabKeyframeLayout(metrics, note, slide_out, note.ring_end_seconds);
-        REQUIRE(at_crop.chip);
-        REQUIRE(at_instant.chip);
+            tabSlideStopLayout(metrics, note, 0, note.ring_end_seconds);
+        REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
+        REQUIRE(at_instant.shape == TabKeyframeShape::Chip);
         CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
         CHECK_THAT(at_instant.center_x, Catch::Matchers::WithinULP(metrics.x(12.0), 0));
-        REQUIRE(at_crop.head.y < span.top - 1.0f);
-        REQUIRE(at_instant.head.y < span.top - 1.0f);
+        REQUIRE(at_crop.box.y < span.top - 1.0f);
+        REQUIRE(at_instant.box.y < span.top - 1.0f);
 
         const juce::Image cropped = painted(note, false);
         const juce::Image revealed = painted(note, true);
 
-        CHECK(differs_in(cropped, bare_cropped, at_crop.head, above_envelope));
-        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.head, above_envelope));
-        CHECK(differs_in(revealed, bare_revealed, at_instant.head, above_envelope));
-        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.head, above_envelope));
+        CHECK(differs_in(cropped, bare_cropped, at_crop.box, above_envelope));
+        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.box, above_envelope));
+        CHECK(differs_in(revealed, bare_revealed, at_instant.box, above_envelope));
+        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.box, above_envelope));
     }
 
     SECTION("a level leg past the crop says nothing new, so no chip")
     {
         // The same fret as the onset: no diagonal and no chip, so the picture is the bare note's.
-        const common::core::KeyframeViewState level{.seconds = 10.0, .fret = 7, .slide_out = false};
+        const common::core::SlideStopViewState level{
+            .seconds = 10.0, .fret = 7, .slide_out = false
+        };
         CHECK(worstPixelDelta(painted(ringing(6.0, {level}), false), bare_cropped) == 0);
     }
 
     SECTION("a note whose ink stops at its onset wears no chip")
     {
         // The chip would sit on the head: the note draws exactly what the stop-less note draws.
-        const common::core::KeyframeViewState keyframe{
+        const common::core::SlideStopViewState keyframe{
             .seconds = 10.0, .fret = 9, .slide_out = false
         };
         CHECK(
@@ -3126,6 +3253,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "
             .fret = 7,
             .bend = std::move(bend),
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         };
     };
@@ -3273,6 +3401,7 @@ TEST_CASE("Tab paint core centres lane text ink on the string line", "[ui][tab-p
             .palm_mute = palm_mute,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         };
     };
@@ -3403,6 +3532,7 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
             .fret = 7,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };

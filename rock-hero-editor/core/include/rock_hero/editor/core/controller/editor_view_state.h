@@ -616,15 +616,15 @@ struct ChartSlotViewState
 
 A keyframe needs two indices where a note needs one, because it belongs to a note rather than to a
 flat array — the same shape its selection identity has, published as drawn positions instead of as
-chart identity. The second index addresses \ref common::core::NoteViewState::slides, which holds
-only the keyframes the lane actually draws.
+chart identity. The second index addresses \ref common::core::NoteViewState::keyframes, which holds
+every keyframe the note stores; whether its mark is drawn is the lane's extent to decide.
 */
 struct ChartKeyframeRef
 {
     /*! \brief Index into the tab projection's note order. */
     std::size_t note_index{0};
 
-    /*! \brief Index into that note's drawn keyframes. */
+    /*! \brief Index into that note's keyframes. */
     std::size_t keyframe_index{0};
 
     /*!

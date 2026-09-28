@@ -363,6 +363,65 @@ arithmetic.
 [[nodiscard]] TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept;
 
 /*!
+\brief Vertical span of a sustain tail's INTERIOR: the band between its edge rails, symmetric
+about the string line like the envelope itself.
+
+The one definition of where a technique mark may live — the sine and the bend polyline COMPRESS
+their swing to fit it, the slide diagonals anchor their endpoints on it, the technique clip holds
+every mark inside it, and the side chip's ground fills exactly it — so a mark meets the tail's edge
+scaled, never cut.
+*/
+struct TailInterior
+{
+    /*! \brief Top of the interior (the top rail's inner edge). */
+    float top;
+
+    /*! \brief Bottom of the interior (the bottom rail's inner edge). */
+    float bottom;
+};
+
+/*!
+\brief Returns the interior of the sustain tail around one lane center: its envelope less the rails.
+\param geometry Lane geometry supplying the tail height and rail thickness.
+\param center_y Vertical lane center the tail straddles.
+\return Tail interior in the bounds' coordinate space.
+*/
+[[nodiscard]] TailInterior tailInterior(const TabLaneGeometry& geometry, float center_y) noexcept;
+
+/*!
+\brief Charter's white technique-line stroke, shared by the slide diagonals and the bend polyline.
+
+One constant because the interior anchoring assumes it: both drawers inset their endpoints by half
+of THIS stroke, so a divergence would push one of them back onto the rails.
+*/
+inline constexpr float g_technique_line_thickness = 2.0f;
+
+/*!
+\brief A bend-only point's dot radius, as a fraction of the tail height: the automation lanes'
+point mark, scaled to the tail it rides.
+*/
+inline constexpr float g_bend_dot_radius_tails = 0.25f;
+
+/*!
+\brief Where the bend curve stands at an amount: THE one curve height, read by the painter that
+draws the polyline and the manifest that places a bend-only point's dot.
+
+The height is how far the string physically travels (\ref common::core::bendTravel, the law the 3D
+lift draws too) as a share of the travel three whole steps take — compressed into the tail's
+interior with the stroke included, like the vibrato sine, so the polyline meets the rails scaled
+instead of being cut by the technique clip: rest sits on the interior's floor, three whole steps
+on its ceiling, and an amount past them clamps there. A half step therefore rises about a third of
+the way, the first of the travel being the longest, exactly as the fretting hand feels it.
+
+\param geometry Lane geometry supplying the tail's interior.
+\param center_y The note's string line.
+\param semitones Bend amount in semitones.
+\return The curve's center on the vertical axis at that amount.
+*/
+[[nodiscard]] float bendCurveY(
+    const TabLaneGeometry& geometry, float center_y, double semitones) noexcept;
+
+/*!
 \brief Where a chip stating a stop on the tail sits: just outside the sustain envelope, above it
 when the leg into that stop rises and below it when the leg falls.
 

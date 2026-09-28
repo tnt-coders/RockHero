@@ -31,6 +31,7 @@ namespace
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -41,6 +42,7 @@ namespace
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -51,6 +53,7 @@ namespace
             .fret = 7,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -137,11 +140,19 @@ namespace
             .fret = 5,
             .bend = {},
             .slides =
+                {common::core::SlideStopViewState{.seconds = 6.0, .fret = 9},
+                 common::core::SlideStopViewState{.seconds = 10.0, .fret = 12}},
+            // Each at the offset the chart stores it at, which is what a selection keys it by.
+            .keyframes =
                 {common::core::KeyframeViewState{
-                     .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{2}
+                     .seconds = 6.0,
+                     .offset = common::core::Fraction{2},
+                     .mark = common::core::KeyframeStopMark{.stop = 0},
                  },
                  common::core::KeyframeViewState{
-                     .seconds = 10.0, .fret = 12, .offset = common::core::Fraction{4}
+                     .seconds = 10.0,
+                     .offset = common::core::Fraction{4},
+                     .mark = common::core::KeyframeStopMark{.stop = 1},
                  }},
             .vibrato = {},
         },
@@ -214,6 +225,7 @@ TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][ch
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -594,6 +606,7 @@ TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         });
     const common::ui::TabLaneGeometry geometry = makeGeometry();
@@ -610,19 +623,63 @@ TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart
     // The chip at the crop, laid out where the lane draws it for the unrevealed note: a press on
     // it, or a box around it, reaches nothing.
     const common::core::NoteViewState& glide = cropped.notes[0];
-    REQUIRE(glide.slides.size() == 2);
+    REQUIRE(glide.keyframes.size() == 2);
     const common::ui::TabKeyframeLayout chip =
-        common::ui::tabKeyframeLayout(geometry, glide, glide.slides[1], glide.ink_end_seconds);
-    REQUIRE(chip.chip);
+        common::ui::tabKeyframeLayout(geometry, glide, glide.keyframes[1], glide.ink_end_seconds);
+    REQUIRE(chip.shape == common::ui::TabKeyframeShape::Chip);
     CHECK_FALSE(chartHitTarget(cropped, geometry, chip.center_x, chip.center_y).has_value());
     CHECK(chartTargetsInBox(
               cropped,
               geometry,
-              chip.head.x,
-              chip.head.y,
-              chip.head.x + chip.head.width,
-              chip.head.y + chip.head.height)
+              chip.box.x,
+              chip.box.y,
+              chip.box.x + chip.box.width,
+              chip.box.y + chip.box.height)
               .empty());
+}
+
+// A point stating only a bend is a target like any other keyframe: its mark is the dot the curve
+// wears at the amount it states, off the string line, and a click on the dot or a box around it
+// reaches it.
+TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][chart]")
+{
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 10.0,
+            .string = 3,
+            .fret = 5,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 6.0, .semitones = 2.0}},
+            .slides = {},
+            .keyframes = {common::core::KeyframeViewState{
+                .seconds = 6.0,
+                .offset = common::core::Fraction{2},
+                .mark = common::core::KeyframeBendMark{.semitones = 2.0},
+            }},
+            .vibrato = {},
+        },
+    };
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::core::NoteViewState& note = tab.notes.front();
+    const common::ui::TabKeyframeLayout dot =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ink_end_seconds);
+    REQUIRE(dot.shape == common::ui::TabKeyframeShape::Dot);
+    CHECK(dot.center_y < geometry.laneY(3));
+
+    CHECK(chartHitTarget(tab, geometry, dot.center_x, dot.center_y) == keyframeTarget(0, 0));
+    CHECK(
+        chartTargetsInBox(
+            tab,
+            geometry,
+            dot.box.x,
+            dot.box.y,
+            dot.box.x + dot.box.width,
+            dot.box.y + dot.box.height) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
 }
 
 // A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum
@@ -652,7 +709,7 @@ TEST_CASE("Chart selection keys a keyframe by its offset", "[core][chart]")
     // keyframe, now at index 0. An index-keyed selection would have named the wrong one, or
     // nothing at all.
     common::core::ChartViewState trimmed = tab;
-    trimmed.notes[0].slides.erase(trimmed.notes[0].slides.begin());
+    trimmed.notes[0].keyframes.erase(trimmed.notes[0].keyframes.begin());
     CHECK(
         selectedKeyframeIndices(notes, trimmed.notes, selection) ==
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));

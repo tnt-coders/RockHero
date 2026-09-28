@@ -186,11 +186,11 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(sliding.bend[0].semitones == Catch::Approx(0.0));
     CHECK(sliding.bend[1].seconds == Catch::Approx(9.5 * beat));
     CHECK(sliding.bend[1].semitones == Catch::Approx(2.0));
-    // Which points state a fret as well, each already marked by its own head or chip: the onset,
-    // and a keyframe carrying a fret. Only the bend-only point between them needs a dot.
-    CHECK(sliding.bend[0].states_fret);
-    CHECK_FALSE(sliding.bend[1].states_fret);
-    CHECK(sliding.bend[2].states_fret);
+    // Every keyframe is published as a statement wearing its mark: the bend-only point between the
+    // onset and the slide-out wears the curve's dot, and the slide-out its stop's own mark.
+    REQUIRE(sliding.keyframes.size() == 2);
+    CHECK(sliding.keyframes[0].mark == KeyframeMark{KeyframeBendMark{.semitones = 2.0}});
+    CHECK(sliding.keyframes[1].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
@@ -216,13 +216,15 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(shift_slider.ring_end_seconds == Catch::Approx(13.0 * beat));
     CHECK(shift_slider.ink_end_seconds == Catch::Approx(12.9 * beat));
     // A plain paint walks no stop — the arrival lies past the ink end — and a reveal walks it.
-    CHECK_FALSE(keyframeDrawn(shift_slider.slides[0], shift_slider.ink_end_seconds));
-    CHECK(keyframeDrawn(shift_slider.slides[0], shift_slider.ring_end_seconds));
+    CHECK_FALSE(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ink_end_seconds));
+    CHECK(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ring_end_seconds));
     // The STORED ring lands on that head, which is what the band conditional keys on.
     CHECK(shift_slider.ends_on_next_head);
     // The keyframe's own stored offset — the ring's end, a whole beat in — which is the one name
     // every mapping back to the chart uses.
-    CHECK(shift_slider.slides[0].offset == Fraction{1});
+    REQUIRE(shift_slider.keyframes.size() == 1);
+    CHECK(shift_slider.keyframes[0].offset == Fraction{1});
+    CHECK(shift_slider.keyframes[0].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
 
     // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
     // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
@@ -371,10 +373,15 @@ TEST_CASE("Chart projection crops the ink and keeps every keyframe", "[core][cha
     CHECK(ringing.bend[2].seconds == Catch::Approx(1.975));
     CHECK(ringing.bend[2].seconds > ringing.ink_end_seconds);
     REQUIRE(ringing.slides.size() == 1);
-    // Each keyframe carries the AUTHORED offset it was projected from, which is the identity the
-    // editor's selection keys it by.
-    CHECK(ringing.slides[0].offset == Fraction{2});
     CHECK(ringing.slides[0].seconds == Catch::Approx(1.0));
+    // Each keyframe carries the AUTHORED offset it was projected from, which is the identity the
+    // editor's selection keys it by — the stop and the bend-only points alike, the one past the
+    // crop included.
+    REQUIRE(ringing.keyframes.size() == 3);
+    CHECK(ringing.keyframes[0].offset == Fraction{1});
+    CHECK(ringing.keyframes[1].offset == Fraction{2});
+    CHECK(ringing.keyframes[2].offset == Fraction{79, 20});
+    CHECK(ringing.keyframes[2].seconds > ringing.ink_end_seconds);
 }
 
 // A drawn keyframe's `offset` is its IDENTITY — the STORED statement's own offset, which the
@@ -421,13 +428,18 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
     REQUIRE(state.notes.size() == 2);
     const NoteViewState& note = state.notes[0];
 
-    // The two fret-stating keyframes above, in the order the chart states them.
-    const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{2}};
-    REQUIRE(note.slides.size() == stored_offsets.size());
+    // Every keyframe above, in the order the chart states them, each naming its stored offset: the
+    // two fret-stating ones name their stops, the bend-only one between them its dot.
+    const std::vector<Fraction> stored_offsets = {Fraction{1, 2}, Fraction{1}, Fraction{2}};
+    REQUIRE(note.keyframes.size() == stored_offsets.size());
     for (std::size_t index = 0; index < stored_offsets.size(); ++index)
     {
-        CHECK(note.slides[index].offset == stored_offsets[index]);
+        CHECK(note.keyframes[index].offset == stored_offsets[index]);
     }
+    CHECK(note.keyframes[0].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
+    CHECK(note.keyframes[1].mark == KeyframeMark{KeyframeBendMark{.semitones = 2.0}});
+    CHECK(note.keyframes[2].mark == KeyframeMark{KeyframeStopMark{.stop = 1}});
+    REQUIRE(note.slides.size() == 2);
     CHECK_FALSE(note.slides[0].slide_out);
     CHECK(note.slides[1].slide_out);
     // 120 BPM 4/4: the stop at half a beat draws a quarter second in, and the slide-out at the
@@ -439,9 +451,9 @@ TEST_CASE("Chart projection draws each keyframe at its stored instant", "[core][
     CHECK(note.ink_end_seconds == Catch::Approx(0.95));
     // A plain paint walks the stop before the ink end and the leg toward the slide-out as far as
     // the ink end; a reveal walks both stops.
-    CHECK(keyframeDrawn(note.slides[0], note.ink_end_seconds));
-    CHECK_FALSE(keyframeDrawn(note.slides[1], note.ink_end_seconds));
-    CHECK(keyframeDrawn(note.slides[1], note.ring_end_seconds));
+    CHECK(instantDrawn(note.slides[0].seconds, note.ink_end_seconds));
+    CHECK_FALSE(instantDrawn(note.slides[1].seconds, note.ink_end_seconds));
+    CHECK(instantDrawn(note.slides[1].seconds, note.ring_end_seconds));
 }
 
 // The ink never runs past the ring: presentation only ever stops drawing early, so every note's
@@ -485,6 +497,7 @@ TEST_CASE("Tail fade spans a fraction of the ink, floored and clamped to it", "[
             .ink_end_seconds = ink_end,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         };
     };
@@ -740,6 +753,54 @@ TEST_CASE("Chart projection resolves the vibrato channel into spans", "[core][ch
     }
 }
 
+// Every stored keyframe reaches the lane as a statement wearing the mark of what it states: a
+// position wears its stop's mark, a bend ALONE the curve's dot, and anything else — a vibrato
+// change with or without a bend beside it — a linked head printing the fret in force, where the
+// hand rests.
+TEST_CASE("Chart projection gives every keyframe the mark of what it states", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{4},
+            .vibrato = VibratoState::None,
+            .bend = {},
+            .keyframes = {
+                Keyframe{.offset = Fraction{1, 2}, .bend = 1.0},
+                Keyframe{.offset = Fraction{1}, .fret = 7},
+                Keyframe{.offset = Fraction{2}, .vibrato = VibratoState::Narrow},
+                Keyframe{.offset = Fraction{5, 2}, .bend = 2.0, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{3}, .bend = 1.0, .vibrato = VibratoState::Wide},
+                Keyframe{.offset = Fraction{7, 2}},
+            },
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.notes.size() == 1);
+    const NoteViewState& note = state.notes.front();
+    REQUIRE(note.keyframes.size() == 6);
+    // A bend alone, even mid-travel toward the 7: the curve's dot at the amount it states.
+    CHECK(note.keyframes[0].mark == KeyframeMark{KeyframeBendMark{.semitones = 1.0}});
+    // A position: the one stop the gesture has.
+    CHECK(note.keyframes[1].mark == KeyframeMark{KeyframeStopMark{.stop = 0}});
+    REQUIRE(note.slides.size() == 1);
+    // A vibrato start, a width step carrying a bend, and a bare vibrato end each print the 7 the
+    // hand rests on; the bend beside the step does not make it a dot.
+    CHECK(note.keyframes[2].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
+    CHECK(note.keyframes[3].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
+    // A bend on a leg whose width it only carries changes nothing but the bend: a dot again.
+    CHECK(note.keyframes[4].mark == KeyframeMark{KeyframeBendMark{.semitones = 1.0}});
+    CHECK(note.keyframes[5].mark == KeyframeMark{KeyframeRestMark{.fret = 7}});
+}
+
 // A shift slide's arrival head is its own note, so its width is its own first leg's: the head
 // vibrates from its onset and the glide into it — the origin's leg — never does.
 TEST_CASE("Chart projection vibrates a shift slide's arrival head, not its glide", "[core][chart]")
@@ -825,14 +886,15 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     REQUIRE(glide.slides.size() == 1);
     CHECK(glide.slides.back().slide_out);
     CHECK(glide.slides.back().fret == 12);
-    CHECK(glide.slides.back().offset == Fraction{4});
+    REQUIRE(glide.keyframes.size() == 1);
+    CHECK(glide.keyframes.back().offset == Fraction{4});
     // The terminal stands at the ring's end, two seconds in, past the ink end one margin earlier:
     // a plain paint walks no stop, a reveal walks the terminal.
     CHECK(glide.ink_end_seconds == Catch::Approx(1.95));
-    CHECK_FALSE(keyframeDrawn(glide.slides[0], glide.ink_end_seconds));
-    REQUIRE(keyframeDrawn(glide.slides[0], glide.ring_end_seconds));
-    CHECK(glideStopAt(glide, 0).seconds == Catch::Approx(2.0));
-    CHECK(glideStopAt(glide, 0).unpitched);
+    CHECK_FALSE(instantDrawn(glide.slides[0].seconds, glide.ink_end_seconds));
+    REQUIRE(instantDrawn(glide.slides[0].seconds, glide.ring_end_seconds));
+    CHECK(glide.slides[0].seconds == Catch::Approx(2.0));
+    CHECK(glide.slides[0].slide_out);
 
     // The identity key finds the ramp: the hand rides the slide-out from the note's onset to the
     // terminal's stored instant, easing with the unpitched family.
@@ -1123,11 +1185,11 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK(view.slides.back().fret == 9);
     // Alone on the chart, so nothing crops it and the ink runs the whole ring.
     CHECK_THAT(view.ink_end_seconds, Catch::Matchers::WithinULP(view.ring_end_seconds, 0));
-    REQUIRE(keyframeDrawn(view.slides.back(), view.ink_end_seconds));
-    CHECK_FALSE(glideStopAt(view, 0).unpitched);
-    CHECK(glideStopAt(view, 1).unpitched);
+    REQUIRE(instantDrawn(view.slides.back().seconds, view.ink_end_seconds));
+    CHECK_FALSE(view.slides[0].slide_out);
+    CHECK(view.slides[1].slide_out);
     CHECK(linkedKeyframe(view.slides[0]));
-    CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.ring_end_seconds));
+    CHECK(view.slides[1].seconds == Catch::Approx(view.ring_end_seconds));
 }
 
 // Ramp derivation for the fretting hand's approach: a placement landing exactly on a keyframe's
@@ -1238,7 +1300,7 @@ TEST_CASE("Chart projection keeps a cropped shift slide's arrival ramp pitched",
     REQUIRE(state.notes.size() == 7);
     const NoteViewState& shift = state.notes[5];
     REQUIRE(shift.slides.size() == 1);
-    const KeyframeViewState& arrival = shift.slides.back();
+    const SlideStopViewState& arrival = shift.slides.back();
     CHECK(arrival.seconds == Catch::Approx(13.0 * beat));
     CHECK(arrival.seconds > shift.ink_end_seconds);
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(arrival.seconds));
@@ -1314,7 +1376,7 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
     // The reached glide: slide-matched over its own one-beat segment, nothing to settle.
     const NoteViewState& reached = state.notes[2];
     REQUIRE(reached.slides.size() == 1);
-    REQUIRE(keyframeDrawn(reached.slides.front(), reached.ink_end_seconds));
+    REQUIRE(instantDrawn(reached.slides.front().seconds, reached.ink_end_seconds));
     const FhpViewState& drawn = state.fret_hand_positions[1];
     CHECK(drawn.seconds == Catch::Approx(9.0 * beat));
     CHECK(drawn.ramp_seconds == Catch::Approx(1.0 * beat));

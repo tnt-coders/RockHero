@@ -14,7 +14,9 @@
 #include <numbers>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/shared/overloaded.h>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -143,15 +145,6 @@ struct BendPointViewState
     double semitones{0.0};
 
     /*!
-    \brief True where the same statement also states a fret: the onset, or a keyframe carrying a
-    fret.
-
-    A fret-stating point already wears a head of its own (or the slide-out chip), so it is marked by
-    that; only a bend-only point needs a mark of its own on the curve.
-    */
-    bool states_fret{false};
-
-    /*!
     \brief Compares two bend points by their stored fields.
     \param lhs Left-hand point.
     \param rhs Right-hand point.
@@ -165,7 +158,7 @@ struct BendPointViewState
         // equality is intended; the ordering query expresses it warning-free with identical
         // semantics (NaN compares unequal either way).
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.semitones <=> rhs.semitones) && lhs.states_fret == rhs.states_fret;
+               std::is_eq(lhs.semitones <=> rhs.semitones);
     }
 };
 
@@ -307,28 +300,154 @@ a step lands before the previous ease has finished.
 }
 
 /*!
-\brief One keyframe's POSITION statement, resolved to an absolute timeline second.
+\brief One keyframe's POSITION statement, resolved to an absolute timeline second: a stop of the
+note's gesture.
 
-The fret channel alone: a keyframe stating only a bend or a vibrato change says nothing about where
-the hand is, so it reaches the surfaces through \ref NoteViewState::bend and \ref
-NoteViewState::vibrato instead and never appears here. The slide-out terminal IS here, last, as
-the \ref slide_out — the chart stores it as the keyframe at the ring's end, and the surfaces walk
-one sequence of stops.
+The fret channel alone, which is the geometry every glide consumer walks. A keyframe stating only a
+bend or a vibrato change says nothing about where the hand is, so it never appears here; it reaches
+the surfaces through \ref NoteViewState::bend and \ref NoteViewState::vibrato, and as a statement
+through \ref NoteViewState::keyframes, which holds every keyframe and is what names one. The
+slide-out terminal IS here, last, as the \ref slide_out — the chart stores it as the keyframe at the
+ring's end, and the surfaces walk one sequence of stops.
+*/
+struct SlideStopViewState
+{
+    /*!
+    \brief Absolute timeline position of the stop: where its mark is drawn and hit.
+
+    The STORED instant resolved to seconds — nothing presentation decides moves a statement. A stop
+    standing past its note's \ref NoteViewState::ink_end_seconds is drawn only while the note is
+    revealed.
+    */
+    double seconds{0.0};
+
+    /*! \brief Target fret reached at this stop. */
+    int fret{0};
+
+    /*!
+    \brief True when this stop is the note's SLIDE-OUT: the fret the hand leaves toward as the
+    ring ends, so unpitched travel rather than a stop the finger arrives at.
+
+    A RESOLVED fact carried from the projection rather than re-derived from position: the keyframe
+    at the ring's end names a shift slide's arrival and a slide-out alike, and only the relation to
+    the next head tells them apart (\ref arrivesIntoNextHead). Always the last entry when true.
+
+    The leg into it takes the release curve and arrives still moving. Every other stop — a scrape's
+    turnarounds included — is a place the travel reaches and turns from, so its leg takes the
+    pitched curve and arrives tangentially (re-ruled 2026-09-24: a scrape's interior legs took the
+    release curve and cornered at every turnaround). What a scrape's whole path shares is its DIM,
+    which the rail reads off the attack, not off this flag.
+    */
+    bool slide_out{false};
+
+    /*!
+    \brief Compares two slide stops by their stored fields.
+    \param lhs Left-hand stop.
+    \param rhs Right-hand stop.
+    \return True when both stops store equal values.
+    */
+    friend constexpr bool operator==(
+        const SlideStopViewState& lhs, const SlideStopViewState& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
+               lhs.slide_out == rhs.slide_out;
+    }
+};
+
+/*!
+\brief The mark of a keyframe that states a POSITION: the mark its stop wears — a linked head, or
+the slide-out's chip.
+*/
+struct KeyframeStopMark
+{
+    /*! \brief Index of the stop this keyframe states, into \ref NoteViewState::slides. */
+    std::size_t stop{0};
+
+    /*!
+    \brief Compares two stop marks by their stored fields.
+    \param lhs Left-hand mark.
+    \param rhs Right-hand mark.
+    \return True when both marks name the same stop.
+    */
+    friend constexpr bool operator==(
+        const KeyframeStopMark& lhs, const KeyframeStopMark& rhs) noexcept = default;
+};
+
+/*!
+\brief The mark of a keyframe that states ONLY a bend: the bend curve's dot, at the value it states.
+
+The point is a place the curve passes through, and nothing else about the ring changes there, so
+its mark rides the curve rather than the string line — wherever it stands, mid-travel included.
+*/
+struct KeyframeBendMark
+{
+    /*! \brief The bend the keyframe states, in semitones: the curve's height at the dot. */
+    double semitones{0.0};
+
+    /*!
+    \brief Compares two bend marks by their stored fields.
+    \param lhs Left-hand mark.
+    \param rhs Right-hand mark.
+    \return True when both marks store equal values.
+    */
+    friend constexpr bool operator==(
+        const KeyframeBendMark& lhs, const KeyframeBendMark& rhs) noexcept
+    {
+        // Hand-written for the float member, like every other float-bearing view state here.
+        return std::is_eq(lhs.semitones <=> rhs.semitones);
+    }
+};
+
+/*!
+\brief The mark of every other keyframe — a vibrato change, with or without a bend beside it, or a
+bare point — a linked head printing the fret in force.
+
+The keyframe says nothing about position, so its head prints where the hand already is: the last
+stated stop. That IS where the hand is, because no vibrato change stands strictly inside travel
+(\ref shedMidTravelVibrato); a point saying nothing at all is authoring state that the commit law
+sweeps (\ref keyframeSaysNothingNew).
+*/
+struct KeyframeRestMark
+{
+    /*! \brief The fret in force at the keyframe: the last stop stated at or before it. */
+    int fret{0};
+
+    /*!
+    \brief Compares two rest marks by their stored fields.
+    \param lhs Left-hand mark.
+    \param rhs Right-hand mark.
+    \return True when both marks store equal values.
+    */
+    friend constexpr bool operator==(
+        const KeyframeRestMark& lhs, const KeyframeRestMark& rhs) noexcept = default;
+};
+
+/*!
+\brief How a keyframe shows on the 2D lane, as the sum of what it can state.
+
+A sum rather than flags beside an index, so a keyframe that names a stop and draws a dot, or a dot
+with no value, is not spellable: each alternative carries exactly what its mark needs to draw.
+*/
+using KeyframeMark = std::variant<KeyframeStopMark, KeyframeBendMark, KeyframeRestMark>;
+
+/*!
+\brief One stored keyframe of a note, resolved to an absolute timeline second: the statement a
+selection names, and the mark that shows it.
+
+EVERY keyframe the note stores is here, whatever it states, so every one is reachable — the channel
+lists beside it (\ref NoteViewState::slides, \ref NoteViewState::bend, \ref NoteViewState::vibrato)
+are the geometry the statements resolve to, and none of them can name a statement.
 */
 struct KeyframeViewState
 {
     /*!
-    \brief Absolute timeline position of the statement: where the mark is drawn and hit.
+    \brief Absolute timeline position of the statement: where its mark is drawn and hit.
 
-    The STORED instant resolved to seconds — nothing presentation decides moves a statement. It
-    is a rounded double through the tempo map and names nothing; the mark's identity is
-    \ref offset. A keyframe standing past its note's \ref NoteViewState::ink_end_seconds is drawn
-    only while the note is revealed.
+    The STORED instant resolved to seconds — a rounded double through the tempo map that names
+    nothing; the keyframe's identity is \ref offset. A keyframe standing past its note's \ref
+    NoteViewState::ink_end_seconds is drawn only while the note is revealed.
     */
     double seconds{0.0};
-
-    /*! \brief Target fret reached at this keyframe. */
-    int fret{0};
 
     /*!
     \brief The keyframe's authored offset along the ring — its stable identity, and the ONLY
@@ -340,27 +459,19 @@ struct KeyframeViewState
     */
     Fraction offset{};
 
-    /*!
-    \brief True when this keyframe is the note's SLIDE-OUT: the fret the hand leaves toward as the
-    ring ends, so unpitched travel rather than a stop the finger arrives at.
-
-    A RESOLVED fact carried from the projection rather than re-derived from position: the keyframe
-    at the ring's end names a shift slide's arrival and a slide-out alike, and only the relation to
-    the next head tells them apart (\ref arrivesIntoNextHead). Always the last entry when true.
-    */
-    bool slide_out{false};
+    /*! \brief The mark the keyframe wears (\ref KeyframeMark). */
+    KeyframeMark mark;
 
     /*!
-    \brief Compares two slide keyframes by their stored fields.
+    \brief Compares two keyframes by their stored fields.
     \param lhs Left-hand keyframe.
     \param rhs Right-hand keyframe.
     \return True when both keyframes store equal values.
     */
-    friend constexpr bool operator==(
-        const KeyframeViewState& lhs, const KeyframeViewState& rhs) noexcept
+    friend bool operator==(const KeyframeViewState& lhs, const KeyframeViewState& rhs)
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.offset == rhs.offset && lhs.slide_out == rhs.slide_out;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.offset == rhs.offset &&
+               lhs.mark == rhs.mark;
     }
 };
 
@@ -622,15 +733,24 @@ struct NoteViewState
     std::vector<BendPointViewState> bend;
 
     /*!
-    \brief The keyframes that state a POSITION, in ascending time order; empty when nothing travels.
+    \brief The stops of the note's gesture — every keyframe that states a POSITION — in ascending
+    time order; empty when nothing travels.
 
     Every stored one, at its stored instant. The slide-out terminal is the LAST of them when the
-    note has one (\ref KeyframeViewState::slide_out): the chart stores the slide-out as the
-    keyframe at the ring's end, so it sits at \ref ring_end_seconds. \ref glideStopAt reads the
-    same list as the uniform sequence of stops every geometry consumer walks, and each consumer
-    draws a stop only within the extent it draws (\ref keyframeDrawn).
+    note has one (\ref SlideStopViewState::slide_out): the chart stores the slide-out as the
+    keyframe at the ring's end, so it sits at \ref ring_end_seconds. This is the uniform sequence
+    of stops every geometry consumer walks — the rail, the tail's sample times, the camera's
+    framing, the lane's diagonals — and each draws a stop only within the extent it draws (\ref
+    instantDrawn): a stop beyond it is not drawn, but the leg TOWARD it is, on its true path as far
+    as the extent.
     */
-    std::vector<KeyframeViewState> slides;
+    std::vector<SlideStopViewState> slides;
+
+    /*!
+    \brief Every keyframe the note stores, in ascending time order: the statements a selection
+    names and the marks that show them (\ref KeyframeViewState).
+    */
+    std::vector<KeyframeViewState> keyframes;
 
     /*!
     \brief The stretches of the ring the string vibrates over, in ascending time order.
@@ -669,7 +789,8 @@ struct NoteViewState
                lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
-               lhs.vibrato == rhs.vibrato && lhs.ends_on_next_head == rhs.ends_on_next_head;
+               lhs.keyframes == rhs.keyframes && lhs.vibrato == rhs.vibrato &&
+               lhs.ends_on_next_head == rhs.ends_on_next_head;
     }
 };
 
@@ -717,69 +838,21 @@ reveal exists to show exactly where the ring stops.
         duration, std::max(duration * g_tail_tip_fade_fraction, g_tail_tip_fade_min_seconds));
 }
 
-/*! \brief One stop of a note's drawn gesture: a keyframe's arrival, or the slide-out terminal. */
-struct GlideStop
-{
-    /*! \brief Absolute timeline position the gesture reaches this stop. */
-    double seconds{0.0};
-
-    /*! \brief Fret reached here. */
-    int fret{0};
-
-    /*!
-    \brief True at the slide-out terminal, where the travel leaves toward a fret it never reaches:
-    the leg into it takes the release curve and arrives still moving.
-
-    Every other stop — a scrape's turnarounds included — is a place the travel reaches and turns
-    from, so its leg takes the pitched curve and arrives tangentially (re-ruled 2026-09-24: a
-    scrape's interior legs took the release curve and cornered at every turnaround). What a
-    scrape's whole path shares is its DIM, which the rail reads off the attack, not off this flag.
-    */
-    bool unpitched{false};
-};
-
 /*!
-\brief One stop of a note's gesture, by index into the uniform sequence — the position keyframes
-in time order (\ref NoteViewState::slides), the slide-out last when the note has one.
-
-The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
-camera's framing, the lane's diagonals — which folds the slide-out flag into each stop's
-pitched-ness so no consumer restates that rule. A consumer walks the stops up to the extent it
-draws (\ref keyframeDrawn): a stop beyond it is not drawn, but the leg TOWARD it is, on its true
-path as far as the extent.
-
-\param note Note whose gesture is being walked.
-\param index Stop index, below `note.slides.size()`.
-\return The stop's time, fret and pitched-ness.
-*/
-[[nodiscard]] inline GlideStop glideStopAt(const NoteViewState& note, const std::size_t index)
-{
-    const KeyframeViewState& keyframe = note.slides[index];
-    return GlideStop{
-        .seconds = keyframe.seconds,
-        .fret = keyframe.fret,
-        // A stated position is a stop the travel arrives at, whichever hand makes it — except the
-        // slide-out, which is where it leaves toward.
-        .unpitched = keyframe.slide_out,
-    };
-}
-
-/*!
-\brief True when the glide continues the same note at this keyframe rather than ending it.
+\brief True when the glide continues the same note at this stop rather than ending it.
 
 Every stated position is a stop the finger arrives at, and it wears the note's own head shape
 there — the slide-out alone is not one, since it is where the finger leaves toward and the slide
 line draws its slide-out chip instead. A scrape's turnaround is linked like any other stop — one
-gesture continuing, its head marking the turn. Whether the keyframe is DRAWN at all is the
-extent's question, not this one's: a linked
-keyframe past the ink end is drawn only while the note is revealed.
+gesture continuing, its head marking the turn. Whether the stop is DRAWN at all is the extent's
+question, not this one's: a linked stop past the ink end is drawn only while the note is revealed.
 
-\param keyframe One of a note's \ref NoteViewState::slides entries.
-\return True when the keyframe is a continuation of the note.
+\param stop One of a note's \ref NoteViewState::slides entries.
+\return True when the stop is a continuation of the note.
 */
-[[nodiscard]] constexpr bool linkedKeyframe(const KeyframeViewState& keyframe) noexcept
+[[nodiscard]] constexpr bool linkedKeyframe(const SlideStopViewState& stop) noexcept
 {
-    return !keyframe.slide_out;
+    return !stop.slide_out;
 }
 
 /*!
@@ -799,18 +872,46 @@ which keyframes draw, which are clickable — so a paint and a hit test cannot p
 }
 
 /*!
-\brief True when a keyframe lies within the extent a surface draws its note to, which is exactly
-when the surface draws its mark and when the mark can be reached.
+\brief True when a mark standing at an instant along a note lies within the extent a surface draws
+the note to, which is exactly when the surface draws the mark and when it can be reached.
 
-\param keyframe One of a note's \ref NoteViewState::slides entries.
+Asked of an instant rather than of a record, because a keyframe (\ref NoteViewState::keyframes) and
+a stop of the gesture (\ref NoteViewState::slides) are drawn by the one rule.
+
+\param seconds The mark's instant.
 \param until_seconds The extent drawn (\ref drawnEndSeconds, or the ink end on a surface that never
        reveals).
-\return True when the keyframe is at or before the extent.
+\return True when the instant is at or before the extent.
 */
-[[nodiscard]] constexpr bool keyframeDrawn(
-    const KeyframeViewState& keyframe, const double until_seconds) noexcept
+[[nodiscard]] constexpr bool instantDrawn(const double seconds, const double until_seconds) noexcept
 {
-    return keyframe.seconds <= until_seconds;
+    return seconds <= until_seconds;
+}
+
+/*!
+\brief The fret a keyframe's linked HEAD prints, or nothing where its mark is not a head.
+
+A linked stop prints the fret it states and a resting keyframe the fret in force; a slide-out wears
+its chip instead, and a bend-only point its dot on the curve (\ref KeyframeMark). Whether the head
+is DRAWN is the extent's question (\ref instantDrawn), not this one's.
+
+\param note Note the keyframe rides; its stops resolve a \ref KeyframeStopMark.
+\param keyframe One of the note's \ref NoteViewState::keyframes entries.
+\return The fret its head prints, or nothing when it wears no head.
+*/
+[[nodiscard]] inline std::optional<int> keyframeHeadFret(
+    const NoteViewState& note, const KeyframeViewState& keyframe)
+{
+    return std::visit(
+        Overloaded{
+            [&note](const KeyframeStopMark& stop) -> std::optional<int> {
+                const SlideStopViewState& slide = note.slides[stop.stop];
+                return linkedKeyframe(slide) ? std::optional<int>{slide.fret} : std::nullopt;
+            },
+            [](const KeyframeBendMark&) -> std::optional<int> { return std::nullopt; },
+            [](const KeyframeRestMark& rest) -> std::optional<int> { return rest.fret; },
+        },
+        keyframe.mark);
 }
 
 /*!

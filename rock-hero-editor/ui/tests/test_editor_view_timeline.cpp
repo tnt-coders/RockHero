@@ -128,6 +128,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1823,6 +1824,7 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };

@@ -136,17 +136,15 @@ curve. On any other note the dim is the terminal slide-out's own leg.
     // full brightness.
     const bool scrape = common::core::isScrape(note.attack);
     const auto alpha_at = [&note, stop_count, scrape](const std::size_t segment, const double at) {
-        if (!scrape && !common::core::glideStopAt(note, segment).unpitched)
+        if (!scrape && !note.slides[segment].slide_out)
         {
             return 1.0;
         }
         const std::size_t run_begin = scrape ? 0 : segment;
         const std::size_t run_end = scrape ? stop_count - 1 : segment;
         const double run_start_seconds =
-            run_begin == 0 ? note.start_seconds
-                           : common::core::glideStopAt(note, run_begin - 1).seconds;
-        const double run_span =
-            common::core::glideStopAt(note, run_end).seconds - run_start_seconds;
+            run_begin == 0 ? note.start_seconds : note.slides[run_begin - 1].seconds;
+        const double run_span = note.slides[run_end].seconds - run_start_seconds;
         const double progress =
             run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
         return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
@@ -155,14 +153,14 @@ curve. On any other note the dim is the terminal slide-out's own leg.
     double segment_start_x = base_x;
     for (std::size_t index = 0; index < stop_count; ++index)
     {
-        const common::core::GlideStop stop = common::core::glideStopAt(note, index);
+        const common::core::SlideStopViewState& stop = note.slides[index];
         const double stop_x = highwayNoteFretboardX(note, stop.fret, metrics, mirrored);
         if (seconds <= stop.seconds)
         {
             const double span = stop.seconds - segment_start_seconds;
             const double progress =
                 span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0) : 1.0;
-            const double weight = common::core::highwaySlideEaseWeight(progress, stop.unpitched);
+            const double weight = common::core::highwaySlideEaseWeight(progress, stop.slide_out);
             return HighwaySlideState{
                 .x_offset = segment_start_x + ((stop_x - segment_start_x) * weight) - base_x,
                 .alpha = alpha_at(index, seconds),
@@ -172,7 +170,7 @@ curve. On any other note the dim is the terminal slide-out's own leg.
         segment_start_x = stop_x;
     }
     // Past the last stop the glide holds its target, and the dim holds where its run ended.
-    const common::core::GlideStop last = common::core::glideStopAt(note, stop_count - 1);
+    const common::core::SlideStopViewState& last = note.slides[stop_count - 1];
     return HighwaySlideState{
         .x_offset = highwayNoteFretboardX(note, last.fret, metrics, mirrored) - base_x,
         .alpha = alpha_at(stop_count - 1, seconds),

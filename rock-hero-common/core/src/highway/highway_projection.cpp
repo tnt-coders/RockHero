@@ -53,7 +53,7 @@ constexpr int g_camera_zone_measures = 2;
 
 // A member's position on its own rail at an instant: its sounding stop before any glide, eased
 // along each leg with the family the rail draws (highwaySlideEaseWeight, the family being the
-// stop's own through glideStopAt), and the last stop's afterwards. A tap's unpitched slide-out
+// stop's own slide-out flag), and the last stop's afterwards. A tap's unpitched slide-out
 // never moves the light; a scrape's stops, its slide-out included, ARE the hand's travel. The
 // DRAWN position
 // (highwayDrawnStop), so a path cannot walk off the board while the head it belongs to is held at
@@ -65,8 +65,8 @@ constexpr int g_camera_zone_measures = 2;
     double previous_position = highwayStopPosition(highwayDrawnStop(note, note.fret));
     for (std::size_t index = 0; index < note.slides.size(); ++index)
     {
-        const GlideStop stop = glideStopAt(note, index);
-        if ((stop.unpitched && !scrape) || stop.fret <= 0)
+        const SlideStopViewState& stop = note.slides[index];
+        if ((stop.slide_out && !scrape) || stop.fret <= 0)
         {
             continue;
         }
@@ -77,7 +77,7 @@ constexpr int g_camera_zone_measures = 2;
             const double progress =
                 span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
             return previous_position + ((stop_position - previous_position) *
-                                        highwaySlideEaseWeight(progress, stop.unpitched));
+                                        highwaySlideEaseWeight(progress, stop.slide_out));
         }
         previous_seconds = stop.seconds;
         previous_position = stop_position;
@@ -92,13 +92,13 @@ constexpr int g_camera_zone_measures = 2;
 {
     const bool drawn_slide_out = !isScrape(note.attack) && !note.slides.empty() &&
                                  note.slides.back().slide_out &&
-                                 keyframeDrawn(note.slides.back(), note.ink_end_seconds);
+                                 instantDrawn(note.slides.back().seconds, note.ink_end_seconds);
     if (!drawn_slide_out)
     {
         return note.ink_end_seconds;
     }
     double last_pitched = note.start_seconds;
-    for (const KeyframeViewState& keyframe : note.slides)
+    for (const SlideStopViewState& keyframe : note.slides)
     {
         if (!keyframe.slide_out && keyframe.fret > 0)
         {
@@ -186,18 +186,18 @@ void appendTapGroupPath(
         const bool scrape = isScrape(tap.attack);
         for (std::size_t stop_index = 0; stop_index < tap.slides.size(); ++stop_index)
         {
-            const GlideStop stop = glideStopAt(tap, stop_index);
-            if ((stop.unpitched && !scrape) || stop.fret <= 0)
+            const SlideStopViewState& stop = tap.slides[stop_index];
+            if ((stop.slide_out && !scrape) || stop.fret <= 0)
             {
                 continue;
             }
             track.push_back(
                 HighwayHandArrival{
                     .seconds = stop.seconds,
-                    .unpitched_ramp = stop.unpitched,
+                    .unpitched_ramp = stop.slide_out,
                     .settle_seconds = std::max(0.0, stop.seconds - tap.ink_end_seconds),
                 });
-            if (!keyframeDrawn(tap.slides[stop_index], tap.ink_end_seconds))
+            if (!instantDrawn(stop.seconds, tap.ink_end_seconds))
             {
                 break;
             }
@@ -272,7 +272,7 @@ void appendArrivalPops(
         {
             continue;
         }
-        for (const KeyframeViewState& keyframe : note.slides)
+        for (const SlideStopViewState& keyframe : note.slides)
         {
             if (highwayMarksKeyframe(note, keyframe))
             {

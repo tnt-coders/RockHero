@@ -259,7 +259,7 @@ void strokeTabNoteHeadOutline(
 THE SELECTED OBJECT DRAWS LAST: the lane paints in chart order, so an ARRIVAL at a head's own
 instant is covered by that head and its accent ring would sit around a mark nobody can read. Drawn
 through the very drawers the lane used, so the redrawn mark cannot differ from the committed one.
-Nothing is drawn for a keyframe the note does not link (\ref common::core::linkedKeyframe).
+Nothing is drawn for a keyframe that wears no head (\ref common::core::keyframeHeadFret).
 
 \param g Graphics context to draw into.
 \param metrics Metrics of the lane being painted.

@@ -166,7 +166,7 @@ The readers, and which length each reads from now on:
 | the tail law's `sustain <= 0` skip and `hasRestingRemainder` (`chart_presentation.cpp`) | the ink end: a tail rules 3 and 4 dropped has no tail |
 | `chartHolds` (a lone resting note's hold) and `restedOffsetOf` | the ink end |
 | `makeSlideRampStarts` and the hand-window ramps | the stored notes; every ramp filed at its stored instant |
-| the crossing leg's value at the crop | ONE helper beside `glideStopAt` (`chart_view_state.h`) returning the leg and its fraction at the ink end, read by the 2D painter, the rail, the tail sample times, the camera and the future scorer |
+| the crossing leg's value at the crop | ONE helper beside the stop list (`NoteViewState::slides`, `chart_view_state.h`) returning the leg and its fraction at the ink end, read by the 2D painter, the rail, the tail sample times, the camera and the future scorer |
 | `NoteViewState::end_seconds` (2D tail and chips; highway tail, tip fade, slide path, camera framing; `visible_events.h`) | the ink end, published as today's field, with the stored end beside it |
 | the 2D cull, the paint core's per-note early-outs, the ghost group bounds, the hit-test candidate range | the STORED end, since any reveal can extend ink to it (`tab_view.cpp` ~:891 already says why) |
 | `linkedKeyframe`, `chart_hit_testing.cpp`, selection rings (a `tab_view` overlay, since the controller never learns about `Alt`) | a keyframe past the ink end is neither drawn, hit-testable nor ringed unless revealed |
@@ -352,7 +352,7 @@ it until the single form carries one.
   importer's `chartPresentation` call, `trimToMargin`'s ride (`clipPayloadsToSustain` stays for
   the store's own clamp), `lastStatementClearance`, `lastInteriorStatementEnd`, `statementsEnd`'s
   vibrato window, `keyframeIdentities`. Every reader in the table above then chooses its length.
-- The crossing-leg helper beside `glideStopAt`.
+- The crossing-leg helper beside the stop list (`NoteViewState::slides`).
 - `makeChartViewState`: `end_seconds` is the ink end and a stored end travels beside it;
   `NoteViewState` is built by assignment and its hand-written `operator==` gains the field; the
   54 `NoteViewState{` test fixtures default the stored end to 0.0, so the readers are defined so a

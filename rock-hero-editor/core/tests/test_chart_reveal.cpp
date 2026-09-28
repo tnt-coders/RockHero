@@ -26,6 +26,7 @@ namespace
                 .fret = 5,
                 .bend = {},
                 .slides = {},
+                .keyframes = {},
                 .vibrato = {},
             };
         };

@@ -1,6 +1,9 @@
 #include "tab/tab_layout_manifest.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <rock_hero/common/core/shared/overloaded.h>
+#include <variant>
 
 namespace rock_hero::common::ui
 {
@@ -78,39 +81,32 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
 }
 
 // Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's
-// own head size, centred on the keyframe's instant and the note's string line. Same square as the
+// own head size, centred on the stop's instant and the note's string line. Same square as the
 // onset head, one column along the tail. A chip — the slide-out's at its instant, the destination
 // chip at the crop — sits a third of a head above the tail envelope when the leg into it rises and
 // below it when it falls, or on the side the shared instant gives it (both from one authority),
 // and its box is the chip's ground: the fret text height with the chip's one-pixel margins, and
 // the two-digit width the satellite column already states for this lane's digits.
-TabKeyframeLayout tabKeyframeLayout(
+TabKeyframeLayout tabSlideStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe, const double drawn_end) noexcept
+    const std::size_t stop, const double drawn_end) noexcept
 {
-    const bool drawn = common::core::keyframeDrawn(keyframe, drawn_end);
+    const common::core::SlideStopViewState& slide = note.slides[stop];
+    const bool drawn = common::core::instantDrawn(slide.seconds, drawn_end);
     TabKeyframeLayout layout;
-    layout.center_x = geometry.x(std::min(keyframe.seconds, drawn_end));
+    layout.center_x = geometry.x(std::min(slide.seconds, drawn_end));
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
-    if (drawn && common::core::linkedKeyframe(keyframe))
+    if (drawn && common::core::linkedKeyframe(slide))
     {
-        layout.head = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
+        layout.box = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
         return layout;
     }
-    // The leg into the chip rises when the keyframe's fret is at or above the stop before it —
-    // the previous keyframe's, or the onset's when it is the first.
-    int previous_fret = note.fret;
-    for (const common::core::KeyframeViewState& earlier : note.slides)
-    {
-        if (&earlier == &keyframe)
-        {
-            break;
-        }
-        previous_fret = earlier.fret;
-    }
-    const bool upward = keyframe.fret >= previous_fret;
-    layout.chip = true;
+    // The leg into the chip rises when the stop's fret is at or above the stop before it — the
+    // previous stop's, or the onset's when it is the first.
+    const int previous_fret = stop == 0 ? note.fret : note.slides[stop - 1].fret;
+    const bool upward = slide.fret >= previous_fret;
+    layout.shape = TabKeyframeShape::Chip;
     // Both bands are the shared authority's (slideOutChipY, endMarkYAtSharedInstant), so the box
     // the click is bounded in cannot land on the other side of the envelope from the chip. Only a
     // DRAWN chip can stand at the shared instant: a chip at the crop stands a margin before it.
@@ -120,13 +116,47 @@ TabKeyframeLayout tabKeyframeLayout(
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;
-    layout.head = TabLayoutRect{
+    layout.box = TabLayoutRect{
         .x = layout.center_x - width / 2.0f,
         .y = layout.center_y - height / 2.0f,
         .width = width,
         .height = height,
     };
     return layout;
+}
+
+// A stop's keyframe defers to the stop's own layout. A bend-only point's dot stands where
+// drawBendDots fills it, on the curve at the amount it states; a resting keyframe's head is the
+// linked head at its instant, exactly as a stop's.
+TabKeyframeLayout tabKeyframeLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const common::core::KeyframeViewState& keyframe, const double drawn_end)
+{
+    // The mark's own instant, on the string line: where a head stands, and the column a dot rides.
+    TabKeyframeLayout at_instant;
+    at_instant.center_x = geometry.x(std::min(keyframe.seconds, drawn_end));
+    at_instant.center_y = geometry.laneY(note.string);
+    at_instant.head_size = geometry.headSize();
+    return std::visit(
+        common::core::Overloaded{
+            [&](const common::core::KeyframeStopMark& stop) {
+                return tabSlideStopLayout(geometry, note, stop.stop, drawn_end);
+            },
+            [&](const common::core::KeyframeBendMark& bend) {
+                TabKeyframeLayout layout = at_instant;
+                layout.center_y = bendCurveY(geometry, layout.center_y, bend.semitones);
+                layout.shape = TabKeyframeShape::Dot;
+                layout.box =
+                    centeredSquare(layout.center_x, layout.center_y, layout.head_size / 2.0f);
+                return layout;
+            },
+            [&](const common::core::KeyframeRestMark&) {
+                TabKeyframeLayout layout = at_instant;
+                layout.box = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
+                return layout;
+            },
+        },
+        keyframe.mark);
 }
 
 } // namespace rock_hero::common::ui

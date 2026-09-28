@@ -227,10 +227,10 @@ Where the gesture has TRAVELLED to at an instant is the companion in the same he
 (pitched and unpitched glides ease differently) plus the release dim — the slide-out's own leg on
 a fretted note, a scrape's whole path as one continuous release — holding the last target past the
 last STOP. Stop and not keyframe: the gesture is read as one uniform sequence — the note's position
-keyframes, the slide-out last — through `glideStopAt` in `chart_view_state.h`, which folds the
-slide-out flag into each stop's pitched-ness so no consumer restates that rule: only the terminal
-takes the release curve, and a scrape's turnarounds are pitched legs that arrive tangentially
-(re-ruled 2026-09-24, when they cornered). Bounded by `keyframeDrawn` where a consumer draws only
+keyframes, the slide-out last — straight off `NoteViewState::slides` in `chart_view_state.h`, whose
+`slide_out` flag is the one statement of a stop's pitched-ness: only the terminal takes the release
+curve, and a scrape's turnarounds are pitched legs that arrive tangentially (re-ruled 2026-09-24,
+when they cornered). Bounded by `instantDrawn` where a consumer draws only
 to the ink end. Both live out here rather than inline in `draw()`, which is what
 lets them carry `test_highway_slide_path.cpp` and what lets a floor mark follow a slide at all: a
 glide lambda declared after every floor pass is reachable by no floor pass. The one density policy

@@ -249,6 +249,12 @@ enum class ChartRepair : std::uint8_t
     EndStatementVibrato,
 
     /*!
+    \brief A vibrato change standing where the hand travels was taken back: a width may run through
+    a glide, but none starts, stops or changes strictly inside one (\ref shedMidTravelVibrato).
+    */
+    MidTravelVibrato,
+
+    /*!
     \brief A keyframe that said nothing the path did not already say was dropped
     (\ref stripSilentKeyframes): the keyframe commit law's load half. Reported by
     \ref normalizeChart alone — never by the per-note normalizer, whose repairs the validator

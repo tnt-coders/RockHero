@@ -96,7 +96,7 @@ std::optional<ChartHitTarget> chartHitTarget(
         return ChartNoteHit{.index = *best_head};
     }
 
-    // Linked keyframe heads next: they are drawn ON a tail, so resolving tails first would make
+    // Keyframe marks next: they are drawn ON a tail, so resolving tails first would make
     // every one of them unclickable. Nearest head center wins among overlapping ones, the same
     // rule the onset heads use.
     std::optional<ChartKeyframeHit> best_keyframe;
@@ -109,15 +109,15 @@ std::optional<ChartHitTarget> chartHitTarget(
         // that extent wears at the crop is a mark, not a target, so it is never asked.
         const double drawn_end =
             common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
-        for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
+        for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
+            if (!common::core::instantDrawn(note.keyframes[keyframe].seconds, drawn_end))
             {
                 continue;
             }
             const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe], drawn_end);
-            if (!layout.head.contains(x, y))
+                common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
+            if (!layout.box.contains(x, y))
             {
                 continue;
             }
@@ -174,15 +174,15 @@ std::vector<ChartHitTarget> chartTargetsInBox(
         const common::core::NoteViewState& note = tab.notes[index];
         const double drawn_end =
             common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
-        for (std::size_t keyframe = 0; keyframe < note.slides.size(); ++keyframe)
+        for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            if (!common::core::keyframeDrawn(note.slides[keyframe], drawn_end))
+            if (!common::core::instantDrawn(note.keyframes[keyframe].seconds, drawn_end))
             {
                 continue;
             }
             const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.slides[keyframe], drawn_end);
-            if (intersects(layout.head))
+                common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
+            if (intersects(layout.box))
             {
                 boxed.emplace_back(
                     ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});

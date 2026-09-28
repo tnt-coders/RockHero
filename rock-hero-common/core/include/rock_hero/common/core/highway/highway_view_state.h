@@ -336,10 +336,10 @@ a keyframe's fret, so none of them can disagree about which keyframes exist on t
 \return True when the board draws a mark at the keyframe and pops its landing.
 */
 [[nodiscard]] constexpr bool highwayMarksKeyframe(
-    const NoteViewState& note, const KeyframeViewState& keyframe) noexcept
+    const NoteViewState& note, const SlideStopViewState& keyframe) noexcept
 {
     return !isScrape(note.attack) && linkedKeyframe(keyframe) && keyframe.fret > 0 &&
-           keyframeDrawn(keyframe, note.ink_end_seconds);
+           instantDrawn(keyframe.seconds, note.ink_end_seconds);
 }
 
 /*!

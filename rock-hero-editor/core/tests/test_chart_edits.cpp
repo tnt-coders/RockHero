@@ -6379,18 +6379,19 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         CHECK(chart == original);
     }
 
-    SECTION("clearing a width-only point in the middle of a glide leaves the glide's path alone")
+    SECTION("clearing a width-only point on a hold leaves the path alone")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{4});
-        // A glide from 5 to 7 over two beats, the ordinary vibrato stepping to the wide one halfway
-        // along it.
+        // A hold on the 5 until beat 1 1/2, then a glide to 7 by beat 2, the ordinary vibrato
+        // stepping to the wide one at beat 1 while the hand still rests.
         note.vibrato = common::core::VibratoState::Narrow;
         note.keyframes = {
             common::core::Keyframe{
                 .offset = common::core::Fraction{1}, .vibrato = common::core::VibratoState::Wide
             },
+            common::core::Keyframe{.offset = common::core::Fraction{3, 2}, .fret = 5},
             common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
         };
         chart.notes = {std::move(note)};
@@ -6410,17 +6411,18 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         }
         applyAndValidate(chart, tempo_map, *plan);
         REQUIRE(chart.notes.size() == 1);
-        // The point stays bare: a fret restated there would have split the glide into a hold and
-        // a glide from beat 1.
-        REQUIRE(chart.notes[0].keyframes.size() == 2);
+        // The point stays bare: a fret restated there would state a stop the path already holds.
+        REQUIRE(chart.notes[0].keyframes.size() == 3);
         CHECK(chart.notes[0].keyframes[0].offset == common::core::Fraction{1});
         CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
         CHECK_FALSE(chart.notes[0].keyframes[0].bend.has_value());
         CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::None);
         CHECK(chart.notes[0].keyframes[1] == original.notes[0].keyframes[1]);
+        CHECK(chart.notes[0].keyframes[2] == original.notes[0].keyframes[2]);
 
-        // Drawn, the slide still runs from the onset (2.0s) to its one stop at beat 2 (3.0s): the
-        // bare keyframe draws no stop, while the vibrato region closes at it (2.5s).
+        // Drawn, the path is the one it was: the hold's stop at beat 1 1/2 (2.75s) and the glide's
+        // at beat 2 (3.0s). The bare keyframe states no stop — it wears a head at the 5 the hand
+        // rests on — while the vibrato region closes at it (2.5s).
         common::core::Arrangement arrangement{};
         arrangement.chart = chart;
         const common::core::ChartViewState state =
@@ -6428,16 +6430,43 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         REQUIRE(state.notes.size() == 1);
         const common::core::NoteViewState& view = state.notes.front();
         CHECK_THAT(view.start_seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
-        REQUIRE(view.slides.size() == 1);
-        CHECK(view.slides[0].offset == common::core::Fraction{2});
-        CHECK(view.slides[0].fret == 7);
-        CHECK_THAT(view.slides[0].seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        REQUIRE(view.slides.size() == 2);
+        CHECK(view.slides[1].fret == 7);
+        CHECK_THAT(view.slides[1].seconds, Catch::Matchers::WithinAbs(3.0, 1e-9));
+        REQUIRE(view.keyframes.size() == 3);
+        CHECK(view.keyframes[0].offset == common::core::Fraction{1});
+        CHECK(
+            view.keyframes[0].mark ==
+            common::core::KeyframeMark{common::core::KeyframeRestMark{.fret = 5}});
         REQUIRE(view.vibrato.size() == 1);
         CHECK(view.vibrato[0].state == common::core::VibratoState::Narrow);
         CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinAbs(2.5, 1e-9));
 
         REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
         CHECK(chart == original);
+    }
+
+    SECTION("a vibrato change in the middle of a glide is refused")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 5, common::core::Fraction{4});
+        // A glide from 5 to 7 over two beats, bent halfway along it: a bend may change mid-travel,
+        // a vibrato may not (common::core::shedMidTravelVibrato).
+        note.keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{1}, .bend = 1.0},
+            common::core::Keyframe{.offset = common::core::Fraction{2}, .fret = 7},
+        };
+        chart.notes = {std::move(note)};
+
+        CHECK_FALSE(planSetVibrato(
+                        chart,
+                        tempo_map,
+                        {},
+                        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                        common::core::VibratoState::Narrow,
+                        "Add Vibrato")
+                        .has_value());
     }
 
     SECTION("clearing the vibrato from a point that also states a fret keeps the point")

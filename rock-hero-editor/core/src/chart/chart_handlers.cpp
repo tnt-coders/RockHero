@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
@@ -84,13 +85,6 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
         std::ranges::find(carrier.keyframes, tail.offset, &common::core::Keyframe::offset);
     return standing != carrier.keyframes.end() ? &*standing : nullptr;
 }
-
-// One callable per alternative for std::visit, so a variant that gains an alternative fails to
-// compile at every visit that has not said what the new one means.
-template <typename... Handlers> struct Overloaded : Handlers...
-{
-    using Handlers::operator()...;
-};
 
 } // namespace
 
@@ -189,15 +183,15 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
                 {
                     return std::nullopt;
                 }
-                const std::vector<common::core::KeyframeViewState>& drawn =
-                    tab->notes[hit.note_index].slides;
-                if (hit.keyframe_index >= drawn.size())
+                const std::vector<common::core::KeyframeViewState>& keyframes =
+                    tab->notes[hit.note_index].keyframes;
+                if (hit.keyframe_index >= keyframes.size())
                 {
                     return std::nullopt;
                 }
                 return ChartKeyframeKey{
                     .note = chartSlotKeyOf(chart.notes[hit.note_index]),
-                    .offset = drawn[hit.keyframe_index].offset,
+                    .offset = keyframes[hit.keyframe_index].offset,
                 };
             }
         },
@@ -1521,7 +1515,7 @@ void EditorController::Impl::landOnRow(
     const common::core::ChartStopChannel channel, const std::optional<ChartSelectionKey>& object)
 {
     std::visit(
-        Overloaded{
+        common::core::Overloaded{
             [&](const StringFocusRow& string_row) {
                 armChartCaret(
                     column.has_value() ? *column : pausedCursorPosition(placementQuantum()),
@@ -2436,7 +2430,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     return std::visit(
-        Overloaded{
+        common::core::Overloaded{
             [&](const ChartFretEntry::InsertAt& insert) -> Planned {
                 common::core::ChartNote note;
                 note.position = insert.slot.position;
@@ -2511,7 +2505,7 @@ void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
     if (entry.plan.has_value())
     {
         std::visit(
-            Overloaded{
+            common::core::Overloaded{
                 [this](ChartFretNotePlan& notes) {
                     static_cast<void>(
                         applyChartEditPlan(std::move(notes.plan), std::move(notes.select)));
@@ -2677,7 +2671,7 @@ decltype(EditorController::Impl::ChartFretEntry::target) EditorController::Impl:
         standing.has_value())
     {
         return std::visit(
-            Overloaded{
+            common::core::Overloaded{
                 [this](const ChartNoteKey& note) { return chartRetypeTarget({note.slot}, {}); },
                 [this](const ChartKeyframeKey& keyframe) {
                     return chartRetypeTarget({}, {keyframe});
@@ -2776,7 +2770,7 @@ std::optional<ChartSlotKey> EditorController::Impl::chartFretEntryCreationSlot(
     const decltype(ChartFretEntry::target)& target) const
 {
     return std::visit(
-        Overloaded{
+        common::core::Overloaded{
             [](const ChartFretEntry::InsertAt& insert) {
                 return std::optional<ChartSlotKey>{insert.slot};
             },

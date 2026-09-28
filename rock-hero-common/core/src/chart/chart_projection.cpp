@@ -533,11 +533,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         {
             view.bend.reserve(note.keyframes.size() + 1);
             view.bend.push_back(
-                BendPointViewState{
-                    .seconds = view.start_seconds, .semitones = note.bend, .states_fret = true
-                });
+                BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
         view.slides.reserve(note.keyframes.size());
+        view.keyframes.reserve(note.keyframes.size());
         // THE ONE FLAG that isolates every surface (noteSlidesOut): false draws a linked arrival
         // head at the ring's end; true draws a floating slide-out chip.
         const bool slides_out = noteSlidesOut(resolutions.connections, note_index);
@@ -601,22 +600,31 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             if (bend.has_value())
             {
                 view.bend.push_back(
-                    BendPointViewState{
-                        .seconds = keyframe_seconds,
-                        .semitones = *bend,
-                        .states_fret = fret.has_value(),
-                    });
+                    BendPointViewState{.seconds = keyframe_seconds, .semitones = *bend});
             }
+            // The keyframe's mark, decided here once from what it states: the stop it states, else
+            // the curve's dot where a bend is ALL it states, else a head at the fret in force.
+            KeyframeMark mark = KeyframeRestMark{.fret = ring.fret};
             if (fret.has_value())
             {
+                mark = KeyframeStopMark{.stop = view.slides.size()};
                 view.slides.push_back(
-                    KeyframeViewState{
+                    SlideStopViewState{
                         .seconds = keyframe_seconds,
                         .fret = *fret,
-                        .offset = keyframe.offset,
                         .slide_out = slides_out && keyframe_index + 1 == note.keyframes.size(),
                     });
             }
+            else if (bend.has_value() && ring.vibrato == was)
+            {
+                mark = KeyframeBendMark{.semitones = *bend};
+            }
+            view.keyframes.push_back(
+                KeyframeViewState{
+                    .seconds = keyframe_seconds,
+                    .offset = keyframe.offset,
+                    .mark = mark,
+                });
         }
         state.notes.push_back(std::move(view));
     }

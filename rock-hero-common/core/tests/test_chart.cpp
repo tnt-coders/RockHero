@@ -1244,7 +1244,9 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
         CHECK(ending.keyframes[0].offset == Fraction{1});
         CHECK_FALSE(ending.keyframes[0].fret.has_value());
         CHECK(ending.keyframes[0].vibrato == VibratoState::None);
-        CHECK(acceptedAlone(ending));
+        // Writing it is this function's whole job; the chart then refuses it, since no vibrato
+        // change may stand where the hand travels (shedMidTravelVibrato).
+        CHECK_FALSE(acceptedAlone(ending));
 
         const TempoMap tempo_map = makeTempoMap();
         const auto project = [&tempo_map](const ChartNote& note) {
@@ -1259,11 +1261,10 @@ TEST_CASE("endVibratoAt stores a vibrato ending in its one form", "[core][chart]
         const ChartViewState without = project(gliding);
         REQUIRE(with.notes.size() == 1);
         REQUIRE(without.notes.size() == 1);
-        const std::vector<KeyframeViewState>& stops = with.notes.front().slides;
-        const std::vector<KeyframeViewState>& reference = without.notes.front().slides;
+        const std::vector<SlideStopViewState>& stops = with.notes.front().slides;
+        const std::vector<SlideStopViewState>& reference = without.notes.front().slides;
         REQUIRE(stops.size() == 1);
         REQUIRE(reference.size() == 1);
-        CHECK(stops[0].offset == reference[0].offset);
         CHECK(stops[0].fret == 7);
         CHECK(stops[0].fret == reference[0].fret);
         CHECK_THAT(stops[0].seconds, Catch::Matchers::WithinULP(reference[0].seconds, 0));
@@ -1853,11 +1854,12 @@ TEST_CASE("Chart normalization strips channels, not whole keyframes", "[core][ch
         CHECK(repeated.notes.front().keyframes[0].offset == Fraction{1, 4});
         CHECK(validateChartRules(repeated, makeTempoMap()).has_value());
         // Judged per channel: a repeated width beside a fret the path does not pass through is a
-        // statement, and the keyframe stays whole.
+        // statement, and the keyframe stays whole. The vibrato begins at a stop, on the hold the
+        // glide to 9 leaves from, since no vibrato change may stand mid-travel.
         Chart stepped;
         stepped.tuning = tuning;
         stepped.notes = {note_with(
-            {Keyframe{.offset = Fraction{1, 4}, .vibrato = VibratoState::Narrow},
+            {Keyframe{.offset = Fraction{1, 4}, .fret = 5, .vibrato = VibratoState::Narrow},
              Keyframe{.offset = Fraction{1, 2}, .fret = 9, .vibrato = VibratoState::Narrow}})};
         CHECK(normalizeChart(stepped, makeTempoMap()).empty());
     }
@@ -3308,6 +3310,71 @@ TEST_CASE("An end statement sheds its vibrato and keeps its bend", "[core][chart
         };
         CHECK(shedEndStatementVibrato(note));
         CHECK(note.keyframes.empty());
+    }
+}
+
+// NO VIBRATO CHANGE MID-TRAVEL: a width may run through a glide, but none starts, stops or changes
+// strictly inside one, so the shed hands such a point the width of the leg it divides. A bend there
+// is legal, and so is any change at a stop or where the hand rests.
+TEST_CASE("A vibrato change standing mid-travel is taken back", "[core][chart]")
+{
+    ChartNote note;
+    note.position = GridPosition{.measure = 1, .beat = 1};
+    note.string = 3;
+    note.fret = 5;
+    note.sustain = Fraction{4};
+    const ChartTuning tuning{};
+
+    SECTION("a vibrato start inside a glide is taken back, and the normalizer reports it")
+    {
+        note.keyframes = {
+            Keyframe{
+                .offset = Fraction{1}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
+            },
+            Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow},
+        };
+        const std::vector<ChartRepair> repairs = normalizeChartNote(note, tuning);
+        REQUIRE(repairs.size() == 1);
+        CHECK(repairs.front() == ChartRepair::MidTravelVibrato);
+        REQUIRE(note.keyframes.size() == 2);
+        CHECK(note.keyframes[0].vibrato == VibratoState::None);
+        // The stop keeps its own width: a change AT a stop is not mid-travel.
+        CHECK(note.keyframes[1].vibrato == VibratoState::Narrow);
+    }
+    SECTION("a vibrato end inside the leg into a slide-out is taken back")
+    {
+        note.vibrato = VibratoState::Wide;
+        note.keyframes = {
+            Keyframe{.offset = Fraction{3}, .fret = {}, .bend = {}, .vibrato = VibratoState::None},
+            Keyframe{.offset = Fraction{4}, .fret = 9, .bend = {}, .vibrato = VibratoState::None},
+        };
+        CHECK(shedMidTravelVibrato(note));
+        CHECK(note.keyframes[0].vibrato == VibratoState::Wide);
+    }
+    SECTION("changes on a hold, after the last stop, and a bend mid-travel all stand")
+    {
+        note.keyframes = {
+            // A bend alone inside the glide from 5 to 7.
+            Keyframe{
+                .offset = Fraction{1, 2}, .fret = {}, .bend = 1.0, .vibrato = VibratoState::None
+            },
+            Keyframe{.offset = Fraction{1}, .fret = 7, .bend = {}, .vibrato = VibratoState::None},
+            // A hold on the 7, then a vibrato start on it: the hand rests.
+            Keyframe{
+                .offset = Fraction{3, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::None
+            },
+            Keyframe{
+                .offset = Fraction{2}, .fret = {}, .bend = {}, .vibrato = VibratoState::Narrow
+            },
+            Keyframe{
+                .offset = Fraction{5, 2}, .fret = 7, .bend = {}, .vibrato = VibratoState::Narrow
+            },
+            // Past the last stop the path holds, so a width step there is at rest too.
+            Keyframe{.offset = Fraction{3}, .fret = {}, .bend = {}, .vibrato = VibratoState::Wide},
+        };
+        const std::vector<Keyframe> before = note.keyframes;
+        CHECK_FALSE(shedMidTravelVibrato(note));
+        CHECK(note.keyframes == before);
     }
 }
 

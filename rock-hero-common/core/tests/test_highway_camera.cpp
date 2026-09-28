@@ -114,6 +114,7 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
             .fret = 20,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {}
         });
     CHECK(target_at(7.9).span == Catch::Approx(16.0));
@@ -142,6 +143,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
             .fret = 20,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {}
         });
     state.chart.notes.push_back(
@@ -152,6 +154,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
             .fret = 0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {}
         });
     state.chart.notes.push_back(
@@ -162,6 +165,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
             .fret = 15,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {}
         });
 
@@ -201,6 +205,7 @@ TEST_CASE(
             .harmonic_node = 12.0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         });
 

@@ -12,7 +12,6 @@
 #include <cstdint>
 #include <optional>
 #include <ranges>
-#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -20,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -99,9 +99,6 @@ constexpr float g_bend_fraction_scale{1.30f};
     return font.height() + 2.0f;
 }
 
-// A bend-only point's dot, as a fraction of the tail height: the automation lanes' point, scaled
-// to the tail it rides so it stays inside the lane at every density.
-constexpr float g_bend_dot_radius_tails{0.25f};
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
 // blue channel read too loud next to the blue, so the arpeggio tier sits darker.
 constexpr double g_shape_mark_brightness{1.5};
@@ -916,18 +913,6 @@ void drawNoteTail(
     }
 }
 
-// The tail's INTERIOR: the band between the two edge rails drawNoteTail lays inside the span's
-// envelope, symmetric about the string line like the envelope itself. This is the one definition
-// of where a technique mark may live — the sine and the bend polyline COMPRESS their swing to fit
-// it, the slide diagonals anchor their endpoints on it, the technique clip holds every mark inside
-// it, and the side chip's ground fills exactly it — so a mark meets the tail's edge scaled, never
-// cut.
-struct TailInterior
-{
-    float top;
-    float bottom;
-};
-
 // Whether a note draws any tail at all: no tail, no tail marks, so a note whose ink stops at its
 // onset wears no leg and no destination chip — which would sit on the head.
 [[nodiscard]] bool inked(const common::core::NoteViewState& note, const double drawn_end)
@@ -943,21 +928,14 @@ struct TailInterior
     return to_x > from_x ? std::clamp((end_x - from_x) / (to_x - from_x), 0.0f, 1.0f) : 1.0f;
 }
 
-// Whether a keyframe wears a head on the lane: a linked one (the slide-out draws its chip
-// instead) within the extent the note is drawn to.
-[[nodiscard]] bool keyframeHeadDrawn(
-    const common::core::KeyframeViewState& keyframe, const double drawn_end)
+// The fret a keyframe's HEAD prints where it wears one within the extent the note is drawn to.
+[[nodiscard]] std::optional<int> drawnKeyframeHeadFret(
+    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
+    const double drawn_end)
 {
-    return common::core::linkedKeyframe(keyframe) &&
-           common::core::keyframeDrawn(keyframe, drawn_end);
-}
-
-[[nodiscard]] TailInterior tailInterior(const TabLaneMetrics& metrics, const float center_y)
-{
-    const TailSpan span = tailSpan(metrics, center_y);
-    return TailInterior{
-        .top = span.top + metrics.tail_edge_size, .bottom = span.bottom - metrics.tail_edge_size
-    };
+    return common::core::instantDrawn(keyframe.seconds, drawn_end)
+               ? common::core::keyframeHeadFret(note, keyframe)
+               : std::nullopt;
 }
 
 // Draws the vibrato sine over each stretch of tail the note's vibrato channel states as vibrating.
@@ -1204,11 +1182,6 @@ void fillHeadShape(
     layer(border * 2.0f, inner);
 }
 
-// Charter's white technique-line stroke, shared by the slide diagonals and the bend polyline.
-// One constant because the interior anchoring assumes it: both drawers inset their endpoints by
-// half of THIS stroke, so a divergence would push one of them back onto the rails.
-constexpr float g_technique_line_thickness = 2.0f;
-
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
 // rising for ascending slides. Keyframe chains continue segment by segment; the slide-out
 // terminal gets Charter's fret label chip (white on the tail color darkened three times) at its
@@ -1236,8 +1209,8 @@ void drawSlideLines(
     // (cutLegProgress), wearing the destination chip there, and that stop itself draws nothing.
     for (std::size_t index = 0; index < note.slides.size(); ++index)
     {
-        const common::core::GlideStop stop = common::core::glideStopAt(note, index);
-        const bool drawn = common::core::keyframeDrawn(note.slides[index], drawn_end);
+        const common::core::SlideStopViewState& stop = note.slides[index];
+        const bool drawn = common::core::instantDrawn(stop.seconds, drawn_end);
         // Every junction insets its endpoint by one stroke width, which opens a hairline gap
         // between consecutive diagonals so a multi-stop glide reads as separate legs. The LAST
         // one takes no inset: its inset existed only to meet the tail's end cap, and with the cap
@@ -1271,13 +1244,11 @@ void drawSlideLines(
         // a shift slide: the next head, struck at that very stop one margin on, already shows
         // where the leg lands, and a chip beside it only got in the way (sighted 2026-09-24).
         // Where either chip stands is the layout manifest's one statement.
-        const bool arrival = final_leg && note.ends_on_next_head && !note.slides[index].slide_out;
-        const bool chip =
-            drawn ? note.slides[index].slide_out : stop.fret != previous_fret && !arrival;
+        const bool arrival = final_leg && note.ends_on_next_head && !stop.slide_out;
+        const bool chip = drawn ? stop.slide_out : stop.fret != previous_fret && !arrival;
         if (chip && metrics.draw_text)
         {
-            const TabKeyframeLayout layout =
-                tabKeyframeLayout(metrics, note, note.slides[index], drawn_end);
+            const TabKeyframeLayout layout = tabSlideStopLayout(metrics, note, index, drawn_end);
             slide_labels.push_back(
                 LabelChip{
                     .position = {layout.center_x, layout.center_y},
@@ -1304,9 +1275,10 @@ void drawSlideLines(
     }
 }
 
-// Draws Charter's linked-note head shapes at each linked slide keyframe. Charter charts express
-// unpicked slide chains as linked notes and draw one of these at every link; our format merges the
-// chain into keyframes, so the linked keyframes are exactly where Charter's linked heads sit.
+// Draws Charter's linked-note head shape at one keyframe. Charter charts express unpicked slide
+// chains as linked notes and draw one of these at every link; our format merges the chain into
+// keyframes, so the linked keyframes are exactly where Charter's linked heads sit. A keyframe that
+// states no position wears the same head at the fret in force, since the hand is resting there.
 //
 // A scrape's turnarounds are linked too, and they wear the note's OWN head shape — the plectrum —
 // so each junction reads as one continuous gesture changing direction rather than a chain of
@@ -1315,24 +1287,23 @@ void drawSlideLines(
 // traveled fret is stated, rather than a chip floating above the line.
 void drawKeyframeHeadShape(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
-    const float center_y)
+    const common::core::NoteViewState& note, const double seconds, const float center_y)
 {
     const float size = metrics.headSize();
     fillHeadShape(
         g,
         style[Ink::BorderInner],
         style[Ink::LinkedInner],
-        metrics.x(keyframe.seconds),
+        metrics.x(seconds),
         center_y,
         size,
         headShapeFor(note));
 }
 
-// Draws the fully opaque fret number that rides one linked slide keyframe head.
+// Draws the fully opaque fret number that rides one keyframe head.
 void drawKeyframeFretNumber(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
+    const common::core::NoteViewState& note, const double seconds, const int fret,
     const float center_y)
 {
     if (!metrics.draw_text)
@@ -1342,9 +1313,9 @@ void drawKeyframeFretNumber(
 
     // A junction labels its own stop through the SAME rule the onset head uses, so one gesture
     // cannot show two different quantities: on a harmonic the onset and junction label nodes.
-    const juce::String text = tabNoteHeadText(note, keyframe.fret);
+    const juce::String text = tabNoteHeadText(note, fret);
     const float size = metrics.headSize();
-    const float x = metrics.x(keyframe.seconds);
+    const float x = metrics.x(seconds);
     const float digit_raise = headDigitRaise(headShapeFor(note), size);
     g.setColour(style[Ink::Digit]);
     metrics.fret_font.draw(
@@ -1358,83 +1329,93 @@ void drawKeyframeHeadShapes(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, const float center_y, const double drawn_end)
 {
-    for (const common::core::KeyframeViewState& keyframe : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.keyframes)
     {
-        if (!keyframeHeadDrawn(keyframe, drawn_end))
+        if (drawnKeyframeHeadFret(note, keyframe, drawn_end).has_value())
         {
-            continue;
+            drawKeyframeHeadShape(g, metrics, style, note, keyframe.seconds, center_y);
         }
-
-        drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
     }
 }
 
-// Draws the fully opaque fret numbers that ride linked slide keyframe heads.
+// Draws the fully opaque fret numbers that ride keyframe heads.
 void drawKeyframeFretNumbers(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float center_y, const double drawn_end)
 {
-    for (const common::core::KeyframeViewState& keyframe : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.keyframes)
     {
-        if (!keyframeHeadDrawn(keyframe, drawn_end))
+        const std::optional<int> fret = drawnKeyframeHeadFret(note, keyframe, drawn_end);
+        if (fret.has_value())
         {
-            continue;
+            drawKeyframeFretNumber(g, metrics, style, note, keyframe.seconds, *fret, center_y);
         }
-
-        drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
     }
 }
 
-// Draws a normal linked keyframe head in its established shape-then-number order.
+// Draws a normal keyframe head in its established shape-then-number order.
 void drawKeyframeHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, const float center_y, const double drawn_end)
 {
-    for (const common::core::KeyframeViewState& keyframe : note.slides)
+    for (const common::core::KeyframeViewState& keyframe : note.keyframes)
     {
-        if (!keyframeHeadDrawn(keyframe, drawn_end))
+        const std::optional<int> fret = drawnKeyframeHeadFret(note, keyframe, drawn_end);
+        if (fret.has_value())
+        {
+            drawKeyframeHeadShape(g, metrics, style, note, keyframe.seconds, center_y);
+            drawKeyframeFretNumber(g, metrics, style, note, keyframe.seconds, *fret, center_y);
+        }
+    }
+}
+
+// Draws the dot a bend-only keyframe wears on the curve, within the extent the note is drawn to.
+// Outside the technique clip, so the band's edge cannot shave a dot riding the curve where the bend
+// rests; the heads drawn later still cover it.
+void drawBendDots(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const double drawn_end,
+    const std::optional<TailFade>& fade)
+{
+    const float radius = metrics.tail_height * g_bend_dot_radius_tails;
+    bool inked_any = false;
+    for (const common::core::KeyframeViewState& keyframe : note.keyframes)
+    {
+        if (!std::holds_alternative<common::core::KeyframeBendMark>(keyframe.mark) ||
+            !common::core::instantDrawn(keyframe.seconds, drawn_end))
         {
             continue;
         }
-
-        drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
-        drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
+        if (!inked_any)
+        {
+            setTailInk(g, style[Ink::TechniqueLine], fade);
+            inked_any = true;
+        }
+        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, keyframe, drawn_end);
+        g.fillEllipse(
+            layout.center_x - radius, layout.center_y - radius, 2.0f * radius, 2.0f * radius);
     }
 }
 
 // Draws the bend presentation: a white two-pixel polyline stepping between bend heights over the
 // tail, then a flat run to the tail end, with a "<slur><amount>" chip at each bend point. A
-// bend-only point also collects a dot, the automation lanes' point mark, drawn by the caller
-// outside the technique clip so the band's edge cannot shave it; a point that states a fret is
-// marked by its head instead.
+// bend-only point's dot is its keyframe's mark, drawn by drawBendDots.
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, std::vector<juce::Point<float>>& bend_dots,
-    const float opacity, const double drawn_end, const std::optional<TailFade>& fade)
+    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end,
+    const std::optional<TailFade>& fade)
 {
     if (note.bend.empty())
     {
         return;
     }
 
-    // The height is how far the string physically travels (bendTravel, the law the 3D lift draws
-    // too) as a share of the travel three whole steps take — compressed into the tail's INTERIOR
-    // with the stroke included, like the vibrato sine, so the polyline meets the rails scaled
-    // instead of being cut by the technique clip: rest sits on the interior's floor, three whole
-    // steps on its ceiling. A half step therefore rises about a third of the way, the first of the
-    // travel being the longest, exactly as the fretting hand feels it.
+    // The curve's height at an amount is the lane layout's one statement (bendCurveY), shared
+    // with the dot a bend-only point wears.
     constexpr float line_thickness = g_technique_line_thickness;
-    constexpr double ceiling_semitones = 6.0;
-    const double ceiling_travel = common::core::bendTravel(ceiling_semitones);
-    const TailInterior interior = tailInterior(metrics, center_y);
-    const float rest_y = interior.bottom - line_thickness / 2.0f;
-    const float full_y = interior.top + line_thickness / 2.0f;
-    const auto bend_y = [&](double semitones) {
-        const double share =
-            common::core::bendTravel(std::clamp(semitones, 0.0, ceiling_semitones)) /
-            ceiling_travel;
-        return rest_y - static_cast<float>(share) * (rest_y - full_y);
+    const auto bend_y = [&](const double semitones) {
+        return bendCurveY(metrics, center_y, semitones);
     };
 
     // The polyline ends where the ribbon it rides does — the drawn extent — so it cannot outlast
@@ -1491,10 +1472,6 @@ void drawBendLines(
         if (cut)
         {
             return;
-        }
-        if (!point.states_fret)
-        {
-            bend_dots.push_back(to);
         }
         last = {to.x + 1.0f, to.y};
         last_semitones = point.semitones;
@@ -2346,14 +2323,15 @@ void paintTabKeyframeHead(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe)
 {
-    if (!common::core::linkedKeyframe(keyframe))
+    const std::optional<int> fret = common::core::keyframeHeadFret(note, keyframe);
+    if (!fret.has_value())
     {
         return;
     }
     const StringStyle style{metrics.baseColor(note.string)};
     const float center_y = metrics.laneY(note.string);
-    drawKeyframeHeadShape(g, metrics, style, note, keyframe, center_y);
-    drawKeyframeFretNumber(g, metrics, style, note, keyframe, center_y);
+    drawKeyframeHeadShape(g, metrics, style, note, keyframe.seconds, center_y);
+    drawKeyframeFretNumber(g, metrics, style, note, keyframe.seconds, *fret, center_y);
 }
 
 // Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on
@@ -2706,8 +2684,6 @@ void paintTabLane(
     // Floating labels collected during the note passes and drawn above every head.
     std::vector<LabelChip> slide_labels;
     std::vector<LabelChip> bend_chips;
-    // One note's bend-only points, reused across notes so the pass allocates once.
-    std::vector<juce::Point<float>> bend_dots;
 
     // Tails first so normal heads cover their own tail starts (Charter's noteTails layer). A ghost
     // instead draws its head here inside the same flattened group as its tail.
@@ -2814,23 +2790,11 @@ void paintTabLane(
                 onset_x,
                 center_y,
                 bend_chips,
-                bend_dots,
                 note_opacity,
                 drawn_end,
                 fade);
         }
-        // A bend-only point's dot rides the curve at the band's edge where the bend rests, so it
-        // draws past the technique clip; the heads drawn later still cover it.
-        if (!bend_dots.empty())
-        {
-            const float radius = metrics.tail_height * g_bend_dot_radius_tails;
-            setTailInk(g, style[Ink::TechniqueLine], fade);
-            for (const juce::Point<float>& dot : bend_dots)
-            {
-                g.fillEllipse(dot.x - radius, dot.y - radius, 2.0f * radius, 2.0f * radius);
-            }
-            bend_dots.clear();
-        }
+        drawBendDots(g, metrics, style, note, drawn_end, fade);
 
         if (grouped)
         {

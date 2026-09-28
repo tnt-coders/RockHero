@@ -229,7 +229,7 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(point.seconds);
         }
     }
-    for (const KeyframeViewState& stop : note.slides)
+    for (const SlideStopViewState& stop : note.slides)
     {
         if (stop.seconds > from_seconds && stop.seconds < to_seconds)
         {

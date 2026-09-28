@@ -462,13 +462,13 @@ void TabView::paint(juce::Graphics& g)
                 continue;
             }
             const common::core::NoteViewState& note = tab.notes[ref.note_index];
-            if (ref.keyframe_index >= note.slides.size())
+            if (ref.keyframe_index >= note.keyframes.size())
             {
                 continue;
             }
-            const common::core::KeyframeViewState& keyframe = note.slides[ref.keyframe_index];
+            const common::core::KeyframeViewState& keyframe = note.keyframes[ref.keyframe_index];
             const double drawn_end = common::core::drawnEndSeconds(note, revealed(ref.note_index));
-            if (!common::core::keyframeDrawn(keyframe, drawn_end))
+            if (!common::core::instantDrawn(keyframe.seconds, drawn_end))
             {
                 continue;
             }
@@ -477,8 +477,9 @@ void TabView::paint(juce::Graphics& g)
     };
 
     // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
-    // them — the linked head at a junction, the slide-out chip's box at a slide-out — one selection
-    // idiom for every selectable, so a selected junction reads exactly as a selected head does.
+    // them — the linked head at a junction or a resting point, the slide-out chip's box at a
+    // slide-out, a disc around a bend-only point's dot — one selection idiom for every selectable,
+    // so a selected junction reads exactly as a selected head does.
     //
     // THE SELECTED OBJECT DRAWS LAST: a linked head is redrawn here before its ring, because the
     // lane paints notes in chart order and an ARRIVAL sits at the next head's own instant, which
@@ -490,26 +491,30 @@ void TabView::paint(juce::Graphics& g)
         [&](const common::core::NoteViewState& note,
             const common::core::KeyframeViewState& keyframe,
             const common::ui::TabKeyframeLayout& layout) {
-            if (!layout.chip)
+            const common::ui::TabLayoutRect& box = layout.box;
+            const juce::Rectangle<float> bounds{box.x, box.y, box.width, box.height};
+            switch (layout.shape)
             {
-                common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
+                case common::ui::TabKeyframeShape::Head:
+                    common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
+                    g.setColour(accent);
+                    common::ui::strokeTabNoteHeadOutline(
+                        g,
+                        note,
+                        layout.center_x,
+                        layout.center_y,
+                        layout.head_size,
+                        overlayRingStroke(layout.head_size));
+                    break;
+                case common::ui::TabKeyframeShape::Chip:
+                    g.setColour(accent);
+                    g.drawRect(bounds, overlayRingStroke(layout.head_size));
+                    break;
+                case common::ui::TabKeyframeShape::Dot:
+                    g.setColour(accent);
+                    g.drawEllipse(bounds, overlayRingStroke(box.width));
+                    break;
             }
-            g.setColour(accent);
-            if (layout.chip)
-            {
-                const common::ui::TabLayoutRect& box = layout.head;
-                g.drawRect(
-                    juce::Rectangle<float>{box.x, box.y, box.width, box.height},
-                    overlayRingStroke(layout.head_size));
-                return;
-            }
-            common::ui::strokeTabNoteHeadOutline(
-                g,
-                note,
-                layout.center_x,
-                layout.center_y,
-                layout.head_size,
-                overlayRingStroke(layout.head_size));
         });
 
     // The in-flight marquee: translucent accent fill with a crisp border.
@@ -608,14 +613,26 @@ void TabView::paint(juce::Graphics& g)
             // A selected keyframe's box rides the mark the paint core drew for it — the linked
             // head at a junction, which the note places exactly as it does its onset's digit, or
             // the slide-out chip at a slide-out, whose digit sits on the chip's own line with no
-            // head shape to raise it — so the digit lands where the value will print.
+            // head shape to raise it — so the digit lands where the value will print. A bend-only
+            // point prints no fret yet: the typed one lands as a linked head on the string line
+            // at its instant, so that is where its box rides.
             for_each_drawn_keyframe(
                 targets->keyframes,
                 [&](const common::core::NoteViewState& note,
                     const common::core::KeyframeViewState&,
                     const common::ui::TabKeyframeLayout& layout) {
-                    paint_pending_box(
-                        layout.chip ? nullptr : &note, layout.center_x, layout.center_y);
+                    switch (layout.shape)
+                    {
+                        case common::ui::TabKeyframeShape::Head:
+                            paint_pending_box(&note, layout.center_x, layout.center_y);
+                            break;
+                        case common::ui::TabKeyframeShape::Chip:
+                            paint_pending_box(nullptr, layout.center_x, layout.center_y);
+                            break;
+                        case common::ui::TabKeyframeShape::Dot:
+                            paint_pending_box(&note, layout.center_x, metrics.laneY(note.string));
+                            break;
+                    }
                 });
         }
         else if (

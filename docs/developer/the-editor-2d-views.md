@@ -306,7 +306,7 @@ Four consequences worth knowing before touching this:
   `→` onto the shared slot lands on the statement and a second press takes the head, while `←` from
   the head names the statement without moving and a second press leaves. `Shift+Tab` reaches it the
   same way. It wears
-  the accent ring traced on the chip's box (`tabKeyframeLayout` lays the chip out, mirroring
+  the accent ring traced on the chip's box (`tabSlideStopLayout` lays the chip out, mirroring
   `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
   force says nothing (`keyframeSaysNothingNew`) and is treated like every other silent point: it
   DRAWS ITS CHIP — the painter skips the diagonal for a leg that travels nowhere, never the mark —
@@ -341,7 +341,16 @@ Four consequences worth knowing before touching this:
   statement standing past that crop — an end statement on the next head included — is in the
   ring's ENDING ZONE, drawn at its stored instant only under the reveal. A drawn chip is keyed by
   the offset the chart states (`KeyframeViewState::offset`), so click, caret and the accent ring
-  keep reaching the statement itself.
+  keep reaching the statement itself. EVERY keyframe is published and reachable
+  (`NoteViewState::keyframes`), whatever it states, and wears the mark of what it states
+  (`KeyframeMark`, decided once by the projection): a position wears its stop's linked head or
+  chip, a bend ALONE the curve's dot at its amount (`bendCurveY`), and anything else — a vibrato
+  change, with or without a bend beside it — a linked head printing the fret in force.
+  `tabKeyframeLayout` lays every one out for the paint, the click and the accent ring alike (a
+  disc around a dot). That head prints where the hand really is because no vibrato change may
+  stand mid-slide (`shedMidTravelVibrato`); a bend may, and its dot rides the curve, not the
+  slide line. The stops alone (`NoteViewState::slides`) are the gesture's geometry, which every
+  glide consumer walks.
 - **The PENDING ENTRY is the lane's only entry preview** — there is no insert ghost. A DIGIT typed
   at an armed caret — a head on an empty slot or at a ring's exact end, a point on the path where a
   ring covers it — wears the pending box at the slot, red where the gate refuses the fret, and a
@@ -643,7 +652,7 @@ is deliberately single-sourced:
   true end. The leg the crop cuts — a slide sloping toward a keyframe
   past the ink end, a bend rising toward one — is drawn on its true path as far as the crop and
   wears a DESTINATION CHIP there, naming the fret or the amount it is heading for (a fret chip is
-  placed by `tabKeyframeLayout`, the one statement of where a keyframe's mark stands; a bend chip
+  placed by `tabSlideStopLayout`, the one statement of where a stop's mark stands; a bend chip
   rides the bend line as every bend chip does); a level leg wears none, a shift slide's ARRIVAL
   wears none either, since the next head one margin on already shows where the leg lands, and a
   note whose ink stops at its onset draws no tail marks at all. The chip is a mark, never a target

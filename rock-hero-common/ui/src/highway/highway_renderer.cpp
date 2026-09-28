@@ -5485,7 +5485,7 @@ void HighwayRenderer::Impl::draw(
         // at the same instant, and their markers would pile up in one slot — only the member on
         // the lowest displayed lane (nearest the floor, so its post overlaps nothing above it)
         // draws the shared marker.
-        const auto stacked_below = [&](const common::core::KeyframeViewState& keyframe) {
+        const auto stacked_below = [&](const common::core::SlideStopViewState& keyframe) {
             for (std::size_t member = group.first; member < group.first + group.count; ++member)
             {
                 const common::core::NoteViewState& other = state.chart.notes[member];
@@ -5496,7 +5496,7 @@ void HighwayRenderer::Impl::draw(
                     continue;
                 }
                 // Only a marker the other member actually draws can stand in for this one.
-                for (const common::core::KeyframeViewState& other_keyframe : other.slides)
+                for (const common::core::SlideStopViewState& other_keyframe : other.slides)
                 {
                     if (common::core::highwayMarksKeyframe(other, other_keyframe) &&
                         other_keyframe.fret == keyframe.fret &&
@@ -5508,7 +5508,7 @@ void HighwayRenderer::Impl::draw(
             }
             return false;
         };
-        for (const common::core::KeyframeViewState& keyframe : note.slides)
+        for (const common::core::SlideStopViewState& keyframe : note.slides)
         {
             if (common::core::highwayMarksKeyframe(note, keyframe) &&
                 keyframe.seconds > now_seconds && keyframe.seconds <= span_end_seconds &&

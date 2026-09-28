@@ -266,8 +266,16 @@ Keep this list and the session task list in step.
     The gesture consequence the clamp had to earn: a replayed run describing exactly the plan its
     entry already holds is NOT recorded (`commitChartGestureStep`), so every further press into the
     head costs nothing to come back from.
-  - **Still open, and untouched by the above:** a DISPLAY question — a keyframe stating no fret
-    draws nothing today, so no pointer can reach it — the bend display study's to answer.
+  - **The display question, RULED AND BUILT 2026-09-27 (user).** A keyframe stating no fret
+    INHERITS the fret in force — storage always did; the defect was the view state publishing only
+    the fret-stating keyframes, so nothing else could be drawn or reached. Every keyframe is now
+    published (`NoteViewState::keyframes`) with the mark of what it states (`KeyframeMark`): a
+    position wears its stop's linked head or chip, a bend ALONE the bend curve's dot, and anything
+    else (a vibrato change, with or without a bend) a linked head printing the fret in force. With
+    it, a chart rule the head relies on: NO VIBRATO CHANGE MID-SLIDE (`shedMidTravelVibrato`,
+    repair `MidTravelVibrato`) — a width may run through a glide but not start, stop or step inside
+    one. Bends MAY change mid-slide, since Guitar Pro can state that and the dot rides the curve,
+    not the slide line; the user may ban that later.
 - [x] **W15 — The harmonic verbs and the node picker.** `H` states the fret-hand harmonic and
   `Shift+H` the pinch. `Shift+H` is a row of `chartTechniqueLaw` under the shared toggle contract;
   `H` was one too until 2026-09-16, when it stopped being a toggle and became a verb of its own (the

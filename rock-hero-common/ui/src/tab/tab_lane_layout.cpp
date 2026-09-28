@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 
 namespace rock_hero::common::ui
@@ -116,6 +117,26 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
         .top = center_y - half,
         .bottom = center_y + half,
     };
+}
+
+TailInterior tailInterior(const TabLaneGeometry& geometry, const float center_y) noexcept
+{
+    const TailSpan span = tailSpan(geometry, center_y);
+    return TailInterior{
+        .top = span.top + geometry.tail_edge_size, .bottom = span.bottom - geometry.tail_edge_size
+    };
+}
+
+float bendCurveY(
+    const TabLaneGeometry& geometry, const float center_y, const double semitones) noexcept
+{
+    constexpr double ceiling_semitones = 6.0;
+    const TailInterior interior = tailInterior(geometry, center_y);
+    const float rest_y = interior.bottom - g_technique_line_thickness / 2.0f;
+    const float full_y = interior.top + g_technique_line_thickness / 2.0f;
+    const double share = common::core::bendTravel(std::clamp(semitones, 0.0, ceiling_semitones)) /
+                         common::core::bendTravel(ceiling_semitones);
+    return rest_y - static_cast<float>(share) * (rest_y - full_y);
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.

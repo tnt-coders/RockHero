@@ -28,26 +28,23 @@ namespace
 
 // One glide keyframe, pitched. A keyframe is unpitched exactly when it is the note's SLIDE-OUT —
 // the slide-out terminal, which lives in the same list as its last entry and which
-// `slideOutKeyframe` below states; a scrape's turnarounds are pitched stops like any other. The
-// authored offset is left unstated — these fixtures resolve no tempo map, and only the editor's
-// selection reads it.
-[[nodiscard]] common::core::KeyframeViewState keyframe(const double seconds, const int fret)
+// `slideOutKeyframe` below states; a scrape's turnarounds are pitched stops like any other.
+[[nodiscard]] common::core::SlideStopViewState keyframe(const double seconds, const int fret)
 {
-    return common::core::KeyframeViewState{
+    return common::core::SlideStopViewState{
         .seconds = seconds,
         .fret = fret,
-        .offset = common::core::Fraction{},
         .slide_out = false,
     };
 }
 
 // The slide-out terminal: the note's last keyframe, sitting at the ring's end by definition.
-[[nodiscard]] common::core::KeyframeViewState slideOutKeyframe(const double seconds, const int fret)
+[[nodiscard]] common::core::SlideStopViewState slideOutKeyframe(
+    const double seconds, const int fret)
 {
-    return common::core::KeyframeViewState{
+    return common::core::SlideStopViewState{
         .seconds = seconds,
         .fret = fret,
-        .offset = common::core::Fraction{},
         .slide_out = true,
     };
 }
@@ -159,7 +156,7 @@ TEST_CASE("A leg the ink end cuts is drawn on its true path", "[ui][highway]")
     common::core::NoteViewState note = frettedNote();
     note.ink_end_seconds = 2.5;
     note.slides = {keyframe(3.0, 9)};
-    REQUIRE_FALSE(common::core::keyframeDrawn(note.slides[0], note.ink_end_seconds));
+    REQUIRE_FALSE(common::core::instantDrawn(note.slides[0].seconds, note.ink_end_seconds));
     const double base_x = highwayNoteFretboardX(note, note.fret, metrics, false);
     const double travel = highwayNoteFretboardX(note, 9, metrics, false) - base_x;
 

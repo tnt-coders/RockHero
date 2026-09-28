@@ -75,7 +75,7 @@ struct ChartKeyframeHit
     /*! \brief Index into \ref common::core::ChartViewState::notes. */
     std::size_t note_index{0};
 
-    /*! \brief Index into that note's \ref common::core::NoteViewState::slides. */
+    /*! \brief Index into that note's \ref common::core::NoteViewState::keyframes. */
     std::size_t keyframe_index{0};
 
     /*!
@@ -117,7 +117,7 @@ scrolled off-screen by clicking its tail; the marquee and the keyboard still rea
 recorded as a sighting item (`docs/tracking/watch-items.md`).
 
 What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe is
-reached only while it is DRAWN (\ref common::core::keyframeDrawn): one standing past its note's ink
+reached only while it is DRAWN (\ref common::core::instantDrawn): one standing past its note's ink
 end is reached only while the note is revealed, exactly as the lane draws it — a linked head at a
 junction, the slide-out's chip at its end. A keyframe stating no fret draws nothing at all today —
 how those should draw, and therefore how a pointer should reach them, is the bend display study's

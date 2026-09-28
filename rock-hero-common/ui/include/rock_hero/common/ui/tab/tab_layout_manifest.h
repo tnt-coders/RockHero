@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
@@ -166,57 +167,92 @@ digit centred between them.
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     bool revealed) noexcept;
 
-/*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, the
-slide-out's chip at its end, or the destination chip at the crop for a keyframe the ink never
-reaches. */
+/*! \brief What a keyframe's mark is, so a host tracing it traces the right outline. */
+enum class TabKeyframeShape : std::uint8_t
+{
+    /*! \brief A linked head: the note's own head silhouette on its string line. */
+    Head,
+
+    /*! \brief A chip: the slide-out's, or the destination chip at the crop — a box. */
+    Chip,
+
+    /*! \brief A bend-only point's dot on the bend curve — a disc. */
+    Dot,
+};
+
+/*! \brief Pixel layout of one keyframe's mark: a linked head along a note's tail, a chip, or a
+bend-only point's dot on the curve. */
 struct TabKeyframeLayout
 {
     /*! \brief The mark's center column: the keyframe's instant, or the drawn extent for a
-    keyframe past it. */
+    destination chip. */
     float center_x{};
 
     /*! \brief Vertical center of the mark: the note's string line for a head, the chip's line
-    for a chip. */
+    for a chip, the curve's height for a dot. */
     float center_y{};
 
     /*! \brief Rendered head extent — the note head's own size. */
     float head_size{};
 
-    /*! \brief True when the mark is a chip rather than a head, so a host tracing the mark traces
-    a box and not the note's head silhouette. */
-    bool chip{false};
+    /*! \brief What the mark is (\ref TabKeyframeShape). */
+    TabKeyframeShape shape{TabKeyframeShape::Head};
 
-    /*! \brief Bounding rectangle of the mark — its drawn extent, and for a drawn keyframe its
-    clickable one. */
-    TabLayoutRect head{};
+    /*!
+    \brief Bounding rectangle of the mark — its drawn extent, and for a drawn keyframe its clickable
+    one. A dot's is the disc a selection ring traces, half a head across, since the dot itself is
+    too small a target to find.
+    */
+    TabLayoutRect box{};
 };
 
 /*!
-\brief Computes the pixel layout of one keyframe's mark under the given lane geometry, for the
+\brief Computes the pixel layout of one gesture stop's mark under the given lane geometry, for the
 extent the note is drawn to.
 
-THE ONE statement of where a keyframe's mark stands, read by the paint core that draws it and the
-hit tester that bounds a click on it. A keyframe within the drawn extent (\ref
-common::core::keyframeDrawn) stands at its instant: a linked one wears the note's own head there,
-and a slide-out (\ref common::core::KeyframeViewState::slide_out) has no head — the slide line
-ends in its chip, above the tail when the last leg rises and below it when it falls, so its box is
-the chip's ground: the fret-text height plus the chip's padding, wide enough for two digits, on the
-chip's own line. A keyframe PAST the extent is the DESTINATION CHIP at the crop: the same chip,
+THE ONE statement of where a stop's mark stands, read by the paint core that draws it and, through
+\ref tabKeyframeLayout, by the hit tester that bounds a click on it. A stop within the drawn extent
+(\ref common::core::instantDrawn) stands at its instant: a linked one wears the note's own head
+there, and a slide-out (\ref common::core::SlideStopViewState::slide_out) has no head — the slide
+line ends in its chip, above the tail when the last leg rises and below it when it falls, so its
+box is the chip's ground: the fret-text height plus the chip's padding, wide enough for two digits,
+on the chip's own line. A stop PAST the extent is the DESTINATION CHIP at the crop: the same chip,
 naming where the leg the ink ends on is heading, standing at the drawn extent rather than at the
-keyframe's own instant.
+stop's own instant.
 
 Whether a mark EXISTS is the caller's question, exactly as the paint core asks before drawing: a
 level leg past the extent draws no destination chip, and a note whose ink stops at its onset draws
 none at all, yet both lay out here.
 
 \param geometry Lane geometry the notation was painted with.
-\param note Seconds-resolved note the keyframe belongs to; its string places the head.
-\param keyframe One of the note's \ref common::core::NoteViewState::slides entries.
+\param note Seconds-resolved note the stop belongs to; its string places the head.
+\param stop Index of the stop in the note's \ref common::core::NoteViewState::slides.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\return Per-stop layout in the lane bounds' pixel space.
+*/
+[[nodiscard]] TabKeyframeLayout tabSlideStopLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, std::size_t stop,
+    double drawn_end) noexcept;
+
+/*!
+\brief Computes the pixel layout of one keyframe's mark under the given lane geometry, for the
+extent the note is drawn to.
+
+THE ONE statement of where any keyframe's mark stands, whatever it states (\ref
+common::core::KeyframeMark): a keyframe stating a position wears its stop's mark (\ref
+tabSlideStopLayout); one stating only a bend wears the curve's dot at the height the curve stands
+at there (\ref bendCurveY); any other wears a linked head on the string line at its instant. Read by
+the paint core, the hit tester and the host's selection overlays alike, so a mark and its target
+cannot part.
+
+\param geometry Lane geometry the notation was painted with.
+\param note Seconds-resolved note the keyframe belongs to; its string places the mark.
+\param keyframe One of the note's \ref common::core::NoteViewState::keyframes entries.
 \param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
 \return Per-keyframe layout in the lane bounds' pixel space.
 */
 [[nodiscard]] TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe, double drawn_end) noexcept;
+    const common::core::KeyframeViewState& keyframe, double drawn_end);
 
 } // namespace rock_hero::common::ui

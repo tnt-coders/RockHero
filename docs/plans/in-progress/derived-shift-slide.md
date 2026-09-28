@@ -139,7 +139,7 @@ twenty-five call sites move from a local helper to a resolved read.
 **The strip needs no relation.** It sheds the vibrato from any end statement, note-local, and never
 the bend (see the amendment above). The coexistence ruling holds for arrivals and slide-outs alike.
 
-**No display change.** One flag, `KeyframeViewState::slide_out`, isolates every surface: false draws
+**No display change.** One flag, `SlideStopViewState::slide_out`, isolates every surface: false draws
 a linked arrival head, true draws a floating fall chip, each at the keyframe's stored instant. The
 projection fills it from the resolved answer instead of from position. The sighting concern
 recorded against the signed P8 look ("it MOVES an authored instant") retires, because nothing moves

@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <span>
@@ -542,7 +543,9 @@ Each channel reads independently along the ring:
 - **vibrato** — a width per LEG (\ref VibratoState), `None` where the leg is not vibrated.
   Nothing carries: each keyframe states its own leg's width, so a delayed start, an end where
   the next keyframe begins an unvibrated leg, a step from the ordinary vibrato to the wide one,
-  several regions, and vibrato through a glide are all just the legs that state one. A vibrated
+  several regions, and vibrato through a glide are all just the legs that state one — though no
+  leg begins strictly inside travel (\ref shedMidTravelVibrato): a vibrato change stands only at a
+  stop or where the hand rests, while the bend channel may change anywhere. A vibrated
   leg with no keyframe after it vibrates to the ring's end: a width ends only where a leg begins,
   and where nothing else changes there the leg is begun by a keyframe carrying no channel at all,
   kept because the leg it begins is its statement (\ref endVibratoAt,
@@ -1457,6 +1460,49 @@ inline bool shedEndStatementVibrato(ChartNote& note) noexcept
         note.keyframes.pop_back();
     }
     return true;
+}
+
+/*!
+\brief Takes back every vibrato change standing where the hand is TRAVELLING, handing each such
+keyframe the width of the leg it divides.
+
+NO VIBRATO CHANGE MID-TRAVEL: a vibrato may run through a glide, but none starts, stops or changes
+width strictly inside one — the stretch between two stated stops at different frets, the leg into
+a slide-out included. A keyframe that states a fret is a stop, never mid-travel, and a BEND may
+change anywhere along the path. Guitar Pro cannot express the case (its vibrato is a per-note flag,
+stated at note and tie boundaries), so it reaches a chart only through a hand-edited file.
+
+A keyframe the shed empties stays as the bare point it now is, and whether it says anything is the
+commit law's question (\ref keyframeSaysNothingNew), exactly as for every other channel shed.
+
+\param note Note whose mid-travel vibrato changes are taken back.
+\return True when any was — what the normalizer reports as its repair.
+*/
+inline bool shedMidTravelVibrato(ChartNote& note) noexcept
+{
+    bool shed = false;
+    // The state in force BEFORE each keyframe: the stop its leg leaves from, and the leg's width.
+    RingState ring = ringStateAtOnset(note);
+    for (auto keyframe = note.keyframes.begin(); keyframe != note.keyframes.end(); ++keyframe)
+    {
+        if (!keyframe->fret.has_value() && keyframe->vibrato != ring.vibrato)
+        {
+            // The next stated stop decides whether this point lies on a hold or on travel; past
+            // the last one the path holds.
+            const auto next_stop = std::ranges::find_if(
+                std::next(keyframe), note.keyframes.end(), [](const Keyframe& later) {
+                    return later.fret.has_value();
+                });
+            if (next_stop != note.keyframes.end() &&
+                next_stop->fret.value_or(ring.fret) != ring.fret)
+            {
+                keyframe->vibrato = ring.vibrato;
+                shed = true;
+            }
+        }
+        ring.advance(*keyframe);
+    }
+    return shed;
 }
 
 /*!

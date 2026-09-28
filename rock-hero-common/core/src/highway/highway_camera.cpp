@@ -255,8 +255,8 @@ HighwayCameraTarget makeHighwayCameraTarget(
             // cover.
             for (std::size_t index = 0; index < note.slides.size(); ++index)
             {
-                const GlideStop stop = glideStopAt(note, index);
-                if (!keyframeDrawn(note.slides[index], note.ink_end_seconds))
+                const SlideStopViewState& stop = note.slides[index];
+                if (!instantDrawn(stop.seconds, note.ink_end_seconds))
                 {
                     break;
                 }

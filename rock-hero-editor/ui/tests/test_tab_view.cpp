@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/common/core/testing/view_state_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -42,6 +43,7 @@ namespace
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -52,6 +54,7 @@ namespace
             .fret = 7,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -62,6 +65,7 @@ namespace
             .fret = 0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -77,21 +81,24 @@ void setFixtureState(TabView& view)
 // One cropped note on string 3 (centre y = 70.5): struck at 2.0s, inked to 5.0s, ringing to
 // `ring_end_seconds`, and carrying `keyframe` past the ink end — a mark only a reveal can show.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeCroppedKeyframeState(
-    const double ring_end_seconds, const common::core::KeyframeViewState& keyframe)
+    const double ring_end_seconds, const common::core::SlideStopViewState& keyframe)
 {
     common::core::ChartViewState state;
     state.open_strings = common::core::testing::standardTuning();
     state.notes = {
-        common::core::NoteViewState{
-            .start_seconds = 2.0,
-            .ring_end_seconds = ring_end_seconds,
-            .ink_end_seconds = 5.0,
-            .string = 3,
-            .fret = 7,
-            .bend = {},
-            .slides = {keyframe},
-            .vibrato = {},
-        },
+        common::core::testing::withStops(
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = ring_end_seconds,
+                .ink_end_seconds = 5.0,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+            },
+            {keyframe}),
     };
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
@@ -852,6 +859,7 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
             .fret = 7,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -862,6 +870,7 @@ TEST_CASE("TabView reveals a tail the presentation rules hid", "[ui][tab-view]")
             .fret = 0,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1198,6 +1207,7 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1289,6 +1299,7 @@ TEST_CASE("TabView reveals a selected note and leaves its mate at its ink end", 
             .fret = 3,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
         common::core::NoteViewState{
@@ -1299,6 +1310,7 @@ TEST_CASE("TabView reveals a selected note and leaves its mate at its ink end", 
             .fret = 5,
             .bend = {},
             .slides = {},
+            .keyframes = {},
             .vibrato = {},
         },
     };
@@ -1384,14 +1396,14 @@ TEST_CASE(
     // each probe is the mark's own extent rather than a guessed column.
     const auto show = [&view, &timeline](
                           const double ring_end_seconds,
-                          const common::core::KeyframeViewState& keyframe) {
+                          const common::core::SlideStopViewState& keyframe) {
         const std::shared_ptr<const common::core::ChartViewState> state =
             makeCroppedKeyframeState(ring_end_seconds, keyframe);
         view.setState(state, 0);
         return common::ui::tabKeyframeLayout(
             common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
             state->notes[0],
-            keyframe,
+            state->notes[0].keyframes.front(),
             ring_end_seconds);
     };
 
@@ -1401,12 +1413,12 @@ TEST_CASE(
                                const juce::Image& lhs,
                                const juce::Image& rhs) {
         constexpr int ring_margin = 3;
-        for (int y = juce::roundToInt(mark.head.y) - ring_margin;
-             y < juce::roundToInt(mark.head.y + mark.head.height) + ring_margin;
+        for (int y = juce::roundToInt(mark.box.y) - ring_margin;
+             y < juce::roundToInt(mark.box.y + mark.box.height) + ring_margin;
              ++y)
         {
-            for (int x = juce::roundToInt(mark.head.x) - ring_margin;
-                 x < juce::roundToInt(mark.head.x + mark.head.width) + ring_margin;
+            for (int x = juce::roundToInt(mark.box.x) - ring_margin;
+                 x < juce::roundToInt(mark.box.x + mark.box.width) + ring_margin;
                  ++x)
             {
                 if (lhs.getPixelAt(x, y) != rhs.getPixelAt(x, y))
@@ -1424,11 +1436,11 @@ TEST_CASE(
     SECTION("an end statement's chip, selected with its note, stands at its stored instant")
     {
         // The slide-out stated at the stored ring end, 8.0s, three seconds past the ink.
-        const common::core::KeyframeViewState stored_end{
+        const common::core::SlideStopViewState stored_end{
             .seconds = 8.0, .fret = 9, .slide_out = true
         };
         const common::ui::TabKeyframeLayout chip = show(8.0, stored_end);
-        REQUIRE(chip.chip);
+        REQUIRE(chip.shape == common::ui::TabKeyframeShape::Chip);
 
         // Unrevealed and unselected, the chip past the ink end is undrawn at its instant.
         const juce::Image plain = render();
@@ -1455,9 +1467,11 @@ TEST_CASE(
     SECTION("a linked keyframe's head, selected alone, still reveals its note")
     {
         // A glide rising 7 -> 9 at 10.0s (x = 100), inside a ring running on to 12.0s.
-        const common::core::KeyframeViewState glide{.seconds = 10.0, .fret = 9, .slide_out = false};
+        const common::core::SlideStopViewState glide{
+            .seconds = 10.0, .fret = 9, .slide_out = false
+        };
         const common::ui::TabKeyframeLayout head = show(12.0, glide);
-        REQUIRE_FALSE(head.chip);
+        REQUIRE(head.shape == common::ui::TabKeyframeShape::Head);
 
         // 10 px per second: column 115 (11.5s) is ring past the keyframe's head and short of the
         // ring end at x = 120, and row 72 sits 1.5 px below the lane centre, inside the tail
@@ -1503,18 +1517,20 @@ TEST_CASE(
     // 400 px across 20 s: the shared instant at 8.0s lands at x = 160, and six lanes down 240 px
     // give a 25 px head — wide enough for a probe eight pixels off centre to clear the fret digit
     // and the accent ring alike, so what it reads is the head FILL.
-    const common::core::KeyframeViewState arrival{.seconds = 8.0, .fret = 9, .slide_out = false};
-    const common::core::NoteViewState glide{
-        .start_seconds = 2.0,
-        .ring_end_seconds = 8.0,
-        .ink_end_seconds = 8.0,
-        .string = 3,
-        .fret = 7,
-        .bend = {},
-        .slides = {arrival},
-        .vibrato = {},
-        .ends_on_next_head = true,
-    };
+    const common::core::NoteViewState glide = common::core::testing::withStops(
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 8.0,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+            .ends_on_next_head = true,
+        },
+        {common::core::SlideStopViewState{.seconds = 8.0, .fret = 9, .slide_out = false}});
     const common::core::NoteViewState landing{
         .start_seconds = 8.0,
         .ring_end_seconds = 10.0,
@@ -1523,6 +1539,7 @@ TEST_CASE(
         .fret = 9,
         .bend = {},
         .slides = {},
+        .keyframes = {},
         .vibrato = {},
     };
 

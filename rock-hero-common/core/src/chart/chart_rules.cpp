@@ -282,6 +282,11 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "vibrato stated where the string is let go had no ring to vibrate in and was "
                    "dropped";
         }
+        case ChartRepair::MidTravelVibrato:
+        {
+            return "a vibrato change stood where the hand travels between two frets and was taken "
+                   "back";
+        }
         case ChartRepair::SilentKeyframe:
         {
             return "a keyframe stated nothing the path did not already say and was dropped";
@@ -568,6 +573,12 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     if (shedEndStatementVibrato(note))
     {
         fired(ChartRepair::EndStatementVibrato);
+    }
+    // NO VIBRATO CHANGE MID-TRAVEL: a width may run through a glide, but none begins strictly
+    // inside one. After the end's shed, so a slide-out's own statement is already settled.
+    if (shedMidTravelVibrato(note))
+    {
+        fired(ChartRepair::MidTravelVibrato);
     }
 
     // 4. A strike from nowhere needs somewhere to land.
