@@ -1,5 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
@@ -283,18 +286,19 @@ TEST_CASE("Session loadSong rejects invalid replacement data", "[core][session]"
                               });
 }
 
-// The fourth narrow mutation surface: currentChart hands out the loaded chart and every non-null
-// acquisition advances the revision that keys projection caches, so an edit can never leave a
-// stale projection behind. Null returns (no project, no chart) must not advance it.
-TEST_CASE("Session currentChart advances the chart revision", "[core][session]")
+// The fourth narrow mutation surface: writeChart writes the loaded chart and advances the revision
+// that keys projection caches once the write has ENDED, so a read during the write still sees the
+// revision of the chart being replaced and no cache can hold it under its successor's. A write with
+// no chart to write (no project, no chart) must not advance it.
+TEST_CASE("Session writeChart advances the chart revision once the write ends", "[core][session]")
 {
     Session session;
-    CHECK(session.currentChart() == nullptr);
+    CHECK_FALSE(session.writeChart([](Chart&) {}));
     CHECK(session.chartRevision() == 0);
 
     REQUIRE(session.loadSong(
         makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
-    CHECK(session.currentChart() == nullptr);
+    CHECK_FALSE(session.writeChart([](Chart&) {}));
     CHECK(session.chartRevision() == 0);
 
     Song song_with_chart = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
@@ -304,10 +308,20 @@ TEST_CASE("Session currentChart advances the chart revision", "[core][session]")
     const bool loaded = session.loadSong(std::move(song_with_chart), 0);
     REQUIRE(loaded);
 
-    const Chart* const chart = session.currentChart();
-    REQUIRE(chart != nullptr);
+    std::uint64_t during = 0;
+    const std::optional<std::size_t> written =
+        session.writeChart([&session, &during](Chart& chart) {
+            during = session.chartRevision();
+            return chart.notes.size();
+        });
+    REQUIRE(written.has_value());
+    if (written.has_value())
+    {
+        CHECK(*written == 0);
+    }
+    CHECK(during == 0);
     CHECK(session.chartRevision() == 1);
-    CHECK(session.currentChart() == chart);
+    CHECK(session.writeChart([](Chart&) {}));
     CHECK(session.chartRevision() == 2);
 }
 

@@ -21,17 +21,12 @@ FretHandPositionsSnapshot FretHandPositionsSnapshot::capture(const common::core:
 
 // Reports failure rather than silently doing nothing when no chart owns a stream, which is what
 // lets an undo of a hand edit fault the transition instead of appearing to succeed. The write goes
-// through the session's one mutable chart accessor, which advances the chart revision the tab and
-// highway projections are keyed on, so no cached projection can draw the stream it replaced.
+// through the session's one chart write, which advances the chart revision the tab and highway
+// projections are keyed on, so no cached projection can draw the stream it replaced.
 bool FretHandPositionsSnapshot::applyTo(common::core::Session& session) const
 {
-    common::core::Chart* const chart = session.currentChart();
-    if (chart == nullptr)
-    {
-        return false;
-    }
-    chart->fret_hand_positions = placements;
-    return true;
+    return session.writeChart(
+        [this](common::core::Chart& chart) { chart.fret_hand_positions = placements; });
 }
 
 // A sort rather than a sorted insert, so an insert and a move can each just place their placement

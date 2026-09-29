@@ -74,10 +74,7 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 // The memoized projection of the current chart, refreshed on read: pointer events resolve against
 // it, which is the projection the view last drew, and a read between an edit and the next view
 // push — an undo transition's focus asking whether a held stop is drawn — sees the chart it acts
-// on rather than the one the edit replaced. Never read between acquiring the chart for writing and
-// the write: the acquisition advances the revision the memo keys on, so the chart about to be
-// replaced would be memoized under its successor's revision. Null while no arrangement is
-// displayed.
+// on rather than the one the edit replaced. Null while no arrangement is displayed.
 const common::core::ChartViewState* EditorController::Impl::currentTabProjection() const
 {
     refreshChartProjections();
@@ -576,14 +573,15 @@ bool EditorController::Impl::dissolveSilentKeyframes(
     {
         return false;
     }
-    common::core::Chart* const chart = m_session.currentChart();
-    if (chart == nullptr)
+    const bool written = m_session.writeChart([&dissolving](common::core::Chart& chart) {
+        for (const std::size_t index : dissolving)
+        {
+            static_cast<void>(common::core::stripSilentKeyframes(chart.notes[index]));
+        }
+    });
+    if (!written)
     {
         return false;
-    }
-    for (const std::size_t index : dissolving)
-    {
-        static_cast<void>(common::core::stripSilentKeyframes(chart->notes[index]));
     }
     m_chart_notes_top.reset();
     disarmChartVerbWindow();
@@ -995,17 +993,14 @@ bool EditorController::Impl::applyChartEditPlan(
     }
 
     // Where the charter stands before anything moves, which is exactly where undo returns them.
-    // Read before the chart is acquired for writing: the acquisition advances the revision the
-    // projection memo keys on, and a face read between it and the write would memoize the chart
-    // being replaced under the revision of the one replacing it.
     std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
-    common::core::Chart* const chart = m_session.currentChart();
-    if (chart == nullptr)
+    const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
+        [&plan](common::core::Chart& chart) { return applyChartChange(chart, *plan); });
+    if (!applied.has_value())
     {
         return false;
     }
-
-    if (const auto applied = applyChartChange(*chart, *plan); !applied.has_value())
+    if (!applied->has_value())
     {
         // The plan was computed against this exact chart, so a precondition failure means a
         // logic error rather than user input; surface it instead of silently dropping the edit.
@@ -1028,12 +1023,17 @@ bool EditorController::Impl::applyChartEditPlan(
     {
         // A key the edit took away names nothing, and would leave the next digit retyping no
         // operand; the written chart answers which, by the same rule the undo repair asks.
+        const common::core::Arrangement* const arrangement = session().currentArrangement();
         std::vector<ChartSelectionKey> landing;
-        for (const ChartSelectionKey& key : *select_exactly)
+        if (arrangement != nullptr)
         {
-            if (chartHoldsKey(chart->notes, key))
+            const std::optional<common::core::Chart>& written = arrangement->chart;
+            for (const ChartSelectionKey& key : *select_exactly)
             {
-                landing.push_back(key);
+                if (written.has_value() && chartHoldsKey(written->notes, key))
+                {
+                    landing.push_back(key);
+                }
             }
         }
         chartSelectionMutable().applyBox(landing, false);
@@ -3334,11 +3334,14 @@ bool EditorController::Impl::commitChartGestureStep(
             reportError("Could not apply chart edit: " + plan->label);
             return false;
         }
-        common::core::Chart* const chart = m_session.currentChart();
         // Walk the live chart back to the pre-gesture stream and then to the re-planned one, so
         // the state the top entry describes is exactly the state the chart holds.
-        if (chart == nullptr || !applyChartChange(*chart, burst->plan.reversed()).has_value() ||
-            !applyChartChange(*chart, *plan).has_value())
+        const std::optional<bool> walked =
+            m_session.writeChart([&burst, &plan](common::core::Chart& chart) {
+                return applyChartChange(chart, burst->plan.reversed()).has_value() &&
+                       applyChartChange(chart, *plan).has_value();
+            });
+        if (!walked.value_or(false))
         {
             reportError("Could not apply chart edit: " + plan->label);
             return false;
@@ -3431,8 +3434,11 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
         reportError("Could not apply chart edit: " + applied.label);
         return;
     }
-    common::core::Chart* const chart = m_session.currentChart();
-    if (chart == nullptr || !applyChartChange(*chart, applied.reversed()).has_value())
+    const std::optional<bool> reversed =
+        m_session.writeChart([&applied](common::core::Chart& chart) {
+            return applyChartChange(chart, applied.reversed()).has_value();
+        });
+    if (!reversed.value_or(false))
     {
         reportError("Could not apply chart edit: " + applied.label);
         return;
@@ -3506,8 +3512,11 @@ bool EditorController::Impl::reverseChartVerbWindow(
         reportError("Could not apply chart edit: " + applied.label);
         return true;
     }
-    common::core::Chart* const chart = m_session.currentChart();
-    if (chart == nullptr || !applyChartChange(*chart, reversal).has_value())
+    const std::optional<bool> reversed =
+        m_session.writeChart([&reversal](common::core::Chart& chart) {
+            return applyChartChange(chart, reversal).has_value();
+        });
+    if (!reversed.value_or(false))
     {
         reportError("Could not apply chart edit: " + applied.label);
         return true;
@@ -4180,12 +4189,15 @@ bool EditorController::Impl::settleChartClaims()
         reportError("Could not apply chart edit: " + settled->label);
         return false;
     }
-    common::core::Chart* const chart = m_session.currentChart();
     // Walk the live chart back to pre-burst and then to the settled state, so the state the history
     // top describes is exactly the state the chart holds (the fret-entry widen's own discipline).
-    if (chart == nullptr ||
-        (burst != nullptr && !applyChartChange(*chart, burst->plan.reversed()).has_value()) ||
-        !applyChartChange(*chart, *settled).has_value())
+    const ChartEditPlan& settled_plan = *settled;
+    const std::optional<bool> walked = m_session.writeChart([&burst, &settled_plan](
+                                                                common::core::Chart& chart) {
+        return (burst == nullptr || applyChartChange(chart, burst->plan.reversed()).has_value()) &&
+               applyChartChange(chart, settled_plan).has_value();
+    });
+    if (!walked.value_or(false))
     {
         reportError("Could not apply chart edit: " + settled->label);
         return false;

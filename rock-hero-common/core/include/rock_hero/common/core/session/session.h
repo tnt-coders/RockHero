@@ -7,9 +7,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <type_traits>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -89,18 +91,46 @@ public:
     [[nodiscard]] std::vector<ToneParameterAutomation>* currentToneAutomation() noexcept;
 
     /*!
-    \brief Returns mutable access to the current arrangement's chart.
+    \brief Writes the current arrangement's chart through `write`, then advances chartRevision().
 
-    The fourth narrow mutation surface: chart editing mutates through this accessor while broader
-    arrangement fields stay read-only through this session.
+    The fourth narrow mutation surface: chart editing mutates through this scope while broader
+    arrangement fields stay read-only through this session. A SCOPE rather than a handed-out
+    pointer, so the revision the projection caches key on advances exactly when the write has
+    ended: no read can fall between the revision advancing and the chart it names being written,
+    and a cache can never memoize a chart under the revision of its successor. Every write
+    advances it, whether or not it changed anything, which costs at most one lazy rebuild.
 
-    \note Acquiring mutable access counts as an edit — every non-null return advances
-          chartRevision(), so a projection cache keyed on the revision can never draw a stale
-          chart; the cost of an acquisition that ends up not editing is one lazy rebuild.
-
-    \return Current arrangement's chart, or null when no arrangement or no chart is loaded.
+    \tparam Write Callable taking the chart by reference.
+    \param write The write.
+    \return For a void write, whether a chart was there to write; otherwise the write's result, or
+            nothing when no arrangement or no chart is loaded. The revision advances only when
+            the write ran.
     */
-    [[nodiscard]] Chart* currentChart() noexcept;
+    template <typename Write> [[nodiscard]] auto writeChart(const Write& write)
+    {
+        using Result = std::invoke_result_t<const Write&, Chart&>;
+        Chart* const chart = loadedChart();
+        if constexpr (std::is_void_v<Result>)
+        {
+            if (chart == nullptr)
+            {
+                return false;
+            }
+            write(*chart);
+            ++m_chart_revision;
+            return true;
+        }
+        else
+        {
+            if (chart == nullptr)
+            {
+                return std::optional<Result>{};
+            }
+            std::optional<Result> result{write(*chart)};
+            ++m_chart_revision;
+            return result;
+        }
+    }
 
     /*!
     \brief Returns mutable access to the song's structure sections.
@@ -117,11 +147,11 @@ public:
     /*!
     \brief Returns the chart revision counter that keys chart-projection caches.
 
-    Advances every time currentChart() hands out mutable access. View-state caches pair it with
-    the arrangement id so chart edits invalidate memoized projections without any explicit
-    notification path that could be forgotten.
+    Advances every time a writeChart() write ends. View-state caches pair it with the arrangement
+    id so chart edits invalidate memoized projections without any explicit notification path that
+    could be forgotten.
 
-    \return Monotonic count of mutable chart acquisitions.
+    \return Monotonic count of chart writes.
     */
     [[nodiscard]] std::uint64_t chartRevision() const noexcept;
 
@@ -138,6 +168,10 @@ public:
     bool loadSong(Song song, std::size_t selected_arrangement);
 
 private:
+    // The current arrangement's chart, or null when no arrangement or no chart is loaded: what
+    // writeChart writes, and the only mutable path to it.
+    [[nodiscard]] Chart* loadedChart() noexcept;
+
     // Song aggregate currently loaded into the editor session.
     Song m_song;
 
@@ -147,7 +181,7 @@ private:
     // Canonical timeline range for the current arrangement content.
     TimeRange m_timeline{};
 
-    // Monotonic count of mutable chart acquisitions; deliberately survives loadSong/reset so it
+    // Monotonic count of chart writes; deliberately survives loadSong/reset so it
     // can never repeat a value a cache might still hold. Projection caches pair it with the
     // arrangement id.
     std::uint64_t m_chart_revision{0};

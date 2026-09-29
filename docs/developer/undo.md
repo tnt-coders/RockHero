@@ -52,7 +52,7 @@ delete; its `normalize` sorts by position and its `validate` is the shared
 (`chart/fret_hand_positions_snapshot.h` — the current chart's whole fret-hand placement stream
 behind the hand marker's add, move and delete; its `normalize` sorts by position, its `validate`
 is the chart gate's own `validateFretHandPositions`, and its apply writes through
-`Session::currentChart()` so the chart revision the projections are keyed on advances).
+`Session::writeChart()` so the chart revision the projections are keyed on advances).
 Whole-model in every case because a tone delete or retone can MERGE regions and a section or
 placement move re-sorts the list, so an inverse command would have to know every record the edit
 took; a handful of small structs costs nothing to copy, and the round trip is exact by assignment.

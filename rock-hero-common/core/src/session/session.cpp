@@ -135,10 +135,8 @@ std::vector<ToneParameterAutomation>* Session::currentToneAutomation() noexcept
     return &m_song.arrangements[m_current_arrangement_index].tone_automation;
 }
 
-// Returns mutable access to the current arrangement's chart. Handing out the pointer counts as
-// an edit: the revision advances on every non-null return so projection caches keyed on it can
-// never draw a stale chart, and no explicit forgot-to-notify path exists.
-Chart* Session::currentChart() noexcept
+// The chart writeChart writes; the revision is writeChart's to advance, once the write has ended.
+Chart* Session::loadedChart() noexcept
 {
     if (m_current_arrangement_index >= m_song.arrangements.size())
     {
@@ -151,7 +149,6 @@ Chart* Session::currentChart() noexcept
         return nullptr;
     }
 
-    ++m_chart_revision;
     return &*chart;
 }
 
@@ -162,7 +159,7 @@ std::vector<SongSection>& Session::songSections() noexcept
     return m_song.sections;
 }
 
-// Returns the monotonic mutable-chart-acquisition count that keys projection caches.
+// Returns the monotonic chart-write count that keys projection caches.
 std::uint64_t Session::chartRevision() const noexcept
 {
     return m_chart_revision;

@@ -2621,12 +2621,14 @@ namespace
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyToSessionChart(
     EditorEditContext& context, const ChartEditPlan& plan)
 {
-    common::core::Chart* const chart = context.session.currentChart();
-    if (chart == nullptr)
+    const std::optional<std::expected<void, EditorUndoFailureCode>> applied =
+        context.session.writeChart(
+            [&plan](common::core::Chart& chart) { return applyChartChange(chart, plan); });
+    if (!applied.has_value())
     {
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
-    return applyChartChange(*chart, plan);
+    return *applied;
 }
 
 } // namespace
