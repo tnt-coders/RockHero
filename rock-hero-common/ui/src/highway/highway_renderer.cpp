@@ -3441,18 +3441,13 @@ void HighwayRenderer::Impl::draw(
     const double head_half_w = metrics.note_half_width;
     const double head_half_h = metrics.note_half_height;
 
-    // Projected on-screen length between two world points, for adaptive tail sampling.
-    const auto projected_pixels = [&](const double x0,
-                                      const double y0,
-                                      const double z0,
-                                      const double x1,
-                                      const double y1,
-                                      const double z1) {
-        const std::array<double, 3> a = world_to_clip.projectPoint(x0, y0, z0);
-        const std::array<double, 3> b = world_to_clip.projectPoint(x1, y1, z1);
-        const double dx = (b[0] - a[0]) * 0.5 * static_cast<double>(width);
-        const double dy = (b[1] - a[1]) * 0.5 * static_cast<double>(height);
-        return std::sqrt((dx * dx) + (dy * dy));
+    // A world point's on-screen position in pixels, for adaptive tail sampling.
+    const auto screen_point = [&](const double x, const double y, const double z) {
+        const std::array<double, 3> clip = world_to_clip.projectPoint(x, y, z);
+        return std::array<double, 2>{
+            clip[0] * 0.5 * static_cast<double>(width),
+            clip[1] * 0.5 * static_cast<double>(height),
+        };
     };
 
     // Near-vs-far between notes is the DEPTH PREPASS's job now, not the flush's: the group's
@@ -4351,36 +4346,18 @@ void HighwayRenderer::Impl::draw(
             }
             else if (band_valid)
             {
-                // Sample density comes from the projected arc length of the modulated
-                // centerline (a coarse probe polyline), not the straight lane span: a bend's
-                // vertical lift or a slide's lateral travel can dominate a tail's on-screen
-                // length, and the flat measure starved exactly those tails of samples, so
-                // their smooth curves rendered as chunky polylines with visible corners.
-                constexpr std::size_t arc_probe_segments = 16;
-                double pixels = 0.0;
-                double probe_x = 0.0;
-                double probe_y = 0.0;
-                double probe_z = 0.0;
-                for (std::size_t probe = 0; probe <= arc_probe_segments; ++probe)
-                {
-                    const double mix =
-                        static_cast<double>(probe) / static_cast<double>(arc_probe_segments);
-                    const double seconds = tail_from + ((tail_to - tail_from) * mix);
-                    const double arc_x =
+                // Sample density follows where the modulated centerline travels ON SCREEN, stretch
+                // by stretch between the exact times (makeHighwayTailSampleTimes): a bend's lift or
+                // a slide's lateral travel can dominate a tail's on-screen length, and a quick
+                // glide in a long tail moves far in little time, so a density spread by duration
+                // drew exactly those curves as chunky polylines with visible corners.
+                const auto centerline_on_screen = [&](const double seconds) {
+                    return screen_point(
                         base_x +
-                        highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
-                    const double arc_y = note_y_at(seconds, full_vibrato_swing);
-                    const double arc_z = time_to_z(seconds);
-                    if (probe > 0)
-                    {
-                        pixels += projected_pixels(probe_x, probe_y, probe_z, arc_x, arc_y, arc_z);
-                    }
-                    probe_x = arc_x;
-                    probe_y = arc_y;
-                    probe_z = arc_z;
-                }
-                const std::size_t uniform_count = common::core::highwayTailSampleCount(
-                    pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
+                            highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset,
+                        note_y_at(seconds, full_vibrato_swing),
+                        time_to_z(seconds));
+                };
                 // Teeth step a constant distance along the tail, so the count is the tail's length
                 // over that step: lengthen the note and it gains ridges, move the camera and the
                 // same ridges are seen from elsewhere. Phase runs in cycles of tail length from
@@ -4526,7 +4503,13 @@ void HighwayRenderer::Impl::draw(
                 // returns its list, so banking it needs the core seam to fill a caller's buffer
                 // the way highwayTrackSampleTimes does.
                 const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
-                    note, tail_from, tail_to, uniform_count, wobble_times, g_tail_sample_cap);
+                    note,
+                    tail_from,
+                    tail_to,
+                    centerline_on_screen,
+                    g_tail_pixels_per_sample,
+                    wobble_times,
+                    g_tail_sample_cap);
 
                 std::vector<TailSample>& samples = scratch.tail_samples;
                 samples.clear();

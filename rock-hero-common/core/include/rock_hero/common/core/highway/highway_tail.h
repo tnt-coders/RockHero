@@ -5,9 +5,13 @@
 
 #pragma once
 
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/highway/highway_window.h>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -376,38 +380,112 @@ between — the ramp is in teeth, so a long sustain damps no more of them than a
 [[nodiscard]] double highwayTremoloEnvelope(double cycles, double end_cycles) noexcept;
 
 /*!
-\brief Builds the ascending sample times for one tail's visible span.
+\brief Builds the times a tail's visible span MUST be sampled at: its two ends, every bend point
+and slide keyframe inside it, and the caller's extra times inside it.
 
-Uniform samples cover the span at the requested count, and every bend point and slide keyframe
-inside the span is included exactly, so piecewise-linear technique curves hit their control
-points instead of aliasing across them. A teethed tail's wobble turning points come in through
-\p extra_times for the same reason: a triangle is piecewise linear, so its turning points are
-the only samples its shape actually needs, and without them the uniform grid rounds every apex
-by up to half its spacing — unevenly, tooth to tooth — and aliases the wave outright once the
-teeth crowd that spacing. They arrive as times rather than being derived here because their
-placement is projection state (the onset time each phase in \ref highwayTremoloTailCycles is
-measured from), which this module does not hold.
-
-The cap is ONE budget for the whole list, and the uniform grid is what yields to it: the exact
-times carry the shape's correctness (a turning point the grid rounds is a visible error), so they
-are never evicted, and the grid shrinks by their count instead — down to its two endpoints when the
-exact times alone fill the budget. A cap bounding only the grid, with every exact time appended
-past it, lets a long teethed open tail reach 477 samples against a cap of 256, and the accent batch
-it feeds can then exceed the 16-bit index budget and drop the whole group's light.
+The skeleton \ref makeHighwayTailSampleTimes fills in: the eased curve's segments end at each of
+these, and a teethed or wobbling tail's turning points arrive through \p extra_times, so every
+stretch between two of them is one monotone piece of the drawn curve. They arrive as times rather
+than being derived here because their placement is projection state (the onset time each phase in
+\ref highwayTremoloTailCycles is measured from), which this module does not hold.
 
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).
 \param to_seconds Visible span end.
-\param uniform_count Uniform sample count from highwayTailSampleCount.
+\param extra_times Additional times the shape needs sampled exactly; those outside the span are
+       dropped.
+\param capacity Room to reserve for the samples the caller adds between these.
+\return Ascending, deduplicated times spanning [from_seconds, to_seconds]; empty when the span is
+        empty.
+*/
+[[nodiscard]] std::vector<double> highwayTailExactTimes(
+    const NoteViewState& note, double from_seconds, double to_seconds,
+    std::span<const double> extra_times, std::size_t capacity);
+
+/*!
+\brief Builds the ascending sample times for one tail's visible span.
+
+Every exact time (\ref highwayTailExactTimes) is kept, so the technique curves hit their control
+points and a triangle wave its turning points instead of aliasing across them; between each pair of
+exact times the samples fall where the drawn curve MOVES. Each stretch takes its own count from how
+far the centerline travels on screen across it (\ref highwayTailSampleCount), spread evenly in time
+within it. A glide lasting a sliver of a long tail but crossing many frets is therefore sampled as
+densely as its travel needs, where one grid over the whole tail spent the samples by duration and
+drew a quick slide's eased S-curve as two or three straight legs with corners.
+
+The cap is ONE budget for the whole list, and the in-between samples are what yield to it: the
+exact times carry the shape's correctness (a turning point the grid rounds is a visible error), so
+they are never evicted, and every stretch's share shrinks in proportion instead — down to none when
+the exact times alone fill the budget. A cap bounding only the grid, with every exact time appended
+past it, lets a long teethed open tail reach 477 samples against a cap of 256, and the accent batch
+it feeds can then exceed the 16-bit index budget and drop the whole group's light.
+
+A template on the projection so the per-frame render path hands its camera in without allocating,
+and two passes over the exact times — one to count, one to place — rather than a scratch list per
+tail.
+
+\tparam ScreenAt Callable answering where the tail's drawn centerline stands on screen at an
+        instant, as `{x, y}` in pixels. The camera is the renderer's, so the renderer answers it and
+        this module stays headless.
+\param note The note whose bend and slide times are folded in.
+\param from_seconds Visible span start (already clamped to the hit line by the caller).
+\param to_seconds Visible span end.
+\param screen_at The centerline's on-screen position at an instant.
+\param pixels_per_sample Target screen-space distance between samples.
 \param extra_times Additional times the shape needs sampled exactly; those outside the span are
        dropped, and the budget never evicts the ones inside.
-\param sample_cap The whole list's budget; the uniform grid is clamped to what the exact times
-       leave of it, never below its two endpoints.
+\param sample_cap The whole list's budget; the in-between samples share what the exact times leave
+       of it.
 \return Ascending, deduplicated sample times spanning [from_seconds, to_seconds]; empty when
         the span is empty.
 */
+template <typename ScreenAt>
+    requires std::is_invocable_r_v<std::array<double, 2>, const ScreenAt&, double>
 [[nodiscard]] std::vector<double> makeHighwayTailSampleTimes(
-    const NoteViewState& note, double from_seconds, double to_seconds, std::size_t uniform_count,
-    std::span<const double> extra_times, std::size_t sample_cap);
+    const NoteViewState& note, const double from_seconds, const double to_seconds,
+    const ScreenAt& screen_at, const double pixels_per_sample,
+    const std::span<const double> extra_times, const std::size_t sample_cap)
+{
+    std::vector<double> times =
+        highwayTailExactTimes(note, from_seconds, to_seconds, extra_times, sample_cap);
+    if (times.size() < 2)
+    {
+        return times;
+    }
+    const std::size_t exact_count = times.size();
+    // The in-between samples one stretch asks for: its on-screen travel's count, less the two ends
+    // the exact times already are.
+    const auto wanted_between = [&](const std::size_t stretch, std::array<double, 2>& from_point) {
+        const std::array<double, 2> to_point = screen_at(times[stretch + 1]);
+        const double pixels = std::hypot(to_point[0] - from_point[0], to_point[1] - from_point[1]);
+        from_point = to_point;
+        return highwayTailSampleCount(pixels, pixels_per_sample, sample_cap) - 2;
+    };
+    std::size_t wanted = 0;
+    std::array<double, 2> point = screen_at(times.front());
+    for (std::size_t stretch = 0; stretch + 1 < exact_count; ++stretch)
+    {
+        wanted += wanted_between(stretch, point);
+    }
+    const std::size_t budget = sample_cap > exact_count ? sample_cap - exact_count : 0;
+    point = screen_at(times.front());
+    for (std::size_t stretch = 0; stretch + 1 < exact_count; ++stretch)
+    {
+        std::size_t count = wanted_between(stretch, point);
+        if (wanted > budget)
+        {
+            count = count * budget / wanted;
+        }
+        const double start = times[stretch];
+        const double span = times[stretch + 1] - start;
+        for (std::size_t index = 1; index <= count; ++index)
+        {
+            times.push_back(
+                start + (span * static_cast<double>(index) / static_cast<double>(count + 1)));
+        }
+    }
+    highwaySortUniqueTimes(times);
+    return times;
+}
 
 } // namespace rock_hero::common::core

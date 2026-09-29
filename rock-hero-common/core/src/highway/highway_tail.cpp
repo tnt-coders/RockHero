@@ -210,23 +210,23 @@ double highwayTremoloEnvelope(const double cycles, const double end_cycles) noex
     return std::clamp(std::min(cycles, end_cycles - cycles) / ramp, 0.0, 1.0);
 }
 
-std::vector<double> makeHighwayTailSampleTimes(
+std::vector<double> highwayTailExactTimes(
     const NoteViewState& note, const double from_seconds, const double to_seconds,
-    const std::size_t uniform_count, const std::span<const double> extra_times,
-    const std::size_t sample_cap)
+    const std::span<const double> extra_times, const std::size_t capacity)
 {
     if (to_seconds <= from_seconds)
     {
         return {};
     }
 
-    // The exact times first, so the uniform grid can be budgeted against what they leave.
-    // Every stop of the gesture within the sampled extent, the slide-out terminal included: the
-    // centerline kinks at each one, so a sample has to land there whether or not the stop is a
-    // keyframe. A stop past the extent is not sampled, but the leg toward it is, since the
-    // uniform grid below runs to the extent's end.
+    // The span's two ends, and every stop of the gesture within the sampled extent, the slide-out
+    // terminal included: a segment of the eased curve ends at each one, so a sample has to land
+    // there whether or not the stop is a keyframe. A stop past the extent is not sampled, but the
+    // leg toward it is, since the last stretch runs to the extent's end.
     std::vector<double> times;
-    times.reserve(sample_cap + note.bend.size() + note.slides.size() + extra_times.size());
+    times.reserve(capacity + note.bend.size() + note.slides.size() + extra_times.size() + 2);
+    times.push_back(from_seconds);
+    times.push_back(to_seconds);
     for (const BendPointViewState& point : note.bend)
     {
         if (point.seconds > from_seconds && point.seconds < to_seconds)
@@ -248,17 +248,6 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(seconds);
         }
     }
-    const std::size_t budget = sample_cap > times.size() ? sample_cap - times.size() : 0;
-    const std::size_t count =
-        std::clamp(uniform_count, std::size_t{2}, std::max(budget, std::size_t{2}));
-    for (std::size_t index = 0; index < count; ++index)
-    {
-        const double mix = static_cast<double>(index) / static_cast<double>(count - 1);
-        times.push_back(from_seconds + ((to_seconds - from_seconds) * mix));
-    }
-
-    // Deduped with a tolerance: a uniform sample landing on a control point must not produce a
-    // zero-length segment.
     highwaySortUniqueTimes(times);
     return times;
 }

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -53,6 +54,13 @@ template <typename Curve>
 {
     constexpr double h = 1.0e-6;
     return {(curve(at) - curve(at - h)) / h, (curve(at + h) - curve(at)) / h};
+}
+
+// A tail running straight along the board at 100 px/s: every stretch is sampled by its duration,
+// which is what isolates the exact-time rules below from the travel-driven density.
+[[nodiscard]] std::array<double, 2> straightTail(const double seconds)
+{
+    return {0.0, seconds * 100.0};
 }
 
 } // namespace
@@ -808,7 +816,8 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     };
     note.slides = {SlideStopViewState{.seconds = 12.7, .fret = 7}};
 
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
+    const std::vector<double> times =
+        makeHighwayTailSampleTimes(note, 10.0, 14.0, straightTail, 4.0, {}, 256);
 
     REQUIRE(times.size() >= 5);
     CHECK(times.front() == Catch::Approx(10.0));
@@ -821,16 +830,12 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
         CHECK(times[index] - times[index - 1] > 0.0);
     }
 
-    // An empty span yields no samples; a control point landing on a uniform sample dedupes.
-    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, {}, 256).empty());
-    note.bend = {BendPointViewState{.seconds = 12.0, .semitones = 1.0}};
-    note.slides.clear();
-    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
-    CHECK(std::ranges::count(deduped, 12.0) == 1);
+    // An empty span yields no samples.
+    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, straightTail, 4.0, {}, 256).empty());
 }
 
 // The caller's extra sample times survive into the list exactly, which is what keeps a teethed
-// tail's corners crisp: the triangle is linear between its turning points, so the uniform grid
+// tail's corners crisp: the triangle is linear between its turning points, so samples between them
 // alone would round every apex and alias the wave at this tooth spacing.
 TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][highway][tail]")
 {
@@ -840,7 +845,8 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
     note.ink_end_seconds = 11.0;
 
     const std::vector<double> extra{10.13, 10.42, 10.87};
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, extra, 256);
+    const std::vector<double> times =
+        makeHighwayTailSampleTimes(note, 10.0, 11.0, straightTail, 4.0, extra, 256);
 
     CHECK(std::ranges::is_sorted(times));
     for (const double wanted : extra)
@@ -849,26 +855,58 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
             times, [&](const double value) { return std::abs(value - wanted) < 1.0e-9; });
         CHECK(hits == 1);
     }
-    // Extras outside the span are dropped rather than widening it, and the cap that bounds the
-    // uniform grid never evicts the ones inside.
+    // Extras outside the span are dropped rather than widening it.
     const std::vector<double> outside{9.0, 10.5, 12.0};
     const std::vector<double> clipped =
-        makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, outside, 256);
+        makeHighwayTailSampleTimes(note, 10.0, 11.0, straightTail, 4.0, outside, 256);
     CHECK(clipped.front() == Catch::Approx(10.0));
     CHECK(clipped.back() == Catch::Approx(11.0));
     CHECK(std::ranges::count_if(clipped, [](const double value) {
               return std::abs(value - 10.5) < 1.0e-9;
           }) == 1);
 
-    // Sampling extras stays optional: a plain tail passes none and gets the uniform grid.
-    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, {}, 256);
-    CHECK(plain.size() == 5);
+    // Sampling extras stays optional: a plain tail passes none and is sampled by its travel alone,
+    // exactly the count its 100 on-screen pixels ask for.
+    const std::vector<double> plain =
+        makeHighwayTailSampleTimes(note, 10.0, 11.0, straightTail, 4.0, {}, 256);
+    CHECK(plain.size() == highwayTailSampleCount(100.0, 4.0, 256));
+}
+
+// THE SAMPLES GO WHERE THE CURVE MOVES. A quick slide at the end of a long hold crosses most of its
+// on-screen travel in a sliver of the tail's time; spent by duration, it got a sample or three and
+// drew its eased S-curve as straight legs with corners (sighted 2026-09-29). Each stretch between
+// exact times now takes its own travel's count, so the glide gets samples in proportion to how far
+// it moves.
+TEST_CASE("Highway tail sample times gather where the curve travels", "[core][highway][tail]")
+{
+    NoteViewState note;
+    note.start_seconds = 10.0;
+    note.ring_end_seconds = 14.0;
+    note.ink_end_seconds = 14.0;
+    // A hold to 12.0, then a glide over a tenth of a second.
+    note.slides = {
+        SlideStopViewState{.seconds = 12.0, .fret = 5},
+        SlideStopViewState{.seconds = 12.1, .fret = 9},
+    };
+    // Slow along the board, 10 px/s; 400 px sideways across the glide.
+    const auto sliding = [](const double seconds) {
+        const double glide = std::clamp((seconds - 12.0) / 0.1, 0.0, 1.0);
+        return std::array<double, 2>{glide * 400.0, (seconds - 10.0) * 10.0};
+    };
+
+    const std::vector<double> times =
+        makeHighwayTailSampleTimes(note, 10.0, 14.0, sliding, 4.0, {}, 256);
+    const auto inside_glide = std::ranges::count_if(
+        times, [](const double value) { return value > 12.0 && value < 12.1; });
+    // Its 400 px ask for a hundred samples, where the hold's 20 px ask for five.
+    CHECK(inside_glide >= 90);
+    CHECK(times.size() < 120);
 }
 
 // The cap is one budget for the whole list. The exact times are never evicted — a turning point
-// the grid rounds is a visible error — so the uniform grid is what yields, down to its two
-// endpoints. Before this the cap bounded only the grid, every exact time was appended past it, and
-// a long teethed open tail reached nearly twice the cap.
+// the grid rounds is a visible error — so the in-between samples are what yield, down to none.
+// Before this the cap bounded only the grid, every exact time was appended past it, and a long
+// teethed open tail reached nearly twice the cap.
 TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highway][tail]")
 {
     NoteViewState note;
@@ -876,14 +914,14 @@ TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highwa
     note.ring_end_seconds = 20.0;
     note.ink_end_seconds = 20.0;
 
-    // Forty exact times under a cap of 64: the grid shrinks to 24 and the list holds the cap.
+    // Forty exact times under a cap of 64: the list holds the cap.
     std::vector<double> extra;
     for (int index = 1; index <= 40; ++index)
     {
         extra.push_back(10.0 + (static_cast<double>(index) * 0.2));
     }
     const std::vector<double> budgeted =
-        makeHighwayTailSampleTimes(note, 10.0, 20.0, 256, extra, 64);
+        makeHighwayTailSampleTimes(note, 10.0, 20.0, straightTail, 4.0, extra, 64);
     CHECK(budgeted.size() <= 64);
     CHECK(budgeted.front() == Catch::Approx(10.0));
     CHECK(budgeted.back() == Catch::Approx(20.0));
@@ -894,9 +932,9 @@ TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highwa
               }) == 1);
     }
 
-    // More exact times than the whole budget: every one survives and the grid is its endpoints.
+    // More exact times than the whole budget: every one survives, and nothing between them.
     const std::vector<double> flooded =
-        makeHighwayTailSampleTimes(note, 10.0, 20.0, 256, extra, 16);
+        makeHighwayTailSampleTimes(note, 10.0, 20.0, straightTail, 4.0, extra, 16);
     CHECK(flooded.size() == extra.size() + 2);
     CHECK(flooded.front() == Catch::Approx(10.0));
     CHECK(flooded.back() == Catch::Approx(20.0));
