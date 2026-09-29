@@ -1168,29 +1168,42 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         }
         const bool partial_slide = shortest_hold.has_value() && *shortest_hold < latest_arrival;
 
-        // Whether this slot's stroke says the WHOLE of a grip: every stop of it that SOUNDS here —
-        // struck now, or under a finger the hand table already holds — is one this stroke struck.
-        // ONE authority for the three sites that ask whether a stroke is a chord statement (the
-        // break arm, the founding class, and the dispose arm's in-place turn): written out at each
-        // site, the copies drift, and a divergent one makes a figure's class depend on whether its
-        // strings had ever sounded earlier in the chart. A stroke says a STOP, not a string: a
-        // strike at a DIFFERENT fret is not a restatement of this one. Equality rather than
-        // presence is a no-op on any stream without the hold-under law (a differing fret on a
-        // stated string broke as a contradiction before reaching here) and load-bearing under it —
-        // a source striking above the grip is the figure's ornament, never the stop restated.
-        // Stated ONCE: the whole-grip test and the touched count below both call this rather than
-        // respell the comparison.
+        // Whether a strike RESTATES a grip's own stop: it SOUNDS that very stop. A stroke says a
+        // STOP, not a string: a strike at a DIFFERENT fret is not a restatement of this one.
+        // Equality rather than presence is a no-op on any stream without the hold-under law (a
+        // differing fret on a stated string broke as a contradiction before reaching here) and
+        // load-bearing under it — a source striking above the grip is the figure's ornament, never
+        // the stop restated. The touched count below reads it.
         const auto restates_stop = [&slot](
                                        const std::size_t string_index,
                                        const std::vector<std::optional<ChartStop>>& stops) {
             return stops[string_index].has_value() &&
                    slot.strikes[string_index] == stops[string_index];
         };
+        // Whether this slot's strike on a string is a PULL-OFF landing: at a stop the standing grip
+        // states, the release of the ornament that rode above it.
+        const auto releases_ornament = [&slot, &connections](const std::size_t string_index) {
+            const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+            return striking.has_value() && connections.legato[*striking] == LegatoMotion::Pull;
+        };
+        // Whether this slot's stroke says the WHOLE of a grip: every stop of it that SOUNDS here —
+        // struck now, or under a finger the hand table already holds — is one this stroke STATES.
+        // ONE authority for the three sites that ask whether a stroke is a chord statement (the
+        // break arm, the founding class, and the dispose arm's in-place turn): written out at each
+        // site, the copies drift, and a divergent one makes a figure's class depend on whether its
+        // strings had ever sounded earlier in the chart. What a strike says is its GRIP STATEMENT
+        // (\c grip_statement_of), the identity every question here is judged on: a pull-off source
+        // riding above the stop its grip holds says that stop, so its string is no member left
+        // unsaid, while the touched count, which reads the SOUND, counts its ornament nowhere —
+        // neither the statement coming apart nor a restatement (THE HOLD-UNDER LAW: the bracket
+        // does not seam when the finger arrives, even with the rest of the grip restruck beside
+        // it).
         const auto stroke_says_whole =
-            [&hand, &restates_stop](const std::vector<std::optional<ChartStop>>& stops) {
+            [&hand, &grip_statement_of](const std::vector<std::optional<ChartStop>>& stops) {
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    if (!stops[string_index].has_value() || restates_stop(string_index, stops))
+                    if (!stops[string_index].has_value() ||
+                        grip_statement_of(string_index) == stops[string_index])
                     {
                         continue;
                     }
@@ -1328,10 +1341,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     continue;
                 }
                 ++stated_count;
-                // Touched means RESTATED (\c restates_stop): a strike at a different fret on a
-                // stated string is the hold-under figure's ornament, not the span's own
-                // statement coming apart.
-                if (restates_stop(string_index, open->stops))
+                // Touched means RESTATED (\c restates_stop) by a stroke of the span's own: a strike
+                // at a different fret on a stated string is the hold-under figure's ornament
+                // ARRIVING, and a pull-off landing back on the stated stop is that ornament's
+                // RELEASE — within a standing span, a source above the gripped stop can only have
+                // ridden it. THE HOLD-UNDER LAW seams the bracket at neither, so neither is the
+                // span's own statement coming apart.
+                if (restates_stop(string_index, open->stops) && !releases_ornament(string_index))
                 {
                     ++touched_stated;
                 }

@@ -5088,6 +5088,35 @@ TEST_CASE("A legato source above the gripped stop never seams", "[core][chart]")
         everySpanIsPositive(derived);
     }
 
+    // The riff chugs the grip WHOLE and the ornament arrives inside a stroke: the rest of the grip
+    // is restruck beside the finger added above. The stroke still says the whole grip — the source
+    // states the held stop, its fret is the ornament — so the chord span rides it and stays a box
+    // (sighted 2026-09-28: a picked open string under 4 pulled off, with 6 restruck beside it,
+    // seamed there and opened an arpeggio).
+    SECTION("an ornament co-struck with the rest of the grip rides the chord span as a box")
+    {
+        for (const int held : {0, 2})
+        {
+            const std::vector<ChartNote> notes = streamOf({
+                noteAt(1, Fraction{}, 2, 6, Fraction{1}),
+                noteAt(1, Fraction{}, 3, held, Fraction{1}),
+                noteAt(2, Fraction{}, 2, 6, Fraction{1}),
+                noteAt(2, Fraction{}, 3, 4, Fraction{1}),
+                pullOffAt(3, Fraction{}, 3, held, Fraction{1}),
+            });
+            const ChartShapes derived = deriveFrom(notes);
+
+            REQUIRE(derived.shapes.size() == 1);
+            CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+            // Through the ornament's release, where the restruck 6 stops ringing.
+            CHECK(derived.shapes[0].sustain == Fraction{2});
+            CHECK(
+                derived.postures[derived.shapes[0].posture].stops[2] ==
+                std::optional{frettedStop(held)});
+            CHECK(arpeggiosFrom(notes) == std::vector<bool>{false});
+        }
+    }
+
     SECTION("the same figure without the pull-off seams — the law reads the connection")
     {
         // One attack apart: the release is a plain strike, so nothing plants and the ornament's

@@ -356,8 +356,13 @@ against — gated on the same `sounding_before` witness the displacement reads, 
 exempts nothing. The claim witness takes the strike arm only — no finger sounds a carried claim.
 The pair reaches the verdicts, the statement-began column and the foreign-sound floor; a tapped
 source's derived claim is admitted at the slot read under the same proof, an authored one always. The character split's arithmetic counts a stated string
-as touched only where the strike RESTATES the span's own stop — a provable no-op before the law,
-and what keeps the ornament from reading as the statement coming apart.
+as touched only where the strike RESTATES the span's own stop and is no pull-off landing — a
+provable no-op before the law, and what keeps the ornament from reading as the statement coming
+apart, neither when it arrives nor at its release. The whole-grip test reads GRIP STATEMENTS
+(`grip_statement_of`), so an ornament co-struck with the rest of the grip leaves no member unsaid
+and the stroke is the chord chugging on, not a partial (sighted 2026-09-28: "In the Face of the
+Nameless" 6:2, a picked open string under a 4 pulled off with 6 restruck beside it, seamed there and
+opened an arpeggio; corpus effect, 6 of 113 files: 32 fewer spans, 41 fewer arpeggios).
 
 THE GRIP COLUMN HOLDS PLACES, NOT FRET NUMBERS. Every stop the walk carries — the strikes,
 `stated_here`, the open span's grip, the landing table, the posture — is a `ChartStop`, the
