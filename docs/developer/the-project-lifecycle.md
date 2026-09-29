@@ -351,7 +351,10 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
    flows onward into the arrival. Otherwise the gesture is a slide-out and return: the exit keeps the
    fixed four-fret gesture, the window dips with it, and a restore placement at the very next onset
    brings the window back for the note that follows — so notes after the gesture are never stranded
-   in the dipped window. A slide-out with no room before the next onset stays planted.
+   in the dipped window. A slide-out ending EXACTLY on the next onset leaves that instant to the next
+   strike's window where the strike presses a stop; a strike of open strings or taps alone places
+   no window, so there the exit rides the gesture to that onset and the restore waits for the onset
+   after it. A slide-out with no room before the next onset stays planted.
 
 **Posture and shape derivation** — not an import rule at all. GP scores in practice carry no
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes

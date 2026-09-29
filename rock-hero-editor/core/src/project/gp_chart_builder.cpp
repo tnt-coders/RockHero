@@ -2239,6 +2239,13 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
 constexpr double g_fhp_phrase_rest_seconds = 0.8;
 
+// Whether a note holds the fretting hand to its window: a stop the fretting hand presses. A
+// right-hand onset floats above the window, and an open string asks nothing of the hand.
+[[nodiscard]] bool anchorsFretHand(const ChartNote& note)
+{
+    return !common::core::rightHandOnset(note.attack) && common::core::fretFor(note) > 0;
+}
+
 // The fret span of notes still ringing at a slide keyframe that are NOT themselves gliding there
 // — each is a planted finger the hand must keep covering. Returns false when no such note exists,
 // so the slide is a genuine whole-hand travel (rule 9 drag) rather than one finger moving under a
@@ -2265,12 +2272,11 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         // A natural harmonic has no stop of its own, so its `fret` is 0 and its fretting hand is
         // at the NODE instead — reading `fret` here would drop a 12th-fret harmonic passage out
         // of hand derivation and leave the window at the nut.
-        const int other_hand_fret = common::core::fretFor(other.note);
-        if (common::core::rightHandOnset(other.note.attack) || other_hand_fret <= 0)
+        if (!anchorsFretHand(other.note))
         {
-            continue; // right-hand onsets float above the hand; open strings never anchor it
+            continue;
         }
-        int fret = other_hand_fret;
+        int fret = common::core::fretFor(other.note);
         bool co_sliding = false;
         const Keyframe* const other_end = common::core::endFretStatement(other.note);
         for (const Keyframe& keyframe : other.note.keyframes)
@@ -2947,12 +2953,33 @@ void resolveSlideOutExits(
             // exit fret, no fabricated placements.
             continue;
         }
-        // A window rides the gesture only where the gesture ENDS BEFORE the next onset. One ending
-        // exactly on it — where Guitar Pro's rings end — has no instant of its own to put a window
-        // at: the next strike's window takes that instant, and a departing hand already rides the
-        // slide-out's leg toward it through the ramp the slide-out keyframe files at that onset.
-        // So exact adjacency resolves the exit fret below and fabricates nothing.
-        const bool ends_on_next = has_next && end_position == built[next_note].note.position;
+        // A window rides the gesture only where the gesture ENDS BEFORE the next onset — or where
+        // the next strike asks nothing of the fretting hand. One ending exactly on a strike that
+        // presses a stop — where Guitar Pro's rings end — has no instant of its own to put a window
+        // at: that strike's window takes it, and a departing hand already rides the slide-out's
+        // leg toward it through the ramp the slide-out keyframe files at that onset. So exact
+        // adjacency there resolves the exit fret below and fabricates nothing. A strike of open
+        // strings or taps alone places no window, so nothing else would take the instant and the
+        // hand would sit out the whole glide; there the exit rides the gesture to it, and the
+        // restore waits for the onset after.
+        const bool meets_next = has_next && end_position == built[next_note].note.position;
+        // The strike the gesture meets, as the run of its notes; empty where it meets none.
+        const auto next_strike = built.begin() + static_cast<std::ptrdiff_t>(next_note);
+        const auto after_next_strike =
+            meets_next ? std::find_if(
+                             next_strike,
+                             built.end(),
+                             [next_strike](const BuiltNote& other) {
+                                 return other.global_beat != next_strike->global_beat;
+                             })
+                       : next_strike;
+        const bool next_strike_takes_instant =
+            meets_next && std::any_of(next_strike, after_next_strike, [](const BuiltNote& other) {
+                return anchorsFretHand(other.note);
+            });
+        const std::size_t restore_note =
+            meets_next ? static_cast<std::size_t>(std::distance(built.begin(), after_next_strike))
+                       : next_note;
 
         // Departure: the next placement's move serves the very next onset and agrees with
         // the slide-out's direction, so the window flows onward instead of returning.
@@ -2975,15 +3002,15 @@ void resolveSlideOutExits(
                 capo);
             common::core::setSlideOut(entry.note, exit_fret);
         }
-        if (ends_on_next)
+        if (next_strike_takes_instant)
         {
             continue;
         }
-        if (!departs && has_next)
+        if (!departs && restore_note < built.size())
         {
             restore_placements.push_back(
                 common::core::FretHandPosition{
-                    .position = built[next_note].note.position,
+                    .position = built[restore_note].note.position,
                     .fret = active->fret,
                 });
         }

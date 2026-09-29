@@ -6521,7 +6521,9 @@ TEST_CASE(
 // ending strictly BEFORE the next onset — a rest between them — fabricates an exit placement at
 // its end and a restore at the next onset, so no note is stranded. A ring ending EXACTLY on the
 // next onset, which is where Guitar Pro's rings end, resolves its exit fret and fabricates
-// nothing: the next strike's window owns that instant. A gesture running past the next onset
+// nothing where that strike presses a stop: the next strike's window owns that instant. A strike
+// of open strings owns none, so there the window rides the gesture. A gesture running past the
+// next onset
 // stays planted, and one with no note after it may rest where it ends.
 TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-import]")
 {
@@ -6673,6 +6675,41 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         REQUIRE(chart.fret_hand_positions.size() == 1);
         CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(chart.fret_hand_positions[0].fret == 8);
+    }
+
+    // Exact adjacency hands the instant to the next strike only where that strike presses a stop:
+    // a strike of open strings places no window, so the hand would sit out the whole glide while
+    // the rail travels (sighted 2026-09-28, "In the Face of the Nameless" 100:10, a two-string
+    // slide-out onto the open outro chord). The exit rides the gesture to its end, and the restore
+    // waits for the onset after the open strike.
+    SECTION("an abutting slide-out onto an open strike rides the window to its end")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 3, 0, 8),
+                     noteBeat(Fraction{1, 4}, 0),
+                     noteBeat(Fraction{1, 4}, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        const common::core::FretHandPosition& exit = chart.fret_hand_positions[1];
+        CHECK(exit.position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(exit.fret <= *slide_out);
+        CHECK(*slide_out < exit.fret + derivedWidthOf(chart, built->tempo_map, 1));
+        const common::core::FretHandPosition& restore = chart.fret_hand_positions[2];
+        CHECK(restore.position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(restore.fret == chart.fret_hand_positions[0].fret);
     }
 
     SECTION("a slide-out ending before the next onset dips and restores the window")
