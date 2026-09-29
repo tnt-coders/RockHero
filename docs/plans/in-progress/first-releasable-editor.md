@@ -442,6 +442,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
 - The smooth-scroll camera (parked), the cross-platform port, C++26.
 - Plan 62 (per-song kept-sustain bound) — superseded; it survives only as a watch item's remedy
   (`docs/tracking/watch-items.md`).
+- Plan 63 (each technique of a keyframe withdrawn on its own; `Delete` peels the statement a point's
+  mark prints) — every fact it touches is authorable today, so it is the first editor item AFTER
+  this release, UNLESS its watch item ("Deleting a keyframe removes every technique it states")
+  fires: a repeat sighting pulls its Phases 1–2 into Phase 2 above.
 
 ## Task-list audit (2026-09-19)
 

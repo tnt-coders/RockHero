@@ -649,6 +649,22 @@ the standard edge-resize verb with a generous grab zone, live preview, Esc cance
 entry — and note that the grab zone would have to be derived from the lane geometry, the layout
 manifest publishing head rectangles only since heads became the lane's sole targets (below).
 
+### Deleting a keyframe removes every technique it states — trigger: the sighting repeats
+
+A keyframe is one moment carrying any of a fret, a bend and a vibrato change, and `Delete` on a
+selected keyframe erases the whole moment (`planDeleteSelection`), so a point stating a fret AND a
+bend loses both (sighted 2026-09-28/29: "It may be desirable to just delete one … each individual
+technique is really its own authored surface"). Accepted for now because nothing is lost for
+good: the bend and vibrato each have their own clear (the bend picker's "No bend" row, `V`), and a
+point's fret alone can be removed by deleting the point and restating its bend (`B` and the
+amount). The fret is the one channel with no clear of its own. The user expects this to surface
+often. **Trigger**: a second sighting of `Delete` taking a technique the charter meant to keep, or
+the charter reaching for a way to remove only a point's fret. **Remedy**: pull plan 63
+(`docs/plans/roadmap/63-technique-authored-surfaces.md`) Phases 1–2 into the first releasable
+editor's Phase 2: extract the mark rule into common/core, then make `Delete` on a keyframe withdraw
+the statement its mark prints, the point going only when nothing is left. Sign 63-Q1 (peel, not
+erase) first; the phases are small (S–M) and need no restructuring to move.
+
 ### Selecting a long sustain by its tail is gone — trigger: a user reaches for it while editing
 
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30): a click in the lane resolves
