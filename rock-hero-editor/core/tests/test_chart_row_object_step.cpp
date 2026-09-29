@@ -203,7 +203,7 @@ TEST_CASE("EditorController arms in place on the first object step", "[core][cha
 }
 
 // A held stop's satellite is part of its note, not an object of its own: an arrow arriving from the
-// right meets the satellite first, but Tab lands on the note's head.
+// right lands on the note's head like every arrival, and so does Tab.
 TEST_CASE("EditorController steps over a held stop's satellite onto its head", "[core][chart]")
 {
     common::core::Chart chart;
@@ -222,7 +222,7 @@ TEST_CASE("EditorController steps over a held stop's satellite onto its head", "
     fixture.walkUp(2);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
     REQUIRE(fixture.caret().seconds == Catch::Approx(2.5));
-    REQUIRE(fixture.caret().face == ChartCaretFace::HeldStop);
+    REQUIRE(fixture.caret().face == ChartCaretFace::Mark);
 
     // A seek demotes the caret and remembers its string, so the next arming returns to string 3.
     fixture.armAt(3.0);

@@ -1211,8 +1211,9 @@ neighbours.
     — the two-slot rule the posture display was built with. It is an independent TARGET: clicking it
     selects the note like any other mark of it
     and pre-arms the held entry, so the digits that follow state that stop; and the caret visits it
-    as a second stop inside one slot, in display order (head, then satellite, reversed leftward),
-    where digits do the same and Delete clears the statement rather than the note.
+    as a second stop inside one slot — `→` from the head onto it, `←` back, every arrival from
+    another slot landing on the head — where digits do the same and Delete clears the statement
+    rather than the note.
 
     **WHERE A SATELLITE STANDS is a question about AUTHORSHIP**, not about where in a span the note
     sits (`StopMarkFace`, written once in `chart_projection.cpp`). A stop THE CHART ITSELF STATES

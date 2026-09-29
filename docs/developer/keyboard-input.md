@@ -613,8 +613,10 @@ The split within path (b) is deliberate:
   \ref guide_invariants).
 
 The union stop set has one WITHIN-slot member (2026-08-27): a note carrying a held stop wears two
-marks in one column — its head, and the satellite digit outboard of its posture bracket — so a plain
-left/right step visits both, in display order and reversed leftward. The caret's FACE
+marks in one column — its head, and the satellite digit outboard of its posture bracket — so `→`
+from the head steps onto the satellite and `←` from it returns. Every arrival from another slot
+lands on the head (user ruling 2026-09-29), from either side, as every vertical arrival does: a
+walk between slots is a walk between notes. The caret's FACE
 (`ChartCaretFace`) says which it is on, the stop channel derived from it, and the two verbs that
 address a stop read it: an entry digit — bare or under `Alt`
 alike — states that stop, and Delete clears the held statement rather than the note. Every other

@@ -1720,20 +1720,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         }
     }
     // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row, the one
-    // row rule every horizontal landing shares. On a string the channel is display order,
-    // reversed: the satellite sits to the RIGHT of its head, so a caret arriving from the right
-    // meets it first and a caret arriving from the left meets the head first. A measure jump is not
-    // traversal — it is a big move by definition — so it lands on the stop every note has.
-    // armChartCaret drops a Held request the destination cannot draw, so this needs no second test
-    // of its own. A step that STAYS on its slot is already inside the column and takes the stop
-    // every object has, exactly as the object walk does (StepToRowObject); only one that arrives
-    // meets the column's marks in display order.
-    landOnRow(
-        prepareLandingRow(tab->stringCount()),
-        stepped,
-        !measure && sign < 0 && stepped != caret.position ? ChartCaretFace::HeldStop
-                                                          : ChartCaretFace::Mark,
-        stepped_object);
+    // row rule every horizontal landing shares. EVERY ARRIVAL LANDS ON THE MARK (user ruling
+    // 2026-09-29): a walk between slots is a walk between objects, and the head is the object; a
+    // face — the held stop to the right, the bend chip above — is stepped onto from its own mark.
+    landOnRow(prepareLandingRow(tab->stringCount()), stepped, ChartCaretFace::Mark, stepped_object);
     updateView();
 }
 
