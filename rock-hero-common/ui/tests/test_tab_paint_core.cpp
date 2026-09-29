@@ -3460,13 +3460,14 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
                     }
                 }
             }
-            const TabLayoutRect box = tabBendChipBox(
-                metrics,
-                note,
-                metrics.x(10.0),
-                bendCurveY(metrics, metrics.laneY(3), semitones),
-                10.0,
-                note.ink_end_seconds);
+            const std::optional<TabLayoutRect> laid_out =
+                tabBendPointChipBox(metrics, note, 0, note.ink_end_seconds);
+            REQUIRE(laid_out.has_value());
+            if (!laid_out.has_value())
+            {
+                return;
+            }
+            const TabLayoutRect& box = *laid_out;
             INFO("lane height " << bounds_height << ", " << semitones << " semitones");
             INFO(
                 "ink columns " << ink_left << ".." << ink_right << " of box " << box.x << ".."

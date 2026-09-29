@@ -10,11 +10,13 @@ marks with it — on three grounds: the modifier, the note being SELECTED, and t
 inside its ring (\ref chartNoteRevealed). A SPAN's furniture reads to its musical close on the
 same three, read for a span (\ref chartSpanRevealed).
 
-A REVEAL NEVER MOVES A TARGET. It adds ink, and the one mark that changes place under it — the
-destination chip, standing at the crop while the ink cuts the leg toward its keyframe and giving
-way to that keyframe's own mark at its instant once revealed — is never a target, so nothing a
-gesture lands on moves because the gesture landed. That is what lets the selection and the caret
-be grounds.
+A REVEAL MOVES NO TARGET BUT THE ONE A PRESS NAMED. It adds ink, and the one mark that changes place
+under it is the destination chip, standing at the crop while the ink cuts the leg toward its
+keyframe and giving way to that keyframe's own mark at its instant once revealed. The chip is a face
+of the keyframe it names (user report, 2026-09-28: a click on it must select it), so a press on it
+selects that keyframe, whose selection reveals the note, and the mark moves to where the keyframe
+really stands: the press's own object, carried to its truth, never some other target shifted
+under the pointer. That is what still lets the selection and the caret be grounds.
 
 THE CARET IS A POSITION, NOT A MEMBER, and both caret arms judge it ends-INCLUDED, so a
 grid-snapped caret behaves the same wherever it lands: one sitting exactly on a ring's end or a

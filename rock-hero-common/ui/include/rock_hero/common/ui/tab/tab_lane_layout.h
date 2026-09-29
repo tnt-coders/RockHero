@@ -442,6 +442,70 @@ some other law. A note whose curve is empty never leaves rest.
     const std::vector<common::core::BendPointViewState>& curve, double seconds) noexcept;
 
 /*!
+\brief Whether a note draws any tail at all within the extent it is drawn to.
+
+No tail, no tail marks: a note whose ink stops at its onset wears no leg and no destination chip,
+which would sit on its head.
+
+\param note The note.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\return True when the extent runs past the onset.
+*/
+[[nodiscard]] bool tailInked(const common::core::NoteViewState& note, double drawn_end) noexcept;
+
+/*!
+\brief How far along a leg toward a stop past the drawn extent the extent falls, so the leg is
+drawn on its true path and cut there: a slide or bend written to land on the next head slopes
+toward it and simply ends. A leg of no width is complete.
+\param from_x Column the leg leaves from.
+\param to_x Column of the stop it heads for.
+\param end_x Column of the drawn extent.
+\return The fraction of the leg drawn, in [0, 1].
+*/
+[[nodiscard]] float cutLegProgress(float from_x, float to_x, float end_x) noexcept;
+
+/*! \brief One leg of the drawn bend curve, in the lane bounds' pixel space. */
+struct TabBendLeg
+{
+    /*! \brief Column the leg leaves from. */
+    float from_x{};
+
+    /*! \brief Height the leg leaves from. */
+    float from_y{};
+
+    /*! \brief Column the leg ends at: its point's, or the drawn extent where the leg is cut. */
+    float to_x{};
+
+    /*! \brief Height the leg ends at, on its true path. */
+    float to_y{};
+
+    /*! \brief True where the extent cuts the leg short of its point: the last ink. */
+    bool cut{};
+};
+
+/*!
+\brief Lays out one leg of the drawn bend curve: the leg INTO a point, or past the last point the
+held run to the drawn extent.
+
+THE ONE statement of the curve's polyline, read by the paint core that strokes it and by the layout
+manifest that places the chip where a leg ends (\ref tabBendPointChipBox), so a destination chip at
+the crop stands exactly where the cut leg stops. The first leg leaves the onset at rest; every later
+one leaves a pixel past the point before it, which opens a hairline between consecutive legs. A leg
+toward a point past the extent is drawn on its true path as far as the extent (\ref cutLegProgress)
+and is the last ink.
+
+\param geometry Lane geometry the notation is painted with.
+\param note The bent note; its curve is \ref common::core::NoteViewState::bend.
+\param point Index of the point the leg runs into, or the curve's size for the held run after the
+       last point.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\return The leg.
+*/
+[[nodiscard]] TabBendLeg tabBendLeg(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, std::size_t point,
+    double drawn_end) noexcept;
+
+/*!
 \brief Where a chip stating a stop on the tail sits: just outside the sustain envelope, above it
 when the leg into that stop rises and below it when the leg falls.
 

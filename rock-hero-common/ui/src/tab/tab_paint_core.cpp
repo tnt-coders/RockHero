@@ -919,21 +919,6 @@ void drawNoteTail(
     }
 }
 
-// Whether a note draws any tail at all: no tail, no tail marks, so a note whose ink stops at its
-// onset wears no leg and no destination chip — which would sit on the head.
-[[nodiscard]] bool inked(const common::core::NoteViewState& note, const double drawn_end)
-{
-    return note.start_seconds < drawn_end;
-}
-
-// How far along a leg toward a stop past the drawn extent the extent falls, so the leg is drawn on
-// its true path and cut there: a slide or bend written to land on the next head slopes toward it
-// and simply ends. A leg of no width is complete.
-[[nodiscard]] float cutLegProgress(const float from_x, const float to_x, const float end_x)
-{
-    return to_x > from_x ? std::clamp((end_x - from_x) / (to_x - from_x), 0.0f, 1.0f) : 1.0f;
-}
-
 // The fret a keyframe's HEAD prints where it wears one within the extent the note is drawn to.
 [[nodiscard]] std::optional<int> drawnKeyframeHeadFret(
     const common::core::NoteViewState& note, const common::core::KeyframeViewState& keyframe,
@@ -1198,7 +1183,7 @@ void drawSlideLines(
     std::vector<LabelChip>& slide_labels, const float opacity, const double drawn_end,
     const std::optional<TailFade>& fade)
 {
-    if (note.slides.empty() || !inked(note, drawn_end))
+    if (note.slides.empty() || !tailInked(note, drawn_end))
     {
         return;
     }
@@ -1249,10 +1234,9 @@ void drawSlideLines(
         // where it changes the fret, a level leg saying nothing new, and never for the ARRIVAL of
         // a shift slide: the next head, struck at that very stop one margin on, already shows
         // where the leg lands, and a chip beside it only got in the way (sighted 2026-09-24).
-        // Where either chip stands is the layout manifest's one statement.
-        const bool arrival = final_leg && note.ends_on_next_head && !stop.slide_out;
-        const bool chip = drawn ? stop.slide_out : stop.fret != previous_fret && !arrival;
-        if (chip && metrics.draw_text)
+        // Whether a chip is drawn and where it stands are the layout manifest's statements
+        // (tabSlideChipDrawn, tabSlideStopLayout), which the hit tester reads too.
+        if (tabSlideChipDrawn(metrics, note, index, drawn_end))
         {
             const TabKeyframeLayout layout = tabSlideStopLayout(metrics, note, index, drawn_end);
             slide_labels.push_back(
@@ -1408,75 +1392,56 @@ void drawBendDots(
 // point riding the curve wears its keyframe's dot, drawn by drawBendDots.
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, const float opacity, const double drawn_end,
-    const std::optional<TailFade>& fade)
+    const common::core::NoteViewState& note, std::vector<LabelChip>& bend_chips,
+    const float opacity, const double drawn_end, const std::optional<TailFade>& fade)
 {
     if (note.bend.empty())
     {
         return;
     }
-
-    // The curve's height at an amount is the lane layout's one statement (bendCurveY), shared
-    // with the dot a point riding the curve wears.
     constexpr float line_thickness = g_technique_line_thickness;
-    const auto bend_y = [&](const double semitones) {
-        return bendCurveY(metrics, center_y, semitones);
-    };
 
-    // The polyline ends where the ribbon it rides does — the drawn extent — so it cannot outlast
-    // the tail under it.
-    const float end_x = metrics.x(drawn_end);
-    juce::Point<float> last{onset_x, bend_y(0.0)};
-    double last_semitones = 0.0;
+    // The polyline is the lane layout's one statement (tabBendLeg): each leg into a point, then the
+    // held run to the drawn extent. A point past the extent is not drawn, but the leg TOWARD it is,
+    // on its true path as far as the extent: a bend written to land on the next head rises toward
+    // it and stops. That leg is the last ink, so there is no held run after it.
     setTailInk(g, style[Ink::TechniqueLine], fade);
-    for (const common::core::BendPointViewState& point : note.bend)
+    for (std::size_t index = 0; index <= note.bend.size(); ++index)
     {
-        const juce::Point<float> target{metrics.x(point.seconds), bend_y(point.semitones)};
-        // A point past the extent is not drawn, but the leg TOWARD it is, on its true path as far
-        // as the extent: a bend written to land on the next head rises toward it and stops. That
-        // leg is the last ink, so there is no flat run after it, and it wears the DESTINATION chip
-        // at the crop, naming the amount it is heading for — only where the leg changes it, and
-        // only where the note draws a tail at all.
-        const bool cut = point.seconds > drawn_end;
-        const juce::Point<float> to =
-            cut ? juce::Point<
-                      float>{end_x, last.y + ((target.y - last.y) * cutLegProgress(last.x, target.x, end_x))}
-                : target;
-        g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
-        const bool chip =
-            !cut || (std::is_neq(point.semitones <=> last_semitones) && inked(note, drawn_end));
-        if (chip && metrics.draw_text)
+        const TabBendLeg leg = tabBendLeg(metrics, note, index, drawn_end);
+        g.drawLine(leg.from_x, leg.from_y, leg.to_x, leg.to_y, line_thickness);
+        // Whether the point wears a chip, and where, is the layout manifest's one statement
+        // (tabBendPointChipBox), which the hit tester reads too: its own amount where the leg
+        // reaches it, or the DESTINATION chip at the crop naming the amount a cut leg is heading
+        // for. The measured text centres on the box.
+        if (index < note.bend.size())
         {
-            // Where the chip stands is the layout manifest's one statement (tabBendChipBox), which
-            // the hit tester reads for a keyframe's chip; the measured text centres on its box.
-            const TabLayoutRect box =
-                tabBendChipBox(metrics, note, to.x, to.y, point.seconds, drawn_end);
-            const TabBendAmountText label = bendChipLabel(point.semitones);
-            bend_chips.push_back(
-                LabelChip{
-                    .position = layoutBoxCenter(box),
-                    .text = label.text,
-                    .fraction = label.fraction,
-                    // The string's own head inks, ring and fill, so the amount reads as the
-                    // string's; the fret-hand chips' neutral chrome is the lane's, not a string's.
-                    .background = style[Ink::Inner],
-                    .border = style[Ink::BorderInner],
-                    .ink = style[Ink::Digit],
-                    .opacity = opacity,
-                    .opaque_ink = false,
-                });
+            if (const std::optional<TabLayoutRect> box =
+                    tabBendPointChipBox(metrics, note, index, drawn_end);
+                box.has_value())
+            {
+                const TabBendAmountText label = bendChipLabel(note.bend[index].semitones);
+                bend_chips.push_back(
+                    LabelChip{
+                        .position = layoutBoxCenter(*box),
+                        .text = label.text,
+                        .fraction = label.fraction,
+                        // The string's own head inks, ring and fill, so the amount reads as the
+                        // string's; the fret-hand chips' neutral chrome is the lane's, not a
+                        // string's.
+                        .background = style[Ink::Inner],
+                        .border = style[Ink::BorderInner],
+                        .ink = style[Ink::Digit],
+                        .opacity = opacity,
+                        .opaque_ink = false,
+                    });
+            }
         }
-        if (cut)
+        if (leg.cut)
         {
             return;
         }
-        last = {to.x + 1.0f, to.y};
-        last_semitones = point.semitones;
     }
-    // The held stretch after the last bend point runs all the way to the sustain's end — no inset,
-    // for the same reason a slide's final leg takes none: there is no end cap to meet.
-    g.drawLine(last.x, last.y, end_x, last.y, line_thickness);
 }
 
 // The accent glow's outer diameter: the head's VISIBLE edge grown by the shared reach on every
@@ -2820,17 +2785,7 @@ void paintTabLane(
                 fret_plate_opacity,
                 drawn_end,
                 fade);
-            drawBendLines(
-                g,
-                metrics,
-                style,
-                note,
-                onset_x,
-                center_y,
-                bend_chips,
-                note_opacity,
-                drawn_end,
-                fade);
+            drawBendLines(g, metrics, style, note, bend_chips, note_opacity, drawn_end, fade);
         }
         drawBendDots(g, metrics, style, note, drawn_end, fade);
 

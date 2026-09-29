@@ -27,6 +27,41 @@ namespace
     };
 }
 
+// The box of a bend chip whose leg ends at the anchor: half a tail above the curve there, or above
+// the head where the leg ends at the onset, and short of the head a ring's end stands on. The
+// painted chip centres its measured "<slur><amount>" text on it.
+[[nodiscard]] TabLayoutRect tabBendChipBox(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
+    const float anchor_y, const double point_seconds, const double drawn_end) noexcept
+{
+    const float text_height = geometry.fretTextHeight();
+    // The widest amount a chip prints, the slur, a whole step and a fraction ("2 3/4"), in
+    // fret-text heights: it measures 2.9 at the shipped lane and 3.0 at the text floor, and the
+    // margin is for other platforms' glyph widths. The paint core's tests hold every amount inside
+    // it.
+    constexpr float widest_text_heights = 3.2f;
+    const float width = text_height * widest_text_heights + 6.0f;
+    const float height = text_height + 2.0f;
+    const float center_y = geometry.laneY(note.string);
+    const bool over_head = anchor_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f;
+    const float chip_y = over_head
+                             ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
+                             : anchor_y - geometry.tail_height / 2.0f;
+    float chip_x = anchor_x;
+    if (const std::optional<float> limit =
+            endChipRightLimit(geometry, note, point_seconds, drawn_end);
+        limit.has_value())
+    {
+        chip_x = std::min(chip_x, *limit - width / 2.0f);
+    }
+    return TabLayoutRect{
+        .x = chip_x - width / 2.0f,
+        .y = chip_y - height / 2.0f,
+        .width = width,
+        .height = height,
+    };
+}
+
 } // namespace
 
 // Mirrors the paint core's drawNoteHead geometry: a square of note_height + 1 centered on
@@ -56,13 +91,7 @@ TabNoteLayout tabNoteLayout(
         const common::core::BendPointViewState& onset = note.bend.front();
         if (std::is_eq(onset.seconds <=> note.start_seconds))
         {
-            layout.bend_chip = tabBendChipBox(
-                geometry,
-                note,
-                layout.onset_x,
-                bendCurveY(geometry, layout.center_y, onset.semitones),
-                onset.seconds,
-                note.ink_end_seconds);
+            layout.bend_chip = tabBendPointChipBox(geometry, note, 0, note.ink_end_seconds);
         }
     }
     return layout;
@@ -154,37 +183,55 @@ TabKeyframeLayout tabSlideStopLayout(
     return layout;
 }
 
-// Mirrors drawBendLines' chips, which centre the measured "<slur><amount>" text on this box.
-TabLayoutRect tabBendChipBox(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
-    const float anchor_y, const double point_seconds, const double drawn_end) noexcept
+// Rationale lives on the declaration in tab_layout_manifest.h.
+std::optional<TabLayoutRect> tabBendPointChipBox(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const std::size_t point, const double drawn_end) noexcept
 {
-    const float text_height = geometry.fretTextHeight();
-    // The widest amount a chip prints, the slur, a whole step and a fraction ("2 3/4"), in
-    // fret-text heights: it measures 2.9 at the shipped lane and 3.0 at the text floor, and the
-    // margin is for other platforms' glyph widths. The paint core's tests hold every amount inside
-    // it.
-    constexpr float widest_text_heights = 3.2f;
-    const float width = text_height * widest_text_heights + 6.0f;
-    const float height = text_height + 2.0f;
-    const float center_y = geometry.laneY(note.string);
-    const bool over_head = anchor_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f;
-    const float chip_y = over_head
-                             ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
-                             : anchor_y - geometry.tail_height / 2.0f;
-    float chip_x = anchor_x;
-    if (const std::optional<float> limit =
-            endChipRightLimit(geometry, note, point_seconds, drawn_end);
-        limit.has_value())
+    if (!geometry.draw_text)
     {
-        chip_x = std::min(chip_x, *limit - width / 2.0f);
+        return std::nullopt;
     }
-    return TabLayoutRect{
-        .x = chip_x - width / 2.0f,
-        .y = chip_y - height / 2.0f,
-        .width = width,
-        .height = height,
-    };
+    const common::core::BendPointViewState& into = note.bend[point];
+    const TabBendLeg leg = tabBendLeg(geometry, note, point, drawn_end);
+    if (leg.cut)
+    {
+        // Only the first point past the extent has a leg drawn toward it, and its chip names a
+        // change of amount on a note that draws a tail at all.
+        const bool earlier_cut =
+            point > 0 && !common::core::instantDrawn(note.bend[point - 1].seconds, drawn_end);
+        const double from_semitones = point == 0 ? 0.0 : note.bend[point - 1].semitones;
+        if (earlier_cut || std::is_eq(into.semitones <=> from_semitones) ||
+            !tailInked(note, drawn_end))
+        {
+            return std::nullopt;
+        }
+    }
+    return tabBendChipBox(geometry, note, leg.to_x, leg.to_y, into.seconds, drawn_end);
+}
+
+// Rationale lives on the declaration in tab_layout_manifest.h.
+bool tabSlideChipDrawn(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const std::size_t stop, const double drawn_end) noexcept
+{
+    if (!geometry.draw_text || !tailInked(note, drawn_end))
+    {
+        return false;
+    }
+    const common::core::SlideStopViewState& slide = note.slides[stop];
+    if (common::core::instantDrawn(slide.seconds, drawn_end))
+    {
+        return slide.slide_out;
+    }
+    if (stop > 0 && !common::core::instantDrawn(note.slides[stop - 1].seconds, drawn_end))
+    {
+        return false;
+    }
+    const int previous_fret = stop == 0 ? note.fret : note.slides[stop - 1].fret;
+    const bool arrival =
+        stop + 1 == note.slides.size() && note.ends_on_next_head && !slide.slide_out;
+    return slide.fret != previous_fret && !arrival;
 }
 
 // A stop's keyframe defers to the stop's own layout. A point riding the curve stands where
@@ -220,19 +267,14 @@ TabKeyframeLayout tabKeyframeLayout(
             },
         },
         keyframe.mark);
-    // The chip printing the keyframe's bend, anchored where the drawn curve reaches that amount.
-    // It exists only where the lane prints text, as the paint core draws it.
-    if (const std::optional<std::size_t> point = keyframe.bend_point;
-        point.has_value() && geometry.draw_text)
+    // Past the extent only a stop's destination chip is drawn, at the crop.
+    const auto* const stop = std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
+    keyframe_layout.mark_drawn =
+        common::core::instantDrawn(keyframe.seconds, drawn_end) ||
+        (stop != nullptr && tabSlideChipDrawn(geometry, note, stop->stop, drawn_end));
+    if (const std::optional<std::size_t> point = keyframe.bend_point; point.has_value())
     {
-        const common::core::BendPointViewState& bend = note.bend[*point];
-        keyframe_layout.bend_chip = tabBendChipBox(
-            geometry,
-            note,
-            geometry.x(bend.seconds),
-            bendCurveY(geometry, at_instant.center_y, bend.semitones),
-            bend.seconds,
-            drawn_end);
+        keyframe_layout.bend_chip = tabBendPointChipBox(geometry, note, *point, drawn_end);
     }
     return keyframe_layout;
 }

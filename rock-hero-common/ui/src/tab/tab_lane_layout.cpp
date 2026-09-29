@@ -165,6 +165,54 @@ float bendCurveYAt(
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.
+bool tailInked(const common::core::NoteViewState& note, const double drawn_end) noexcept
+{
+    return note.start_seconds < drawn_end;
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
+float cutLegProgress(const float from_x, const float to_x, const float end_x) noexcept
+{
+    return to_x > from_x ? std::clamp((end_x - from_x) / (to_x - from_x), 0.0f, 1.0f) : 1.0f;
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
+TabBendLeg tabBendLeg(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const std::size_t point, const double drawn_end) noexcept
+{
+    const float center_y = geometry.laneY(note.string);
+    TabBendLeg leg;
+    if (point == 0)
+    {
+        leg.from_x = geometry.x(note.start_seconds);
+        leg.from_y = bendCurveY(geometry, center_y, 0.0);
+    }
+    else
+    {
+        const common::core::BendPointViewState& before = note.bend[point - 1];
+        leg.from_x = geometry.x(before.seconds) + 1.0f;
+        leg.from_y = bendCurveY(geometry, center_y, before.semitones);
+    }
+    const float end_x = geometry.x(drawn_end);
+    if (point == note.bend.size())
+    {
+        leg.to_x = end_x;
+        leg.to_y = leg.from_y;
+        return leg;
+    }
+    const common::core::BendPointViewState& into = note.bend[point];
+    const float point_x = geometry.x(into.seconds);
+    const float point_y = bendCurveY(geometry, center_y, into.semitones);
+    leg.cut = !common::core::instantDrawn(into.seconds, drawn_end);
+    leg.to_x = leg.cut ? end_x : point_x;
+    leg.to_y =
+        leg.cut ? leg.from_y + ((point_y - leg.from_y) * cutLegProgress(leg.from_x, point_x, end_x))
+                : point_y;
+    return leg;
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
 float slideOutChipY(
     const TabLaneGeometry& geometry, const float center_y, const bool upward) noexcept
 {

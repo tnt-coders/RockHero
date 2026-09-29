@@ -127,21 +127,17 @@ std::optional<ChartHitTarget> chartHitTarget(
         {
             faces.consider(chip->x + chip->width / 2.0f, ChartNoteHit{.index = index});
         }
-        // A mark is clickable exactly where the lane draws it: within the extent the note is
-        // drawn to, the same rule the paint core draws by. The destination chip a keyframe past
-        // that extent wears at the crop is a mark, not a target, so it is never asked.
+        // A mark is clickable exactly where the lane draws it, by the rules the paint core draws
+        // by: within the extent the note is drawn to, and past it only as the destination chip a
+        // cut leg wears at the crop, which names the keyframe it heads for and so reaches it.
         const double drawn_end =
             common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
         for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            if (!common::core::instantDrawn(note.keyframes[keyframe].seconds, drawn_end))
-            {
-                continue;
-            }
             const common::ui::TabKeyframeLayout keyframe_layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
             const ChartKeyframeHit target{.note_index = index, .keyframe_index = keyframe};
-            if (keyframe_layout.box.contains(x, y))
+            if (keyframe_layout.mark_drawn && keyframe_layout.box.contains(x, y))
             {
                 faces.consider(keyframe_layout.center_x, target);
             }
@@ -195,9 +191,9 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             boxed.emplace_back(ChartNoteHit{.index = index});
         }
     }
-    // The keyframe heads a box catches, on the same drawn-extent rule as the heads above: a box
-    // drawn over a glide's junction selects that junction, which is what makes the marquee reach
-    // the objects the click reaches.
+    // The keyframe marks a box catches, on the same drawn rule as a click: a box drawn over a
+    // glide's junction selects that junction, which is what makes the marquee reach the objects
+    // the click reaches.
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
@@ -205,14 +201,11 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
         for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            if (!common::core::instantDrawn(note.keyframes[keyframe].seconds, drawn_end))
-            {
-                continue;
-            }
             const common::ui::TabKeyframeLayout layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
             const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
-            if (intersects(layout.box) || (chip.has_value() && intersects(*chip)))
+            if ((layout.mark_drawn && intersects(layout.box)) ||
+                (chip.has_value() && intersects(*chip)))
             {
                 boxed.emplace_back(
                     ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});

@@ -352,8 +352,12 @@ Four consequences worth knowing before touching this:
   disc around a dot). **A CHIP IS A FACE OF WHAT OWNS IT**: a keyframe stating a bend carries the
   chip printing its amount as a second face (`TabKeyframeLayout::bend_chip`), so a click or a
   marquee on the chip reaches the keyframe and a selection rings it, and the onset's own bend chip
-  above the head is the note's second face on the same rule (`TabNoteLayout::bend_chip`).
-  `tabBendChipBox` places every bend chip the painter draws and bounds its click: a box as wide as
+  above the head is the note's second face on the same rule (`TabNoteLayout::bend_chip`). The
+  DESTINATION chip a cut leg wears at the crop is a face of the keyframe it heads for, whether the
+  leg is a slide's or a bend's, so clicking it selects that keyframe
+  (`TabKeyframeLayout::mark_drawn`). Whether a chip is drawn is the layout manifest's statement
+  (`tabSlideChipDrawn`, `tabBendPointChipBox`, the bend legs by `tabBendLeg`), read by the painter
+  and the hit test alike. `tabBendPointChipBox` also bounds a bend chip's click: a box as wide as
   the widest amount, because the headless hit test measures no text. The ring instead traces the
   chip as painted (`tabBendChipBounds`), so it never circles empty lane around a short amount. A
   head still answers before any chip over it (`chartHitTarget`), or a short chip's empty margin
@@ -971,9 +975,11 @@ Three grounds, and what each is for:
 - **The SELECTION is the thing under scrutiny.** A selected note draws to its ring end, and a
   selected keyframe reveals its note, so a keyboard walk or a box that lands on a keyframe past
   the ink end always has a ring to show it, at its true instant. What makes the selection a
-  legitimate ground is the invariant `chart_reveal.h` states: A REVEAL NEVER MOVES A TARGET. The
-  one mark that changes place under it, the destination chip, is never a target, so nothing a
-  click lands on moves because the click landed.
+  legitimate ground is the invariant `chart_reveal.h` states: A REVEAL MOVES NO TARGET BUT THE ONE
+  A PRESS NAMED. The one mark that changes place under it is the destination chip at the crop,
+  which is a face of the keyframe it heads for: a click on it selects that keyframe, the selection
+  reveals the note, and the mark moves to the keyframe's true instant. The clicked object moves to
+  its truth; no other target shifts under the pointer.
 - **THE CARET'S PEEK answers "is something here?"** A click on a tail is not a selection (tails
   are not targets): it moves the caret to the slot under the pointer, and if that slot lies on the
   note's string inside its stored ring, ends included, the note reveals for as long as the caret

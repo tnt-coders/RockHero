@@ -575,22 +575,24 @@ TEST_CASE("Chart hit testing collects keyframe heads inside a marquee box", "[co
         whole ==
         (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0), keyframeTarget(0, 1)}));
 
-    // With the ink cropped at 8s the arrival is undrawn, so the same box leaves it out — and boxes
-    // it again only while the reveal draws it.
+    // With the ink cropped at 8s the arrival is undrawn at its instant (x = 200), so a box around
+    // that instant leaves it out, and boxes it again only while the reveal draws it there. The leg
+    // toward it wears its destination chip at the crop (x = 160) instead, which names it, so the
+    // box over the whole gesture still takes it.
     common::core::ChartViewState cropped = tab;
     cropped.notes[0].ink_end_seconds = 8.0;
+    CHECK(chartTargetsInBox(cropped, geometry, 180.0f, 120.0f, 220.0f, 160.0f).empty());
     CHECK(
-        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f) ==
-        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
-    CHECK(
-        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealEverything()) ==
-        whole);
+        chartTargetsInBox(cropped, geometry, 180.0f, 120.0f, 220.0f, 160.0f, revealEverything()) ==
+        (std::vector<ChartHitTarget>{keyframeTarget(0, 1)}));
+    CHECK(chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f) == whole);
 }
 
-// THE REVEAL IS PER NOTE, and the crop's chip is a mark rather than a target. A keyframe past its
-// note's ink end is reachable while THAT note is revealed — the selection reveals the note it
-// names — and not while some other note is. And the destination chip the cut leg wears at the crop
-// answers nothing: the keyframe it names is reached through a reveal, at its true instant.
+// THE REVEAL IS PER NOTE, and the crop's chip is a face of the keyframe it names. A keyframe past
+// its note's ink end is reachable at its true instant while THAT note is revealed — the selection
+// reveals the note it names — and not while some other note is. And the destination chip the cut
+// leg wears at the crop reaches the keyframe it heads for, since a chip is a face of what owns it:
+// selecting it reveals the note, which then draws the keyframe at its instant.
 TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart]")
 {
     common::core::ChartViewState cropped = makeGlideTabState();
@@ -616,28 +618,28 @@ TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart
     CHECK(chartHitTarget(cropped, geometry, 195.0f, 140.0f, revealOnly(0)) == keyframeTarget(0, 1));
     CHECK_FALSE(chartHitTarget(cropped, geometry, 195.0f, 140.0f, revealOnly(1)).has_value());
     CHECK(
-        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealOnly(0)) ==
-        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0), keyframeTarget(0, 1)}));
-    CHECK(
-        chartTargetsInBox(cropped, geometry, 20.0f, 120.0f, 220.0f, 160.0f, revealOnly(1)) ==
-        (std::vector<ChartHitTarget>{noteTarget(0), keyframeTarget(0, 0)}));
+        chartTargetsInBox(cropped, geometry, 180.0f, 120.0f, 220.0f, 160.0f, revealOnly(0)) ==
+        (std::vector<ChartHitTarget>{keyframeTarget(0, 1)}));
+    CHECK(chartTargetsInBox(cropped, geometry, 180.0f, 120.0f, 220.0f, 160.0f, revealOnly(1))
+              .empty());
 
     // The chip at the crop, laid out where the lane draws it for the unrevealed note: a press on
-    // it, or a box around it, reaches nothing.
+    // it, or a box around it, reaches the keyframe it names.
     const common::core::NoteViewState& glide = cropped.notes[0];
     REQUIRE(glide.keyframes.size() == 2);
     const common::ui::TabKeyframeLayout chip =
         common::ui::tabKeyframeLayout(geometry, glide, glide.keyframes[1], glide.ink_end_seconds);
     REQUIRE(chip.shape == common::ui::TabKeyframeShape::Chip);
-    CHECK_FALSE(chartHitTarget(cropped, geometry, chip.center_x, chip.center_y).has_value());
-    CHECK(chartTargetsInBox(
-              cropped,
-              geometry,
-              chip.box.x,
-              chip.box.y,
-              chip.box.x + chip.box.width,
-              chip.box.y + chip.box.height)
-              .empty());
+    REQUIRE(chip.mark_drawn);
+    CHECK(chartHitTarget(cropped, geometry, chip.center_x, chip.center_y) == keyframeTarget(0, 1));
+    CHECK(
+        chartTargetsInBox(
+            cropped,
+            geometry,
+            chip.box.x,
+            chip.box.y,
+            chip.box.x + chip.box.width,
+            chip.box.y + chip.box.height) == (std::vector<ChartHitTarget>{keyframeTarget(0, 1)}));
 }
 
 // A point stating only a bend is a target like any other keyframe: its mark is the dot the curve
@@ -683,6 +685,82 @@ TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][char
             dot.box.y,
             dot.box.x + dot.box.width,
             dot.box.y + dot.box.height) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
+}
+
+// The DESTINATION chip a cut bend leg wears at the crop is a face of the point it heads for: a bend
+// landing on the next head of its own string stands past the ink, and its amount prints at the
+// crop, where a click reaches it. A leg that keeps the amount wears no chip there, so nothing
+// answers.
+TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the crop", "[core][chart]")
+{
+    // A bend reaching a whole step at 10.0s (x = 200), exactly where the next head of the string
+    // is struck; the ink stops at 8.0s (x = 160).
+    const auto landing_bend = [](std::vector<common::core::BendPointViewState> bend) {
+        common::core::ChartViewState tab;
+        tab.open_strings = common::core::testing::standardTuning();
+        const std::size_t last_point = bend.size() - 1;
+        tab.notes = {
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 10.0,
+                .ink_end_seconds = 8.0,
+                .string = 3,
+                .fret = 5,
+                .bend = std::move(bend),
+                .slides = {},
+                .keyframes = {common::core::KeyframeViewState{
+                    .seconds = 10.0,
+                    .offset = common::core::Fraction{4},
+                    .mark = common::core::KeyframeCurveMark{},
+                    .bend_point = last_point,
+                }},
+                .vibrato = {},
+                .ends_on_next_head = true,
+            },
+            common::core::NoteViewState{
+                .start_seconds = 10.0,
+                .ring_end_seconds = 12.0,
+                .ink_end_seconds = 12.0,
+                .string = 3,
+                .fret = 5,
+                .bend = {},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+            },
+        };
+        return tab;
+    };
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    const common::core::ChartViewState rising = landing_bend(
+        {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+         common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
+    const common::core::NoteViewState& note = rising.notes.front();
+    const std::optional<common::ui::TabLayoutRect> chip =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ink_end_seconds)
+            .bend_chip;
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    // At the crop, and short of the next head.
+    CHECK(chip->x + chip->width <= geometry.x(8.0));
+    const float chip_x = chip->x + chip->width / 2.0f;
+    const float chip_y = chip->y + chip->height / 2.0f;
+    CHECK(chartHitTarget(rising, geometry, chip_x, chip_y) == keyframeTarget(0, 0));
+
+    // Held level into the landing: the cut leg says nothing new, so it wears no chip to click.
+    const common::core::ChartViewState held = landing_bend(
+        {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+         common::core::BendPointViewState{.seconds = 5.0, .semitones = 2.0},
+         common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
+    const common::core::NoteViewState& held_note = held.notes.front();
+    CHECK_FALSE(
+        common::ui::tabKeyframeLayout(
+            geometry, held_note, held_note.keyframes.front(), held_note.ink_end_seconds)
+            .bend_chip.has_value());
 }
 
 // A CHIP IS A FACE OF WHAT OWNS IT. The chip printing a keyframe's bend reaches that keyframe, and

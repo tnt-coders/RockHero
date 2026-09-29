@@ -117,17 +117,16 @@ scrolled off-screen by clicking its tail; the marquee and the keyboard still rea
 recorded as a sighting item (`docs/tracking/watch-items.md`).
 
 What the lane draws nothing for is not hit-testable, because nothing undrawn is. A keyframe is
-reached only while it is DRAWN (\ref common::core::instantDrawn): one standing past its note's ink
-end is reached only while the note is revealed, exactly as the lane draws it — a linked head at a
-junction, the slide-out's chip at its end. A keyframe stating no fret draws nothing at all today —
-how those should draw, and therefore how a pointer should reach them, is the bend display study's
-question and not this function's.
+reached where the lane draws a face of it (\ref common::ui::TabKeyframeLayout): its mark within the
+extent the note is drawn to — a linked head, a slide-out's chip, a dot on the bend curve — the chip
+printing the bend it states, and, past the extent, the destination chip a cut leg wears at the crop,
+which names it. Selecting it through that chip reveals the note, so the keyframe then draws at its
+true instant.
 
 A held stop's SATELLITE is reachable exactly while it is drawn, which for a reveal-only one is
 exactly while its note is revealed: the layout manifest answers both questions from one rectangle,
 so the two cannot part. A revealed note's extra tail length is not itself a target, because a tail
-is not a target at all, and the destination chip at an unrevealed note's crop is a mark and not a
-target either.
+is not a target at all.
 
 \param tab Seconds-resolved tab projection being displayed.
 \param geometry Lane geometry the notation was painted with.

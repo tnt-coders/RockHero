@@ -104,8 +104,8 @@ struct TabNoteLayout
     TabLayoutRect head{};
 
     /*!
-    \brief Box of the chip printing the onset's own bend above the head (\ref tabBendChipBox), or
-    nothing where the note's curve does not open at its onset or the lane prints no text.
+    \brief Box of the chip printing the onset's own bend above the head (\ref tabBendPointChipBox),
+    or nothing where the note's curve does not open at its onset or the lane prints no text.
 
     The note's SECOND FACE, on the rule every chip follows: a chip is a face of what owns it, so a
     click on it reaches the note and a selection of the note rings it.
@@ -220,15 +220,23 @@ struct TabKeyframeLayout
     TabKeyframeShape shape{TabKeyframeShape::Head};
 
     /*!
-    \brief Bounding rectangle of the mark — its drawn extent, and for a drawn keyframe its clickable
-    one. A dot's is the disc a selection ring traces, half a head across, since the dot itself is
-    too small a target to find.
+    \brief Bounding rectangle of the mark — its drawn extent, and where the lane draws it (\ref
+    mark_drawn) its clickable one. A dot's is the disc a selection ring traces, half a head across,
+    since the dot itself is too small a target to find.
     */
     TabLayoutRect box{};
 
     /*!
-    \brief Box of the chip printing the bend this keyframe states (\ref tabBendChipBox), or nothing
-    where it states none or the lane prints no text.
+    \brief True where the lane draws the mark: always within the drawn extent, and past it only as
+    the destination chip a cut leg wears at the crop (\ref tabSlideChipDrawn), which names this
+    keyframe and so reaches it.
+    */
+    bool mark_drawn{};
+
+    /*!
+    \brief Box of the chip printing the bend this keyframe states (\ref tabBendPointChipBox), or
+    nothing where the lane draws none: the keyframe states no bend, the lane prints no text, or its
+    point stands past the extent without wearing the destination chip.
 
     The keyframe's SECOND FACE: a click on it reaches the keyframe as a click on the mark does, and
     a selection rings both.
@@ -250,9 +258,9 @@ on the chip's own line. A stop PAST the extent is the DESTINATION CHIP at the cr
 naming where the leg the ink ends on is heading, standing at the drawn extent rather than at the
 stop's own instant.
 
-Whether a mark EXISTS is the caller's question, exactly as the paint core asks before drawing: a
-level leg past the extent draws no destination chip, and a note whose ink stops at its onset draws
-none at all, yet both lay out here.
+Whether a chip EXISTS is \ref tabSlideChipDrawn's question, which the paint core asks before drawing
+and \ref tabKeyframeLayout before offering the chip to a click: a level leg past the extent draws no
+destination chip, and a note whose ink stops at its onset draws none at all, yet both lay out here.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the stop belongs to; its string places the head.
@@ -265,27 +273,50 @@ none at all, yet both lay out here.
     double drawn_end) noexcept;
 
 /*!
-\brief Computes the box of a chip printing a bend amount, for the point the drawn curve reaches.
+\brief Computes the box of the chip printing one bend point's amount, or nothing where the lane
+draws none.
 
-THE ONE statement of where a bend chip stands, read by the paint core that draws every bend chip
-and, through \ref tabKeyframeLayout, by the hit tester that bounds a click on a keyframe's. The chip
-sits half a tail above the curve at its anchor, or above the head where the anchor is the onset's;
-where it prints the end of a ring that stands on a head of its own string it ends short of that
-head (\ref endChipRightLimit). The box is as wide as the widest amount a chip can print, so it
-bounds the painted chip, which centres on it, whatever the amount.
+THE ONE statement of whether a bend chip is drawn and where it stands, read by the paint core that
+draws every bend chip and, through \ref tabNoteLayout and \ref tabKeyframeLayout, by the hit tester
+that bounds a click on one. A point within the drawn extent wears its chip where its leg ends. The
+first point PAST the extent wears the DESTINATION chip at the crop, where its cut leg stops (\ref
+tabBendLeg), naming the amount the leg is heading for, but only where the leg changes the amount
+and the note draws a tail at all; later points wear nothing. The chip sits half a tail above the
+curve, or above the head where the leg ends at the onset. Where it prints the end of a ring that
+stands on a head of its own string it ends short of that head (\ref endChipRightLimit). The box is
+as wide as the widest amount a chip can print, so it bounds the painted chip, which centres on it,
+whatever the amount.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the chip belongs to.
-\param anchor_x Column the drawn curve reaches the amount at: the point's own, or the crop for a
-       destination chip.
-\param anchor_y Height the drawn curve stands at there.
-\param point_seconds The instant of the point whose amount the chip prints.
+\param point Index of the point in the note's \ref common::core::NoteViewState::bend.
 \param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
-\return The chip's box in the lane bounds' pixel space.
+\return The chip's box in the lane bounds' pixel space, or nothing where no chip is drawn.
 */
-[[nodiscard]] TabLayoutRect tabBendChipBox(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, float anchor_x,
-    float anchor_y, double point_seconds, double drawn_end) noexcept;
+[[nodiscard]] std::optional<TabLayoutRect> tabBendPointChipBox(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, std::size_t point,
+    double drawn_end) noexcept;
+
+/*!
+\brief Answers whether a slide stop wears a chip on the lane: a slide-out at its instant, or the
+DESTINATION chip at the crop.
+
+THE ONE statement of when a stop's chip is drawn, read by the paint core and, through \ref
+tabKeyframeLayout, by the hit tester. Within the drawn extent only a slide-out wears a chip; every
+other stop wears its linked head. The first stop PAST the extent wears the destination chip at the
+crop (\ref tabSlideStopLayout places it) only where its leg changes the fret, and never for the
+ARRIVAL of a shift slide, whose landing the next head already shows. A note whose ink stops at its
+onset, or a lane that prints no text, wears none.
+
+\param geometry Lane geometry the notation was painted with.
+\param note Seconds-resolved note the stop belongs to.
+\param stop Index of the stop in the note's \ref common::core::NoteViewState::slides.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\return True where the lane draws the stop's chip.
+*/
+[[nodiscard]] bool tabSlideChipDrawn(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, std::size_t stop,
+    double drawn_end) noexcept;
 
 /*!
 \brief Computes the pixel layout of one keyframe's mark under the given lane geometry, for the
