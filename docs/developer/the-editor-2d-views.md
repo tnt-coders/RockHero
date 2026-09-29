@@ -306,8 +306,8 @@ Four consequences worth knowing before touching this:
   `→` onto the shared slot lands on the statement and a second press takes the head, while `←` from
   the head names the statement without moving and a second press leaves. `Shift+Tab` reaches it the
   same way. It wears
-  the accent ring traced on the chip's box (`tabSlideStopLayout` lays the chip out, mirroring
-  `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
+  the accent ring traced on the chip as painted (`tabSlideChipBounds`; `tabSlideStopLayout` lays
+  out the wider box its click lands in, mirroring `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
   force says nothing (`keyframeSaysNothingNew`) and is treated like every other silent point: it
   DRAWS ITS CHIP — the painter skips the diagonal for a leg that travels nowhere, never the mark —
   so it can be selected, retyped and deleted, and it goes with the rest when its note leaves focus
@@ -349,7 +349,15 @@ Four consequences worth knowing before touching this:
   drawn curve runs at its instant (`bendCurveYAt`), a bend being all such a point can go on to
   state.
   `tabKeyframeLayout` lays every one out for the paint, the click and the accent ring alike (a
-  disc around a dot). That head prints where the hand really is because no vibrato change may
+  disc around a dot). **A CHIP IS A FACE OF WHAT OWNS IT**: a keyframe stating a bend carries the
+  chip printing its amount as a second face (`TabKeyframeLayout::bend_chip`), so a click or a
+  marquee on the chip reaches the keyframe and a selection rings it, and the onset's own bend chip
+  above the head is the note's second face on the same rule (`TabNoteLayout::bend_chip`).
+  `tabBendChipBox` places every bend chip the painter draws and bounds its click: a box as wide as
+  the widest amount, because the headless hit test measures no text. The ring instead traces the
+  chip as painted (`tabBendChipBounds`), so it never circles empty lane around a short amount. A
+  head still answers before any chip over it (`chartHitTarget`), or a short chip's empty margin
+  would take presses meant for the head beside it. That head prints where the hand really is because no vibrato change may
   stand mid-slide (`shedMidTravelVibrato`); a bend may, and its dot rides the curve, not the
   slide line. The stops alone (`NoteViewState::slides`) are the gesture's geometry, which every
   glide consumer walks.

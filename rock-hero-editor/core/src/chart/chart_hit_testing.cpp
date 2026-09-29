@@ -1,6 +1,7 @@
 #include "chart/chart_hit_testing.h"
 
 #include <cmath>
+#include <optional>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <utility>
@@ -29,6 +30,37 @@ namespace
     return common::core::visibleEventRange(
         tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 }
+
+// The nearest of one class of targets a press lands on, by horizontal distance to each centre.
+class NearestTarget
+{
+public:
+    explicit NearestTarget(const float press_x) noexcept
+        : m_press_x{press_x}
+    {}
+
+    // Keeps the target when it is nearer the press than any kept before it.
+    void consider(const float center_x, const ChartHitTarget& target)
+    {
+        const float distance = std::abs(m_press_x - center_x);
+        if (!m_best.has_value() || distance < m_best_distance)
+        {
+            m_best = target;
+            m_best_distance = distance;
+        }
+    }
+
+    // The nearest target considered, or nothing when none was.
+    [[nodiscard]] const std::optional<ChartHitTarget>& best() const noexcept
+    {
+        return m_best;
+    }
+
+private:
+    float m_press_x;
+    std::optional<ChartHitTarget> m_best;
+    float m_best_distance{0.0f};
+};
 
 } // namespace
 
@@ -72,38 +104,29 @@ std::optional<ChartHitTarget> chartHitTarget(
 
     const auto [first, last] = candidateRange(tab, geometry, x, x);
 
-    // Heads next, and heads are the LAST note target: a note is addressed at its onset column and
-    // nowhere else. Among overlapping heads the nearest onset center wins.
-    std::optional<std::size_t> best_head;
-    float best_head_distance = 0.0f;
-    for (std::size_t index = first; index < last; ++index)
-    {
-        const common::ui::TabNoteLayout layout =
-            common::ui::tabNoteLayout(geometry, tab.notes[index]);
-        if (!layout.head.contains(x, y))
-        {
-            continue;
-        }
-        const float distance = std::abs(x - layout.onset_x);
-        if (!best_head.has_value() || distance < best_head_distance)
-        {
-            best_head = index;
-            best_head_distance = distance;
-        }
-    }
-    if (best_head.has_value())
-    {
-        return ChartNoteHit{.index = *best_head};
-    }
-
-    // Keyframe marks next: they are drawn ON a tail, so resolving tails first would make
-    // every one of them unclickable. Nearest head center wins among overlapping ones, the same
-    // rule the onset heads use.
-    std::optional<ChartKeyframeHit> best_keyframe;
-    float best_keyframe_distance = 0.0f;
+    // One pass lays every candidate out once and keeps the nearest of each class, and the classes
+    // answer in turn. HEADS first: a note is addressed at its onset column, and its head is the
+    // target a charter reaches for most. Every other FACE next — a keyframe's mark, drawn ON a tail
+    // (so resolving tails first would make every one unclickable), and the chips, each a face of
+    // what owns it: the onset's bend chip reaches its note, a keyframe's bend chip its keyframe.
+    // A chip's box is as wide as the widest amount it can print, since this resolver measures no
+    // text, so letting chips answer before heads would hand a short chip's empty margin a press
+    // meant for the head beside it.
+    NearestTarget heads{x};
+    NearestTarget faces{x};
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
+        const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(geometry, note);
+        if (layout.head.contains(x, y))
+        {
+            heads.consider(layout.onset_x, ChartNoteHit{.index = index});
+        }
+        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            chip.has_value() && chip->contains(x, y))
+        {
+            faces.consider(chip->x + chip->width / 2.0f, ChartNoteHit{.index = index});
+        }
         // A mark is clickable exactly where the lane draws it: within the extent the note is
         // drawn to, the same rule the paint core draws by. The destination chip a keyframe past
         // that extent wears at the crop is a mark, not a target, so it is never asked.
@@ -115,23 +138,27 @@ std::optional<ChartHitTarget> chartHitTarget(
             {
                 continue;
             }
-            const common::ui::TabKeyframeLayout layout =
+            const common::ui::TabKeyframeLayout keyframe_layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
-            if (!layout.box.contains(x, y))
+            const ChartKeyframeHit target{.note_index = index, .keyframe_index = keyframe};
+            if (keyframe_layout.box.contains(x, y))
             {
-                continue;
+                faces.consider(keyframe_layout.center_x, target);
             }
-            const float distance = std::abs(x - layout.center_x);
-            if (!best_keyframe.has_value() || distance < best_keyframe_distance)
+            if (const std::optional<common::ui::TabLayoutRect>& chip = keyframe_layout.bend_chip;
+                chip.has_value() && chip->contains(x, y))
             {
-                best_keyframe = ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe};
-                best_keyframe_distance = distance;
+                faces.consider(chip->x + chip->width / 2.0f, target);
             }
         }
     }
-    if (best_keyframe.has_value())
+    if (heads.best().has_value())
     {
-        return *best_keyframe;
+        return heads.best();
+    }
+    if (faces.best().has_value())
+    {
+        return faces.best();
     }
 
     // AND NOTHING ELSE. A tail is not a target: a note is addressed at the one column where it
@@ -159,9 +186,11 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     std::vector<ChartHitTarget> boxed;
     for (std::size_t index = first; index < last; ++index)
     {
+        // Either face reaches the note: its head, or the chip printing its onset's bend.
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
-        if (intersects(layout.head))
+        const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+        if (intersects(layout.head) || (chip.has_value() && intersects(*chip)))
         {
             boxed.emplace_back(ChartNoteHit{.index = index});
         }
@@ -182,7 +211,8 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             }
             const common::ui::TabKeyframeLayout layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
-            if (intersects(layout.box))
+            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            if (intersects(layout.box) || (chip.has_value() && intersects(*chip)))
             {
                 boxed.emplace_back(
                     ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});

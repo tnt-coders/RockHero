@@ -16,6 +16,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -2867,6 +2868,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .seconds = 5.0,
             .offset = common::core::Fraction{3},
             .mark = common::core::KeyframeCurveMark{},
+            .bend_point = std::size_t{1},
         }});
         const TabKeyframeLayout layout =
             tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
@@ -2887,6 +2889,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .seconds = 3.5,
             .offset = common::core::Fraction{3, 2},
             .mark = common::core::KeyframeCurveMark{},
+            .bend_point = std::nullopt,
         }});
         const TabKeyframeLayout layout =
             tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
@@ -2903,6 +2906,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .seconds = 6.0,
             .offset = common::core::Fraction{4},
             .mark = common::core::KeyframeRestMark{.fret = 7},
+            .bend_point = std::nullopt,
         }});
         const TabKeyframeLayout layout =
             tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
@@ -3377,6 +3381,116 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "
             return painted(metrics, bent(2.0, {past}), false);
         };
         CHECK(worstPixelDelta(heading_for(2.0), heading_for(4.0)) == 0);
+    }
+}
+
+// THE BEND CHIP'S BOX BOUNDS WHAT IT PAINTS, for every amount a chip can print, and the PLATE a
+// selection ring traces is what it paints. The box is the layout manifest's statement of where the
+// chip stands (tabBendChipBox) and a keyframe's click target, so ink spilling out of it would be
+// chip no click reaches; the plate (tabBendChipBounds) must hug the ink, or the ring would claim
+// an extent the chip does not have. The ink is measured, not computed: the pixels a lane with text
+// paints differently from the same lane without, around one drawn point far from the head's own
+// digit. Checked at the shipped lane size and at the text floor, where the fraction font is largest
+// against the box.
+TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    for (const int bounds_height : {240, 120})
+    {
+        const TabLaneMetrics metrics = makeTabLaneMetrics(
+            juce::Rectangle<int>{0, 0, 400, bounds_height},
+            common::core::TimeRange{
+                .start = common::core::TimePosition{},
+                .end = common::core::TimePosition{20.0},
+            },
+            6,
+            6,
+            TabLaneStyle{});
+        REQUIRE(metrics.draw_text);
+        TabLaneMetrics textless = metrics;
+        textless.draw_text = false;
+        const auto painted = [bounds_height](
+                                 const TabLaneMetrics& lane,
+                                 const common::core::NoteViewState& subject) {
+            common::core::ChartViewState state;
+            state.open_strings = common::core::testing::standardTuning();
+            state.notes = {subject};
+            indexVisibleRanges(state);
+            const juce::Image image{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, bounds_height, true)};
+            juce::Graphics graphics{image};
+            paintTabLane(graphics, lane, state);
+            return image;
+        };
+        // Every quarter step up to the ceiling, the widest being a whole step and a fraction.
+        const auto quarters = static_cast<int>(std::lround(
+            common::core::g_bend_ceiling_semitones / common::core::g_bend_quarter_step_semitones));
+        for (int quarter = 1; quarter <= quarters; ++quarter)
+        {
+            const double semitones =
+                static_cast<double>(quarter) * common::core::g_bend_quarter_step_semitones;
+            // The head's digit stands at x = 40; the point's chip at x = 200.
+            const common::core::NoteViewState note{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 16.0,
+                .ink_end_seconds = 16.0,
+                .string = 3,
+                .fret = 7,
+                .bend = {common::core::BendPointViewState{.seconds = 10.0, .semitones = semitones}},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+            };
+            const juce::Image with_text = painted(metrics, note);
+            const juce::Image without_text = painted(textless, note);
+            int ink_left = with_text.getWidth();
+            int ink_right = -1;
+            int ink_top = with_text.getHeight();
+            int ink_bottom = -1;
+            for (int y = 0; y < with_text.getHeight(); ++y)
+            {
+                for (int x = 100; x < with_text.getWidth(); ++x)
+                {
+                    if (with_text.getPixelAt(x, y) != without_text.getPixelAt(x, y))
+                    {
+                        ink_left = std::min(ink_left, x);
+                        ink_right = std::max(ink_right, x);
+                        ink_top = std::min(ink_top, y);
+                        ink_bottom = std::max(ink_bottom, y);
+                    }
+                }
+            }
+            const TabLayoutRect box = tabBendChipBox(
+                metrics,
+                note,
+                metrics.x(10.0),
+                bendCurveY(metrics, metrics.laneY(3), semitones),
+                10.0,
+                note.ink_end_seconds);
+            INFO("lane height " << bounds_height << ", " << semitones << " semitones");
+            INFO(
+                "ink columns " << ink_left << ".." << ink_right << " of box " << box.x << ".."
+                               << box.x + box.width);
+            REQUIRE(ink_right >= 0);
+            // The chip's one-pixel border straddles the box's edge and antialiases one pixel past
+            // it, on every side alike.
+            constexpr float border = 1.0f;
+            CHECK(static_cast<float>(ink_left) >= std::floor(box.x - border));
+            CHECK(static_cast<float>(ink_right) < std::ceil(box.x + box.width + border));
+            CHECK(static_cast<float>(ink_top) >= std::floor(box.y - border));
+            CHECK(static_cast<float>(ink_bottom) < std::ceil(box.y + box.height + border));
+            // And the plate a selection ring traces IS the painted chip: its edges fall within a
+            // border of the ink's on every side, so the ring hugs the chip, and it sits inside
+            // the box.
+            const juce::Rectangle<float> plate = tabBendChipBounds(metrics, semitones, box);
+            CHECK(std::abs(static_cast<float>(ink_left) - plate.getX()) <= 2.0f * border);
+            CHECK(std::abs(static_cast<float>(ink_right + 1) - plate.getRight()) <= 2.0f * border);
+            CHECK(std::abs(static_cast<float>(ink_top) - plate.getY()) <= 2.0f * border);
+            CHECK(
+                std::abs(static_cast<float>(ink_bottom + 1) - plate.getBottom()) <= 2.0f * border);
+            CHECK(plate.getX() >= box.x);
+            CHECK(plate.getRight() <= box.x + box.width);
+        }
     }
 }
 

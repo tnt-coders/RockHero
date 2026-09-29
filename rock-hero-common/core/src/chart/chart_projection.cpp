@@ -597,8 +597,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             // Bound to locals so each optional check and its access are provably the same object.
             const std::optional<double>& bend = keyframe.bend;
             const std::optional<int>& fret = keyframe.fret;
+            std::optional<std::size_t> bend_point;
             if (bend.has_value())
             {
+                bend_point = view.bend.size();
                 view.bend.push_back(
                     BendPointViewState{.seconds = keyframe_seconds, .semitones = *bend});
             }
@@ -624,6 +626,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                     .seconds = keyframe_seconds,
                     .offset = keyframe.offset,
                     .mark = mark,
+                    .bend_point = bend_point,
                 });
         }
         state.notes.push_back(std::move(view));

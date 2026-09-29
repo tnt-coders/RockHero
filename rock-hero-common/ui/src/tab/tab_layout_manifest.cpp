@@ -1,7 +1,9 @@
 #include "tab/tab_layout_manifest.h"
 
 #include <algorithm>
+#include <compare>
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <variant>
 
@@ -46,6 +48,23 @@ TabNoteLayout tabNoteLayout(
     layout.center_y = geometry.laneY(note.string);
     layout.head_size = geometry.headSize();
     layout.head = tabSlotHeadSquare(geometry, note.start_seconds, note.string);
+    // The onset's own bend point opens the curve at the onset's instant; its chip stands above the
+    // head. The extent passed is the ink's: an onset's chip never states the ring's end, so the
+    // extent never reaches it.
+    if (!note.bend.empty() && geometry.draw_text)
+    {
+        const common::core::BendPointViewState& onset = note.bend.front();
+        if (std::is_eq(onset.seconds <=> note.start_seconds))
+        {
+            layout.bend_chip = tabBendChipBox(
+                geometry,
+                note,
+                layout.onset_x,
+                bendCurveY(geometry, layout.center_y, onset.semitones),
+                onset.seconds,
+                note.ink_end_seconds);
+        }
+    }
     return layout;
 }
 
@@ -135,10 +154,42 @@ TabKeyframeLayout tabSlideStopLayout(
     return layout;
 }
 
+// Mirrors drawBendLines' chips, which centre the measured "<slur><amount>" text on this box.
+TabLayoutRect tabBendChipBox(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
+    const float anchor_y, const double point_seconds, const double drawn_end) noexcept
+{
+    const float text_height = geometry.fretTextHeight();
+    // The widest amount a chip prints, the slur, a whole step and a fraction ("2 3/4"), in
+    // fret-text heights: it measures 2.9 at the shipped lane and 3.0 at the text floor, and the
+    // margin is for other platforms' glyph widths. The paint core's tests hold every amount inside
+    // it.
+    constexpr float widest_text_heights = 3.2f;
+    const float width = text_height * widest_text_heights + 6.0f;
+    const float height = text_height + 2.0f;
+    const float center_y = geometry.laneY(note.string);
+    const bool over_head = anchor_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f;
+    const float chip_y = over_head
+                             ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
+                             : anchor_y - geometry.tail_height / 2.0f;
+    float chip_x = anchor_x;
+    if (const std::optional<float> limit =
+            endChipRightLimit(geometry, note, point_seconds, drawn_end);
+        limit.has_value())
+    {
+        chip_x = std::min(chip_x, *limit - width / 2.0f);
+    }
+    return TabLayoutRect{
+        .x = chip_x - width / 2.0f,
+        .y = chip_y - height / 2.0f,
+        .width = width,
+        .height = height,
+    };
+}
+
 // A stop's keyframe defers to the stop's own layout. A point riding the curve stands where
 // drawBendDots fills its dot, where the drawn curve runs at its instant; a resting keyframe's head
-// is the
-// linked head at its instant, exactly as a stop's.
+// is the linked head at its instant, exactly as a stop's.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const common::core::KeyframeViewState& keyframe, const double drawn_end)
@@ -148,7 +199,7 @@ TabKeyframeLayout tabKeyframeLayout(
     at_instant.center_x = geometry.x(std::min(keyframe.seconds, drawn_end));
     at_instant.center_y = geometry.laneY(note.string);
     at_instant.head_size = geometry.headSize();
-    return std::visit(
+    TabKeyframeLayout keyframe_layout = std::visit(
         common::core::Overloaded{
             [&](const common::core::KeyframeStopMark& stop) {
                 return tabSlideStopLayout(geometry, note, stop.stop, drawn_end);
@@ -169,6 +220,21 @@ TabKeyframeLayout tabKeyframeLayout(
             },
         },
         keyframe.mark);
+    // The chip printing the keyframe's bend, anchored where the drawn curve reaches that amount.
+    // It exists only where the lane prints text, as the paint core draws it.
+    if (const std::optional<std::size_t> point = keyframe.bend_point;
+        point.has_value() && geometry.draw_text)
+    {
+        const common::core::BendPointViewState& bend = note.bend[*point];
+        keyframe_layout.bend_chip = tabBendChipBox(
+            geometry,
+            note,
+            geometry.x(bend.seconds),
+            bendCurveY(geometry, at_instant.center_y, bend.semitones),
+            bend.seconds,
+            drawn_end);
+    }
+    return keyframe_layout;
 }
 
 } // namespace rock_hero::common::ui

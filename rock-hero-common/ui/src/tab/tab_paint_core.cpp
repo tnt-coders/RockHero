@@ -100,6 +100,41 @@ constexpr float g_bend_fraction_scale{1.30f};
     return font.height() + 2.0f;
 }
 
+// The room a floating chip's plate leaves either side of its text.
+constexpr float g_floating_chip_padding{3.0f};
+
+// THE ONE measure of a floating chip's plate: its text in the fret font and any fraction in the
+// fraction font, padded either side and centred on the chip's anchor. The painter fills it and a
+// host's selection ring traces it (tabBendChipBounds, tabSlideChipBounds), so the two cannot part.
+[[nodiscard]] juce::Rectangle<float> floatingChipPlate(
+    const TabLaneMetrics& metrics, const juce::Point<float> center, const juce::String& text,
+    const juce::String& fraction)
+{
+    const float fraction_width =
+        fraction.isEmpty() ? 0.0f : static_cast<float>(metrics.fraction_font.width(fraction));
+    const float text_width = static_cast<float>(metrics.fret_font.width(text)) + fraction_width;
+    return juce::Rectangle<float>{
+        center.x - text_width / 2.0f - g_floating_chip_padding,
+        center.y - metrics.fret_font.height() / 2.0f - 1.0f,
+        text_width + g_floating_chip_padding * 2.0f,
+        laneChipHeight(metrics.fret_font)
+    };
+}
+
+// The centre of a layout box, where the chip standing in it centres its plate.
+[[nodiscard]] juce::Point<float> layoutBoxCenter(const TabLayoutRect& box)
+{
+    return {box.x + box.width / 2.0f, box.y + box.height / 2.0f};
+}
+
+// What a bend chip prints: the slur, then the amount (tabBendAmountText).
+[[nodiscard]] TabBendAmountText bendChipLabel(const double semitones)
+{
+    TabBendAmountText label = tabBendAmountText(semitones);
+    label.text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} + label.text;
+    return label;
+}
+
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
 // blue channel read too loud next to the blue, so the arpeggio tier sits darker.
 constexpr double g_shape_mark_brightness{1.5};
@@ -340,10 +375,6 @@ struct LaneStyles
 struct LabelChip
 {
     juce::Point<float> position;
-    // Where set, the box shifts left until its right edge is at or before this x (a chip stating a
-    // ring's end short of the head standing there, endChipRightLimit). Applied where the box is
-    // measured, so no second copy of the chip's width exists.
-    std::optional<float> right_limit;
     juce::String text;
     // Printed after the text in the lane's fraction font; empty on every chip but a bend amount
     // with a quarter-step part (tabBendAmountText).
@@ -1227,9 +1258,6 @@ void drawSlideLines(
             slide_labels.push_back(
                 LabelChip{
                     .position = {layout.center_x, layout.center_y},
-                    // The manifest's box already ends short of a head at the end, and the painted
-                    // chip is never wider than that box.
-                    .right_limit = std::nullopt,
                     // Through the same head-label rule, not a raw fret: a stopped harmonic labels
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
@@ -1420,20 +1448,16 @@ void drawBendLines(
             !cut || (std::is_neq(point.semitones <=> last_semitones) && inked(note, drawn_end));
         if (chip && metrics.draw_text)
         {
-            // Chips sit on the bend line, or above the head when the bend is at the onset. At the
-            // ring's END where it stands on a head of its own string, the chip ends short of that
-            // head (endChipRightLimit), so it reads as the ribbon's value and not the head's.
-            const bool over_head = to.x <= onset_x + metrics.note_height / 2.0f;
-            const float chip_y = over_head ? center_y - metrics.note_height / 2.0f -
-                                                 metrics.fret_font.height() / 2.0f - 1.0f
-                                           : to.y - metrics.tail_height / 2.0f;
-            const TabBendAmountText amount = tabBendAmountText(point.semitones);
+            // Where the chip stands is the layout manifest's one statement (tabBendChipBox), which
+            // the hit tester reads for a keyframe's chip; the measured text centres on its box.
+            const TabLayoutRect box =
+                tabBendChipBox(metrics, note, to.x, to.y, point.seconds, drawn_end);
+            const TabBendAmountText label = bendChipLabel(point.semitones);
             bend_chips.push_back(
                 LabelChip{
-                    .position = {to.x, chip_y},
-                    .right_limit = endChipRightLimit(metrics, note, point.seconds, drawn_end),
-                    .text = juce::String{juce::CharPointer_UTF8{"\xE3\x83\x8E"}} + amount.text,
-                    .fraction = amount.fraction,
+                    .position = layoutBoxCenter(box),
+                    .text = label.text,
+                    .fraction = label.fraction,
                     // The string's own head inks, ring and fill, so the amount reads as the
                     // string's; the fret-hand chips' neutral chrome is the lane's, not a string's.
                     .background = style[Ink::Inner],
@@ -2524,6 +2548,23 @@ juce::Rectangle<float> tabFhpChipBounds(
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
+juce::Rectangle<float> tabBendChipBounds(
+    const TabLaneMetrics& metrics, const double semitones, const TabLayoutRect& box)
+{
+    const TabBendAmountText label = bendChipLabel(semitones);
+    return floatingChipPlate(metrics, layoutBoxCenter(box), label.text, label.fraction);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. The label is drawSlideLines' own.
+juce::Rectangle<float> tabSlideChipBounds(
+    const TabLaneMetrics& metrics, const common::core::NoteViewState& note, const std::size_t stop,
+    const TabLayoutRect& box)
+{
+    return floatingChipPlate(
+        metrics, layoutBoxCenter(box), tabNoteHeadText(note, note.slides[stop].fret), {});
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
 void drawTabFhpChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp,
     const float left_x)
@@ -2994,63 +3035,55 @@ void paintTabLane(
 
     // Floating label chips draw over every head, like Charter's slideFrets and bendValues
     // layers: white text on the per-string chip color collected during the tail pass.
-    const auto draw_chips =
-        [&](const std::vector<LabelChip>& chips, const TabLaneFont& font, float pad) {
-            for (const LabelChip& chip : chips)
+    const auto draw_chips = [&](const std::vector<LabelChip>& chips) {
+        for (const LabelChip& chip : chips)
+        {
+            const juce::Rectangle<float> box =
+                floatingChipPlate(metrics, chip.position, chip.text, chip.fraction);
+            const auto fraction_width =
+                chip.fraction.isEmpty()
+                    ? 0.0f
+                    : static_cast<float>(metrics.fraction_font.width(chip.fraction));
+            std::optional<ScopedTransparencyLayer> chip_layer;
+            const juce::Rectangle<int> chip_bounds = box.getSmallestIntegerContainer();
+            if (chip.opacity < 1.0f && g.clipRegionIntersects(chip_bounds))
             {
-                const auto fraction_width =
-                    chip.fraction.isEmpty()
-                        ? 0.0f
-                        : static_cast<float>(metrics.fraction_font.width(chip.fraction));
-                const auto text_width = static_cast<float>(font.width(chip.text)) + fraction_width;
-                const float box_width = text_width + pad * 2.0f;
-                const float centered_x = chip.position.x - box_width / 2.0f;
-                const float box_x = chip.right_limit.has_value()
-                                        ? std::min(centered_x, *chip.right_limit - box_width)
-                                        : centered_x;
-                const juce::Rectangle<float> box{
-                    box_x,
-                    chip.position.y - font.height() / 2.0f - 1.0f,
-                    box_width,
-                    laneChipHeight(font)
-                };
-                std::optional<ScopedTransparencyLayer> chip_layer;
-                const juce::Rectangle<int> chip_bounds = box.getSmallestIntegerContainer();
-                if (chip.opacity < 1.0f && g.clipRegionIntersects(chip_bounds))
-                {
-                    chip_layer.emplace(g, chip_bounds, chip.opacity);
-                }
-                g.setColour(chip.background);
-                g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
-                if (chip.border != chip.background)
-                {
-                    g.setColour(chip.border);
-                    g.drawRoundedRectangle(box, g_lane_chip_corner_radius, 1.0f);
-                }
-                if (chip.opaque_ink)
-                {
-                    chip_layer.reset();
-                }
-                g.setColour(chip.ink);
-                // The text keeps the box the fraction leaves it, and the fraction follows it; each
-                // font centres its own ink on the chip's centre line, so the two sit level.
-                const juce::Rectangle<float> text_box = box.withTrimmedRight(fraction_width);
-                font.draw(g, chip.text, text_box);
-                if (!chip.fraction.isEmpty())
-                {
-                    metrics.fraction_font.draw(
-                        g,
-                        chip.fraction,
-                        juce::Rectangle<float>{
-                            text_box.getRight() - pad, box.getY(), fraction_width, box.getHeight()
-                        });
-                }
+                chip_layer.emplace(g, chip_bounds, chip.opacity);
             }
-        };
+            g.setColour(chip.background);
+            g.fillRoundedRectangle(box, g_lane_chip_corner_radius);
+            if (chip.border != chip.background)
+            {
+                g.setColour(chip.border);
+                g.drawRoundedRectangle(box, g_lane_chip_corner_radius, 1.0f);
+            }
+            if (chip.opaque_ink)
+            {
+                chip_layer.reset();
+            }
+            g.setColour(chip.ink);
+            // The text keeps the box the fraction leaves it, and the fraction follows it; each
+            // font centres its own ink on the chip's centre line, so the two sit level.
+            const juce::Rectangle<float> text_box = box.withTrimmedRight(fraction_width);
+            metrics.fret_font.draw(g, chip.text, text_box);
+            if (!chip.fraction.isEmpty())
+            {
+                metrics.fraction_font.draw(
+                    g,
+                    chip.fraction,
+                    juce::Rectangle<float>{
+                        text_box.getRight() - g_floating_chip_padding,
+                        box.getY(),
+                        fraction_width,
+                        box.getHeight()
+                    });
+            }
+        }
+    };
     if (metrics.draw_text)
     {
-        draw_chips(slide_labels, metrics.fret_font, 3.0f);
-        draw_chips(bend_chips, metrics.fret_font, 3.0f);
+        draw_chips(slide_labels);
+        draw_chips(bend_chips);
     }
 }
 

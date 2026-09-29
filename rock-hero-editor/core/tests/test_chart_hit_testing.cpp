@@ -148,11 +148,13 @@ namespace
                      .seconds = 6.0,
                      .offset = common::core::Fraction{2},
                      .mark = common::core::KeyframeStopMark{.stop = 0},
+                     .bend_point = std::nullopt,
                  },
                  common::core::KeyframeViewState{
                      .seconds = 10.0,
                      .offset = common::core::Fraction{4},
                      .mark = common::core::KeyframeStopMark{.stop = 1},
+                     .bend_point = std::nullopt,
                  }},
             .vibrato = {},
         },
@@ -660,6 +662,7 @@ TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][char
                 .seconds = 6.0,
                 .offset = common::core::Fraction{2},
                 .mark = common::core::KeyframeCurveMark{},
+                .bend_point = std::size_t{1},
             }},
             .vibrato = {},
         },
@@ -680,6 +683,105 @@ TEST_CASE("Chart hit testing reaches a bend-only point at its dot", "[core][char
             dot.box.y,
             dot.box.x + dot.box.width,
             dot.box.y + dot.box.height) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
+}
+
+// A CHIP IS A FACE OF WHAT OWNS IT. The chip printing a keyframe's bend reaches that keyframe, and
+// the chip printing the onset's own bend above the head reaches the note, by a click and by a box
+// drawn around the chip alone. A head still answers before any chip over it: a chip's box is as
+// wide as the widest amount it can print, so a chip answering first would hand its empty margin a
+// press meant for the head beside it.
+TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[core][chart]")
+{
+    // A whole step reached at 6.0s (x = 120) on a note struck at 2.0s (x = 40), and a small bend
+    // point at 9.5s (x = 190) just before the next head of the same string at 10.0s (x = 200).
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 10.0,
+            .string = 3,
+            .fret = 5,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 6.0, .semitones = 2.0},
+                 common::core::BendPointViewState{.seconds = 9.5, .semitones = 0.5}},
+            .slides = {},
+            .keyframes =
+                {common::core::KeyframeViewState{
+                     .seconds = 6.0,
+                     .offset = common::core::Fraction{2},
+                     .mark = common::core::KeyframeCurveMark{},
+                     .bend_point = std::size_t{1},
+                 },
+                 common::core::KeyframeViewState{
+                     .seconds = 9.5,
+                     .offset = common::core::Fraction{15, 4},
+                     .mark = common::core::KeyframeCurveMark{},
+                     .bend_point = std::size_t{2},
+                 }},
+            .vibrato = {},
+        },
+        common::core::NoteViewState{
+            .start_seconds = 10.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = 12.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+        },
+    };
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    REQUIRE(geometry.draw_text);
+    const common::core::NoteViewState& note = tab.notes.front();
+    const auto in_box = [&tab, &geometry](const common::ui::TabLayoutRect& box) {
+        return chartTargetsInBox(
+            tab, geometry, box.x, box.y, box.x + box.width, box.y + box.height);
+    };
+
+    const std::optional<common::ui::TabLayoutRect> point_chip =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ink_end_seconds)
+            .bend_chip;
+    REQUIRE(point_chip.has_value());
+    if (point_chip.has_value())
+    {
+        CHECK(
+            chartHitTarget(
+                tab,
+                geometry,
+                point_chip->x + point_chip->width / 2.0f,
+                point_chip->y + point_chip->height / 2.0f) == keyframeTarget(0, 0));
+        CHECK(in_box(*point_chip) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
+    }
+
+    const std::optional<common::ui::TabLayoutRect> onset_chip =
+        common::ui::tabNoteLayout(geometry, note).bend_chip;
+    REQUIRE(onset_chip.has_value());
+    if (onset_chip.has_value())
+    {
+        CHECK(
+            chartHitTarget(
+                tab,
+                geometry,
+                onset_chip->x + onset_chip->width / 2.0f,
+                onset_chip->y + onset_chip->height / 2.0f) == noteTarget(0));
+        CHECK(in_box(*onset_chip) == (std::vector<ChartHitTarget>{noteTarget(0)}));
+    }
+
+    // The small bend's chip box reaches over the next head's centre; the head answers there.
+    const std::optional<common::ui::TabLayoutRect> near_chip =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.back(), note.ink_end_seconds)
+            .bend_chip;
+    REQUIRE(near_chip.has_value());
+    if (near_chip.has_value())
+    {
+        REQUIRE(near_chip->contains(200.0f, geometry.laneY(3)));
+    }
+    CHECK(chartHitTarget(tab, geometry, 200.0f, geometry.laneY(3)) == noteTarget(1));
 }
 
 // A keyframe's identity is (note slot, OFFSET), which is what makes the selection key a sum

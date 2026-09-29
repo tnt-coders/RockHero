@@ -102,6 +102,15 @@ struct TabNoteLayout
 
     /*! \brief Bounding rectangle of the layered head shape. */
     TabLayoutRect head{};
+
+    /*!
+    \brief Box of the chip printing the onset's own bend above the head (\ref tabBendChipBox), or
+    nothing where the note's curve does not open at its onset or the lane prints no text.
+
+    The note's SECOND FACE, on the rule every chip follows: a chip is a face of what owns it, so a
+    click on it reaches the note and a selection of the note rings it.
+    */
+    std::optional<TabLayoutRect> bend_chip{};
 };
 
 /*!
@@ -216,6 +225,15 @@ struct TabKeyframeLayout
     too small a target to find.
     */
     TabLayoutRect box{};
+
+    /*!
+    \brief Box of the chip printing the bend this keyframe states (\ref tabBendChipBox), or nothing
+    where it states none or the lane prints no text.
+
+    The keyframe's SECOND FACE: a click on it reaches the keyframe as a click on the mark does, and
+    a selection rings both.
+    */
+    std::optional<TabLayoutRect> bend_chip{};
 };
 
 /*!
@@ -247,6 +265,29 @@ none at all, yet both lay out here.
     double drawn_end) noexcept;
 
 /*!
+\brief Computes the box of a chip printing a bend amount, for the point the drawn curve reaches.
+
+THE ONE statement of where a bend chip stands, read by the paint core that draws every bend chip
+and, through \ref tabKeyframeLayout, by the hit tester that bounds a click on a keyframe's. The chip
+sits half a tail above the curve at its anchor, or above the head where the anchor is the onset's;
+where it prints the end of a ring that stands on a head of its own string it ends short of that
+head (\ref endChipRightLimit). The box is as wide as the widest amount a chip can print, so it
+bounds the painted chip, which centres on it, whatever the amount.
+
+\param geometry Lane geometry the notation was painted with.
+\param note Seconds-resolved note the chip belongs to.
+\param anchor_x Column the drawn curve reaches the amount at: the point's own, or the crop for a
+       destination chip.
+\param anchor_y Height the drawn curve stands at there.
+\param point_seconds The instant of the point whose amount the chip prints.
+\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\return The chip's box in the lane bounds' pixel space.
+*/
+[[nodiscard]] TabLayoutRect tabBendChipBox(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note, float anchor_x,
+    float anchor_y, double point_seconds, double drawn_end) noexcept;
+
+/*!
 \brief Computes the pixel layout of one keyframe's mark under the given lane geometry, for the
 extent the note is drawn to.
 
@@ -254,6 +295,7 @@ THE ONE statement of where any keyframe's mark stands, whatever it states (\ref
 common::core::KeyframeMark): a keyframe stating a position wears its stop's mark (\ref
 tabSlideStopLayout); one changing the vibrato wears a linked head on the string line at its
 instant; any other rides the bend curve, its dot where the drawn curve runs (\ref bendCurveYAt).
+A keyframe stating a bend also carries the chip printing it (\ref TabKeyframeLayout::bend_chip).
 Read by the paint core, the hit tester and the host's selection overlays alike, so a mark and its
 target cannot part.
 

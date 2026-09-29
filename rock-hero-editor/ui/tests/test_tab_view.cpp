@@ -1598,6 +1598,95 @@ TEST_CASE(
         arrival_alone.getPixelAt(probe_x, probe_y));
 }
 
+// A CHIP IS A FACE OF WHAT OWNS IT, so a selected bend point rings its chip as well as its dot, and
+// the ring traces the chip AS PAINTED: the chip's click box is as wide as the widest amount it can
+// print, and a ring on that box would circle empty lane around a short amount. Probed as the rows
+// of the chip between the box's edge and the painted plate's, which the ring must leave untouched,
+// against the plate's own edge, which it must mark.
+TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 400 px across 20 s: a half-step point at 10.0s (x = 200) on a note struck at 2.0s.
+    const common::core::NoteViewState note{
+        .start_seconds = 2.0,
+        .ring_end_seconds = 16.0,
+        .ink_end_seconds = 16.0,
+        .string = 3,
+        .fret = 7,
+        .bend =
+            {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+             common::core::BendPointViewState{.seconds = 10.0, .semitones = 1.0}},
+        .slides = {},
+        .keyframes = {common::core::KeyframeViewState{
+            .seconds = 10.0,
+            .offset = common::core::Fraction{8},
+            .mark = common::core::KeyframeCurveMark{},
+            .bend_point = std::size_t{1},
+        }},
+        .vibrato = {},
+    };
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    TabView view{};
+    view.setBounds(0, 0, 400, 240);
+    view.setVisibleTimeline(timeline);
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {note};
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
+    const std::optional<common::ui::TabLayoutRect> chip =
+        common::ui::tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds)
+            .bend_chip;
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    const juce::Rectangle<float> plate = common::ui::tabBendChipBounds(metrics, 1.0, *chip);
+    // The short amount leaves a margin of box beside the plate wide enough to probe clear of the
+    // ring's own stroke.
+    REQUIRE(plate.getX() - chip->x > 5.0f);
+
+    const juce::Image plain = render();
+    view.setEditState(
+        core::ChartEditViewState{
+            .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
+        });
+    const juce::Image selected = render();
+
+    const int top = juce::roundToInt(plate.getY());
+    const int bottom = juce::roundToInt(plate.getBottom());
+    const auto differs_in_columns = [&](const int from_x, const int to_x) {
+        for (int y = top; y <= bottom; ++y)
+        {
+            for (int x = from_x; x <= to_x; ++x)
+            {
+                if (selected.getPixelAt(x, y) != plain.getPixelAt(x, y))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    const int plate_left = juce::roundToInt(plate.getX());
+    CHECK(differs_in_columns(plate_left - 1, plate_left + 1));
+    CHECK_FALSE(differs_in_columns(juce::roundToInt(chip->x), plate_left - 3));
+}
+
 // The controller-published armed caret renders as a white square outline on its empty slot
 // (the marker model); clearing the published caret clears it.
 TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")

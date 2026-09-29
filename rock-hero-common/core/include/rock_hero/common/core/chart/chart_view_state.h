@@ -458,6 +458,15 @@ struct KeyframeViewState
     KeyframeMark mark;
 
     /*!
+    \brief Index of the bend point this keyframe states, into \ref NoteViewState::bend, or nothing
+    where it states no bend.
+
+    The chip printing that amount is the keyframe's second face beside its mark, so a click on
+    either reaches the keyframe, as \ref KeyframeStopMark::stop names the stop its mark draws.
+    */
+    std::optional<std::size_t> bend_point;
+
+    /*!
     \brief Compares two keyframes by their stored fields.
     \param lhs Left-hand keyframe.
     \param rhs Right-hand keyframe.
@@ -466,7 +475,7 @@ struct KeyframeViewState
     friend bool operator==(const KeyframeViewState& lhs, const KeyframeViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.offset == rhs.offset &&
-               lhs.mark == rhs.mark;
+               lhs.mark == rhs.mark && lhs.bend_point == rhs.bend_point;
     }
 };
 

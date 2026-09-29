@@ -423,6 +423,13 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
+    // A selected chip's ring traces the plate the lane painted, as the selected fret-hand chip's
+    // does, so the ring claims the chip's own extent rather than the wider box its click lands in.
+    const auto ring_chip_plate = [&g, accent](const juce::Rectangle<float>& plate) {
+        g.setColour(accent);
+        g.drawRect(plate, overlayRingStroke(plate.getHeight()));
+    };
+
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
@@ -446,6 +453,13 @@ void TabView::paint(juce::Graphics& g)
             layout.center_y,
             layout.head_size,
             overlayRingStroke(layout.head_size));
+        // The chip printing the onset's bend is the note's second face, so it wears the ring too.
+        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            chip.has_value())
+        {
+            ring_chip_plate(
+                common::ui::tabBendChipBounds(metrics, note.bend.front().semitones, *chip));
+        }
     }
 
     // The head a published keyframe ref names, resolved once for every keyframe overlay — the
@@ -477,7 +491,7 @@ void TabView::paint(juce::Graphics& g)
     };
 
     // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
-    // them — the linked head at a junction or a resting point, the slide-out chip's box at a
+    // them — the linked head at a junction or a resting point, the slide-out chip's plate at a
     // slide-out, a disc around a bend-only point's dot — one selection idiom for every selectable,
     // so a selected junction reads exactly as a selected head does.
     //
@@ -507,13 +521,27 @@ void TabView::paint(juce::Graphics& g)
                         overlayRingStroke(layout.head_size));
                     break;
                 case common::ui::TabKeyframeShape::Chip:
-                    g.setColour(accent);
-                    g.drawRect(mark_bounds, overlayRingStroke(layout.head_size));
+                    if (const auto* const stop =
+                            std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
+                        stop != nullptr)
+                    {
+                        ring_chip_plate(
+                            common::ui::tabSlideChipBounds(metrics, note, stop->stop, box));
+                    }
                     break;
                 case common::ui::TabKeyframeShape::Dot:
                     g.setColour(accent);
                     g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
                     break;
+            }
+            // The chip printing the keyframe's bend is its second face, so it wears the ring too:
+            // a click on either selects the keyframe, and the selection shows on both.
+            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            const std::optional<std::size_t>& point = keyframe.bend_point;
+            if (chip.has_value() && point.has_value())
+            {
+                ring_chip_plate(
+                    common::ui::tabBendChipBounds(metrics, note.bend[*point].semitones, *chip));
             }
         });
 

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <utility>
 #include <vector>
@@ -37,6 +38,7 @@ keys a keyframe by its offset.
                 .seconds = slides[index].seconds,
                 .offset = Fraction{static_cast<int>(index) + 1},
                 .mark = KeyframeStopMark{.stop = index},
+                .bend_point = std::nullopt,
             });
     }
     return keyframes;

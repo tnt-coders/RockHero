@@ -461,6 +461,34 @@ width derived from this lane's own label font.
     const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp, float left_x);
 
 /*!
+\brief Returns the plate a bend chip paints: its measured text, centred on the chip's layout box.
+
+The layout box (\ref tabBendChipBox) is as wide as the widest amount, so it is the click target; the
+plate is the chip as drawn, which a host's selection ring traces so the ring claims the chip's own
+extent. Measured by the one routine the lane paints the chip with.
+
+\param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
+\param semitones The amount the chip prints.
+\param box The chip's layout box.
+\return The plate's bounds, in the metrics' bounds space.
+*/
+[[nodiscard]] juce::Rectangle<float> tabBendChipBounds(
+    const TabLaneMetrics& metrics, double semitones, const TabLayoutRect& box);
+
+/*!
+\brief Returns the plate a slide stop's chip paints: its fret label, centred on the stop's layout
+box (\ref tabSlideStopLayout), the chip as drawn for a host's selection ring to trace.
+\param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
+\param note The note the stop belongs to.
+\param stop Index of the stop in the note's \ref common::core::NoteViewState::slides.
+\param box The stop's layout box.
+\return The plate's bounds, in the metrics' bounds space.
+*/
+[[nodiscard]] juce::Rectangle<float> tabSlideChipBounds(
+    const TabLaneMetrics& metrics, const common::core::NoteViewState& note, std::size_t stop,
+    const TabLayoutRect& box);
+
+/*!
 \brief THE ONE STATEMENT of what a fret-hand-position chip says: the index-finger fret for the
 standard four-fret hand, the full inclusive range ("3-7") for a wider or narrower one.
 
