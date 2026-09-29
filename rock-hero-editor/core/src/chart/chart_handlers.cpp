@@ -451,8 +451,7 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
 // fixed.
 //
 // PRUNED, not cleared: a selection the transition left whole is still the user's scope, including
-// one an armed caret deliberately does not own (armChartFaceHandle keeps a chord selected while
-// the caret reaches one member's satellite or bend chip). The question is the KEY's own — does the
+// one no caret owns (a chord, a marquee). The question is the KEY's own — does the
 // chart still hold what this names (chartHoldsKey) — asked of the kind the key is, and deliberately
 // NOT of what a landing at its slot would address: a ring's END STATEMENT is a real object that no
 // landing addresses (see chartObjectAt), and a selection holding one must survive a transition
@@ -639,13 +638,11 @@ bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) co
 }
 
 // THE one test of whether a face can be stood on: the mark always, a held stop where its satellite
-// is drawn, a bend chip where any of the objects on the slot states a bend — which is also the
-// whole of what `Delete` there acts on, so the face exists exactly where the verb has an operand.
-// The arming, the handle's callers and the read all ask it, so a face is one predicate applied at
-// three moments rather than three rules.
+// is drawn, a bend chip where the object states a bend. The arming and the read both ask it, so a
+// face is one predicate applied at two moments rather than two rules.
 bool EditorController::Impl::chartFaceShown(
     const ChartSlotKey& slot, const ChartCaretFace face,
-    const std::span<const ChartSelectionKey> objects) const
+    const std::optional<ChartSelectionKey>& object) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     switch (face)
@@ -655,29 +652,22 @@ bool EditorController::Impl::chartFaceShown(
         case ChartCaretFace::HeldStop:
             return chartSlotShowsHeldStop(slot);
         case ChartCaretFace::BendChip:
-            return arrangement != nullptr && arrangement->chart.has_value() &&
-                   std::ranges::any_of(objects, [&arrangement](const ChartSelectionKey& object) {
-                       return chartObjectStatesBend(arrangement->chart->notes, object);
-                   });
+            return arrangement != nullptr && arrangement->chart.has_value() && object.has_value() &&
+                   chartObjectStatesBend(arrangement->chart->notes, *object);
     }
     return false;
 }
 
-// The selected objects standing on a slot: one, or a head and the previous ring's END statement
-// together, which is the one pair two keys share a slot in.
-std::vector<ChartSelectionKey> EditorController::Impl::chartSelectionOnSlot(
-    const ChartSlotKey& slot) const
+// The object the armed caret stands on. Armed means the selection is exactly the object under the
+// caret, so it is the selection's one key; a face is therefore always one object's.
+std::optional<ChartSelectionKey> EditorController::Impl::chartCaretObject() const
 {
-    const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    std::vector<ChartSelectionKey> here;
-    for (const ChartSelectionKey& key : chartSelection().keys())
+    const std::vector<ChartSelectionKey> keys = chartSelection().keys();
+    if (armedChartStringCaret() == nullptr || keys.size() != 1)
     {
-        if (chartCaretSlotFor(tempo_map, key) == slot)
-        {
-            here.push_back(key);
-        }
+        return std::nullopt;
     }
-    return here;
+    return keys.front();
 }
 
 // THE caret's face, and the one place a face's precondition is applied at READ time: the stored
@@ -693,8 +683,8 @@ ChartCaretFace EditorController::Impl::chartCaretFace() const
         return ChartCaretFace::Mark;
     }
     const ChartSlotKey slot{.position = caret->position, .string = caret->string};
-    return chartFaceShown(slot, caret->face, chartSelectionOnSlot(slot)) ? caret->face
-                                                                         : ChartCaretFace::Mark;
+    return chartFaceShown(slot, caret->face, chartCaretObject()) ? caret->face
+                                                                 : ChartCaretFace::Mark;
 }
 
 // The stop the digits state: the held one on the held face, and the one that sounds everywhere
@@ -728,18 +718,10 @@ void EditorController::Impl::armChartCaret(
     const std::optional<ChartSelectionKey> landed =
         object.has_value() ? object : chartObjectAt(position, string);
     // A face exists only where it is DRAWN, so a request the landing cannot honour lands on the
-    // mark instead of parking the caret on a face that is not there. Enforced here rather than at
-    // each caller of this funnel — but this is not the only writer of the face: armChartFaceHandle
-    // below writes it too, and deliberately outside this arm, because its whole point is to reach a
-    // face without re-deriving the selection the way this arm does. What makes a stale face
-    // harmless whichever writer left it is the READ (chartCaretFace), which asks this same
-    // predicate again at the moment the face is spent.
-    std::vector<ChartSelectionKey> landing;
-    if (landed.has_value())
-    {
-        landing.push_back(*landed);
-    }
-    if (!chartFaceShown(key, face, landing))
+    // mark instead of parking the caret on a face that is not there. This funnel is the face's one
+    // writer, and the READ (chartCaretFace) asks the same predicate again at the moment the face is
+    // spent, so an edit that takes a face away leaves the caret on the mark.
+    if (!chartFaceShown(key, face, landed))
     {
         face = ChartCaretFace::Mark;
     }
@@ -766,33 +748,6 @@ void EditorController::Impl::armChartCaret(
     // too: this is the funnel behind every caret move — pointer, arrow, jump — and the marker
     // restore at project open, where the loaded chart is already settled and the sweep finds
     // nothing.
-    static_cast<void>(settleChart());
-}
-
-// THE SELECTION HANDLE: a selected object's faces belong to the selection, so reaching for one
-// moves the caret onto it and PRESERVES what is selected. Deliberately not armChartCaret, whose
-// whole job is to re-derive the selection from the slot under it: collapsing a chord to one member
-// because the charter aimed at that member's held stop or bend chip would take the scope away in
-// the very act of naming a face within it. The arrow between a mark and its bend chip is this too:
-// the caret changes face and stays on its slot, so nothing about the selection changes.
-//
-// The SECOND writer of the face, and it applies no precondition of its own: the caller reached
-// here by hitting a face that is drawn, or asked chartFaceShown before stepping onto one, and
-// chartCaretFace asks it again at the read whatever this leaves behind.
-void EditorController::Impl::armChartFaceHandle(const ChartSlotKey& slot, const ChartCaretFace face)
-{
-    settleChartFretEntry();
-    disarmChartVerbWindow();
-    setArmedCaret(
-        ChartCaret{
-            .position = slot.position,
-            .string = slot.string,
-            .face = face,
-            .lane = {},
-        });
-    // A caret move is a settle point whatever else it does, which is the one thing this shares with
-    // the arm it deliberately is not: the press that reached this stop is where a claim the chart
-    // no longer justifies gets written down as the pick it plays as.
     static_cast<void>(settleChart());
 }
 
@@ -1226,20 +1181,12 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         return;
     }
 
-    // A SATELLITE IS ITS NOTE'S HELD FACE and A BEND CHIP ITS OBJECT'S BEND, always: a press on
-    // one puts the caret on that face — the digits then state the held stop, `Delete` takes the
-    // bend — the pointer twin of stepping the caret onto it, and the whole of what makes each an
-    // independent target rather than a second selection kind. Ctrl and the double click keep
-    // their own meanings below: they are selection gestures, and a face selects its object like
-    // any other mark.
+    // A SATELLITE IS ITS NOTE'S HELD FACE and A BEND CHIP ITS OBJECT'S BEND, always: a click on
+    // one selects its object alone with the caret on that face — the digits then state the held
+    // stop, `Delete` takes the bend — the pointer twin of stepping the caret onto it. A face is
+    // one object's, since the caret stands on one object; Ctrl and the double click on a head are
+    // selection gestures, and a face selects its object like any other mark.
     const ChartCaretFace face = chartTargetFace(*gesture.hit_target);
-    // A press that CHANGES the face re-arms even on an already-selected object, and it is the one
-    // reason to: clicking the head of a note whose caret sits on its satellite changes which stop
-    // the next digit states, and a press that left the caret alone would silently point it at the
-    // other one. Every press that does not change it keeps the standing selection and marker
-    // untouched — the gap a future drag-move gesture lives in. Asked against the mark because
-    // every target reaching that branch below addresses an object's own mark.
-    const bool face_changes = chartCaretFace() != ChartCaretFace::Mark;
 
     // The group a double click reaches — the notes at a head's onset, the keyframes at a
     // junction's instant — resolved the same way for the plain form and the Ctrl form.
@@ -1273,39 +1220,30 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         // armChartCaret, so the settle event lands here too.
         static_cast<void>(settleChart());
     }
+    else if (event.clicks >= 2 && face == ChartCaretFace::BendChip)
+    {
+        // A double click on a bend chip RESTATES the bend it prints, the chip's own `Enter`: its
+        // object alone on its chip, with the bend picker open over it (user ruling 2026-09-29).
+        // The chord is still a double click away on the heads.
+        const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
+        armChartCaret(slot.position, slot.string, face, key);
+        runAction(EditorAction::ChooseChartBend{.plane = ChartEntryPlane::Note});
+    }
     else if (event.clicks >= 2)
     {
         chartSelectionMutable().replaceWith(group_at());
         dissolveChartCaretInPlace();
         static_cast<void>(settleChart());
     }
-    else if (face != ChartCaretFace::Mark)
+    else if (!chartSelection().contains(*key))
     {
+        // Arming takes the object the press HIT as the singleton selection, on the face it hit —
+        // the press knows which mark it reached, and at a shared instant the slot cannot say. A
+        // press on an already-selected one keeps the standing selection (and marker) untouched
+        // until the release collapses it onto what it hit — the gap a future drag-move gesture
+        // lives in.
         const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-        // Already-selected takes the HANDLE, which is the whole difference between the two: a
-        // chord's member whose face the charter aimed at must not lose the rest of the chord in
-        // the act of naming a face within it. Where nothing selected it, arming is the ordinary
-        // press — the object becomes the selection, with the caret on the face that was clicked.
-        if (chartSelection().contains(*key))
-        {
-            armChartFaceHandle(slot, face);
-        }
-        else
-        {
-            armChartCaret(slot.position, slot.string, face, key);
-        }
-    }
-    else if (!chartSelection().contains(*key) || face_changes)
-    {
-        // Arming takes the object the press HIT as the singleton selection — the press knows which
-        // mark it reached, and at a shared instant the slot cannot say. A press on an
-        // already-selected one keeps the standing selection (and marker) untouched until
-        // the slide-out collapses it — the gap a future drag-move gesture lives in — unless it
-        // moves the caret off another face of it, which is a change the next key depends on.
-        // The mark every object has: the face branch above took every target that addresses
-        // another one.
-        const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-        armChartCaret(slot.position, slot.string, ChartCaretFace::Mark, key);
+        armChartCaret(slot.position, slot.string, face, key);
     }
     updateView();
 }
@@ -1367,23 +1305,21 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     {
         const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
-        // A completed plain click on a selected note collapses the selection to that note and
-        // arms the caret there (the press deferred both while a drag was still possible); the
-        // second release of a double click leaves the group selection standing.
-        // A FACE is settled entirely by the press, so the collapse skips it: re-arming here would
-        // take back the selection the handle preserved.
-        if (clicked && !gesture.modifiers.ctrl && event.clicks < 2 &&
-            chartTargetFace(*gesture.hit_target) == ChartCaretFace::Mark)
+        // A completed plain click on a selected object collapses the selection to that object and
+        // arms the caret there, on the face the click hit (the press deferred both while a drag
+        // was still possible) — a chord member's chip or satellite as much as its head. The
+        // second release of a double click leaves what the second press made standing.
+        if (clicked && !gesture.modifiers.ctrl && event.clicks < 2)
         {
             if (const std::optional<ChartSelectionKey> key =
                     chartSelectionKeyAt(*gesture.hit_target);
                 key.has_value())
             {
-                // Every target reaching here addresses the object's own head, which is the stop
-                // every object has; the collapse names that object rather than letting the slot
-                // answer, so a click on a mark a head shares its instant with keeps the mark.
+                // The collapse names that object rather than letting the slot answer, so a click
+                // on a mark a head shares its instant with keeps the mark.
                 const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
-                armChartCaret(slot.position, slot.string, ChartCaretFace::Mark, key);
+                armChartCaret(
+                    slot.position, slot.string, chartTargetFace(*gesture.hit_target), key);
             }
         }
         updateView();
@@ -1534,19 +1470,23 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
     }
     // A mark and the bend chip it wears share one slot, the chip drawn above: `Up` from a mark
     // whose object prints one stands on the chip, and `Down` from the chip returns to the mark,
-    // the caret keeping its slot and the selection so that only the face changes. `Up` from the
-    // chip leaves the column like any step, and every arrival lands on a mark. Reach skips faces:
-    // it jumps between groups.
+    // the caret re-arming on the same object so that only the face changes. `Up` from the chip
+    // leaves the column like any step, and every arrival lands on a mark. Reach skips faces: it
+    // jumps between groups.
     if (const ChartCaret* const caret = armedChartStringCaret(); caret != nullptr && !reach)
     {
         const ChartSlotKey slot{.position = caret->position, .string = caret->string};
         const ChartCaretFace face = chartCaretFace();
-        const bool onto_chip =
-            up && face == ChartCaretFace::Mark &&
-            chartFaceShown(slot, ChartCaretFace::BendChip, chartSelectionOnSlot(slot));
+        const std::optional<ChartSelectionKey> object = chartCaretObject();
+        const bool onto_chip = up && face == ChartCaretFace::Mark &&
+                               chartFaceShown(slot, ChartCaretFace::BendChip, object);
         if (onto_chip || (!up && face == ChartCaretFace::BendChip))
         {
-            armChartFaceHandle(slot, onto_chip ? ChartCaretFace::BendChip : ChartCaretFace::Mark);
+            armChartCaret(
+                slot.position,
+                slot.string,
+                onto_chip ? ChartCaretFace::BendChip : ChartCaretFace::Mark,
+                object);
             return;
         }
     }

@@ -391,10 +391,10 @@ chip scrolling in.
 |---|---|---|---|---|
 | **Click empty** | seek + arm caret at grid | seek + arm caret at grid | select region under cursor | Live |
 | **`Ctrl`+click empty** | **nothing** — Ctrl is the membership modifier and an empty slot has no member to toggle, so the standing selection and marker survive a misclick (user ruled 2026-09-09; the off-grid arm it once meant was retired 2026-08-23) | arm caret **off-grid** | (own meaning) | Live · chart |
-| **Click object** | select note + arm caret | select point + arm caret | select region | Live |
+| **Click object** | select note + arm caret — on the FACE clicked: a bend chip or held-stop satellite selects its object ALONE with the caret on that face, even inside a selected chord (a face is one object's; user ruling 2026-09-29, retiring the handle that kept the chord) | select point + arm caret | select region | Live |
 | **`Ctrl`+click object** | **toggle** membership | **toggle** membership (scheduled) `✚` | select (**no toggle**) | Live · `✚` lanes |
 | **`Shift`+click** | time-range select (full-height span) | — same span — | — same span — | `▷52` |
-| **Double-click object** | select **chord** | **property editor** | **rename / pick tone** | Live |
+| **Double-click object** | select **chord** — except on a **bend chip**, where it restates the bend: the object alone on its chip with the bend picker open (the pointer form of `Enter`, as on the marker chips; user ruling 2026-09-29) | **property editor** | **rename / pick tone** | Live |
 | **`Alt`+click** | **NOTHING BUT ARMING THE CARET AND SELECTING WHAT IS THERE** — the plain click's answer, under every modifier (re-ruled 2026-09-11: **a click never creates** on this lane, because every note is typed). The chart's authoring pointer gestures are retired with it; the `Alt` ring REVEAL, `Alt`+wheel and `Alt`+arrows are unaffected | insert on-curve point | **split** region | Live · **chart authoring retired 2026-09-11** |
 | ~~**`Shift+Alt`+click**~~ | ~~the same point verb, its head at the fret in force~~ | ~~insert on-curve point~~ | ~~**split** region~~ | **Retired 2026-09-11** with the fret-in-force default and the pointer's authoring half |
 | ~~**`Alt`+double-click**~~ | ~~a NOTE at the pointer~~ | ~~`✗`~~ | ~~`✗`~~ | **Retired 2026-09-11** — the press-count split it carried existed only because the pointer authored at all |

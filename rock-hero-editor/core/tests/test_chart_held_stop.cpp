@@ -692,10 +692,10 @@ TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
 }
 
 // SATELLITES ARE NOTE-SCOPED, ALWAYS: a satellite is its note's held face, full stop — never a
-// bracket's furniture, whatever is selected when it is pressed. What the selection changes is only
-// how much of it survives: a press on an UNSELECTED note's satellite selects that note and arms its
-// held stop, and a press on a SELECTED one moves the caret there and leaves a wider selection
-// standing, since naming a stop inside a selection must not be what takes the selection away.
+// bracket's furniture, whatever is selected when it is pressed. A click on one selects its note
+// alone with the caret on the held stop, whether or not the note was selected: a face is one
+// object's, because the caret stands on one object, and a wider selection's statements are the
+// letter verbs' (user ruling 2026-09-29, which retired the handle that kept a chord selected).
 TEST_CASE("A satellite is its note's held face whatever is selected", "[core][chart]")
 {
     common::core::Chart chart = makeTappedShapeChart();
@@ -723,17 +723,15 @@ TEST_CASE("A satellite is its note's held face whatever is selected", "[core][ch
         CHECK(edited->notes[1].fret == 5);
     }
 
-    SECTION("selected, a wider selection survives the press")
+    SECTION("selected within a wider selection, it collapses to its note on the held stop")
     {
-        // A WIDER selection is what makes the handle's preservation observable at all: collapsing
-        // to the note aimed at would take the scope away in the very act of naming a stop in it.
         click(fixture.controller, 40.0f, geometry.laneY(1));
         click(fixture.controller, 50.0f, geometry.laneY(3), ChartPointerModifiers{.ctrl = true});
         REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
 
         click(fixture.controller, satelliteX(2.5), geometry.laneY(3));
         CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
-        CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
+        CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
     }
 }
 

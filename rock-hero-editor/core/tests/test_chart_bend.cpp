@@ -57,6 +57,22 @@ constexpr float g_junction_x{80.0f};
     return *caret;
 }
 
+// The onset chip's click box of the one note in `fixture`'s chart, from the published projection.
+[[nodiscard]] std::optional<common::ui::TabLayoutRect> onsetChipOf(
+    const FakeEditorView& view, const std::size_t index)
+{
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    if (state == nullptr)
+    {
+        return std::nullopt;
+    }
+    const std::shared_ptr<const common::core::ChartViewState>& tab = state->tab;
+    REQUIRE(tab != nullptr);
+    REQUIRE(index < tab->notes.size());
+    return common::ui::tabNoteLayout(makeGeometry(), tab->notes[index]).bend_chip;
+}
+
 // What Enter would do right now.
 [[nodiscard]] RestateTarget restateOf(const FakeEditorView& view)
 {
@@ -472,6 +488,51 @@ TEST_CASE("A click on a bend chip puts the caret on it", "[core][chart]")
     // The head, clicked, moves the caret back onto the mark.
     click(fixture.controller, g_onset_x, g_string_3_y);
     CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);
+}
+
+// A click on the chip of a member of a selected chord selects that note ALONE on its chip, exactly
+// as a click on its head selects it alone: a face is one object's (user ruling 2026-09-29). The
+// chord's bends are the letter verb's: `B` over the chord.
+TEST_CASE("A click on a chord member's bend chip collapses to that note", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].bend = 1.0;
+    chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 4, 7));
+    BendFixture fixture{std::move(chart)};
+    doubleClick(fixture.controller, g_onset_x, g_string_3_y);
+    REQUIRE(chartEdit(fixture.view).selected_notes.size() == 2);
+    REQUIRE_FALSE(chartEdit(fixture.view).caret.has_value());
+
+    const std::optional<common::ui::TabLayoutRect> chip = onsetChipOf(fixture.view, 0);
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    click(fixture.controller, chip->x + chip->width / 2.0f, chip->y + chip->height / 2.0f);
+    CHECK(chartEdit(fixture.view).selected_notes == std::vector<std::size_t>{0});
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+}
+
+// A double click on a bend chip restates the bend it prints: its note alone on the chip, with the
+// bend picker open over it (user ruling 2026-09-29). The chord stays a double click on the heads.
+TEST_CASE("A double click on a bend chip opens the bend picker", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].bend = 1.0;
+    BendFixture fixture{std::move(chart)};
+    const std::optional<common::ui::TabLayoutRect> chip = onsetChipOf(fixture.view, 0);
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    REQUIRE_FALSE(fixture.lastPicker().has_value());
+
+    doubleClick(fixture.controller, chip->x + chip->width / 2.0f, chip->y + chip->height / 2.0f);
+    CHECK(fixture.lastPicker().has_value());
+    CHECK(chartEdit(fixture.view).selected_notes == std::vector<std::size_t>{0});
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::BendChip);
 }
 
 } // namespace rock_hero::editor::core

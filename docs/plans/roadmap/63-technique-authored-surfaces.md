@@ -104,8 +104,13 @@ the rules refuse, like any refused verb.
 4. **`Delete` on the chip takes the bend** — through the one withdraw arm `planSetBend`'s clear
    also calls. On a NOTE's pre-bend chip it sets the onset's bend to rest, since an onset always
    states its bend (accepted asymmetry). The face changes what `Delete` does and nothing else.
-5. **Pointer.** Clicking a chip arms the caret on it; clicking the chip of an already-selected
-   note or point arms it without collapsing the selection, exactly as `armChartHeldStopHandle` does.
+5. **Pointer — a face is one object's (RE-RULED 2026-09-29 after a Fable UI review).** Clicking a
+   chip selects its object alone with the caret on it, even when the object is a member of a
+   selected chord — exactly as clicking its head does. The first build kept the chord (the
+   "handle", which the held stop had used since 2026-08-27); it armed a caret over a
+   multi-selection, broke the marker model's arming law, and let a chip-face verb reach members
+   whose chips no ring showed. Chord-wide bend work is `B` over the chord. The held stop follows
+   the same rule, and the handle is gone.
 6. **Drawing (the user's model A).** The caret square stays on the SLOT on every face but the held
    stop's, which is a column of its own; on the `BendChip` face the chip, not the head, wears the
    selection ring. The selection's chips draw OVER the caret square on every face, so the amount
@@ -113,7 +118,10 @@ the rules refuse, like any refused verb.
 7. **`Enter` and `B` on the chip open the bend picker.** `B` already acts on the chip's object;
    `Enter` restates the selection by kind, and a bend is restated by choosing its amount.
    `Ctrl+↑/↓` from the chip jump between groups exactly as from any string.
-8. **No picker on double-click** for now.
+8. **A double-click on a chip opens the bend picker** (re-ruled 2026-09-29): its object alone on
+   the chip, the picker over it — the pointer form of `Enter`, as on the marker chips. The chord
+   stays a double-click on the heads; a held-stop satellite has no picker and double-clicks to the
+   chord.
 9. **Delete on the chip IS the picker's "No bend"** — one planner (`planSetBend` with no amount),
    which now leaves a named onset at rest and takes a named point left saying nothing, so the two
    verbs cannot part.

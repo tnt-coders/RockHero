@@ -64,7 +64,6 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
-#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -454,23 +453,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void armChartCaret(
         common::core::GridPosition position, int string, ChartCaretFace face = ChartCaretFace::Mark,
         const std::optional<ChartSelectionKey>& object = {});
-    // Moves the caret onto a face of the object at the slot without touching the selection — the
-    // selection handle, and the arrow between a mark and its bend chip. armChartCaret cannot serve:
-    // it re-derives the selection from the slot, so a chord would collapse to the member whose face
-    // was aimed at, taking the scope away in the very act of naming a face within it.
-    void armChartFaceHandle(const ChartSlotKey& slot, ChartCaretFace face);
     // True when the note at this slot SHOWS a satellite digit — the target a click reaches, and the
     // only state in which the held face is legal. Read from the projection, which is where the
     // derivation published whether the stop has a face and on what terms it is drawn.
     [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
-    // THE one test of whether a face can be stood on, for the objects on a slot: asked by the
-    // arming, the handle's callers and the read.
+    // THE one test of whether a face can be stood on, for the object at a slot: asked by the
+    // arming and by the read.
     [[nodiscard]] bool chartFaceShown(
         const ChartSlotKey& slot, ChartCaretFace face,
-        std::span<const ChartSelectionKey> objects) const;
-    // The selected objects standing on a slot.
-    [[nodiscard]] std::vector<ChartSelectionKey> chartSelectionOnSlot(
-        const ChartSlotKey& slot) const;
+        const std::optional<ChartSelectionKey>& object) const;
+    // The object the armed caret stands on — the selection's one key — or nothing.
+    [[nodiscard]] std::optional<ChartSelectionKey> chartCaretObject() const;
     // The caret's face as every reader must see it: the stored face held to chartFaceShown, so an
     // edit that took a face away leaves the caret on the mark.
     [[nodiscard]] ChartCaretFace chartCaretFace() const;

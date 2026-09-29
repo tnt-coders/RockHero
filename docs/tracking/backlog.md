@@ -1311,12 +1311,3 @@ against the tree on the date above.
   edit touches one record and a marker selection has no caret-versus-object ambiguity — so no
   defect, but recording there too would make the three timeline edit families one shape and let
   `firstChangedRecord` go.
-
-## Found in the simplicity review of the bend chip face (2026-09-29)
-
-- **A face step inside a kept chord collapses it one way and not the other.** Reachable only after
-  clicking the held stop or bend chip of a member of an already-selected chord (the handle keeps the
-  chord selected, the caret on that member's face). From there `←`/`→` between the member's head
-  and its held stop re-arm through `armChartCaret`, collapsing the selection to that member, while
-  `↓` from its bend chip back to the head goes through `armChartFaceHandle` and keeps the chord.
-  One mechanism — the handle — for every step between faces of one slot makes them agree.

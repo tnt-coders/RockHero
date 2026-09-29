@@ -638,16 +638,22 @@ AUTHORS a fresh statement in the same place. And what still leaves the caret on 
 that never had a second mark at all — a fretting-hand onset, whose own stop IS its head.
 
 There is no third channel, and that is a ruling rather than a gap (user ruling 2026-08-31,
-satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and the
-satellite a pointer reaches is that note's held face whatever else is selected. Span-wide fret
+satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and a click on
+a satellite selects that note alone on its held face, whatever else was selected. Span-wide fret
 editing — one typed digit restating a grip across a whole span — is deferred to the future template
 editor, because typing a number over a bracket already means AUTHOR A NOTE at the caret
 (`docs/plans/todo/span-marker-redesign.md`).
 
 The THIRD FACE is not a stop (user ruling 2026-09-29, plan 63): an object stating a bend wears the
-chip printing it. `↑` from its mark stands on the chip and `↓` returns, the caret keeping its slot
-and the selection (`armChartFaceHandle`), and `↑` from the chip leaves for the string above; every
-arrival from another string lands on the mark. The square stays on the slot and the chip, drawn over
+chip printing it. `↑` from its mark stands on the chip and `↓` returns, the caret re-arming on the
+same object, and `↑` from the chip leaves for the string above; every arrival from another string
+lands on the mark.
+
+A FACE IS ONE OBJECT'S (user ruling 2026-09-29): the caret stands on one object, so a face does
+too, and a multi-selection is always objects on their marks with the caret dissolved. A click on a
+chip or satellite selects its object alone on that face, even inside a selected chord, and a
+double-click on a chip opens the bend picker over it. What a chord's members state is the letter
+verbs' work — `B` over the chord sets or clears every bend. The square stays on the slot and the chip, drawn over
 it, wears the ring. On the chip `Delete` takes the bend through the picker's own "No bend"
 (`planSetBend`), `Enter` and `B` open the picker, and digits type into the mark. A face exists only
 while it is drawn: one predicate (`chartFaceShown`) is asked when the caret arms, and again when
