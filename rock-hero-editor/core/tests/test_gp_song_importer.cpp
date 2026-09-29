@@ -6523,8 +6523,7 @@ TEST_CASE(
 // next onset, which is where Guitar Pro's rings end, resolves its exit fret and fabricates
 // nothing where that strike presses a stop: the next strike's window owns that instant. A strike
 // of open strings owns none, so there the window rides the gesture. A gesture running past the
-// next onset
-// stays planted, and one with no note after it may rest where it ends.
+// next onset stays planted, and one with no note after it may rest where it ends.
 TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
