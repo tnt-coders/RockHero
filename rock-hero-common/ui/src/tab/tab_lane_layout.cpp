@@ -231,29 +231,4 @@ std::optional<float> nextHeadLeftEdge(
     return geometry.x(note.ring_end_seconds) - geometry.headSize() / 2.0f;
 }
 
-// Rationale lives on the declaration in tab_lane_layout.h.
-std::optional<float> ringChipLimit(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
-{
-    // An ending zone exists where the ink stops strictly inside the ring: presentation's crop
-    // before an onset the ring does not pass. An emptied tail (ink at the onset) has none.
-    const bool cropped =
-        tailInked(note, note.ink_end_seconds) && note.ink_end_seconds < note.ring_end_seconds;
-    const std::optional<float> head_left = nextHeadLeftEdge(geometry, note);
-    if (cropped)
-    {
-        const float ink_x = geometry.x(note.ink_end_seconds);
-        return head_left.has_value() ? std::min(ink_x, *head_left) : ink_x;
-    }
-    return head_left;
-}
-
-// Rationale lives on the declaration in tab_lane_layout.h.
-float chipLeftEdge(
-    const float anchor_x, const float width, const std::optional<float> limit) noexcept
-{
-    const float centred = anchor_x - width / 2.0f;
-    return limit.has_value() ? std::min(centred, *limit - width) : centred;
-}
-
 } // namespace rock_hero::common::ui

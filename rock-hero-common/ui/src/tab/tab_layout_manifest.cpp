@@ -27,11 +27,10 @@ namespace
     };
 }
 
-// The layout of a bend chip standing on the anchor column: half a tail above the curve at the
-// amount it prints, or above the head where the column is the onset's, placed by the one chip rule
-// (chipLeftEdge). At the amount's own height rather than where a cut leg stops, so a chip at the
-// crop stands still when a reveal draws the leg on to its point.
-[[nodiscard]] TabChipLayout bendChipLayout(
+// The box of a bend chip centred on a column: half a tail above the curve at the amount it prints,
+// or above the head where the column is the onset's. At the amount's own height rather than where
+// a cut leg stops, so a chip riding a revealing leg glides level to its point.
+[[nodiscard]] TabLayoutRect bendChipBox(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
     const double semitones) noexcept
 {
@@ -48,14 +47,12 @@ namespace
     const float chip_y =
         over_head ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
                   : bendCurveY(geometry, center_y, semitones) - geometry.tail_height / 2.0f;
-    TabChipLayout chip{.anchor_x = anchor_x, .limit = ringChipLimit(geometry, note)};
-    chip.box = TabLayoutRect{
-        .x = chip.leftEdge(width),
+    return TabLayoutRect{
+        .x = anchor_x - width / 2.0f,
         .y = chip_y - height / 2.0f,
         .width = width,
         .height = height,
     };
-    return chip;
 }
 
 } // namespace
@@ -87,7 +84,7 @@ TabNoteLayout tabNoteLayout(
         const common::core::BendPointViewState& onset = note.bend.front();
         if (std::is_eq(onset.seconds <=> note.start_seconds))
         {
-            layout.bend_chip = tabBendPointChip(geometry, note, 0, note.ink_end_seconds);
+            layout.bend_chip = tabBendPointChipBox(geometry, note, 0, note.ink_end_seconds);
         }
     }
     return layout;
@@ -169,27 +166,23 @@ TabKeyframeLayout tabSlideStopLayout(
         stop + 1 == note.slides.size() && note.ends_on_next_head && !slide.slide_out;
     layout.mark_drawn = geometry.draw_text && tailInked(note, drawn_end) &&
                         (drawn || (first_past && slide.fret != previous_fret && !arrival));
-    // The band and the column are the shared authorities' (slideOutChipY and the chip rule), so the
-    // box the click is bounded in cannot part from the chip the paint core places by the same rule.
+    // The band is the shared authority's (slideOutChipY), so the box the click is bounded in cannot
+    // part from the chip the paint core centres on it.
     layout.center_y = slideOutChipY(geometry, layout.center_y, upward);
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;
-    TabChipLayout chip{.anchor_x = layout.center_x, .limit = ringChipLimit(geometry, note)};
-    chip.box = TabLayoutRect{
-        .x = chip.leftEdge(width),
+    layout.box = TabLayoutRect{
+        .x = layout.center_x - width / 2.0f,
         .y = layout.center_y - height / 2.0f,
         .width = width,
         .height = height,
     };
-    layout.box = chip.box;
-    layout.center_x = chip.box.x + width / 2.0f;
-    layout.mark_chip = chip;
     return layout;
 }
 
 // Rationale lives on the declaration in tab_layout_manifest.h.
-std::optional<TabChipLayout> tabBendPointChip(
+std::optional<TabLayoutRect> tabBendPointChipBox(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const std::size_t point, const double drawn_end) noexcept
 {
@@ -212,7 +205,7 @@ std::optional<TabChipLayout> tabBendPointChip(
             return std::nullopt;
         }
     }
-    return bendChipLayout(geometry, note, leg.to_x, into.semitones);
+    return bendChipBox(geometry, note, leg.to_x, into.semitones);
 }
 
 // A stop's keyframe defers to the stop's own layout. A point riding the curve stands where
@@ -257,7 +250,7 @@ TabKeyframeLayout tabKeyframeLayout(
         keyframe.mark);
     if (const std::optional<std::size_t> point = keyframe.bend_point; point.has_value())
     {
-        keyframe_layout.bend_chip = tabBendPointChip(geometry, note, *point, drawn_end);
+        keyframe_layout.bend_chip = tabBendPointChipBox(geometry, note, *point, drawn_end);
     }
     return keyframe_layout;
 }

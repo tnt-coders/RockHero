@@ -34,6 +34,17 @@ namespace
     return std::max(1.0f, head_size / 15.0f) * 1.5f;
 }
 
+// How long a reveal takes to run from the crop to the ring's end, or back: long enough that a chip
+// riding the tail's end reads as travelling from where it was clicked, short enough not to hold up
+// a keyboard walk.
+constexpr double g_reveal_ease_seconds{0.12};
+
+// The eased curve of a reveal's progress: slow off the crop, slow into the end, either way.
+[[nodiscard]] float easedReveal(const float progress) noexcept
+{
+    return progress * progress * (3.0f - (2.0f * progress));
+}
+
 } // namespace
 
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
@@ -90,6 +101,7 @@ void TabView::setEditState(core::ChartEditViewState edit)
     }
 
     m_edit = std::move(edit);
+    easeRevealsToAnswers();
     repaint();
     // The overlay carries the caret; push its fresh mask now so the paused column's cut-out
     // changes in the same synchronous pass as the drawn square, never a frame behind it.
@@ -107,6 +119,85 @@ void TabView::setRingReveal(bool revealed)
     }
 
     m_ring_reveal = revealed;
+    easeRevealsToAnswers();
+    repaint();
+}
+
+// Rationale lives on the declaration in tab_view.h.
+bool TabView::revealAnswer(const std::size_t index) const
+{
+    return m_tab != nullptr && core::chartNoteRevealed(m_tab->notes, index, m_ring_reveal, m_edit);
+}
+
+// Rationale lives on the declaration in tab_view.h. A note the ease has no progress for (a
+// projection pushed while the lane was off screen) stands at its answer.
+float TabView::revealAmount(const std::size_t index) const
+{
+    if (index >= m_reveal_progress.size())
+    {
+        return revealAnswer(index) ? 1.0f : 0.0f;
+    }
+    return easedReveal(m_reveal_progress[index]);
+}
+
+// Rationale lives on the declaration in tab_view.h.
+void TabView::easeRevealsToAnswers()
+{
+    if (!isShowing())
+    {
+        snapRevealsToAnswers();
+        return;
+    }
+    if (!m_reveal_easing)
+    {
+        m_reveal_easing = true;
+        m_reveal_stepped_at_ms = juce::Time::getMillisecondCounterHiRes();
+    }
+}
+
+// Rationale lives on the declaration in tab_view.h.
+void TabView::snapRevealsToAnswers()
+{
+    const std::size_t count = m_tab != nullptr ? m_tab->notes.size() : 0;
+    m_reveal_progress.assign(count, 0.0f);
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        if (revealAnswer(index))
+        {
+            m_reveal_progress[index] = 1.0f;
+        }
+    }
+    m_reveal_easing = false;
+}
+
+// Rationale lives on the declaration in tab_view.h. Every note steps by the same share of the
+// whole run, so a reveal and its reverse take the same time.
+void TabView::stepRevealEase()
+{
+    if (!m_reveal_easing)
+    {
+        return;
+    }
+    const double now_ms = juce::Time::getMillisecondCounterHiRes();
+    const auto step =
+        static_cast<float>((now_ms - m_reveal_stepped_at_ms) / (g_reveal_ease_seconds * 1000.0));
+    m_reveal_stepped_at_ms = now_ms;
+    bool moving = false;
+    for (std::size_t index = 0; index < m_reveal_progress.size(); ++index)
+    {
+        float& progress = m_reveal_progress[index];
+        if (revealAnswer(index))
+        {
+            progress = std::min(1.0f, progress + step);
+            moving = moving || progress < 1.0f;
+        }
+        else
+        {
+            progress = std::max(0.0f, progress - step);
+            moving = moving || progress > 0.0f;
+        }
+    }
+    m_reveal_easing = moving;
     repaint();
 }
 
@@ -342,6 +433,7 @@ void TabView::setState(
 
     m_tab = std::move(tab);
     m_minimum_displayed_strings = minimum_displayed_strings;
+    snapRevealsToAnswers();
 
     // A lane-count change moves the legend panel — the count sets the font its width is measured
     // in — and a projection change decides whether there is a tuning to name at all. The panel's
@@ -370,14 +462,12 @@ void TabView::paint(juce::Graphics& g)
     const juce::Rectangle<int> bounds = metrics.bounds;
 
     // Whether a note is revealed: the rule lives in the editor core beside the hit test that must
-    // agree with it (core::chartNoteRevealed), and this lane only routes its overlay through it.
-    // ONE ANSWER, and everything the reveal decides reads it: how far a note is drawn — to its
-    // ring's end, every keyframe at its true instant — and whether its reveal-only held-stop
-    // satellite is there at all (THE SATELLITE REVEAL). Revealing a note shows the whole truth
-    // about it at once, so the two cannot be separate questions.
-    const auto revealed = [this, &tab](std::size_t index) {
-        return core::chartNoteRevealed(tab.notes, index, m_ring_reveal, m_edit);
-    };
+    // agree with it (core::chartNoteRevealed), and this lane EASES toward that answer
+    // (revealAmount). Everything the reveal decides reads the one eased amount: how far a note is
+    // drawn, the tail growing toward its ring's end and every mark riding it to its true instant,
+    // and whether its reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL, in
+    // from the moment the reveal starts).
+    const auto reveal = [this](std::size_t index) { return revealAmount(index); };
 
     // THE SPAN'S OWN REVEAL (core::chartSpanRevealed), the same grounds answering for a different
     // subject: a revealed span's furniture runs to its MUSICAL CLOSE instead of to the extent rule
@@ -417,7 +507,7 @@ void TabView::paint(juce::Graphics& g)
     }
 
     // The rows sit on the theme's row background, which is what the lane's one knockout restores.
-    common::ui::paintTabLane(g, metrics, tab, revealed, editorTheme().waveform_row_background);
+    common::ui::paintTabLane(g, metrics, tab, reveal, editorTheme().waveform_row_background);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -456,7 +546,7 @@ void TabView::paint(juce::Graphics& g)
             layout.head_size,
             overlayRingStroke(layout.head_size));
         // The chip printing the onset's bend is the note's second face, so it wears the ring too.
-        if (const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
+        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
             chip.has_value())
         {
             ring_chip_plate(common::ui::paintTabBendChip(g, metrics, note, 0, *chip));
@@ -483,7 +573,8 @@ void TabView::paint(juce::Graphics& g)
                 continue;
             }
             const common::core::KeyframeViewState& keyframe = note.keyframes[ref.keyframe_index];
-            const double drawn_end = common::core::drawnEndSeconds(note, revealed(ref.note_index));
+            const double drawn_end =
+                common::ui::drawnExtentSeconds(note, revealAmount(ref.note_index));
             const common::ui::TabKeyframeLayout layout =
                 common::ui::tabKeyframeLayout(metrics, note, keyframe, drawn_end);
             if (!layout.mark_drawn && !layout.bend_chip.has_value())
@@ -531,11 +622,10 @@ void TabView::paint(juce::Graphics& g)
                     case common::ui::TabKeyframeShape::Chip:
                         if (const auto* const stop =
                                 std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
-                            stop != nullptr && layout.mark_chip.has_value())
+                            stop != nullptr)
                         {
                             ring_chip_plate(
-                                common::ui::paintTabSlideChip(
-                                    g, metrics, note, stop->stop, *layout.mark_chip));
+                                common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box));
                         }
                         break;
                     case common::ui::TabKeyframeShape::Dot:
@@ -546,7 +636,7 @@ void TabView::paint(juce::Graphics& g)
             }
             // The chip printing the keyframe's bend is its second face, so it wears the ring too:
             // a click on either selects the keyframe, and the selection shows on both.
-            const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
+            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
             const std::optional<std::size_t>& point = keyframe.bend_point;
             if (chip.has_value() && point.has_value())
             {
@@ -637,7 +727,8 @@ void TabView::paint(juce::Graphics& g)
                 if (targets->channel == common::core::ChartStopChannel::Held)
                 {
                     if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                            common::ui::tabHeldStopLayout(metrics, note, revealed(index));
+                            common::ui::tabHeldStopLayout(
+                                metrics, note, revealAmount(index) > 0.0f);
                         satellite.has_value())
                     {
                         paint_pending_box(nullptr, satellite->center_x, satellite->center_y);

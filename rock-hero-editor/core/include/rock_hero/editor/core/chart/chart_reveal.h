@@ -10,14 +10,15 @@ marks with it — on three grounds: the modifier, the note being SELECTED, and t
 inside its ring (\ref chartNoteRevealed). A SPAN's furniture reads to its musical close on the
 same three, read for a span (\ref chartSpanRevealed).
 
-A REVEAL MOVES NO TARGET BUT THE ONE A PRESS NAMED. It adds ink, and chips stand still under it: a
-chip in a ring's ending zone ends at the ink's edge revealed or not (\ref
-common::ui::ringChipLimit). The one mark that can change under it is a linked stop past the crop,
-whose destination chip at the crop gives way to the stop's own head at its instant once revealed.
-The chip is a face of the keyframe it names (user report, 2026-09-28: a click on it must select
-it), so a press on it selects that keyframe, whose selection reveals the note: the press's own
-object carried to its truth, never some other target shifted under the pointer. That is what still
-lets the selection and the caret be grounds.
+A REVEAL CARRIES ITS MARKS TO THEIR TRUTH. It adds ink, running the tail on from its crop to its
+ring's end, and the marks riding the tail travel with it: the destination chip at the crop glides
+to its point's own instant, and a linked stop's chip gives way to its head there. The lane EASES the
+run (common::ui::TabRevealAmount), so a chip pressed at the crop visibly glides from under the
+pointer to its truth (user ruling, 2026-09-28). The chip is a face of the keyframe it names, so a
+press on it selects that keyframe, whose selection reveals the note: the press's own object carried
+to its truth, never some other target shifted under the pointer. A press lands on the state the
+ease is heading for, since the hit test reads this answer and never the eased picture. That is what
+still lets the selection and the caret be grounds.
 
 THE CARET IS A POSITION, NOT A MEMBER, and both caret arms judge it ends-INCLUDED, so a
 grid-snapped caret behaves the same wherever it lands: one sitting exactly on a ring's end or a

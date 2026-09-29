@@ -463,22 +463,23 @@ width derived from this lane's own label font.
 /*!
 \brief Paints a bend point's chip exactly as the lane does, and returns the plate it filled.
 
-THE SELECTED OBJECT DRAWS LAST: chips standing where their ring's limit pushes them back stack at
-one place, the lane painting the last on top, so a host repaints a selected point's chip over the
-stack before tracing its ring on the returned plate. Built by the lane's own routine, so the
-repainted chip is the lane's chip; the plate is the measured text, narrower than the click box
-(\ref TabChipLayout), so the ring claims the chip's own extent.
+THE SELECTED OBJECT DRAWS LAST: every chip stands on its true column, so chips meet (an ending
+ring's chip and the pre-bend chip of the head it ends on; points close together), the lane painting
+the later on top. A host repaints a selected point's chip over whatever covers it before tracing
+its ring on the returned plate. Built by the lane's own routine, so the repainted chip is the lane's
+chip; the plate is the measured text, narrower than the click box, so the ring claims the chip's
+own extent.
 
 \param g Graphics context to paint into.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
 \param note The note the point belongs to.
 \param point Index of the point in the note's \ref common::core::NoteViewState::bend.
-\param chip The chip's layout (\ref tabBendPointChip).
+\param box The chip's layout box (\ref tabBendPointChipBox).
 \return The plate's bounds, in the metrics' bounds space.
 */
 juce::Rectangle<float> paintTabBendChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
-    std::size_t point, const TabChipLayout& chip);
+    std::size_t point, const TabLayoutRect& box);
 
 /*!
 \brief Paints a slide stop's chip exactly as the lane does, and returns the plate it filled: the
@@ -487,12 +488,12 @@ slide twin of \ref paintTabBendChip.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
 \param note The note the stop belongs to.
 \param stop Index of the stop in the note's \ref common::core::NoteViewState::slides.
-\param chip The chip's layout: the stop layout's box and column (\ref tabSlideStopLayout).
+\param box The stop layout's box (\ref tabSlideStopLayout).
 \return The plate's bounds, in the metrics' bounds space.
 */
 juce::Rectangle<float> paintTabSlideChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
-    std::size_t stop, const TabChipLayout& chip);
+    std::size_t stop, const TabLayoutRect& box);
 
 /*!
 \brief THE ONE STATEMENT of what a fret-hand-position chip says: the index-finger fret for the
@@ -545,15 +546,15 @@ each pass in turn.
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
 \param tab Seconds-resolved tab projection; it must name at least one string. Every tail is drawn
-       to the extent \ref common::core::drawnEndSeconds names; the span-implied hold
+       to the extent \ref drawnExtentSeconds names; the span-implied hold
        (ChartViewState::display_hold_ends) is the 3D board's and is not read here. The visible
        range is bounded by the projection's own prefix tables (ChartViewState::ring_end_prefix_max,
        ChartViewState::shape_close_prefix_max).
-\param revealed Per-note answer to whether that note's whole truth is on show
-       (\ref TabRevealed): it then draws to its ring end, every keyframe at its true instant, and
-       its reveal-only held-stop satellite comes in; empty reveals nothing. An unrevealed note
-       crops at its ink end, and the leg the crop cuts wears a destination chip there
-       (\ref tabKeyframeLayout).
+\param reveal Per-note answer to how far that note's reveal has run (\ref TabRevealAmount): at 1 it
+       draws to its ring end, every keyframe at its true instant; between, it draws that far, the
+       marks and chips riding the extent there; above 0 its reveal-only held-stop satellite comes in
+       and its tail stops fading at the crop. Empty reveals nothing: a note crops at its ink end,
+       and the leg the crop cuts wears a destination chip there (\ref tabKeyframeLayout).
 \param ground The colour the host painted under the lane. The tail's core is light laid over it
        (\ref common::core::g_tail_core_alpha), and the one mark that must knock out what lies
        beneath — the satellite digit's ground — restores this colour before laying the core back
@@ -562,7 +563,7 @@ each pass in turn.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed = {}, juce::Colour ground = juce::Colours::transparentBlack);
+    const TabRevealAmount& reveal = {}, juce::Colour ground = juce::Colours::transparentBlack);
 
 /*!
 \brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.

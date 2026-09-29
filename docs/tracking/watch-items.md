@@ -1026,15 +1026,16 @@ so the chip says nothing new. **Remedy**: drop the end chip in that case, as the
 already drops its chip beside the head it lands on (sighted 2026-09-24). The user was unsure
 (2026-09-28), so it stays until real charts decide.
 
-### An end chip can touch the next head's chip when zoomed far out — trigger: the overlap reads badly at a zoom charters actually use
+### A revealed end chip overlaps the head the ring ends on — trigger: the overlap reads badly in real charting
 
-`ringChipLimit` ends the chip at the ink's end, one margin (50 ms) before the head, which is about
-16 px at the default zoom (316 px/s). The head's own pre-bend chip is centred on the head and
-reaches back half its width, about 10 px at the shipped lane size, so zoomed well out the two can
-touch, within one lane. The head's chip draws later, so it covers the end chip there. Estimated,
-not measured. Partly answered 2026-09-28: a SELECTED chip is repainted over whatever covers it
-(`paintTabBendChip`, `paintTabSlideChip`), so the chip under edit always reads. **Remedy** if the
-unselected overlap reads badly: suppress the end chip below a zoom floor.
+Every chip stands on its true column (user ruling, 2026-09-28), so where a ring ends on the next
+head of its own string, its end chip, once revealed, sits over that head's upper half and under the
+head's own pre-bend chip, which draws later. Chips draw above every head, so the end chip can cover
+part of the head's fret digit at the default zoom (316 px/s); zooming in (to 5000 px/s) pulls them
+apart. A SELECTED chip is repainted over whatever covers it (`paintTabBendChip`,
+`paintTabSlideChip`), so the chip under edit always reads, and a press where a chip overlaps a head
+goes to the head. **Remedy** if it reads badly: draw an end chip standing over a head beneath that
+head's face rather than above it.
 
 ## Editor 3D preview
 

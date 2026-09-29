@@ -1647,7 +1647,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
 
     const common::ui::TabLaneMetrics metrics =
         common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
-    const std::optional<common::ui::TabChipLayout> chip =
+    const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds)
             .bend_chip;
     REQUIRE(chip.has_value());
@@ -1661,7 +1661,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         common::ui::paintTabBendChip(scratch_graphics, metrics, note, 1, *chip);
     // The short amount leaves a margin of box beside the plate wide enough to probe clear of the
     // ring's own stroke.
-    REQUIRE(plate.getX() - chip->box.x > 5.0f);
+    REQUIRE(plate.getX() - chip->x > 5.0f);
 
     const juce::Image plain = render();
     view.setEditState(
@@ -1687,7 +1687,7 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
     };
     const int plate_left = juce::roundToInt(plate.getX());
     CHECK(differs_in_columns(plate_left - 1, plate_left + 1));
-    CHECK_FALSE(differs_in_columns(juce::roundToInt(chip->box.x), plate_left - 3));
+    CHECK_FALSE(differs_in_columns(juce::roundToInt(chip->x), plate_left - 3));
 }
 
 // The controller-published armed caret renders as a white square outline on its empty slot

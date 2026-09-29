@@ -535,7 +535,9 @@ private:
     static constexpr double g_default_pixels_per_second{
         static_cast<double>(g_track_canvas_width) / 4.0
     };
-    static constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
+    // Deep enough to pull a ring's 50 ms ending zone about 250 px wide, so points a few
+    // milliseconds apart there can be told apart and tuned.
+    static constexpr double g_max_pixels_per_second{5000.0};
 
     // Controller receives ruler-level timeline seek intent.
     core::IEditorController& m_controller;

@@ -123,8 +123,8 @@ std::optional<ChartHitTarget> chartHitTarget(
         {
             heads.consider(layout.onset_x, ChartNoteHit{.index = index});
         }
-        if (const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
-            chip.has_value() && chip->box.contains(x, y))
+        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            chip.has_value() && chip->contains(x, y))
         {
             top_bend_chip = ChartNoteHit{.index = index};
         }
@@ -140,10 +140,11 @@ std::optional<ChartHitTarget> chartHitTarget(
             const ChartKeyframeHit target{.note_index = index, .keyframe_index = keyframe};
             if (keyframe_layout.mark_drawn && keyframe_layout.box.contains(x, y))
             {
-                (keyframe_layout.mark_chip.has_value() ? top_slide_chip : top_mark) = target;
+                (keyframe_layout.shape == common::ui::TabKeyframeShape::Chip ? top_slide_chip
+                                                                             : top_mark) = target;
             }
-            if (const std::optional<common::ui::TabChipLayout>& chip = keyframe_layout.bend_chip;
-                chip.has_value() && chip->box.contains(x, y))
+            if (const std::optional<common::ui::TabLayoutRect>& chip = keyframe_layout.bend_chip;
+                chip.has_value() && chip->contains(x, y))
             {
                 top_bend_chip = target;
             }
@@ -190,8 +191,8 @@ std::vector<ChartHitTarget> chartTargetsInBox(
         // Either face reaches the note: its head, or the chip printing its onset's bend.
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
-        const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
-        if (intersects(layout.head) || (chip.has_value() && intersects(chip->box)))
+        const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+        if (intersects(layout.head) || (chip.has_value() && intersects(*chip)))
         {
             boxed.emplace_back(ChartNoteHit{.index = index});
         }
@@ -208,9 +209,9 @@ std::vector<ChartHitTarget> chartTargetsInBox(
         {
             const common::ui::TabKeyframeLayout layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
-            const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
+            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
             if ((layout.mark_drawn && intersects(layout.box)) ||
-                (chip.has_value() && intersects(chip->box)))
+                (chip.has_value() && intersects(*chip)))
             {
                 boxed.emplace_back(
                     ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});

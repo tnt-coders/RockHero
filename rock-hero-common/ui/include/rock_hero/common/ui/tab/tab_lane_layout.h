@@ -488,7 +488,7 @@ struct TabBendLeg
 held run to the drawn extent.
 
 THE ONE statement of the curve's polyline, read by the paint core that strokes it and by the layout
-manifest that places the chip where a leg ends (\ref tabBendPointChip), so a destination chip at
+manifest that places the chip where a leg ends (\ref tabBendPointChipBox), so a destination chip at
 the crop stands exactly where the cut leg stops. The first leg leaves the onset at rest; every later
 one leaves a pixel past the point before it, which opens a hairline between consecutive legs. A leg
 toward a point past the extent is drawn on its true path as far as the extent (\ref cutLegProgress)
@@ -524,11 +524,13 @@ click, so the box and the mark can never land on opposite sides of the envelope.
 \brief The left edge of the head a ring ends on, where it ends on the next head of its own string
 (\ref common::core::NoteViewState::ends_on_next_head), or nothing.
 
-THE COLUMN THE HEAD OWNS, stated once. No mark of the ending ring enters it: a bend point's dot that
-would reach it draws none, its chip being its face (\ref TabKeyframeLayout::mark_drawn), and every
-chip of the ring stops short of it (\ref ringChipLimit). Geometric rather than keyed on the ring's
-last instant, so what the head covers depends on the zoom, as the head's own width does: zoomed in,
-a point just before the end draws its dot clear of the head at its true instant.
+THE COLUMN THE HEAD OWNS, stated once: a bend point's dot that would reach into it draws none, its
+chip being its face (\ref TabKeyframeLayout::mark_drawn), because a white dot on the head's white
+digit reads as a different digit. Chips are not held out: every chip stands centred on its true
+column, and where an ending ring's chip meets the head's own pre-bend chip the head's, painted
+later, reads on top until the ending point is selected. Geometric rather than keyed on the ring's
+last instant, so what the head covers depends on the zoom, as the head's own width does: zoomed
+in, a point just before the end draws its dot clear of the head at its true instant.
 
 \param geometry Lane geometry supplying the time mapping and the head size.
 \param note The ring.
@@ -536,40 +538,5 @@ a point just before the end draws its dot clear of the head at its true instant.
 */
 [[nodiscard]] std::optional<float> nextHeadLeftEdge(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
-
-/*!
-\brief The column no chip of a ring may reach past, or nothing.
-
-Where presentation crops the ring before an onset it does not pass, the limit is the ribbon's INK
-end: every chip of a point in the ENDING ZONE past it stands at the ink's edge, whether a head of
-the ring's own string stands at its end or an onset on another string bound it. And never inside
-the square of a head the ring ends on (\ref nextHeadLeftEdge). Keyed on the ink end rather than the
-drawn extent, so a chip stands still when a reveal (a selection's included) runs the ribbon on to
-its end: the one place a chip stands is the one place it is clicked. Resolving the meeting
-sideways keeps every chip in its own lane, since the band below one string's envelope is the band
-above the next string's head, where that head's own pre-bend chip stands, and a chip beside the
-head reads as the ribbon's value, never as the head's.
-
-\param geometry Lane geometry supplying the time mapping and the head size.
-\param note The ring the chips belong to.
-\return The limit, or nothing where the ring is drawn whole and ends on no head.
-*/
-[[nodiscard]] std::optional<float> ringChipLimit(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
-
-/*!
-\brief THE placement rule of a floating chip of a given width: centred on its anchor, pushed back
-to end at the ring's limit where it would reach past it (\ref ringChipLimit).
-
-One rule for both widths a chip has: the layout manifest's click box, as wide as the widest text the
-chip can print, and the painted plate, as wide as the text it does print. A chip the limit pushes
-back therefore ends at it whatever it prints, and several chips pushed back stack at one place.
-
-\param anchor_x The column the chip centres on.
-\param width The width being placed.
-\param limit The ring's chip limit, or nothing.
-\return The left edge.
-*/
-[[nodiscard]] float chipLeftEdge(float anchor_x, float width, std::optional<float> limit) noexcept;
 
 } // namespace rock_hero::common::ui

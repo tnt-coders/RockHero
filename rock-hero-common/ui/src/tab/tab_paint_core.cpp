@@ -104,12 +104,11 @@ constexpr float g_bend_fraction_scale{1.30f};
 constexpr float g_floating_chip_padding{3.0f};
 
 // THE ONE measure of a floating chip's plate: its text in the fret font and any fraction in the
-// fraction font, padded either side, on its chip's line and placed from its anchor by the one chip
-// rule (chipLeftEdge), as the chip's click box is at its own width. The painter fills it, and a
+// fraction font, padded either side, centred on the chip's layout box. The painter fills it, and a
 // host's repaint of a selected chip fills it again and rings it (paintTabBendChip,
 // paintTabSlideChip).
 [[nodiscard]] juce::Rectangle<float> floatingChipPlate(
-    const TabLaneMetrics& metrics, const TabChipLayout& chip, const juce::String& text,
+    const TabLaneMetrics& metrics, const TabLayoutRect& box, const juce::String& text,
     const juce::String& fraction)
 {
     const float fraction_width =
@@ -117,8 +116,8 @@ constexpr float g_floating_chip_padding{3.0f};
     const float width = static_cast<float>(metrics.fret_font.width(text)) + fraction_width +
                         (g_floating_chip_padding * 2.0f);
     return juce::Rectangle<float>{
-        chip.leftEdge(width),
-        chip.box.y + chip.box.height / 2.0f - metrics.fret_font.height() / 2.0f - 1.0f,
+        box.x + box.width / 2.0f - width / 2.0f,
+        box.y + box.height / 2.0f - metrics.fret_font.height() / 2.0f - 1.0f,
         width,
         laneChipHeight(metrics.fret_font)
     };
@@ -1178,12 +1177,12 @@ void fillHeadShape(
 // host's repaint of a selected chip both build it here (paintTabSlideChip).
 [[nodiscard]] LabelChip slideLabelChip(
     const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const std::size_t stop, const TabChipLayout& chip,
+    const common::core::NoteViewState& note, const std::size_t stop, const TabLayoutRect& box,
     const float opacity)
 {
     const juce::String text = tabNoteHeadText(note, note.slides[stop].fret);
     return LabelChip{
-        .plate = floatingChipPlate(metrics, chip, text, {}),
+        .plate = floatingChipPlate(metrics, box, text, {}),
         .text = text,
         .fraction = {},
         .background = charterDarker(charterDarker(charterDarker(style[Ink::LinkedInner]))),
@@ -1200,12 +1199,12 @@ void fillHeadShape(
 // build it here (paintTabBendChip).
 [[nodiscard]] LabelChip bendLabelChip(
     const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const std::size_t point, const TabChipLayout& chip,
+    const common::core::NoteViewState& note, const std::size_t point, const TabLayoutRect& box,
     const float opacity)
 {
     const TabBendAmountText label = bendChipLabel(note.bend[point].semitones);
     return LabelChip{
-        .plate = floatingChipPlate(metrics, chip, label.text, label.fraction),
+        .plate = floatingChipPlate(metrics, box, label.text, label.fraction),
         .text = label.text,
         .fraction = label.fraction,
         .background = style[Ink::Inner],
@@ -1331,10 +1330,10 @@ void drawSlideLines(
         // Whether a chip is drawn and where it stands are the layout manifest's statements
         // (tabSlideStopLayout), which the hit tester reads too.
         if (const TabKeyframeLayout layout = tabSlideStopLayout(metrics, note, index, drawn_end);
-            layout.mark_chip.has_value() && layout.mark_drawn)
+            layout.shape == TabKeyframeShape::Chip && layout.mark_drawn)
         {
             slide_labels.push_back(
-                slideLabelChip(metrics, style, note, index, *layout.mark_chip, opacity));
+                slideLabelChip(metrics, style, note, index, layout.box, opacity));
         }
         if (!drawn)
         {
@@ -1493,13 +1492,13 @@ void drawBendLines(
         const TabBendLeg leg = tabBendLeg(metrics, note, index, drawn_end);
         g.drawLine(leg.from_x, leg.from_y, leg.to_x, leg.to_y, line_thickness);
         // Whether the point wears a chip, and where, is the layout manifest's one statement
-        // (tabBendPointChip), which the hit tester reads too: its own amount where the leg reaches
-        // it, or the DESTINATION chip at the crop naming the amount a cut leg is heading for. The
-        // measured plate stands by the chip's own rule (TabChipLayout::leftEdge).
+        // (tabBendPointChipBox), which the hit tester reads too: its own amount where the leg
+        // reaches it, or the DESTINATION chip at the crop naming the amount a cut leg is heading
+        // for. The measured plate centres on the box.
         if (index < note.bend.size())
         {
-            if (const std::optional<TabChipLayout> chip =
-                    tabBendPointChip(metrics, note, index, drawn_end);
+            if (const std::optional<TabLayoutRect> chip =
+                    tabBendPointChipBox(metrics, note, index, drawn_end);
                 chip.has_value())
             {
                 bend_chips.push_back(bendLabelChip(metrics, style, note, index, *chip, opacity));
@@ -2583,14 +2582,14 @@ juce::Rectangle<float> tabFhpChipBounds(
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::Rectangle<float> paintTabBendChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
-    const std::size_t point, const TabChipLayout& chip)
+    const std::size_t point, const TabLayoutRect& box)
 {
     const LabelChip label = bendLabelChip(
         metrics,
         StringStyle{metrics.baseColor(note.string)},
         note,
         point,
-        chip,
+        box,
         laneNoteOpacity(note));
     drawLabelChip(g, metrics, label);
     return label.plate;
@@ -2599,14 +2598,14 @@ juce::Rectangle<float> paintTabBendChip(
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::Rectangle<float> paintTabSlideChip(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
-    const std::size_t stop, const TabChipLayout& chip)
+    const std::size_t stop, const TabLayoutRect& box)
 {
     const LabelChip label = slideLabelChip(
         metrics,
         StringStyle{metrics.baseColor(note.string)},
         note,
         stop,
-        chip,
+        box,
         laneNoteOpacity(note));
     drawLabelChip(g, metrics, label);
     return label.plate;
@@ -2636,7 +2635,7 @@ void drawTabFhpChip(
 // floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed, const juce::Colour ground)
+    const TabRevealAmount& reveal, const juce::Colour ground)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.stringCount() > 0);
@@ -2762,9 +2761,15 @@ void paintTabLane(
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 
-    // HOW FAR one note is drawn, read by every mark on the note (\ref drawnEndSeconds).
+    // HOW FAR one note is drawn, read by every mark on the note (drawnExtentSeconds): a reveal's
+    // host eases the amount, so a revealing tail grows and the marks riding it travel with it.
     const auto drawn_end_of = [&](std::size_t index) {
-        return common::core::drawnEndSeconds(tab.notes[index], tabRevealed(revealed, index));
+        return drawnExtentSeconds(tab.notes[index], tabRevealAmount(reveal, index));
+    };
+    // Whether a note's reveal has begun: its tail stops fading at the crop and its reveal-only
+    // satellite comes in at once, the extent alone easing.
+    const auto revealing = [&reveal](std::size_t index) {
+        return tabRevealAmount(reveal, index) > 0.0f;
     };
 
     // Floating labels collected during the note passes and drawn above every head.
@@ -2789,7 +2794,7 @@ void paintTabLane(
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
         const double drawn_end = drawn_end_of(index);
-        const std::optional<TailFade> fade = tailFade(metrics, note, tabRevealed(revealed, index));
+        const std::optional<TailFade> fade = tailFade(metrics, note, revealing(index));
 
         // A ghost's opaque tail, marks and head are flattened together, then the finished note is
         // composited once. Per-ink alpha would let the already-drawn tail show through the head.
@@ -3028,7 +3033,7 @@ void paintTabLane(
             // bounds it.
             if (!held.has_value() || !mark.has_value() || note.ring_end_seconds < span_start ||
                 mark->face == common::core::StopMarkFace::Posture ||
-                !common::core::stopMarkShown(*mark, tabRevealed(revealed, index)))
+                !common::core::stopMarkShown(*mark, revealing(index)))
             {
                 continue;
             }
@@ -3045,7 +3050,7 @@ void paintTabLane(
                 columns.bar_right,
                 center_y,
                 juce::String{*held},
-                tailFade(metrics, note, tabRevealed(revealed, index)),
+                tailFade(metrics, note, revealing(index)),
                 ground);
         }
     }

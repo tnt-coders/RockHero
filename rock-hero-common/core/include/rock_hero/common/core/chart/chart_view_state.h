@@ -770,8 +770,8 @@ struct NoteViewState
     \brief True when the ring ENDS exactly on the next head of its own string, so a mark stating the
     end and that head's own marks stand at one x.
 
-    The shared instant's one input (\ref ChartConnections::ends_on_next_head): the instant's column
-    belongs to the HEAD, so a chip stating the end of the ring that ENDS there stops short of it. An
+    The shared instant's one input (\ref ChartConnections::ends_on_next_head): the head's square is
+    the head's, so a bend dot of the ring that ENDS there which would reach into it is not drawn. An
     arrival and an abutting slide-out both land here, because what collides is geometry rather than
     gesture.
     */

@@ -382,6 +382,26 @@ private:
     // row, so unlike the automation lanes this needs no per-frame tick.
     void publishCaretMask();
 
+    // Starts every note's reveal easing toward its answer after an input the answer reads changed
+    // (the selection, the caret, the reveal modifier). Off screen nothing drives the ease, so the
+    // amounts snap there instead, and a lane painted straight to an image shows the answer.
+    void easeRevealsToAnswers();
+
+    // Sets every note's reveal to its answer at once: for a new projection, whose indices name
+    // different notes, and for a lane off screen.
+    void snapRevealsToAnswers();
+
+    // Advances the ease one display frame and repaints while anything moved; idles once every
+    // note stands at its answer.
+    void stepRevealEase();
+
+    // Whether the note at `index` is revealed: the answer the ease heads for.
+    [[nodiscard]] bool revealAnswer(std::size_t index) const;
+
+    // How far the note at `index` has eased toward its answer, as the paint core reads it
+    // (common::ui::TabRevealAmount).
+    [[nodiscard]] float revealAmount(std::size_t index) const;
+
     // The chart projection, shared with the controller; null without a chart. It is the whole of
     // the pointer path too: the controller hit-tests, selects and inserts against the projection
     // it published.
@@ -413,6 +433,18 @@ private:
     // a fact about this window and nothing headless may branch on it.
     bool m_ring_reveal{false};
 
+    // THE REVEAL EASES. How far each note's reveal has run, by projection index, 0 cropped to 1
+    // drawn to its ring's end, stepped toward its answer (core::chartNoteRevealed) a frame at a
+    // time, so a revealed tail grows from its crop and the chips riding it glide to their instants.
+    // The picture's only: the controller hit-tests against the answer the ease is heading for.
+    std::vector<float> m_reveal_progress{};
+
+    // True while some note's reveal differs from its answer, so the frame tick has work to do.
+    bool m_reveal_easing{false};
+
+    // When the ease last stepped, in milliseconds on JUCE's high-resolution counter.
+    double m_reveal_stepped_at_ms{0.0};
+
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
 
@@ -443,6 +475,10 @@ private:
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
+
+    // Steps the reveal ease each display frame while it has work (stepRevealEase). Last, so every
+    // member the step reads is constructed before the attachment can fire and destroyed after it.
+    juce::VBlankAttachment m_reveal_vblank{this, [this] { stepRevealEase(); }};
 };
 
 } // namespace rock_hero::editor::ui

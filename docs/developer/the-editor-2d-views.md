@@ -356,13 +356,15 @@ Four consequences worth knowing before touching this:
   DESTINATION chip a cut leg wears at the crop is a face of the keyframe it heads for, whether the
   leg is a slide's or a bend's, so clicking it selects that keyframe
   (`TabKeyframeLayout::mark_drawn`). Whether a chip is drawn, and where, is the layout manifest's
-  statement (`tabSlideStopLayout`, `tabBendPointChip`, the bend legs by `tabBendLeg`), read by the
-  painter and the hit test alike. A chip carries two widths from one anchor (`TabChipLayout`): its
-  click box, as wide as the widest amount because the headless hit test measures no text, and its
-  painted plate, which a selection ring traces so it never circles empty lane around a short
-  amount; one rule places both (`chipLeftEdge`). A selected chip is REPAINTED over whatever covers
-  it before its ring (`paintTabBendChip`, `paintTabSlideChip`), because chips pushed back to one
-  place stack. A head still answers before any chip over it (`chartHitTarget`), or a short chip's
+  statement (`tabSlideStopLayout`, `tabBendPointChipBox`, the bend legs by `tabBendLeg`), read by
+  the painter and the hit test alike. EVERY CHIP STANDS ON ITS TRUE COLUMN: revealed, centred on
+  its own point, over the next head if that is where the point is; cropped, the destination chip
+  centred at the crop. A chip's box is as wide as the widest amount, because the headless hit test
+  measures no text, and the painted plate centres on it; a selection ring traces the plate, so it
+  never circles empty lane around a short amount. Chips close together overlap, the later painted
+  on top (an ending ring's chip under the pre-bend chip of the head it ends on), so a selected chip
+  is REPAINTED over whatever covers it before its ring (`paintTabBendChip`, `paintTabSlideChip`).
+  A head still answers before any chip over it (`chartHitTarget`), or a short chip's
   empty margin would take presses meant for the head beside it; among faces, the one PAINTED ON TOP
   answers (bend chips over slide chips over the note pass's marks, later over earlier), the one the
   charter sees. That head prints where the hand really is because no vibrato change may
@@ -649,18 +651,24 @@ is deliberately single-sourced:
   draws its linked head, and a slide-out toward the fret already in force draws its chip. That is what
   gives a statement saying nothing a face to select, retype and delete, so one focus-leave sweep can
   own every silent point (`dissolveSilentKeyframes`) with no rule of its own for the end.
-- **THE HEAD'S COLUMN IS THE HEAD'S**: where a ring ENDS exactly on a head of its own string
+- **A DOT NEVER SITS ON A HEAD'S DIGIT**: where a ring ENDS exactly on a head of its own string
   (`common::core::NoteViewState::ends_on_next_head`, resolved in the connections pass beside the
-  arrival relation), no mark of the ending ring enters that head's square (`nextHeadLeftEdge`,
-  `tab_lane_layout.h`, stated once). A bend point whose dot would reach into it draws none, its chip
-  being its face; the test is geometric, so zoomed in, a point just before the end draws its dot
-  clear of the head at its true instant. Every chip of the ring keeps its ordinary height and stops
-  short of the head at the ribbon's ink end (`ringChipLimit`), so it reads as the ribbon's value,
-  never as the head's, stays in its own lane, and stands still when a reveal runs the ribbon on
-  beneath the head; chips pushed back there stack, the later on top. The meeting used to be
-  resolved vertically, by moving the ending ring's chips below the envelope; that put them in the
-  band above the next string's head, onto that head's own pre-bend chip (sighted 2026-09-28). The
-  height is `slideOutChipY` for a slide chip, the one spelling of where a tail chip sits.
+  arrival relation), a bend point whose dot would reach into that head's square draws none, its chip
+  being its face (`nextHeadLeftEdge`, `tab_lane_layout.h`, stated once), because a white dot on the
+  white digit reads as a different digit. The test is geometric, so zoomed in, a point just before
+  the end draws its dot clear of the head at its true instant. Chips are not held out: every chip of
+  the ring keeps its ordinary height and its own column (the rule above), where the head's own
+  pre-bend chip, painted later, reads on top until the ending point is selected. The meeting was
+  once resolved vertically, by moving the ending ring's chips below the envelope, which put them in
+  the band above the next string's head, onto that head's own pre-bend chip (sighted 2026-09-28).
+  The height is `slideOutChipY` for a slide chip, the one spelling of where a tail chip sits.
+- **THE REVEAL EASES**: the tab view steps each note's reveal toward its answer over about 120 ms
+  (`TabView::stepRevealEase`, on the display's vblank), and the paint core and the overlays read the
+  eased amount (`common::ui::TabRevealAmount`, `drawnExtentSeconds`). So a revealed tail grows from
+  its crop and every mark riding it travels with it: a chip clicked at the crop glides from under
+  the pointer to its point, its ring with it. Presses read the reveal's answer, the state the ease
+  is heading for, never the eased picture. Off screen, where nothing drives the ease, the amounts
+  snap to their answers, which is what a lane painted straight to an image in a test shows.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the

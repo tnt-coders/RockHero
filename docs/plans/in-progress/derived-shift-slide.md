@@ -78,7 +78,7 @@ here and the text below is amended to match.
 - **The band conditional at a shared instant** (`keyframe-and-burst-ground-up.md`, "The revealed
   form at a shared instant"): built once, keyed on the stored relation; its direction — the
   ending ring's chips below, or the head's marks higher — chosen at the sighting with both drawn.
-  Replaced 2026-09-28 by an x limit (`ringChipLimit`): the chip below collided with the next
+  Replaced 2026-09-28 by an x limit (since 2026-09-28 every chip stands on its true column instead): the chip below collided with the next
   string's pre-bend chip.
 
 Built as signed, with six things worth recording:

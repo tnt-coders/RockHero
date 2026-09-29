@@ -378,7 +378,7 @@ the neighbouring envelope, or any mark changing band as `Alt` goes down.
 the next string's head, so an end bend chip dropped there landed on the NEXT string's pre-bend
 chip at the same instant, which the measurement above never counted (it measured one lane). The
 x offset rejected above is what replaced it: the ending ring's chip keeps its ordinary height and
-ends short of the head's square (`ringChipLimit`, `423e2bf9`), so every chip stays in its own
+ends short of the head's square (`423e2bf9`; since 2026-09-28 every chip stands on its true column instead), so every chip stays in its own
 lane. The retreat that rejection feared is bounded by the head's own half-width, and the chip
 sitting over its ribbon rather than above the head is what keeps it from reading as the head's
 bend (the user's sighting). (2) stands.
