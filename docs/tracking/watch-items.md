@@ -1028,13 +1028,13 @@ already drops its chip beside the head it lands on (sighted 2026-09-24). The use
 
 ### An end chip can touch the next head's chip when zoomed far out — trigger: the overlap reads badly at a zoom charters actually use
 
-`endChipRightLimit` ends the chip at the crop, one margin (50 ms) before the head, which is about
+`ringChipLimit` ends the chip at the ink's end, one margin (50 ms) before the head, which is about
 16 px at the default zoom (316 px/s). The head's own pre-bend chip is centred on the head and
 reaches back half its width, about 10 px at the shipped lane size, so zoomed well out the two can
 touch, within one lane. The head's chip draws later, so it covers the end chip there. Estimated,
-not measured. **Remedy**: raise a
-selected end keyframe's chip over the head's (the selection overlay already redraws a selected
-arrival over its head), or suppress the end chip below a zoom floor.
+not measured. Partly answered 2026-09-28: a SELECTED chip is repainted over whatever covers it
+(`paintTabBendChip`, `paintTabSlideChip`), so the chip under edit always reads. **Remedy** if the
+unselected overlap reads badly: suppress the end chip below a zoom floor.
 
 ## Editor 3D preview
 

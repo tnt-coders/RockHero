@@ -27,12 +27,13 @@ namespace
     };
 }
 
-// The box of a bend chip whose leg ends at the anchor: half a tail above the curve there, or above
-// the head where the leg ends at the onset, and short of the head a ring's end stands on. The
-// painted chip centres its measured "<slur><amount>" text on it.
-[[nodiscard]] TabLayoutRect tabBendChipBox(
+// The layout of a bend chip standing on the anchor column: half a tail above the curve at the
+// amount it prints, or above the head where the column is the onset's, placed by the one chip rule
+// (chipLeftEdge). At the amount's own height rather than where a cut leg stops, so a chip at the
+// crop stands still when a reveal draws the leg on to its point.
+[[nodiscard]] TabChipLayout bendChipLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
-    const float anchor_y, const double point_seconds, const double drawn_end) noexcept
+    const double semitones) noexcept
 {
     const float text_height = geometry.fretTextHeight();
     // The widest amount a chip prints, the slur, a whole step and a fraction ("2 3/4"), in
@@ -44,22 +45,17 @@ namespace
     const float height = text_height + 2.0f;
     const float center_y = geometry.laneY(note.string);
     const bool over_head = anchor_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f;
-    const float chip_y = over_head
-                             ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
-                             : anchor_y - geometry.tail_height / 2.0f;
-    float chip_x = anchor_x;
-    if (const std::optional<float> limit =
-            endChipRightLimit(geometry, note, point_seconds, drawn_end);
-        limit.has_value())
-    {
-        chip_x = std::min(chip_x, *limit - width / 2.0f);
-    }
-    return TabLayoutRect{
-        .x = chip_x - width / 2.0f,
+    const float chip_y =
+        over_head ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
+                  : bendCurveY(geometry, center_y, semitones) - geometry.tail_height / 2.0f;
+    TabChipLayout chip{.anchor_x = anchor_x, .limit = ringChipLimit(geometry, note)};
+    chip.box = TabLayoutRect{
+        .x = chip.leftEdge(width),
         .y = chip_y - height / 2.0f,
         .width = width,
         .height = height,
     };
+    return chip;
 }
 
 } // namespace
@@ -86,12 +82,12 @@ TabNoteLayout tabNoteLayout(
     // The onset's own bend point opens the curve at the onset's instant; its chip stands above the
     // head. The extent passed is the ink's: an onset's chip never states the ring's end, so the
     // extent never reaches it.
-    if (!note.bend.empty() && geometry.draw_text)
+    if (!note.bend.empty())
     {
         const common::core::BendPointViewState& onset = note.bend.front();
         if (std::is_eq(onset.seconds <=> note.start_seconds))
         {
-            layout.bend_chip = tabBendPointChipBox(geometry, note, 0, note.ink_end_seconds);
+            layout.bend_chip = tabBendPointChip(geometry, note, 0, note.ink_end_seconds);
         }
     }
     return layout;
@@ -153,6 +149,7 @@ TabKeyframeLayout tabSlideStopLayout(
     layout.head_size = geometry.headSize();
     if (drawn && common::core::linkedKeyframe(slide))
     {
+        layout.mark_drawn = true;
         layout.box = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
         return layout;
     }
@@ -161,30 +158,38 @@ TabKeyframeLayout tabSlideStopLayout(
     const int previous_fret = stop == 0 ? note.fret : note.slides[stop - 1].fret;
     const bool upward = slide.fret >= previous_fret;
     layout.shape = TabKeyframeShape::Chip;
-    // The band and the end's column are the shared authorities' (slideOutChipY and
-    // endChipRightLimit), so the box the click is bounded in cannot part from the chip. The painted
-    // chip centres on this box and is never wider, so the limit holds for its ink too.
+    // Whether the chip is drawn: within the extent it is a slide-out's (every other drawn stop wore
+    // its linked head above). Past it only the first stop wears one, the DESTINATION chip naming
+    // where the leg the ink cuts is heading, and only where that leg changes the fret and is no
+    // shift slide's ARRIVAL, whose landing the next head already shows. A note whose ink stops at
+    // its onset, or a lane that prints no text, wears none.
+    const bool first_past =
+        stop == 0 || common::core::instantDrawn(note.slides[stop - 1].seconds, drawn_end);
+    const bool arrival =
+        stop + 1 == note.slides.size() && note.ends_on_next_head && !slide.slide_out;
+    layout.mark_drawn = geometry.draw_text && tailInked(note, drawn_end) &&
+                        (drawn || (first_past && slide.fret != previous_fret && !arrival));
+    // The band and the column are the shared authorities' (slideOutChipY and the chip rule), so the
+    // box the click is bounded in cannot part from the chip the paint core places by the same rule.
     layout.center_y = slideOutChipY(geometry, layout.center_y, upward);
     const float text_height = geometry.fretTextHeight();
     const float width = text_height * 1.4f + 6.0f;
     const float height = text_height + 2.0f;
-    if (const std::optional<float> limit =
-            endChipRightLimit(geometry, note, slide.seconds, drawn_end);
-        limit.has_value())
-    {
-        layout.center_x = std::min(layout.center_x, *limit - width / 2.0f);
-    }
-    layout.box = TabLayoutRect{
-        .x = layout.center_x - width / 2.0f,
+    TabChipLayout chip{.anchor_x = layout.center_x, .limit = ringChipLimit(geometry, note)};
+    chip.box = TabLayoutRect{
+        .x = chip.leftEdge(width),
         .y = layout.center_y - height / 2.0f,
         .width = width,
         .height = height,
     };
+    layout.box = chip.box;
+    layout.center_x = chip.box.x + width / 2.0f;
+    layout.mark_chip = chip;
     return layout;
 }
 
 // Rationale lives on the declaration in tab_layout_manifest.h.
-std::optional<TabLayoutRect> tabBendPointChipBox(
+std::optional<TabChipLayout> tabBendPointChip(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const std::size_t point, const double drawn_end) noexcept
 {
@@ -207,31 +212,7 @@ std::optional<TabLayoutRect> tabBendPointChipBox(
             return std::nullopt;
         }
     }
-    return tabBendChipBox(geometry, note, leg.to_x, leg.to_y, into.seconds, drawn_end);
-}
-
-// Rationale lives on the declaration in tab_layout_manifest.h.
-bool tabSlideChipDrawn(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const std::size_t stop, const double drawn_end) noexcept
-{
-    if (!geometry.draw_text || !tailInked(note, drawn_end))
-    {
-        return false;
-    }
-    const common::core::SlideStopViewState& slide = note.slides[stop];
-    if (common::core::instantDrawn(slide.seconds, drawn_end))
-    {
-        return slide.slide_out;
-    }
-    if (stop > 0 && !common::core::instantDrawn(note.slides[stop - 1].seconds, drawn_end))
-    {
-        return false;
-    }
-    const int previous_fret = stop == 0 ? note.fret : note.slides[stop - 1].fret;
-    const bool arrival =
-        stop + 1 == note.slides.size() && note.ends_on_next_head && !slide.slide_out;
-    return slide.fret != previous_fret && !arrival;
+    return bendChipLayout(geometry, note, leg.to_x, into.semitones);
 }
 
 // A stop's keyframe defers to the stop's own layout. A point riding the curve stands where
@@ -258,23 +239,25 @@ TabKeyframeLayout tabKeyframeLayout(
                 layout.shape = TabKeyframeShape::Dot;
                 layout.box =
                     centeredSquare(layout.center_x, layout.center_y, layout.head_size / 2.0f);
+                // A dot reaching into the column of the head its ring ends on would sit on that
+                // head's digit, so there the point's chip is its only face (nextHeadLeftEdge).
+                const std::optional<float> head_left = nextHeadLeftEdge(geometry, note);
+                layout.mark_drawn =
+                    common::core::instantDrawn(keyframe.seconds, drawn_end) &&
+                    !(head_left.has_value() && layout.box.x + layout.box.width > *head_left);
                 return layout;
             },
             [&](const common::core::KeyframeRestMark&) {
                 TabKeyframeLayout layout = at_instant;
+                layout.mark_drawn = common::core::instantDrawn(keyframe.seconds, drawn_end);
                 layout.box = centeredSquare(layout.center_x, layout.center_y, layout.head_size);
                 return layout;
             },
         },
         keyframe.mark);
-    // Past the extent only a stop's destination chip is drawn, at the crop.
-    const auto* const stop = std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
-    keyframe_layout.mark_drawn =
-        common::core::instantDrawn(keyframe.seconds, drawn_end) ||
-        (stop != nullptr && tabSlideChipDrawn(geometry, note, stop->stop, drawn_end));
     if (const std::optional<std::size_t> point = keyframe.bend_point; point.has_value())
     {
-        keyframe_layout.bend_chip = tabBendPointChipBox(geometry, note, *point, drawn_end);
+        keyframe_layout.bend_chip = tabBendPointChip(geometry, note, *point, drawn_end);
     }
     return keyframe_layout;
 }

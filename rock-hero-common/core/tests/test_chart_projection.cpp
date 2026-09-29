@@ -199,7 +199,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(sliding.slides[0].slide_out);
     CHECK_FALSE(linkedKeyframe(sliding.slides[0]));
     // Nothing is struck on its string where its ring stops, so no mark of another note shares the
-    // instant and the end chip's limit (endChipRightLimit) has nothing to do here.
+    // instant and the head-column rule (nextHeadLeftEdge) has nothing to do here.
     CHECK_FALSE(sliding.ends_on_next_head);
 
     // The shift glide STATES its arrival on the landing, and the ink stops the minimum sustain
@@ -218,7 +218,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // A plain paint walks no stop — the arrival lies past the ink end — and a reveal walks it.
     CHECK_FALSE(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ink_end_seconds));
     CHECK(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ring_end_seconds));
-    // The STORED ring lands on that head, which is what the end chip's limit keys on.
+    // The STORED ring lands on that head, which is what the head-column rule keys on.
     CHECK(shift_slider.ends_on_next_head);
     // The keyframe's own stored offset — the ring's end, a whole beat in — which is the one name
     // every mapping back to the chart uses.

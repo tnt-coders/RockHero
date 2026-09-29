@@ -208,7 +208,7 @@ clean"). The G9 bundle (tasks #261–#264), item by item:
 - **The end bend at a shared instant** — the one defect the sighting found. The ending ring's
   chips used to drop below the envelope at an instant a same-string head owns, which put them in
   the band above the next string's head, onto that head's own pre-bend chip. They now keep their
-  ordinary height and end short of the head's square (`endChipRightLimit`, `423e2bf9`). The user
+  ordinary height and end short of the head's square (`ringChipLimit`, `423e2bf9`). The user
   also asked whether a head and a ring ending on it at one instant should be forced to agree on a
   bend value; RULED NO — a bend peaking as the next note is struck unbent is real playing, and
   Guitar Pro writes it routinely. Whether to DROP the end chip where the head's own bend repeats

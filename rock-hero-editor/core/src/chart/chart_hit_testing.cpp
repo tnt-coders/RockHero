@@ -1,6 +1,7 @@
 #include "chart/chart_hit_testing.h"
 
 #include <cmath>
+#include <initializer_list>
 #include <optional>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -31,7 +32,8 @@ namespace
         tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 }
 
-// The nearest of one class of targets a press lands on, by horizontal distance to each centre.
+// The nearest of one class of targets a press lands on, by horizontal distance to each centre. A
+// tie goes to the target considered LATER, the one the lane painted on top.
 class NearestTarget
 {
 public:
@@ -43,7 +45,7 @@ public:
     void consider(const float center_x, const ChartHitTarget& target)
     {
         const float distance = std::abs(m_press_x - center_x);
-        if (!m_best.has_value() || distance < m_best_distance)
+        if (!m_best.has_value() || distance <= m_best_distance)
         {
             m_best = target;
             m_best_distance = distance;
@@ -80,26 +82,19 @@ std::optional<ChartHitTarget> chartHitTarget(
     // A REVEAL-ONLY satellite is reachable exactly while it is drawn, which is what handing the
     // reveal to the layout buys: one rectangle answers "is it there" for the painter and for this
     // probe, so the drawn digit and the clickable one cannot part.
-    std::optional<std::size_t> best_satellite;
-    float best_satellite_distance = 0.0f;
+    NearestTarget satellites{x};
     for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
         const std::optional<common::ui::TabHeldStopLayout> layout = common::ui::tabHeldStopLayout(
             geometry, tab.notes[index], common::ui::tabRevealed(revealed, index));
-        if (!layout.has_value() || !layout->box.contains(x, y))
+        if (layout.has_value() && layout->box.contains(x, y))
         {
-            continue;
-        }
-        const float distance = std::abs(x - layout->center_x);
-        if (!best_satellite.has_value() || distance < best_satellite_distance)
-        {
-            best_satellite = index;
-            best_satellite_distance = distance;
+            satellites.consider(layout->center_x, ChartHeldStopHit{.index = index});
         }
     }
-    if (best_satellite.has_value())
+    if (satellites.best().has_value())
     {
-        return ChartHeldStopHit{.index = *best_satellite};
+        return satellites.best();
     }
 
     const auto [first, last] = candidateRange(tab, geometry, x, x);
@@ -111,9 +106,15 @@ std::optional<ChartHitTarget> chartHitTarget(
     // what owns it: the onset's bend chip reaches its note, a keyframe's bend chip its keyframe.
     // A chip's box is as wide as the widest amount it can print, since this resolver measures no
     // text, so letting chips answer before heads would hand a short chip's empty margin a press
-    // meant for the head beside it.
+    // meant for the head beside it. Among the faces the one PAINTED ON TOP answers, not the
+    // nearest: chips pushed back to one place stack, and boxes of different widths ending at one
+    // edge have different centres. So each of the paint core's three layers keeps the last face
+    // containing the press, in the paint core's order, and the layers answer topmost first: every
+    // bend chip, then every slide chip, then the marks drawn in the note pass.
     NearestTarget heads{x};
-    NearestTarget faces{x};
+    std::optional<ChartHitTarget> top_mark;
+    std::optional<ChartHitTarget> top_slide_chip;
+    std::optional<ChartHitTarget> top_bend_chip;
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
@@ -122,10 +123,10 @@ std::optional<ChartHitTarget> chartHitTarget(
         {
             heads.consider(layout.onset_x, ChartNoteHit{.index = index});
         }
-        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
-            chip.has_value() && chip->contains(x, y))
+        if (const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
+            chip.has_value() && chip->box.contains(x, y))
         {
-            faces.consider(chip->x + chip->width / 2.0f, ChartNoteHit{.index = index});
+            top_bend_chip = ChartNoteHit{.index = index};
         }
         // A mark is clickable exactly where the lane draws it, by the rules the paint core draws
         // by: within the extent the note is drawn to, and past it only as the destination chip a
@@ -139,12 +140,12 @@ std::optional<ChartHitTarget> chartHitTarget(
             const ChartKeyframeHit target{.note_index = index, .keyframe_index = keyframe};
             if (keyframe_layout.mark_drawn && keyframe_layout.box.contains(x, y))
             {
-                faces.consider(keyframe_layout.center_x, target);
+                (keyframe_layout.mark_chip.has_value() ? top_slide_chip : top_mark) = target;
             }
-            if (const std::optional<common::ui::TabLayoutRect>& chip = keyframe_layout.bend_chip;
-                chip.has_value() && chip->contains(x, y))
+            if (const std::optional<common::ui::TabChipLayout>& chip = keyframe_layout.bend_chip;
+                chip.has_value() && chip->box.contains(x, y))
             {
-                faces.consider(chip->x + chip->width / 2.0f, target);
+                top_bend_chip = target;
             }
         }
     }
@@ -152,9 +153,13 @@ std::optional<ChartHitTarget> chartHitTarget(
     {
         return heads.best();
     }
-    if (faces.best().has_value())
+    for (const std::optional<ChartHitTarget>* const face :
+         {&top_bend_chip, &top_slide_chip, &top_mark})
     {
-        return faces.best();
+        if (face->has_value())
+        {
+            return *face;
+        }
     }
 
     // AND NOTHING ELSE. A tail is not a target: a note is addressed at the one column where it
@@ -185,8 +190,8 @@ std::vector<ChartHitTarget> chartTargetsInBox(
         // Either face reaches the note: its head, or the chip printing its onset's bend.
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
-        const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
-        if (intersects(layout.head) || (chip.has_value() && intersects(*chip)))
+        const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
+        if (intersects(layout.head) || (chip.has_value() && intersects(chip->box)))
         {
             boxed.emplace_back(ChartNoteHit{.index = index});
         }
@@ -203,9 +208,9 @@ std::vector<ChartHitTarget> chartTargetsInBox(
         {
             const common::ui::TabKeyframeLayout layout =
                 common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
-            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
             if ((layout.mark_drawn && intersects(layout.box)) ||
-                (chip.has_value() && intersects(*chip)))
+                (chip.has_value() && intersects(chip->box)))
             {
                 boxed.emplace_back(
                     ChartKeyframeHit{.note_index = index, .keyframe_index = keyframe});

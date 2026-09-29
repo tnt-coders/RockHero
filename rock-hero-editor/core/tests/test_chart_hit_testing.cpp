@@ -1,9 +1,13 @@
 #include "chart/chart_hit_testing.h"
 #include "chart/chart_selection.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
+#include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
+#include <rock_hero/common/core/testing/view_state_fixtures.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -631,7 +635,9 @@ TEST_CASE("Chart hit testing reveals a cropped keyframe per note", "[core][chart
         common::ui::tabKeyframeLayout(geometry, glide, glide.keyframes[1], glide.ink_end_seconds);
     REQUIRE(chip.shape == common::ui::TabKeyframeShape::Chip);
     REQUIRE(chip.mark_drawn);
-    CHECK(chartHitTarget(cropped, geometry, chip.center_x, chip.center_y) == keyframeTarget(0, 1));
+    CHECK(
+        chartHitTarget(cropped, geometry, chip.box.x + chip.box.width / 2.0f, chip.center_y) ==
+        keyframeTarget(0, 1));
     CHECK(
         chartTargetsInBox(
             cropped,
@@ -737,7 +743,7 @@ TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the cro
         {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
          common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
     const common::core::NoteViewState& note = rising.notes.front();
-    const std::optional<common::ui::TabLayoutRect> chip =
+    const std::optional<common::ui::TabChipLayout> chip =
         common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ink_end_seconds)
             .bend_chip;
     REQUIRE(chip.has_value());
@@ -746,9 +752,10 @@ TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the cro
         return;
     }
     // At the crop, and short of the next head.
-    CHECK(chip->x + chip->width <= geometry.x(8.0));
-    const float chip_x = chip->x + chip->width / 2.0f;
-    const float chip_y = chip->y + chip->height / 2.0f;
+    const common::ui::TabLayoutRect& box = chip->box;
+    CHECK(box.x + box.width <= geometry.x(8.0));
+    const float chip_x = box.x + box.width / 2.0f;
+    const float chip_y = box.y + box.height / 2.0f;
     CHECK(chartHitTarget(rising, geometry, chip_x, chip_y) == keyframeTarget(0, 0));
 
     // Held level into the landing: the cut leg says nothing new, so it wears no chip to click.
@@ -761,6 +768,151 @@ TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the cro
         common::ui::tabKeyframeLayout(
             geometry, held_note, held_note.keyframes.front(), held_note.ink_end_seconds)
             .bend_chip.has_value());
+}
+
+// Chips pushed back to a ring's limit STACK, and the lane paints the later on top, so a press on
+// the stack names the chip the charter sees: the hit walk's ties go to the later target.
+TEST_CASE("Chart hit testing answers a chip stack with the chip painted on top", "[core][chart]")
+{
+    // Two points just before a ring's end on the next head of string 3 at 10.0s (x = 200): a whole
+    // step at 9.9s, released to a half at 10.0s; the ink stops at 9.0s (x = 180).
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 10.0,
+            .ink_end_seconds = 9.0,
+            .string = 3,
+            .fret = 5,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 9.9, .semitones = 2.0},
+                 common::core::BendPointViewState{.seconds = 10.0, .semitones = 1.0}},
+            .slides = {},
+            .keyframes =
+                {common::core::KeyframeViewState{
+                     .seconds = 9.9,
+                     .offset = common::core::Fraction{79, 10},
+                     .mark = common::core::KeyframeCurveMark{},
+                     .bend_point = std::size_t{1},
+                 },
+                 common::core::KeyframeViewState{
+                     .seconds = 10.0,
+                     .offset = common::core::Fraction{8},
+                     .mark = common::core::KeyframeCurveMark{},
+                     .bend_point = std::size_t{2},
+                 }},
+            .vibrato = {},
+            .ends_on_next_head = true,
+        },
+        common::core::NoteViewState{
+            .start_seconds = 10.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = 12.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+        },
+    };
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::core::NoteViewState& note = tab.notes.front();
+    const std::optional<common::ui::TabChipLayout> top =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.back(), note.ring_end_seconds)
+            .bend_chip;
+    const std::optional<common::ui::TabChipLayout> under =
+        common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ring_end_seconds)
+            .bend_chip;
+    REQUIRE(top.has_value());
+    REQUIRE(under.has_value());
+    if (!top.has_value() || !under.has_value())
+    {
+        return;
+    }
+    // Both pushed back to the limit: one box.
+    REQUIRE(std::is_eq(top->box.x <=> under->box.x));
+    CHECK(
+        chartHitTarget(
+            tab,
+            geometry,
+            top->box.x + top->box.width / 2.0f,
+            top->box.y + top->box.height / 2.0f,
+            revealEverything()) == keyframeTarget(0, 1));
+}
+
+// A MIXED stack answers by paint layer, not by distance: every bend chip paints above every slide
+// chip, and the two boxes ending at one edge have different widths and so different centres, so a
+// nearest-centre rule would hand the covered slide-out a press on the bend chip over it.
+TEST_CASE("Chart hit testing answers a mixed chip stack with the bend chip on top", "[core][chart]")
+{
+    // A whole-step point at 9.9s and a slide-out at the ring's end, 10.0s (x = 200), where the next
+    // head of string 3 is struck; the ink stops at 9.0s (x = 180).
+    common::core::ChartViewState tab;
+    tab.open_strings = common::core::testing::standardTuning();
+    tab.notes = {
+        common::core::testing::withStops(
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .ring_end_seconds = 10.0,
+                .ink_end_seconds = 9.0,
+                .string = 3,
+                .fret = 5,
+                .bend =
+                    {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                     common::core::BendPointViewState{.seconds = 9.9, .semitones = 2.0}},
+                .slides = {},
+                .keyframes = {},
+                .vibrato = {},
+                .ends_on_next_head = true,
+            },
+            {common::core::SlideStopViewState{.seconds = 10.0, .fret = 9, .slide_out = true}}),
+        common::core::NoteViewState{
+            .start_seconds = 10.0,
+            .ring_end_seconds = 12.0,
+            .ink_end_seconds = 12.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+        },
+    };
+    // The bend point's keyframe, before the slide-out's in time and in the list.
+    std::vector<common::core::KeyframeViewState>& keyframes = tab.notes.front().keyframes;
+    keyframes.insert(
+        keyframes.begin(),
+        common::core::KeyframeViewState{
+            .seconds = 9.9,
+            .offset = common::core::Fraction{79, 10},
+            .mark = common::core::KeyframeCurveMark{},
+            .bend_point = std::size_t{1},
+        });
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::core::NoteViewState& note = tab.notes.front();
+    const std::optional<common::ui::TabChipLayout> bend_chip =
+        common::ui::tabKeyframeLayout(geometry, note, keyframes.front(), note.ring_end_seconds)
+            .bend_chip;
+    const std::optional<common::ui::TabChipLayout> slide_chip =
+        common::ui::tabKeyframeLayout(geometry, note, keyframes.back(), note.ring_end_seconds)
+            .mark_chip;
+    REQUIRE(bend_chip.has_value());
+    REQUIRE(slide_chip.has_value());
+    if (!bend_chip.has_value() || !slide_chip.has_value())
+    {
+        return;
+    }
+    // A press where both boxes overlap, nearer the slide chip's centre than the bend chip's.
+    const float press_x = std::max(bend_chip->box.x, slide_chip->box.x) + 1.0f;
+    const float press_y = std::max(bend_chip->box.y, slide_chip->box.y) + 1.0f;
+    REQUIRE(bend_chip->box.contains(press_x, press_y));
+    REQUIRE(slide_chip->box.contains(press_x, press_y));
+    CHECK(
+        chartHitTarget(tab, geometry, press_x, press_y, revealEverything()) ==
+        keyframeTarget(0, 0));
 }
 
 // A CHIP IS A FACE OF WHAT OWNS IT. The chip printing a keyframe's bend reaches that keyframe, and
@@ -821,7 +973,7 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
             tab, geometry, box.x, box.y, box.x + box.width, box.y + box.height);
     };
 
-    const std::optional<common::ui::TabLayoutRect> point_chip =
+    const std::optional<common::ui::TabChipLayout> point_chip =
         common::ui::tabKeyframeLayout(geometry, note, note.keyframes.front(), note.ink_end_seconds)
             .bend_chip;
     REQUIRE(point_chip.has_value());
@@ -831,12 +983,12 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
             chartHitTarget(
                 tab,
                 geometry,
-                point_chip->x + point_chip->width / 2.0f,
-                point_chip->y + point_chip->height / 2.0f) == keyframeTarget(0, 0));
-        CHECK(in_box(*point_chip) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
+                point_chip->box.x + point_chip->box.width / 2.0f,
+                point_chip->box.y + point_chip->box.height / 2.0f) == keyframeTarget(0, 0));
+        CHECK(in_box(point_chip->box) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
     }
 
-    const std::optional<common::ui::TabLayoutRect> onset_chip =
+    const std::optional<common::ui::TabChipLayout> onset_chip =
         common::ui::tabNoteLayout(geometry, note).bend_chip;
     REQUIRE(onset_chip.has_value());
     if (onset_chip.has_value())
@@ -845,19 +997,19 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
             chartHitTarget(
                 tab,
                 geometry,
-                onset_chip->x + onset_chip->width / 2.0f,
-                onset_chip->y + onset_chip->height / 2.0f) == noteTarget(0));
-        CHECK(in_box(*onset_chip) == (std::vector<ChartHitTarget>{noteTarget(0)}));
+                onset_chip->box.x + onset_chip->box.width / 2.0f,
+                onset_chip->box.y + onset_chip->box.height / 2.0f) == noteTarget(0));
+        CHECK(in_box(onset_chip->box) == (std::vector<ChartHitTarget>{noteTarget(0)}));
     }
 
     // The small bend's chip box reaches over the next head's centre; the head answers there.
-    const std::optional<common::ui::TabLayoutRect> near_chip =
+    const std::optional<common::ui::TabChipLayout> near_chip =
         common::ui::tabKeyframeLayout(geometry, note, note.keyframes.back(), note.ink_end_seconds)
             .bend_chip;
     REQUIRE(near_chip.has_value());
     if (near_chip.has_value())
     {
-        REQUIRE(near_chip->contains(200.0f, geometry.laneY(3)));
+        REQUIRE(near_chip->box.contains(200.0f, geometry.laneY(3)));
     }
     CHECK(chartHitTarget(tab, geometry, 200.0f, geometry.laneY(3)) == noteTarget(1));
 }

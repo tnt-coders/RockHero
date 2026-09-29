@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <compare>
 #include <functional>
 #include <iterator>
 #include <rock_hero/common/core/chart/bend_travel.h>
@@ -222,16 +221,39 @@ float slideOutChipY(
 }
 
 // Rationale lives on the declaration in tab_lane_layout.h.
-std::optional<float> endChipRightLimit(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const double mark_seconds, const double drawn_end) noexcept
+std::optional<float> nextHeadLeftEdge(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    if (!note.ends_on_next_head || std::is_neq(mark_seconds <=> note.ring_end_seconds))
+    if (!note.ends_on_next_head)
     {
         return std::nullopt;
     }
-    return std::min(
-        geometry.x(drawn_end), geometry.x(note.ring_end_seconds) - geometry.headSize() / 2.0f);
+    return geometry.x(note.ring_end_seconds) - geometry.headSize() / 2.0f;
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
+std::optional<float> ringChipLimit(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
+{
+    // An ending zone exists where the ink stops strictly inside the ring: presentation's crop
+    // before an onset the ring does not pass. An emptied tail (ink at the onset) has none.
+    const bool cropped =
+        tailInked(note, note.ink_end_seconds) && note.ink_end_seconds < note.ring_end_seconds;
+    const std::optional<float> head_left = nextHeadLeftEdge(geometry, note);
+    if (cropped)
+    {
+        const float ink_x = geometry.x(note.ink_end_seconds);
+        return head_left.has_value() ? std::min(ink_x, *head_left) : ink_x;
+    }
+    return head_left;
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h.
+float chipLeftEdge(
+    const float anchor_x, const float width, const std::optional<float> limit) noexcept
+{
+    const float centred = anchor_x - width / 2.0f;
+    return limit.has_value() ? std::min(centred, *limit - width) : centred;
 }
 
 } // namespace rock_hero::common::ui

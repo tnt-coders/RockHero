@@ -363,7 +363,7 @@ marks the addressed head marks the ending ring's end mark instead, the fall chip
 linked head. A held mode must show which object it addresses, and "`Alt` already means it" fails
 exactly where two objects share one x.
 
-**BUILT 2026-09-22 with the interaction half.** (1) is answered as the expert measured it: the
+**BUILT 2026-09-22 with the interaction half; (1) REVERSED 2026-09-28, below.** (1) was answered as the expert measured it: the
 ending ring's chips take the band BELOW the envelope whenever its end stands on a head of its own
 string, rising leg or not, and the head's own marks keep the band above — one conditional
 (`endMarkYAtSharedInstant`), one constant to flip it, read by the painter and the layout manifest
@@ -378,7 +378,7 @@ the neighbouring envelope, or any mark changing band as `Alt` goes down.
 the next string's head, so an end bend chip dropped there landed on the NEXT string's pre-bend
 chip at the same instant, which the measurement above never counted (it measured one lane). The
 x offset rejected above is what replaced it: the ending ring's chip keeps its ordinary height and
-ends short of the head's square (`endChipRightLimit`, `423e2bf9`), so every chip stays in its own
+ends short of the head's square (`ringChipLimit`, `423e2bf9`), so every chip stays in its own
 lane. The retreat that rejection feared is bounded by the head's own half-width, and the chip
 sitting over its ribbon rather than above the head is what keeps it from reading as the head's
 bend (the user's sighting). (2) stands.

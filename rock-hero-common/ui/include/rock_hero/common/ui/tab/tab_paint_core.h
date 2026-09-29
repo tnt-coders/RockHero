@@ -461,32 +461,38 @@ width derived from this lane's own label font.
     const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp, float left_x);
 
 /*!
-\brief Returns the plate a bend chip paints: its measured text, centred on the chip's layout box.
+\brief Paints a bend point's chip exactly as the lane does, and returns the plate it filled.
 
-The layout box (\ref tabBendChipBox) is as wide as the widest amount, so it is the click target; the
-plate is the chip as drawn, which a host's selection ring traces so the ring claims the chip's own
-extent. Measured by the one routine the lane paints the chip with.
+THE SELECTED OBJECT DRAWS LAST: chips standing where their ring's limit pushes them back stack at
+one place, the lane painting the last on top, so a host repaints a selected point's chip over the
+stack before tracing its ring on the returned plate. Built by the lane's own routine, so the
+repainted chip is the lane's chip; the plate is the measured text, narrower than the click box
+(\ref TabChipLayout), so the ring claims the chip's own extent.
 
+\param g Graphics context to paint into.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
-\param semitones The amount the chip prints.
-\param box The chip's layout box.
+\param note The note the point belongs to.
+\param point Index of the point in the note's \ref common::core::NoteViewState::bend.
+\param chip The chip's layout (\ref tabBendPointChip).
 \return The plate's bounds, in the metrics' bounds space.
 */
-[[nodiscard]] juce::Rectangle<float> tabBendChipBounds(
-    const TabLaneMetrics& metrics, double semitones, const TabLayoutRect& box);
+juce::Rectangle<float> paintTabBendChip(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
+    std::size_t point, const TabChipLayout& chip);
 
 /*!
-\brief Returns the plate a slide stop's chip paints: its fret label, centred on the stop's layout
-box (\ref tabSlideStopLayout), the chip as drawn for a host's selection ring to trace.
+\brief Paints a slide stop's chip exactly as the lane does, and returns the plate it filled: the
+slide twin of \ref paintTabBendChip.
+\param g Graphics context to paint into.
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
 \param note The note the stop belongs to.
 \param stop Index of the stop in the note's \ref common::core::NoteViewState::slides.
-\param box The stop's layout box.
+\param chip The chip's layout: the stop layout's box and column (\ref tabSlideStopLayout).
 \return The plate's bounds, in the metrics' bounds space.
 */
-[[nodiscard]] juce::Rectangle<float> tabSlideChipBounds(
-    const TabLaneMetrics& metrics, const common::core::NoteViewState& note, std::size_t stop,
-    const TabLayoutRect& box);
+juce::Rectangle<float> paintTabSlideChip(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState& note,
+    std::size_t stop, const TabChipLayout& chip);
 
 /*!
 \brief THE ONE STATEMENT of what a fret-hand-position chip says: the index-finger fret for the

@@ -415,7 +415,7 @@ it until the single form carries one.
   points round onto the lattice, so two that round onto one tick stay apart) — each in 2D, in 3D
   and under `Alt`. Confirm the margin against this picture. **Signed 2026-09-24**; the end bend
   abutting a same-string head was signed 2026-09-28, once bends were authorable. Its chip now ends
-  short of the head rather than dropping below the envelope (`endChipRightLimit`).
+  short of the head rather than dropping below the envelope (`ringChipLimit`).
 - **Docs:** `tab_paint_core.h`, `the-editor-2d-views.md`, `the-3d-highway.md`.
 
 ### Phase 1c — The caret peek returns

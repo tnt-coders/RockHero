@@ -423,8 +423,10 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // A selected chip's ring traces the plate the lane painted, as the selected fret-hand chip's
-    // does, so the ring claims the chip's own extent rather than the wider box its click lands in.
+    // A selected chip is repainted over whatever covers it (chips pushed back by their ring's limit
+    // stack at one place) and wears its ring on the plate the repaint filled, as the selected
+    // fret-hand chip's does, so the ring claims the chip's own extent rather than the wider box
+    // its click lands in.
     const auto ring_chip_plate = [&g, accent](const juce::Rectangle<float>& plate) {
         g.setColour(accent);
         g.drawRect(plate, overlayRingStroke(plate.getHeight()));
@@ -454,19 +456,19 @@ void TabView::paint(juce::Graphics& g)
             layout.head_size,
             overlayRingStroke(layout.head_size));
         // The chip printing the onset's bend is the note's second face, so it wears the ring too.
-        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+        if (const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
             chip.has_value())
         {
-            ring_chip_plate(
-                common::ui::tabBendChipBounds(metrics, note.bend.front().semitones, *chip));
+            ring_chip_plate(common::ui::paintTabBendChip(g, metrics, note, 0, *chip));
         }
     }
 
-    // The head a published keyframe ref names, resolved once for every keyframe overlay — the
-    // selection ring here and the pending box below — and only where the lane DRAWS it: a
-    // keyframe past its note's ink end is drawn while the note is revealed and not otherwise, so
-    // an overlay on it follows the same rule and a mark can never appear where no head is. A ref
-    // the projection has since outrun simply yields nothing.
+    // The keyframe a published ref names, laid out once for every keyframe overlay — the selection
+    // ring here and the pending box below — and only where the lane DRAWS a face of it (its mark,
+    // or the chip printing its bend), by the layout's own answer: a keyframe past its note's ink
+    // end is drawn while the note is revealed and not otherwise, so an overlay on it follows the
+    // same rule and never appears where the lane drew nothing. A ref the projection has since
+    // outrun simply yields nothing.
     const auto for_each_drawn_keyframe = [&](const std::vector<core::ChartKeyframeRef>& refs,
                                              const auto& draw) {
         for (const core::ChartKeyframeRef& ref : refs)
@@ -482,11 +484,13 @@ void TabView::paint(juce::Graphics& g)
             }
             const common::core::KeyframeViewState& keyframe = note.keyframes[ref.keyframe_index];
             const double drawn_end = common::core::drawnEndSeconds(note, revealed(ref.note_index));
-            if (!common::core::instantDrawn(keyframe.seconds, drawn_end))
+            const common::ui::TabKeyframeLayout layout =
+                common::ui::tabKeyframeLayout(metrics, note, keyframe, drawn_end);
+            if (!layout.mark_drawn && !layout.bend_chip.has_value())
             {
                 continue;
             }
-            draw(note, keyframe, common::ui::tabKeyframeLayout(metrics, note, keyframe, drawn_end));
+            draw(note, keyframe, layout);
         }
     };
 
@@ -497,9 +501,9 @@ void TabView::paint(juce::Graphics& g)
     //
     // THE SELECTED OBJECT DRAWS LAST: a linked head is redrawn here before its ring, because the
     // lane paints notes in chart order and an ARRIVAL sits at the next head's own instant, which
-    // would otherwise leave the ring around a mark the charter cannot read. A chip needs nothing —
-    // chips already draw above every head — and a selected HEAD keeps drawing over the arrival, as
-    // the instant's owner should.
+    // would otherwise leave the ring around a mark the charter cannot read; a chip is repainted
+    // over the chips stacked with it. A selected HEAD keeps drawing over the arrival, as the
+    // instant's owner should.
     for_each_drawn_keyframe(
         m_edit.selected_keyframes,
         [&](const common::core::NoteViewState& note,
@@ -507,41 +511,46 @@ void TabView::paint(juce::Graphics& g)
             const common::ui::TabKeyframeLayout& layout) {
             const common::ui::TabLayoutRect& box = layout.box;
             const juce::Rectangle<float> mark_bounds{box.x, box.y, box.width, box.height};
-            switch (layout.shape)
+            // A mark the lane does not draw wears no ring: a bend point's dot on the shared
+            // instant, whose chip is its only face there.
+            if (layout.mark_drawn)
             {
-                case common::ui::TabKeyframeShape::Head:
-                    common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
-                    g.setColour(accent);
-                    common::ui::strokeTabNoteHeadOutline(
-                        g,
-                        note,
-                        layout.center_x,
-                        layout.center_y,
-                        layout.head_size,
-                        overlayRingStroke(layout.head_size));
-                    break;
-                case common::ui::TabKeyframeShape::Chip:
-                    if (const auto* const stop =
-                            std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
-                        stop != nullptr)
-                    {
-                        ring_chip_plate(
-                            common::ui::tabSlideChipBounds(metrics, note, stop->stop, box));
-                    }
-                    break;
-                case common::ui::TabKeyframeShape::Dot:
-                    g.setColour(accent);
-                    g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
-                    break;
+                switch (layout.shape)
+                {
+                    case common::ui::TabKeyframeShape::Head:
+                        common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
+                        g.setColour(accent);
+                        common::ui::strokeTabNoteHeadOutline(
+                            g,
+                            note,
+                            layout.center_x,
+                            layout.center_y,
+                            layout.head_size,
+                            overlayRingStroke(layout.head_size));
+                        break;
+                    case common::ui::TabKeyframeShape::Chip:
+                        if (const auto* const stop =
+                                std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
+                            stop != nullptr && layout.mark_chip.has_value())
+                        {
+                            ring_chip_plate(
+                                common::ui::paintTabSlideChip(
+                                    g, metrics, note, stop->stop, *layout.mark_chip));
+                        }
+                        break;
+                    case common::ui::TabKeyframeShape::Dot:
+                        g.setColour(accent);
+                        g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
+                        break;
+                }
             }
             // The chip printing the keyframe's bend is its second face, so it wears the ring too:
             // a click on either selects the keyframe, and the selection shows on both.
-            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            const std::optional<common::ui::TabChipLayout>& chip = layout.bend_chip;
             const std::optional<std::size_t>& point = keyframe.bend_point;
             if (chip.has_value() && point.has_value())
             {
-                ring_chip_plate(
-                    common::ui::tabBendChipBounds(metrics, note.bend[*point].semitones, *chip));
+                ring_chip_plate(common::ui::paintTabBendChip(g, metrics, note, *point, *chip));
             }
         });
 

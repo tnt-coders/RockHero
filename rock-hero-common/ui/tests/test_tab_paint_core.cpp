@@ -3221,7 +3221,9 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
         const TabKeyframeLayout at_instant =
             tabSlideStopLayout(metrics, note, 0, note.ring_end_seconds);
         REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
-        CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
+        CHECK_THAT(
+            at_crop.mark_chip.value_or(TabChipLayout{}).anchor_x,
+            Catch::Matchers::WithinULP(metrics.x(6.0), 0));
         // The rising leg's chip stands above the envelope, so its probe rows exist.
         REQUIRE(at_crop.box.y < span.top - 1.0f);
         CHECK(at_instant.shape == TabKeyframeShape::Head);
@@ -3260,7 +3262,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
         CHECK(differs_in(painted(free_end, false), bare_cropped, at_crop.box, above_envelope));
     }
 
-    SECTION("a slide-out past the crop: its chip at the crop, and at its instant when revealed")
+    SECTION("a slide-out past the crop keeps its chip at the crop, revealed or not")
     {
         // A slide-out at the ring's end (x = 240), rising 7 -> 9.
         const common::core::SlideStopViewState slide_out{
@@ -3273,18 +3275,22 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
             tabSlideStopLayout(metrics, note, 0, note.ring_end_seconds);
         REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
         REQUIRE(at_instant.shape == TabKeyframeShape::Chip);
-        CHECK_THAT(at_crop.center_x, Catch::Matchers::WithinULP(metrics.x(6.0), 0));
-        CHECK_THAT(at_instant.center_x, Catch::Matchers::WithinULP(metrics.x(12.0), 0));
+        // Its column is its own instant, or the crop's while cut; either way the chip stands in
+        // the ending zone and so ends at the ink's edge (ringChipLimit): one place in both states,
+        // the place a click on it lands.
+        CHECK_THAT(
+            at_crop.mark_chip.value_or(TabChipLayout{}).anchor_x,
+            Catch::Matchers::WithinULP(metrics.x(6.0), 0));
+        CHECK_THAT(
+            at_instant.mark_chip.value_or(TabChipLayout{}).anchor_x,
+            Catch::Matchers::WithinULP(metrics.x(12.0), 0));
+        CHECK_THAT(at_crop.box.x, Catch::Matchers::WithinULP(at_instant.box.x, 0));
+        CHECK_THAT(
+            at_crop.box.x + at_crop.box.width, Catch::Matchers::WithinAbs(metrics.x(6.0), 1e-3));
         REQUIRE(at_crop.box.y < span.top - 1.0f);
-        REQUIRE(at_instant.box.y < span.top - 1.0f);
 
-        const juce::Image cropped = painted(note, false);
-        const juce::Image revealed = painted(note, true);
-
-        CHECK(differs_in(cropped, bare_cropped, at_crop.box, above_envelope));
-        CHECK_FALSE(differs_in(cropped, bare_cropped, at_instant.box, above_envelope));
-        CHECK(differs_in(revealed, bare_revealed, at_instant.box, above_envelope));
-        CHECK_FALSE(differs_in(revealed, bare_revealed, at_crop.box, above_envelope));
+        CHECK(differs_in(painted(note, false), bare_cropped, at_crop.box, above_envelope));
+        CHECK(differs_in(painted(note, true), bare_revealed, at_crop.box, above_envelope));
     }
 
     SECTION("a level leg past the crop says nothing new, so no chip")
@@ -3309,9 +3315,10 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
 }
 
 // The bend's destination chip, the slide's twin: the leg an unrevealed note's ink end cuts names
-// the amount it is heading for at the crop — only where the leg changes the amount, never on a
-// note whose ink stops at its onset, and not at all once the note is revealed and the point draws
-// its own chip at its instant. A chip is isolated by rendering the same lane with and without
+// the amount it is heading for at the crop — only where the leg changes the amount, and never on a
+// note whose ink stops at its onset. Revealed, the point draws its own chip, which stands in the
+// ending zone and so ends at the ink's edge, where the destination chip stood: the chip never moves
+// on a reveal. A chip is isolated by rendering the same lane with and without
 // text: every mark but a chip and a head's digit is common to both, so a difference in the columns
 // around the crop, well clear of the onset's digit and any drawn point's chip, is a chip there.
 TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "[ui][tab-paint]")
@@ -3355,12 +3362,14 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "
         return worstPixelDeltaInColumns(with_text, without_text, 110, 130) > 0;
     };
 
-    SECTION("a leg heading for a new amount wears its chip at the crop until revealed")
+    SECTION("a leg heading for a new amount wears its chip at the crop, and keeps it there")
     {
+        // Revealed, the point's own chip stands in the ending zone, so it ends at the ink's edge
+        // exactly where the destination chip stood: the chip does not move on a reveal.
         const common::core::NoteViewState note =
             bent(6.0, {common::core::BendPointViewState{.seconds = 10.0, .semitones = 2.0}});
         CHECK(chip_at_crop(note, false));
-        CHECK_FALSE(chip_at_crop(note, true));
+        CHECK(chip_at_crop(note, true));
     }
 
     SECTION("a leg that keeps the drawn amount says nothing new, so no chip")
@@ -3384,10 +3393,116 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "
     }
 }
 
+// THE HEAD'S COLUMN IS THE HEAD'S. Where a ring ends on the next head of its own string, a bend
+// point whose dot would reach into that head's square draws none, its chip being its face; a dot
+// clear of the square draws at its true instant, so zooming in brings back a point just before the
+// end. Every chip of the ring stops short of the head at its ink's edge, and stands still when a
+// reveal runs the ribbon on beneath the head: the same column and the same height, the amount's
+// own. Chips pushed back to that edge stack there, the later on top.
+TEST_CASE("Tab paint core keeps a ring's marks out of the head it ends on", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    // A point at 7.5s reaching a whole step, and the end point at 8.0s releasing to a half, where
+    // the next head of string 3 is struck; the ink stops at 7.0s.
+    const auto ending = [](std::vector<common::core::KeyframeViewState> keyframes) {
+        return common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 7.0,
+            .string = 3,
+            .fret = 7,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 2.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 7.5, .semitones = 2.0},
+                 common::core::BendPointViewState{.seconds = 8.0, .semitones = 1.0}},
+            .slides = {},
+            .keyframes = std::move(keyframes),
+            .vibrato = {},
+            .ends_on_next_head = true,
+        };
+    };
+    const common::core::KeyframeViewState before_end{
+        .seconds = 7.5,
+        .offset = common::core::Fraction{11, 2},
+        .mark = common::core::KeyframeCurveMark{},
+        .bend_point = std::size_t{1},
+    };
+    const common::core::KeyframeViewState at_end{
+        .seconds = 8.0,
+        .offset = common::core::Fraction{6},
+        .mark = common::core::KeyframeCurveMark{},
+        .bend_point = std::size_t{2},
+    };
+    const common::core::NoteViewState note = ending({before_end, at_end});
+    // The whole lane at 20 px/s, and zoomed to 7.5s..9s across the same 400 px.
+    const TabLaneMetrics lane = referenceMetrics(6);
+    const TabLaneMetrics zoomed = makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{6.0},
+            .end = common::core::TimePosition{9.0},
+        },
+        6,
+        6,
+        TabLaneStyle{});
+    REQUIRE(lane.draw_text);
+
+    // The dot at the ring's end is in the head at any zoom; the one before it only until the lane
+    // is zoomed far enough to hold it clear. Revealed, as a selection draws the note.
+    CHECK_FALSE(tabKeyframeLayout(lane, note, at_end, note.ring_end_seconds).mark_drawn);
+    CHECK_FALSE(tabKeyframeLayout(zoomed, note, at_end, note.ring_end_seconds).mark_drawn);
+    CHECK_FALSE(tabKeyframeLayout(lane, note, before_end, note.ring_end_seconds).mark_drawn);
+    CHECK(tabKeyframeLayout(zoomed, note, before_end, note.ring_end_seconds).mark_drawn);
+
+    // Every chip stops at the ring's limit, the ink's edge, short of the head.
+    const std::optional<float> limit = ringChipLimit(lane, note);
+    REQUIRE(limit.has_value());
+    if (!limit.has_value())
+    {
+        return;
+    }
+    CHECK(*limit <= lane.x(8.0) - lane.headSize() / 2.0f);
+    const auto chip_of =
+        [&lane, &note](const common::core::KeyframeViewState& keyframe, const double drawn_end) {
+            return tabKeyframeLayout(lane, note, keyframe, drawn_end).bend_chip;
+        };
+    const std::optional<TabChipLayout> end_cropped = chip_of(at_end, note.ink_end_seconds);
+    const std::optional<TabChipLayout> end_revealed = chip_of(at_end, note.ring_end_seconds);
+    const std::optional<TabChipLayout> before_revealed = chip_of(before_end, note.ring_end_seconds);
+    // Cropped, the leg toward the first point past the ink wears the destination chip; the end
+    // point past it wears none until revealed.
+    CHECK_FALSE(end_cropped.has_value());
+    REQUIRE(end_revealed.has_value());
+    REQUIRE(before_revealed.has_value());
+    if (!end_revealed.has_value() || !before_revealed.has_value())
+    {
+        return;
+    }
+    // Both pushed back to the limit, so they stack; the painted plate ends there too.
+    CHECK_THAT(
+        end_revealed->box.x + end_revealed->box.width, Catch::Matchers::WithinAbs(*limit, 1e-3));
+    CHECK_THAT(end_revealed->box.x, Catch::Matchers::WithinULP(before_revealed->box.x, 0));
+    const juce::Image scratch{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics scratch_graphics{scratch};
+    CHECK_THAT(
+        paintTabBendChip(scratch_graphics, lane, note, 2, *end_revealed).getRight(),
+        Catch::Matchers::WithinAbs(*limit, 1e-3));
+
+    // The chip naming the point before the end stands still when the reveal draws its leg on.
+    const std::optional<TabChipLayout> before_cropped = chip_of(before_end, note.ink_end_seconds);
+    REQUIRE(before_cropped.has_value());
+    if (!before_cropped.has_value())
+    {
+        return;
+    }
+    CHECK_THAT(before_cropped->box.x, Catch::Matchers::WithinULP(before_revealed->box.x, 0));
+    CHECK_THAT(before_cropped->box.y, Catch::Matchers::WithinULP(before_revealed->box.y, 0));
+}
+
 // THE BEND CHIP'S BOX BOUNDS WHAT IT PAINTS, for every amount a chip can print, and the PLATE a
 // selection ring traces is what it paints. The box is the layout manifest's statement of where the
-// chip stands (tabBendChipBox) and a keyframe's click target, so ink spilling out of it would be
-// chip no click reaches; the plate (tabBendChipBounds) must hug the ink, or the ring would claim
+// chip stands (tabBendPointChip) and a keyframe's click target, so ink spilling out of it would be
+// chip no click reaches; the plate (paintTabBendChip) must hug the ink, or the ring would claim
 // an extent the chip does not have. The ink is measured, not computed: the pixels a lane with text
 // paints differently from the same lane without, around one drawn point far from the head's own
 // digit. Checked at the shipped lane size and at the text floor, where the fraction font is largest
@@ -3460,14 +3575,14 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
                     }
                 }
             }
-            const std::optional<TabLayoutRect> laid_out =
-                tabBendPointChipBox(metrics, note, 0, note.ink_end_seconds);
+            const std::optional<TabChipLayout> laid_out =
+                tabBendPointChip(metrics, note, 0, note.ink_end_seconds);
             REQUIRE(laid_out.has_value());
             if (!laid_out.has_value())
             {
                 return;
             }
-            const TabLayoutRect& box = *laid_out;
+            const TabLayoutRect& box = laid_out->box;
             INFO("lane height " << bounds_height << ", " << semitones << " semitones");
             INFO(
                 "ink columns " << ink_left << ".." << ink_right << " of box " << box.x << ".."
@@ -3483,7 +3598,11 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
             // And the plate a selection ring traces IS the painted chip: its edges fall within a
             // border of the ink's on every side, so the ring hugs the chip, and it sits inside
             // the box.
-            const juce::Rectangle<float> plate = tabBendChipBounds(metrics, semitones, box);
+            const juce::Image scratch{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, bounds_height, true)};
+            juce::Graphics plate_graphics{scratch};
+            const juce::Rectangle<float> plate =
+                paintTabBendChip(plate_graphics, metrics, note, 0, *laid_out);
             CHECK(std::abs(static_cast<float>(ink_left) - plate.getX()) <= 2.0f * border);
             CHECK(std::abs(static_cast<float>(ink_right + 1) - plate.getRight()) <= 2.0f * border);
             CHECK(std::abs(static_cast<float>(ink_top) - plate.getY()) <= 2.0f * border);

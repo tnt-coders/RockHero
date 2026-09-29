@@ -306,7 +306,7 @@ Four consequences worth knowing before touching this:
   `→` onto the shared slot lands on the statement and a second press takes the head, while `←` from
   the head names the statement without moving and a second press leaves. `Shift+Tab` reaches it the
   same way. It wears
-  the accent ring traced on the chip as painted (`tabSlideChipBounds`; `tabSlideStopLayout` lays
+  the accent ring traced on the chip as painted (`paintTabSlideChip`; `tabSlideStopLayout` lays
   out the wider box its click lands in, mirroring `drawSlideLines`), a digit retypes it, Delete clears it. One that falls toward the fret already in
   force says nothing (`keyframeSaysNothingNew`) and is treated like every other silent point: it
   DRAWS ITS CHIP — the painter skips the diagonal for a leg that travels nowhere, never the mark —
@@ -355,13 +355,17 @@ Four consequences worth knowing before touching this:
   above the head is the note's second face on the same rule (`TabNoteLayout::bend_chip`). The
   DESTINATION chip a cut leg wears at the crop is a face of the keyframe it heads for, whether the
   leg is a slide's or a bend's, so clicking it selects that keyframe
-  (`TabKeyframeLayout::mark_drawn`). Whether a chip is drawn is the layout manifest's statement
-  (`tabSlideChipDrawn`, `tabBendPointChipBox`, the bend legs by `tabBendLeg`), read by the painter
-  and the hit test alike. `tabBendPointChipBox` also bounds a bend chip's click: a box as wide as
-  the widest amount, because the headless hit test measures no text. The ring instead traces the
-  chip as painted (`tabBendChipBounds`), so it never circles empty lane around a short amount. A
-  head still answers before any chip over it (`chartHitTarget`), or a short chip's empty margin
-  would take presses meant for the head beside it. That head prints where the hand really is because no vibrato change may
+  (`TabKeyframeLayout::mark_drawn`). Whether a chip is drawn, and where, is the layout manifest's
+  statement (`tabSlideStopLayout`, `tabBendPointChip`, the bend legs by `tabBendLeg`), read by the
+  painter and the hit test alike. A chip carries two widths from one anchor (`TabChipLayout`): its
+  click box, as wide as the widest amount because the headless hit test measures no text, and its
+  painted plate, which a selection ring traces so it never circles empty lane around a short
+  amount; one rule places both (`chipLeftEdge`). A selected chip is REPAINTED over whatever covers
+  it before its ring (`paintTabBendChip`, `paintTabSlideChip`), because chips pushed back to one
+  place stack. A head still answers before any chip over it (`chartHitTarget`), or a short chip's
+  empty margin would take presses meant for the head beside it; among faces, the one PAINTED ON TOP
+  answers (bend chips over slide chips over the note pass's marks, later over earlier), the one the
+  charter sees. That head prints where the hand really is because no vibrato change may
   stand mid-slide (`shedMidTravelVibrato`); a bend may, and its dot rides the curve, not the
   slide line. The stops alone (`NoteViewState::slides`) are the gesture's geometry, which every
   glide consumer walks.
@@ -645,17 +649,18 @@ is deliberately single-sourced:
   draws its linked head, and a slide-out toward the fret already in force draws its chip. That is what
   gives a statement saying nothing a face to select, retype and delete, so one focus-leave sweep can
   own every silent point (`dissolveSilentKeyframes`) with no rule of its own for the end.
-- **AT A SHARED INSTANT THE INSTANT'S COLUMN BELONGS TO THE HEAD**: where a ring ENDS exactly on a
-  head of its own string (`common::core::NoteViewState::ends_on_next_head`, resolved in the
-  connections pass beside the arrival relation), a chip stating that end — the slide-out's, an end
-  bend's — keeps its ordinary height and ends where its ribbon visibly ends: at the drawn extent, and
-  never inside the head's square. So it reads as the ribbon's value, never as the head's, and it
-  stays in its own lane. The meeting used to be resolved vertically, by moving the ending ring's chips
-  below the envelope; that put them in the band above the next string's head, onto that head's own
-  pre-bend chip (sighted 2026-09-28). The limit is stated ONCE, in `endChipRightLimit`
-  (`tab_lane_layout.h`), which the painter and the layout manifest both read, so the chip's ink and
-  the box its click is bounded in cannot part; the height is `slideOutChipY` beside it, the one
-  spelling of where a tail chip sits.
+- **THE HEAD'S COLUMN IS THE HEAD'S**: where a ring ENDS exactly on a head of its own string
+  (`common::core::NoteViewState::ends_on_next_head`, resolved in the connections pass beside the
+  arrival relation), no mark of the ending ring enters that head's square (`nextHeadLeftEdge`,
+  `tab_lane_layout.h`, stated once). A bend point whose dot would reach into it draws none, its chip
+  being its face; the test is geometric, so zoomed in, a point just before the end draws its dot
+  clear of the head at its true instant. Every chip of the ring keeps its ordinary height and stops
+  short of the head at the ribbon's ink end (`ringChipLimit`), so it reads as the ribbon's value,
+  never as the head's, stays in its own lane, and stands still when a reveal runs the ribbon on
+  beneath the head; chips pushed back there stack, the later on top. The meeting used to be
+  resolved vertically, by moving the ending ring's chips below the envelope; that put them in the
+  band above the next string's head, onto that head's own pre-bend chip (sighted 2026-09-28). The
+  height is `slideOutChipY` for a slide chip, the one spelling of where a tail chip sits.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the

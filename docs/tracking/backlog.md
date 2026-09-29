@@ -1285,3 +1285,19 @@ against the tree on the date above.
   agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One
   `actionBlocker(id, conditions) -> std::optional<std::string_view>` with
   `isActionAvailable = !actionBlocker(...).has_value()` deletes one switch.
+
+## Found in the simplicity review of the chip faces (2026-09-28)
+
+- **A keyframe's mark is a tag plus parallel fields, not a sum.** `TabKeyframeLayout` carries
+  `shape`, `center_x`, `center_y`, `head_size`, `box` and, for a chip, `mark_chip`, so a chip's box
+  is stated twice (`box` and `mark_chip->box`, both filled in `tabSlideStopLayout`). The clean shape
+  is `std::variant<TabHeadMark, TabChipLayout, TabDotMark>` beside `mark_drawn` and `bend_chip`,
+  which deletes `TabKeyframeShape`, `head_size` (always `geometry.headSize()`) and the duplicated
+  box. Deferred for its churn (about 40 test references across `test_tab_paint_core.cpp`,
+  `test_chart_hit_testing.cpp` and `test_tab_view.cpp`); the chip representation is otherwise one
+  (`TabChipLayout`, with its limit and `leftEdge`).
+- **Whether a keyframe wears a head is stated twice.** The painter's `drawnKeyframeHeadFret`
+  (`tab_paint_core.cpp`) asks `instantDrawn` and `keyframeHeadFret`, while the manifest decides the
+  same linked-or-resting head through `tabKeyframeLayout`'s mark and `mark_drawn`. They agree today;
+  the painter's head pass reading `tabKeyframeLayout(...).shape == Head && mark_drawn` (and
+  `keyframeHeadFret` only for the digit) makes them one statement.
