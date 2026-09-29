@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -38,6 +40,61 @@ namespace
     };
 }
 
+// A ring on string 3 from 1.0s ending at 4.0s on the next head of its string, which rings to 6.0s,
+// with a chord tone on string 2 struck beside that head.
+[[nodiscard]] std::vector<common::core::NoteViewState> makeSeam()
+{
+    const auto note = [](const double start,
+                         const double ring_end,
+                         const int string,
+                         const std::optional<std::size_t>
+                             end_head) {
+        return common::core::NoteViewState{
+            .start_seconds = start,
+            .ring_end_seconds = ring_end,
+            .ink_end_seconds = ring_end,
+            .string = string,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+            .end_head = end_head,
+        };
+    };
+    return {
+        note(1.0, 4.0, 3, 1),
+        note(4.0, 6.0, 3, std::nullopt),
+        note(4.0, 5.0, 2, std::nullopt),
+    };
+}
+
+// Whether the note at `index` is revealed, read off the one presence answer.
+[[nodiscard]] bool revealed(
+    const std::vector<common::core::NoteViewState>& notes, const std::size_t index,
+    const bool lane_reveal, const ChartEditViewState& edit)
+{
+    return chartPresence(notes, lane_reveal, edit)[index].revealing();
+}
+
+// Which notes step back, ascending.
+[[nodiscard]] std::vector<std::size_t> receded(
+    const std::vector<common::core::NoteViewState>& notes, const bool lane_reveal,
+    const ChartEditViewState& edit)
+{
+    const std::vector<common::ui::TabNotePresence> presence =
+        chartPresence(notes, lane_reveal, edit);
+    std::vector<std::size_t> indices;
+    for (std::size_t index = 0; index < presence.size(); ++index)
+    {
+        if (presence[index].receded())
+        {
+            indices.push_back(index);
+        }
+    }
+    return indices;
+}
+
 // A span over [2, 6) whose furniture is drawn only to 5.
 [[nodiscard]] common::core::ShapeViewState makeSpan()
 {
@@ -66,35 +123,35 @@ TEST_CASE(
 
     SECTION("no ground leaves the note cropped")
     {
-        CHECK_FALSE(chartNoteRevealed(notes, 2, false, edit));
+        CHECK_FALSE(revealed(notes, 2, false, edit));
     }
 
     SECTION("the lane reveal reveals every note")
     {
         for (std::size_t index = 0; index < notes.size(); ++index)
         {
-            CHECK(chartNoteRevealed(notes, index, true, edit));
+            CHECK(revealed(notes, index, true, edit));
         }
     }
 
     SECTION("a selected note is revealed, and only that note")
     {
         edit.selected_notes = {0, 2, 3};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
-        CHECK(chartNoteRevealed(notes, 3, false, edit));
-        CHECK_FALSE(chartNoteRevealed(notes, 1, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 3, false, edit));
+        CHECK_FALSE(revealed(notes, 1, false, edit));
     }
 
     SECTION("a selected keyframe reveals the note it belongs to")
     {
         edit.selected_keyframes = {ChartKeyframeRef{.note_index = 2, .keyframe_index = 1}};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
     }
 
     SECTION("a selected keyframe of another note reveals nothing here")
     {
         edit.selected_keyframes = {ChartKeyframeRef{.note_index = 3, .keyframe_index = 0}};
-        CHECK_FALSE(chartNoteRevealed(notes, 2, false, edit));
+        CHECK_FALSE(revealed(notes, 2, false, edit));
     }
 
     // The peek reads the STORED ring, not the drawn one: a caret past the ink end but inside the
@@ -102,15 +159,15 @@ TEST_CASE(
     SECTION("the caret past the ink end but inside the ring reveals the note")
     {
         edit.caret = ChartCaretViewState{.seconds = 4.5, .string = 3};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
     }
 
     SECTION("the caret at the onset or exactly at the ring end reveals the note, ends included")
     {
         edit.caret = ChartCaretViewState{.seconds = 2.0, .string = 3};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
         edit.caret = ChartCaretViewState{.seconds = 6.0, .string = 3};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
     }
 
     // A last-bit slip, well inside common::core::g_onset_match_epsilon: the ring end is reached by
@@ -118,21 +175,21 @@ TEST_CASE(
     SECTION("the caret a rounding slip past the ring end still reveals the note")
     {
         edit.caret = ChartCaretViewState{.seconds = 6.0 + 1.0e-12, .string = 3};
-        CHECK(chartNoteRevealed(notes, 2, false, edit));
+        CHECK(revealed(notes, 2, false, edit));
     }
 
     SECTION("the caret on another string reveals nothing here")
     {
         edit.caret = ChartCaretViewState{.seconds = 4.5, .string = 2};
-        CHECK_FALSE(chartNoteRevealed(notes, 2, false, edit));
+        CHECK_FALSE(revealed(notes, 2, false, edit));
     }
 
     SECTION("the caret before the onset or past the ring end reveals nothing")
     {
         edit.caret = ChartCaretViewState{.seconds = 1.5, .string = 3};
-        CHECK_FALSE(chartNoteRevealed(notes, 2, false, edit));
+        CHECK_FALSE(revealed(notes, 2, false, edit));
         edit.caret = ChartCaretViewState{.seconds = 7.0, .string = 3};
-        CHECK_FALSE(chartNoteRevealed(notes, 2, false, edit));
+        CHECK_FALSE(revealed(notes, 2, false, edit));
     }
 }
 
@@ -181,6 +238,65 @@ TEST_CASE("Chart span reveal answers on the lane, selection and caret grounds", 
     {
         edit.caret = ChartCaretViewState{.seconds = 7.0, .string = 1};
         CHECK_FALSE(chartSpanRevealed(span, false, notes, edit));
+    }
+}
+
+// A caret ON A HEAD is on that head's note, not on the ring ending under it: where a ring ends on
+// the next head of its string, the caret at the seam reveals only the note struck there.
+TEST_CASE("Chart note reveal gives the seam to the head a ring ends on", "[core][chart]")
+{
+    const std::vector<common::core::NoteViewState> notes = makeSeam();
+    ChartEditViewState edit;
+
+    edit.caret = ChartCaretViewState{.seconds = 4.0, .string = 3};
+    CHECK_FALSE(revealed(notes, 0, false, edit));
+    CHECK(revealed(notes, 1, false, edit));
+
+    edit.caret = ChartCaretViewState{.seconds = 3.5, .string = 3};
+    CHECK(revealed(notes, 0, false, edit));
+    CHECK_FALSE(revealed(notes, 1, false, edit));
+}
+
+// THE HEAD A FOCUSED RING ENDS ON STEPS BACK. Focus is the selection or the caret, never the lane
+// reveal, and a focused note never steps back, so selecting both notes of the seam steps neither.
+TEST_CASE("Chart presence steps back the head a focused ring ends on", "[core][chart]")
+{
+    const std::vector<common::core::NoteViewState> notes = makeSeam();
+    ChartEditViewState edit;
+
+    SECTION("the caret inside the ring steps its end head back, and only that head")
+    {
+        edit.caret = ChartCaretViewState{.seconds = 3.0, .string = 3};
+        CHECK(receded(notes, false, edit) == std::vector<std::size_t>{1});
+        const std::vector<common::ui::TabNotePresence> presence = chartPresence(notes, false, edit);
+        CHECK_THAT(presence[0].reveal, Catch::Matchers::WithinULP(1.0f, 0));
+        CHECK_THAT(presence[1].reveal, Catch::Matchers::WithinULP(0.0f, 0));
+        CHECK_THAT(presence[1].recede, Catch::Matchers::WithinULP(1.0f, 0));
+    }
+
+    SECTION("a selected keyframe of the ring steps its end head back")
+    {
+        edit.selected_keyframes = {ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}};
+        CHECK(receded(notes, false, edit) == std::vector<std::size_t>{1});
+    }
+
+    SECTION("the caret on the head steps nothing back")
+    {
+        edit.caret = ChartCaretViewState{.seconds = 4.0, .string = 3};
+        CHECK(receded(notes, false, edit).empty());
+    }
+
+    SECTION("a focused head never steps back")
+    {
+        edit.selected_notes = {0, 1};
+        CHECK(receded(notes, false, edit).empty());
+    }
+
+    SECTION("the lane reveal steps nothing back, and leaves a focused ring's step in place")
+    {
+        CHECK(receded(notes, true, edit).empty());
+        edit.selected_notes = {0};
+        CHECK(receded(notes, true, edit) == std::vector<std::size_t>{1});
     }
 }
 

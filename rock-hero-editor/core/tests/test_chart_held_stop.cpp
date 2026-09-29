@@ -182,7 +182,7 @@ TEST_CASE("Typing at a bare tap's satellite authors its held stop", "[core][char
 
     // The tap at measure 2 beat 2 on string 3 (2.5s to x = 50, string 3 to y = 140). Its default
     // satellite waits for the reveal, and the head click reveals it: the tap is selected and the
-    // caret stands in its ring (chartNoteRevealed), so the next press reaches the satellite.
+    // caret stands in its ring (chartPresence), so the next press reaches the satellite.
     click(fixture.controller, 50.0f, 140.0f);
     REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
     REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
@@ -268,7 +268,7 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
 
 // THE SATELLITE REVEAL at the layers that read it. A DERIVED stop is already printed by the
 // pull-off notation, so its satellite does not stand: it appears exactly while its note is
-// revealed (chartNoteRevealed, the same answer that draws the note's real ring), and the hit test
+// revealed (chartPresence, the same answer that draws the note's real ring), and the hit test
 // and the entry follow that one answer. What it must never be is standing: this figure's stop is
 // the notation's, and a second standing copy would state it twice.
 TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core][chart]")

@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <vector>
 
@@ -146,8 +147,9 @@ public:
     /*!
     \brief Applies the chart-editing overlay state (selection, caret, marquee, pending entry).
 
-    The overlay also feeds the reveal: a SELECTED note and the note the CARET stands in draw to
-    their ring ends (core::chartNoteRevealed), so a selection or caret change redraws those tails.
+    The overlay is also the edit's FOCUS: a SELECTED note and the note the CARET stands on draw to
+    their ring ends, and the head a focused ring ends on steps back behind it (core::chartPresence),
+    so a selection or caret change redraws those notes.
 
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
@@ -156,7 +158,7 @@ public:
     /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
 
-    The lane-wide ground of the reveal (core::chartNoteRevealed carries the selection's and the
+    The lane-wide ground of the reveal (core::chartPresence carries the selection's and the
     caret's). While it is on, EVERY visible note draws to its ring's end — the ring the string
     really sounds for, every keyframe at its true instant — instead of stopping at its ink end.
     The editor holds it on exactly while the application is in the foreground and the Alt key —
@@ -382,25 +384,22 @@ private:
     // row, so unlike the automation lanes this needs no per-frame tick.
     void publishCaretMask();
 
-    // Starts every note's reveal easing toward its answer after an input the answer reads changed
-    // (the selection, the caret, the reveal modifier). Off screen nothing drives the ease, so the
-    // amounts snap there instead, and a lane painted straight to an image shows the answer.
-    void easeRevealsToAnswers();
+    // Starts every note's presence easing toward its answer after an input the answer reads
+    // changed (the selection, the caret, the reveal modifier). Off screen nothing drives the ease,
+    // so the amounts snap there instead, and a lane painted straight to an image shows the answer.
+    void easePresenceToAnswers();
 
-    // Sets every note's reveal to its answer at once: for a new projection, whose indices name
+    // Sets every note's presence to its answer at once: for a new projection, whose indices name
     // different notes, and for a lane off screen.
-    void snapRevealsToAnswers();
+    void snapPresenceToAnswers();
 
     // Advances the ease one display frame and repaints while anything moved; idles once every
     // note stands at its answer.
-    void stepRevealEase();
-
-    // Whether the note at `index` is revealed: the answer the ease heads for.
-    [[nodiscard]] bool revealAnswer(std::size_t index) const;
+    void stepPresenceEase();
 
     // How far the note at `index` has eased toward its answer, as the paint core reads it
-    // (common::ui::TabRevealAmount).
-    [[nodiscard]] float revealAmount(std::size_t index) const;
+    // (common::ui::TabNotePresence).
+    [[nodiscard]] common::ui::TabNotePresence presence(std::size_t index) const;
 
     // The chart projection, shared with the controller; null without a chart. It is the whole of
     // the pointer path too: the controller hit-tests, selects and inserts against the projection
@@ -433,17 +432,22 @@ private:
     // a fact about this window and nothing headless may branch on it.
     bool m_ring_reveal{false};
 
-    // THE REVEAL EASES. How far each note's reveal has run, by projection index, 0 cropped to 1
-    // drawn to its ring's end, stepped toward its answer (core::chartNoteRevealed) a frame at a
-    // time, so a revealed tail grows from its crop and the chips riding it glide to their instants.
-    // The picture's only: the controller hit-tests against the answer the ease is heading for.
-    std::vector<float> m_reveal_progress{};
+    // Every note's settled presence by projection index (core::chartPresence), found once per
+    // change of the projection, the overlay or the reveal modifier: the answer the ease heads for.
+    std::vector<common::ui::TabNotePresence> m_answers{};
 
-    // True while some note's reveal differs from its answer, so the frame tick has work to do.
-    bool m_reveal_easing{false};
+    // THE PRESENCE EASES. How far each note's reveal has run, 0 cropped to 1 drawn to its ring's
+    // end, and how far it has stepped back, 0 in front to 1 behind, each stepped toward its answer
+    // a frame at a time, so a revealed tail grows from its crop, the chips riding it glide to their
+    // instants, and the head it ends on fades back as it comes. The picture's only: the controller
+    // hit-tests against the answer the ease is heading for.
+    std::vector<common::ui::TabNotePresence> m_progress{};
+
+    // True while some note's presence differs from its answer, so the frame tick has work to do.
+    bool m_presence_easing{false};
 
     // When the ease last stepped, in milliseconds on JUCE's high-resolution counter.
-    double m_reveal_stepped_at_ms{0.0};
+    double m_presence_stepped_at_ms{0.0};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
@@ -476,9 +480,10 @@ private:
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
 
-    // Steps the reveal ease each display frame while it has work (stepRevealEase). Last, so every
-    // member the step reads is constructed before the attachment can fire and destroyed after it.
-    juce::VBlankAttachment m_reveal_vblank{this, [this] { stepRevealEase(); }};
+    // Steps the presence ease each display frame while it has work (stepPresenceEase). Last, so
+    // every member the step reads is constructed before the attachment can fire and destroyed
+    // after it.
+    juce::VBlankAttachment m_presence_vblank{this, [this] { stepPresenceEase(); }};
 };
 
 } // namespace rock_hero::editor::ui

@@ -767,15 +767,16 @@ struct NoteViewState
     std::vector<VibratoSpanViewState> vibrato;
 
     /*!
-    \brief True when the ring ENDS exactly on the next head of its own string, so a mark stating the
-    end and that head's own marks stand at one x.
+    \brief The index of the head this ring ENDS exactly on, the next head of its own string, so a
+    mark stating the end and that head's own marks stand at one x; empty where the ring ends
+    anywhere else.
 
-    The shared instant's one input (\ref ChartConnections::ends_on_next_head): the head's square is
-    the head's, so a bend dot of the ring that ENDS there which would reach into it is not drawn. An
-    arrival and an abutting slide-out both land here, because what collides is geometry rather than
-    gesture.
+    The shared instant's one input (\ref ChartConnections::end_heads), indexed like
+    \ref ChartViewState::notes: the head's square is the head's, so a bend dot of the ring that ENDS
+    there which would reach into it is not drawn while that head stands in front. An arrival and an
+    abutting slide-out both land here, because what collides is geometry rather than gesture.
     */
-    bool ends_on_next_head{false};
+    std::optional<std::size_t> end_head{};
 
     /*!
     \brief Compares two note view states by their stored fields.
@@ -794,7 +795,7 @@ struct NoteViewState
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
                lhs.keyframes == rhs.keyframes && lhs.vibrato == rhs.vibrato &&
-               lhs.ends_on_next_head == rhs.ends_on_next_head;
+               lhs.end_head == rhs.end_head;
     }
 };
 

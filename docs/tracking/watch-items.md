@@ -1020,7 +1020,7 @@ decision 4).
 
 ### An end bend chip repeats the next head's own bend — trigger: the repeat reads as clutter in real charts
 
-Where a ring ends on a head of its own string (`ends_on_next_head`), its end bend chip is kept even
+Where a ring ends on a head of its own string (`end_head`), its end bend chip is kept even
 when the head's own bend chip states the same amount. The bend then just continues into the head,
 so the chip says nothing new. **Remedy**: drop the end chip in that case, as the slide arrival
 already drops its chip beside the head it lands on (sighted 2026-09-24). The user was unsure
@@ -1032,10 +1032,12 @@ Every chip stands on its true column (user ruling, 2026-09-28), so where a ring 
 head of its own string, its end chip, once revealed, sits over that head's upper half and under the
 head's own pre-bend chip, which draws later. Chips draw above every head, so the end chip can cover
 part of the head's fret digit at the default zoom (316 px/s); zooming in (to 5000 px/s) pulls them
-apart. A SELECTED chip is repainted over whatever covers it (`paintTabBendChip`,
-`paintTabSlideChip`), so the chip under edit always reads, and a press where a chip overlaps a head
-goes to the head. **Remedy** if it reads badly: draw an end chip standing over a head beneath that
-head's face rather than above it.
+apart. While the ring is in the edit's focus (selected, or the caret on it), that head steps back
+behind it (`chartPresence`, user ruling 2026-09-28), so the overlap remains only for a ring out of
+focus that the lane reveal shows, and where both notes are in focus. A SELECTED chip is repainted over whatever covers it
+(`paintTabBendChip`, `paintTabSlideChip`), so the chip under edit always reads, and a press where a
+chip overlaps a head standing in front goes to the head. **Remedy** if it reads badly: draw an end
+chip standing over a head beneath that head's face rather than above it.
 
 ## Editor 3D preview
 

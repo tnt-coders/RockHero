@@ -224,7 +224,7 @@ float slideOutChipY(
 std::optional<float> nextHeadLeftEdge(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    if (!note.ends_on_next_head)
+    if (!note.end_head.has_value())
     {
         return std::nullopt;
     }

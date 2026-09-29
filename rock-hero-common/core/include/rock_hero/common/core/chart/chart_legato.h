@@ -87,7 +87,7 @@ author the ring a claim needs) asks it by handing over a predecessor carrying th
 whatever the end states?
 
 Clause 2 of \ref arrivesIntoNextHead on its own, and here because two readers need it: that relation
-and \ref ChartConnections::ends_on_next_head, which the surfaces read for the band two marks at one
+and \ref ChartConnections::end_heads, which the surfaces read for the band two marks at one
 x take. Strict equality is the whole of it, so the two cannot come to measure adjacency differently.
 
 \param predecessor Note whose ring's end is in question.
@@ -222,19 +222,18 @@ struct ChartConnections
     std::vector<bool> arrives_into;
 
     /*!
-    \brief True where this note's ring ENDS exactly on the next head of its own string — one
-    instant carrying both, whatever the end states.
+    \brief Where this note's ring ENDS exactly on the next head of its own string — one instant
+    carrying both, whatever the end states — that head's index in the stream.
 
     \ref endsOnNextHead, which is what an ARRIVAL and an abutting SLIDE-OUT share: the surfaces need
     it because two marks then stand at one x, and the band each takes is decided by the pair rather
-    than by either note (\ref NoteViewState::ends_on_next_head). Filled in this walk beside
-    \ref hands_over and for the same reason — the same-string pair it needs is the one the walk
-    establishes.
+    than by either note (\ref NoteViewState::end_head). Filled in this walk beside \ref hands_over
+    and for the same reason — the same-string pair it needs is the one the walk establishes.
 
-    Written from the SUCCESSOR onto its predecessor, like the two relations above; false where
-    nothing follows on the string.
+    Written from the SUCCESSOR onto its predecessor, like the two relations above; empty where
+    nothing follows on the string or the ring stops short of it.
     */
-    std::vector<bool> ends_on_next_head;
+    std::vector<std::optional<std::size_t>> end_heads;
 };
 
 /*!

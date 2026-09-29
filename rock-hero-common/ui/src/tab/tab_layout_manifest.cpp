@@ -163,7 +163,7 @@ TabKeyframeLayout tabSlideStopLayout(
     const bool first_past =
         stop == 0 || common::core::instantDrawn(note.slides[stop - 1].seconds, drawn_end);
     const bool arrival =
-        stop + 1 == note.slides.size() && note.ends_on_next_head && !slide.slide_out;
+        stop + 1 == note.slides.size() && note.end_head.has_value() && !slide.slide_out;
     layout.mark_drawn = geometry.draw_text && tailInked(note, drawn_end) &&
                         (drawn || (first_past && slide.fret != previous_fret && !arrival));
     // The band is the shared authority's (slideOutChipY), so the box the click is bounded in cannot
@@ -213,7 +213,8 @@ std::optional<TabLayoutRect> tabBendPointChipBox(
 // is the linked head at its instant, exactly as a stop's.
 TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe, const double drawn_end)
+    const common::core::KeyframeViewState& keyframe, const double drawn_end,
+    const bool end_head_in_front)
 {
     // The mark's own instant, on the string line: where a head stands, and the column a dot rides.
     TabKeyframeLayout at_instant;
@@ -232,12 +233,13 @@ TabKeyframeLayout tabKeyframeLayout(
                 layout.shape = TabKeyframeShape::Dot;
                 layout.box =
                     centeredSquare(layout.center_x, layout.center_y, layout.head_size / 2.0f);
-                // A dot reaching into the column of the head its ring ends on would sit on that
-                // head's digit, so there the point's chip is its only face (nextHeadLeftEdge).
+                // A dot reaching into the square of the head its ring ends on would sit on that
+                // head's digit while the head stands in front, so there the point's chip is its
+                // only face (nextHeadLeftEdge); once the head steps back the dot draws in truth.
                 const std::optional<float> head_left = nextHeadLeftEdge(geometry, note);
-                layout.mark_drawn =
-                    common::core::instantDrawn(keyframe.seconds, drawn_end) &&
-                    !(head_left.has_value() && layout.box.x + layout.box.width > *head_left);
+                layout.mark_drawn = common::core::instantDrawn(keyframe.seconds, drawn_end) &&
+                                    !(end_head_in_front && head_left.has_value() &&
+                                      layout.box.x + layout.box.width > *head_left);
                 return layout;
             },
             [&](const common::core::KeyframeRestMark&) {

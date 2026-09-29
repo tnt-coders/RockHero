@@ -39,6 +39,14 @@ namespace rock_hero::common::ui
 namespace
 {
 
+// Every note in front, and every one revealed or none.
+[[nodiscard]] TabPresence revealedAll(const bool revealed)
+{
+    return [revealed](std::size_t) {
+        return TabNotePresence{.reveal = revealed ? 1.0f : 0.0f, .recede = 0.0f};
+    };
+}
+
 // The vibrato spans a note vibrating END TO END carries: exactly what the projection derives from
 // a chart that states vibrato at the onset and never restates it, which is every chart written
 // before the channel could say anything else.
@@ -1239,7 +1247,7 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, [revealed](std::size_t) { return revealed; });
+        paintTabLane(graphics, metrics, state, revealedAll(revealed));
         return image;
     };
 
@@ -2314,7 +2322,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, [](std::size_t) { return true; });
+        paintTabLane(graphics, metrics, state, revealedAll(true));
         return image;
     };
 
@@ -2416,7 +2424,7 @@ TEST_CASE("Tab paint core marks a stop the leg into it did not travel to", "[ui]
                 .slides = {},
                 .keyframes = {},
                 .vibrato = {},
-                .ends_on_next_head = ends_on_next_head,
+                .end_head = ends_on_next_head ? std::optional<std::size_t>{1} : std::nullopt,
             },
             std::move(slides));
     };
@@ -2765,22 +2773,24 @@ TEST_CASE("Tab paint core draws to the ring end exactly the notes it reveals", "
     const common::core::ChartViewState cropped = state_with(6.0, 6.0);
     const common::core::ChartViewState mixed = state_with(9.0, 6.0);
 
-    const auto painted = [](const common::core::ChartViewState& tab, const TabRevealed& revealed) {
+    const auto painted = [](const common::core::ChartViewState& tab, const TabPresence& presence) {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, referenceMetrics(tab.stringCount()), tab, revealed);
+        paintTabLane(graphics, referenceMetrics(tab.stringCount()), tab, presence);
         return image;
     };
 
-    const auto first_only = [](const std::size_t index) { return index == 0; };
+    const TabPresence first_only = [](const std::size_t index) {
+        return TabNotePresence{.reveal = index == 0 ? 1.0f : 0.0f, .recede = 0.0f};
+    };
     const juce::Image composed = painted(cropped, first_only);
 
     CHECK(worstPixelDelta(composed, painted(mixed, first_only)) == 0);
     // Not vacuous: neither revealing nothing nor revealing everything draws that picture, so the
     // identity above can only hold because the reveal was asked per note.
     CHECK(worstPixelDelta(composed, painted(cropped, {})) > 0);
-    CHECK(worstPixelDelta(composed, painted(cropped, [](std::size_t) { return true; })) > 0);
+    CHECK(worstPixelDelta(composed, painted(cropped, revealedAll(true))) > 0);
 }
 
 // EVERY KEYFRAME WEARS A MARK, whatever it states. A point stating no position but a vibrato change
@@ -2844,7 +2854,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .bend_point = std::size_t{1},
         }});
         const TabKeyframeLayout layout =
-            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds, true);
         REQUIRE(layout.shape == TabKeyframeShape::Dot);
         // On the curve, which a whole step lifts off the string line.
         CHECK_THAT(
@@ -2865,7 +2875,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .bend_point = std::nullopt,
         }});
         const TabKeyframeLayout layout =
-            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds, true);
         REQUIRE(layout.shape == TabKeyframeShape::Dot);
         const float rest_y = bendCurveY(metrics, metrics.laneY(3), 0.0);
         const float step_y = bendCurveY(metrics, metrics.laneY(3), 2.0);
@@ -2882,7 +2892,7 @@ TEST_CASE("Tab paint core marks a keyframe that states no position", "[ui][tab-p
             .bend_point = std::nullopt,
         }});
         const TabKeyframeLayout layout =
-            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds);
+            tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds, true);
         REQUIRE(layout.shape == TabKeyframeShape::Head);
         CHECK_THAT(layout.center_y, Catch::Matchers::WithinULP(metrics.laneY(3), 0));
         CHECK(box_differs(painted(note), unmarked, layout.box));
@@ -2923,7 +2933,7 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, [reveal](std::size_t) { return reveal; });
+        paintTabLane(graphics, metrics, state, revealedAll(reveal));
         return image;
     };
     const juce::Image cropped = painted(false);
@@ -2968,6 +2978,57 @@ TEST_CASE("Tab paint core crops at the ink end and reveals the ring", "[ui][tab-
     CHECK(revealed.getPixelAt(keyframe_x, head_row).getAlpha() == 255);
 }
 
+// A HEAD STEPPED BACK IS BACKGROUND. The head a focused ring ends on draws as one group at a fifth
+// of its weight, well under a ghost's half, so the ring being edited reads whole over it.
+TEST_CASE("Tab paint core draws a stepped-back head faint", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = referenceMetrics(6);
+
+    // A ring on string 3 from 2.0s ending at 10.0s (x = 200) on the next head of its string.
+    const auto note = [](const double start, const double ring_end, const bool ends_on_next_head) {
+        return common::core::NoteViewState{
+            .start_seconds = start,
+            .ring_end_seconds = ring_end,
+            .ink_end_seconds = ring_end,
+            .string = 3,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+            .end_head = ends_on_next_head ? std::optional<std::size_t>{1} : std::nullopt,
+        };
+    };
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {note(2.0, 10.0, true), note(10.0, 12.0, false)};
+    indexVisibleRanges(state);
+    const auto painted = [&metrics, &state](const TabPresence& presence) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, presence);
+        return image;
+    };
+    const juce::Image in_front = painted(revealedAll(true));
+    const juce::Image stepped_back = painted([](const std::size_t index) {
+        return TabNotePresence{
+            .reveal = index == 0 ? 1.0f : 0.0f,
+            .recede = index == 1 ? 1.0f : 0.0f,
+        };
+    });
+
+    // Inside the head's disc, below the ribbon, where only the head puts ink.
+    const int head_x = juce::roundToInt(metrics.x(10.0));
+    const int head_row = juce::roundToInt(metrics.laneY(3)) + 10;
+    REQUIRE(static_cast<float>(head_row) > tailSpan(metrics, metrics.laneY(3)).bottom);
+    CHECK(in_front.getPixelAt(head_x, head_row).getAlpha() == 255);
+    const int faint = stepped_back.getPixelAt(head_x, head_row).getAlpha();
+    CHECK(faint > 0);
+    CHECK(faint < juce::roundToInt(0.25f * 255.0f));
+}
+
 // THE TIP FADE. An unrevealed tail dissolves over the stretch tailFadeSeconds states before its
 // ink end — the one rule the highway reads too — and every mark riding it dissolves with it, so a
 // mark can never outlast the ribbon under it. A revealed note runs crisp to its true end instead,
@@ -3002,7 +3063,7 @@ TEST_CASE("Tab paint core dissolves a tail at its tip unless revealed", "[ui][ta
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, [reveal](std::size_t) { return reveal; });
+        paintTabLane(graphics, metrics, state, revealedAll(reveal));
         return image;
     };
 
@@ -3133,7 +3194,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, [reveal](std::size_t) { return reveal; });
+        paintTabLane(graphics, metrics, state, revealedAll(reveal));
         return image;
     };
     // One note on string 3 from 2.0s (x = 40) at fret 7, ringing to 12.0s (x = 240), inked to
@@ -3217,7 +3278,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
             .seconds = 12.0, .fret = 9, .slide_out = false
         };
         common::core::NoteViewState note = ringing(6.0, {keyframe});
-        note.ends_on_next_head = true;
+        note.end_head = 1;
         const TabKeyframeLayout at_crop =
             tabSlideStopLayout(metrics, note, 0, note.ink_end_seconds);
         REQUIRE(at_crop.shape == TabKeyframeShape::Chip);
@@ -3229,7 +3290,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a slide", 
         // The same leg toward a stop that is NOT the next head keeps its chip: the head is what
         // makes the chip redundant, not the ring's end.
         common::core::NoteViewState free_end = ringing(6.0, {keyframe});
-        free_end.ends_on_next_head = false;
+        free_end.end_head = std::nullopt;
         CHECK(differs_in(painted(free_end, false), bare_cropped, at_crop.box, above_envelope));
     }
 
@@ -3304,7 +3365,7 @@ TEST_CASE("Tab paint core wears a destination chip where the ink cuts a bend", "
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, lane, state, [reveal](std::size_t) { return reveal; });
+        paintTabLane(graphics, lane, state, revealedAll(reveal));
         return image;
     };
     // One note on string 3 from 2.0s (x = 40), ringing to 12.0s (x = 240), inked to `ink_end`.
@@ -3418,7 +3479,7 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
             .slides = {},
             .keyframes = std::move(keyframes),
             .vibrato = {},
-            .ends_on_next_head = true,
+            .end_head = std::size_t{1},
         };
     };
     const common::core::KeyframeViewState before_end{
@@ -3449,16 +3510,16 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
 
     // The dot at the ring's end is in the head at any zoom; the one before it only until the lane
     // is zoomed far enough to hold it clear. Revealed, as a selection draws the note.
-    CHECK_FALSE(tabKeyframeLayout(lane, note, at_end, note.ring_end_seconds).mark_drawn);
-    CHECK_FALSE(tabKeyframeLayout(zoomed, note, at_end, note.ring_end_seconds).mark_drawn);
-    CHECK_FALSE(tabKeyframeLayout(lane, note, before_end, note.ring_end_seconds).mark_drawn);
-    CHECK(tabKeyframeLayout(zoomed, note, before_end, note.ring_end_seconds).mark_drawn);
+    CHECK_FALSE(tabKeyframeLayout(lane, note, at_end, note.ring_end_seconds, true).mark_drawn);
+    CHECK_FALSE(tabKeyframeLayout(zoomed, note, at_end, note.ring_end_seconds, true).mark_drawn);
+    CHECK_FALSE(tabKeyframeLayout(lane, note, before_end, note.ring_end_seconds, true).mark_drawn);
+    CHECK(tabKeyframeLayout(zoomed, note, before_end, note.ring_end_seconds, true).mark_drawn);
 
     // A chip's centre column, far off the lane where the keyframe wears none.
     const auto centre_of =
         [&lane, &note](const common::core::KeyframeViewState& keyframe, const double drawn_end) {
             const std::optional<TabLayoutRect> box =
-                tabKeyframeLayout(lane, note, keyframe, drawn_end).bend_chip;
+                tabKeyframeLayout(lane, note, keyframe, drawn_end, true).bend_chip;
             return box.has_value() ? box->x + box->width / 2.0f : -1.0e6f;
         };
     // Revealed, each chip centres on its own point, the end point's over the head it ends on.
@@ -3470,7 +3531,8 @@ TEST_CASE("Tab paint core keeps a ring's dots out of the head it ends on", "[ui]
     // Cropped, only the first point past the ink wears a chip, centred at the crop.
     CHECK_THAT(
         centre_of(before_end, note.ink_end_seconds), Catch::Matchers::WithinAbs(lane.x(7.0), 1e-3));
-    CHECK_FALSE(tabKeyframeLayout(lane, note, at_end, note.ink_end_seconds).bend_chip.has_value());
+    CHECK_FALSE(
+        tabKeyframeLayout(lane, note, at_end, note.ink_end_seconds, true).bend_chip.has_value());
 }
 
 // THE BEND CHIP'S BOX BOUNDS WHAT IT PAINTS, for every amount a chip can print, and the PLATE a

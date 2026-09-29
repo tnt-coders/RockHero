@@ -3244,16 +3244,20 @@ TEST_CASE("A shift slide is the arrival the chart proves", "[core][chart]")
 TEST_CASE("The connections report a ring ending on the next head", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    // Returns `bool` for the same reason the arrival's pair_with does: a deduced return would hand
-    // back a std::vector<bool> proxy into the dying `connections`.
+    // True where the first ring ends on the second, whose index the connection then names.
     const auto ends_on_next_head =
         [&tempo_map](const ChartNote& first, const ChartNote& second) -> bool {
         const std::vector<ChartNote> notes{first, second};
         const ChartConnections connections = chartConnections(notes, tempo_map);
-        REQUIRE(connections.ends_on_next_head.size() == 2);
-        // Written from the SUCCESSOR onto its predecessor, so nothing following means false.
-        CHECK_FALSE(connections.ends_on_next_head[1]);
-        return connections.ends_on_next_head[0];
+        REQUIRE(connections.end_heads.size() == 2);
+        // Written from the SUCCESSOR onto its predecessor, so nothing following means empty.
+        CHECK_FALSE(connections.end_heads[1].has_value());
+        const std::optional<std::size_t>& end_head = connections.end_heads[0];
+        if (end_head.has_value())
+        {
+            CHECK(*end_head == 1);
+        }
+        return end_head.has_value();
     };
     ChartNote ring;
     ring.position = GridPosition{.measure = 1, .beat = 1};

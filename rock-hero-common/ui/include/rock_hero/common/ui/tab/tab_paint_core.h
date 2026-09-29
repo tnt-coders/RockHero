@@ -550,11 +550,13 @@ each pass in turn.
        (ChartViewState::display_hold_ends) is the 3D board's and is not read here. The visible
        range is bounded by the projection's own prefix tables (ChartViewState::ring_end_prefix_max,
        ChartViewState::shape_close_prefix_max).
-\param reveal Per-note answer to how far that note's reveal has run (\ref TabRevealAmount): at 1 it
-       draws to its ring end, every keyframe at its true instant; between, it draws that far, the
-       marks and chips riding the extent there; above 0 its reveal-only held-stop satellite comes in
-       and its tail stops fading at the crop. Empty reveals nothing: a note crops at its ink end,
-       and the leg the crop cuts wears a destination chip there (\ref tabKeyframeLayout).
+\param presence Per-note presentation (\ref TabNotePresence). Its reveal at 1 draws the note to its
+       ring end, every keyframe at its true instant; between, it draws that far, the marks and
+       chips riding the extent there; above 0 its reveal-only held-stop satellite comes in and its
+       tail stops fading at the crop. Its recede above 0 draws the whole note — head, digit, tail,
+       chips and satellite — fading toward a fifth of its weight, beneath every other note. Empty
+       presents every note plainly: it crops at its ink end, and the leg the crop cuts wears a
+       destination chip there (\ref tabKeyframeLayout).
 \param ground The colour the host painted under the lane. The tail's core is light laid over it
        (\ref common::core::g_tail_core_alpha), and the one mark that must knock out what lies
        beneath — the satellite digit's ground — restores this colour before laying the core back
@@ -563,7 +565,7 @@ each pass in turn.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealAmount& reveal = {}, juce::Colour ground = juce::Colours::transparentBlack);
+    const TabPresence& presence = {}, juce::Colour ground = juce::Colours::transparentBlack);
 
 /*!
 \brief Draws one tablature lane's furniture: the span rails, the capo chip, the fret-hand chips.
@@ -585,6 +587,6 @@ host that narrowed the clip for the content pass gets the matching furniture for
 */
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed_shape = {});
+    const TabSpanRevealed& revealed_shape = {});
 
 } // namespace rock_hero::common::ui

@@ -1024,13 +1024,13 @@ TEST_CASE("TabView reveals the margin trim the projection derived", "[ui][tab-vi
         });
     CHECK(render().getPixelAt(191, 72).getARGB() != 0);
 
-    // A grid-snapped caret on the ring's END — the next head's own onset — is inside the ring too:
-    // the peek includes both ends.
+    // A grid-snapped caret on the ring's END is on the next head, whose onset it is, and not on
+    // the ring ending under it: that ring stays cropped.
     view.setEditState(
         core::ChartEditViewState{
             .caret = core::ChartCaretViewState{.seconds = 1.0, .string = 3},
         });
-    CHECK(render().getPixelAt(191, 72).getARGB() != 0);
+    CHECK(render().getPixelAt(191, 72).getARGB() == 0);
 
     // The lane reveal shows it too, and what either shows is the derivation's own crop.
     view.setEditState(core::ChartEditViewState{});
@@ -1404,7 +1404,8 @@ TEST_CASE(
             common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 200, 120}, timeline, 6, 6),
             state->notes[0],
             state->notes[0].keyframes.front(),
-            ring_end_seconds);
+            ring_end_seconds,
+            true);
     };
 
     // Whether two renders differ over the mark's box, grown by a few pixels so the probe also
@@ -1528,7 +1529,7 @@ TEST_CASE(
             .slides = {},
             .keyframes = {},
             .vibrato = {},
-            .ends_on_next_head = true,
+            .end_head = std::size_t{1},
         },
         {common::core::SlideStopViewState{.seconds = 8.0, .fret = 9, .slide_out = false}});
     const common::core::NoteViewState landing{
@@ -1581,8 +1582,10 @@ TEST_CASE(
     view.setEditState(core::ChartEditViewState{});
     const juce::Image picked_on_top = render({glide, landing});
     // The arrival's own head, with nothing over it: what the shared square must read as once the
-    // arrival is the selected object.
-    const juce::Image arrival_alone = render({glide});
+    // arrival is the selected object. Alone, its ring ends on no head.
+    common::core::NoteViewState lone_glide = glide;
+    lone_glide.end_head = std::nullopt;
+    const juce::Image arrival_alone = render({lone_glide});
 
     view.setEditState(
         core::ChartEditViewState{
@@ -1648,7 +1651,8 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
     const common::ui::TabLaneMetrics metrics =
         common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
     const std::optional<common::ui::TabLayoutRect> chip =
-        common::ui::tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds)
+        common::ui::tabKeyframeLayout(
+            metrics, note, note.keyframes.front(), note.ink_end_seconds, true)
             .bend_chip;
     REQUIRE(chip.has_value());
     if (!chip.has_value())

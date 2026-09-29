@@ -411,10 +411,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // publisher's alone.
     [[nodiscard]] ChartEditViewState resolvedChartEdit() const;
 
-    // The per-note reveal a pointer event's hit test reads, from the modifier it carries and the
-    // grounds standing when the event arrives (chartNoteRevealed), answered for the displayed
+    // The per-note presence a pointer event's hit test reads, from the modifier it carries and the
+    // focus standing when the event arrives (chartPresence), answered for the displayed
     // projection the event is resolved against.
-    [[nodiscard]] common::ui::TabRevealed chartRevealFor(
+    [[nodiscard]] common::ui::TabPresence chartPresenceFor(
         const ChartPointerEvent& event, const common::core::ChartViewState& tab) const;
     [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
         const ChartHitTarget& target) const;

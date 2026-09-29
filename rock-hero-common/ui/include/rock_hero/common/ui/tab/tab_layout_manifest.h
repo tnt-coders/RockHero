@@ -16,49 +16,104 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief Answers whether one event, by its index, is REVEALED, for a host that reveals.
+\brief Answers whether one hand-posture span, by its index, is REVEALED, for a host that reveals.
 
-THE ONE pick a reveal makes, asked per note by the paint core and the hit tester and per span by
-the furniture pass. A revealed note is drawn to its ring's end (\ref common::core::drawnEndSeconds),
-so every keyframe it stores shows at its true instant, and its reveal-only marks come in with it
-(\ref common::core::stopMarkShown); a revealed span's furniture runs to its musical close
+The furniture pass's pick: a revealed span's furniture runs to its musical close
 (\ref common::core::ShapeViewState::close_seconds) instead of the extent rule 12a trimmed. A host
-derives the answer from a predicate of its own; the cores are told the answer and never the reason,
-so the drawn picture and the reachable one cannot part.
+derives the answer from a predicate of its own; the core is told the answer and never the reason.
+A note's reveal is part of its presence instead (\ref TabNotePresence).
 
-An empty accessor is the ordinary case and reveals nothing (\ref tabRevealed), which is the whole
-answer for a surface with no reveal at all: the game's tab strips.
+An empty accessor is the ordinary case and reveals nothing (\ref tabSpanRevealed), which is the
+whole answer for a surface with no reveal at all: the game's tab strips.
 */
-using TabRevealed = std::function<bool(std::size_t index)>;
+using TabSpanRevealed = std::function<bool(std::size_t index)>;
 
 /*!
-\brief Answers how far one note's reveal has RUN, for a host that eases it: 0 crops the note at its
-ink end, 1 draws it to its ring's end, and a value between draws it that far along the stretch the
-reveal adds (\ref drawnExtentSeconds).
+\brief How a host presents one note right now: how far its reveal has run, and whether it has
+stepped back behind the note the charter is editing.
 
-The PAINTED picture's answer. A host easing its reveals hands the paint core and its overlays this,
-so a revealed tail GROWS from its crop and every mark riding it travels with it, a chip at its leg's
-end gliding to its instant. What a press reaches stays the reveal's own answer (\ref TabRevealed),
-the state the ease is heading for. An empty accessor reveals nothing (\ref tabRevealAmount).
+THE EDITOR'S FOCUS, handed to the paint core, its overlays and the hit tester as one answer per
+note, so the picture and the reachable marks agree. A revealed note is drawn to its ring's end
+(\ref common::core::drawnEndSeconds), every keyframe it stores at its true instant and its
+reveal-only marks with it (\ref common::core::stopMarkShown). A host easing its presence hands the
+painter the eased amounts, so a revealed tail GROWS from its crop and every mark riding it travels
+with it, and a head stepping back fades as it goes; what a press reaches reads the settled answer,
+the state the ease is heading for. A surface without an editor (the game's tab strips) presents
+every note plainly (\ref tabPresence).
 */
-using TabRevealAmount = std::function<float(std::size_t index)>;
-
-/*!
-\brief Reads a reveal amount for one index, an empty accessor revealing nothing.
-\param reveal The host's amounts, possibly empty.
-\param index The note's index.
-\return The amount, 0 where the accessor is empty.
-*/
-[[nodiscard]] inline float tabRevealAmount(const TabRevealAmount& reveal, const std::size_t index)
+struct TabNotePresence
 {
-    return reveal ? reveal(index) : 0.0f;
+    /*!
+    \brief How far the note's reveal has run: 0 crops it at its ink end, 1 draws it to its ring's
+    end, and a value between draws it that far along the stretch the reveal adds (\ref
+    drawnExtentSeconds).
+    */
+    float reveal{};
+
+    /*!
+    \brief How far the note has STEPPED BACK, 0 in front to 1 behind: its head is the one a ring in
+    the editor's focus ends on, so the note is drawn faint and beneath that ring, and the ring being
+    edited reads whole over it.
+    */
+    float recede{};
+
+    /*!
+    \brief Whether the note's reveal has begun: its reveal-only marks are in, and its tail no longer
+    fades at the crop, the extent alone easing.
+    \return True while \ref reveal is above 0.
+    */
+    [[nodiscard]] bool revealing() const noexcept
+    {
+        return reveal > 0.0f;
+    }
+
+    /*!
+    \brief Whether the note has begun stepping back: it is drawn as one faint group beneath every
+    note in front, and answers a press after them.
+    \return True while \ref recede is above 0.
+    */
+    [[nodiscard]] bool receded() const noexcept
+    {
+        return recede > 0.0f;
+    }
+};
+
+/*! \brief A host's per-note presence, by projection index (\ref TabNotePresence). */
+using TabPresence = std::function<TabNotePresence(std::size_t index)>;
+
+/*!
+\brief Reads one note's presence, an empty accessor presenting every note plainly: cropped and in
+front.
+\param presence The host's answers, possibly empty.
+\param index The note's index.
+\return The note's presence.
+*/
+[[nodiscard]] inline TabNotePresence tabPresence(
+    const TabPresence& presence, const std::size_t index)
+{
+    return presence ? presence(index) : TabNotePresence{};
+}
+
+/*!
+\brief Whether the head a note's ring ends on stands in front, which a ring ending anywhere else
+answers trivially: that head's own presence is the one statement, so while it steps back the marks
+at the ring's end draw in truth over it (\ref tabKeyframeLayout).
+\param presence The host's answers, possibly empty.
+\param note The note whose ring's end is asked about.
+\return False only while the head it ends on has stepped back.
+*/
+[[nodiscard]] inline bool tabEndHeadInFront(
+    const TabPresence& presence, const common::core::NoteViewState& note)
+{
+    const std::optional<std::size_t>& end_head = note.end_head;
+    return !end_head.has_value() || !tabPresence(presence, *end_head).receded();
 }
 
 /*!
 \brief The extent a note is drawn to at a reveal amount: its ink end at 0, its ring's end at 1
 (\ref common::core::drawnEndSeconds, exactly), and the stretch between in proportion.
 \param note The note.
-\param amount How far its reveal has run (\ref TabRevealAmount).
+\param amount How far its reveal has run (\ref TabNotePresence::reveal).
 \return The drawn extent in seconds.
 */
 [[nodiscard]] inline double drawnExtentSeconds(
@@ -78,12 +133,12 @@ using TabRevealAmount = std::function<float(std::size_t index)>;
 }
 
 /*!
-\brief Reads a reveal answer for one index, an empty accessor revealing nothing.
+\brief Reads a span's reveal answer, an empty accessor revealing nothing.
 \param revealed The host's answer, possibly empty.
-\param index The event's index.
-\return True when the host reveals that event.
+\param index The span's index.
+\return True when the host reveals that span.
 */
-[[nodiscard]] inline bool tabRevealed(const TabRevealed& revealed, const std::size_t index)
+[[nodiscard]] inline bool tabSpanRevealed(const TabSpanRevealed& revealed, const std::size_t index)
 {
     return revealed && revealed(index);
 }
@@ -274,9 +329,9 @@ struct TabKeyframeLayout
     /*!
     \brief True where the lane draws the mark, the one answer the paint core, the hit tester and the
     selection overlay read. A mark within the drawn extent is drawn, but for a bend point's dot that
-    would reach into the column of the head its ring ends on (\ref nextHeadLeftEdge), whose chip is
-    its only face there; past the extent only the destination chip a cut slide leg wears at the crop
-    is drawn, and it names this keyframe and so reaches it.
+    would reach into the square of the head its ring ends on while that head stands in front (\ref
+    nextHeadLeftEdge), whose chip is its only face there; past the extent only the destination chip
+    a cut slide leg wears at the crop is drawn, and it names this keyframe and so reaches it.
     */
     bool mark_drawn{};
 
@@ -360,11 +415,13 @@ target cannot part.
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the keyframe belongs to; its string places the mark.
 \param keyframe One of the note's \ref common::core::NoteViewState::keyframes entries.
-\param drawn_end The extent the note is drawn to (\ref common::core::drawnEndSeconds).
+\param drawn_end The extent the note is drawn to (\ref drawnExtentSeconds).
+\param end_head_in_front False where the head the note's ring ends on has stepped back for it
+       (\ref tabEndHeadInFront), so a dot at the ring's end draws in truth over it.
 \return Per-keyframe layout in the lane bounds' pixel space.
 */
 [[nodiscard]] TabKeyframeLayout tabKeyframeLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const common::core::KeyframeViewState& keyframe, double drawn_end);
+    const common::core::KeyframeViewState& keyframe, double drawn_end, bool end_head_in_front);
 
 } // namespace rock_hero::common::ui

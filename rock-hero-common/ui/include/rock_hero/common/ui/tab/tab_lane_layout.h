@@ -522,7 +522,7 @@ click, so the box and the mark can never land on opposite sides of the envelope.
 
 /*!
 \brief The left edge of the head a ring ends on, where it ends on the next head of its own string
-(\ref common::core::NoteViewState::ends_on_next_head), or nothing.
+(\ref common::core::NoteViewState::end_head), or nothing.
 
 THE COLUMN THE HEAD OWNS, stated once: a bend point's dot that would reach into it draws none, its
 chip being its face (\ref TabKeyframeLayout::mark_drawn), because a white dot on the head's white

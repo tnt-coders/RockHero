@@ -541,8 +541,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // head at the ring's end; true draws a floating slide-out chip.
         const bool slides_out = noteSlidesOut(resolutions.connections, note_index);
         // The pair fact the surfaces need for the band a mark at the END takes, carried per note
-        // from the walk that resolved it (\ref ChartConnections::ends_on_next_head).
-        view.ends_on_next_head = resolutions.connections.ends_on_next_head[note_index];
+        // from the walk that resolved it (\ref ChartConnections::end_heads). The projection keeps
+        // the chart's note order one to one, so the chart index is the projection's.
+        view.end_head = resolutions.connections.end_heads[note_index];
         // The vibrato channel resolved into the SPANS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). A span is
         // every consecutive vibrating leg: a leg without vibrato ends it, and a change of width

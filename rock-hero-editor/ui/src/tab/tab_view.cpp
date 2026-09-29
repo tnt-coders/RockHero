@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <memory>
@@ -36,13 +37,21 @@ namespace
 
 // How long a reveal takes to run from the crop to the ring's end, or back: long enough that a chip
 // riding the tail's end reads as travelling from where it was clicked, short enough not to hold up
-// a keyboard walk.
-constexpr double g_reveal_ease_seconds{0.12};
+// a keyboard walk. A head stepping back fades over the same run, so it clears as the ring arrives.
+constexpr double g_presence_ease_seconds{0.12};
 
-// The eased curve of a reveal's progress: slow off the crop, slow into the end, either way.
-[[nodiscard]] float easedReveal(const float progress) noexcept
+// The eased curve of a presence's progress: slow off the start, slow into the end, either way.
+[[nodiscard]] float easedPresence(const float progress) noexcept
 {
     return progress * progress * (3.0f - (2.0f * progress));
+}
+
+// Steps one progress toward its answer, 1 or 0; true while it has not yet arrived.
+bool stepToward(float& progress, const float target, const float step) noexcept
+{
+    progress =
+        progress < target ? std::min(target, progress + step) : std::max(target, progress - step);
+    return std::is_neq(progress <=> target);
 }
 
 } // namespace
@@ -101,7 +110,7 @@ void TabView::setEditState(core::ChartEditViewState edit)
     }
 
     m_edit = std::move(edit);
-    easeRevealsToAnswers();
+    easePresenceToAnswers();
     repaint();
     // The overlay carries the caret; push its fresh mask now so the paused column's cut-out
     // changes in the same synchronous pass as the drawn square, never a frame behind it.
@@ -119,85 +128,76 @@ void TabView::setRingReveal(bool revealed)
     }
 
     m_ring_reveal = revealed;
-    easeRevealsToAnswers();
+    easePresenceToAnswers();
     repaint();
 }
 
-// Rationale lives on the declaration in tab_view.h.
-bool TabView::revealAnswer(const std::size_t index) const
+// Rationale lives on the declaration in tab_view.h. The progress and the answers are resized
+// together, so an index either has both or names no note of this projection.
+common::ui::TabNotePresence TabView::presence(const std::size_t index) const
 {
-    return m_tab != nullptr && core::chartNoteRevealed(m_tab->notes, index, m_ring_reveal, m_edit);
-}
-
-// Rationale lives on the declaration in tab_view.h. A note the ease has no progress for (a
-// projection pushed while the lane was off screen) stands at its answer.
-float TabView::revealAmount(const std::size_t index) const
-{
-    if (index >= m_reveal_progress.size())
+    if (index >= m_progress.size())
     {
-        return revealAnswer(index) ? 1.0f : 0.0f;
+        return {};
     }
-    return easedReveal(m_reveal_progress[index]);
+    const common::ui::TabNotePresence& progress = m_progress[index];
+    return common::ui::TabNotePresence{
+        .reveal = easedPresence(progress.reveal),
+        .recede = easedPresence(progress.recede),
+    };
 }
 
-// Rationale lives on the declaration in tab_view.h.
-void TabView::easeRevealsToAnswers()
+// Rationale lives on the declaration in tab_view.h. The answers are found here, since every caller
+// changed something they read; progress already easing toward the old answers turns toward the new.
+// The projection is the same one the progress was sized for: a new one arrives through setState,
+// which snaps.
+void TabView::easePresenceToAnswers()
 {
     if (!isShowing())
     {
-        snapRevealsToAnswers();
+        snapPresenceToAnswers();
         return;
     }
-    if (!m_reveal_easing)
+    m_answers = m_tab != nullptr ? core::chartPresence(m_tab->notes, m_ring_reveal, m_edit)
+                                 : std::vector<common::ui::TabNotePresence>{};
+    if (!m_presence_easing)
     {
-        m_reveal_easing = true;
-        m_reveal_stepped_at_ms = juce::Time::getMillisecondCounterHiRes();
+        m_presence_easing = true;
+        m_presence_stepped_at_ms = juce::Time::getMillisecondCounterHiRes();
     }
 }
 
 // Rationale lives on the declaration in tab_view.h.
-void TabView::snapRevealsToAnswers()
+void TabView::snapPresenceToAnswers()
 {
-    const std::size_t count = m_tab != nullptr ? m_tab->notes.size() : 0;
-    m_reveal_progress.assign(count, 0.0f);
-    for (std::size_t index = 0; index < count; ++index)
-    {
-        if (revealAnswer(index))
-        {
-            m_reveal_progress[index] = 1.0f;
-        }
-    }
-    m_reveal_easing = false;
+    m_answers = m_tab != nullptr ? core::chartPresence(m_tab->notes, m_ring_reveal, m_edit)
+                                 : std::vector<common::ui::TabNotePresence>{};
+    m_progress = m_answers;
+    m_presence_easing = false;
 }
 
 // Rationale lives on the declaration in tab_view.h. Every note steps by the same share of the
 // whole run, so a reveal and its reverse take the same time.
-void TabView::stepRevealEase()
+void TabView::stepPresenceEase()
 {
-    if (!m_reveal_easing)
+    if (!m_presence_easing)
     {
         return;
     }
     const double now_ms = juce::Time::getMillisecondCounterHiRes();
-    const auto step =
-        static_cast<float>((now_ms - m_reveal_stepped_at_ms) / (g_reveal_ease_seconds * 1000.0));
-    m_reveal_stepped_at_ms = now_ms;
+    const auto step = static_cast<float>(
+        (now_ms - m_presence_stepped_at_ms) / (g_presence_ease_seconds * 1000.0));
+    m_presence_stepped_at_ms = now_ms;
     bool moving = false;
-    for (std::size_t index = 0; index < m_reveal_progress.size(); ++index)
+    for (std::size_t index = 0; index < m_progress.size(); ++index)
     {
-        float& progress = m_reveal_progress[index];
-        if (revealAnswer(index))
-        {
-            progress = std::min(1.0f, progress + step);
-            moving = moving || progress < 1.0f;
-        }
-        else
-        {
-            progress = std::max(0.0f, progress - step);
-            moving = moving || progress > 0.0f;
-        }
+        common::ui::TabNotePresence& progress = m_progress[index];
+        const common::ui::TabNotePresence& answer = m_answers[index];
+        const bool revealing = stepToward(progress.reveal, answer.reveal, step);
+        const bool receding = stepToward(progress.recede, answer.recede, step);
+        moving = moving || revealing || receding;
     }
-    m_reveal_easing = moving;
+    m_presence_easing = moving;
     repaint();
 }
 
@@ -433,7 +433,7 @@ void TabView::setState(
 
     m_tab = std::move(tab);
     m_minimum_displayed_strings = minimum_displayed_strings;
-    snapRevealsToAnswers();
+    snapPresenceToAnswers();
 
     // A lane-count change moves the legend panel — the count sets the font its width is measured
     // in — and a projection change decides whether there is a tuning to name at all. The panel's
@@ -461,13 +461,15 @@ void TabView::paint(juce::Graphics& g)
     const common::core::ChartViewState& tab = lane->tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
-    // Whether a note is revealed: the rule lives in the editor core beside the hit test that must
-    // agree with it (core::chartNoteRevealed), and this lane EASES toward that answer
-    // (revealAmount). Everything the reveal decides reads the one eased amount: how far a note is
-    // drawn, the tail growing toward its ring's end and every mark riding it to its true instant,
-    // and whether its reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL, in
-    // from the moment the reveal starts).
-    const auto reveal = [this](std::size_t index) { return revealAmount(index); };
+    // How each note is presented: the rule lives in the editor core beside the hit test that must
+    // agree with it (core::chartPresence), and this lane EASES toward that answer (presence).
+    // Everything the reveal decides reads the one eased amount: how far a note is drawn, the tail
+    // growing toward its ring's end and every mark riding it to its true instant, and whether its
+    // reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL, in from the moment
+    // the reveal starts). A head stepping back behind the focused ring fades on the same run.
+    const common::ui::TabPresence lane_presence = [this](std::size_t index) {
+        return presence(index);
+    };
 
     // THE SPAN'S OWN REVEAL (core::chartSpanRevealed), the same grounds answering for a different
     // subject: a revealed span's furniture runs to its MUSICAL CLOSE instead of to the extent rule
@@ -507,7 +509,7 @@ void TabView::paint(juce::Graphics& g)
     }
 
     // The rows sit on the theme's row background, which is what the lane's one knockout restores.
-    common::ui::paintTabLane(g, metrics, tab, reveal, editorTheme().waveform_row_background);
+    common::ui::paintTabLane(g, metrics, tab, lane_presence, editorTheme().waveform_row_background);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
@@ -574,9 +576,13 @@ void TabView::paint(juce::Graphics& g)
             }
             const common::core::KeyframeViewState& keyframe = note.keyframes[ref.keyframe_index];
             const double drawn_end =
-                common::ui::drawnExtentSeconds(note, revealAmount(ref.note_index));
-            const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(metrics, note, keyframe, drawn_end);
+                common::ui::drawnExtentSeconds(note, presence(ref.note_index).reveal);
+            const common::ui::TabKeyframeLayout layout = common::ui::tabKeyframeLayout(
+                metrics,
+                note,
+                keyframe,
+                drawn_end,
+                common::ui::tabEndHeadInFront(lane_presence, note));
             if (!layout.mark_drawn && !layout.bend_chip.has_value())
             {
                 continue;
@@ -728,7 +734,7 @@ void TabView::paint(juce::Graphics& g)
                 {
                     if (const std::optional<common::ui::TabHeldStopLayout> satellite =
                             common::ui::tabHeldStopLayout(
-                                metrics, note, revealAmount(index) > 0.0f);
+                                metrics, note, presence(index).revealing());
                         satellite.has_value())
                     {
                         paint_pending_box(nullptr, satellite->center_x, satellite->center_y);

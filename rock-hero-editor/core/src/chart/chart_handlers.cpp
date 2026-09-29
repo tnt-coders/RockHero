@@ -123,17 +123,16 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
     return edit;
 }
 
-// The reveal a pointer event resolves against, spelled from the grounds the lane paints by
-// (chartNoteRevealed). A mark the reveal brought in is reachable while it is drawn, which is the
-// whole of "nothing undrawn is clickable". The answer is consumed by the event's own resolution
-// against `tab`, which outlives it.
-common::ui::TabRevealed EditorController::Impl::chartRevealFor(
+// The presence a pointer event resolves against, spelled from the grounds the lane paints by
+// (chartPresence), settled where the lane eases. A mark the reveal brought in is reachable
+// while it is drawn, which is the whole of "nothing undrawn is clickable", and a head stepped back
+// behind the ring being edited answers after that ring's faces. The answer is consumed by the
+// event's own resolution against `tab`, which outlives it.
+common::ui::TabPresence EditorController::Impl::chartPresenceFor(
     const ChartPointerEvent& event, const common::core::ChartViewState& tab) const
 {
-    return
-        [lane_reveal = event.modifiers.alt, edit = resolvedChartEdit(), &tab](std::size_t index) {
-            return chartNoteRevealed(tab.notes, index, lane_reveal, edit);
-        };
+    return [answers = chartPresence(tab.notes, event.modifiers.alt, resolvedChartEdit())](
+               const std::size_t index) { return answers[index]; };
 }
 
 // Each authored array is sorted by (position, string) and the tab projection preserves that order
@@ -505,10 +504,11 @@ void EditorController::Impl::dropChartSelectionKeysNamingNothing()
 // dissolves the caret: a point under scrutiny keeps its note in focus exactly as the caret on it
 // would.
 //
-// Attention, which is the reveal's grounds minus the modifier (chartNoteRevealed): what a silent
+// Attention, which is the reveal's grounds minus the modifier (chartPresence): what a silent
 // point may outlive is the charter still working on the note, never what is drawn. Spelled again
 // here, in grid space, because it is asked mid-edit against the live chart, before the projection
-// the reveal reads is rebuilt.
+// the reveal reads is rebuilt. It differs from the drawn focus at one seam on purpose: a caret on
+// the head a ring ends on still attends that ring, so an end statement typed there survives.
 bool EditorController::Impl::chartNoteInFocus(const ChartSlotKey& slot) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -614,7 +614,7 @@ bool EditorController::Impl::dissolveSilentKeyframes(
 //
 // THE CARET IS ITSELF A REVEAL, which is why the terms below are met rather than computed. Every
 // reader of this predicate is a caret standing on the note or moving onto it, and a caret inside
-// a note's ring is one of the reveal's own grounds (chartNoteRevealed) — as is the selection the
+// a note's ring is one of the reveal's own grounds (chartPresence) — as is the selection the
 // arming makes — so a reveal-only satellite is drawn exactly because of the act that asks. Asking
 // the note's current reveal instead would demote a caret off the mark the press itself brings in,
 // since the press resolves this before the caret it arms. The presence rule is still spelled
@@ -1111,7 +1111,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     gesture.current_x = event.x;
     gesture.current_y = event.y;
     gesture.hit_target =
-        chartHitTarget(*tab, event.geometry, event.x, event.y, chartRevealFor(event, *tab));
+        chartHitTarget(*tab, event.geometry, event.x, event.y, chartPresenceFor(event, *tab));
     m_chart_gesture = gesture;
 
     if (!gesture.hit_target.has_value())
@@ -1296,7 +1296,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         const float top = std::min(gesture.anchor_y, event.y);
         const float bottom = std::max(gesture.anchor_y, event.y);
         const std::vector<ChartHitTarget> boxed = chartTargetsInBox(
-            *tab, gesture.geometry, left, top, right, bottom, chartRevealFor(event, *tab));
+            *tab, gesture.geometry, left, top, right, bottom, chartPresenceFor(event, *tab));
         std::vector<ChartSelectionKey> keys;
         keys.reserve(boxed.size());
         for (const ChartHitTarget& target : boxed)

@@ -652,23 +652,33 @@ is deliberately single-sourced:
   gives a statement saying nothing a face to select, retype and delete, so one focus-leave sweep can
   own every silent point (`dissolveSilentKeyframes`) with no rule of its own for the end.
 - **A DOT NEVER SITS ON A HEAD'S DIGIT**: where a ring ENDS exactly on a head of its own string
-  (`common::core::NoteViewState::ends_on_next_head`, resolved in the connections pass beside the
-  arrival relation), a bend point whose dot would reach into that head's square draws none, its chip
-  being its face (`nextHeadLeftEdge`, `tab_lane_layout.h`, stated once), because a white dot on the
-  white digit reads as a different digit. The test is geometric, so zoomed in, a point just before
-  the end draws its dot clear of the head at its true instant. Chips are not held out: every chip of
-  the ring keeps its ordinary height and its own column (the rule above), where the head's own
+  (`common::core::NoteViewState::end_head`, that head's index, resolved in the connections pass
+  beside the arrival relation), a bend point whose dot would reach into that head's square draws
+  none while that head stands in front, its chip being its face (`nextHeadLeftEdge`,
+  `tab_lane_layout.h`, stated once), because a white dot on the white digit reads as a different
+  digit. Once the head steps back behind the ring (below; `common::ui::tabEndHeadInFront` reads
+  the head's own presence), the dot draws in truth over it. The test is geometric, so zoomed in, a
+  point just before the end draws its dot clear of the head at its true instant. Chips are not held
+  out: every chip of the ring keeps its ordinary height and its own column (the rule above), where the head's own
   pre-bend chip, painted later, reads on top until the ending point is selected. The meeting was
   once resolved vertically, by moving the ending ring's chips below the envelope, which put them in
   the band above the next string's head, onto that head's own pre-bend chip (sighted 2026-09-28).
   The height is `slideOutChipY` for a slide chip, the one spelling of where a tail chip sits.
-- **THE REVEAL EASES**: the tab view steps each note's reveal toward its answer over about 120 ms
-  (`TabView::stepRevealEase`, on the display's vblank), and the paint core and the overlays read the
-  eased amount (`common::ui::TabRevealAmount`, `drawnExtentSeconds`). So a revealed tail grows from
-  its crop and every mark riding it travels with it: a chip clicked at the crop glides from under
-  the pointer to its point, its ring with it. Presses read the reveal's answer, the state the ease
-  is heading for, never the eased picture. Off screen, where nothing drives the ease, the amounts
-  snap to their answers, which is what a lane painted straight to an image in a test shows.
+- **THE HEAD A FOCUSED RING ENDS ON STEPS BACK**: while the selection or the caret is on a ring
+  that ends on the next head of its own string (the edit's FOCUS), that head, unless it is in
+  focus too, is drawn at a fifth of its weight — head, digit, tail, chips and satellite — beneath
+  every other note, so the ring being edited reads whole over it (`chartPresence`,
+  `chart_reveal.h`; `common::ui::TabNotePresence::recede`). The lane reveal steps nothing back: it
+  shows every ring at once, and no one ring is the subject. Hit testing follows the paint: a
+  stepped-back note answers after every note in front of it.
+- **THE PRESENCE EASES**: the tab view steps each note's reveal and recession toward its answer
+  over about 120 ms (`TabView::stepPresenceEase`, on the display's vblank), and the paint core and
+  the overlays read the eased amounts (`common::ui::TabNotePresence`, `drawnExtentSeconds`). So a
+  revealed tail grows from its crop and every mark riding it travels with it — a chip clicked at the
+  crop glides from under the pointer to its point, its ring with it — while the head it ends on
+  fades back. Presses read the answer (`chartPresence`), the state the ease is heading for,
+  never the eased picture. Off screen, where nothing drives the ease, the amounts snap to their
+  answers, which is what a lane painted straight to an image in a test shows.
 - **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
@@ -853,8 +863,8 @@ PULL-OFF plants another beneath it: the press is what the pitch is measured from
 plant, and the plant reaches the picture through the covering span's posture instead of through this
 note's face. A stop a PULL-OFF **derives** is already printed by that notation, so
 it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
-note's real ring is (`core::chartNoteRevealed`: the lane reveal, the note selected, or the caret
-inside its ring). Revealing a note shows the whole truth about it at once, so a satellite that
+note's real ring is (`core::chartPresence`: the lane reveal, the note selected, or the caret on
+it). Revealing a note shows the whole truth about it at once, so a satellite that
 waits is reached by a press holding `Alt`, a press on a selected note, or a press with the caret
 in the ring; the caret reaches it from the keyboard whatever is drawn, arming being itself a
 reveal. And a **tap fronting a bracket** stands whatever its authorship, because there the bracket
@@ -900,10 +910,11 @@ multi-note entry it is which members are refusal CAUSES that changes, never the 
 a disagreeing derived member still rejects the whole plan, an agreeing one simply drops out of it,
 and the entry's default and authored satellites are written as ever.
 
-**One reveal, one predicate.** A note is revealed while the lane reveal modifier is held
+**One reveal, one answer.** A note is revealed while the lane reveal modifier is held
 (`TabView::setRingReveal`), while it is SELECTED — the note itself or any keyframe of it — or
-while the CARET stands inside its ring, and `core::chartNoteRevealed` is the one spelling of that,
-read by the lane that paints and by the controller's hit test. Everything downstream reads that
+while the CARET stands on it (inside its ring, except at an end that is the next head's onset),
+and `core::chartPresence` is the one spelling of that, read by the lane that paints and by the
+controller's hit test. Everything downstream reads that
 one answer: how far the note draws, whether the paint core draws its satellite, and whether the
 layout manifest bounds a click target for it. The projection stays selection-agnostic: it publishes the face and its terms
 (`common::core::StopMarkFace`), and the editor layers apply the reveal. The CARET's own reach is
@@ -918,10 +929,10 @@ holds a note the span covers, or while the caret stands inside its tenure, that 
 runs to the close instead — the note's three grounds, read for a span. The visual language is the
 note reveal's exactly — the same ink, simply reaching further, snapping back when the ground goes
 away — because a reveal shows the truth in the notation's own terms rather than annotating it. Both
-reach the paint core as a bare per-index answer (`common::ui::TabRevealed`, asked per note by
-`paintTabLane` and per span by `paintTabLaneFurniture`), since each projected event already
-carries both of its ends. Spans are not selectable in their own right yet; that arrives with the
-span-marker work.
+reach the paint core as a bare per-index answer (`common::ui::TabNotePresence` per note for
+`paintTabLane`, `common::ui::TabSpanRevealed` per span for `paintTabLaneFurniture`), since each
+projected event already carries both of its ends. Spans are not selectable in their own right
+yet; that arrives with the span-marker work.
 
 **SATELLITES ARE NOTE-SCOPED, ALWAYS.** A satellite is its note's held FACE and nothing else: a
 press on one addresses that note's held stop, whatever the selection is. There is deliberately no
@@ -973,9 +984,9 @@ ease.
 **The ring reveal** is how the length you cannot see becomes visible while you author it. The lane
 stops every tail at its ink end, so the ring a note actually sounds for — what `Alt`+wheel edits —
 is invisible past that crop, and wherever rules 2 and 3 emptied a tail. One rule decides how far
-the lane draws (`core::chartNoteRevealed`): a note draws on to its **ring end** while the
-whole-lane `Alt` reveal is held, while it is selected, or while the caret stands inside its ring,
-and to its ink end otherwise.
+the lane draws (`core::chartPresence`): a note draws on to its **ring end** while the
+whole-lane `Alt` reveal is held, while it is selected, or while the caret stands on it, and to its
+ink end otherwise.
 
 Three grounds, and what each is for:
 
@@ -996,7 +1007,10 @@ Three grounds, and what each is for:
 - **THE CARET'S PEEK answers "is something here?"** A click on a tail is not a selection (tails
   are not targets): it moves the caret to the slot under the pointer, and if that slot lies on the
   note's string inside its stored ring, ends included, the note reveals for as long as the caret
-  stays there. Deterministic and keyed on the edit position alone — no timer, nothing latched,
+  stays there. The one excluded end is a ring's end on the next head of its string: a caret there
+  is on that head, and only that note reveals. The keyframe commit law's own attention
+  (`chartNoteInFocus`) still counts the caret there on the ring, so an end statement typed at the
+  seam is kept. Deterministic and keyed on the edit position alone — no timer, nothing latched,
   and the peek selects nothing — so the caret leaving is the whole of what hides it again, and the
   reveal-only held-stop satellite comes in with it, so the caret steps onto a satellite it can
   see.
@@ -1027,7 +1041,7 @@ Six things about it are deliberate:
   nothing a scorer reads.
 - **The reveal reaches what it draws, and no more.** Hit testing and the marquee take the same
   per-note answer the lane painted by (`chartHitTarget`, `chartTargetsInBox`, handed
-  `common::ui::TabRevealed` from the controller's `chartRevealFor`): a keyframe standing past its
+  `common::ui::TabPresence` from the controller's `chartPresenceFor`): a keyframe standing past its
   note's ink end is reached only while its note is revealed, exactly as it is drawn, and a tail is
   never a target in either state. Every chip is keyed by the offset the chart states, and nothing
   moves under the reveal, so selecting a chip cannot move it. `Alt`+wheel is unaffected because it
@@ -1036,8 +1050,8 @@ Six things about it are deliberate:
   notes' ring ends (`ChartViewState::ring_end_prefix_max`). The ink end never passes the ring end,
   so the ring ends bound whatever is drawn, and the paint pass drops each note whose DRAWN end
   really precedes the window; the reveal going down changes no index. The cull runs inside
-  `paintTabLane`, and the reveal reaches it as a per-index answer (`common::ui::TabRevealed`) that
-  also decides whether a reveal-only satellite is drawn, so there is no second loop and no editor
+  `paintTabLane`, and the reveal reaches it as a per-index answer
+  (`common::ui::TabNotePresence`) that also decides whether a reveal-only satellite is drawn, so there is no second loop and no editor
   ink at all. The host answers from its ONE reveal state, this core being told the answer rather
   than the reason.
 - **A second running maximum, over the SPANS.** The two span passes — the bracket marks in

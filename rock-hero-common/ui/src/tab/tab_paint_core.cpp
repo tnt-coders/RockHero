@@ -208,6 +208,11 @@ enum class Ink : std::uint8_t
 constexpr float g_ghost_opacity{0.5f};
 constexpr float g_ghost_fret_plate_opacity{0.75f};
 
+// A note stepped back behind the ring the charter is editing (TabNotePresence::recede), whole:
+// head, digit, tail and chips. Well under a ghost's weight, so it reads as background, not as a
+// quiet note.
+constexpr float g_receded_opacity{0.2f};
+
 // Opens a JUCE transparency layer and closes it after every nested graphics state has unwound.
 // JUCE has no RAII form, while ending a layer before an inner ScopedSaveState is destroyed silently
 // corrupts the composite. The saved outer state also normalizes Direct2D, which does not restore
@@ -1266,6 +1271,28 @@ void drawLabelChip(juce::Graphics& g, const TabLaneMetrics& metrics, const Label
     return common::core::isGhosted(note.emphasis) ? g_ghost_opacity : 1.0f;
 }
 
+// The weight a note keeps as it steps back (TabNotePresence::recede): whole at 0, the receded
+// opacity at 1.
+[[nodiscard]] float recededWeight(const float recede) noexcept
+{
+    return 1.0f - ((1.0f - g_receded_opacity) * recede);
+}
+
+// Whether a note is drawn as one flattened group, head over its own tail: a ghost, and a note
+// stepping back behind the ring being edited, whose head, digit and tail all fade together.
+[[nodiscard]] bool drawnAsGroup(
+    const common::core::NoteViewState& note, const TabNotePresence& presence) noexcept
+{
+    return common::core::isGhosted(note.emphasis) || presence.receded();
+}
+
+// A layout rectangle as the integer area a transparency layer covers, a pixel of antialiasing
+// either side.
+[[nodiscard]] juce::Rectangle<int> layerBounds(const juce::Rectangle<float>& area)
+{
+    return area.getSmallestIntegerContainer().expanded(1);
+}
+
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
 // rising for ascending slides. Keyframe chains continue segment by segment; the slide-out
 // terminal gets Charter's fret label chip (white on the tail color darkened three times) at its
@@ -1444,7 +1471,7 @@ void drawKeyframeHeads(
 // rests; the heads drawn later still cover it.
 void drawBendDots(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const double drawn_end,
+    const common::core::NoteViewState& note, const double drawn_end, const bool end_head_in_front,
     const std::optional<TailFade>& fade)
 {
     const float radius = metrics.tail_height * g_bend_dot_radius_tails;
@@ -1453,7 +1480,8 @@ void drawBendDots(
     {
         // Whether the dot is drawn is the layout manifest's one statement (mark_drawn), which the
         // hit tester and the selection ring read too.
-        const TabKeyframeLayout layout = tabKeyframeLayout(metrics, note, keyframe, drawn_end);
+        const TabKeyframeLayout layout =
+            tabKeyframeLayout(metrics, note, keyframe, drawn_end, end_head_in_front);
         if (layout.shape != TabKeyframeShape::Dot || !layout.mark_drawn)
         {
             continue;
@@ -2046,7 +2074,7 @@ void drawNoteHead(
 // draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
 //
 // WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
-// and the caller has already picked between them (TabRevealed). One rail length reaches both
+// and the caller has already picked between them (TabSpanRevealed). One rail length reaches both
 // the cull and this drawing, so a rail cannot be culled on one end and drawn to the other.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape,
@@ -2635,7 +2663,7 @@ void drawTabFhpChip(
 // floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealAmount& reveal, const juce::Colour ground)
+    const TabPresence& presence, const juce::Colour ground)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.stringCount() > 0);
@@ -2761,46 +2789,47 @@ void paintTabLane(
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, tab.ring_end_prefix_max, span_start, span_end);
 
-    // HOW FAR one note is drawn, read by every mark on the note (drawnExtentSeconds): a reveal's
-    // host eases the amount, so a revealing tail grows and the marks riding it travel with it.
-    const auto drawn_end_of = [&](std::size_t index) {
-        return drawnExtentSeconds(tab.notes[index], tabRevealAmount(reveal, index));
-    };
-    // Whether a note's reveal has begun: its tail stops fading at the crop and its reveal-only
-    // satellite comes in at once, the extent alone easing.
-    const auto revealing = [&reveal](std::size_t index) {
-        return tabRevealAmount(reveal, index) > 0.0f;
-    };
+    // Each note is drawn as far as its presence says (drawnExtentSeconds): a host eases the
+    // amount, so a revealing tail grows and the marks riding it travel with it, and once the
+    // reveal has begun its tail stops fading at the crop and its reveal-only satellite comes in.
 
-    // Floating labels collected during the note passes and drawn above every head.
+    // Floating labels collected during the note passes and drawn above every head; a stepped-back
+    // note's are drawn with it, beneath every other note.
     std::vector<LabelChip> slide_labels;
     std::vector<LabelChip> bend_chips;
 
     // Tails first so normal heads cover their own tail starts (Charter's noteTails layer). A ghost
-    // instead draws its head here inside the same flattened group as its tail.
-    for (std::size_t index = first; index < last; ++index)
-    {
+    // instead draws its head here inside the same flattened group as its tail, and so does a note
+    // stepping back. Stepped-back notes go FIRST, chips and all, so they are the lane's background
+    // and the ring being edited paints over the head it ends on.
+    const auto paint_tail_pass = [&](const std::size_t index) {
         const common::core::NoteViewState& note = tab.notes[index];
+        const TabNotePresence note_presence = tabPresence(presence, index);
         // The index range above is a tight superset, never a verdict: its start comes from the
         // running maximum of RING ends, so a note inside it can still have finished before the
         // window opened. Tested against the ring rather than the ink because a reveal may draw
         // that far; an unrevealed note whose ink ended earlier simply draws nothing here.
         if (note.ring_end_seconds < span_start)
         {
-            continue;
+            return;
         }
 
         const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
-        const double drawn_end = drawn_end_of(index);
-        const std::optional<TailFade> fade = tailFade(metrics, note, revealing(index));
+        const double drawn_end = drawnExtentSeconds(note, note_presence.reveal);
+        const std::optional<TailFade> fade = tailFade(metrics, note, note_presence.revealing());
 
         // A ghost's opaque tail, marks and head are flattened together, then the finished note is
-        // composited once. Per-ink alpha would let the already-drawn tail show through the head.
-        const bool grouped = common::core::isGhosted(note.emphasis);
-        const float note_opacity = laneNoteOpacity(note);
-        const float fret_plate_opacity = grouped ? g_ghost_fret_plate_opacity : 1.0f;
+        // composited once. Per-ink alpha would let the already-drawn tail show through the head. A
+        // stepped-back note is flattened the same way, fading as it steps back, and its chips are
+        // drawn at full weight into a layer of their own at the same opacity.
+        const bool receded = note_presence.receded();
+        const bool grouped = drawnAsGroup(note, note_presence);
+        const float note_opacity = laneNoteOpacity(note) * recededWeight(note_presence.recede);
+        const float fret_plate_opacity = grouped && !receded ? g_ghost_fret_plate_opacity : 1.0f;
+        const float chip_opacity = receded ? 1.0f : note_opacity;
+        std::vector<LabelChip> receded_chips;
         const juce::Rectangle<int> group_bounds{
             juce::roundToInt(onset_x - metrics.headSize()),
             juce::roundToInt(center_y - metrics.lane_height),
@@ -2869,13 +2898,21 @@ void paintTabLane(
                 note,
                 onset_x,
                 center_y,
-                slide_labels,
+                receded ? receded_chips : slide_labels,
                 fret_plate_opacity,
                 drawn_end,
                 fade);
-            drawBendLines(g, metrics, style, note, bend_chips, note_opacity, drawn_end, fade);
+            drawBendLines(
+                g,
+                metrics,
+                style,
+                note,
+                receded ? receded_chips : bend_chips,
+                chip_opacity,
+                drawn_end,
+                fade);
         }
-        drawBendDots(g, metrics, style, note, drawn_end, fade);
+        drawBendDots(g, metrics, style, note, drawn_end, tabEndHeadInFront(presence, note), fade);
 
         if (grouped)
         {
@@ -2885,12 +2922,51 @@ void paintTabLane(
             // window, so the later fret overlays cannot obscure them.
             drawAttackIcon(g, metrics, style, note, onset_x, center_y);
 
-            // Close the note group before drawing fret plates at their middle weight and fret
-            // numbers fully opaque.
-            group.reset();
+            // A ghost closes its group before drawing fret plates at their middle weight and fret
+            // numbers fully opaque; a stepped-back note keeps them inside, fading with it.
+            if (!receded)
+            {
+                group.reset();
+            }
             drawKeyframeFretNumbers(g, metrics, style, note, center_y, drawn_end);
             drawNoteHeadFretPlate(g, metrics, style, note, onset_x, center_y, fret_plate_opacity);
             drawNoteHeadFretNumber(g, metrics, style, note, onset_x, center_y);
+        }
+        group.reset();
+
+        // A group's bounds are the note's row, which floating chips may leave, so a stepped-back
+        // note's chips fade as one layer of their own over just the plates they fill.
+        if (receded_chips.empty() || !metrics.draw_text)
+        {
+            return;
+        }
+        juce::Rectangle<float> chip_area = receded_chips.front().plate;
+        for (const LabelChip& chip : receded_chips)
+        {
+            chip_area = chip_area.getUnion(chip.plate);
+        }
+        std::optional<ScopedTransparencyLayer> chip_layer;
+        if (g.clipRegionIntersects(layerBounds(chip_area)))
+        {
+            chip_layer.emplace(g, layerBounds(chip_area), note_opacity);
+        }
+        for (const LabelChip& chip : receded_chips)
+        {
+            drawLabelChip(g, metrics, chip);
+        }
+    };
+    for (std::size_t index = first; index < last; ++index)
+    {
+        if (tabPresence(presence, index).receded())
+        {
+            paint_tail_pass(index);
+        }
+    }
+    for (std::size_t index = first; index < last; ++index)
+    {
+        if (!tabPresence(presence, index).receded())
+        {
+            paint_tail_pass(index);
         }
     }
 
@@ -3027,15 +3103,32 @@ void paintTabLane(
             // Each bound to a local so its presence test and its reads are provably one object.
             const std::optional<int>& held = note.held;
             const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
+            const TabNotePresence note_presence = tabPresence(presence, index);
             // The same window test the note pass applies, and for the same reason: the index range
             // is a tight superset, so each pass still drops the notes that really end before it.
             // The face this pass draws sits at its note's own onset, so the note's own window
             // bounds it.
             if (!held.has_value() || !mark.has_value() || note.ring_end_seconds < span_start ||
                 mark->face == common::core::StopMarkFace::Posture ||
-                !common::core::stopMarkShown(*mark, revealing(index)))
+                !common::core::stopMarkShown(*mark, note_presence.revealing()))
             {
                 continue;
+            }
+            // A stepped-back note's satellite fades with it. Drawn here rather than in its group,
+            // whose bounds stop short of the satellite column, and still beneath everything in
+            // front: nothing else on its string stands in its column while its note rings.
+            std::optional<ScopedTransparencyLayer> faint;
+            if (const std::optional<TabHeldStopLayout> satellite =
+                    tabHeldStopLayout(metrics, note, note_presence.revealing());
+                note_presence.receded() && satellite.has_value())
+            {
+                const TabLayoutRect& box = satellite->box;
+                const juce::Rectangle<int> bounds =
+                    layerBounds(juce::Rectangle<float>{box.x, box.y, box.width, box.height});
+                if (g.clipRegionIntersects(bounds))
+                {
+                    faint.emplace(g, bounds, recededWeight(note_presence.recede));
+                }
             }
             const float center_y = metrics.laneY(note.string);
             // The mark's own instant, which for a note's own face is its onset: the same column
@@ -3050,7 +3143,7 @@ void paintTabLane(
                 columns.bar_right,
                 center_y,
                 juce::String{*held},
-                tailFade(metrics, note, revealing(index)),
+                tailFade(metrics, note, note_presence.revealing()),
                 ground);
         }
     }
@@ -3064,15 +3157,18 @@ void paintTabLane(
             continue;
         }
 
-        // A grouped ghost already drew its head opaquely over its tail before the group faded.
-        if (common::core::isGhosted(note.emphasis))
+        // A grouped note (a ghost, or one stepping back) already drew its head over its tail
+        // before its group faded.
+        const TabNotePresence note_presence = tabPresence(presence, index);
+        if (drawnAsGroup(note, note_presence))
         {
             continue;
         }
 
         const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
-        drawKeyframeHeads(g, metrics, style, note, center_y, drawn_end_of(index));
+        drawKeyframeHeads(
+            g, metrics, style, note, center_y, drawnExtentSeconds(note, note_presence.reveal));
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
     }
 
@@ -3094,7 +3190,7 @@ void paintTabLane(
 // Rationale lives on the declaration in tab_paint_core.h.
 void paintTabLaneFurniture(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const TabRevealed& revealed_shape)
+    const TabSpanRevealed& revealed_shape)
 {
     // The visible span, derived exactly as the content pass derives it — from the context's own
     // clip, held to the lane's bounds — so a host repainting a strip gets the furniture that
@@ -3112,7 +3208,7 @@ void paintTabLaneFurniture(
         // extent rule 12a trimmed, or the musical close where the host reveals this span — the
         // same shape the note passes take, a note drawing to its ink end or, revealed, its ring
         // end.
-        const double end_seconds = tabRevealed(revealed_shape, shape_index)
+        const double end_seconds = tabSpanRevealed(revealed_shape, shape_index)
                                        ? shape.close_seconds
                                        : shape.drawn_end_seconds;
         if (end_seconds >= span_start)

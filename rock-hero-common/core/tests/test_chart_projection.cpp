@@ -200,7 +200,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(linkedKeyframe(sliding.slides[0]));
     // Nothing is struck on its string where its ring stops, so no mark of another note shares the
     // instant and the head-column rule (nextHeadLeftEdge) has nothing to do here.
-    CHECK_FALSE(sliding.ends_on_next_head);
+    CHECK_FALSE(sliding.end_head.has_value());
 
     // The shift glide STATES its arrival on the landing, and the ink stops the minimum sustain
     // distance before it, where rule 1 crops the tail. The arrival keeps its stored instant, in the
@@ -219,7 +219,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK_FALSE(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ink_end_seconds));
     CHECK(instantDrawn(shift_slider.slides[0].seconds, shift_slider.ring_end_seconds));
     // The STORED ring lands on that head, which is what the head-column rule keys on.
-    CHECK(shift_slider.ends_on_next_head);
+    CHECK(shift_slider.end_head == std::optional<std::size_t>{6});
     // The keyframe's own stored offset — the ring's end, a whole beat in — which is the one name
     // every mapping back to the chart uses.
     REQUIRE(shift_slider.keyframes.size() == 1);

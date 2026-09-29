@@ -1,5 +1,6 @@
 #include "chart/chart_hit_testing.h"
 
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <optional>
@@ -64,102 +65,132 @@ private:
     float m_best_distance{0.0f};
 };
 
+// What one of the paint's layers holds under a press, kept per class as the probe walks the notes.
+struct PressLayer
+{
+    explicit PressLayer(const float press_x) noexcept
+        : satellites{press_x}
+        , heads{press_x}
+    {}
+
+    NearestTarget satellites;
+    NearestTarget heads;
+    std::optional<ChartHitTarget> top_bend_chip;
+    std::optional<ChartHitTarget> top_slide_chip;
+    std::optional<ChartHitTarget> top_mark;
+
+    // The target the press reaches in this layer: its satellites, then its heads, then its faces
+    // topmost first, as chartHitTarget explains.
+    [[nodiscard]] std::optional<ChartHitTarget> topmost() const
+    {
+        for (const std::optional<ChartHitTarget>* const found :
+             {&satellites.best(), &heads.best(), &top_bend_chip, &top_slide_chip, &top_mark})
+        {
+            if (found->has_value())
+            {
+                return *found;
+            }
+        }
+        return std::nullopt;
+    }
+};
+
 } // namespace
 
 std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, const common::ui::TabRevealed& revealed)
+    float y, const common::ui::TabPresence& presence)
 {
-    // The held-stop satellites first. A satellite's digit sits at its note's own instant, or at the
+    // Everything a press can land on, sorted into the paint's two layers: the notes in front, and
+    // beneath them every note STEPPED BACK behind the ring being edited, which the lane draws first
+    // and whole, satellite and chips included. The front layer answers first, so a press on the
+    // head a focused ring ends on reaches the ring's faces drawn over it.
+    std::array<PressLayer, 2> layers{PressLayer{x}, PressLayer{x}};
+    const auto layer_of =
+        [&layers](const common::ui::TabNotePresence& note_presence) -> PressLayer& {
+        return layers.at(note_presence.receded() ? std::size_t{1} : std::size_t{0});
+    };
+
+    // The held-stop satellites. A satellite's digit sits at its note's own instant, or at the
     // bracket its tap fronts, and its column lies OUTBOARD of the head's own columns and belongs to
-    // no head, so resolving it here keeps it a target of its own instead of letting the ordinary
-    // head pass decide the columns beside a head it does not cover. The whole stream is probed
-    // rather than culled through the visible range, because a fronted bracket sits at its SPAN's
-    // mark, which can be earlier than the note's own instant and therefore outside a window keyed
-    // by note ends. Every note that draws no satellite lays out to nothing here and is skipped for
-    // free — nothing undrawn is clickable.
+    // no head, so each layer answers it before its heads, keeping it a target of its own instead
+    // of letting the ordinary head pass decide the columns beside a head it does not cover. The
+    // whole stream is probed rather than culled through the visible range, because a fronted
+    // bracket sits at its SPAN's mark, which can be earlier than the note's own instant and
+    // therefore outside a window keyed by note ends. Every note that draws no satellite lays out to
+    // nothing here and is skipped for free — nothing undrawn is clickable.
     //
     // A REVEAL-ONLY satellite is reachable exactly while it is drawn, which is what handing the
     // reveal to the layout buys: one rectangle answers "is it there" for the painter and for this
     // probe, so the drawn digit and the clickable one cannot part.
-    NearestTarget satellites{x};
     for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
-        const std::optional<common::ui::TabHeldStopLayout> layout = common::ui::tabHeldStopLayout(
-            geometry, tab.notes[index], common::ui::tabRevealed(revealed, index));
+        const common::ui::TabNotePresence note_presence = common::ui::tabPresence(presence, index);
+        const std::optional<common::ui::TabHeldStopLayout> layout =
+            common::ui::tabHeldStopLayout(geometry, tab.notes[index], note_presence.revealing());
         if (layout.has_value() && layout->box.contains(x, y))
         {
-            satellites.consider(layout->center_x, ChartHeldStopHit{.index = index});
+            layer_of(note_presence)
+                .satellites.consider(layout->center_x, ChartHeldStopHit{.index = index});
         }
     }
-    if (satellites.best().has_value())
-    {
-        return satellites.best();
-    }
-
-    const auto [first, last] = candidateRange(tab, geometry, x, x);
 
     // One pass lays every candidate out once and keeps the nearest of each class, and the classes
-    // answer in turn. HEADS first: a note is addressed at its onset column, and its head is the
-    // target a charter reaches for most. Every other FACE next — a keyframe's mark, drawn ON a tail
-    // (so resolving tails first would make every one unclickable), and the chips, each a face of
-    // what owns it: the onset's bend chip reaches its note, a keyframe's bend chip its keyframe.
-    // A chip's box is as wide as the widest amount it can print, since this resolver measures no
-    // text, so letting chips answer before heads would hand a short chip's empty margin a press
-    // meant for the head beside it. Among the faces the one PAINTED ON TOP answers, not the
-    // nearest: chips pushed back to one place stack, and boxes of different widths ending at one
-    // edge have different centres. So each of the paint core's three layers keeps the last face
-    // containing the press, in the paint core's order, and the layers answer topmost first: every
-    // bend chip, then every slide chip, then the marks drawn in the note pass.
-    NearestTarget heads{x};
-    std::optional<ChartHitTarget> top_mark;
-    std::optional<ChartHitTarget> top_slide_chip;
-    std::optional<ChartHitTarget> top_bend_chip;
+    // answer in turn (PressLayer::topmost). HEADS first: a note is addressed at its onset column,
+    // and its head is the target a charter reaches for most. Every other FACE next — a keyframe's
+    // mark, drawn ON a tail (so resolving tails first would make every one unclickable), and the
+    // chips, each a face of what owns it: the onset's bend chip reaches its note, a keyframe's bend
+    // chip its keyframe. A chip's box is as wide as the widest amount it can print, since this
+    // resolver measures no text, so letting chips answer before heads would hand a short chip's
+    // empty margin a press meant for the head beside it. Among the faces the one PAINTED ON TOP
+    // answers, not the nearest: chips pushed back to one place stack, and boxes of different widths
+    // ending at one edge have different centres. So each of the paint core's three layers keeps
+    // the last face containing the press, in the paint core's order, and the layers answer topmost
+    // first: every bend chip, then every slide chip, then the marks drawn in the note pass.
+    const auto [first, last] = candidateRange(tab, geometry, x, x);
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(geometry, note);
-        if (layout.head.contains(x, y))
+        const common::ui::TabNotePresence note_presence = common::ui::tabPresence(presence, index);
+        PressLayer& layer = layer_of(note_presence);
+        const common::ui::TabNoteLayout note_layout = common::ui::tabNoteLayout(geometry, note);
+        if (note_layout.head.contains(x, y))
         {
-            heads.consider(layout.onset_x, ChartNoteHit{.index = index});
+            layer.heads.consider(note_layout.onset_x, ChartNoteHit{.index = index});
         }
-        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+        if (const std::optional<common::ui::TabLayoutRect>& chip = note_layout.bend_chip;
             chip.has_value() && chip->contains(x, y))
         {
-            top_bend_chip = ChartNoteHit{.index = index};
+            layer.top_bend_chip = ChartNoteHit{.index = index};
         }
         // A mark is clickable exactly where the lane draws it, by the rules the paint core draws
         // by: within the extent the note is drawn to, and past it only as the destination chip a
         // cut leg wears at the crop, which names the keyframe it heads for and so reaches it.
-        const double drawn_end =
-            common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
+        const double drawn_end = common::ui::drawnExtentSeconds(note, note_presence.reveal);
+        const bool end_head_in_front = common::ui::tabEndHeadInFront(presence, note);
         for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            const common::ui::TabKeyframeLayout keyframe_layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
+            const common::ui::TabKeyframeLayout keyframe_layout = common::ui::tabKeyframeLayout(
+                geometry, note, note.keyframes[keyframe], drawn_end, end_head_in_front);
             const ChartKeyframeHit target{.note_index = index, .keyframe_index = keyframe};
             if (keyframe_layout.mark_drawn && keyframe_layout.box.contains(x, y))
             {
-                (keyframe_layout.shape == common::ui::TabKeyframeShape::Chip ? top_slide_chip
-                                                                             : top_mark) = target;
+                (keyframe_layout.shape == common::ui::TabKeyframeShape::Chip ? layer.top_slide_chip
+                                                                             : layer.top_mark) =
+                    target;
             }
             if (const std::optional<common::ui::TabLayoutRect>& chip = keyframe_layout.bend_chip;
                 chip.has_value() && chip->contains(x, y))
             {
-                top_bend_chip = target;
+                layer.top_bend_chip = target;
             }
         }
     }
-    if (heads.best().has_value())
+    for (const PressLayer& layer : layers)
     {
-        return heads.best();
-    }
-    for (const std::optional<ChartHitTarget>* const face :
-         {&top_bend_chip, &top_slide_chip, &top_mark})
-    {
-        if (face->has_value())
+        if (std::optional<ChartHitTarget> target = layer.topmost(); target.has_value())
         {
-            return *face;
+            return target;
         }
     }
 
@@ -177,7 +208,7 @@ std::optional<ChartHitTarget> chartHitTarget(
 
 std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom, const common::ui::TabRevealed& revealed)
+    float left, float top, float right, float bottom, const common::ui::TabPresence& presence)
 {
     const auto intersects = [left, top, right, bottom](const common::ui::TabLayoutRect& box) {
         return box.x < right && box.x + box.width > left && box.y < bottom &&
@@ -204,11 +235,12 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     {
         const common::core::NoteViewState& note = tab.notes[index];
         const double drawn_end =
-            common::core::drawnEndSeconds(note, common::ui::tabRevealed(revealed, index));
+            common::ui::drawnExtentSeconds(note, common::ui::tabPresence(presence, index).reveal);
+        const bool end_head_in_front = common::ui::tabEndHeadInFront(presence, note);
         for (std::size_t keyframe = 0; keyframe < note.keyframes.size(); ++keyframe)
         {
-            const common::ui::TabKeyframeLayout layout =
-                common::ui::tabKeyframeLayout(geometry, note, note.keyframes[keyframe], drawn_end);
+            const common::ui::TabKeyframeLayout layout = common::ui::tabKeyframeLayout(
+                geometry, note, note.keyframes[keyframe], drawn_end, end_head_in_front);
             const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
             if ((layout.mark_drawn && intersects(layout.box)) ||
                 (chip.has_value() && intersects(*chip)))

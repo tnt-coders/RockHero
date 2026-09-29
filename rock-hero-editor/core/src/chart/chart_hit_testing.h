@@ -107,7 +107,8 @@ Topmost drawn wins, which is the rule and the reason for the order below. Held-s
 resolve first: they are drawn outboard of a bracket's closing bar and overlap no head of their own
 note, so their position here is only about reaching them before a neighbouring head's box does.
 Then note heads, nearest onset center first among overlapping heads. Then the linked keyframe heads
-riding a tail, which are drawn ON the ribbon and are the last mark a pointer can reach.
+riding a tail, which are drawn ON the ribbon and are the last mark a pointer can reach. A note
+stepped back behind the ring being edited goes through the same order after every note in front.
 
 A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
 selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot
@@ -132,14 +133,15 @@ is not a target at all.
 \param geometry Lane geometry the notation was painted with.
 \param x Pointer x in lane-local pixels.
 \param y Pointer y in lane-local pixels.
-\param revealed Per-note answer to whether that note's whole truth is on show
-       (\ref common::ui::TabRevealed), the same answer the lane painted by; empty reveals nothing
-       and reaches nothing undrawn.
+\param presence Per-note presentation, settled (\ref common::ui::TabNotePresence), the answer the
+       lane's picture heads for: a revealed note reaches its reveal-only marks, and a note stepped
+       back answers after every note in front of it, as it is drawn beneath them. Empty presents
+       every note plainly and reaches nothing undrawn.
 \return The hit object, or empty for an empty-lane point.
 */
 [[nodiscard]] std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
-    float y, const common::ui::TabRevealed& revealed = {});
+    float y, const common::ui::TabPresence& presence = {});
 
 /*!
 \brief Collects the objects whose head or mark rectangles intersect a marquee box.
@@ -150,12 +152,12 @@ is not a target at all.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
-\param revealed Per-note reveal answer, exactly as for \ref chartHitTarget: a keyframe past its
+\param presence Per-note presentation, exactly as for \ref chartHitTarget: a keyframe past its
        note's ink end is boxed only while it is drawn.
 \return Boxed objects: heads first, then keyframes, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
-    float left, float top, float right, float bottom, const common::ui::TabRevealed& revealed = {});
+    float left, float top, float right, float bottom, const common::ui::TabPresence& presence = {});
 
 } // namespace rock_hero::editor::core
