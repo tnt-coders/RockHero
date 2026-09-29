@@ -359,7 +359,10 @@ Four consequences worth knowing before touching this:
   statement (`tabSlideStopLayout`, `tabBendPointChipBox`, the bend legs by `tabBendLeg`), read by
   the painter and the hit test alike. EVERY CHIP STANDS ON ITS TRUE COLUMN: revealed, centred on
   its own point, over the next head if that is where the point is; cropped, the destination chip
-  centred at the crop. A chip's box is as wide as the widest amount, because the headless hit test
+  centred at the crop. Its HEIGHT is half a tail above the curve, except where its own column
+  wears a head — the onset's, or the point's own keyframe head (a linked stop, a resting keyframe)
+  — where it stands above that head instead, since half a tail above a small amount is the string
+  line the head prints its digit on. A chip's box is as wide as the widest amount, because the headless hit test
   measures no text, and the painted plate centres on it; a selection ring traces the plate, so it
   never circles empty lane around a short amount. Chips close together overlap, the later painted
   on top (an ending ring's chip under the pre-bend chip of the head it ends on), so a selected chip

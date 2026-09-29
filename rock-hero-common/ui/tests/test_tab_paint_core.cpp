@@ -3455,6 +3455,61 @@ TEST_CASE("Tab paint core draws a reveal partway and carries its chip along", "[
     }
 }
 
+// A CHIP NEVER COVERS ITS OWN KEYFRAME'S DIGIT. A bend point whose keyframe also wears a head — a
+// linked stop stating a fret — stands its chip above that head, as the onset's chip does. Half a
+// tail above the curve, where a chip otherwise sits, is the string line at a small amount, the very
+// row the head prints its fret on (sighted 2026-09-28, "In the Face of the Nameless" 31:2: a glide
+// to 10 whose landing also states a bend of nothing).
+TEST_CASE("Tab paint core stands a bend chip above its own keyframe head", "[ui][tab-paint]")
+{
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    // A glide 8 -> 10 landing at 4.0s, where the bend begins at rest before rising a whole step.
+    common::core::NoteViewState note = common::core::testing::withStops(
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .ring_end_seconds = 8.0,
+            .ink_end_seconds = 8.0,
+            .string = 3,
+            .fret = 8,
+            .bend =
+                {common::core::BendPointViewState{.seconds = 4.0, .semitones = 0.0},
+                 common::core::BendPointViewState{.seconds = 6.0, .semitones = 2.0}},
+            .slides = {},
+            .keyframes = {},
+            .vibrato = {},
+        },
+        {common::core::SlideStopViewState{.seconds = 4.0, .fret = 10, .slide_out = false}});
+    REQUIRE(note.keyframes.size() == 1);
+    note.keyframes.front().bend_point = std::size_t{0};
+
+    const TabKeyframeLayout landing =
+        tabKeyframeLayout(metrics, note, note.keyframes.front(), note.ink_end_seconds, true);
+    REQUIRE(landing.shape == TabKeyframeShape::Head);
+    REQUIRE(landing.mark_drawn);
+    const std::optional<TabLayoutRect>& chip = landing.bend_chip;
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    // Above the head's face — the line the onset's own chip stands on, the head's box running half
+    // a pixel higher for its centre pixel — and centred on its column.
+    CHECK(chip->y + chip->height <= landing.center_y - metrics.note_height / 2.0f + 1e-3f);
+    CHECK_THAT(chip->x + chip->width / 2.0f, Catch::Matchers::WithinAbs(landing.center_x, 1e-3));
+
+    // A point with no head of its own keeps its chip half a tail above the curve.
+    const std::optional<TabLayoutRect> rising =
+        tabBendPointChipBox(metrics, note, 1, note.ink_end_seconds);
+    REQUIRE(rising.has_value());
+    if (rising.has_value())
+    {
+        CHECK_THAT(
+            rising->y + rising->height / 2.0f,
+            Catch::Matchers::WithinAbs(
+                bendCurveY(metrics, metrics.laneY(3), 2.0) - metrics.tail_height / 2.0f, 1e-3));
+    }
+}
+
 // THE HEAD'S COLUMN IS THE HEAD'S, FOR DOTS. Where a ring ends on the next head of its own string,
 // a bend point whose dot would reach into that head's square draws none, its chip being its face; a
 // dot clear of the square draws at its true instant, so zooming in brings back a point just before

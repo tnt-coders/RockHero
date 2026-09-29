@@ -27,12 +27,37 @@ namespace
     };
 }
 
+// Whether a bend point's own keyframe wears a HEAD at its column — a linked stop's, or a resting
+// keyframe's, the two marks tabKeyframeLayout draws as heads — whose digit a chip on the string
+// line would cover.
+[[nodiscard]] bool pointWearsHead(
+    const common::core::NoteViewState& note, const std::size_t point) noexcept
+{
+    const auto keyframe = std::ranges::find_if(
+        note.keyframes, [point](const common::core::KeyframeViewState& candidate) {
+            return candidate.bend_point == point;
+        });
+    if (keyframe == note.keyframes.end())
+    {
+        return false;
+    }
+    return std::visit(
+        common::core::Overloaded{
+            [&note](const common::core::KeyframeStopMark& stop) {
+                return common::core::linkedKeyframe(note.slides[stop.stop]);
+            },
+            [](const common::core::KeyframeRestMark&) { return true; },
+            [](const common::core::KeyframeCurveMark&) { return false; },
+        },
+        keyframe->mark);
+}
+
 // The box of a bend chip centred on a column: half a tail above the curve at the amount it prints,
-// or above the head where the column is the onset's. At the amount's own height rather than where
-// a cut leg stops, so a chip riding a revealing leg glides level to its point.
+// or above the head where the column wears one. At the amount's own height rather than where a cut
+// leg stops, so a chip riding a revealing leg glides level to its point.
 [[nodiscard]] TabLayoutRect bendChipBox(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note, const float anchor_x,
-    const double semitones) noexcept
+    const double semitones, const bool over_head) noexcept
 {
     const float text_height = geometry.fretTextHeight();
     // The widest amount a chip prints, the slur, a whole step and a fraction ("2 3/4"), in
@@ -43,7 +68,6 @@ namespace
     const float width = text_height * widest_text_heights + 6.0f;
     const float height = text_height + 2.0f;
     const float center_y = geometry.laneY(note.string);
-    const bool over_head = anchor_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f;
     const float chip_y =
         over_head ? center_y - geometry.note_height / 2.0f - text_height / 2.0f - 1.0f
                   : bendCurveY(geometry, center_y, semitones) - geometry.tail_height / 2.0f;
@@ -205,7 +229,12 @@ std::optional<TabLayoutRect> tabBendPointChipBox(
             return std::nullopt;
         }
     }
-    return bendChipBox(geometry, note, leg.to_x, into.semitones);
+    // Above a head where the column wears one: the onset's, or, where the chip stands on its own
+    // point, that point's keyframe head.
+    const bool over_head =
+        leg.to_x <= geometry.x(note.start_seconds) + geometry.note_height / 2.0f ||
+        (!leg.cut && pointWearsHead(note, point));
+    return bendChipBox(geometry, note, leg.to_x, into.semitones, over_head);
 }
 
 // A stop's keyframe defers to the stop's own layout. A point riding the curve stands where

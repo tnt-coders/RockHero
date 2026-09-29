@@ -387,8 +387,9 @@ centred at the crop, where its cut leg stops (\ref tabBendLeg), naming the amoun
 for, but only where the leg changes the amount and the note draws a tail at all; later points wear
 nothing. So as a reveal runs the extent on, the destination chip rides the leg's end to its point.
 The chip sits half a tail above the curve at the amount it prints, or above the head where its
-column is the onset's. The box is as wide as the widest amount a chip can print, so it bounds the
-painted chip, which centres on it, whatever the amount.
+column wears one: the onset's, or the point's own keyframe head (a linked stop, a resting keyframe),
+whose digit a chip on the string line would cover. The box is as wide as the widest amount a chip
+can print, so it bounds the painted chip, which centres on it, whatever the amount.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note the chip belongs to.
