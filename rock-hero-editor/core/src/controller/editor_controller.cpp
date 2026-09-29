@@ -2118,17 +2118,19 @@ void EditorController::Impl::completeUndoTransition(
 
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
+    // Never blind: the transition brings its change into focus as the selection and the keyboard
+    // position.
+    focusUndoTransition(pending.edit->focus(pending.direction));
     // The chart the transition just replayed may no longer hold what the selection names — undoing
     // an insert takes the very object the insert selected — and a key resolving to nothing would
-    // keep the next digit routed at a retype with no operand. Asked of every transition rather
+    // keep the next digit routed at a retype with no operand. After the focus, because a recorded
+    // focus can name a silent point the undo's begin dissolved. Asked of every transition rather
     // than of the chart ones alone: the question is answered against the live chart, so a
-    // transition that moved no note finds every key still naming its object and changes nothing.
+    // transition that moved no note finds every key still naming its object and changes nothing,
+    // and it is all that answers for an edit with no focus of its own (the plugin chain, the tone
+    // designer).
     dropChartSelectionKeysNamingNothing();
     releaseMarkerSelectionNamingNothing();
-    // Never blind: what the transition changed becomes the selection and the keyboard position
-    // moves onto it. After the pruning above, which still answers for an edit with no focus of its
-    // own (the plugin chain, the tone designer).
-    focusUndoTransition(pending.edit->focus(pending.direction));
     reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
@@ -2175,24 +2177,23 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 
 void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
 {
-    const ChartSlotKey front = chartCaretSlotFor(session().song().tempo_map, focus.front);
-    // One object or none: the caret lands on the change, naming the object it wrote back (a head
-    // and a keyframe can share an instant, so the slot alone cannot say which), and an emptied
-    // slot selects nothing — the armed-caret invariant's own reading.
+    // One object or none: the caret stands on the slot, naming the object (a head and a keyframe
+    // can share an instant, so the slot alone cannot say which), and an empty slot selects
+    // nothing — the armed-caret invariant's own reading.
     if (focus.selected.size() <= 1)
     {
         armChartCaret(
-            front.position,
-            front.string,
-            common::core::ChartStopChannel::Sounding,
+            focus.slot.position,
+            focus.slot.string,
+            focus.channel,
             focus.selected.empty() ? std::nullopt : std::optional{focus.selected.front()});
         return;
     }
-    // Several objects cannot all sit under one caret, so the passive cursor takes the change's
-    // front, remembering its string for the next arming.
+    // Several objects cannot all sit under one caret, so the passive cursor takes the slot,
+    // remembering its string for the next arming.
     chartSelectionMutable().replaceWith(focus.selected);
-    m_chart_marker = ChartCursor{.string = front.string, .lane = {}, .column = {}};
-    moveCursorTo(front.position);
+    m_chart_marker = ChartCursor{.string = focus.slot.string, .lane = {}, .column = {}};
+    moveCursorTo(focus.slot.position);
 }
 
 void EditorController::Impl::applyEditFocus(const MarkerEditFocus& focus)

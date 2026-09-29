@@ -151,15 +151,18 @@ intercepted and forwarded to this same global history — plugins never see it (
 
 A committed transition brings what it changed into focus: it becomes the selection and the
 keyboard position moves onto it, and the view centres it when it lands off screen. The edit
-answers, because it already holds exactly what it changed: `IEdit::focus(direction)` returns an
-`EditFocus` (`controller/edit_focus.h`), and `completeUndoTransition` hands it to
-`focusUndoTransition` after the selection repair.
+answers, because it holds its change: `IEdit::focus(direction)` returns an `EditFocus`
+(`controller/edit_focus.h`), and `completeUndoTransition` hands it to `focusUndoTransition`
+before the selection repair (a recorded focus can name a silent point the undo dissolved).
 
-- **Chart** (`ChartEdit::focus`): the notes the direction writes back, or — on a note rewritten in
-  place with its head untouched — the keyframes it writes back, since that change lives along the
-  ring. One object arms the caret on it; several are selected with the passive cursor at the
-  first; none (undoing an insert, redoing a delete) leaves the caret on the emptied slot, selecting
-  nothing.
+- **Chart** (`ChartEdit::focus`): RECORDED, not derived. Each entry holds a `ChartEditFocus` for
+  each side — where the charter stood as the edit began and where the verb left them, captured by
+  `chartEditFocusOf` in `applyChartEditPlan` and carried on the burst record so the gesture and
+  settle folds keep them — and undo restores the first, redo the second. A diff says what changed,
+  never where the charter stood: undoing a ring cut rewrites the note the caret stood on a
+  keyframe of, and only the record says it was the keyframe. One object arms the caret on it (on
+  the recorded stop); several are selected with the passive cursor at the first; none leaves the
+  caret on the recorded slot, selecting nothing.
 - **Markers** (`MarkerModelEdit::focus`, which asks the landing snapshot's
   `focusReplacing(replaced)`): the marker the transition added, moved or rewrote is selected with
   the cursor at its start; one it removed leaves nothing selected and the cursor where it stood.

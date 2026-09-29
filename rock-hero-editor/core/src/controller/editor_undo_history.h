@@ -163,9 +163,10 @@ public:
     \brief Reports what applying this edit in the given direction leaves for the reader to see.
 
     Undo and redo are never blind: the controller selects what the transition left and moves the
-    keyboard position to it, and the view keeps it in sight. The edit answers because it already
-    holds exactly what it changed; an edit off the timeline (the plugin chain, the tone designer)
-    has nothing there to show and keeps the default.
+    keyboard position to it, and the view keeps it in sight. The edit answers because it holds its
+    change — a chart edit records where the charter stood on each side of it, the others find the
+    record they changed; an edit off the timeline (the plugin chain, the tone designer) has nothing
+    there to show and keeps the default.
 
     \return The transition's focus, or nothing.
     */

@@ -509,6 +509,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+    // Where the charter stands in the chart with `selected` as the chart selection: the one
+    // capture both sides of a chart undo entry record (ChartEditFocus). Nothing where no slot
+    // says it — a caret riding an automation lane, or a passive cursor with nothing selected and
+    // no column of its own.
+    [[nodiscard]] std::optional<ChartEditFocus> chartEditFocusOf(
+        std::vector<ChartSelectionKey> selected) const;
     // The one seconds-space containment rule; toneRegionIdAt names its answer (see the
     // definitions).
     [[nodiscard]] const common::core::ToneRegion* toneRegionAtPosition(
@@ -1284,10 +1290,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // is empty pushes no entry and moves the position not at all, so a record left naming the
     // PREVIOUS edit's entry would still pass the proof above and hand the next burst a stranger's
     // entry to reverse and retire.
+    //
+    // It also carries the entry's two recorded focuses, so a fold that replaces the entry keeps
+    // where the burst began, and a gesture fold moves `after` to where its latest step landed.
     struct ChartNotesTopEntry
     {
         ChartEditPlan plan{};
         std::size_t history_position{};
+        std::optional<ChartEditFocus> before{};
+        std::optional<ChartEditFocus> after{};
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 

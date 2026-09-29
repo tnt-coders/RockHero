@@ -957,6 +957,8 @@ bool EditorController::Impl::applyChartEditPlan(
         return false;
     }
 
+    // Where the charter stands before anything moves, which is exactly where undo returns them.
+    std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
     if (const auto applied = applyChartChange(*chart, *plan); !applied.has_value())
     {
         // The plan was computed against this exact chart, so a precondition failure means a
@@ -1050,11 +1052,15 @@ bool EditorController::Impl::applyChartEditPlan(
     // early steps write nothing and whose later step writes does not coalesce across that boundary,
     // which is correct — the early steps are authoring state no entry may hold.
     ChartEditPlan written = writtenChartPlan(*plan);
-    if (!written.empty() && pushUndoEntry(std::make_unique<ChartEdit>(std::move(written))))
+    std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
+    if (!written.empty() &&
+        pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), before, after)))
     {
         m_chart_notes_top = ChartNotesTopEntry{
             .plan = std::move(*plan),
             .history_position = m_undo_history.snapshot().position,
+            .before = std::move(before),
+            .after = std::move(after),
         };
     }
     else
@@ -1063,6 +1069,42 @@ bool EditorController::Impl::applyChartEditPlan(
     }
     updateView();
     return true;
+}
+
+std::optional<ChartEditFocus> EditorController::Impl::chartEditFocusOf(
+    std::vector<ChartSelectionKey> selected) const
+{
+    // The slot comes from the first selected object rather than from the caret whenever there is
+    // one: a verb that re-keys its objects moves the caret onto them only after its edit applies,
+    // and the object's own slot is where the caret will stand.
+    const ChartCaret* const caret = armedChartStringCaret();
+    const ChartCursor* const cursor = std::get_if<ChartCursor>(&m_chart_marker);
+    std::optional<ChartSlotKey> slot;
+    if (!selected.empty())
+    {
+        slot = chartCaretSlotFor(session().song().tempo_map, selected.front());
+    }
+    else if (caret != nullptr)
+    {
+        slot = ChartSlotKey{.position = caret->position, .string = caret->string};
+    }
+    else if (cursor != nullptr && cursor->column.has_value() && !cursor->lane.has_value())
+    {
+        slot = ChartSlotKey{.position = *cursor->column, .string = cursor->string};
+    }
+    if (!slot.has_value())
+    {
+        return std::nullopt;
+    }
+    // The caret's stop is recorded only where the caret stands on that very slot.
+    const bool caret_on_slot =
+        caret != nullptr &&
+        ChartSlotKey{.position = caret->position, .string = caret->string} == *slot;
+    return ChartEditFocus{
+        .selected = std::move(selected),
+        .slot = *slot,
+        .channel = caret_on_slot ? caret->channel : common::core::ChartStopChannel::Sounding,
+    };
 }
 
 // Arms the gesture and applies glyph-press selection per the containment hierarchy: a plain single
@@ -3211,8 +3253,13 @@ bool EditorController::Impl::commitChartGestureStep(
         // two states must never disagree, and the live-gesture proofs above are exactly
         // replaceTop's own preconditions, so a refusal here is a logic error reported with the
         // chart untouched rather than left between two entries.
-        if (m_undo_history.replaceTop(std::make_unique<ChartEdit>(std::move(written))).status !=
-            EditorUndoTransitionStatus::Applied)
+        //
+        // The run began where the burst record says; it now leaves the charter on its landing.
+        std::optional<ChartEditFocus> after =
+            chartEditFocusOf(select_exactly.value_or(chartSelection().keys()));
+        if (m_undo_history
+                .replaceTop(std::make_unique<ChartEdit>(std::move(written), burst->before, after))
+                .status != EditorUndoTransitionStatus::Applied)
         {
             reportError("Could not apply chart edit: " + plan->label);
             return false;
@@ -3229,6 +3276,7 @@ bool EditorController::Impl::commitChartGestureStep(
         // The burst record follows the entry it names, or the next step would reverse a plan the
         // history no longer holds.
         burst->plan = std::move(*plan);
+        burst->after = std::move(after);
         // The replace path has no plan-driven selection follow of its own (that lives in
         // applyChartEditPlan, which only the first step runs), so a verb whose step re-keys its
         // objects states the landing here or leaves the next press holding keys naming nothing.
@@ -3378,8 +3426,10 @@ bool EditorController::Impl::reverseChartVerbWindow(
     if (clean_entry)
     {
         // The written form, like every entry; a record exists only for a plan that wrote as
-        // something, and the reversal of such a plan writes as its reverse.
-        pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal)));
+        // something, and the reversal of such a plan writes as its reverse. The reversal keeps
+        // the selection, so the charter stands in one place on both sides of it.
+        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
+        pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal), here, here));
     }
     else if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
     {
@@ -4007,10 +4057,10 @@ bool EditorController::Impl::settleChartClaims()
     // clean entry would make "return to clean" a lie about it. Bound once as a pointer rather than
     // re-asked per branch, which also keeps the guarantee visible to clang-tidy's optional
     // tracking (a `bool` carrying it is not).
-    const ChartEditPlan* const burst =
+    const ChartNotesTopEntry* const burst =
         m_chart_notes_top.has_value() && m_chart_notes_top->history_position == history.position &&
                 !m_undo_history.isAtCleanState()
-            ? &m_chart_notes_top->plan
+            ? &*m_chart_notes_top
             : nullptr;
 
     // The folded entry has to describe the WHOLE burst, so it is diffed against the pre-burst
@@ -4022,11 +4072,11 @@ bool EditorController::Impl::settleChartClaims()
     std::string label{"Settle Legato"};
     if (burst != nullptr)
     {
-        if (!applyChartChange(base, burst->reversed()).has_value())
+        if (!applyChartChange(base, burst->plan.reversed()).has_value())
         {
             return false;
         }
-        label = burst->label;
+        label = burst->plan.label;
     }
     std::optional<ChartEditPlan> settled =
         planSettleChart(*arrangement->chart, session().song().tempo_map, base, label);
@@ -4042,16 +4092,19 @@ bool EditorController::Impl::settleChartClaims()
     ChartEditPlan written = writtenChartPlan(*settled);
     if (burst != nullptr && written.empty())
     {
-        retireChartGesture(*burst);
+        retireChartGesture(burst->plan);
         return true;
     }
 
     // The history entry is swapped BEFORE the model moves, because the two states must never
     // disagree: the guards above are exactly replaceTop's own preconditions, so a refusal is a
     // logic error, and reporting it leaves the chart untouched instead of stranded between entries.
+    //
+    // A flatten changes how a claim resolves, not where the edit left the charter, so the fold
+    // keeps the burst's recorded focuses.
     if (burst != nullptr &&
-        m_undo_history.replaceTop(std::make_unique<ChartEdit>(written)).status !=
-            EditorUndoTransitionStatus::Applied)
+        m_undo_history.replaceTop(std::make_unique<ChartEdit>(written, burst->before, burst->after))
+                .status != EditorUndoTransitionStatus::Applied)
     {
         reportError("Could not apply chart edit: " + settled->label);
         return false;
@@ -4060,7 +4113,7 @@ bool EditorController::Impl::settleChartClaims()
     // Walk the live chart back to pre-burst and then to the settled state, so the state the history
     // top describes is exactly the state the chart holds (the fret-entry widen's own discipline).
     if (chart == nullptr ||
-        (burst != nullptr && !applyChartChange(*chart, burst->reversed()).has_value()) ||
+        (burst != nullptr && !applyChartChange(*chart, burst->plan.reversed()).has_value()) ||
         !applyChartChange(*chart, *settled).has_value())
     {
         reportError("Could not apply chart edit: " + settled->label);
@@ -4069,8 +4122,9 @@ bool EditorController::Impl::settleChartClaims()
     if (burst == nullptr)
     {
         // At the top of the stack a push truncates nothing, so the flatten simply becomes its own
-        // undo step.
-        pushUndoEntry(std::make_unique<ChartEdit>(std::move(written)));
+        // undo step, standing wherever the charter stands now on both sides.
+        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
+        pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), here, here));
     }
     // A sweep that commits anything closes the chart verbs' window: a fold changes the top entry's
     // content without moving the history position, so an armed window's proof would otherwise

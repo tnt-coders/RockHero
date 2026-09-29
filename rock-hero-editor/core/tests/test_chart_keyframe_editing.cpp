@@ -1393,8 +1393,38 @@ TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
         CHECK(cut.notes[0].sustain == common::core::Fraction{6});
         CHECK(cut.notes[1].fret == 7);
         CHECK_THAT(cut.notes[1].bend, Catch::Matchers::WithinULP(1.0, 0));
+        const ChartEditViewState left = publishedState(fixture.view).chart_edit;
+
+        // Undo returns the charter to the point the cut was typed on, not to the head of the note
+        // it rewrote; redo returns them to where the cut left them.
         fixture.controller.onUndoRequested();
         CHECK(currentChart(fixture.controller) == original);
+        const ChartEditViewState& undone = publishedState(fixture.view).chart_edit;
+        CHECK(
+            undone.selected_keyframes == (std::vector<ChartKeyframeRef>{
+                                             ChartKeyframeRef{.note_index = 0, .keyframe_index = 1}
+                                         }));
+        CHECK(undone.selected_notes.empty());
+        REQUIRE(undone.caret.has_value());
+        if (undone.caret.has_value())
+        {
+            CHECK_THAT(undone.caret->seconds, Catch::Matchers::WithinAbs(5.0, 1e-9));
+            CHECK(undone.caret->string == 3);
+        }
+
+        fixture.controller.onRedoRequested();
+        CHECK(currentChart(fixture.controller) == cut);
+        const ChartEditViewState& redone = publishedState(fixture.view).chart_edit;
+        CHECK(redone.selected_notes == left.selected_notes);
+        CHECK(redone.selected_keyframes == left.selected_keyframes);
+        REQUIRE(redone.caret.has_value());
+        REQUIRE(left.caret.has_value());
+        if (redone.caret.has_value() && left.caret.has_value())
+        {
+            CHECK_THAT(
+                redone.caret->seconds, Catch::Matchers::WithinAbs(left.caret->seconds, 1e-9));
+            CHECK(redone.caret->string == left.caret->string);
+        }
     }
 
     SECTION("a fret shift leaves it inheriting")

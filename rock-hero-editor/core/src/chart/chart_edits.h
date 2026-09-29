@@ -1454,11 +1454,17 @@ verb-toggle reversal are this one primitive run in opposite directions.
 struct [[nodiscard]] ChartEdit final : IEdit
 {
     /*!
-    \brief Captures a planned chart change.
+    \brief Captures a planned chart change and where the charter stood on each side of it.
     \param plan_value The applied plan whose directions this edit replays.
+    \param before_value Where the charter stood as the edit began, or nothing to show.
+    \param after_value Where the edit left the charter, or nothing to show.
     */
-    explicit ChartEdit(ChartEditPlan plan_value)
+    ChartEdit(
+        ChartEditPlan plan_value, std::optional<ChartEditFocus> before_value,
+        std::optional<ChartEditFocus> after_value)
         : plan(std::move(plan_value))
+        , before(std::move(before_value))
+        , after(std::move(after_value))
     {}
 
     /*!
@@ -1482,14 +1488,20 @@ struct [[nodiscard]] ChartEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*!
-    \brief Selects the notes the direction writes back, fronted by the first slot it touches.
-    \param direction Which half of the plan the transition lands on.
-    \return The chart focus, or nothing for a plan that changes no note.
+    \brief Returns where the charter stood on the side the transition lands on.
+    \param direction Undo lands before the edit, redo after it.
+    \return The recorded chart focus, or nothing where that side had none.
     */
     [[nodiscard]] EditFocus focus(EditorUndoDirection direction) const override;
 
     /*! \brief The applied plan replayed by undo and redo. */
     ChartEditPlan plan;
+
+    /*! \brief Where the charter stood as the edit began. */
+    std::optional<ChartEditFocus> before;
+
+    /*! \brief Where the edit left the charter. */
+    std::optional<ChartEditFocus> after;
 };
 
 } // namespace rock_hero::editor::core

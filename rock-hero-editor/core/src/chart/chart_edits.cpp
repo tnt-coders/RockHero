@@ -2637,88 +2637,13 @@ std::string ChartEdit::label() const
 
 EditFocus ChartEdit::focus(const EditorUndoDirection direction) const
 {
-    // Undo writes the removed half back and redo the inserted one; the other half is what the
-    // transition takes away, which fronts the change when nothing is written back.
-    const bool undoing = direction == EditorUndoDirection::Undo;
-    const std::vector<common::core::ChartNote>& written = undoing ? plan.removed : plan.inserted;
-    const std::vector<common::core::ChartNote>& taken = undoing ? plan.inserted : plan.removed;
-    // The note one half holds at a slot; both halves are in chart slot order.
-    const auto at_slot = [](const std::vector<common::core::ChartNote>& half,
-                            const ChartSlotKey& slot) -> const common::core::ChartNote* {
-        const auto found =
-            std::ranges::lower_bound(half, slot, {}, [](const common::core::ChartNote& note) {
-                return chartSlotKeyOf(note);
-            });
-        return found != half.end() && chartSlotKeyOf(*found) == slot ? &*found : nullptr;
-    };
-    // Two notes at one slot that differ only along their rings.
-    const auto same_head = [](common::core::ChartNote lhs, common::core::ChartNote rhs) {
-        lhs.keyframes.clear();
-        rhs.keyframes.clear();
-        return lhs == rhs;
-    };
-    // The keyframes one note holds that the other does not.
-    const auto keyframes_missing_from = [](const ChartSlotKey& slot,
-                                           const common::core::ChartNote& holder,
-                                           const common::core::ChartNote& other) {
-        std::vector<ChartSelectionKey> keys;
-        for (const common::core::Keyframe& keyframe : holder.keyframes)
-        {
-            if (std::ranges::find(other.keyframes, keyframe) == other.keyframes.end())
-            {
-                keys.emplace_back(ChartKeyframeKey{.note = slot, .offset = keyframe.offset});
-            }
-        }
-        return keys;
-    };
-
-    std::vector<ChartSelectionKey> selected;
-    std::optional<ChartSelectionKey> first_taken;
-    for (const common::core::ChartNote& note : written)
+    const std::optional<ChartEditFocus>& side =
+        direction == EditorUndoDirection::Undo ? before : after;
+    if (!side.has_value())
     {
-        const ChartSlotKey slot = chartSlotKeyOf(note);
-        const common::core::ChartNote* const replaced = at_slot(taken, slot);
-        if (replaced == nullptr || !same_head(note, *replaced))
-        {
-            selected.emplace_back(ChartNoteKey{.slot = slot});
-            continue;
-        }
-        // Rewritten in place with its head untouched: the change lives along the ring, so it is
-        // shown by the keyframes written back, or by the first one taken away, never by the head.
-        std::ranges::move(
-            keyframes_missing_from(slot, note, *replaced), std::back_inserter(selected));
-        if (!first_taken.has_value())
-        {
-            const std::vector<ChartSelectionKey> lost =
-                keyframes_missing_from(slot, *replaced, note);
-            if (!lost.empty())
-            {
-                first_taken = lost.front();
-            }
-        }
+        return {};
     }
-    if (!first_taken.has_value())
-    {
-        for (const common::core::ChartNote& note : taken)
-        {
-            if (at_slot(written, chartSlotKeyOf(note)) == nullptr)
-            {
-                first_taken = ChartNoteKey{.slot = chartSlotKeyOf(note)};
-                break;
-            }
-        }
-    }
-
-    if (!selected.empty())
-    {
-        const ChartSelectionKey front = selected.front();
-        return ChartEditFocus{.selected = std::move(selected), .front = front};
-    }
-    if (first_taken.has_value())
-    {
-        return ChartEditFocus{.selected = {}, .front = *first_taken};
-    }
-    return {};
+    return *side;
 }
 
 } // namespace rock_hero::editor::core

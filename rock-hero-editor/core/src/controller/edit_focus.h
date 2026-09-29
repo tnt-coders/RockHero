@@ -19,21 +19,27 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Chart objects a transition wrote back, and the object its change begins at.
+\brief Where the charter stood in the chart on one side of an edit.
 
-The selection is exactly what the transition wrote back — the notes an undo restored, the notes a
-redo re-inserted — narrowed to the keyframes that changed on a note rewritten in place with its
-head untouched, since such a change lives along the ring rather than at the head. It may be empty,
-when the transition only took objects away (undoing an insert, redoing a delete); the front is then
-the first object it took, whose caret slot still shows where the change was.
+A chart edit records one as it begins and one as its verb leaves the chart, and a transition
+restores the side it lands on, so undo puts the charter back exactly where the edit found them and
+redo where the edit left them. Recorded rather than read off the edit's diff: a diff says what
+changed, never where the charter stood, and the two part ways where one edit rewrites a note two
+ways (cutting a ring shortens the note the caret was on a keyframe of).
+
+The slot is the first selected object's, or, with nothing selected, the caret's own — the empty
+slot a digit inserted at, or the one a delete emptied.
 */
 struct ChartEditFocus
 {
-    /*! \brief What the transition wrote back, in chart order. */
+    /*! \brief The selection, in chart order; empty where the keyboard stood on an empty slot. */
     std::vector<ChartSelectionKey> selected;
 
-    /*! \brief First object of the change: the first key above, or the first object taken away. */
-    ChartSelectionKey front{ChartNoteKey{}};
+    /*! \brief Slot the keyboard position stands on. */
+    ChartSlotKey slot{};
+
+    /*! \brief Stop of that slot the caret stands on. */
+    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
 };
 
 /*!
