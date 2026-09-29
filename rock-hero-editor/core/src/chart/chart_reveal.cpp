@@ -63,11 +63,17 @@ std::vector<common::ui::TabNotePresence> chartPresence(
     {
         focus(keyframe.note_index);
     }
-    for (std::size_t index = 0; index < notes.size(); ++index)
+    // The caret speaks only where it holds no object. Armed on a head or a keyframe, what it stands
+    // on IS the selection, and at a shared instant only the selection can say whether that is the
+    // head or the previous ring's end statement: the position names both.
+    if (edit.selected_notes.empty() && edit.selected_keyframes.empty())
     {
-        if (caretOnNote(edit.caret, notes[index]))
+        for (std::size_t index = 0; index < notes.size(); ++index)
         {
-            focus(index);
+            if (caretOnNote(edit.caret, notes[index]))
+            {
+                focus(index);
+            }
         }
     }
     // Every focused ring steps back the head it ends on unless that head is focused too, read

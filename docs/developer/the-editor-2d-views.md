@@ -1008,7 +1008,9 @@ Three grounds, and what each is for:
   are not targets): it moves the caret to the slot under the pointer, and if that slot lies on the
   note's string inside its stored ring, ends included, the note reveals for as long as the caret
   stays there. The one excluded end is a ring's end on the next head of its string: a caret there
-  is on that head, and only that note reveals. The keyframe commit law's own attention
+  is on that head, and only that note reveals. The peek speaks only while nothing is selected: a
+  caret armed on a head or a keyframe has that object as the selection, and at a shared instant only
+  the selection can say whether the caret holds the head or the previous ring's end keyframe. The keyframe commit law's own attention
   (`chartNoteInFocus`) still counts the caret there on the ring, so an end statement typed at the
   seam is kept. Deterministic and keyed on the edit position alone — no timer, nothing latched,
   and the peek selects nothing — so the caret leaving is the whole of what hides it again, and the

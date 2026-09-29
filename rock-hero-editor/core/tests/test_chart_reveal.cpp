@@ -280,6 +280,15 @@ TEST_CASE("Chart presence steps back the head a focused ring ends on", "[core][c
         CHECK(receded(notes, false, edit) == std::vector<std::size_t>{1});
     }
 
+    // Pressing the ring's end keyframe selects it and arms the caret on its slot, which is the
+    // head's onset too: the selection says which of the two the caret holds.
+    SECTION("the ring's end keyframe selected, the caret on its shared slot, steps the head back")
+    {
+        edit.selected_keyframes = {ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}};
+        edit.caret = ChartCaretViewState{.seconds = 4.0, .string = 3};
+        CHECK(receded(notes, false, edit) == std::vector<std::size_t>{1});
+    }
+
     SECTION("the caret on the head steps nothing back")
     {
         edit.caret = ChartCaretViewState{.seconds = 4.0, .string = 3};

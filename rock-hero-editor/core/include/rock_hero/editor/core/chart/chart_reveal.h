@@ -66,7 +66,10 @@ keyframe is. And THE CARET PEEK is the lane answering "is something here?" where
 a caret on the note's string inside its STORED ring is on the note, ends included — except where
 the ring ends on the next head of its string, whose note the caret there is on instead. Keyed on the
 edit position alone — no timer, nothing latched — so the caret leaving is the whole of what
-unfocuses it again.
+unfocuses it again. The caret speaks only while the selection is empty: armed on a head or a
+keyframe, the object it stands on IS the selection (the controller's armed-caret invariant), and at
+a shared instant only the selection can say whether that is the head or the previous ring's end
+statement.
 
 A focused note is REVEALED, and so is every note while the LANE REVEAL, the modifier held over the
 whole lane, is down. A focused ring ending on the next head of its own string
