@@ -1098,15 +1098,6 @@ written down.
   the other hand. Measure against the corpus FHP accuracy before landing it; FHP derivation is
   under its own plan (`docs/plans/in-progress/fhp-derivation-algorithm.md`).
 
-- **Two read-only satellites refuse Delete with different faces.** `planClearHeldStops`
-  (`rock-hero-editor/core/src/chart/chart_edits.cpp`, ~1197-1201) refuses the press whole with
-  `Invalid` where `ChartResolutions::planted_stops` states a fretting-hand source's plant, but a
-  TAPPED HARMONIC's satellite is read-only for a different reason — its claim is the `fret` it
-  presses, so there is no `held` field to reset — and the reset falls through to a `NoChange`
-  finalize. Both satellites are read-only to the charter, so one press beeps and the other does
-  nothing at all. Align them — both refuse, or both no-op — when the satellite's read-only rule is
-  next touched.
-
 ## Found while ruling the pressed stop's display (2026-09-18)
 
 - **A plain tap's planted finger has no 3D cue at all.** 2D prints it on the tap's own satellite —
@@ -1278,11 +1269,6 @@ against the tree on the date above.
 
 ## Found while building bare `V` on a tail (2026-09-27)
 
-- **The slot-key → note lookup: two index-returning copies remain.** The lying `ringCarrier` and
-  the pointer-returning copies (`vibratoAtKey`, the move's end-carry, the undo repair) now go
-  through `chartNoteAt` in `chart_selection.h` (2026-09-29). Left: `chartSlotShowsHeldStop` and the
-  retype's `live_index`, which need the note's INDEX to address the parallel projection or
-  resolution vectors; an index-returning twin would fold them.
 - **Action availability is stated twice.** `isActionAvailable` (`editor_action_availability.cpp`)
   and `actionUnavailableReason` (`editor_controller.cpp`) are parallel exhaustive switches that must
   agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One

@@ -291,7 +291,7 @@ public:
 
     The grid is ignored: on a string the caret steps to the adjacent note or keyframe — to the
     adjacent note alone with \p notes_only — and on a lane to the adjacent point, always landing on
-    a note's head rather than its held-stop satellite. On a marker row the neighbour of the selected
+    the mark every object has. On a marker row the neighbour of the selected
     marker is selected and the cursor moves to its start. Past either end, and on the "+" row, the
     press is inert; from the passive marker it arms the caret in place, like the arrows' first
     press. Inert while playing.

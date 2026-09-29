@@ -359,8 +359,7 @@ overshoot builds up at a bound),
 `onChartFretShiftRequested`, `onChartFretDigitTyped` (the two fret verbs, and both reach a selected
 KEYFRAME as well as a head: a point on a slide states a fret exactly as a head does, so one
 `planRetypeFrets` call takes the selection's two key lists and transposes off ONE anchor over both.
-No third `ChartStopChannel` value and no second entry kind — the selection KIND is what says which
-stop the digit reached, and a keyframe has one position channel and no satellite),
+No second entry kind — the selection KIND is what says which stop the digit reached),
 `onSelectionDeleteRequested`,
 `onChartRingDigitTyped` (the same digit on the RING plane, `Alt`+top-row digit),
 `onInsertAtCaretRequested` (`Insert`: whatever the armed caret's row holds — the lane's on-curve
@@ -612,17 +611,12 @@ The split within path (b) is deliberate:
   the dispatch may replace the very variant the reference pointed into (see
   \ref guide_invariants).
 
-The union stop set has one WITHIN-slot member (2026-08-27): a note carrying a held stop wears two
-marks in one column — its head, and the satellite digit outboard of its posture bracket — so `→`
-from the head steps onto the satellite and `←` from it returns. Every arrival from another slot
-lands on the head (user ruling 2026-09-29), from either side, as every vertical arrival does: a
-walk between slots is a walk between notes. The caret's FACE
-(`ChartCaretFace`) says which it is on, the stop channel derived from it, and the two verbs that
-address a stop read it: an entry digit — bare or under `Alt`
-alike — states that stop, and Delete clears the held statement rather than the note. Every other
-verb keeps note scope. A measure jump is
-not traversal and always lands on the stop every note has, and the channel is worth only what the
-drawn picture still says, asked again at the moment it is spent.
+A HELD STOP IS NO FACE (user ruling 2026-09-29): a held stop is derived — the pull-off's plant, a
+harmonic's pressed stop, the default posture stop — and never typed, so its satellite digit is
+display-only. No arrow steps onto it, no click reaches it, and no digit states it. Every arrival
+from another slot lands on the head (user ruling 2026-09-29), from either side, as every vertical
+arrival does: a walk between slots is a walk between notes. A measure jump is not traversal and
+always lands on the mark every object has.
 
 A SECOND pair shares one slot where a ring's END statement stands on the next head's instant. There
 a step that does not MOVE names the object the object walk reached instead of letting the slot
@@ -630,35 +624,19 @@ answer — `←` from the head selects the statement, `→` from the statement t
 the press after either leaves the slot — while a step that MOVES still lands on the slot alone,
 which is what keeps a digit at a ring's end slot the next note.
 
-Which notes wear that second mark is now exactly the RIGHT-HAND ONSETS, because the DEFAULT gives
-every one of them a held stop even where the chart states none (user ruling 2026-09-02) — a TAPPED
-HARMONIC wearing its own pressed fret there instead, its claim, where the channel is read-only
-because that stop is the note's own `fret` (2026-09-17). Two
-consequences for this grammar. Clearing an authored stop no longer takes the mark away: Delete drops
-that satellite back to its default, so the caret stays on the held channel and the next digit
-AUTHORS a fresh statement in the same place. And what still leaves the caret on the head is a note
-that never had a second mark at all — a fretting-hand onset, whose own stop IS its head.
-
-There is no third channel, and that is a ruling rather than a gap (user ruling 2026-08-31,
-satellites are note-scoped): a stop belongs to a NOTE, so both channels sit on one, and a click on
-a satellite selects that note alone on its held face, whatever else was selected. Span-wide fret
-editing — one typed digit restating a grip across a whole span — is deferred to the future template
-editor, because typing a number over a bracket already means AUTHOR A NOTE at the caret
-(`docs/plans/todo/span-marker-redesign.md`).
-
-The THIRD FACE is not a stop (user ruling 2026-09-29, plan 63): an object stating a bend wears the
-chip printing it. `↑` from its mark stands on the chip and `↓` returns, the caret re-arming on the
-same object, and `↑` from the chip leaves for the string above; every arrival from another string
-lands on the mark.
+The BEND CHIP is the one face besides the mark (user ruling 2026-09-29, plan 63): an object
+stating a bend wears the chip printing it. `↑` from its mark stands on the chip and `↓` returns, the
+caret re-arming on the same object, and `↑` from the chip leaves for the string above; every
+arrival from another string lands on the mark.
 
 A FACE IS ONE OBJECT'S (user ruling 2026-09-29): the caret stands on one object, so a face does
 too, and a multi-selection is always objects on their marks with the caret dissolved. A click on a
-chip or satellite selects its object alone on that face, even inside a selected chord, and a
-double-click on a chip opens the bend picker over it. What a chord's members state is the letter
+chip selects its object alone on that face, even inside a selected chord, and a double-click on a
+chip opens the bend picker over it. What a chord's members state is the letter
 verbs' work — `B` over the chord sets or clears every bend. The square stays on the slot on every
 face — it says where — and the ring moves to the face — it says which: the chip, drawn over the
-square, or the held stop's satellite. On the chip `Delete` takes the bend through the picker's own "No bend"
-(`planSetBend`), `Enter` and `B` open the picker, and digits type into the mark. A face exists only
+square. On the chip `Delete` takes the bend through the picker's own "No bend" (`planSetBend`),
+`Enter` and `B` open the picker, and digits type into the mark. A face exists only
 while it is drawn: one predicate (`chartFaceShown`) is asked when the caret arms, and again when
 the face is read (`chartCaretFace`), so an edit that takes the chip away leaves the caret on the
 mark.

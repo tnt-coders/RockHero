@@ -44,11 +44,11 @@ struct ChartPointerModifiers
     bool shift{false};
 
     /*!
-    \brief Reveal: Alt shows the satellites a press may then address, and creates nothing.
+    \brief Reveal: Alt shows what a note's reveal shows, and creates nothing.
 
     A CLICK NEVER CREATES on this lane, whatever modifiers it carries — every object here is
     TYPED, so the pointer's whole job is to say where the next digit lands. Alt's meaning is the
-    reveal alone, which is what makes a satellite it brought in clickable while it is drawn.
+    reveal alone.
     */
     bool alt{false};
 };

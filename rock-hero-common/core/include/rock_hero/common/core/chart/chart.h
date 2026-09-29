@@ -486,40 +486,6 @@ ChartNote::dead answers alone.
 }
 
 /*!
-\brief Which of a note's two fretting-hand stops a verb, a caret, or a typed digit addresses.
-
-A note whose string the PICKING hand stops (\ref pickingHandStopsString) states two stops at one
-slot — what that hand SOUNDS (\ref ChartNote::fret) and the finger the fretting hand has planted
-beneath it (\ref ChartNote::held) — so "the fret of this note" is not one question; and under THE
-PLANT'S FACE a fretting-hand source wears the stop
-its pull-off plants beneath it as a second, read-only stop of its own. Every surface that can reach
-both names which one it means with this rather than by testing the attack, so the click, the caret
-stop and the typed digit cannot disagree about what they addressed.
-
-Two answers and no third: a stop belongs to a NOTE, and every mark that states one is that note's
-own face (SATELLITES ARE NOTE-SCOPED). Span-wide fret editing — one typed digit restating a grip
-across a whole span — is deliberately absent, because typing a number over a bracket already means
-INSERT A NOTE at the caret; it is queued for the future template editor, where it cannot collide
-with that (`docs/plans/todo/span-marker-redesign.md`).
-
-`Sounding` is listed first so a value-initialized channel is the one every note has; a note wearing
-no held stop simply has no `Held` channel to address, which is what makes an unreachable state
-unreachable rather than merely unused.
-*/
-enum class ChartStopChannel : std::uint8_t
-{
-    /*! \brief The note's own sounding fret (\ref ChartNote::fret). */
-    Sounding,
-
-    /*!
-    \brief The second stop the note wears: the finger planted under an onset the picking hand stops
-           the string for (\ref ChartNote::held), or the plant beneath a fretting-hand pull-off
-           source.
-    */
-    Held
-};
-
-/*!
 \brief One statement along a ringing note: a moment, and what changes at it.
 
 The chart's one interval-payload record. A keyframe fixes a MOMENT inside the note's ring and

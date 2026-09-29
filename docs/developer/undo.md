@@ -32,9 +32,7 @@ insert/delete/move/retype/sustain/legato/attack, all seven authoring planners
 funnelled through the same finalize step, plus the settle sweep's `planSettleChart`, which
 deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
 see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` is one change to the note
-stream, which is the only per-string authored array there is — the fretting hand's stop is the
-`held` field on the onset it sits under, so authoring one rewrites that note in place rather than
-moving a record between arrays; `applyChartChange` rebuilds the stream on a copy before swapping it
+stream, which is the only per-string authored array there is; `applyChartChange` rebuilds the stream on a copy before swapping it
 in, so a failed precondition part way through leaves the chart entirely untouched),
 `marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
 kind, carrying that kind's whole model before and after; every marker verb commits through one

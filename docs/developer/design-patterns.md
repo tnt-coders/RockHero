@@ -193,15 +193,13 @@ Every other planner, `planAdjustSustain` included, keeps the
 plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
-Exemplar: `ChartEditPlan` with the thirteen planners — `planInsertNote` / `planClearHeldStops` /
+Exemplar: `ChartEditPlan` with the twelve planners — `planInsertNote` /
 `planDeleteSelection` / `planMoveSelection` / `planRetypeFrets` /
 `planAdjustSustain` / `planSetLegato` / `planSettleChart` / `planSetAttack` / `planSetNoteFlag` /
 `planSetEmphasis` / `planToggleJunctions` / `planSetVibrato` — applied by `applyChartChange` and
 replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
-authored per-string array, the note stream, and one user gesture is one undo entry. The fretting
-hand's stop is the `held` field on the onset it sits under, so authoring one is an ordinary in-place
-rewrite of one note rather than a plan spanning two arrays, and `ChartEditPlan::reversed()` is the
-single statement of what "backwards" means.
+authored per-string array, the note stream, and one user gesture is one undo entry.
+`ChartEditPlan::reversed()` is the single statement of what "backwards" means.
 
 One of the thirteen returns more than a plan: `planSetLegato` answers `ChartLegatoPlan{plan,
 refused}`, where `refused` lists each turned-down note's slot with its own reason

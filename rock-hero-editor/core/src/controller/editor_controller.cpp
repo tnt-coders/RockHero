@@ -3142,7 +3142,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     ChartPendingFretTargets targets{
                         .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
                         .keyframes = {},
-                        .channel = retype.channel,
                     };
                     // Located against the PRESENTED projection, exactly as the selection rings
                     // above are: a keyframe the trim clipped out of the drawn tail wears no box.

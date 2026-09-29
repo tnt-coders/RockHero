@@ -41,30 +41,6 @@ struct ChartNoteHit
 };
 
 /*!
-\brief A note's HELD-stop satellite the pointer resolved, by index into the projection's notes.
-
-The same note a \ref ChartNoteHit names, reached through its other mark: a distinct alternative
-because the two address different stops of it. Selecting is identical — one note, no new selection
-kind — and what the satellite adds is the CHANNEL, so the digits that follow state the stop the
-charter actually clicked. That makes clicking it shorthand for selecting the note and pressing the
-hold verb on it.
-*/
-struct ChartHeldStopHit
-{
-    /*! \brief Index into \ref common::core::ChartViewState::notes. */
-    std::size_t index{0};
-
-    /*!
-    \brief Compares two held-stop hits by their stored values.
-    \param lhs Left-hand hit.
-    \param rhs Right-hand hit.
-    \return True when both name the same note's held stop.
-    */
-    friend constexpr bool operator==(
-        const ChartHeldStopHit& lhs, const ChartHeldStopHit& rhs) noexcept = default;
-};
-
-/*!
 \brief A keyframe the pointer resolved: which projected note, and which of its drawn keyframes.
 
 Two indices rather than one, which is why the hit target is a sum: a keyframe belongs to a note,
@@ -92,8 +68,8 @@ struct ChartKeyframeHit
 \brief The chip printing an object's bend the pointer resolved: the onset's chip names its note, a
 keyframe's chip its keyframe.
 
-A face of the object that owns it, like a held stop's satellite: it selects that object like any
-other mark of it, and what it adds is the FACE, so `Delete` takes the bend the charter clicked.
+A face of the object that owns it: it selects that object like any other mark of it, and what it
+adds is the FACE, so `Delete` takes the bend the charter clicked.
 */
 struct ChartBendChipHit
 {
@@ -114,24 +90,21 @@ struct ChartBendChipHit
 \brief One selectable object the lane resolved under a pointer.
 
 Addressed by projection index instead of by identity: the controller turns one into the other, which
-is the single place a drawn glyph becomes a selectable object. Two alternatives more than
-\ref ChartSelectionKey has, deliberately: a note's held stop and an object's bend chip are not
-second SELECTABLE objects — each selects its object like any other mark of it — but they are second
-TARGETS, and which one the pointer landed on is exactly what the controller needs to know to put the
-caret on the face that was clicked.
+is the single place a drawn glyph becomes a selectable object. One alternative more than
+\ref ChartSelectionKey has, deliberately: an object's bend chip is not a second SELECTABLE object —
+it selects its object like any other mark of it — but it is a second TARGET, and which one the
+pointer landed on is exactly what the controller needs to know to put the caret on the face that
+was clicked.
 */
-using ChartHitTarget =
-    std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit, ChartBendChipHit>;
+using ChartHitTarget = std::variant<ChartNoteHit, ChartKeyframeHit, ChartBendChipHit>;
 
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
-Topmost drawn wins, which is the rule and the reason for the order below. Held-stop satellites
-resolve first: they are drawn outboard of a bracket's closing bar and overlap no head of their own
-note, so their position here is only about reaching them before a neighbouring head's box does.
-Then note heads, nearest onset center first among overlapping heads. Then the linked keyframe heads
-riding a tail, which are drawn ON the ribbon and are the last mark a pointer can reach. A note
-stepped back behind the ring being edited goes through the same order after every note in front.
+Topmost drawn wins, which is the rule and the reason for the order below. Note heads first, nearest
+onset center first among overlapping heads. Then the linked keyframe heads riding a tail, which are
+drawn ON the ribbon and are the last mark a pointer can reach. A note stepped back behind the ring
+being edited goes through the same order after every note in front.
 
 A TAIL resolves to nothing at all. Selecting a note by a spot where it does not happen put the
 selection where the caret was not, so a click on a ribbon falls through to the ordinary empty-slot

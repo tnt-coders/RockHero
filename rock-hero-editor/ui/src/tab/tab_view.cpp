@@ -519,8 +519,7 @@ void TabView::paint(juce::Graphics& g)
     // stack at one place) and wears its ring AROUND the plate the repaint filled: a rounded outline
     // just outside the plate's own border, following its corners, so the chip reads whole inside
     // its ring rather than as a chip with a doubled edge — and the ring claims the chip's own
-    // extent rather than the wider box its click lands in. A held stop's satellite, which has no
-    // plate, wears the same ring around its digit's cell.
+    // extent rather than the wider box its click lands in.
     const auto ring_plate = [&g, accent](const juce::Rectangle<float>& plate) {
         const float stroke = overlayRingStroke(plate.getHeight());
         g.setColour(accent);
@@ -704,25 +703,6 @@ void TabView::paint(juce::Graphics& g)
             ring_plate(plate);
         }
     };
-    // With the caret on a held stop, the satellite printing it wears the ring.
-    if (face == core::ChartCaretFace::HeldStop)
-    {
-        for (const std::size_t index : m_edit.selected_notes)
-        {
-            if (index >= tab.notes.size())
-            {
-                continue;
-            }
-            if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                    common::ui::tabHeldStopLayout(
-                        metrics, tab.notes[index], presence(index).revealing());
-                satellite.has_value())
-            {
-                const common::ui::TabLayoutRect& digit = satellite->digit;
-                ring_plate(juce::Rectangle<float>{digit.x, digit.y, digit.width, digit.height});
-            }
-        }
-    }
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -755,10 +735,9 @@ void TabView::paint(juce::Graphics& g)
     // head marks together, because a relational refusal has no per-note attribution. Editor
     // chrome like the caret, but drawn through the paint core's one exported primitive so the
     // digit's typography and plate cannot drift from the committed head's. The entry's text and
-    // its ink are read ONCE for every mark a box rides — a head, a satellite, a slot, a
-    // placement's chip: valid rides the dark plate in the digit's own white; invalid FLIPS the
-    // plate to the white ground with the theme's red — the polarity flip is itself the glance
-    // signal.
+    // its ink are read ONCE for every mark a box rides — a head, a slot, a placement's chip: valid
+    // rides the dark plate in the digit's own white; invalid FLIPS the plate to the white ground
+    // with the theme's red — the polarity flip is itself the glance signal.
     //
     // Bound to a local so the presence test and every read are provably one object.
     const std::optional<core::ChartPendingFretViewState>& pending = m_edit.pending_fret;
@@ -792,21 +771,6 @@ void TabView::paint(juce::Graphics& g)
                     continue;
                 }
                 const common::core::NoteViewState& note = tab.notes[index];
-                // An entry on the HELD channel wears its box on the satellite, which is where the
-                // value it is typing will print — no head sits there, so the box carries none,
-                // exactly as the empty-slot insert case does. A held stop whose satellite is not
-                // drawn shows nothing, on the same rule that keeps its hit box off the lane.
-                if (targets->channel == common::core::ChartStopChannel::Held)
-                {
-                    if (const std::optional<common::ui::TabHeldStopLayout> satellite =
-                            common::ui::tabHeldStopLayout(
-                                metrics, note, presence(index).revealing());
-                        satellite.has_value())
-                    {
-                        paint_pending_box(nullptr, satellite->center_x, satellite->center_y);
-                    }
-                    continue;
-                }
                 const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
                 paint_pending_box(&note, layout.onset_x, layout.center_y);
             }
@@ -1155,7 +1119,7 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
 
     const common::ui::TabLaneMetrics& metrics = lane.metrics;
     // The square says WHERE and stays on the slot whatever face the caret stands on: the ring on
-    // the face — the held stop's satellite, the bend chip — says which (user ruling 2026-09-29).
+    // the face — the bend chip — says which (user ruling 2026-09-29).
     const common::ui::TabLayoutRect head =
         common::ui::tabSlotHeadSquare(metrics, m_edit.caret->seconds, m_edit.caret->string);
     return juce::Rectangle<float>{head.x, head.y, head.width, head.height};

@@ -69,22 +69,20 @@ private:
 struct PressLayer
 {
     explicit PressLayer(const float press_x) noexcept
-        : satellites{press_x}
-        , heads{press_x}
+        : heads{press_x}
     {}
 
-    NearestTarget satellites;
     NearestTarget heads;
     std::optional<ChartHitTarget> top_bend_chip;
     std::optional<ChartHitTarget> top_slide_chip;
     std::optional<ChartHitTarget> top_mark;
 
-    // The target the press reaches in this layer: its satellites, then its heads, then its faces
-    // topmost first, as chartHitTarget explains.
+    // The target the press reaches in this layer: its heads, then its faces topmost first, as
+    // chartHitTarget explains.
     [[nodiscard]] std::optional<ChartHitTarget> topmost() const
     {
         for (const std::optional<ChartHitTarget>* const found :
-             {&satellites.best(), &heads.best(), &top_bend_chip, &top_slide_chip, &top_mark})
+             {&heads.best(), &top_bend_chip, &top_slide_chip, &top_mark})
         {
             if (found->has_value())
             {
@@ -103,37 +101,13 @@ std::optional<ChartHitTarget> chartHitTarget(
 {
     // Everything a press can land on, sorted into the paint's two layers: the notes in front, and
     // beneath them every note STEPPED BACK behind the ring being edited, which the lane draws first
-    // and whole, satellite and chips included. The front layer answers first, so a press on the
+    // and whole, chips included. The front layer answers first, so a press on the
     // head a focused ring ends on reaches the ring's faces drawn over it.
     std::array<PressLayer, 2> layers{PressLayer{x}, PressLayer{x}};
     const auto layer_of =
         [&layers](const common::ui::TabNotePresence& note_presence) -> PressLayer& {
         return layers.at(note_presence.receded() ? std::size_t{1} : std::size_t{0});
     };
-
-    // The held-stop satellites. A satellite's digit sits at its note's own instant, or at the
-    // bracket its tap fronts, and its column lies OUTBOARD of the head's own columns and belongs to
-    // no head, so each layer answers it before its heads, keeping it a target of its own instead
-    // of letting the ordinary head pass decide the columns beside a head it does not cover. The
-    // whole stream is probed rather than culled through the visible range, because a fronted
-    // bracket sits at its SPAN's mark, which can be earlier than the note's own instant and
-    // therefore outside a window keyed by note ends. Every note that draws no satellite lays out to
-    // nothing here and is skipped for free — nothing undrawn is clickable.
-    //
-    // A REVEAL-ONLY satellite is reachable exactly while it is drawn, which is what handing the
-    // reveal to the layout buys: one rectangle answers "is it there" for the painter and for this
-    // probe, so the drawn digit and the clickable one cannot part.
-    for (std::size_t index = 0; index < tab.notes.size(); ++index)
-    {
-        const common::ui::TabNotePresence note_presence = common::ui::tabPresence(presence, index);
-        const std::optional<common::ui::TabHeldStopLayout> layout =
-            common::ui::tabHeldStopLayout(geometry, tab.notes[index], note_presence.revealing());
-        if (layout.has_value() && layout->box.contains(x, y))
-        {
-            layer_of(note_presence)
-                .satellites.consider(layout->center_x, ChartHeldStopHit{.index = index});
-        }
-    }
 
     // One pass lays every candidate out once and keeps the nearest of each class, and the classes
     // answer in turn (PressLayer::topmost). HEADS first: a note is addressed at its onset column,

@@ -381,7 +381,7 @@ struct AddressedStop
 {
     // Index into the retype's base snapshot.
     std::size_t base_index{};
-    // The keyframe's offset, or absent for the note's own stop on the entry's channel.
+    // The keyframe's offset, or absent for the note's own stop.
     std::optional<common::core::Fraction> keyframe_offset{};
     // The stop's current value, which the anchor reads and the transposing write shifts.
     int value{};
@@ -1073,8 +1073,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartFretWrite write,
-    common::core::ChartStopChannel channel)
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartFretWrite write)
 {
     if (base.empty())
     {
@@ -1084,138 +1083,33 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const ChartFretSet* const set = std::get_if<ChartFretSet>(&write);
 
     // EVERY stop this plan addresses, collected once so the anchor and the write can never read
-    // different fields. The two key lists say WHICH: a note's own stop on `channel` where the
-    // selection named the note, a keyframe's fret where it named the keyframe. A note in the
+    // different fields. The two key lists say WHICH: a note's own stop where the selection named
+    // the note, a keyframe's fret where it named the keyframe. A note in the
     // snapshot that neither list names is written through and not addressed — the shape a mixed
     // selection takes, and the fret-verb law's other half (a head's digit never moves its path).
     std::vector<AddressedStop> addressed;
     addressed.reserve(base.size() + keyframe_keys.size());
-    if (channel == common::core::ChartStopChannel::Held)
+    for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
     {
-        // ONE walk of the LIVE chart answers both questions the held channel asks, because both
-        // are facts about a note's NEIGHBOURS that the snapshot — one loose string of notes —
-        // states nothing about: WHO states each stop, and WHAT the channel addresses.
-        //
-        // The held stop it addresses is THE COMPLETE ONE (\ref common::core::chartHeldStops): the
-        // channel exists on a note exactly where the satellite that states it is drawn, and a bare
-        // tap wears one carrying its DEFAULT — the grip the covering span holds. So typing there
-        // AUTHORS a real held stop, where a gate on the stored field would let the digit fall
-        // through and change nothing. The walk runs only on this channel: it is a whole-chart pass
-        // on a per-keystroke path, and the sounding channel asks the chart nothing.
-        const common::core::ChartResolutions resolutions =
-            common::core::chartResolutions(chart.notes, tempo_map);
-        // Where an addressed note sits in the live chart, which is what both vectors are parallel
-        // to.
-        const auto live_index =
-            [&chart](const common::core::ChartNote& note) -> std::optional<std::size_t> {
-            const ChartSlotKey slot = chartSlotKeyOf(note);
-            const auto found = std::ranges::lower_bound(
-                chart.notes, slot, {}, [](const common::core::ChartNote& stored) {
-                    return chartSlotKeyOf(stored);
-                });
-            if (found == chart.notes.end() || chartSlotKeyOf(*found) != slot)
-            {
-                return std::nullopt;
-            }
-            return static_cast<std::size_t>(found - chart.notes.begin());
-        };
-        for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
+        const common::core::ChartNote& note = base[base_index];
+        if (std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
         {
-            const common::core::ChartNote& note = base[base_index];
-            if (!std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
-            {
-                continue;
-            }
-            // Bound to a local so the presence test and every read are provably one object.
-            const std::optional<std::size_t> index = live_index(note);
-            if (!index.has_value())
-            {
-                continue;
-            }
-            // THE DERIVATION OWNS IT, so the held channel is REFUSED there rather than quietly
-            // skipped: the charter typed at a stop the notation already states, and the pending box
-            // has to say the value cannot land (DERIVED HELD). A DEFAULT is owned by nobody and is
-            // deliberately NOT refused — it is exactly the satellite this verb is for. Whole-plan,
-            // like every other refusal here: one member the derivation owns rejects the entry
-            // rather than leaving a chord half retyped, so the first one found ends it.
-            //
-            // UNLESS THE DIGIT AGREES WITH IT (SAME-FRET SETTLE). Typing the value the satellite
-            // already shows is not an authoring attempt the derivation has to fend off — it asks
-            // for the state the chart is already in, so it settles as the no-op it is: nothing
-            // authored, nothing refused, no undo entry. The note contributes NOTHING to the plan
-            // rather than a write of the same value, because a write here would author the field
-            // the derivation's own residue sweep exists to clear. Only an EXACT entry can agree: a
-            // shift names a delta rather than a value, and so says nothing about this one.
-            //
-            // Asked of the WIDE planted table (\ref common::core::chartPlantedStops): a right-hand
-            // entry there IS the derived claim, and a fretting-hand entry is the PLANT the note
-            // wears as its own satellite on the reveal's terms (THE PLANT'S FACE) — the notation
-            // owns both, so typing at either is refused alike, and a fretting-hand note can never
-            // be handed a held field its attack forbids. Bound to a local so the presence test and
-            // the read are provably one object.
-            if (const std::optional<int>& planted = resolutions.planted_stops[*index];
-                planted.has_value())
-            {
-                if (set == nullptr || *planted != set->fret)
-                {
-                    return std::unexpected{ChartPlanRefusal::Invalid};
-                }
-                continue;
-            }
-            // Bound to a local so the presence test and the read are provably one object. A note
-            // the channel states nothing on contributes nothing — the shape a mixed selection
-            // takes, so a chord member with no satellite rides through a held-channel entry the way
-            // it rides through a sounding one.
-            const std::optional<int>& held = resolutions.held_stops[*index];
-            if (!held.has_value())
-            {
-                continue;
-            }
-            // A NOTE CARRYING A NODE HAS NO PLANTED FINGER. The field this channel writes is legal
-            // only where the picking hand is what stops the string, and that one authority is asked
-            // rather than restated: under a tapped harmonic the picking hand only touches the node,
-            // so a satellite over one states the stop the FRETTING hand presses — the note's own
-            // fret, which the sounding channel addresses. Refused whole, the shape of the ownership
-            // refusal above and for its reason. No same-fret settle rides this one: that settle
-            // agrees with a value the field COULD hold, while here the note cannot carry the field
-            // at all.
-            if (!common::core::pickingHandStopsString(note.attack, note.harmonic_node))
+            // A FRET-HAND HARMONIC HAS NO STOP TO RETYPE. Its finger stands on the node and
+            // presses nothing, so its fret is not a value the charter can restate — landing the
+            // digit would author `fret 5 + node 4.98`, a stop and a touch naming two different
+            // places, which no rule catches because 4.98 is not beyond nothing. Refused whole
+            // rather than skipped: the pending box has to say the value cannot land instead of
+            // leaving it looking typed. Restating a node is press `H`, type, press `H`.
+            if (common::core::fretHandHarmonic(note))
             {
                 return std::unexpected{ChartPlanRefusal::Invalid};
             }
             addressed.push_back(
-                AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = *held});
+                AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = note.fret});
         }
     }
-    else
-    {
-        for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
-        {
-            const common::core::ChartNote& note = base[base_index];
-            if (std::ranges::binary_search(note_keys, chartSlotKeyOf(note)))
-            {
-                // A FRET-HAND HARMONIC HAS NO STOP TO RETYPE. Its finger stands on the node and
-                // presses nothing, so the fret this channel addresses is not a value the charter
-                // can restate — landing the digit would author `fret 5 + node 4.98`, a stop and a
-                // touch naming two different places, which no rule catches because 4.98 is not
-                // beyond nothing. Refused whole rather than skipped, the shape of the
-                // derived-held refusal above and for its reason: the pending box has to say the
-                // value cannot land instead of leaving it looking typed. Restating a node is
-                // press `H`, type, press `H`.
-                if (common::core::fretHandHarmonic(note))
-                {
-                    return std::unexpected{ChartPlanRefusal::Invalid};
-                }
-                addressed.push_back(
-                    AddressedStop{
-                        .base_index = base_index, .keyframe_offset = {}, .value = note.fret
-                    });
-            }
-        }
-    }
-    // The keyframe half, collected on EITHER channel: a keyframe has one position channel and wears
-    // no satellite, so nothing about it asks which stop of a note the digit meant — the selection
-    // kind already said. A keyframe stating no fret INHERITS the fret in force and is drawn and
+    // The keyframe half: the selection kind already said which stop the digit meant. A keyframe
+    // stating no fret INHERITS the fret in force and is drawn and
     // selected like any other point (ruled 2026-09-27), so a typed value pointed at it STATES its
     // fret there, beside whatever else the point states. A SHIFT moves stops, and such a point has
     // no stop of its own — it rides the path it inherits — so a shift takes none.
@@ -1254,10 +1148,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     // nothing here anchors it.
     const int delta = set != nullptr ? 0 : std::get<ChartFretShift>(write).delta;
     const std::string label =
-        set != nullptr
-            ? (channel == common::core::ChartStopChannel::Held ? "Set Held Stop " : "Set Fret ") +
-                  std::to_string(set->fret)
-            : "Shift Frets " + std::string{delta > 0 ? "+" : ""} + std::to_string(delta);
+        set != nullptr ? "Set Fret " + std::to_string(set->fret)
+                       : "Shift Frets " + std::string{delta > 0 ? "+" : ""} + std::to_string(delta);
     // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry from
     // the pre-entry originals) and swap into the live stream for the shared finalize, whose
     // whole-matrix gate stands in place of local fret caps here: any out-of-range or rule-violating
@@ -1279,29 +1171,21 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         const std::optional<common::core::Fraction>& at = stop.keyframe_offset;
         if (!at.has_value())
         {
-            if (channel == common::core::ChartStopChannel::Held)
+            // A NODE TRAVELS WITH ITS STOP. A node is `stop + offset` and fret positions are
+            // logarithmic, so the offset the harmonic names survives a move only if the node moves
+            // by the same amount; leaving it behind authors a touch that is no node of the string
+            // as newly stopped. The fret-hand form never reaches here — it was refused above — so
+            // what this moves is the pressed stop under a node: the artificial family, a tapped
+            // harmonic's stop, and a pinch's graze. Whether the moved node is still legal is the
+            // finalize gate's answer, like every other bound this planner leaves to it.
+            //
+            // Bound to a local so the presence test and the write are provably one object.
+            std::optional<double>& node = retyped.harmonic_node;
+            if (node.has_value())
             {
-                retyped.held = value;
+                node = *node + static_cast<double>(value - stop.value);
             }
-            else
-            {
-                // A NODE TRAVELS WITH ITS STOP. A node is `stop + offset` and fret positions are
-                // logarithmic, so the offset the harmonic names survives a move only if the node
-                // moves by the same amount; leaving it behind authors a touch that is no node of
-                // the string as newly stopped. The fret-hand form never reaches here — it was
-                // refused above — so what this moves is the pressed stop under a node: the
-                // artificial family, a tapped harmonic's stop, and a pinch's graze. Whether the
-                // moved node is still legal is the finalize gate's answer, like every other bound
-                // this planner leaves to it.
-                //
-                // Bound to a local so the presence test and the write are provably one object.
-                std::optional<double>& node = retyped.harmonic_node;
-                if (node.has_value())
-                {
-                    node = *node + static_cast<double>(value - stop.value);
-                }
-                retyped.fret = value;
-            }
+            retyped.fret = value;
             continue;
         }
         // Read once, outside the scan: the offset is constant across it, and a read inside the
@@ -1330,45 +1214,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         }
     }
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
-}
-
-std::expected<ChartEditPlan, ChartPlanRefusal> planClearHeldStops(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& slots)
-{
-    if (slots.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    // THE ONE OWNERSHIP AUTHORITY, the same table planRetypeFrets asks: a stop the notation states
-    // — a tap's derived held stop, a fretting-hand source's PLANT — is not the charter's to
-    // withdraw, so the press is refused whole rather than clearing what it may around it. A
-    // DEFAULT is owned by nobody and carried by no field, so clearing it is the no-op the finalize
-    // reports. Resolved against the live stream the candidate copies, so the two are
-    // index-parallel.
-    const common::core::ChartResolutions resolutions =
-        common::core::chartResolutions(chart.notes, tempo_map);
-    std::vector<common::core::ChartNote> candidate = chart.notes;
-    for (const ChartSlotKey& slot : slots)
-    {
-        const auto found =
-            std::ranges::lower_bound(candidate, slot, {}, [](const common::core::ChartNote& note) {
-                return chartSlotKeyOf(note);
-            });
-        if (found == candidate.end() || chartSlotKeyOf(*found) != slot)
-        {
-            continue; // An empty slot carries nothing to withdraw.
-        }
-        const auto index = static_cast<std::size_t>(found - candidate.begin());
-        if (resolutions.planted_stops[index].has_value())
-        {
-            return std::unexpected{ChartPlanRefusal::Invalid};
-        }
-        found->held.reset();
-    }
-    // The hold verb's own word for this act, so the undo entry reads the same whichever key made
-    // it: nothing gains or loses a sound.
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Release Held Stop");
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(

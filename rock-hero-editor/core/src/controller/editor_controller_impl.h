@@ -318,21 +318,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
         const std::vector<ChartSlotKey>& keys) const;
-    // THE scope of a typed chart verb, and the one place the empty-scope rule is written: the
-    // selected notes, or the armed caret's own slot when nothing is selected. Empty answers "this
-    // press has no operand", which every asker treats as a no-op rather than an error.
-    //
-    // The channel qualifies the scope rather than sitting beside it: a caret parked on a held stop
-    // names the same slots a caret on the head names, and what differs is WHICH stop of them the
-    // press addresses. Stating it here is what keeps that out of the verbs — the channel-blind
-    // ones read `slots` and behave exactly as before (note scope, per the ruling), and the two
-    // that address a stop read `channel` instead of asking the caret themselves.
-    struct ChartVerbScope
-    {
-        std::vector<ChartSlotKey> slots{};
-        common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
-    };
-    [[nodiscard]] ChartVerbScope chartVerbSlots() const;
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
@@ -447,10 +432,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void armChartCaret(
         common::core::GridPosition position, int string, ChartCaretFace face = ChartCaretFace::Mark,
         const std::optional<ChartSelectionKey>& object = {});
-    // True when the note at this slot SHOWS a satellite digit — the target a click reaches, and the
-    // only state in which the held face is legal. Read from the projection, which is where the
-    // derivation published whether the stop has a face and on what terms it is drawn.
-    [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
     // THE one test of whether a face can be stood on, for the object the caret names: asked by
     // the arming and by the read.
     [[nodiscard]] bool chartFaceShown(
@@ -460,9 +441,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The caret's face as every reader must see it: the stored face held to chartFaceShown, so an
     // edit that took a face away leaves the caret on the mark.
     [[nodiscard]] ChartCaretFace chartCaretFace() const;
-    // The stop the digits state, derived from the face: the held stop on the held face, the one
-    // that sounds everywhere else.
-    [[nodiscard]] common::core::ChartStopChannel chartCaretChannel() const;
     // Demotes an armed caret to the passive cursor, leaving the transport where it is (the
     // transport-motion handoffs: play, external playback, paused seeks).
     void disarmChartMarker();
@@ -1136,19 +1114,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         //
         // BOTH selection kinds, because a selected keyframe states a fret exactly as a head does
         // (W13's ruling): the entry carries the two key lists and the snapshot of every note it
-        // writes THROUGH, which for a keyframe is the note that stores it. No third channel — the
-        // selection kind is what says which stop a digit reached.
-        //
-        // The channel is the entry's, not the keystroke's: it is fixed when the entry opens and
-        // every digit that widens it states the same stop, which is what makes the satellite click
-        // and the caret's held stop ONE entry state reached two ways rather than two entry kinds.
-        // It qualifies the NOTE keys only; a keyframe has one position channel.
+        // writes THROUGH, which for a keyframe is the note that stores it. The selection kind is
+        // what says which stop a digit reached.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
             std::vector<ChartKeyframeKey> keyframe_keys{};
             std::vector<common::core::ChartNote> base_notes{};
-            common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
         // An entry begun on the RING plane where no statement stands yet: settling plants one
         // point at `offset` along `note`'s ring carrying the entry's value, selected — from there
@@ -1253,8 +1225,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // where no ring reaches the slot.
     [[nodiscard]] std::optional<decltype(ChartFretEntry::target)> chartRingEntryTarget(
         const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const;
-    // A retype over the given keys: both lists, the snapshot of every note the entry writes
-    // through, and the verb scope's channel.
+    // A retype over the given keys: both lists and the snapshot of every note the entry writes
+    // through.
     [[nodiscard]] ChartFretEntry::Retype chartRetypeTarget(
         std::vector<ChartSlotKey> keys, std::vector<ChartKeyframeKey> keyframe_keys) const;
     // The objects a retype addresses, as one selection.
@@ -1398,7 +1370,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::core::GridPosition position{};
         int string{1};
         // WHICH face of the object at this slot the caret stands on (ChartCaretFace): its mark,
-        // a note's held-stop satellite, or the chip printing its bend. A face is unreachable
+        // or the chip printing its bend. A face is unreachable
         // unless it is drawn: armChartCaret falls back to the mark rather than parking the caret
         // on a face that is not there, and chartCaretFace applies the same test at the read.
         ChartCaretFace face{ChartCaretFace::Mark};

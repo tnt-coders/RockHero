@@ -54,17 +54,13 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 // move of the cursor is far larger.
 constexpr double g_cursor_column_tolerance_seconds = 0.001;
 
-// The face a target addresses: a note's held-stop SATELLITE, an object's BEND CHIP, or the mark
-// every other target is. A press on a face settles it whole: it hands the caret that face,
-// preserving a wider selection where the object is already in one. So the slide-out's collapse —
-// which exists to reduce a chord selection to the head that was clicked — runs only for a mark, or
-// it would take back exactly the selection the press preserved.
+// The face a target addresses: an object's BEND CHIP, or the mark every other target is. A press
+// on a face settles it whole: it hands the caret that face, preserving a wider selection where the
+// object is already in one. So the slide-out's collapse — which exists to reduce a chord selection
+// to the head that was clicked — runs only for a mark, or it would take back exactly the selection
+// the press preserved.
 [[nodiscard]] ChartCaretFace chartTargetFace(const ChartHitTarget& target) noexcept
 {
-    if (std::holds_alternative<ChartHeldStopHit>(target))
-    {
-        return ChartCaretFace::HeldStop;
-    }
     return std::holds_alternative<ChartBendChipHit>(target) ? ChartCaretFace::BendChip
                                                             : ChartCaretFace::Mark;
 }
@@ -149,10 +145,10 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
     return std::visit(
         [this, &chart, tab](const auto& hit) -> std::optional<ChartSelectionKey> {
             using Hit = std::remove_cvref_t<decltype(hit)>;
-            // A held-stop satellite resolves to its own note and a bend chip to the object it
-            // prints the bend of, exactly as that object's own mark does: each is a second FACE of
-            // one object, never a second object. What the hits differ in is the face the press then
-            // arms, which is the caller's question rather than this one's.
+            // A bend chip resolves to the object it prints the bend of, exactly as that object's
+            // own mark does: it is a second FACE of one object, never a second object. What the
+            // hits differ in is the face the press then arms, which is the caller's question
+            // rather than this one's.
             if constexpr (std::is_same_v<Hit, ChartBendChipHit>)
             {
                 return std::visit(
@@ -540,70 +536,17 @@ bool EditorController::Impl::dissolveSilentKeyframes(
     return true;
 }
 
-// True when the note at this slot SHOWS a satellite digit for its held stop. Read from the
-// PROJECTION and never re-derived: the mark says whether a face is drawn and on what terms, so
-// asking the drawn picture is what keeps the caret's second stop, the click target and the mark
-// itself from ever disagreeing about whether there is one.
-//
-// It answers whether a satellite is THERE, never whether the charter may write over it. A stop the
-// notation owns is reached by the caret exactly like any other — a pull-off's PLANT, and a tapped
-// harmonic's pressed stop, which its satellite states because the picking hand only touches the
-// node — and the planner that would write it is what refuses (planRetypeFrets). One rule answers
-// for the pointer, the arrow and the digit alike, instead of a second one here holding the caret
-// off a mark the charter can see.
-//
-// THE CARET IS ITSELF A REVEAL, which is why the terms below are met rather than computed. Every
-// reader of this predicate is a caret standing on the note or moving onto it, and a caret inside
-// a note's ring is one of the reveal's own grounds (chartPresence) — as is the selection the
-// arming makes — so a reveal-only satellite is drawn exactly because of the act that asks. Asking
-// the note's current reveal instead would demote a caret off the mark the press itself brings in,
-// since the press resolves this before the caret it arms. The presence rule is still spelled
-// through its one authority rather than short-circuited here, so a face with different terms
-// would be answered rather than assumed.
-bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) const
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const common::core::ChartViewState* const tab = currentTabProjection();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || tab == nullptr)
-    {
-        return false;
-    }
-    // The projection preserves the chart's note order one to one, so the chart index addresses the
-    // projected note directly — the same rule every hit target and selection resolution here uses.
-    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-    const auto found = std::ranges::lower_bound(
-        notes, slot, {}, [](const auto& note) { return chartSlotKeyOf(note); });
-    if (found == notes.end() || chartSlotKeyOf(*found) != slot)
-    {
-        return false;
-    }
-    const auto index = static_cast<std::size_t>(found - notes.begin());
-    if (index >= tab->notes.size())
-    {
-        return false;
-    }
-    // Bound to a local so the optional check and the access are provably the same object.
-    const common::core::NoteViewState& projected = tab->notes[index];
-    const std::optional<common::core::StopMarkViewState>& mark = projected.stop_mark;
-    return projected.held.has_value() && mark.has_value() &&
-           common::core::stopMarkShown(*mark, /*revealed=*/true);
-}
-
-// THE one test of whether a face can be stood on: the mark always, a held stop where its satellite
-// is drawn, a bend chip where the object states a bend. The arming and the read both ask it, so a
+// THE one test of whether a face can be stood on: the mark always, a bend chip where the object
+// states a bend. The arming and the read both ask it, so a
 // face is one predicate applied at two moments rather than two rules.
 bool EditorController::Impl::chartFaceShown(
     const ChartCaretFace face, const std::optional<ChartSelectionKey>& object) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    // Only a NOTE wears a held stop; a keyframe standing on the same slot has no held face.
-    const auto* const note = object.has_value() ? std::get_if<ChartNoteKey>(&*object) : nullptr;
     switch (face)
     {
         case ChartCaretFace::Mark:
             return true;
-        case ChartCaretFace::HeldStop:
-            return note != nullptr && chartSlotShowsHeldStop(note->slot);
         case ChartCaretFace::BendChip:
             return arrangement != nullptr && arrangement->chart.has_value() && object.has_value() &&
                    chartObjectStatesBend(arrangement->chart->notes, *object);
@@ -625,8 +568,8 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartCaretObject() cons
 
 // THE caret's face, and the one place a face's precondition is applied at READ time: the stored
 // value is what the last arming asked for, and a face is worth only what the drawn picture still
-// says. An edit can take a face out from under a stationary caret — clearing the stop or the bend
-// is exactly what Delete on it does — and a caret left claiming a face that is gone would point
+// says. An edit can take a face out from under a stationary caret — clearing the bend is exactly
+// what Delete on it does — and a caret left claiming a face that is gone would point
 // the next key at nothing.
 ChartCaretFace EditorController::Impl::chartCaretFace() const
 {
@@ -636,14 +579,6 @@ ChartCaretFace EditorController::Impl::chartCaretFace() const
         return ChartCaretFace::Mark;
     }
     return chartFaceShown(caret->face, chartCaretObject()) ? caret->face : ChartCaretFace::Mark;
-}
-
-// The stop the digits state: the held one on the held face, and the one that sounds everywhere
-// else, a bend chip's digits typing into its mark.
-common::core::ChartStopChannel EditorController::Impl::chartCaretChannel() const
-{
-    return chartCaretFace() == ChartCaretFace::HeldStop ? common::core::ChartStopChannel::Held
-                                                        : common::core::ChartStopChannel::Sounding;
 }
 
 void EditorController::Impl::armChartCaret(
@@ -1266,7 +1201,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
         // A completed plain click on a selected object collapses the selection to that object and
         // arms the caret there, on the face the click hit (the press deferred both while a drag
-        // was still possible) — a chord member's chip or satellite as much as its head. The
+        // was still possible) — a chord member's chip as much as its head. The
         // second release of a double click leaves what the second press made standing.
         if (clicked && gesture.collapse_on_release && !gesture.modifiers.ctrl && event.clicks < 2)
         {
@@ -1618,29 +1553,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     const ChartCaret caret = *armed;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const int sign = direction == ChartStepDirection::Right ? 1 : -1;
-    // The WITHIN-SLOT stop, taken before the grid: a note carrying a held stop wears two marks in
-    // one column — its head, then the satellite outboard of the bracket — so the caret visits two
-    // stops there in DISPLAY order, rightward and reversed leftward. Only a plain step visits it:
-    // the measure jump is a big move by definition, and a stop half a glyph away is not what it
-    // means.
-    if (!measure && !caret.lane.has_value())
-    {
-        // A bend chip is a face of the mark's own column, so a step from it walks as from the mark.
-        // The held stop asked of the OBJECT the caret names, so a ring's end statement sharing the
-        // slot with a head never steps onto that head's face.
-        const bool on_head = chartCaretFace() != ChartCaretFace::HeldStop;
-        const std::optional<ChartSelectionKey> object = chartCaretObject();
-        if (on_head == (sign > 0) && chartFaceShown(ChartCaretFace::HeldStop, object))
-        {
-            armChartCaret(
-                caret.position,
-                caret.string,
-                on_head ? ChartCaretFace::HeldStop : ChartCaretFace::Mark,
-                object);
-            updateView();
-            return;
-        }
-    }
     common::core::GridPosition stepped;
     // The object a step lands ON, carried whenever the walk's stop is the one taken: at a shared
     // instant the slot holds the head too, so re-deriving would take the head every time
@@ -1696,8 +1608,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 // into a marker the pointer selected elsewhere, then Tab reaches the start strictly after the
 // cursor and Shift+Tab the start strictly before it — from inside a marker past its start, that is
 // the marker's OWN start, the media player's "previous" — and the marker starting there is
-// selected with the cursor on it. A held stop's satellite is part of its note rather than an object
-// of its own, so a string step always lands on the stop every object has. Where a ring's end
+// selected with the cursor on it. A string step always lands on the mark every object has. Where
+// a ring's end
 // statement and a head share an instant the statement is stepped first, so Shift+Tab from the head
 // selects it and a second press leaves. Past either end, and on the "+" row,
 // which holds no objects, the press is inert; from the passive marker it arms in place, as the
@@ -2231,15 +2143,7 @@ void EditorController::Impl::deleteChartSelection()
         return;
     }
 
-    // Delete takes what the caret is ON, and on a held stop that is the STATEMENT rather than the
-    // note: the charter never asked for the onset under it to go. A clearing planner of its own
-    // (planClearHeldStops) rather than a retype to fret 0: a bare tap's satellite and a pull-off
-    // source's PLANT both show a DEFAULT the charter never typed, so writing a real 0 over one
-    // would author the very statement the press is withdrawing. Clearing withdraws that statement
-    // and nothing else; what the notation states it refuses, off the one ownership table the
-    // retype reads.
-    //
-    // On a bend chip the statement is the BEND, over the whole selection as the held stop's is:
+    // Delete takes what the caret is ON. On a bend chip that is the BEND rather than the object:
     // the picker's "No bend" through its own planner, the notes staying at rest. On the mark, what
     // Delete took leaves no selection behind, so the empty caret can accept a new point; a point
     // Delete only took the fret from still stands with a technique of its own, and stays selected
@@ -2249,10 +2153,6 @@ void EditorController::Impl::deleteChartSelection()
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     switch (chartCaretFace())
     {
-        case ChartCaretFace::HeldStop:
-            static_cast<void>(
-                applyChartEditPlan(planClearHeldStops(chart, tempo_map, chartVerbSlots().slots)));
-            return;
         case ChartCaretFace::BendChip:
             static_cast<void>(applyChartEditPlan(
                 planSetBend(
@@ -2484,8 +2384,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
                         retype.base_notes,
                         retype.keys,
                         retype.keyframe_keys,
-                        ChartFretSet{.fret = entry.value},
-                        retype.channel),
+                        ChartFretSet{.fret = entry.value}),
                     chartRetypeKeys(retype));
             },
             [&](const ChartFretEntry::RetypeHandFret& hand) -> Planned {
@@ -2812,11 +2711,6 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
     return ChartFretEntry::CreateKeyframe{.note = tail->note, .offset = tail->offset};
 }
 
-// WHICH stop the digits state comes from the verb scope's channel, so the two ways to reach the
-// held one — clicking its satellite, or stepping the caret onto it — open the same entry rather
-// than two. Bare digits on a selected note keep stating its own sounding fret, which is what makes
-// the held channel something the charter enters deliberately.
-//
 // The snapshot covers every note the entry writes THROUGH rather than only the notes it addresses,
 // because a keyframe is stored inside its note: a selection naming only a point on a slide still
 // needs that slide's pre-entry record to replan from, with its head's own fret left alone.
@@ -2829,7 +2723,6 @@ EditorController::Impl::ChartFretEntry::Retype EditorController::Impl::chartRety
         .keys = std::move(keys),
         .keyframe_keys = std::move(keyframe_keys),
         .base_notes = std::move(base_notes),
-        .channel = chartVerbSlots().channel,
     };
 }
 
@@ -2958,39 +2851,6 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
     return notesForKeys(arrangement->chart->notes, keys);
 }
 
-// THE scope of a typed chart verb, written once here for every verb that asks. The typing family's
-// own gate is "act on the selection (or the armed marker), and no-op when there is none"
-// (`docs/plans/in-progress/keymap-matrix.md`), so the selection comes first and the armed caret is
-// what an empty selection falls back to — which is also the only way a verb can reach a slot that
-// holds nothing at all, the empty-slot authoring case.
-//
-// A caret riding an automation lane row names no chart slot, so it contributes nothing: lane typing
-// is the lane's own typed-value editor, routed in the view.
-//
-// The CHANNEL is the caret's in either shape of scope, and that is not an inconsistency: arming re-
-// derives the singleton selection from what sits under the caret, so a caret parked on a held stop
-// is a caret on the one note the selection then holds. Every gesture that builds a wider selection
-// dissolves the caret in place, which leaves the channel at the stop every note has — so a
-// multi-note scope can never carry a stop only one of its notes states.
-EditorController::Impl::ChartVerbScope EditorController::Impl::chartVerbSlots() const
-{
-    const ChartCaret* const caret = armedChartCaret();
-    const common::core::ChartStopChannel channel = chartCaretChannel();
-    const std::vector<ChartSlotKey>& selected = chartSelection().notes();
-    if (!selected.empty())
-    {
-        return ChartVerbScope{.slots = selected, .channel = channel};
-    }
-    if (caret == nullptr || caret->lane.has_value())
-    {
-        return ChartVerbScope{.slots = {}, .channel = channel};
-    }
-    return ChartVerbScope{
-        .slots = {ChartSlotKey{.position = caret->position, .string = caret->string}},
-        .channel = channel,
-    };
-}
-
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction: the verb names its delta and nothing else, and the planner moves every stop the
 // selection addresses by it — selected KEYFRAMES included, since a point on a slide states a fret
@@ -3013,13 +2873,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         chartNotesForKeys(notesTouchedBy(note_keys, keyframe_keys)),
         note_keys,
         keyframe_keys,
-        ChartFretShift{.delta = direction > 0 ? 1 : -1},
-        // The shape-preserving shift keeps the SOUNDING channel on the notes it names, per the
-        // ruling that every verb but the two typing ones keeps note scope: it moves the stops the
-        // notes sound, and whether a transpose should carry a note's HELD stop along is the open
-        // question recorded with the verb's design, not something to settle by reading the caret
-        // here. A selected keyframe needs no channel at all.
-        common::core::ChartStopChannel::Sounding)));
+        ChartFretShift{.delta = direction > 0 ? 1 : -1})));
 }
 
 // Grows or shrinks the selection's rings by one step — moving each ring's END onto the adjacent

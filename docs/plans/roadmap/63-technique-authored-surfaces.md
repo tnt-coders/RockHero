@@ -96,7 +96,10 @@ the rules refuse, like any refused verb.
    dissolve. Consistency is kept by the distinction itself: faces of a point keep the caret,
    objects on rows of their own take it away.
 2. **One face enum on the caret**: `{Mark, HeldStop, BendChip}`, with the digit channel derived
-   (`HeldStop` → `Held`, else `Sounding`).
+   (`HeldStop` → `Held`, else `Sounding`). **Superseded 2026-09-29 (R2):** held stops became
+   derived-only and their satellites display-only, so the `HeldStop` face, the stop channel and
+   `planClearHeldStops` were deleted; the enum is `{Mark, BendChip}`. Every held-stop clause in the
+   decisions below is historical.
 3. **Arrows.** Left/Right walk keyframes and heads as today; from the chip they drop back into the
    string lane's walk. `Up` from a mark whose point shows a chip goes onto the chip; `Down` from the
    chip returns to its mark; `Up` from the chip goes to the string above. `Ctrl+Up/Down`, `Tab` and

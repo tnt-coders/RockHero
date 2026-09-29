@@ -268,33 +268,6 @@ a shift slide. With no note before the slot, the open string.
     const ChartSlotKey& slot);
 
 /*!
-\brief Withdraws the charter's held-stop statement at each slot: Delete on the held channel.
-
-WHAT DELETE TAKES on a satellite is the STATEMENT, never the onset under it: the note keeps its
-sound, and the caret stays on the stop it was on, now wearing whatever the resolution answers there
-(a bare tap's DEFAULT). A planner of its own rather than a retype to fret 0, because a bare tap's
-satellite and a pull-off source's PLANT both show a DEFAULT the charter never typed: writing a real
-0 over one would author the very statement the press is withdrawing.
-
-Refused whole where any named slot's stop is the NOTATION's — a tap's derived held stop, or the
-plant beneath a fretting-hand source — off the one ownership table \ref planRetypeFrets reads
-(\ref common::core::ChartResolutions::planted_stops): the charter typed nothing there, so there is
-nothing of theirs to withdraw, and only unwriting the pull-off would. A slot carrying no held field
-clears nothing, so a press over defaults alone settles as the no-op it is — and so does one over a
-harmonic sounded over a PRESSED stop, whose satellite states that pressed fret (the note's own) and
-whose node forbids the field entirely.
-
-\param chart Chart being edited.
-\param tempo_map Tempo map supplying the beat axis for the shared finalize.
-\param slots The verb's scope, sorted-unique in chart slot order; an empty scope is a no-op.
-\return The plan; NoChange where nothing authored was there to withdraw, Invalid where the notation
-        owns a named stop or the gate refuses the result.
-*/
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearHeldStops(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& slots);
-
-/*!
 \brief Plans deleting the selected notes and keyframes.
 
 Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
@@ -536,7 +509,7 @@ inside its note, so a note reached only because one of its keyframes is selected
 with its own stop left alone.
 
 WHICH stops are addressed is the two key lists' answer, and they are the selection's own two
-operands. A note's own stop (on `channel`) is retyped where `note_keys` names it; a keyframe's fret
+operands. A note's own stop is retyped where `note_keys` names it; a keyframe's fret
 is retyped where `keyframe_keys` names it. That split is the fret-verb law made structural rather
 than restated: retyping a head edits exactly that head's fret — a slide's path never rides along, in
 either mode, because every keyframe was placed on its fret on purpose — and retyping a keyframe
@@ -544,9 +517,8 @@ edits exactly that point, leaving the head where the charter put it. A scrape st
 first path position refuses through the finalize gate's always-traveling rule; a pitched slide's
 equal-fret start is the legal hold encoding and passes.
 
-A KEYFRAME retypes like a head and needs no channel of its own: it has one position channel and
-wears no satellite, so \ref common::core::ChartStopChannel keeps its two values and the SELECTION
-KIND is what says which stop a digit reached. Transposition anchors on the lowest stop the whole
+A KEYFRAME retypes like a head: the SELECTION KIND is what says which stop a digit reached.
+Transposition anchors on the lowest stop the whole
 operand addresses, heads and keyframes together, which is what makes a chord slide's members move as
 one delta. A keyframe stating no fret states nothing about position, so it contributes no stop and
 takes none: authoring one there would state a channel the charter never pointed at, and nothing
@@ -557,51 +529,14 @@ the note re-picking its string is not arbitrated here at all: side ruling (ii) s
 that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
 falling out of the derivation rather than a second rule written into this planner.
 
-The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
-and on the write, so both read one query. The channel exists on a note exactly where the satellite
-that states it does, and that is now THREE populations under one rule. A bare tap's satellite
-carries THE DEFAULT (\ref common::core::chartHeldStops), so the channel reaches every onset the
-picking hand stops the string for: typing at a default AUTHORS a real held stop, where a gate on the
-stored field instead would let the digit fall through and change nothing. Under THE PLANT'S FACE a
-note a pull-off PLANTS under wears that plant as its own satellite, so the channel reaches it too —
-and lands on the refusal below, never on a held FIELD its attack forbids. And a HARMONIC OVER A
-PRESSED STOP's satellite states that pressed fret, which is the note's own and no planted finger at
-all, so the channel reaches that one as well and lands on the refusal after it. The
-sounding channel reaches every note, because every note has a fret. Nothing here decides WHEN the
-held channel applies: that is the verb scope's answer (the caret's stop), stated once there.
-
-A FRET-HAND HARMONIC HAS NO STOP TO RETYPE, so the sounding channel is REFUSED outright on one: the
-finger stands on the node and presses nothing, and landing a digit would author a stop and a touch
+A FRET-HAND HARMONIC HAS NO STOP TO RETYPE, so a retype naming one is REFUSED outright: the finger
+stands on the node and presses nothing, and landing a digit would author a stop and a touch
 naming two different places. Restating a node is press `H`, type, press `H`. Every OTHER node
 travels with the stop it is measured from — a node is `stop + offset` on a logarithmic board, so a
 stop that moves and a node that does not name an offset the harmonic never had — which reaches every
 pressed stop under a node alike: the artificial family, a tapped harmonic's stop, and a pinch's
 graze. Whether the moved node is still legal is the finalize gate's answer, like every other bound
 here.
-
-THE DERIVATION OWNS SOME HELD STOPS (DERIVED HELD), and the held channel is REFUSED outright where a
-pull-off already states one — asked of the WIDE planted table (\ref
-common::core::ChartResolutions::planted_stops), so a tap's derived stop and a fretting-hand source's
-PLANT refuse alike: the charter typed at a value the notation owns, and a silent no-op would leave
-the pending box saying the digit landed. A DEFAULT is owned by nobody, so it is the one thing this
-refusal deliberately does not reach.
-
-SAME-FRET SETTLE. A digit that AGREES with the derived stop is the other thing it does not reach:
-asking for the value already shown is not an authoring attempt, so it settles as the no-op it is —
-nothing authored, nothing refused, no undo entry — and the note simply contributes nothing to the
-plan. What that changes for a SELECTION is which entries are refusal causes, not the scope of a
-refusal: a disagreeing derived member still rejects the whole plan, an agreeing one drops out of it,
-and every member the derivation does not own is retyped as ever. So a selection of nothing but
-agreeing derived stops plans to NoChange, and a mixed one authors at its default and authored
-satellites while the agreeing derived ones stand.
-
-A NOTE CARRYING A NODE HAS NO PLANTED FINGER, so the held channel is REFUSED outright on one. The
-field is legal only where the picking hand is what stops the string
-(\ref common::core::pickingHandStopsString, asked rather than restated, so a scrape's latent node
-never reads as a harmonic), and the satellite over a harmonic sounded over a PRESSED stop states
-that pressed fret — the note's own, which the sounding channel addresses. The same-fret settle does
-not ride this refusal: that one agrees with a value the field could hold, while this one names a
-field the note cannot carry at all.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -611,19 +546,15 @@ lookups binary-search this precondition).
 \param keyframe_keys Keyframes whose fret is addressed, sorted ascending, same precondition; keys
 naming no keyframe, or one stating no fret, are skipped.
 \param write The fret every addressed stop takes, or the delta every one moves by.
-\param channel Which stop of each named NOTE to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
-        when the gate refuses the result, when the held channel names a stop the derivation owns
-        and the entry disagrees with it, when the held channel names a note carrying a node, or
-        when the sounding channel names a fret-hand harmonic.
+        when the gate refuses the result or a named note is a fret-hand harmonic.
         The split is what lets the pending entry paint a refused value red without painting a valid
         no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
-    const std::vector<ChartKeyframeKey>& keyframe_keys, ChartFretWrite write,
-    common::core::ChartStopChannel channel);
+    const std::vector<ChartKeyframeKey>& keyframe_keys, ChartFretWrite write);
 
 /*!
 \brief One step of a duration gesture: the lattice its end lands on, and which way it moves.

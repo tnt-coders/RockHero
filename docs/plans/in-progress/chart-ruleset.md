@@ -931,11 +931,9 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
 
 ## LAW V — VERBS ACT ON THE SCOPE'S STATEMENT.
 
-One scope authority: the selection, else the armed caret's slot, else inert (`chartVerbSlots`). One
-meaning per verb per occupant. Bare
-digits retype the record's own fret; prefixed digits state the named channel; one pending-entry
-state with two roads in (keyboard stop, satellite click). Keyboard stops mirror displayed
-digits in display order. Plans are atomic over their product, and the sweep rides the entry (LAW II
+One scope authority: the selection, else the armed caret's slot, else inert. One meaning per verb
+per occupant. Digits retype the record's own fret; a held stop is never typed (RULED 2026-09-29:
+held stops are derived, and their satellites display-only). Plans are atomic over their product, and the sweep rides the entry (LAW II
 at edit time).
 
 - **Authoring a pull-off off a right-hand onset CLEARS that onset's stored `held` unconditionally**
@@ -943,17 +941,7 @@ at edit time).
   lie — inside the SAME undo entry; authoring `held` on an onset that already has a pull-off
   successor is REFUSED rather than silently dropped; the writer never emits residue and the load
   normalizer sweeps it (`sweepDerivedHeldStops`).
-- **The retype verb refuses a derived stop and a plant**, read off the one ownership table
-  (`ChartResolutions::planted_stops`): a fretting-hand note can never be handed a held FIELD its
-  attack forbids, and neither can a note carrying a NODE — a harmonic has no planted finger, its
-  stop being the `fret` it speaks from.
-- **The Held-channel DELETE has a clearing planner of its own** (`planClearHeldStops`), because a
-  default satellite must never be authored as a real `0`. Clearing withdraws the charter's statement
-  and nothing else: an authored stop goes, a default clears nothing, and a derived tap stop or a
-  plant refuses off the same ownership table the retype reads. Refusals are as silent as every
-  refused plan today.
-- A typed digit STATES a stop and a transpose SHIFTS one, both reaching a claim through the note
-  that carries it exactly as they reach that note's own head.
+- A typed digit STATES a stop and a transpose SHIFTS one, each on the record's own fret.
 
 ---
 

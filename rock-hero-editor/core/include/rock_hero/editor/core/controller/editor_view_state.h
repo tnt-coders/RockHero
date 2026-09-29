@@ -383,11 +383,9 @@ struct ChartMarqueeViewState
 
 The caret addresses a slot, and an object there can wear more than one face the charter works on
 alone. The MARK is the face every object has: a head, a keyframe's mark, where the digits state the
-stop that sounds and `Delete` takes the object (or a keyframe's fret). A note under a right-hand
-onset also wears its HELD stop, the satellite digit outboard of its posture bracket, where the
-digits state what the fretting hand holds and `Delete` clears it. An object stating a bend wears the
-BEND CHIP printing it, where `Delete` takes the bend and `Enter` opens the bend picker; digits there
-type into the mark.
+stop that sounds and `Delete` takes the object (or a keyframe's fret). An object stating a bend
+wears the BEND CHIP printing it, where `Delete` takes the bend and `Enter` opens the bend picker;
+digits there type into the mark.
 
 A face is reachable only while it is drawn, so an edit that takes it away leaves the caret on the
 mark.
@@ -396,9 +394,6 @@ enum class ChartCaretFace : std::uint8_t
 {
     /*! \brief The face every object has: its head, or a keyframe's mark. */
     Mark,
-
-    /*! \brief A note's held-stop satellite. */
-    HeldStop,
 
     /*! \brief The chip printing the object's bend. */
     BendChip,
@@ -424,9 +419,8 @@ struct ChartCaretViewState
 
     The surface reads THIS rather than re-deriving it from the note, because the controller is what
     decided the caret could be there at all: the square stays on the slot on every face, and the
-    selection ring moves onto the face — the held stop's satellite, the bend chip — in place of the
-    head. A face is published only where it is drawn, which is the same invariant the caret itself
-    holds.
+    selection ring moves onto the face — the bend chip — in place of the head. A face is published
+    only where it is drawn, which is the same invariant the caret itself holds.
     */
     ChartCaretFace face{ChartCaretFace::Mark};
 
@@ -690,17 +684,6 @@ struct ChartPendingFretTargets
     tail simply wear no box, as it wears no ring.
     */
     std::vector<ChartKeyframeRef> keyframes{};
-
-    /*!
-    \brief WHICH stop of those notes the entry states — and therefore where its box draws.
-
-    One channel for the whole entry, fixed when it opened: on the sounding channel the box rides
-    each affected note's own face, and on the held one it rides the satellite digit outboard of
-    that note's posture bracket, which is the mark the value will land in. Carried rather than
-    re-derived because the entry is what decided it — the caret's stop when the digits began — and a
-    surface guessing from the note would show the box on the wrong mark for a note that states both.
-    */
-    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
 
     /*!
     \brief Compares two target sets by their stored values.

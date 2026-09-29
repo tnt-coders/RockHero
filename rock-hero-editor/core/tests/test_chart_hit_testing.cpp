@@ -298,63 +298,15 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
     CHECK(empty.empty());
 }
 
-// The held stop's satellite is its own TARGET, disjoint from the head beside it: clicking the head
-// addresses what the note sounds and clicking the column outboard of its bracket addresses what the
-// hand holds. Same note either way — a second mark, never a second object — and nothing undrawn is
-// reachable, which is what the two negative probes pin.
-TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
+// A held stop's satellite is DISPLAY-ONLY (RULED 2026-09-29): a held stop is derived, never typed,
+// so the digit outboard of a bracket is no target. A press there reaches nothing even while the
+// note is revealed and the digit is drawn, and falls through to the ordinary placement; the head
+// beside it still answers.
+TEST_CASE("Chart hit testing never resolves a held stop's satellite", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();
-    // A tap on string 5 at 6s (x = 120, y = 60.5) carrying the stop the hand holds under it, on a
-    // lane the fixture leaves empty so nothing else can answer the probes.
-    common::core::NoteViewState tap;
-    tap.start_seconds = 6.0;
-    tap.ring_end_seconds = 6.5;
-    tap.ink_end_seconds = 6.0;
-    tap.string = 5;
-    tap.fret = 12;
-    tap.attack = common::core::NoteAttack::Tap;
-    tap.held = 5;
-    tap.stop_mark = common::core::StopMarkViewState{
-        .seconds = 6.0,
-        // FRONTING its span's bracket, which is the one face the posture's own ink states — always
-        // standing, whatever its authorship, because the bracket owes the statement.
-        .face = common::core::StopMarkFace::Posture,
-    };
-    tab.notes.push_back(tap);
-
-    const common::ui::TabLaneGeometry geometry = makeGeometry();
-    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
-    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
-    const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-    const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
-
-    // Inside the column: the satellite. On the head's own centre: the note, through its head.
-    CHECK(
-        chartHitTarget(tab, geometry, satellite_x, 60.0f) ==
-        ChartHitTarget{ChartHeldStopHit{.index = 3}});
-    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == noteTarget(3));
-
-    // Past the column's right edge nothing is drawn, so nothing is reachable — the same rule that
-    // keeps an undrawn bracket off the hit list.
-    CHECK_FALSE(
-        chartHitTarget(tab, geometry, bar_right + static_cast<float>(slot.extent()) + 2.0f, 60.0f)
-            .has_value());
-    // And a note that states no held stop draws no satellite there at all, which is the
-    // discrimination: the column is the STOP's, not every note's.
-    tab.notes.back().held.reset();
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
-}
-
-// THE SATELLITE REVEAL, as this probe sees it: a REVEAL-ONLY satellite is reachable exactly while
-// it is drawn, which is exactly while its note is revealed. The reveal is the caller's own per-note
-// answer, so it is handed in here rather than derived, and the layout answers "is it drawn" for the
-// painter and for this probe from one rectangle.
-TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][chart]")
-{
-    common::core::ChartViewState tab = makeTabState();
-    // The same tap as the case above, on the empty string-5 lane at 6 s (x = 120, y = 60.5), with
-    // the stop DERIVED: the pull-off notation states it, so the face waits for the reveal.
+    // A tap on string 5 at 6s (x = 120, y = 60.5) over a stop the hand holds, on a lane the
+    // fixture leaves empty so nothing else can answer the probes.
     common::core::NoteViewState tap;
     tap.start_seconds = 6.0;
     tap.ring_end_seconds = 6.5;
@@ -375,33 +327,8 @@ TEST_CASE("Chart hit testing reveals a derived held stop's satellite", "[core][c
     const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
     const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
 
-    // Unrevealed — including a caller with no reveal state at all, which is what the default
-    // means, and a reveal of ANOTHER note, since the answer is per note: nothing is drawn out
-    // there, so nothing answers.
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, revealOnly(0)).has_value());
-
-    // Revealed: the same probe reaches the stop, as a second MARK of the same note — whether the
-    // whole lane is revealed or the tap alone is.
-    CHECK(
-        chartHitTarget(tab, geometry, satellite_x, 60.0f, revealEverything()) ==
-        ChartHitTarget{ChartHeldStopHit{.index = 3}});
-    CHECK(
-        chartHitTarget(tab, geometry, satellite_x, 60.0f, revealOnly(3)) ==
-        ChartHitTarget{ChartHeldStopHit{.index = 3}});
-    // And the head is unaffected either way: a note is addressed at its own column whatever its
-    // marks are doing.
-    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == noteTarget(3));
-
-    // The discrimination against a law that stood every satellite: the SAME figure with the stop
-    // AUTHORED — a standing face — answers with no reveal at all.
-    tab.notes.back().stop_mark = common::core::StopMarkViewState{
-        .seconds = 6.0,
-        .face = common::core::StopMarkFace::Standing,
-    };
-    CHECK(
-        chartHitTarget(tab, geometry, satellite_x, 60.0f) ==
-        ChartHitTarget{ChartHeldStopHit{.index = 3}});
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, revealEverything()).has_value());
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f, revealEverything()) == noteTarget(3));
 }
 
 // Selection keys resolve back to projection indices through the sorted chart note stream, and

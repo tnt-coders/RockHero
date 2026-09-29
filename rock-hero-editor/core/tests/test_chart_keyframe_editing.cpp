@@ -1590,7 +1590,6 @@ TEST_CASE("A digit at a keyframe draws the pending box and waits for a second", 
             decltype(pending->at){ChartPendingFretTargets{
                 .notes = {},
                 .keyframes = {ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
-                .channel = common::core::ChartStopChannel::Sounding,
             }});
     }
 
