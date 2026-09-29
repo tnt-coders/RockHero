@@ -1808,15 +1808,20 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // THE DEFAULT FACT: a tap that states no held stop of its own still carries a `held` and a
         // mark — whatever the fretting hand has under it answers the question.
         //
-        // The grip states fret 7 on string 3 and rings up to the tap; the longer note beside it
-        // gives the span its extent; and the tap at beat 3 states nothing of its own, so what is
-        // under it is that grip, held on under tenure after its own ring has ended.
+        // A claim states fret 7 on string 3 at beat 1; the longer note beside it gives the span its
+        // extent; and the tap at beat 3 states nothing of its own, so what is under it is that
+        // grip. The grip is CLAIMED because a struck 7 would have its ring clamped at the tap, and
+        // with nothing proving the finger stayed the span would close exactly there — a tap at a
+        // span's close stands in no grip at all (\ref SpanCover is half-open).
         const ChartViewState state = project(
             {strike(1, 1, 5, Fraction{4}),
-             strike(1, 3, 7, Fraction{2}),
+             tap(1, 3, 20, 7, Fraction{1, 32}),
              tap(3, 3, 12, std::nullopt, Fraction{1})});
 
-        const NoteViewState* const tapped = tap_view(state);
+        const auto bare_tap = std::ranges::find_if(state.notes, [](const NoteViewState& note) {
+            return note.attack == NoteAttack::Tap && note.fret == 12;
+        });
+        const NoteViewState* const tapped = bare_tap == state.notes.end() ? nullptr : &*bare_tap;
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
         {

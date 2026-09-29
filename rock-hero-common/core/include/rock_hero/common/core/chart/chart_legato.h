@@ -407,7 +407,7 @@ A POST-SHAPES FACT, which is why it is a table of its own rather than another ar
 fold. The default READS the derived posture, and the postures are derived from the claims: folding
 it into \ref chartClaimedStops would make the spans an input to the very default they produce, and
 a tap's transparency to the grouping — taps are the tapping hand, so they neither found postures nor
-close them — would be gone with it. So this runs AFTER \ref deriveChartShapes and feeds nothing
+grow them — would be gone with it. So this runs AFTER \ref deriveChartShapes and feeds nothing
 that runs before it.
 
 LIVE-DERIVED, and that falls out of being derived at all: an edit that reflows the spans around a

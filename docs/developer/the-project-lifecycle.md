@@ -513,12 +513,14 @@ neighbours.
     states, and techniques render on the notes; a natural harmonic's node is no grip at all
     (re-ruled 2026-09-24), so no posture holds one. Tap-attack notes are invisible to span
     derivation: they
-    join no posture and never open or close a span, so a tap-only onset is fully transparent to
-    the GROUPING — a chord ringing under taps on other strings keeps its span, which rule 12 then
+    join no posture and never open a span, so a tap-only onset is transparent to the GROUPING —
+    a chord ringing under taps on other strings keeps its span, which rule 12 then
     renders as a held arpeggio, while a short-ringing chord's span still ends at its own ring,
     before the taps. Transparent to the grouping is not transparent to the ring: a tap is a real
     onset on its own string, so the ring policy's clamp ends any ring there and that string no
-    longer joins a later posture. A mixed onset (a fretting-hand note struck under simultaneous
+    longer joins a later posture. The one span a tap CLOSES is the grip it contradicts: a tap
+    whose path reaches the grip's own stop on its string, or goes below it, says that finger is
+    gone, and the span splits there (THE TAP'S FLOOR, ruled 2026-09-29). A mixed onset (a fretting-hand note struck under simultaneous
     right-hand taps, the two-hand-tapping staple) counts only its non-tap members: one left-hand
     note is an ordinary single onset, two or more are a chord. An isolated strum gets a span of
     its own ring. **A lone RE-PICK needs no exception of its own**: a single-string onset at a

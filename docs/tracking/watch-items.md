@@ -695,6 +695,18 @@ figures are the likely case). **Remedy**: bring the concrete case to the user fo
 ruling; the candidate relaxation is a time bound on the quit arm, in which case the guard against
 resurrecting spans across silence must come from somewhere else, stated in the record.
 
+### A later plant is not tested against an earlier bare tap — trigger: a figure whose bracket prints a held stop at or above a tap it spans
+
+Ruled 2026-09-29 (THE TAP'S FLOOR): a picking-hand stop whose path reaches the standing grip's stop
+on its string, or goes below it, splits the span (`chart_shapes.cpp`, after the per-string
+contradiction loop). The test runs in one direction only — a tap against the grip already
+standing when it strikes. A claim a LATER slot states on that string (a pull-off's plant under a
+later tap) is not tested against a bare tap struck earlier inside the same span, so a span could
+grow a held stop at or above a tap it already covers. No chart in the corpus has shown it: the
+plant sits strictly below its own source, and a bare tap above the grip leaves the span only by
+ring death. Remedy when it fires: keep each span's lowest tap floor per string and refuse, as a
+contradiction, a claim that reaches it.
+
 ### A still-held older note joins no later bracket — trigger: a real figure whose bracket reads as understating the hand, or a passage that goes bare where it should bracket
 
 Ruled 2026-09-20 after sighting three options side by side: **a ring belongs only to the span it

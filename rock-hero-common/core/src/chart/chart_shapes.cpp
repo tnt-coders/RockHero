@@ -317,6 +317,10 @@ struct SlotReading
     // per-string renewal) and what the sounds column takes.
     std::vector<std::optional<Fraction>> sounding;
 
+    // The lowest fret each picking-hand stop here reaches (its hull's floor) — what R4 tests
+    // against a standing grip, since the tap cannot sound at or below a finger holding the string.
+    std::vector<std::optional<int>> tap_floors;
+
     std::vector<StopClaim> claims;
 
     std::size_t struck{0};
@@ -727,6 +731,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             .strikes = std::vector<std::optional<ChartStop>>(string_count),
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
             .sounding = std::vector<std::optional<Fraction>>(string_count),
+            .tap_floors = std::vector<std::optional<int>>(string_count),
             .claims = {},
             .struck = 0,
         };
@@ -739,6 +744,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             if (string_index.has_value())
             {
                 slot.sounding[*string_index] = ring_end_of(onset_end);
+                if (pickingHandStopsString(member.attack, member.harmonic_node))
+                {
+                    slot.tap_floors[*string_index] = fretHull(member).lowest;
+                }
             }
             if (claim.has_value() && string_index.has_value())
             {
@@ -1088,6 +1097,22 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     {
                         contradiction = true;
                     }
+                }
+            }
+            // THE TAP'S FLOOR (RULED 2026-09-29). A picking-hand stop sounds only ABOVE the finger
+            // holding its string, so a tap whose path reaches the standing grip's fret or below it
+            // — struck there, or slid there — says that finger is gone: the grip moved and the
+            // span splits. Over an open-string entry the tap proves nothing, since no finger is
+            // down.
+            for (std::size_t string_index = 0; string_index < string_count && !contradiction;
+                 ++string_index)
+            {
+                const std::optional<int>& tap_floor = slot.tap_floors[string_index];
+                const std::optional<ChartStop>& gripped = gripped_before[string_index];
+                if (tap_floor.has_value() && gripped.has_value() && gripped->fret > 0 &&
+                    *tap_floor <= gripped->fret)
+                {
+                    contradiction = true;
                 }
             }
         }

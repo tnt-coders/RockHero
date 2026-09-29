@@ -143,7 +143,8 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   chain — CONTINUES the span, so a chord, its dead chugs and the chord again are one statement (a
   change in ARTICULATION never moves the grip), and a stop the grip LACKS grows the span IN PLACE:
   growth IS accumulation, and nothing splits. A still-ringing string joins the posture it crosses,
-  tap-only onsets are transparent to the grouping, and the stored close is the breaking event's own
+  tap-only onsets found and grow nothing — except that a tap reaching the grip's own stop on its
+  string, or below it, says that finger is gone and splits the span — and the stored close is the breaking event's own
   onset or where the statement ran out, whichever is EARLIER — never a display value, though a span
   closed by a following event still keeps the same minimum sustain distance every other element does
   once the projection trims it. Two facts the finished list cannot re-derive ride on the spans

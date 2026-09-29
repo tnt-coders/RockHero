@@ -884,7 +884,7 @@ TEST_CASE("Chart shape derivation folds a ringing string into the posture", "[co
 }
 
 // Tap-only onsets are transparent to the grouping: they neither form a posture nor close a held
-// one, so a chord ringing under two-hand tapping keeps its span.
+// one above its stops, so a chord ringing under two-hand tapping keeps its span.
 TEST_CASE("Chart shape derivation rings a span through tap-only onsets", "[core][chart]")
 {
     const auto chord_with_taps = [](const Fraction ring) {
@@ -4787,6 +4787,77 @@ TEST_CASE("A tap over a held chord stop carries the span through it", "[core][ch
     REQUIRE(arpeggio.size() == 1);
     CHECK(arpeggio[0]);
     everySpanIsPositive(derived);
+}
+
+// THE TAP'S FLOOR (RULED 2026-09-29): the picking hand sounds a string only ABOVE the finger
+// holding it, so a tap whose path reaches the standing grip's stop or below it says that finger is
+// gone — the grip moved, and the span splits at the tap. Above the stop the tap rides, as the case
+// before this one pins.
+TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][chart]")
+{
+    // The chord holds 9 on string 3 for four beats, and one onset lands on that string at beat 2.
+    const auto chord_with = [](const ChartNote& onset) {
+        return streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{4}),
+            onset,
+        });
+    };
+    const auto span_runs = [](const std::vector<ChartNote>& notes, const Fraction extent) {
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == extent);
+    };
+
+    SECTION("a tap above the stop rides it")
+    {
+        span_runs(chord_with(tapAt(2, Fraction{}, 3, 12, Fraction{1})), Fraction{4});
+    }
+
+    SECTION("a tap on the stop itself splits")
+    {
+        span_runs(chord_with(tapAt(2, Fraction{}, 3, 9, Fraction{1})), Fraction{1});
+    }
+
+    SECTION("a tap below the stop splits")
+    {
+        span_runs(chord_with(tapAt(2, Fraction{}, 3, 8, Fraction{1})), Fraction{1});
+    }
+
+    SECTION("a tapping slide that travels down through the stop splits at its onset")
+    {
+        const ChartNote slid =
+            travellingAt(tapAt(2, Fraction{}, 3, 16, Fraction{1}), {{Fraction{1, 2}, 8}});
+        span_runs(chord_with(slid), Fraction{1});
+    }
+
+    SECTION("a scrape that travels down through the stop splits at its onset")
+    {
+        ChartNote scrape =
+            travellingAt(noteAt(2, Fraction{}, 3, 12, Fraction{1}), {{Fraction{1}, 3}});
+        scrape.attack = NoteAttack::PickSlide;
+        span_runs(chord_with(scrape), Fraction{1});
+    }
+
+    SECTION("a tap over an open string the grip leaves rides, since no finger is down")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            noteAt(1, Fraction{}, 3, 0, Fraction{4}),
+            tapAt(2, Fraction{}, 3, 3, Fraction{1}),
+        });
+        span_runs(notes, Fraction{4});
+    }
+
+    SECTION("the tap that split the span holds nothing: its default is the open string")
+    {
+        const std::vector<ChartNote> notes = chord_with(tapAt(2, Fraction{}, 3, 9, Fraction{1}));
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        CHECK(resolutions.held_stops[indexAt(notes, 1, 2, 3)] == std::optional{0});
+    }
 }
 
 // THE PARTIAL-SLIDE SPLIT, sighted on the corpus's verse vamp as "that chord is split mid sustain":

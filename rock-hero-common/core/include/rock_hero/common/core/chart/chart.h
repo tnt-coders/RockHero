@@ -1660,29 +1660,33 @@ inline void clearSlideOut(ChartNote& note)
 }
 
 /*!
-\brief Whether the onset's own travel covers a fret — the closed hull of every stop it states.
+\brief The closed range of frets one onset travels: the hull of every stop it states.
 
 The note's whole path as one range: its own \ref ChartNote::fret and every fret its keyframes
-state along the way, the slide-out it gestures toward included. Asked of the PATH rather than of
+state along the way, the slide-out it gestures toward included. Taken of the PATH rather than of
 the attack, so a tap and a pick slide are the same question asked once rather than two rules that
-would have to be kept in step: a scrape always states a path, a tap states one wherever the charter
-wrote keyframes or a slide-out for it, and an onset stating none has a hull of one point — the
-degenerate case, and the form the equal-fret refusal takes.
+would have to be kept in step, and an onset stating no path has a hull of one point. A hull rather
+than a set of visited frets because travel between two stated stops sweeps every fret in between.
+*/
+struct FretHull
+{
+    /*! \brief Lowest fret the path states. */
+    int lowest{0};
 
-The rule this exists for is the held stop's exclusion (\ref ChartNote::held): the fretting hand's
-planted finger is ON the string, so the picking hand cannot start on it, end on it, or pass through
-it. A hull rather than a set of visited frets because travel between two stated stops sweeps every
-fret in between, and the finger is in the way wherever it sits along that sweep.
+    /*! \brief Highest fret the path states. */
+    int highest{0};
+};
+
+/*!
+\brief Measures the closed range of frets one onset travels.
 
 \param note Note whose travel is measured.
-\param fret Fret to test against the travel.
 
-\return True when the fret lies inside the closed range the note travels.
+\return The hull of the note's own fret and every fret its keyframes state.
 */
-[[nodiscard]] inline bool travelsThroughFret(const ChartNote& note, const int fret) noexcept
+[[nodiscard]] inline FretHull fretHull(const ChartNote& note) noexcept
 {
-    int lowest = note.fret;
-    int highest = note.fret;
+    FretHull hull{.lowest = note.fret, .highest = note.fret};
     for (const Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
@@ -1691,10 +1695,29 @@ fret in between, and the finger is in the way wherever it sits along that sweep.
         {
             continue;
         }
-        lowest = *stop < lowest ? *stop : lowest;
-        highest = *stop > highest ? *stop : highest;
+        hull.lowest = *stop < hull.lowest ? *stop : hull.lowest;
+        hull.highest = *stop > hull.highest ? *stop : hull.highest;
     }
-    return lowest <= fret && fret <= highest;
+    return hull;
+}
+
+/*!
+\brief Whether the onset's own travel covers a fret (\ref fretHull).
+
+The fretting hand's finger standing on a fret is ON the string, so a sounding path cannot start on
+it, end on it, or pass through it. That bounds a stop held beneath the path (\ref ChartNote::held)
+and THE RIDE, where a source states a standing grip's stop only if its path stays clear of it. The
+tap's own floor against a standing grip is the lower bound of the same hull.
+
+\param note Note whose travel is measured.
+\param fret Fret to test against the travel.
+
+\return True when the fret lies inside the closed range the note travels.
+*/
+[[nodiscard]] inline bool travelsThroughFret(const ChartNote& note, const int fret) noexcept
+{
+    const FretHull hull = fretHull(note);
+    return hull.lowest <= fret && fret <= hull.highest;
 }
 
 /*!

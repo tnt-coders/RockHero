@@ -56,10 +56,13 @@ struct SpanCoverage
 /*!
 \brief WHICH span covers an instant: the FURTHEST-REACHING one already started when it arrives.
 
-An onset at a seam — one span closing where the next opens — stands in the grip that ARRIVED: a
-note struck there is a member of the new shape and not of the one it replaced, which is the
-seam-ownership half of the grip-tenure law. The tail law asks nothing here at all, the curtain
-being universal, so this one query is the whole coverage vocabulary.
+HALF-OPEN: a span covers its own front and not its close. An onset at a seam — one span closing
+where the next opens — stands in the grip that ARRIVED: a note struck there is a member of the new
+shape and not of the one it replaced, which is the seam-ownership half of the grip-tenure law. An
+onset at a close where nothing arrives stands in no grip at all: the span ended there because the
+chart stopped proving the grip, so a tap splitting it holds nothing the span stated. The tail law
+asks nothing here at all, the curtain being universal, so this one query is the whole coverage
+vocabulary.
 
 The highway's chord grouping asks the same question with a different rule — the LATEST-STARTING one
 — and the two agree because SPANS NEVER OVERLAP: a closing event ends a span at or before its own
@@ -107,7 +110,7 @@ public:
 
     \param at Instant the caller is asking about.
 
-    \return The furthest-reaching span started at or before `at` whose own reach is not behind it.
+    \return The furthest-reaching span started at or before `at` whose reach is still ahead of it.
     */
     [[nodiscard]] std::optional<SpanCoverage> reaching(const GridPosition& at) const
     {
@@ -119,7 +122,7 @@ public:
         }
         const SpanCoverage& best =
             m_best[static_cast<std::size_t>(std::distance(m_shapes.begin(), first_excluded)) - 1];
-        if (best.end < at)
+        if (best.end <= at)
         {
             return std::nullopt;
         }

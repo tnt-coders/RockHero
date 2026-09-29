@@ -386,6 +386,14 @@ MEMBER QUITS, or a STATEMENT CONTRADICTS the grip.
   written only by a MEMBER's own strike. A reach a tap wrote would let a tapped sixteenth decide a
   chord's extent. One number can only ever be right about one of those, which is why the hand keeps
   two columns.
+- **THE TAP'S FLOOR** (RULED 2026-09-29, user). The picking hand sounds a string only ABOVE the
+  finger holding it, so a picking-hand stop whose path — its onset, every keyframe, its slide-out
+  (`fretHull`) — reaches the standing grip's stop on its own string or goes below it says that
+  finger is gone: the grip moved, and the span splits at the tap exactly as at any contradiction.
+  A tap on the stop itself contradicts it outright; a tapping slide or a scrape down through it
+  does too. Over an open-string entry the tap proves nothing, since no finger is down. Residual,
+  on the watch list: a claim a LATER plant states at or above an earlier bare tap is not tested
+  against that tap.
 - **A span's reach is the MINIMUM of its sounded members' coverage** (`span_reach`), landing-capped.
   Claims never bound — a claim has no ring — so a span whose members are all claims reaches its own
   start, which is the honest zero. Min-extent is this law's box case rather than a rule beside it:
@@ -747,7 +755,10 @@ FACT of the tap, not presentation decoration, which is why it resolves in core a
 copies it. Inside a span the release lands on WHATEVER STOP THE COVERING SPAN'S POSTURE HOLDS on the
 tap's own string (the pressed fret, which a node grip states as 0 by construction, since a node
 presses nothing); span-less, or where the posture states nothing on that string, it is 0 — the open
-string, nothing held. It is LIVE-DERIVED: an edit that reflows the spans re-derives it, which falls
+string, nothing held. Coverage is HALF-OPEN (`SpanCover`): a tap at the very instant a span
+closes stands in no grip, since the span closed there because the chart stopped proving it — the
+tap that splits a span under THE TAP'S FLOOR defaults to 0, never to the stop it just displaced.
+It is LIVE-DERIVED: an edit that reflows the spans re-derives it, which falls
 out of per-revision recomputation because there is no stored value to go stale. **THE LAYERING is
 half the ruling**: the default READS the derived posture, so it computes AFTER `deriveChartShapes`,
 as its own table (`chartHeldStops` → `ChartResolutions::held_stops`). It must not enter the claim
