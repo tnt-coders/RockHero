@@ -1170,9 +1170,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     }
     // The keyframe half, collected on EITHER channel: a keyframe has one position channel and wears
     // no satellite, so nothing about it asks which stop of a note the digit meant — the selection
-    // kind already said. A keyframe stating no fret states nothing about position, so it offers no
-    // stop to transpose and takes none: authoring a fret there would state a channel the charter
-    // never pointed at.
+    // kind already said. A keyframe stating no fret INHERITS the fret in force and is drawn and
+    // selected like any other point (ruled 2026-09-27), so a typed value pointed at it STATES its
+    // fret there, beside whatever else the point states. A SHIFT moves stops, and such a point has
+    // no stop of its own — it rides the path it inherits — so a shift takes none.
     for (std::size_t base_index = 0; base_index < base.size(); ++base_index)
     {
         const common::core::ChartNote& note = base[base_index];
@@ -1186,13 +1187,19 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         {
             // Bound to a local so the presence test and the read are provably one object.
             const std::optional<int>& fret = keyframe.fret;
-            if (!fret.has_value() || !std::ranges::binary_search(offsets, keyframe.offset))
+            if (!std::ranges::binary_search(offsets, keyframe.offset) ||
+                (!fret.has_value() && set == nullptr))
             {
                 continue;
             }
+            // A set writes its own value to every addressed stop, so a point stating no fret
+            // carries the typed one; only a shift reads the stop's value, and it never gets here
+            // without one.
             addressed.push_back(
                 AddressedStop{
-                    .base_index = base_index, .keyframe_offset = keyframe.offset, .value = *fret
+                    .base_index = base_index,
+                    .keyframe_offset = keyframe.offset,
+                    .value = fret.has_value() ? *fret : set->fret,
                 });
         }
     }

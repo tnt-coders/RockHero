@@ -1312,6 +1312,60 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
     CHECK(currentChart(fixture.controller) == original);
 }
 
+// A point stating a bend alone INHERITS the fret in force, and a typed digit at it STATES one — the
+// ring digit and the bare one alike, since the caret's landing selects the point either way. The
+// bend stays beside it on the same point, which now says where the hand is as well as how far the
+// string is pushed. A fret SHIFT moves stops, and the point has none of its own, so it takes none.
+TEST_CASE("A digit at a bend point states its fret", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    // A whole step pushed at 5.0s, six beats in, out where the path holds at the junction's 9.
+    chart.notes[0].keyframes.push_back(
+        common::core::Keyframe{.offset = common::core::Fraction{6}, .fret = {}, .bend = 1.0});
+    KeyframeFixture fixture{std::move(chart)};
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    const auto typed_point = [&fixture]() -> common::core::Keyframe {
+        const common::core::Chart typed = currentChart(fixture.controller);
+        REQUIRE(typed.notes.size() == 1);
+        REQUIRE(typed.notes[0].keyframes.size() == 2);
+        return typed.notes[0].keyframes[1];
+    };
+    const auto check_stated = [](const common::core::Keyframe& point) {
+        CHECK(point.offset == common::core::Fraction{6});
+        CHECK(point.fret == std::optional{7});
+        const std::optional<double>& bend = point.bend;
+        REQUIRE(bend.has_value());
+        if (bend.has_value())
+        {
+            CHECK_THAT(*bend, Catch::Matchers::WithinULP(1.0, 0));
+        }
+    };
+
+    SECTION("the ring digit")
+    {
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onChartRingDigitTyped(7);
+        check_stated(typed_point());
+        fixture.controller.onUndoRequested();
+        CHECK(currentChart(fixture.controller) == original);
+    }
+
+    SECTION("the bare digit")
+    {
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onChartFretDigitTyped(7);
+        check_stated(typed_point());
+    }
+
+    SECTION("a fret shift leaves it inheriting")
+    {
+        click(fixture.controller, g_holding_tail_x, g_string_3_y);
+        fixture.controller.onChartFretShiftRequested(1);
+        CHECK(currentChart(fixture.controller) == original);
+    }
+}
+
 // The typed point and its changed path draw immediately beneath the pending box, then wait for a
 // second digit exactly as a typed note does: the two combine into one value inside the entry
 // window, so a point widens like every other typed value. The FIRST key's plane is the entry's,

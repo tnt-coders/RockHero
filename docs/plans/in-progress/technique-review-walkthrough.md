@@ -939,8 +939,10 @@ with W3; the verb itself can build silent-at-parity first, like the shipped tech
   operand, not a second entry kind. `ChartStopChannel` gained NO third value — a keyframe has one
   position channel and no satellite, so the SELECTION KIND is the discriminator, and a third
   enumerator would have made the channel and the kind two authorities for one question. A keyframe
-  stating no fret is not addressed: it says nothing about position, and nothing draws it to point
-  at. The refusals are the rule authority's as ever — the capo floor, the fret cap, a stated fret
+  stating no fret inherits the fret in force and, since 2026-09-27, is drawn and selectable, so a
+  typed value pointed at it STATES its fret there beside the bend or vibrato it already carries; a
+  shift moves stops, and such a point has none of its own, so a shift leaves it inheriting
+  (2026-09-29: `Alt`+digit at a bend point had stated nothing). The refusals are the rule authority's as ever — the capo floor, the fret cap, a stated fret
   under a slide-out — so the planner carries no fret bound of its own.
 
 ## Ruled: import dispositions
