@@ -55,6 +55,12 @@ branch (`chartObjectAt` → retype) that exists only for that state. Re-derive t
 `chartObjectAt` in the transition's selection repair (`dropChartSelectionKeysNamingNothing`) when
 an armed caret is left with nothing selected, then delete that branch.
 
+Partly overtaken by `e4529a52`: undo and redo now DO move the caret, restoring the selection each
+entry recorded, so undoing a delete re-selects what it took. The state survives only where the
+recorded focus names a silent point the undo dissolved (the repair then drops the key under the
+armed caret) or where an entry recorded no focus. Re-check which of those reach
+`chartCaretEntryTarget`'s branch before deleting it.
+
 ### The "caret armed on a string row" test is written at about ten sites
 
 `caret != nullptr && !caret->lane.has_value()` appears across `chart_handlers.cpp` (~:123, :539,
@@ -1299,3 +1305,12 @@ against the tree on the date above.
   same linked-or-resting head through `tabKeyframeLayout`'s mark and `mark_drawn`. They agree today;
   the painter's head pass reading `tabKeyframeLayout(...).shape == Head && mark_drawn` (and
   `keyframeHeadFret` only for the digit) makes them one statement.
+
+## Found in the simplicity review of the undo focus (2026-09-29)
+
+- **Marker edits still derive their undo focus from a diff.** Chart edits now record where the
+  charter stood on each side (`ChartEditFocus`, `e4529a52`); `MarkerModelEdit::focus` still reads
+  it off the two snapshots through `firstChangedRecord` (`edit_focus.h`). Exact today — each marker
+  edit touches one record and a marker selection has no caret-versus-object ambiguity — so no
+  defect, but recording there too would make the three timeline edit families one shape and let
+  `firstChangedRecord` go.
