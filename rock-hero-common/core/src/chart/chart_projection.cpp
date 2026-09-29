@@ -469,7 +469,23 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             // an entry in the wide table off that very note: the plant is a fact about the hand the
             // SPAN carries, and demoting the pressed stop to a reveal behind it would hide the only
             // statement of what the string is actually sounding from.
+            // THE PLANT'S FACE DRAWS AT THE RELEASE STATEMENT (RULED 2026-09-29): a fretting-hand
+            // source's plant is a finger waiting where the source's own finger lets go, so it
+            // stands at the last fret the source states inside its ring — the landing keyframe of
+            // a slid source, the head of an unslid one. A stop the picking hand's onset holds
+            // (a tap's) is the OTHER hand's finger, which does not travel with the tapping slide,
+            // so it stays at the head.
             double mark_seconds = view.start_seconds;
+            if (!pickingHandStopsString(note.attack, note.harmonic_node) &&
+                !harmonicOverPressedStop(note) && resolutions.planted_stops[note_index].has_value())
+            {
+                if (const Keyframe* const release = lastInteriorFretStatement(note);
+                    release != nullptr)
+                {
+                    mark_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                        onset_beat + release->offset.toDouble());
+                }
+            }
             // Named for what it decides rather than for one of its two grounds: the second arm IS
             // authorship, the first is pitch-criticality, and one of them standing is the whole
             // question the face asks.

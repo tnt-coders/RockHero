@@ -205,18 +205,13 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // is the open string — always waiting, no finger needed. Only a destination the chart never
         // defines derives nothing.
         //
-        // THE TRAVELED RANGE REFUSES IT, through the very predicate that refuses an AUTHORED one
-        // (\ref travelsThroughFret): the planted finger is on the string for the whole of the
-        // onset's path, so a stop the source starts on, ends on or sweeps through is not a stop any
-        // finger could have been waiting on. A source keyframed up past the fret its pull-off lands
-        // on is the figure, and there the connection states nothing about a second finger. One
-        // predicate for the derivation and the rule, so the resolution can never state a stop the
-        // document would refuse.
-        const ChartNote& onset_note = notes[onset];
-        if (!travelsThroughFret(onset_note, stop))
-        {
-            planted[onset] = stop;
-        }
+        // THE PLANT IS BOUND BY THE RELEASE ALONE, whatever path the source's finger travelled: the
+        // finger it proves is on the string AT THE RELEASE, and a finger arriving behind a sliding
+        // one and waiting there when it lifts is the ordinary two-finger landing of a slid
+        // pull-off. The Pull resolution already puts the stop strictly below the fret released
+        // from; no other bound exists (RULED 2026-09-29). The onset's traveled range bounds two
+        // other facts instead: the AUTHORED `held` and the RIDE (\ref gripStatement).
+        planted[onset] = stop;
     }
     return planted;
 }

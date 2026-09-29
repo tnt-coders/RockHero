@@ -427,6 +427,11 @@ Never under a harmonic played over a pressed stop (\ref harmonicOverPressedStop)
 that pressed stop: the node its head prints is measured from it, so it is the grip the figure
 needs, and a landing on the finger waiting beneath it is a new statement.
 
+Never where the source's own path sweeps the stop (\ref travelsThroughFret): it rides a held stop
+only while its whole path stays above it, since a fret stated at or below that stop would have
+sounded the stop instead. A slid source whose landing stop lies inside its travel therefore states
+what it sounds, exactly as the same notes plainly picked would.
+
 \param note The source note.
 \param planted The stop \p note's pull-off lands on (\ref chartPlantedStops); absent where none.
 \param down The stop the string is demonstrably at where \p note speaks — what it still sounds, the

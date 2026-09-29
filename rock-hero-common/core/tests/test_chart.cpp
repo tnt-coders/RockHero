@@ -4777,12 +4777,11 @@ TEST_CASE("The normalizer clears a held stop a pull-off states", "[core][chart]"
     }
 }
 
-// AND THE DERIVATION IS BOUND BY THE ONSET'S OWN TRAVEL, through the very predicate the document
-// refuses an AUTHORED held stop by (`travelsThroughFret`). A planted finger is on the string for
-// the whole of the picking hand's path, so a stop that path sweeps over is a stop nothing could
-// have been waiting on — and a derivation free of that bound would state values the same rules
-// reject.
-TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core][chart]")
+// AND THE DERIVATION IS BOUND BY THE RELEASE ALONE (RULED 2026-09-29): a pull-off proves a finger
+// on its landing stop at the release, whatever path the source travelled first, so a stop the
+// source's own path swept derives exactly as one it never touched. (The traveled range still bounds
+// the AUTHORED held stop and the ride; it no longer bounds the derivation.)
+TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
 
@@ -4813,15 +4812,15 @@ TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core]
         return chart;
     };
 
-    SECTION("a tap keyframed up past the fret states nothing about it")
+    SECTION("a tap keyframed up past the fret still states it")
     {
-        // The hull runs 3 through 12 and 5 sits inside it, so the sounding path crossed the very
-        // stop the connection would credit to a waiting finger.
+        // The hull runs 3 through 12 and 5 sits inside it: the finger arrived behind the tapping
+        // slide and was waiting on 5 when it lifted.
         const Chart chart = figure(3);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
-        CHECK_FALSE(chartDerivedStops(connections).front().has_value());
-        CHECK_FALSE(chartClaimedStops(connections).front().has_value());
+        CHECK(chartDerivedStops(connections).front() == std::optional{5});
+        CHECK(chartClaimedStops(connections).front() == std::optional{5});
     }
 
     SECTION("the untravelled tap still states it")
@@ -4833,6 +4832,54 @@ TEST_CASE("A pull-off states nothing inside the onset's traveled range", "[core]
         CHECK(chartDerivedStops(connections).front() == std::optional{5});
         CHECK(chartClaimedStops(connections).front() == std::optional{5});
     }
+}
+
+// A SLID fretting-hand source plants its stop too — the two-finger landing: 5 slides to 9, a finger
+// arrives behind it on 7, and the pull-off lands there — and the plant's face stands at the slide's
+// LANDING, where the finger it waits beneath lets go, not beside a head sounding 5 (RULED
+// 2026-09-29). The span gains nothing from it: the path swept 7, so the source cannot ride it.
+TEST_CASE("A slid pull-off source plants its stop and wears it at the landing", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote source;
+    source.position = GridPosition{.measure = 1, .beat = 1};
+    source.string = 1;
+    source.fret = 5;
+    source.sustain = Fraction{1};
+    source.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 9}};
+    ChartNote successor;
+    successor.position = GridPosition{.measure = 1, .beat = 2};
+    successor.string = 1;
+    successor.fret = 7;
+    successor.sustain = Fraction{1};
+    successor.attack = NoteAttack::Legato;
+    chart.notes = {source, successor};
+    REQUIRE(validateChartRules(chart, tempo_map).has_value());
+
+    const ChartConnections connections = chartConnections(chart.notes, tempo_map);
+    REQUIRE(connections.legato[1] == LegatoMotion::Pull);
+    CHECK(chartPlantedStops(connections).front() == std::optional{7});
+    // A fretting-hand source claims nothing: the plant is its face, never a claim.
+    CHECK_FALSE(chartDerivedStops(connections).front().has_value());
+    // The source's path swept 7, so it cannot ride a grip holding 7.
+    CHECK_FALSE(gripStatement(chart.notes.front(), std::optional{7}, frettedStop(7)).has_value());
+
+    Arrangement arrangement;
+    arrangement.chart = chart;
+    const ChartViewState view = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(view.notes.size() == 2);
+    const std::optional<StopMarkViewState>& mark = view.notes.front().stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        // The landing keyframe half a beat in: 0.25s past the onset at 120 bpm.
+        CHECK_THAT(
+            mark->seconds,
+            Catch::Matchers::WithinAbs(view.notes.front().start_seconds + 0.25, 1e-9));
+    }
+    CHECK(view.notes.front().held == std::optional{7});
 }
 
 // THE HOLD-UNDER LAW's derivation half: the planted stop is a fact about EVERY pull-off source,

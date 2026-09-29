@@ -327,7 +327,11 @@ struct SlotReading
 std::optional<ChartStop> gripStatement(
     const ChartNote& note, const std::optional<int>& planted, const std::optional<ChartStop>& down)
 {
-    if (!planted.has_value() || harmonicOverPressedStop(note) || down != frettedStop(*planted))
+    // A source RIDES a held stop only where its whole path stays above it: a fret stated at or
+    // below that stop would have sounded the stop instead, so a source whose travel sweeps the
+    // plant — a slid source's two-finger landing — states what it sounds.
+    if (!planted.has_value() || harmonicOverPressedStop(note) || down != frettedStop(*planted) ||
+        travelsThroughFret(note, *planted))
     {
         return std::nullopt;
     }

@@ -570,8 +570,23 @@ pull entail the finger at both ends.
   on the finger waiting under it is a NEW statement and the span closes at the release with the
   pressed fret in its bracket.
 - **The open string is a fret like any other** under this law: it states nothing unless the string
-  was already sounding open. The TRAVELED RANGE still refuses a derivation through the very
-  predicate that refuses an authored held stop (`travelsThroughFret`).
+  was already sounding open.
+- **THE PLANT IS BOUND BY THE RELEASE ALONE** (RULED 2026-09-29, after a Fable fretting-hand
+  review). A pull-off derives its landing stop beneath its source whatever path the source's
+  finger travelled: the finger it proves is on the string AT THE RELEASE, and a finger arriving
+  behind a sliding finger and waiting there when it lifts is the ordinary two-finger landing of a
+  slid pull-off. The Pull resolution already puts the plant strictly below the fret released from;
+  no other bound exists. The onset's traveled range (`travelsThroughFret`) bounds two other facts
+  and stays on them: the AUTHORED `held`, a finger asserted for the whole ring; and THE RIDE — a
+  source states a standing grip's stop beneath it only where its whole path stays above that stop
+  (`gripStatement`), since a fret stated at or below a held stop would have sounded it. A slid-up
+  source whose plant lies inside its travel therefore states what it sounds, lands at its keyframe
+  and releases as a new statement, exactly as the same notes plainly picked. Taps take the same
+  derivation.
+- **THE PLANT'S FACE draws at the RELEASE STATEMENT** under a fretting-hand source: the last fret
+  the source states strictly inside its ring (`lastInteriorFretStatement`) — the landing keyframe
+  of a slid source, its head where it states none. A stop under a TAP stays at the tap's head: it
+  is the other hand's finger, which does not travel with the tapping slide (user ruling).
 - **THE FOLD survives exactly as far as the proof does**: a span dates back across a source only
   where that source rode above an already-held stop. A source over any other ground begins nothing
   early; the statement begins at its release.

@@ -2234,6 +2234,27 @@ stop.
 }
 
 /*!
+\brief The keyframe stating the note's last stop STRICTLY INSIDE its ring, or null where the onset's
+fret is still the last stop stated — the RELEASE STATEMENT, where a finger leaving the note leaves
+from (\ref fretBeforeEnd reads its fret).
+
+\param note Note whose interior position channel is read.
+\return The last fret-stating keyframe before the ring's end, or null.
+*/
+[[nodiscard]] inline const Keyframe* lastInteriorFretStatement(const ChartNote& note)
+{
+    const Keyframe* last = nullptr;
+    for (const Keyframe& keyframe : note.keyframes)
+    {
+        if (keyframe.fret.has_value() && keyframe.offset < note.sustain)
+        {
+            last = &keyframe;
+        }
+    }
+    return last;
+}
+
+/*!
 \brief The last stop the note's fret channel states STRICTLY INSIDE its ring — the onset's where it
 states none.
 
@@ -2250,17 +2271,8 @@ against, and the fret a SLIDE-OUT leaves from.
 */
 [[nodiscard]] inline int fretBeforeEnd(const ChartNote& note)
 {
-    int fret = note.fret;
-    for (const Keyframe& keyframe : note.keyframes)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& stated = keyframe.fret;
-        if (stated.has_value() && keyframe.offset < note.sustain)
-        {
-            fret = *stated;
-        }
-    }
-    return fret;
+    const Keyframe* const last = lastInteriorFretStatement(note);
+    return last != nullptr ? last->fret.value_or(note.fret) : note.fret;
 }
 
 /*!

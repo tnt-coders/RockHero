@@ -268,11 +268,11 @@ successor states the stop the string falls to. EVERY fret derives alike, the ope
 pull onto the open string plants 0 — the stop beneath the source is the open string, always waiting,
 no finger needed. Only a destination the chart never defines derives nothing.
 
-Bounded by the onset's own TRAVELED RANGE, through the same \ref travelsThroughFret an authored
-`held` is refused by: the planted finger is on the string for the whole of the onset's path, so a
-stop the source starts on, ends on or sweeps through is not one anything could have been waiting
-on. One predicate for the rule and the derivation alike, so no resolution here can state a stop
-the document would refuse.
+BOUND BY THE RELEASE ALONE (RULED 2026-09-29): the finger it proves is on the string at the
+release, whatever path the source travelled first, so a slid source plants its stop exactly as an
+unslid one does; the Pull resolution already puts that stop strictly below the fret released from.
+The onset's TRAVELED RANGE (\ref travelsThroughFret) bounds two other facts and stays on them: the
+authored `held`, a finger asserted for the whole ring, and THE RIDE (\ref gripStatement).
 
 WHO READS THE WIDE TABLE: the seam machinery — the span machine's verdicts and dating (\ref
 deriveChartShapes) and the let-ring cut law's figure seams (`letRingFigureEnds` in the importer) —
