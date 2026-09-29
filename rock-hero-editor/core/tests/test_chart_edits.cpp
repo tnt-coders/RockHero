@@ -6764,7 +6764,11 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         CHECK(chart == original);
     }
 
-    SECTION("a keyframe carrying a fret and a width loses both")
+    // Each technique is its own authored surface (user ruling, 2026-09-29): Delete takes the
+    // point's FRET and leaves its width for `V` to clear, so the point stands as a vibrato change;
+    // a second Delete, on a point with no fret left, takes it whole, and the onset's vibrato runs
+    // on.
+    SECTION("a keyframe carrying a fret and a width loses its fret, then goes whole")
     {
         common::core::Chart chart = vibrated_hold(
             common::core::Keyframe{
@@ -6773,6 +6777,52 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
                 .vibrato = common::core::VibratoState::Wide,
             });
         const common::core::Chart original = chart;
+        const std::vector<ChartKeyframeKey> point{keyframeKeyAt(
+            glideOnset(), 1, common::core::Fraction{2})};
+        const auto plan = planDeleteSelection(chart, tempo_map, {}, point);
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan->label == "Remove Fret");
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        CHECK_FALSE(chart.notes[0].keyframes[0].fret.has_value());
+        CHECK(chart.notes[0].keyframes[0].vibrato == common::core::VibratoState::Wide);
+        CHECK(chart.notes[0].fret == 7);
+
+        const auto again = planDeleteSelection(chart, tempo_map, {}, point);
+        REQUIRE(again.has_value());
+        if (!again.has_value())
+        {
+            return;
+        }
+        CHECK(again->label == "Delete Keyframe");
+        applyAndValidate(chart, tempo_map, *again);
+        // Erased whole: no bare boundary stays behind to end the onset's vibrato.
+        CHECK(chart.notes[0].keyframes.empty());
+        const std::vector<common::core::VibratoSpanViewState> regions =
+            vibratoRegionsOf(chart, tempo_map, 0);
+        REQUIRE(regions.size() == 1);
+        CHECK(regions[0].state == common::core::VibratoState::Narrow);
+        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+
+        REQUIRE(applyChartChange(chart, again->reversed()).has_value());
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("a keyframe carrying a fret and a bend keeps its bend")
+    {
+        common::core::Chart chart = vibrated_hold(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{2},
+                .fret = 9,
+                .bend = 2.0,
+                .vibrato = common::core::VibratoState::Narrow,
+            });
         const auto plan = planDeleteSelection(
             chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE(plan.has_value());
@@ -6780,19 +6830,38 @@ TEST_CASE("planDeleteSelection takes a keyframe and its statements", "[core][cha
         {
             return;
         }
+        CHECK(plan->label == "Remove Fret");
         applyAndValidate(chart, tempo_map, *plan);
-        REQUIRE(chart.notes.size() == 1);
-        // Erased whole: no bare boundary stays behind to end the onset's vibrato.
-        CHECK(chart.notes[0].keyframes.empty());
-        CHECK(chart.notes[0].fret == 7);
-        const std::vector<common::core::VibratoSpanViewState> regions =
-            vibratoRegionsOf(chart, tempo_map, 0);
-        REQUIRE(regions.size() == 1);
-        CHECK(regions[0].state == common::core::VibratoState::Narrow);
-        CHECK_THAT(regions[0].end_seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+        REQUIRE(chart.notes[0].keyframes.size() == 1);
+        const common::core::Keyframe& point = chart.notes[0].keyframes[0];
+        CHECK_FALSE(point.fret.has_value());
+        const std::optional<double>& bend = point.bend;
+        REQUIRE(bend.has_value());
+        if (bend.has_value())
+        {
+            CHECK_THAT(*bend, Catch::Matchers::WithinULP(2.0, 0));
+        }
+    }
 
-        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
-        CHECK(chart == original);
+    SECTION("a fret whose point says nothing else takes the point with it")
+    {
+        // The width repeats the onset's, so with the fret gone the point says nothing new.
+        common::core::Chart chart = vibrated_hold(
+            common::core::Keyframe{
+                .offset = common::core::Fraction{2},
+                .fret = 9,
+                .vibrato = common::core::VibratoState::Narrow,
+            });
+        const auto plan = planDeleteSelection(
+            chart, tempo_map, {}, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan->label == "Delete Keyframe");
+        applyAndValidate(chart, tempo_map, *plan);
+        CHECK(chart.notes[0].keyframes.empty());
     }
 
     SECTION("one keyframe leaves the note and its siblings standing")

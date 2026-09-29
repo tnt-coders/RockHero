@@ -1223,9 +1223,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // slot. A key naming an instant with no point is the keyframe key the write plants at. Empty
     // where the key addresses nothing.
     [[nodiscard]] ChartSelection chartModifierAnchors(ChartEntryPlane plane) const;
-    // The note plane at one slot: the object standing there retyped (chartObjectAt), a ring rung
-    // through cut, an empty slot or a ring's end given a head.
+    // The note plane at one slot: the object standing there retyped (chartObjectAt), else the bare
+    // ring's answer (chartBareRingEntryTarget).
     [[nodiscard]] decltype(ChartFretEntry::target) chartCaretEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const;
+    // The note plane at a slot where no stop stands: a ring rung through cut, an empty slot or a
+    // ring's end given a head.
+    [[nodiscard]] decltype(ChartFretEntry::target) chartBareRingEntryTarget(
         const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const;
     // The ring plane at one slot: the statement already standing at the slot's instant on the
     // ring that covers or ends there, retyped rather than doubled, or the point to create; nothing

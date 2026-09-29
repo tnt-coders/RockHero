@@ -2212,8 +2212,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     }
 }
 
-// Deletes the selected notes and keyframes as one compound undo entry; the selection empties with
-// them.
+// Deletes the selected notes and keyframes' frets (planDeleteSelection) as one compound undo entry;
+// the selection keeps only the points left standing.
 void EditorController::Impl::deleteChartSelection()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -2237,15 +2237,33 @@ void EditorController::Impl::deleteChartSelection()
         return;
     }
 
-    // Delete leaves no selection, including the keyframe keys that normally linger through
-    // in-place edits for technique-toggle reversal. The empty caret can then accept a new point.
-    static_cast<void>(applyChartEditPlan(
-        planDeleteSelection(
-            *arrangement->chart,
-            session().song().tempo_map,
-            chartSelection().notes(),
-            chartSelection().keyframes()),
-        std::vector<ChartSelectionKey>{}));
+    // What Delete took leaves no selection behind, so the empty caret can accept a new point. A
+    // point Delete only took the fret from still stands with a technique of its own, and stays
+    // selected and ringed like the anchors `B` and `V` leave, so its next technique is one key
+    // away; a key naming a point that went would leave a digit retyping nothing.
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan = planDeleteSelection(
+        *arrangement->chart,
+        session().song().tempo_map,
+        chartSelection().notes(),
+        chartSelection().keyframes());
+    std::vector<ChartSelectionKey> standing;
+    if (plan.has_value())
+    {
+        for (const ChartKeyframeKey& key : chartSelection().keyframes())
+        {
+            const auto written = std::ranges::find(
+                plan->inserted, key.note, [](const common::core::ChartNote& note) {
+                    return chartSlotKeyOf(note);
+                });
+            if (written != plan->inserted.end() &&
+                std::ranges::contains(
+                    written->keyframes, key.offset, &common::core::Keyframe::offset))
+            {
+                standing.emplace_back(key);
+            }
+        }
+    }
+    static_cast<void>(applyChartEditPlan(std::move(plan), std::move(standing)));
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
@@ -2630,6 +2648,23 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
             return ring;
         }
     }
+    // THE NOTE PLANE ADDRESSES STOPS, and a point stating no fret has none: it is an instant on the
+    // ring carrying a bend or a vibrato change. So the bare key on one alone means what it means on
+    // the bare ring — a note here, cutting the ring there (its new head carries the bend in force)
+    // or, at the ring's end, a head placed after it. The ring plane states the point's fret
+    // instead, through the retype below.
+    if (plane == ChartEntryPlane::Note && notes.empty() && keyframes.size() == 1)
+    {
+        const ChartKeyframeKey& point = keyframes.front();
+        const common::core::ChartNote* const carrier = ringCarrier(stream, point.note);
+        const common::core::Keyframe* const standing =
+            carrier == nullptr ? nullptr : common::core::standingKeyframe(*carrier, point.offset);
+        if (standing != nullptr && !standing->fret.has_value())
+        {
+            return chartBareRingEntryTarget(
+                stream, chartCaretSlotFor(session().song().tempo_map, ChartSelectionKey{point}));
+        }
+    }
     if (!nothing_selected)
     {
         return chartRetypeTarget(notes, keyframes);
@@ -2723,6 +2758,14 @@ decltype(EditorController::Impl::ChartFretEntry::target) EditorController::Impl:
             },
             *standing);
     }
+    return chartBareRingEntryTarget(notes, slot);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+decltype(EditorController::Impl::ChartFretEntry::target) EditorController::Impl::
+    chartBareRingEntryTarget(
+        const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot) const
+{
     const std::optional<ChartPathTail> tail =
         chartPathTailAt(notes, session().song().tempo_map, slot.position, slot.string);
     // "A note here." On a slot a ring rings THROUGH, the head that divides it, taking the ring's

@@ -528,6 +528,37 @@ TEST_CASE("Delete takes the selected keyframe and undo puts it back", "[core][ch
     CHECK(currentChart(fixture.controller) == original);
 }
 
+// Each technique is its own authored surface (user ruling, 2026-09-29): Delete on a junction that
+// also bends takes only its FRET, and the point, still bending, stays selected so the bend's own
+// verb is one key away; a second Delete takes it whole.
+TEST_CASE("Delete takes a bending junction's fret and keeps it selected", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].bend = 1.0;
+    KeyframeFixture fixture{std::move(chart)};
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart peeled = currentChart(fixture.controller);
+    REQUIRE(peeled.notes.size() == 1);
+    REQUIRE(peeled.notes[0].keyframes.size() == 1);
+    CHECK_FALSE(peeled.notes[0].keyframes[0].fret.has_value());
+    CHECK(
+        publishedState(fixture.view).chart_edit.selected_keyframes ==
+        (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
+
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart emptied = currentChart(fixture.controller);
+    REQUIRE(emptied.notes.size() == 1);
+    CHECK(emptied.notes[0].keyframes.empty());
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+
+    fixture.controller.onUndoRequested();
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
 // Deleting a point must leave an empty armed slot, so a ring digit can recreate it without moving.
 TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart]")
 {
@@ -1312,11 +1343,13 @@ TEST_CASE("A ring digit at a caret on a travel leg states a point", "[core][char
     CHECK(currentChart(fixture.controller) == original);
 }
 
-// A point stating a bend alone INHERITS the fret in force, and a typed digit at it STATES one — the
-// ring digit and the bare one alike, since the caret's landing selects the point either way. The
-// bend stays beside it on the same point, which now says where the hand is as well as how far the
-// string is pushed. A fret SHIFT moves stops, and the point has none of its own, so it takes none.
-TEST_CASE("A digit at a bend point states its fret", "[core][chart]")
+// A point stating a bend alone INHERITS the fret in force and states no stop of its own, so the two
+// planes read it apart (user ruling, 2026-09-29). The RING digit states its fret there, the bend
+// staying beside it on the same point, which now says where the hand is as well as how far the
+// string is pushed. The BARE digit addresses stops and finds none, so it means what it means on the
+// bare ring — a note here, cutting the ring, the new head carrying the bend in force. A fret SHIFT
+// moves stops, and the point has none, so it takes none.
+TEST_CASE("The two planes' digits at a bend point", "[core][chart]")
 {
     common::core::Chart chart = makeGlideChart();
     // A whole step pushed at 5.0s, six beats in, out where the path holds at the junction's 9.
@@ -1351,11 +1384,17 @@ TEST_CASE("A digit at a bend point states its fret", "[core][chart]")
         CHECK(currentChart(fixture.controller) == original);
     }
 
-    SECTION("the bare digit")
+    SECTION("the bare digit cuts the ring there")
     {
         click(fixture.controller, g_holding_tail_x, g_string_3_y);
         fixture.controller.onChartFretDigitTyped(7);
-        check_stated(typed_point());
+        const common::core::Chart cut = currentChart(fixture.controller);
+        REQUIRE(cut.notes.size() == 2);
+        CHECK(cut.notes[0].sustain == common::core::Fraction{6});
+        CHECK(cut.notes[1].fret == 7);
+        CHECK_THAT(cut.notes[1].bend, Catch::Matchers::WithinULP(1.0, 0));
+        fixture.controller.onUndoRequested();
+        CHECK(currentChart(fixture.controller) == original);
     }
 
     SECTION("a fret shift leaves it inheriting")

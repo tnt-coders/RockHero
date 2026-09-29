@@ -755,10 +755,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     KeyedSplit notes = splitByKeys(chart.notes, note_keys);
     const std::size_t deleted_notes = notes.keyed.size();
     // Keyframes go from the notes that SURVIVE: one whose note this call deletes needs no removal
-    // of its own. Delete takes the keyframe ITSELF — its statements and the leg boundary it is —
-    // so it is an erase and never a strip: a stripped keyframe would stay as a bare boundary, and
-    // where the leg before it vibrates that boundary would still end the vibrato.
+    // of its own. On a point Delete takes its FRET — the stop it states is the point's own thing,
+    // as a head is the note's — and every other technique there stays for its own verb to clear
+    // (the bend picker's "No bend", `V`). The point itself goes where nothing new is left on it
+    // (the commit law's own question), and a point stating no fret is its other techniques alone,
+    // so it goes whole: an erase, never a strip to a bare boundary, which where the leg before it
+    // vibrates would still end the vibrato.
     std::size_t deleted_keyframes = 0;
+    std::size_t stripped_frets = 0;
     for (common::core::ChartNote& note : notes.rest)
     {
         const std::vector<common::core::Fraction> offsets =
@@ -767,12 +771,46 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         {
             continue;
         }
-        deleted_keyframes +=
-            std::erase_if(note.keyframes, [&offsets](const common::core::Keyframe& keyframe) {
-                return std::ranges::binary_search(offsets, keyframe.offset);
-            });
+        // Every keyed fret is withdrawn first, ascending like the points, so each survivor below is
+        // judged with its neighbours' withdrawals already made.
+        std::vector<common::core::Fraction> withdrawn;
+        for (common::core::Keyframe& keyframe : note.keyframes)
+        {
+            if (std::ranges::binary_search(offsets, keyframe.offset) && keyframe.fret.has_value())
+            {
+                keyframe.fret.reset();
+                withdrawn.push_back(keyframe.offset);
+            }
+        }
+        // Only the keyed points are judged: a silent point elsewhere on the note, planted and not
+        // yet landed, is the commit law's to take when focus leaves, never this Delete's. A point
+        // is judged against the note WITHOUT it, the commit law's own terms.
+        const common::core::ChartNote before_sweep = note;
+        const auto goes =
+            [&offsets, &withdrawn, &before_sweep](const common::core::Keyframe& point) {
+                if (!std::ranges::binary_search(offsets, point.offset))
+                {
+                    return false;
+                }
+                if (!std::ranges::binary_search(withdrawn, point.offset))
+                {
+                    return true;
+                }
+                common::core::ChartNote without = before_sweep;
+                std::erase_if(without.keyframes, [&point](const common::core::Keyframe& other) {
+                    return other.offset == point.offset;
+                });
+                return common::core::keyframeSaysNothingNew(without, point);
+            };
+        deleted_keyframes += std::erase_if(note.keyframes, goes);
+        // A point that lost its fret and still stands kept a technique of its own.
+        stripped_frets += static_cast<std::size_t>(
+            std::ranges::count_if(withdrawn, [&note](const common::core::Fraction& offset) {
+                return std::ranges::contains(
+                    note.keyframes, offset, &common::core::Keyframe::offset);
+            }));
     }
-    if (deleted_notes == 0 && deleted_keyframes == 0)
+    if (deleted_notes == 0 && deleted_keyframes == 0 && stripped_frets == 0)
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
@@ -784,18 +822,25 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         return count == 1 ? std::string{singular}
                           : std::to_string(count) + " " + std::string{plural};
     };
+    const int kinds = static_cast<int>(deleted_notes > 0) +
+                      static_cast<int>(deleted_keyframes > 0) +
+                      static_cast<int>(stripped_frets > 0);
     std::string label;
-    if (deleted_keyframes == 0)
+    if (kinds > 1)
+    {
+        label = "Delete Selection";
+    }
+    else if (deleted_notes > 0)
     {
         label = "Delete " + count_label(deleted_notes, "Note", "Notes");
     }
-    else if (deleted_notes == 0)
+    else if (deleted_keyframes > 0)
     {
         label = "Delete " + count_label(deleted_keyframes, "Keyframe", "Keyframes");
     }
     else
     {
-        label = "Delete Selection";
+        label = "Remove " + count_label(stripped_frets, "Fret", "Frets");
     }
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }

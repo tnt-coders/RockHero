@@ -2,7 +2,15 @@
 
 ## 1. Status
 
-**Roadmap — decision shape settled 2026-09-29, not started.** Written the day the user sighted that
+**SUPERSEDED IN PART the same day by a user ruling, and its core SHIPPED (2026-09-29):** `Delete`
+on a keyframe takes the point's FRET only — the bend stays for `B` → "No bend", the vibrato change
+for `V` — and the point goes whole where nothing new is left on it or it states no fret; the bare
+digit on a lone fret-less point CUTS the ring there while `Alt`+digit states its fret. That replaces
+the "peel the headline" design below (Phases 1–2, 63-Q1). What remains is the bend chip as its own
+caret-selectable, deletable surface (the user's direction; its keyboard design is under UI review),
+and this document is rewritten around it once that review is ruled. Read the rest as history.
+
+**Original status: Roadmap — decision shape settled 2026-09-29, not started.** Written the day the user sighted that
 selecting a keyframe stating both a fret and a bend, then pressing `Delete`, removes BOTH ("It may be
 desirable to just delete one … each individual technique is really its own authored surface"). The
 design below was reviewed the same day by a Fable design review whose brief was to find a simpler

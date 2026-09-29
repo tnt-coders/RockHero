@@ -302,10 +302,15 @@ that would leave the chart invalid. A survivor whose CONNECTION the deletion bro
 and simply plays as a pick until the next settle flattens it (\ref planSettleChart) — relational
 truths are not the burst's business.
 
-Deleting a selected KEYFRAME is the same verb one level in: it takes the keyframe itself — every
-statement it makes and the leg boundary it is, so a vibrato ending deleted lets the vibrato before
-it run on. A keyframe whose note this same call deletes needs no separate care: the note takes its
-whole ring with it.
+Deleting a selected KEYFRAME is the same verb one level in: it takes the point's FRET, the stop it
+states, as deleting a note takes the note, and leaves every other technique there for its own verb
+to clear (the bend picker's "No bend", `V`) — each technique is its own authored surface (user
+ruling, 2026-09-29). The point itself goes where nothing new is left on it (\ref
+common::core::keyframeSaysNothingNew), and a point stating no fret is its other techniques alone,
+so it goes whole, leg boundary included: a vibrato ending deleted lets the vibrato before it run
+on. Only the keyed points are judged; a silent point elsewhere on the note is the commit law's. A
+keyframe whose note this same call deletes needs no separate care: the note takes its whole ring
+with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
