@@ -136,6 +136,42 @@ ChartSlotKey chartCaretSlotFor(
     };
 }
 
+const common::core::ChartNote* chartNoteAt(
+    const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot)
+{
+    const auto found = std::ranges::lower_bound(
+        notes, slot, {}, [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); });
+    return found != notes.end() && chartSlotKeyOf(*found) == slot ? &*found : nullptr;
+}
+
+bool chartHoldsKey(const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key)
+{
+    const auto* const keyframe = std::get_if<ChartKeyframeKey>(&key);
+    const common::core::ChartNote* const note =
+        chartNoteAt(notes, keyframe != nullptr ? keyframe->note : std::get<ChartNoteKey>(key).slot);
+    return note != nullptr && (keyframe == nullptr ||
+                               common::core::standingKeyframe(*note, keyframe->offset) != nullptr);
+}
+
+bool chartObjectStatesBend(
+    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key)
+{
+    const auto* const keyframe = std::get_if<ChartKeyframeKey>(&key);
+    const common::core::ChartNote* const note =
+        chartNoteAt(notes, keyframe != nullptr ? keyframe->note : std::get<ChartNoteKey>(key).slot);
+    if (note == nullptr)
+    {
+        return false;
+    }
+    if (keyframe == nullptr)
+    {
+        return common::core::noteIsBent(*note);
+    }
+    const common::core::Keyframe* const point =
+        common::core::standingKeyframe(*note, keyframe->offset);
+    return point != nullptr && point->bend.has_value();
+}
+
 ChartSlotViewState chartSlotViewState(
     const common::core::TempoMap& tempo_map, const ChartSlotKey& slot)
 {

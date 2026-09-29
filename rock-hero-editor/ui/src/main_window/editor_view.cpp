@@ -2048,6 +2048,10 @@ bool EditorView::performCommand(const InvocationInfo& info)
             {
                 m_tone_automation_lanes_view.openParameterPicker();
             }
+            else if (std::holds_alternative<core::OpenBendPickerTarget>(m_state.restate_target))
+            {
+                m_controller.onChartBendRequested();
+            }
             return true;
         }
         case EditorCommandId::RenameSelection:

@@ -64,6 +64,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -397,7 +398,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Strips the silent keyframes of every note `keeps` refuses, with no history entry (none ever
     // held them): the commit law's in-memory half. True when any point went.
     bool dissolveSilentKeyframes(const std::function<bool(const ChartSlotKey&)>& keeps);
-    [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
+    [[nodiscard]] const common::core::ChartViewState* currentTabProjection() const;
+    // Rebuilds the memoized tab and highway projections when the displayed arrangement or the
+    // chart revision moved on, and clears them while no arrangement is displayed.
+    void refreshChartProjections() const;
 
     // The reveal's grounds resolved against the displayed projection — the selection as indices,
     // and the armed caret — the ONE resolver behind the published overlay (ChartEditViewState)
@@ -442,27 +446,36 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void applyEditFocus(const MarkerEditFocus& focus);
     void applyEditFocus(const AutomationEditFocus& focus);
     // Arms the caret at a slot and takes the landing's own object as the selection, or re-derives
-    // one from what sits under it (a note selects, an empty slot clears). The channel names WHICH
-    // stop of that note the caret sits on; it defaults to the one every note has, and a Held
-    // request the slot cannot honour falls back to it, so the caret can never park on a mark the
-    // lane does not draw. `object` is given by a caller that knows what it landed on — the object
-    // walk, the pointer — the only way to address a ring's END statement, since no slot holds it.
+    // one from what sits under it (a note selects, an empty slot clears). The face names WHICH face
+    // of that object the caret stands on; it defaults to the mark every object has, and a request
+    // the landing cannot honour falls back to it, so the caret can never park on a face the lane
+    // does not draw. `object` is given by a caller that knows what it landed on — the object walk,
+    // the pointer — the only way to address a ring's END statement, since no slot holds it.
     void armChartCaret(
-        common::core::GridPosition position, int string,
-        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding,
+        common::core::GridPosition position, int string, ChartCaretFace face = ChartCaretFace::Mark,
         const std::optional<ChartSelectionKey>& object = {});
-    // Moves the caret onto a SELECTED note's held stop without touching the selection — the
-    // selection handle. armChartCaret cannot serve: it re-derives the selection from the slot, so
-    // a chord would collapse to the member whose satellite was aimed at, taking the scope away in
-    // the very act of naming a stop within it.
-    void armChartHeldStopHandle(const ChartSlotKey& slot);
-    // True when the note at this slot SHOWS a satellite digit — the second caret stop inside one
-    // slot, the target a click reaches, and the only state in which a caret channel of Held is
-    // legal. Read from the projection, which is where the derivation published whether the stop
-    // has a face and on what terms it is drawn.
+    // Moves the caret onto a face of the object at the slot without touching the selection — the
+    // selection handle, and the arrow between a mark and its bend chip. armChartCaret cannot serve:
+    // it re-derives the selection from the slot, so a chord would collapse to the member whose face
+    // was aimed at, taking the scope away in the very act of naming a face within it.
+    void armChartFaceHandle(const ChartSlotKey& slot, ChartCaretFace face);
+    // True when the note at this slot SHOWS a satellite digit — the target a click reaches, and the
+    // only state in which the held face is legal. Read from the projection, which is where the
+    // derivation published whether the stop has a face and on what terms it is drawn.
     [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
-    // The caret's stop as every reader must see it: the stored channel held to the predicate
-    // above, so an edit that took the satellite away leaves the caret on the stop every note has.
+    // THE one test of whether a face can be stood on, for the objects on a slot: asked by the
+    // arming, the handle's callers and the read.
+    [[nodiscard]] bool chartFaceShown(
+        const ChartSlotKey& slot, ChartCaretFace face,
+        std::span<const ChartSelectionKey> objects) const;
+    // The selected objects standing on a slot.
+    [[nodiscard]] std::vector<ChartSelectionKey> chartSelectionOnSlot(
+        const ChartSlotKey& slot) const;
+    // The caret's face as every reader must see it: the stored face held to chartFaceShown, so an
+    // edit that took a face away leaves the caret on the mark.
+    [[nodiscard]] ChartCaretFace chartCaretFace() const;
+    // The stop the digits state, derived from the face: the held stop on the held face, the one
+    // that sounds everywhere else.
     [[nodiscard]] common::core::ChartStopChannel chartCaretChannel() const;
     // Demotes an armed caret to the passive cursor, leaving the transport where it is (the
     // transport-motion handoffs: play, external playback, paused seeks).
@@ -1386,13 +1399,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         common::core::GridPosition position{};
         int string{1};
-        // WHICH stop of the note at this slot the caret sits on. A note under a right-hand onset
-        // states two at once — what the picking hand sounds and what the fretting hand holds — and
-        // the lane draws them as two marks in one column, so the caret has two stops to visit
-        // there and exactly one everywhere else. Held is unreachable unless the satellite that
-        // states it is drawn: armChartCaret falls back to Sounding rather than parking the caret
-        // on a mark that is not there.
-        common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
+        // WHICH face of the object at this slot the caret stands on (ChartCaretFace): its mark,
+        // a note's held-stop satellite, or the chip printing its bend. A face is unreachable
+        // unless it is drawn: armChartCaret falls back to the mark rather than parking the caret
+        // on a face that is not there, and chartCaretFace applies the same test at the read.
+        ChartCaretFace face{ChartCaretFace::Mark};
         std::optional<AutomationLaneRow> lane{};
     };
 
@@ -1628,7 +1639,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::core::Fraction quantum) const;
 
     // THE landing, for every row. A point row arms at the column, or at the paused cursor's slot
-    // when none is given, with the channel meaning something on a string row only. A marker row
+    // when none is given, with the face meaning something on a string row only. A marker row
     // demotes an armed caret in place and takes the selection, so it has no column of its own.
     //
     // `object` is the chart object the landing addresses where the caller knows it — the object
@@ -1636,7 +1647,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // use for it: one point per slot, so the slot names it.
     void landOnRow(
         const FocusRow& row, std::optional<common::core::GridPosition> column,
-        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding,
+        ChartCaretFace face = ChartCaretFace::Mark,
         const std::optional<ChartSelectionKey>& object = {});
 
     // The EDITOR-driven cursor move: seeks onto a musical position, remembers that exact position

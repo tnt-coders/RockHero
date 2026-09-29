@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <string>
 #include <variant>
 #include <vector>
@@ -38,8 +39,8 @@ struct ChartEditFocus
     /*! \brief Slot the keyboard position stands on. */
     ChartSlotKey slot{};
 
-    /*! \brief Stop of that slot the caret stands on. */
-    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
+    /*! \brief Face of the object there the caret stands on. */
+    ChartCaretFace face{ChartCaretFace::Mark};
 };
 
 /*!

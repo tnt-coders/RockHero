@@ -194,6 +194,13 @@ bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
            point.vibrato == ringStateAt(note, point.offset).vibrato;
 }
 
+ChartNote noteWithoutKeyframe(ChartNote note, const Fraction offset)
+{
+    std::erase_if(
+        note.keyframes, [offset](const Keyframe& keyframe) { return keyframe.offset == offset; });
+    return note;
+}
+
 bool stripSilentKeyframes(ChartNote& note)
 {
     // Each point is judged against the note WITHOUT it and WITH every other: a silent statement
@@ -204,10 +211,7 @@ bool stripSilentKeyframes(ChartNote& note)
     kept.reserve(note.keyframes.size());
     for (const Keyframe& keyframe : note.keyframes)
     {
-        ChartNote without = note;
-        std::erase_if(without.keyframes, [&keyframe](const Keyframe& other) {
-            return other.offset == keyframe.offset;
-        });
+        const ChartNote without = noteWithoutKeyframe(note, keyframe.offset);
         if (!keyframeSaysNothingNew(without, keyframe))
         {
             kept.push_back(shedSilentStatements(without, keyframe));

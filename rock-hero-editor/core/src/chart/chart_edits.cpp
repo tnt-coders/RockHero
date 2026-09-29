@@ -772,24 +772,17 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         {
             continue;
         }
-        // A point is judged against the note WITHOUT it, the commit law's own terms.
-        const auto without_point = [](common::core::ChartNote without,
-                                      const common::core::Fraction offset) {
-            std::erase_if(without.keyframes, [offset](const common::core::Keyframe& other) {
-                return other.offset == offset;
-            });
-            return without;
-        };
-        // Every keyed fret that says something is withdrawn first, each asked of the note as the
-        // selection found it and ascending like the points, so each survivor below is judged with
-        // its neighbours' withdrawals already made.
+        // A point is judged against the note WITHOUT it, the commit law's own terms. Every keyed
+        // fret that says something is withdrawn first, each asked of the note as the selection
+        // found it and ascending like the points, so each survivor below is judged with its
+        // neighbours' withdrawals already made.
         std::vector<common::core::Fraction> withdrawn;
         const common::core::ChartNote as_found = note;
         for (common::core::Keyframe& keyframe : note.keyframes)
         {
             if (std::ranges::binary_search(offsets, keyframe.offset) &&
                 common::core::shedSilentStatements(
-                    without_point(as_found, keyframe.offset), keyframe)
+                    common::core::noteWithoutKeyframe(as_found, keyframe.offset), keyframe)
                     .fret.has_value())
             {
                 keyframe.fret.reset();
@@ -799,19 +792,19 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         // Only the keyed points are judged: a silent point elsewhere on the note, planted and not
         // yet landed, is the commit law's to take when focus leaves, never this Delete's.
         const common::core::ChartNote before_sweep = note;
-        const auto goes = [&offsets, &withdrawn, &before_sweep, &without_point](
-                              const common::core::Keyframe& point) {
-            if (!std::ranges::binary_search(offsets, point.offset))
-            {
-                return false;
-            }
-            if (!std::ranges::binary_search(withdrawn, point.offset))
-            {
-                return true;
-            }
-            return common::core::keyframeSaysNothingNew(
-                without_point(before_sweep, point.offset), point);
-        };
+        const auto goes =
+            [&offsets, &withdrawn, &before_sweep](const common::core::Keyframe& point) {
+                if (!std::ranges::binary_search(offsets, point.offset))
+                {
+                    return false;
+                }
+                if (!std::ranges::binary_search(withdrawn, point.offset))
+                {
+                    return true;
+                }
+                return common::core::keyframeSaysNothingNew(
+                    common::core::noteWithoutKeyframe(before_sweep, point.offset), point);
+            };
         deleted_keyframes += std::erase_if(note.keyframes, goes);
         // A point that lost its fret and still stands kept a technique of its own.
         stripped_frets += static_cast<std::size_t>(
@@ -921,11 +914,8 @@ common::core::Fraction chartSteppedKeyframeOffset(
         keyframe.offset,
         whole_note_delta,
         keyframe.note.position);
-    const auto note = std::ranges::lower_bound(
-        chart.notes, keyframe.note, {}, [](const common::core::ChartNote& candidate) {
-            return chartSlotKeyOf(candidate);
-        });
-    if (note == chart.notes.end() || chartSlotKeyOf(*note) != keyframe.note)
+    const common::core::ChartNote* const note = chartNoteAt(chart.notes, keyframe.note);
+    if (note == nullptr)
     {
         return stepped;
     }
@@ -1972,13 +1962,15 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
             const common::core::ChartNote& note, common::core::ChartNote& written) {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             // The onset statement, written only when the NOTE itself is named — a note reached
-            // solely through one of its instants keeps the pre-bend it opens with — and only by an
-            // amount: an onset always states its bend, so there is no statement to take away.
-            if (semitones.has_value() && std::ranges::binary_search(note_keys, slot))
+            // solely through one of its instants keeps the pre-bend it opens with. An onset always
+            // states its bend, so taking the statement away there leaves it at rest.
+            if (std::ranges::binary_search(note_keys, slot))
             {
-                written.bend = *semitones;
+                written.bend = semitones.value_or(0.0);
             }
-            for (const common::core::Fraction& offset : selectedOffsetsOn(keyframe_keys, slot))
+            const std::vector<common::core::Fraction> offsets =
+                selectedOffsetsOn(keyframe_keys, slot);
+            for (const common::core::Fraction& offset : offsets)
             {
                 if (semitones.has_value())
                 {
@@ -1988,6 +1980,21 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
                 {
                     common::core::keyframeAt(written, offset).bend.reset();
                 }
+            }
+            // Taking the bend away from a point that stated nothing else takes the point, as
+            // `Delete` takes one whose fret was all it said: a point left saying nothing is not a
+            // statement the charter asked to keep. Only the named points are judged, each against
+            // the note WITHOUT it, the commit law's own terms; a planted point is the amount
+            // path's, and keeps its linger.
+            if (!semitones.has_value())
+            {
+                const common::core::ChartNote cleared = written;
+                std::erase_if(
+                    written.keyframes, [&offsets, &cleared](const common::core::Keyframe& point) {
+                        return std::ranges::binary_search(offsets, point.offset) &&
+                               common::core::keyframeSaysNothingNew(
+                                   common::core::noteWithoutKeyframe(cleared, point.offset), point);
+                    });
             }
             return true;
         });
@@ -2239,15 +2246,9 @@ template <typename Carries>
 [[nodiscard]] common::core::VibratoState vibratoAtKey(
     const common::core::Chart& chart, const ChartKeyframeKey& key)
 {
-    const auto found = std::ranges::lower_bound(
-        chart.notes, key.note, {}, [](const common::core::ChartNote& note) {
-            return chartSlotKeyOf(note);
-        });
-    if (found == chart.notes.end() || !(chartSlotKeyOf(*found) == key.note))
-    {
-        return common::core::VibratoState::None;
-    }
-    return common::core::ringStateAt(*found, key.offset).vibrato;
+    const common::core::ChartNote* const note = chartNoteAt(chart.notes, key.note);
+    return note != nullptr ? common::core::ringStateAt(*note, key.offset).vibrato
+                           : common::core::VibratoState::None;
 }
 
 // One tier's whole row of the technique law. The two vibrato verbs differ ONLY in the width they

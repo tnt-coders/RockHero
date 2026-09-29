@@ -1889,6 +1889,16 @@ deleted like any other, and one rule takes every silent point when its note leav
 [[nodiscard]] bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point);
 
 /*!
+\brief The note with the keyframe at an offset taken off: the path a point is judged against, the
+commit law's own terms (\ref keyframeSaysNothingNew).
+
+\param note Note carrying the point.
+\param offset Offset of the point to take off.
+\return A copy of the note without any keyframe at that offset.
+*/
+[[nodiscard]] ChartNote noteWithoutKeyframe(ChartNote note, Fraction offset);
+
+/*!
 \brief The point with every statement that says nothing new withdrawn — the commit law asked of
 each channel alone.
 

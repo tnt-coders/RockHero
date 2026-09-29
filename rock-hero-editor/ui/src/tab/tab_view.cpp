@@ -524,6 +524,11 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(plate, overlayRingStroke(plate.getHeight()));
     };
 
+    // The selection wears its ring on the FACE the caret stands on, which is what the next key acts
+    // on: the marks, or — with the caret on a bend chip — the chips alone, the heads unringed.
+    const bool on_chip =
+        m_edit.caret.has_value() && m_edit.caret->face == core::ChartCaretFace::BendChip;
+
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
@@ -533,7 +538,7 @@ void TabView::paint(juce::Graphics& g)
     // around a head whose silhouette the overlay does not know about, such as the plectrum.
     for (const std::size_t index : m_edit.selected_notes)
     {
-        if (index >= tab.notes.size())
+        if (index >= tab.notes.size() || on_chip)
         {
             continue;
         }
@@ -547,12 +552,6 @@ void TabView::paint(juce::Graphics& g)
             layout.center_y,
             layout.head_size,
             overlayRingStroke(layout.head_size));
-        // The chip printing the onset's bend is the note's second face, so it wears the ring too.
-        if (const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
-            chip.has_value())
-        {
-            ring_chip_plate(common::ui::paintTabBendChip(g, metrics, note, 0, *chip));
-        }
     }
 
     // The keyframe a published ref names, laid out once for every keyframe overlay — the selection
@@ -609,44 +608,47 @@ void TabView::paint(juce::Graphics& g)
             const common::ui::TabLayoutRect& box = layout.box;
             const juce::Rectangle<float> mark_bounds{box.x, box.y, box.width, box.height};
             // A mark the lane does not draw wears no ring: a bend point's dot on the shared
-            // instant, whose chip is its only face there.
+            // instant, whose chip is its only face there. The mark is still repainted with the
+            // caret on its chip, so the selected object draws last whichever face is ringed.
             if (layout.mark_drawn)
             {
                 switch (layout.shape)
                 {
                     case common::ui::TabKeyframeShape::Head:
                         common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
-                        g.setColour(accent);
-                        common::ui::strokeTabNoteHeadOutline(
-                            g,
-                            note,
-                            layout.center_x,
-                            layout.center_y,
-                            layout.head_size,
-                            overlayRingStroke(layout.head_size));
+                        if (!on_chip)
+                        {
+                            g.setColour(accent);
+                            common::ui::strokeTabNoteHeadOutline(
+                                g,
+                                note,
+                                layout.center_x,
+                                layout.center_y,
+                                layout.head_size,
+                                overlayRingStroke(layout.head_size));
+                        }
                         break;
                     case common::ui::TabKeyframeShape::Chip:
                         if (const auto* const stop =
                                 std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
                             stop != nullptr)
                         {
-                            ring_chip_plate(
-                                common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box));
+                            const juce::Rectangle<float> plate =
+                                common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box);
+                            if (!on_chip)
+                            {
+                                ring_chip_plate(plate);
+                            }
                         }
                         break;
                     case common::ui::TabKeyframeShape::Dot:
-                        g.setColour(accent);
-                        g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
+                        if (!on_chip)
+                        {
+                            g.setColour(accent);
+                            g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
+                        }
                         break;
                 }
-            }
-            // The chip printing the keyframe's bend is its second face, so it wears the ring too:
-            // a click on either selects the keyframe, and the selection shows on both.
-            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
-            const std::optional<std::size_t>& point = keyframe.bend_point;
-            if (chip.has_value() && point.has_value())
-            {
-                ring_chip_plate(common::ui::paintTabBendChip(g, metrics, note, *point, *chip));
             }
         });
 
@@ -683,6 +685,42 @@ void TabView::paint(juce::Graphics& g)
         g.setColour(editorTheme().lane_overlay);
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
+
+    // The selection's BEND CHIPS draw over the caret: a chip stands above its head, into the square
+    // the caret draws there, and the amount it prints must stay readable. Each is repainted, and
+    // wears the ring when the caret stands on the chips, the face the next key acts on.
+    const auto repaint_chip = [&ring_chip_plate, on_chip](const juce::Rectangle<float>& plate) {
+        if (on_chip)
+        {
+            ring_chip_plate(plate);
+        }
+    };
+    for (const std::size_t index : m_edit.selected_notes)
+    {
+        if (index >= tab.notes.size())
+        {
+            continue;
+        }
+        const common::core::NoteViewState& note = tab.notes[index];
+        if (const std::optional<common::ui::TabLayoutRect> chip =
+                common::ui::tabNoteLayout(metrics, note).bend_chip;
+            chip.has_value())
+        {
+            repaint_chip(common::ui::paintTabBendChip(g, metrics, note, 0, *chip));
+        }
+    }
+    for_each_drawn_keyframe(
+        m_edit.selected_keyframes,
+        [&](const common::core::NoteViewState& note,
+            const common::core::KeyframeViewState& keyframe,
+            const common::ui::TabKeyframeLayout& layout) {
+            const std::optional<common::ui::TabLayoutRect>& chip = layout.bend_chip;
+            const std::optional<std::size_t>& point = keyframe.bend_point;
+            if (chip.has_value() && point.has_value())
+            {
+                repaint_chip(common::ui::paintTabBendChip(g, metrics, note, *point, *chip));
+            }
+        });
 
     // The pending fret entry: the provisional value in its accent-bordered box over each
     // affected head (or at the empty insert slot), red when it cannot apply — every affected
@@ -1090,7 +1128,9 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
     const common::ui::TabLaneMetrics& metrics = lane.metrics;
     const float center_y = metrics.laneY(m_edit.caret->string);
     const float x = metrics.x(m_edit.caret->seconds);
-    if (m_edit.caret->channel == common::core::ChartStopChannel::Held)
+    // On a bend chip the square stays on the slot: the chip is a face of the mark's own column, and
+    // the ring on the chip, drawn over the square, is what says the caret stands on it.
+    if (m_edit.caret->face == core::ChartCaretFace::HeldStop)
     {
         // The caret is on the note's OTHER stop, so the square marks the mark that states it: the
         // satellite column outboard of the posture bracket's closing bar. Its geometry is the

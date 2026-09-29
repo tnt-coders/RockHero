@@ -409,10 +409,15 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
 // Enter's verb, dispatched on the selection's kind here so the view opens what it names and
 // decides nothing: a section restates on its name, a tone region on its tone (until the signal
 // chain has a keyboard model to drill into, plan 53 Phase 5), the "+" row opens the parameter
-// picker, and every other kind has no restate — a fret-hand position included, until its fret has
-// an entry to re-open.
+// picker, a bend chip the caret stands on restates its bend through the picker `B` opens, and every
+// other kind has no restate — a fret-hand position included, until its fret has an entry to
+// re-open.
 RestateTarget EditorController::Impl::restateTarget() const
 {
+    if (chartCaretFace() == ChartCaretFace::BendChip)
+    {
+        return OpenBendPickerTarget{};
+    }
     if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();
         section.has_value())
     {

@@ -222,14 +222,14 @@ TEST_CASE("EditorController steps over a held stop's satellite onto its head", "
     fixture.walkUp(2);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
     REQUIRE(fixture.caret().seconds == Catch::Approx(2.5));
-    REQUIRE(fixture.caret().channel == common::core::ChartStopChannel::Held);
+    REQUIRE(fixture.caret().face == ChartCaretFace::HeldStop);
 
     // A seek demotes the caret and remembers its string, so the next arming returns to string 3.
     fixture.armAt(3.0);
     REQUIRE(fixture.caret().string == 3);
     fixture.controller.onRowObjectStepRequested(false, false);
     CHECK(fixture.caret().seconds == Catch::Approx(2.5));
-    CHECK(fixture.caret().channel == common::core::ChartStopChannel::Sounding);
+    CHECK(fixture.caret().face == ChartCaretFace::Mark);
 }
 
 } // namespace rock_hero::editor::core

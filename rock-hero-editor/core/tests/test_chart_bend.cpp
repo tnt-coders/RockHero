@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <utility>
@@ -26,6 +28,46 @@ constexpr float g_string_3_y{140.0f};
 
 // Rest to three whole steps in quarter steps: thirteen amounts.
 constexpr std::size_t g_amount_rows{13};
+
+// The glide's junction (4.0s).
+constexpr float g_junction_x{80.0f};
+
+// The chart-editing state the controller last published. The pointer is bound ONCE and the guard
+// rides that name, which the CI-only optional-access checker can follow where a REQUIRE is opaque.
+[[nodiscard]] ChartEditViewState chartEdit(const FakeEditorView& view)
+{
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    if (state == nullptr)
+    {
+        return {};
+    }
+    return state->chart_edit;
+}
+
+// The armed caret as the controller last published it.
+[[nodiscard]] ChartCaretViewState caretOf(const FakeEditorView& view)
+{
+    const std::optional<ChartCaretViewState> caret = chartEdit(view).caret;
+    REQUIRE(caret.has_value());
+    if (!caret.has_value())
+    {
+        return {};
+    }
+    return *caret;
+}
+
+// What Enter would do right now.
+[[nodiscard]] RestateTarget restateOf(const FakeEditorView& view)
+{
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    if (state == nullptr)
+    {
+        return {};
+    }
+    return state->restate_target;
+}
 
 struct BendFixture
 {
@@ -283,6 +325,153 @@ TEST_CASE("A bend answer the rules refuse changes nothing", "[core][chart]")
     REQUIRE(edited != nullptr);
     CHECK_THAT(edited->notes[0].bend, Catch::Matchers::WithinULP(0.0, 0));
     CHECK(fixture.undoEntries() == entries_before);
+}
+
+// A bend chip is a FACE of the object whose bend it prints: `Up` from the mark stands on it and
+// `Down` returns, the caret keeping its slot and the selection, so only the face changes; `Up`
+// from the chip leaves the column like any step. On the chip, `Enter` restates the bend.
+TEST_CASE("The caret steps between a bent point's mark and its chip", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].keyframes[0].bend = 1.0;
+    BendFixture fixture{std::move(chart)};
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(caretOf(fixture.view).face == ChartCaretFace::Mark);
+    CHECK(std::holds_alternative<std::monostate>(restateOf(fixture.view)));
+
+    const std::vector<ChartKeyframeRef> junction{
+        ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
+    };
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    const ChartCaretViewState on_chip = caretOf(fixture.view);
+    CHECK(on_chip.face == ChartCaretFace::BendChip);
+    CHECK(on_chip.string == 3);
+    CHECK_THAT(on_chip.seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+    CHECK(chartEdit(fixture.view).selected_keyframes == junction);
+    CHECK(std::holds_alternative<OpenBendPickerTarget>(restateOf(fixture.view)));
+
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);
+    CHECK(caretOf(fixture.view).string == 3);
+    CHECK(chartEdit(fixture.view).selected_keyframes == junction);
+
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);
+    CHECK(caretOf(fixture.view).string == 4);
+}
+
+// With the caret on a chip, `Delete` takes the BEND the chip prints and leaves everything else:
+// the picker's "No bend" through its own planner. A point left saying nothing goes, and a note's
+// onset, which always states its bend, is left at rest.
+TEST_CASE("Delete on a bend chip takes the bend", "[core][chart]")
+{
+    SECTION("a point keeps its fret, and the caret returns to its mark")
+    {
+        common::core::Chart chart = makeGlideChart();
+        chart.notes[0].keyframes[0].bend = 1.0;
+        BendFixture fixture{std::move(chart)};
+        click(fixture.controller, g_junction_x, g_string_3_y);
+        fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+        REQUIRE(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+
+        fixture.controller.onSelectionDeleteRequested();
+        const common::core::Chart* const edited = chartOrNull(fixture.controller);
+        REQUIRE(edited != nullptr);
+        REQUIRE(edited->notes.size() == 1);
+        REQUIRE(edited->notes[0].keyframes.size() == 1);
+        CHECK(edited->notes[0].keyframes[0].fret == 9);
+        CHECK_FALSE(edited->notes[0].keyframes[0].bend.has_value());
+        // The chip went with the bend, so the caret stands on the mark it wears.
+        CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);
+        CHECK(
+            chartEdit(fixture.view).selected_keyframes ==
+            (std::vector<ChartKeyframeRef>{
+                ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
+            }));
+
+        // Undo puts the bend back and the caret back on its chip.
+        fixture.controller.onUndoRequested();
+        const common::core::Chart* const restored = chartOrNull(fixture.controller);
+        REQUIRE(restored != nullptr);
+        REQUIRE(restored->notes[0].keyframes.size() == 1);
+        const std::optional<double>& bend = restored->notes[0].keyframes[0].bend;
+        REQUIRE(bend.has_value());
+        if (bend.has_value())
+        {
+            CHECK_THAT(*bend, Catch::Matchers::WithinULP(1.0, 0));
+        }
+        CHECK(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+    }
+
+    SECTION("a point stating only its bend goes whole")
+    {
+        common::core::Chart chart = makeGlideChart();
+        chart.notes[0].keyframes = {
+            common::core::Keyframe{.offset = common::core::Fraction{4}, .fret = {}, .bend = 1.0}
+        };
+        BendFixture fixture{std::move(chart)};
+        click(fixture.controller, g_junction_x, g_string_3_y);
+        REQUIRE(chartEdit(fixture.view).selected_keyframes.size() == 1);
+        fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+        REQUIRE(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+
+        fixture.controller.onSelectionDeleteRequested();
+        const common::core::Chart* const edited = chartOrNull(fixture.controller);
+        REQUIRE(edited != nullptr);
+        REQUIRE(edited->notes.size() == 1);
+        CHECK(edited->notes[0].keyframes.empty());
+        CHECK(chartEdit(fixture.view).selected_keyframes.empty());
+    }
+
+    SECTION("a note's pre-bend goes to rest and the note stays selected")
+    {
+        common::core::Chart chart = makeGlideChart();
+        chart.notes[0].bend = 1.0;
+        BendFixture fixture{std::move(chart)};
+        click(fixture.controller, g_onset_x, g_string_3_y);
+        fixture.controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+        REQUIRE(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+
+        fixture.controller.onSelectionDeleteRequested();
+        const common::core::Chart* const edited = chartOrNull(fixture.controller);
+        REQUIRE(edited != nullptr);
+        REQUIRE(edited->notes.size() == 1);
+        CHECK_THAT(edited->notes[0].bend, Catch::Matchers::WithinULP(0.0, 0));
+        CHECK(edited->notes[0].keyframes.size() == 1);
+        CHECK(chartEdit(fixture.view).selected_notes == std::vector<std::size_t>{0});
+    }
+}
+
+// A press on a chip puts the caret on that face at once, the pointer twin of `Up` from the mark.
+TEST_CASE("A click on a bend chip puts the caret on it", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].bend = 1.0;
+    BendFixture fixture{std::move(chart)};
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    if (state == nullptr)
+    {
+        return;
+    }
+    const std::shared_ptr<const common::core::ChartViewState>& tab = state->tab;
+    REQUIRE(tab != nullptr);
+    REQUIRE(tab->notes.size() == 1);
+    const std::optional<common::ui::TabLayoutRect> chip =
+        common::ui::tabNoteLayout(makeGeometry(), tab->notes[0]).bend_chip;
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+
+    click(fixture.controller, chip->x + chip->width / 2.0f, chip->y + chip->height / 2.0f);
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::BendChip);
+    CHECK(chartEdit(fixture.view).selected_notes == std::vector<std::size_t>{0});
+    // The head, clicked, moves the caret back onto the mark.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);
 }
 
 } // namespace rock_hero::editor::core

@@ -614,8 +614,9 @@ The split within path (b) is deliberate:
 
 The union stop set has one WITHIN-slot member (2026-08-27): a note carrying a held stop wears two
 marks in one column — its head, and the satellite digit outboard of its posture bracket — so a plain
-left/right step visits both, in display order and reversed leftward. The caret's `channel` says
-which it is on, and the two verbs that address a stop read it: an entry digit — bare or under `Alt`
+left/right step visits both, in display order and reversed leftward. The caret's FACE
+(`ChartCaretFace`) says which it is on, the stop channel derived from it, and the two verbs that
+address a stop read it: an entry digit — bare or under `Alt`
 alike — states that stop, and Delete clears the held statement rather than the note. Every other
 verb keeps note scope. A measure jump is
 not traversal and always lands on the stop every note has, and the channel is worth only what the
@@ -642,6 +643,16 @@ satellite a pointer reaches is that note's held face whatever else is selected. 
 editing — one typed digit restating a grip across a whole span — is deferred to the future template
 editor, because typing a number over a bracket already means AUTHOR A NOTE at the caret
 (`docs/plans/todo/span-marker-redesign.md`).
+
+The THIRD FACE is not a stop (user ruling 2026-09-29, plan 63): an object stating a bend wears the
+chip printing it. `↑` from its mark stands on the chip and `↓` returns, the caret keeping its slot
+and the selection (`armChartFaceHandle`), and `↑` from the chip leaves for the string above; every
+arrival from another string lands on the mark. The square stays on the slot and the chip, drawn over
+it, wears the ring. On the chip `Delete` takes the bend through the picker's own "No bend"
+(`planSetBend`), `Enter` and `B` open the picker, and digits type into the mark. A face exists only
+while it is drawn: one predicate (`chartFaceShown`) is asked when the caret arms, and again when
+the face is read (`chartCaretFace`), so an edit that takes the chip away leaves the caret on the
+mark.
 
 The rest of this grammar's *semantics* — what each modifier means, the union stop set, the two-state
 marker, one selection editor-wide — are owned by

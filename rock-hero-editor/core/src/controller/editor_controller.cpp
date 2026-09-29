@@ -2175,6 +2175,53 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
     ++m_transition_focus_count;
 }
 
+// The chart projection resolves thousands of positions to seconds, so it is memoized per displayed
+// arrangement and chart revision: the arrangement id keys which chart is shown, and the session's
+// chart revision (bumped by every mutable chart acquisition) keys its edit state, so chart edits
+// invalidate without any explicit notification path. The 3D highway projection rides the same rule
+// (plan 44): one shared scene-model snapshot per displayed arrangement, consumed by the preview
+// window exactly as the game consumes it. One refresh for both, because they share the key: a
+// refresh of one alone would advance the key past the other.
+void EditorController::Impl::refreshChartProjections() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        m_tab_view_state.reset();
+        m_highway_view_state.reset();
+        m_tab_arrangement_id.clear();
+        return;
+    }
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
+                                     m_tab_chart_revision != session().chartRevision();
+    if (arrangement_changed)
+    {
+        m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
+            common::core::makeChartViewState(*arrangement, tempo_map));
+    }
+    // The highway state carries the display options the renderer applies per frame (the
+    // displayed-string minimum among them — the scene itself is never padded), so it is
+    // republished on an arrangement change OR a minimum change. Lowest-pitched string on top is
+    // the 3D default (recorded in plan 25).
+    if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
+    {
+        m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
+            common::core::makeHighwayViewState(
+                *arrangement,
+                tempo_map,
+                session().song().sections,
+                common::core::HighwayDisplayOptions{
+                    .mirrored = false,
+                    .invert_string_order = true,
+                    .minimum_string_count = m_tab_minimum_displayed_strings,
+                }));
+        m_highway_min_strings = m_tab_minimum_displayed_strings;
+    }
+    m_tab_arrangement_id = arrangement->id;
+    m_tab_chart_revision = session().chartRevision();
+}
+
 void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
 {
     // One object or none: the caret stands on the slot, naming the object (a head and a keyframe
@@ -2185,7 +2232,7 @@ void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
         armChartCaret(
             focus.slot.position,
             focus.slot.string,
-            focus.channel,
+            focus.face,
             focus.selected.empty() ? std::nullopt : std::optional{focus.selected.front()});
         return;
     }
@@ -2932,39 +2979,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             }
         }
 
-        // The chart projection resolves thousands of positions to seconds, so it is memoized per
-        // displayed arrangement and chart revision: the arrangement id keys which chart is shown,
-        // and the session's chart revision (bumped by every mutable chart acquisition) keys its
-        // edit state, so chart edits invalidate without any explicit notification path. The 3D
-        // highway projection rides the same rule (plan 44): one shared scene-model snapshot per
-        // displayed arrangement, consumed by the preview window exactly as the game consumes it.
-        const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
-                                         m_tab_chart_revision != session().chartRevision();
-        if (arrangement_changed)
-        {
-            m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
-                common::core::makeChartViewState(*arrangement, state.tempo_map));
-        }
-        // The highway state carries the display options the renderer applies per frame (the
-        // displayed-string minimum among them — the scene itself is never padded), so it is
-        // republished on an arrangement change OR a minimum change. Lowest-pitched string on top
-        // is the 3D default (recorded in plan 25).
-        if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
-        {
-            m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
-                common::core::makeHighwayViewState(
-                    *arrangement,
-                    state.tempo_map,
-                    session().song().sections,
-                    common::core::HighwayDisplayOptions{
-                        .mirrored = false,
-                        .invert_string_order = true,
-                        .minimum_string_count = m_tab_minimum_displayed_strings,
-                    }));
-            m_highway_min_strings = m_tab_minimum_displayed_strings;
-        }
-        m_tab_arrangement_id = arrangement->id;
-        m_tab_chart_revision = session().chartRevision();
+        refreshChartProjections();
         state.tab = m_tab_view_state;
         // A typed value that would CREATE something — a note at an empty caret, a point on a
         // ring, a head cutting one (every beginning with a creation slot) — or restate a
@@ -3115,9 +3130,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     else
     {
-        m_tab_view_state.reset();
-        m_highway_view_state.reset();
-        m_tab_arrangement_id.clear();
+        refreshChartProjections();
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
     state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();

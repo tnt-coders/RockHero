@@ -649,17 +649,6 @@ the standard edge-resize verb with a generous grab zone, live preview, Esc cance
 entry — and note that the grab zone would have to be derived from the lane geometry, the layout
 manifest publishing head rectangles only since heads became the lane's sole targets (below).
 
-### A bend chip is not a surface of its own — trigger: a charter reaches for chip-then-`Delete`
-
-Since `4c7184ef`, `Delete` on a keyframe takes only its fret and keeps its bend (user ruling
-2026-09-29), so no technique is lost by accident any more. The bend's clear is `B` → "No bend"; the
-chip that prints the bend is still only a picture — clicking it selects the point, and the caret
-cannot stand on it. The user expects the chip to become its own caret face, and the design is ruled
-(`docs/plans/roadmap/63-technique-authored-surfaces.md`). **Trigger**: a charter clicking or
-arrowing to a bend chip and pressing `Delete` expecting the bend to go, or `B` → "No bend" read as
-too far away. **Remedy**: pull plan 63 Phases 1–2 into the first releasable editor's Phase 2 (size
-M, no gate).
-
 ### Selecting a long sustain by its tail is gone — trigger: a user reaches for it while editing
 
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY** (user ruling 2026-08-30): a click in the lane resolves

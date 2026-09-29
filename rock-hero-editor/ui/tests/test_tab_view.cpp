@@ -1601,11 +1601,13 @@ TEST_CASE(
         arrival_alone.getPixelAt(probe_x, probe_y));
 }
 
-// A CHIP IS A FACE OF WHAT OWNS IT, so a selected bend point rings its chip as well as its dot, and
-// the ring traces the chip AS PAINTED: the chip's click box is as wide as the widest amount it can
-// print, and a ring on that box would circle empty lane around a short amount. Probed as the rows
-// of the chip between the box's edge and the painted plate's, which the ring must leave untouched,
-// against the plate's own edge, which it must mark.
+// A CHIP IS A FACE OF WHAT OWNS IT, so with the caret on it a selected bend point rings its chip
+// rather than its dot, and the ring traces the chip AS PAINTED: the chip's click box is as wide as
+// the widest amount it can print, and a ring on that box would circle empty lane around a short
+// amount. The two faces are rendered against each other — both repaint the chip, so the ring is
+// their only difference there — probed as the rows of the chip between the box's edge and the
+// painted plate's, which the ring must leave untouched, against the plate's own edge, which it
+// must mark.
 TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1667,12 +1669,18 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
     // ring's own stroke.
     REQUIRE(plate.getX() - chip->x > 5.0f);
 
-    const juce::Image plain = render();
-    view.setEditState(
-        core::ChartEditViewState{
-            .selected_keyframes = {core::ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}},
-        });
-    const juce::Image selected = render();
+    const auto render_on = [&view, &render](const core::ChartCaretFace face) {
+        view.setEditState(
+            core::ChartEditViewState{
+                .selected_keyframes = {core::ChartKeyframeRef{
+                    .note_index = 0, .keyframe_index = 0
+                }},
+                .caret = core::ChartCaretViewState{.seconds = 10.0, .string = 3, .face = face},
+            });
+        return render();
+    };
+    const juce::Image plain = render_on(core::ChartCaretFace::Mark);
+    const juce::Image selected = render_on(core::ChartCaretFace::BendChip);
 
     const int top = juce::roundToInt(plate.getY());
     const int bottom = juce::roundToInt(plate.getBottom());
@@ -1692,6 +1700,104 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
     const int plate_left = juce::roundToInt(plate.getX());
     CHECK(differs_in_columns(plate_left - 1, plate_left + 1));
     CHECK_FALSE(differs_in_columns(juce::roundToInt(chip->x), plate_left - 3));
+}
+
+// The selection's bend chips draw OVER the caret square: an onset's chip stands above its head,
+// into the square the caret draws around that slot, and the amount must stay readable. Probed
+// where the square's top edge crosses the chip's plate, rendered with and without the caret: the
+// plate reads the same either way, while the square still shows beside the head.
+TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 400 px across 20 s: a note pre-bent a whole step, struck at 2.0s (x = 40) on string 3.
+    const common::core::NoteViewState note{
+        .start_seconds = 2.0,
+        .ring_end_seconds = 6.0,
+        .ink_end_seconds = 6.0,
+        .string = 3,
+        .fret = 7,
+        .bend = {common::core::BendPointViewState{.seconds = 2.0, .semitones = 2.0}},
+        .slides = {},
+        .keyframes = {},
+        .vibrato = {},
+    };
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    TabView view{};
+    view.setBounds(0, 0, 400, 240);
+    view.setVisibleTimeline(timeline);
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {note};
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+    const auto render = [&view](
+                            const std::optional<core::ChartCaretViewState>& caret,
+                            std::vector<std::size_t> selected = {0}) {
+        view.setEditState(
+            core::ChartEditViewState{.selected_notes = std::move(selected), .caret = caret});
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
+    const std::optional<common::ui::TabLayoutRect> chip =
+        common::ui::tabNoteLayout(metrics, note).bend_chip;
+    REQUIRE(chip.has_value());
+    if (!chip.has_value())
+    {
+        return;
+    }
+    const juce::Image scratch{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics scratch_graphics{scratch};
+    const juce::Rectangle<float> plate =
+        common::ui::paintTabBendChip(scratch_graphics, metrics, note, 0, *chip);
+    const common::ui::TabLayoutRect square = common::ui::tabSlotHeadSquare(metrics, 2.0, 3);
+
+    const juce::Image without = render(std::nullopt);
+    const juce::Image with = render(core::ChartCaretViewState{.seconds = 2.0, .string = 3});
+    // The caret is drawn: its square's left edge, at mid-height, beside the head.
+    const int square_left = juce::roundToInt(square.x);
+    const int square_mid = juce::roundToInt(square.y + square.height / 2.0f);
+    REQUIRE(
+        with.getPixelAt(square_left, square_mid) != without.getPixelAt(square_left, square_mid));
+    // The chip stands on the square's top edge, and the stroke straddling that edge reaches into
+    // the plate's last row, so the plate's rows beside the edge are the probe.
+    const int edge_y = juce::roundToInt(square.y);
+    REQUIRE(static_cast<float>(edge_y - 1) > plate.getY());
+    REQUIRE(static_cast<float>(edge_y - 1) < plate.getBottom());
+    // Columns inside both the square and the plate, clear of the plate's rounded corners.
+    const int from_x = std::max(juce::roundToInt(square.x), juce::roundToInt(plate.getX())) + 3;
+    const int to_x =
+        std::min(juce::roundToInt(square.x + square.width), juce::roundToInt(plate.getRight())) - 3;
+    REQUIRE(from_x < to_x);
+    const auto plate_unchanged = [&](const juce::Image& image, const juce::Image& reference) {
+        for (int x = from_x; x < to_x; ++x)
+        {
+            for (int y = edge_y - 1; y <= edge_y + 1; ++y)
+            {
+                if (static_cast<float>(y) > plate.getY() &&
+                    static_cast<float>(y) < plate.getBottom() &&
+                    image.getPixelAt(x, y) != reference.getPixelAt(x, y))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    CHECK(plate_unchanged(with, without));
+    // The probe sees the square where the chip is NOT repainted over it: with nothing selected the
+    // same rows change, so the check above is the repaint's doing and not a blind spot.
+    CHECK_FALSE(plate_unchanged(
+        render(core::ChartCaretViewState{.seconds = 2.0, .string = 3}, {}),
+        render(std::nullopt, {})));
 }
 
 // The controller-published armed caret renders as a white square outline on its empty slot

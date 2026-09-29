@@ -89,16 +89,39 @@ struct ChartKeyframeHit
 };
 
 /*!
+\brief The chip printing an object's bend the pointer resolved: the onset's chip names its note, a
+keyframe's chip its keyframe.
+
+A face of the object that owns it, like a held stop's satellite: it selects that object like any
+other mark of it, and what it adds is the FACE, so `Delete` takes the bend the charter clicked.
+*/
+struct ChartBendChipHit
+{
+    /*! \brief The object whose bend the chip prints. */
+    std::variant<ChartNoteHit, ChartKeyframeHit> owner{ChartNoteHit{}};
+
+    /*!
+    \brief Compares two bend-chip hits by their stored values.
+    \param lhs Left-hand hit.
+    \param rhs Right-hand hit.
+    \return True when both name the same object's chip.
+    */
+    friend constexpr bool operator==(
+        const ChartBendChipHit& lhs, const ChartBendChipHit& rhs) noexcept = default;
+};
+
+/*!
 \brief One selectable object the lane resolved under a pointer.
 
 Addressed by projection index instead of by identity: the controller turns one into the other, which
-is the single place a drawn glyph becomes a selectable object. One alternative more than
-\ref ChartSelectionKey has, deliberately: a note's held stop is not a second SELECTABLE object — it
-selects the note like any other mark of it — but it is a second TARGET, and which one the pointer
-landed on is exactly what the controller needs to know to point the next typed digit at the stop
-that was clicked.
+is the single place a drawn glyph becomes a selectable object. Two alternatives more than
+\ref ChartSelectionKey has, deliberately: a note's held stop and an object's bend chip are not
+second SELECTABLE objects — each selects its object like any other mark of it — but they are second
+TARGETS, and which one the pointer landed on is exactly what the controller needs to know to put the
+caret on the face that was clicked.
 */
-using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit>;
+using ChartHitTarget =
+    std::variant<ChartNoteHit, ChartHeldStopHit, ChartKeyframeHit, ChartBendChipHit>;
 
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.

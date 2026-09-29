@@ -1358,12 +1358,13 @@ covered slot starts a vibrato mid-ring.
 away.
 
 A NOTE's anchor is its onset, whose value is the pre-bend (\ref common::core::ChartNote::bend) and
-always stated, so only an amount writes it and taking the statement away leaves it be. A KEYFRAME
-key names an instant along its note's ring, and the point need not stand there yet: stating a bend
-where the ring has none plants one (\ref common::core::keyframeAt), carrying the leg's width, which
-is how a bend is authored mid-ring or at the ring's end. Taking the statement away leaves whatever
-else the point states, and a point left saying nothing is the commit law's to sweep; a key naming
-no point writes nothing then.
+always stated, so taking the statement away leaves it at rest. A KEYFRAME key names an instant along
+its note's ring, and the point need not stand there yet: stating a bend where the ring has none
+plants one (\ref common::core::keyframeAt), carrying the leg's width, which is how a bend is
+authored mid-ring or at the ring's end. Taking the statement away leaves whatever else the point
+states, and takes a named point left saying nothing new, as `Delete` takes a point whose fret was
+all it said; a key naming no point writes nothing then. This is the bend's one withdraw: the
+picker's "No bend" row and `Delete` on a bend chip both plan through it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.

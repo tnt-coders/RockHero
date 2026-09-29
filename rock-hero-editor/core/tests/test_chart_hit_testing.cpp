@@ -103,6 +103,21 @@ namespace
     return ChartKeyframeHit{.note_index = note_index, .keyframe_index = keyframe_index};
 }
 
+// The chip printing one note's onset bend, a face of that note.
+[[nodiscard]] ChartHitTarget noteBendChipTarget(const std::size_t index)
+{
+    return ChartBendChipHit{.owner = ChartNoteHit{.index = index}};
+}
+
+// The chip printing one keyframe's bend, a face of that keyframe.
+[[nodiscard]] ChartHitTarget keyframeBendChipTarget(
+    const std::size_t note_index, const std::size_t keyframe_index)
+{
+    return ChartBendChipHit{
+        .owner = ChartKeyframeHit{.note_index = note_index, .keyframe_index = keyframe_index}
+    };
+}
+
 // One keyframe as a selection key: the note's slot plus the offset along its ring.
 [[nodiscard]] ChartSelectionKey keyframeKey(
     const ChartSlotKey& slot, const common::core::Fraction offset)
@@ -764,7 +779,7 @@ TEST_CASE("Chart hit testing reaches a cropped bend point by its chip at the cro
     const float chip_x = chip->x + chip->width / 2.0f;
     const float chip_y = chip->y + chip->height / 2.0f;
     CHECK_THAT(chip_x, Catch::Matchers::WithinAbs(geometry.x(8.0), 1e-3));
-    CHECK(chartHitTarget(rising, geometry, chip_x, chip_y) == keyframeTarget(0, 0));
+    CHECK(chartHitTarget(rising, geometry, chip_x, chip_y) == keyframeBendChipTarget(0, 0));
 
     // Held level into the landing: the cut leg says nothing new, so it wears no chip to click.
     const common::core::ChartViewState held = landing_bend(
@@ -849,7 +864,7 @@ TEST_CASE("Chart hit testing answers a chip stack with the chip painted on top",
     REQUIRE(under->contains(press_x, press_y));
     CHECK(
         chartHitTarget(tab, geometry, press_x, press_y, revealEverything()) ==
-        keyframeTarget(0, 1));
+        keyframeBendChipTarget(0, 1));
 }
 
 // A HEAD STEPPED BACK ANSWERS AFTER THE RING IN FRONT OF IT. While a ring ending on the next head
@@ -991,7 +1006,7 @@ TEST_CASE("Chart hit testing answers a mixed chip stack with the bend chip on to
     REQUIRE(slide_chip.contains(press_x, press_y));
     CHECK(
         chartHitTarget(tab, geometry, press_x, press_y, revealEverything()) ==
-        keyframeTarget(0, 0));
+        keyframeBendChipTarget(0, 0));
 }
 
 // A CHIP IS A FACE OF WHAT OWNS IT. The chip printing a keyframe's bend reaches that keyframe, and
@@ -1064,7 +1079,7 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
                 tab,
                 geometry,
                 point_chip->x + point_chip->width / 2.0f,
-                point_chip->y + point_chip->height / 2.0f) == keyframeTarget(0, 0));
+                point_chip->y + point_chip->height / 2.0f) == keyframeBendChipTarget(0, 0));
         CHECK(in_box(*point_chip) == (std::vector<ChartHitTarget>{keyframeTarget(0, 0)}));
     }
 
@@ -1078,7 +1093,7 @@ TEST_CASE("Chart hit testing reaches a point and a note by their bend chips", "[
                 tab,
                 geometry,
                 onset_chip->x + onset_chip->width / 2.0f,
-                onset_chip->y + onset_chip->height / 2.0f) == noteTarget(0));
+                onset_chip->y + onset_chip->height / 2.0f) == noteBendChipTarget(0));
         CHECK(in_box(*onset_chip) == (std::vector<ChartHitTarget>{noteTarget(0)}));
     }
 

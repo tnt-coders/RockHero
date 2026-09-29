@@ -442,10 +442,8 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
 - The smooth-scroll camera (parked), the cross-platform port, C++26.
 - Plan 62 (per-song kept-sustain bound) — superseded; it survives only as a watch item's remedy
   (`docs/tracking/watch-items.md`).
-- Plan 63 (the bend chip as its own caret face; `Delete` there takes the bend) — the bend's clear is
-  authorable today, so it is the first editor item AFTER this release, UNLESS its watch item ("A bend
-  chip is not a surface of its own") fires: a repeat sighting pulls its Phases 1–2 into Phase 2
-  above.
+- Plan 63 (the bend chip as its own caret face; `Delete` there takes the bend) — pulled forward and
+  BUILT 2026-09-29 ahead of this release; only its sighting (Phase 3) remains.
 
 ## Task-list audit (2026-09-19)
 

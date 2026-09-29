@@ -2,8 +2,10 @@
 
 ## 1. Status
 
-**Roadmap — design ruled 2026-09-29, not started.** Re-verify the inventory (§5) before executing:
-it was stamped against `master @ 4c7184ef`.
+**Phases 1–2 BUILT 2026-09-29, awaiting sighting (Phase 3).** The user pulled the plan forward the
+day it was ruled. Where this document and the build differ, the build follows three later rulings:
+the caret square stays on the slot (§7.6), `Enter` opens the bend picker (§7.7), and every arrival
+lands on the mark (63-Q1, §8). The inventory (§5) was stamped against `master @ 4c7184ef`.
 
 History, in one paragraph: the user sighted that `Delete` on a keyframe stating a fret AND a bend
 removed both ("each individual technique is really its own authored surface"). This plan first
@@ -46,9 +48,11 @@ already the mark (`Delete` on a fret-less point takes the point whole).
   DERIVED from it, never a second field that must agree with it.
 - **One withdraw of the bend.** `Delete` on the chip and `planSetBend` with no amount call the same
   arm; neither restates `bend.reset()`.
-- **One answer to "is that face drawn".** A bend twin of `chartSlotShowsHeldStop`, read from the
-  layout manifest the lane draws with, decides whether the chip face exists at the moment it is
-  spent (an arrow onto it, a `Delete` from it).
+- **One answer to "can the caret stand on that face".** `chartFaceShown` answers for every face,
+  asked when the caret arms and again when the face is read. For the chip it asks the CHART —
+  whether an object on the slot states a bend (`chartObjectStatesBend`) — not the layout: the
+  keyboard has no geometry, and a stated bend whose chip the lane crops is still the face (built
+  2026-09-29 after a Fable simplicity review; a projection-based first draft is what it replaced).
 - **Layering.** The face and its handlers live in `rock-hero-editor/core`; the chip's box comes
   from the common/ui layout manifest the lane already paints and hit-tests with; the square is the
   tab view's.
@@ -102,13 +106,21 @@ the rules refuse, like any refused verb.
    states its bend (accepted asymmetry). The face changes what `Delete` does and nothing else.
 5. **Pointer.** Clicking a chip arms the caret on it; clicking the chip of an already-selected
    note or point arms it without collapsing the selection, exactly as `armChartHeldStopHandle` does.
-6. **Drawing.** The chip draws OVER the caret square, whichever face the caret is on, so the chip
-   stays readable; on the `BendChip` face the square frames the chip plate.
-7. **No picker on double-click** for now.
+6. **Drawing (the user's model A).** The caret square stays on the SLOT on every face but the held
+   stop's, which is a column of its own; on the `BendChip` face the chip, not the head, wears the
+   selection ring. The selection's chips draw OVER the caret square on every face, so the amount
+   stays readable.
+7. **`Enter` and `B` on the chip open the bend picker.** `B` already acts on the chip's object;
+   `Enter` restates the selection by kind, and a bend is restated by choosing its amount.
+   `Ctrl+↑/↓` from the chip jump between groups exactly as from any string.
+8. **No picker on double-click** for now.
+9. **Delete on the chip IS the picker's "No bend"** — one planner (`planSetBend` with no amount),
+   which now leaves a named onset at rest and takes a named point left saying nothing, so the two
+   verbs cannot part.
 
-## 8. Open question
+## 8. Settled question
 
-- **63-Q1 — Where does a DOWNWARD arrival land?** The UI review recommended that `Down` from the
+- **63-Q1 — Where does a DOWNWARD arrival land? RULED 2026-09-29: on the mark.** The UI review recommended that `Down` from the
   string above land on a chip first (the chip sits above the mark, so display order says chip, then
   mark). The user suspects it may feel off. **R: land on the MARK.** Every arrival from another
   string, in either direction, lands on the mark, and the chip is entered only by `Up` from its own
@@ -124,8 +136,9 @@ the rules refuse, like any refused verb.
 - `ChartCaret::channel` → a face enum (working name `ChartCaretFace { Mark, HeldStop, BendChip }`);
   `chartCaretChannel()` derives the stop channel from it. Every writer of `channel` moves to the
   face.
-- `chartSlotShowsBendChip(slot)` beside `chartSlotShowsHeldStop`, answered from the layout manifest.
-  The read-side demotion (a face no longer drawn reads as `Mark`) covers both faces in one place.
+- `chartFaceShown(slot, face, objects)` beside `chartSlotShowsHeldStop`, the chip answered from the
+  chart. The read-side demotion (a face no longer shown reads as `Mark`) covers both faces in one
+  place.
 - The vertical step: `Up` from a mark with a drawn chip → `BendChip`; `Down` from `BendChip` →
   `Mark`; `Up` from `BendChip` → the string above; arrivals land per 63-Q1. The horizontal step
   from `BendChip` resolves to the ordinary walk from the mark's slot.

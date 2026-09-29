@@ -139,10 +139,11 @@ std::optional<ChartHitTarget> chartHitTarget(
     // answer in turn (PressLayer::topmost). HEADS first: a note is addressed at its onset column,
     // and its head is the target a charter reaches for most. Every other FACE next — a keyframe's
     // mark, drawn ON a tail (so resolving tails first would make every one unclickable), and the
-    // chips, each a face of what owns it: the onset's bend chip reaches its note, a keyframe's bend
-    // chip its keyframe. A chip's box is as wide as the widest amount it can print, since this
-    // resolver measures no text, so letting chips answer before heads would hand a short chip's
-    // empty margin a press meant for the head beside it. Among the faces the one PAINTED ON TOP
+    // chips, each a face of what owns it: the onset's bend chip names its note, a keyframe's bend
+    // chip its keyframe, each as a face of its own (ChartBendChipHit). A chip's box is as wide as
+    // the widest amount it can print, since this resolver measures no text, so letting chips
+    // answer before heads would hand a short chip's empty margin a press meant for the head beside
+    // it. Among the faces the one PAINTED ON TOP
     // answers, not the nearest: chips pushed back to one place stack, and boxes of different widths
     // ending at one edge have different centres. So each of the paint core's three layers keeps
     // the last face containing the press, in the paint core's order, and the layers answer topmost
@@ -161,7 +162,7 @@ std::optional<ChartHitTarget> chartHitTarget(
         if (const std::optional<common::ui::TabLayoutRect>& chip = note_layout.bend_chip;
             chip.has_value() && chip->contains(x, y))
         {
-            layer.top_bend_chip = ChartNoteHit{.index = index};
+            layer.top_bend_chip = ChartBendChipHit{.owner = ChartNoteHit{.index = index}};
         }
         // A mark is clickable exactly where the lane draws it, by the rules the paint core draws
         // by: within the extent the note is drawn to, and past it only as the destination chip a
@@ -182,7 +183,7 @@ std::optional<ChartHitTarget> chartHitTarget(
             if (const std::optional<common::ui::TabLayoutRect>& chip = keyframe_layout.bend_chip;
                 chip.has_value() && chip->contains(x, y))
             {
-                layer.top_bend_chip = target;
+                layer.top_bend_chip = ChartBendChipHit{.owner = target};
             }
         }
     }

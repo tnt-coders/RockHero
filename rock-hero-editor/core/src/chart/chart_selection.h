@@ -155,6 +155,51 @@ reached — while this one function takes every caret path from the object back 
     const common::core::TempoMap& tempo_map, const ChartSelectionKey& key);
 
 /*!
+\brief The note standing on a slot of a slot-ordered stream, or null when none does.
+
+\param notes Chart notes, in the stream's (position, string) order.
+\param slot The note's slot.
+
+\return The note at exactly that slot, or null.
+*/
+[[nodiscard]] const common::core::ChartNote* chartNoteAt(
+    const std::vector<common::core::ChartNote>& notes, const ChartSlotKey& slot);
+
+/*!
+\brief Whether the chart still holds what a selection key names — THE one answer to "does this key
+name something", asked after an edit and after an undo alike.
+
+A note key names the note at its slot; a keyframe key the point at its offset along the note that
+stores it. Exact rationals, so equality is the test. Asked of the kind the key is and deliberately
+NOT of what a landing at its slot would address: a ring's END statement is a real object no landing
+addresses.
+
+\param notes Chart notes, in the stream's (position, string) order.
+\param key Selection key.
+
+\return True when the chart holds the object the key names.
+*/
+[[nodiscard]] bool chartHoldsKey(
+    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key);
+
+/*!
+\brief Whether a selected object states a BEND — what wears a bend chip, the caret face `Delete`
+takes the bend from.
+
+A note states one when its ring is bent anywhere (\ref common::core::noteIsBent), which is when the
+onset opens a bend curve and so prints its chip; a keyframe when it states the channel. Asked of
+the chart rather than of any picture: a stated bend whose chip the lane has cropped is still the
+face, the ring simply having no plate to draw on.
+
+\param notes Chart notes, in the stream's (position, string) order.
+\param key Selected object.
+
+\return True when the object states a bend.
+*/
+[[nodiscard]] bool chartObjectStatesBend(
+    const std::vector<common::core::ChartNote>& notes, const ChartSelectionKey& key);
+
+/*!
 \brief The view slot a chart slot draws at: its onset on the seconds axis, and its string lane.
 
 Spelled once so everything that rides a slot — each beginning of the pending fret box, the bend

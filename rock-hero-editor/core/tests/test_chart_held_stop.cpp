@@ -118,12 +118,12 @@ struct HeldStopFixture
 // the pointer event reports, so a mark that waits for it is reached by a press holding it.
 constexpr ChartPointerModifiers g_reveal_held{.ctrl = false, .shift = false, .alt = true};
 
-// The armed caret's STOP as the controller last published it. The optional is bound ONCE and the
+// The armed caret's FACE as the controller last published it. The optional is bound ONCE and the
 // guard rides that name: the CI-only optional-access checker cannot tie a `has_value()` on one call
 // of an accessor to a dereference on the next, because they are two calls it cannot prove yield the
 // same object. It cannot see through Catch2's REQUIRE either, so the explicit guard below repeats
 // the assertion the REQUIRE already made; in a passing run its body is unreachable.
-[[nodiscard]] common::core::ChartStopChannel caretChannel(const FakeEditorView& view)
+[[nodiscard]] ChartCaretFace caretFace(const FakeEditorView& view)
 {
     const std::optional<ChartCaretViewState>& caret = chartEditState(view).caret;
     REQUIRE(caret.has_value());
@@ -131,7 +131,7 @@ constexpr ChartPointerModifiers g_reveal_held{.ctrl = false, .shift = false, .al
     {
         return {};
     }
-    return caret->channel;
+    return caret->face;
 }
 
 // The armed caret's instant, read through the same one-binding rule.
@@ -161,7 +161,7 @@ TEST_CASE("Delete takes a note's held stop with the note", "[core][chart]")
     // sounding stop rather than the held one.
     click(fixture.controller, 50.0f, 140.0f);
     REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
 
     fixture.controller.onSelectionDeleteRequested();
     const common::core::Chart* const chart = chartOrNull(fixture.controller);
@@ -185,10 +185,10 @@ TEST_CASE("Typing at a bare tap's satellite authors its held stop", "[core][char
     // caret stands in its ring (chartPresence), so the next press reaches the satellite.
     click(fixture.controller, 50.0f, 140.0f);
     REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
 
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     fixture.controller.onChartFretDigitTyped(7);
     const common::core::Chart* chart = chartOrNull(fixture.controller);
@@ -250,13 +250,13 @@ TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart
 
     // Leave the caret on the head, so the satellite click is what changes the channel.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
 
     click(fixture.controller, satelliteX(2.5), 140.0f);
     // The same note is selected — the satellite is a second mark of one object, never a second
     // object — and the caret now sits on the stop that was clicked.
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     fixture.controller.onChartFretDigitTyped(4);
     const common::core::Chart* const chart = chartOrNull(fixture.controller);
@@ -299,15 +299,15 @@ TEST_CASE("A derived held stop's satellite is revealed, never standing", "[core]
     // which arms the caret on the stop every note has. Under a law that stood every satellite it
     // would land on the held one.
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
     // SELECTED: selecting the tap is a ground of the reveal too — and the click that selects it
     // arms the caret inside its ring, another — so at the press the digit is drawn and the same
     // press reaches the stop.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // AND IT IS READ-ONLY, which is the whole reason the caret must reach it: the derivation owns
     // this stop, so a digit typed at it is REFUSED in red rather than quietly landing on the
@@ -345,7 +345,7 @@ TEST_CASE("The lane reveal makes a derived satellite pressable", "[core][chart]"
     // The note becomes the selection, as an unselected note's satellite press always does, and the
     // caret lands on the stop that was clicked rather than on the head beside it.
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 }
 
 // THE PLANT'S FACE at the same layers. A FRETTING-hand pull-off source wears the stop its pull-off
@@ -384,13 +384,13 @@ TEST_CASE("A plant's satellite is revealed, read-only, and refuses Delete", "[co
     // Unrevealed — no modifier, no selection, no caret yet — the satellite is not drawn, so the
     // press lands on the stop every note has.
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
 
     // Revealed — selected, the caret in its ring — the same press reaches the plant.
     click(fixture.controller, 50.0f, 140.0f);
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // READ-ONLY: a digit at it is refused in red, and nothing lands anywhere.
     fixture.controller.onChartFretDigitTyped(4);
@@ -448,10 +448,10 @@ TEST_CASE("A tapped harmonic's satellite states its pressed stop, read-only", "[
     // Leave the caret on the head, so the satellite click is what changes the channel — and it
     // reaches the mark with nothing revealed, because the mark is drawn.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // READ-ONLY: the digit is refused in red rather than landing on the sounding fret beside it.
     fixture.controller.onChartFretDigitTyped(4);
@@ -507,15 +507,15 @@ TEST_CASE("An open-string tapped harmonic wears no satellite", "[core][chart]")
     // The head takes the click, and the satellite column beside it has nothing to take: the caret
     // stays on the sounding stop rather than opening a channel over a mark that was never drawn.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
 
     // The keyboard twin: stepping right off the head finds no second stop within the slot either.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
 }
 
 // AN ARTIFICIAL HARMONIC'S SATELLITE STATES THE SAME UNSTORED STOP, at every one of those layers.
@@ -549,10 +549,10 @@ TEST_CASE("An artificial harmonic's satellite states its pressed stop, read-only
     // Leave the caret on the head, so the satellite click is what changes the channel — and it
     // reaches the mark with nothing revealed, because the mark is drawn.
     click(fixture.controller, 50.0f, 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     click(fixture.controller, satelliteX(2.5), 140.0f);
     CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // READ-ONLY: the digit is refused in red rather than landing on the sounding fret beside it.
     fixture.controller.onChartFretDigitTyped(4);
@@ -598,17 +598,17 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     // The head, which is where a traversal from the left arrives.
     click(fixture.controller, 50.0f, 140.0f);
 
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     const double head_seconds = caretSeconds(fixture.view);
 
     // Rightward: the second stop is WITHIN the slot, so the caret does not move along the axis.
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
     CHECK_THAT(caretSeconds(fixture.view), Catch::Matchers::WithinAbs(head_seconds, 1e-9));
 
     // Leftward is the display order reversed, so it returns to the head without moving either.
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
     CHECK_THAT(caretSeconds(fixture.view), Catch::Matchers::WithinAbs(head_seconds, 1e-9));
 
     // Digits on that stop state the held fret, the same entry the satellite click opens.
@@ -633,7 +633,7 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     // nothing on this string — the open string. So the caret stays on the stop it was on rather
     // than falling back to the head, and the next digit authors a fresh statement in the same
     // place.
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // Delete on the DEFAULT withdraws nothing, because nobody authored it: the chart is exactly
     // what it was, and no held 0 is written in the charter's name — which is why Delete goes
@@ -644,17 +644,17 @@ TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
     REQUIRE(chart->notes.size() == 3);
     CHECK_FALSE(chart->notes[2].held.has_value());
     CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // THE DISCRIMINATION the default makes necessary, moved to the note it is now about: the
     // within-slot stop is a fixture of a RIGHT-HAND onset and of nothing else. The chord's string-1
     // note is picked, so the fretting hand IS its onset and there is no second stop under it — the
     // same press is an ordinary step along the axis.
     click(fixture.controller, 40.0f, 220.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::Mark);
     const double chord_seconds = caretSeconds(fixture.view);
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::Mark);
     CHECK(caretSeconds(fixture.view) > chord_seconds);
 }
 
@@ -669,7 +669,7 @@ TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
 
     // The satellite press selects the tap and arms its held stop in the one gesture.
     click(fixture.controller, satelliteX(2.5), 140.0f);
-    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    REQUIRE(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // Up one string: the stop is still on a string the chord never holds, so it still states a
     // shape of its own and its satellite still draws.
@@ -680,7 +680,7 @@ TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
     REQUIRE(chart->notes[2].string == 4);
     REQUIRE(chart->notes[2].held == std::optional{7});
 
-    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
 
     // And the consequence that makes it matter: the next digit states the stop the caret is on.
     fixture.controller.onChartFretDigitTyped(3);
@@ -706,7 +706,7 @@ TEST_CASE("A satellite is its note's held face whatever is selected", "[core][ch
     SECTION("unselected, it selects its note and arms that note's held stop")
     {
         click(fixture.controller, satelliteX(2.5), geometry.laneY(3));
-        CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+        CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
         CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
 
         // And the digits that follow state THAT NOTE's held stop and nothing else — the sound the
@@ -732,7 +732,7 @@ TEST_CASE("A satellite is its note's held face whatever is selected", "[core][ch
         REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
 
         click(fixture.controller, satelliteX(2.5), geometry.laneY(3));
-        CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+        CHECK(caretFace(fixture.view) == ChartCaretFace::HeldStop);
         CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{0, 2});
     }
 }

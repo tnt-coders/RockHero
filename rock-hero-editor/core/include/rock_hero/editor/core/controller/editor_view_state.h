@@ -379,6 +379,32 @@ struct ChartMarqueeViewState
 };
 
 /*!
+\brief WHICH face of the object at its slot the armed caret stands on.
+
+The caret addresses a slot, and an object there can wear more than one face the charter works on
+alone. The MARK is the face every object has: a head, a keyframe's mark, where the digits state the
+stop that sounds and `Delete` takes the object (or a keyframe's fret). A note under a right-hand
+onset also wears its HELD stop, the satellite digit outboard of its posture bracket, where the
+digits state what the fretting hand holds and `Delete` clears it. An object stating a bend wears the
+BEND CHIP printing it, where `Delete` takes the bend and `Enter` opens the bend picker; digits there
+type into the mark.
+
+A face is reachable only while it is drawn, so an edit that takes it away leaves the caret on the
+mark.
+*/
+enum class ChartCaretFace : std::uint8_t
+{
+    /*! \brief The face every object has: its head, or a keyframe's mark. */
+    Mark,
+
+    /*! \brief A note's held-stop satellite. */
+    HeldStop,
+
+    /*! \brief The chip printing the object's bend. */
+    BendChip,
+};
+
+/*!
 \brief The armed caret's rendered position while it sits on an empty grid slot.
 
 The marker model: while the marker is armed the caret is THE paused position —
@@ -394,18 +420,15 @@ struct ChartCaretViewState
     int string{1};
 
     /*!
-    \brief WHICH stop of the note here the caret sits on — the mark the square draws around.
+    \brief WHICH face of the object here the caret stands on (\ref ChartCaretFace).
 
-    A note under a right-hand onset wears two marks in one column: its head, carrying what the
-    picking hand sounds, and the satellite digit outboard of its posture bracket, carrying what the
-    fretting hand holds. The caret visits both, so the square has to say which one it is on — and
-    the surface reads THIS rather than re-deriving it from the note, because the controller is what
-    decided the caret could be there at all.
-
-    `Held` is published only where that satellite is drawn, which is the same invariant the caret
-    itself holds.
+    The surface reads THIS rather than re-deriving it from the note, because the controller is what
+    decided the caret could be there at all: the square moves onto a held stop's satellite, which is
+    a column of its own, and on a bend chip it stays on the slot while the chip, not the head, wears
+    the selection ring. A face is published only where it is drawn, which is the same invariant the
+    caret itself holds.
     */
-    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
+    ChartCaretFace face{ChartCaretFace::Mark};
 
     /*!
     \brief Compares two caret states by their stored values.
@@ -416,7 +439,7 @@ struct ChartCaretViewState
     friend bool operator==(const ChartCaretViewState& lhs, const ChartCaretViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string &&
-               lhs.channel == rhs.channel;
+               lhs.face == rhs.face;
     }
 };
 
@@ -562,16 +585,25 @@ struct OpenAutomationPickerTarget
     bool operator==(const OpenAutomationPickerTarget&) const = default;
 };
 
+/*! \brief The verb that opens the bend picker on the bend a selected bend chip prints. */
+struct OpenBendPickerTarget
+{
+    /*! \brief Two picker targets are always the same verb. */
+    bool operator==(const OpenBendPickerTarget&) const = default;
+};
+
 /*!
 \brief What `Enter` would do to the selection right now: rename a selected section, retone a
-selected tone region, open the "+" row's picker, or nothing.
+selected tone region, open the "+" row's picker, open the bend picker on a bend chip, or nothing.
 
 The selection's own verb, dispatched on its kind here rather than in the view: restating a section
-is renaming it, restating a tone region is repointing it. A retone stays `Enter`'s meaning on a
-region until the signal chain has a keyboard model to drill into (plan 53 Phase 5).
+is renaming it, restating a tone region is repointing it, restating a bend is choosing its amount. A
+retone stays `Enter`'s meaning on a region until the signal chain has a keyboard model to drill into
+(plan 53 Phase 5).
 */
 using RestateTarget = std::variant<
-    std::monostate, RenameSectionTarget, RetoneRegionTarget, OpenAutomationPickerTarget>;
+    std::monostate, RenameSectionTarget, RetoneRegionTarget, OpenAutomationPickerTarget,
+    OpenBendPickerTarget>;
 
 /*!
 \brief What `Ctrl+R` would do to the selection right now: rename a selected section, rename a

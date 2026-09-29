@@ -1278,14 +1278,11 @@ against the tree on the date above.
 
 ## Found while building bare `V` on a tail (2026-09-27)
 
-- **The slot-key → note lookup is written six times, and one copy lies.** `ringCarrier`
-  (`chart_handlers.cpp`, anonymous namespace) returns the `lower_bound` with no equality check, so
-  a slot the stream no longer holds yields the NEXT note, not the null its comment promises. The
-  same lookup is restated in `vibratoAtKey` and twice more in `chart_edits.cpp`, and twice in
-  `chart_handlers.cpp`; `B` resolves anchors through `ringCarrier` while `V` resolves the same keys
-  through `vibratoAtKey`, so the two disagree on a stale key. One `findChartNote(notes, slot)` in
-  `chart_selection.h`, beside `slotIndicesForKeys` ("THE key resolution"), replaces every copy and
-  deletes `ringCarrier`. No stale-key case has been constructed in practice.
+- **The slot-key → note lookup: two index-returning copies remain.** The lying `ringCarrier` and
+  the pointer-returning copies (`vibratoAtKey`, the move's end-carry, the undo repair) now go
+  through `chartNoteAt` in `chart_selection.h` (2026-09-29). Left: `chartSlotShowsHeldStop` and the
+  retype's `live_index`, which need the note's INDEX to address the parallel projection or
+  resolution vectors; an index-returning twin would fold them.
 - **Action availability is stated twice.** `isActionAvailable` (`editor_action_availability.cpp`)
   and `actionUnavailableReason` (`editor_controller.cpp`) are parallel exhaustive switches that must
   agree by hand — moving `ToggleChartTechnique` to the caret-operand gate had to edit both. One
@@ -1314,3 +1311,18 @@ against the tree on the date above.
   edit touches one record and a marker selection has no caret-versus-object ambiguity — so no
   defect, but recording there too would make the three timeline edit families one shape and let
   `firstChangedRecord` go.
+
+## Found in the simplicity review of the bend chip face (2026-09-29)
+
+- **The selection lingers on dissolved keys only to feed the verb window's proof.** The default
+  follow in `applyChartEditPlan` keeps a keyframe key after its point dissolved so a second press
+  still finds `armed_keys == chartSelection().keys()`. The window already stores `armed_keys`;
+  proving against those (pruned by `chartHoldsKey`) would let every apply prune and delete the
+  linger and its comments, leaving one selection-follow policy.
+- **`←`/`→` onto a held stop collapses a chord; `↑`/`↓` onto a bend chip keeps it.** The horizontal
+  within-slot step arms through `armChartCaret`, the vertical face step through
+  `armChartFaceHandle`. The keyboard path onto a face should be one mechanism (the handle).
+- **A gesture fold records `after` before its write.** In `commitChartGestureStep` the fold's
+  `ChartEditFocus` is captured before `replaceTop` and the chart write, so its face is judged on the
+  pre-write chart. Harmless while the arming demotes an unshown face on redo; capture it from the
+  landing's keys against the re-planned chart to make it exact.
