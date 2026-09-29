@@ -111,10 +111,13 @@ the rules refuse, like any refused verb.
    multi-selection, broke the marker model's arming law, and let a chip-face verb reach members
    whose chips no ring showed. Chord-wide bend work is `B` over the chord. The held stop follows
    the same rule, and the handle is gone.
-6. **Drawing (the user's model A).** The caret square stays on the SLOT on every face but the held
-   stop's, which is a column of its own; on the `BendChip` face the chip, not the head, wears the
-   selection ring. The selection's chips draw OVER the caret square on every face, so the amount
-   stays readable.
+6. **Drawing (the user's model A, extended 2026-09-29).** The caret square stays on the SLOT on
+   EVERY face — it says where — and the selection ring moves to the face — it says which: the
+   chip on the `BendChip` face, the held stop's satellite on the `HeldStop` face, the head
+   unringed on both. (The held face's square used to jump onto the satellite column; the user
+   ruled it follow the chip's rule.) Chip and satellite rings are rounded outlines just outside
+   the plate or slot, following its corners. The selection's chips draw OVER the caret square on
+   every face, so the amount stays readable.
 7. **`Enter` and `B` on the chip open the bend picker.** `B` already acts on the chip's object;
    `Enter` restates the selection by kind, and a bend is restated by choosing its amount.
    `Ctrl+↑/↓` from the chip jump between groups exactly as from any string.

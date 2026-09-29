@@ -81,10 +81,10 @@ struct StringStyle;
 constexpr float g_shape_rail_height{3.0f};
 
 // The chrome ground the boxed lane chips fill — the fret-hand chips and the capo chip — with its
-// text. Every chip in the lane, boxed or floating, shares the corner rounding.
+// text. Every chip in the lane, boxed or floating, shares the corner rounding
+// (g_lane_chip_corner_radius, in the header).
 const juce::Colour g_lane_chip_ground{0xff2a2f36};
 const juce::Colour g_lane_chip_text{juce::Colours::white.withAlpha(0.85f)};
-constexpr float g_lane_chip_corner_radius{2.0f};
 
 // A bend amount's vulgar-fraction glyph against the chip text. The glyph's own digits are about
 // 0.63 of a figure's height and 0.74 of its stroke; at 1.30 they reach 0.81 of the height and 0.97

@@ -653,8 +653,9 @@ A FACE IS ONE OBJECT'S (user ruling 2026-09-29): the caret stands on one object,
 too, and a multi-selection is always objects on their marks with the caret dissolved. A click on a
 chip or satellite selects its object alone on that face, even inside a selected chord, and a
 double-click on a chip opens the bend picker over it. What a chord's members state is the letter
-verbs' work — `B` over the chord sets or clears every bend. The square stays on the slot and the chip, drawn over
-it, wears the ring. On the chip `Delete` takes the bend through the picker's own "No bend"
+verbs' work — `B` over the chord sets or clears every bend. The square stays on the slot on every
+face — it says where — and the ring moves to the face — it says which: the chip, drawn over the
+square, or the held stop's satellite. On the chip `Delete` takes the bend through the picker's own "No bend"
 (`planSetBend`), `Enter` and `B` open the picker, and digits type into the mark. A face exists only
 while it is drawn: one predicate (`chartFaceShown`) is asked when the caret arms, and again when
 the face is read (`chartCaretFace`), so an edit that takes the chip away leaves the caret on the

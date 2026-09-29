@@ -1800,6 +1800,83 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
         render(std::nullopt, {})));
 }
 
+// THE SQUARE SAYS WHERE, THE RING SAYS WHICH FACE (user ruling 2026-09-29): with the caret on a
+// note's held stop the square stays on the note's slot, exactly where it stands on the head, and
+// the ring surrounds the satellite printing the held stop.
+TEST_CASE(
+    "TabView keeps the caret on the slot and rings the held stop's satellite", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // 400 px across 20 s: a tap at 5.0s (x = 100) on string 1, holding 5 under the tapped 12.
+    common::core::NoteViewState note;
+    note.start_seconds = 5.0;
+    note.ring_end_seconds = 5.5;
+    note.ink_end_seconds = 5.0;
+    note.string = 1;
+    note.fret = 12;
+    note.attack = common::core::NoteAttack::Tap;
+    note.held = 5;
+    note.stop_mark = common::core::StopMarkViewState{
+        .seconds = 5.0, .face = common::core::StopMarkFace::Standing
+    };
+    const common::core::TimeRange timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    TabView view{};
+    view.setBounds(0, 0, 400, 240);
+    view.setVisibleTimeline(timeline);
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.notes = {note};
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+    const auto render = [&view](const std::optional<core::ChartCaretViewState>& caret) {
+        view.setEditState(core::ChartEditViewState{.selected_notes = {0}, .caret = caret});
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    const common::ui::TabLaneMetrics metrics =
+        common::ui::makeTabLaneMetrics(juce::Rectangle<int>{0, 0, 400, 240}, timeline, 6, 6);
+    const std::optional<common::ui::TabHeldStopLayout> satellite =
+        common::ui::tabHeldStopLayout(metrics, note, false);
+    REQUIRE(satellite.has_value());
+    if (!satellite.has_value())
+    {
+        return;
+    }
+    const common::ui::TabLayoutRect square = common::ui::tabSlotHeadSquare(metrics, 5.0, 1);
+
+    const juce::Image uncaret = render(std::nullopt);
+    const juce::Image on_mark = render(
+        core::ChartCaretViewState{.seconds = 5.0, .string = 1, .face = core::ChartCaretFace::Mark});
+    const juce::Image on_held = render(
+        core::ChartCaretViewState{
+            .seconds = 5.0, .string = 1, .face = core::ChartCaretFace::HeldStop
+        });
+
+    // The square's left edge near its top corner, which the round head's ring never reaches:
+    // drawn on the held face exactly as on the mark.
+    const int square_left = juce::roundToInt(square.x);
+    const int square_upper = juce::roundToInt(square.y) + 4;
+    REQUIRE(
+        on_mark.getPixelAt(square_left, square_upper) !=
+        uncaret.getPixelAt(square_left, square_upper));
+    CHECK(
+        on_held.getPixelAt(square_left, square_upper) ==
+        on_mark.getPixelAt(square_left, square_upper));
+
+    // The ring stands just outside the satellite's slot, on its right edge at mid-height, where
+    // nothing but the ring can land: the held face draws it, the mark face does not.
+    const int ring_x = juce::roundToInt(satellite->box.x + satellite->box.width) + 1;
+    const int ring_y = juce::roundToInt(satellite->center_y);
+    CHECK(on_held.getPixelAt(ring_x, ring_y) != on_mark.getPixelAt(ring_x, ring_y));
+}
+
 // The controller-published armed caret renders as a white square outline on its empty slot
 // (the marker model); clearing the published caret clears it.
 TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")

@@ -516,18 +516,27 @@ void TabView::paint(juce::Graphics& g)
     const juce::Colour accent = editorTheme().accent;
 
     // A selected chip is repainted over whatever covers it (chips pushed back by their ring's limit
-    // stack at one place) and wears its ring on the plate the repaint filled, as the selected
-    // fret-hand chip's does, so the ring claims the chip's own extent rather than the wider box
-    // its click lands in.
-    const auto ring_chip_plate = [&g, accent](const juce::Rectangle<float>& plate) {
+    // stack at one place) and wears its ring AROUND the plate the repaint filled: a rounded outline
+    // just outside the plate's own border, following its corners, so the chip reads whole inside
+    // its ring rather than as a chip with a doubled edge — and the ring claims the chip's own
+    // extent rather than the wider box its click lands in. A held stop's satellite, which has no
+    // plate, wears the same ring around its slot.
+    const auto ring_plate = [&g, accent](const juce::Rectangle<float>& plate) {
+        const float stroke = overlayRingStroke(plate.getHeight());
         g.setColour(accent);
-        g.drawRect(plate, overlayRingStroke(plate.getHeight()));
+        g.drawRoundedRectangle(
+            plate.expanded(stroke / 2.0f),
+            common::ui::g_lane_chip_corner_radius + stroke / 2.0f,
+            stroke);
     };
 
     // The selection wears its ring on the FACE the caret stands on, which is what the next key acts
-    // on: the marks, or — with the caret on a bend chip — the chips alone, the heads unringed.
-    const bool on_chip =
-        m_edit.caret.has_value() && m_edit.caret->face == core::ChartCaretFace::BendChip;
+    // on: the marks, or — with the caret on a note's held stop or a bend chip — that face alone,
+    // the head unringed. The caret square stays on the slot either way: it says where, the ring
+    // says which face.
+    const core::ChartCaretFace face =
+        m_edit.caret.has_value() ? m_edit.caret->face : core::ChartCaretFace::Mark;
+    const bool on_face = face != core::ChartCaretFace::Mark;
 
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
@@ -538,7 +547,7 @@ void TabView::paint(juce::Graphics& g)
     // around a head whose silhouette the overlay does not know about, such as the plectrum.
     for (const std::size_t index : m_edit.selected_notes)
     {
-        if (index >= tab.notes.size() || on_chip)
+        if (index >= tab.notes.size() || on_face)
         {
             continue;
         }
@@ -616,7 +625,7 @@ void TabView::paint(juce::Graphics& g)
                 {
                     case common::ui::TabKeyframeShape::Head:
                         common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
-                        if (!on_chip)
+                        if (!on_face)
                         {
                             g.setColour(accent);
                             common::ui::strokeTabNoteHeadOutline(
@@ -635,14 +644,14 @@ void TabView::paint(juce::Graphics& g)
                         {
                             const juce::Rectangle<float> plate =
                                 common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box);
-                            if (!on_chip)
+                            if (!on_face)
                             {
-                                ring_chip_plate(plate);
+                                ring_plate(plate);
                             }
                         }
                         break;
                     case common::ui::TabKeyframeShape::Dot:
-                        if (!on_chip)
+                        if (!on_face)
                         {
                             g.setColour(accent);
                             g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
@@ -689,12 +698,31 @@ void TabView::paint(juce::Graphics& g)
     // The selection's BEND CHIPS draw over the caret: a chip stands above its head, into the square
     // the caret draws there, and the amount it prints must stay readable. Each is repainted, and
     // wears the ring when the caret stands on the chips, the face the next key acts on.
-    const auto repaint_chip = [&ring_chip_plate, on_chip](const juce::Rectangle<float>& plate) {
-        if (on_chip)
+    const auto repaint_chip = [&ring_plate, face](const juce::Rectangle<float>& plate) {
+        if (face == core::ChartCaretFace::BendChip)
         {
-            ring_chip_plate(plate);
+            ring_plate(plate);
         }
     };
+    // With the caret on a held stop, the satellite printing it wears the ring.
+    if (face == core::ChartCaretFace::HeldStop)
+    {
+        for (const std::size_t index : m_edit.selected_notes)
+        {
+            if (index >= tab.notes.size())
+            {
+                continue;
+            }
+            if (const std::optional<common::ui::TabHeldStopLayout> satellite =
+                    common::ui::tabHeldStopLayout(
+                        metrics, tab.notes[index], presence(index).revealing());
+                satellite.has_value())
+            {
+                const common::ui::TabLayoutRect& slot = satellite->box;
+                ring_plate(juce::Rectangle<float>{slot.x, slot.y, slot.width, slot.height});
+            }
+        }
+    }
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -1126,26 +1154,8 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(const DrawableLane& l
     }
 
     const common::ui::TabLaneMetrics& metrics = lane.metrics;
-    const float center_y = metrics.laneY(m_edit.caret->string);
-    const float x = metrics.x(m_edit.caret->seconds);
-    // On a bend chip the square stays on the slot: the chip is a face of the mark's own column, and
-    // the ring on the chip, drawn over the square, is what says the caret stands on it.
-    if (m_edit.caret->face == core::ChartCaretFace::HeldStop)
-    {
-        // The caret is on the note's OTHER stop, so the square marks the mark that states it: the
-        // satellite column outboard of the posture bracket's closing bar. Its geometry is the
-        // lane's own (TabLaneGeometry::satelliteSlot), the same numbers the digit is drawn in and
-        // the pointer is tested against, so the armed square lands exactly on the occupied slot.
-        const common::ui::TabBracketGeometry bracket = metrics.bracketGeometry();
-        const common::ui::TabSatelliteSlot slot = metrics.satelliteSlot();
-        const float bar_right = x + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-        return juce::Rectangle<float>{
-            bar_right,
-            center_y - bracket.half_height,
-            static_cast<float>(slot.extent()),
-            bracket.half_height * 2.0f
-        };
-    }
+    // The square says WHERE and stays on the slot whatever face the caret stands on: the ring on
+    // the face — the held stop's satellite, the bend chip — says which (user ruling 2026-09-29).
     const common::ui::TabLayoutRect head =
         common::ui::tabSlotHeadSquare(metrics, m_edit.caret->seconds, m_edit.caret->string);
     return juce::Rectangle<float>{head.x, head.y, head.width, head.height};

@@ -34,6 +34,12 @@ vibrato, which is why the lane cannot scale the wide tier up the way the board d
 inline constexpr float g_wide_vibrato_swing_multiplier = 2.0f;
 
 /*!
+\brief The corner rounding every lane chip shares, boxed or floating — and a ring a host traces
+around one, so the ring follows the plate it surrounds.
+*/
+inline constexpr float g_lane_chip_corner_radius = 2.0f;
+
+/*!
 \brief Returns the base display color for one string lane as a JUCE color.
 
 The six highest lanes take the Charter Classic preset's standard colors anchored at the
