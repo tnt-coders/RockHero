@@ -255,8 +255,8 @@ enum class ChartRepair : std::uint8_t
     MidTravelVibrato,
 
     /*!
-    \brief A keyframe that said nothing the path did not already say was dropped
-    (\ref stripSilentKeyframes): the keyframe commit law's load half. Reported by
+    \brief A keyframe, or a statement on one, that said nothing the path did not already say was
+    dropped (\ref stripSilentKeyframes): the keyframe commit law's load half. Reported by
     \ref normalizeChart alone — never by the per-note normalizer, whose repairs the validator
     refuses, because such a point is legal in memory and only ever absent from a document.
     */

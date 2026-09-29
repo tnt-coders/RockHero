@@ -1889,11 +1889,30 @@ deleted like any other, and one rule takes every silent point when its note leav
 [[nodiscard]] bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point);
 
 /*!
-\brief Drops every keyframe of the note that says nothing its path does not already say
+\brief The point with every statement that says nothing new withdrawn — the commit law asked of
+each channel alone.
+
+The law is the same one \ref keyframeSaysNothingNew asks of the whole point: a fret the path already
+passes through, and a bend on a flat stretch of the curve, change nothing, so neither is a
+statement even where the point stands for another channel. A fret retyped to the one already in
+force on a vibrato change is the case this answers: the point stays for its vibrato, and the fret
+beside it says nothing. One fret on the path still speaks: a fret lying on a glide beside a vibrato
+change is the stop that change stands on, since none may stand strictly inside travel
+(\ref shedMidTravelVibrato). The vibrato is returned as it is, having no absent value.
+
+\param note The note WITHOUT the point — the path the point is judged against.
+\param point The point, with every channel it would state.
+\return The point stating only what it says new.
+*/
+[[nodiscard]] Keyframe shedSilentStatements(const ChartNote& note, Keyframe point);
+
+/*!
+\brief Withdraws every statement of the note's keyframes that says nothing its path does not
+already say (\ref shedSilentStatements), and drops every keyframe left saying nothing
 (\ref keyframeSaysNothingNew), each judged against the note without it.
 
-\param note Note whose silent keyframes are stripped in place.
-\return True when any keyframe was dropped — what the normalizer reports as its repair.
+\param note Note whose silent statements and keyframes are stripped in place.
+\return True when anything was withdrawn or dropped — what the normalizer reports as its repair.
 */
 bool stripSilentKeyframes(ChartNote& note);
 

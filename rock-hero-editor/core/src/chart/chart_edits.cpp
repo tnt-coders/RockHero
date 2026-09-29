@@ -760,7 +760,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     // (the bend picker's "No bend", `V`). The point itself goes where nothing new is left on it
     // (the commit law's own question), and a point stating no fret is its other techniques alone,
     // so it goes whole: an erase, never a strip to a bare boundary, which where the leg before it
-    // vibrates would still end the vibrato.
+    // vibrates would still end the vibrato. A fret that says nothing new is no fret
+    // (shedSilentStatements): withdrawing it would change nothing the charter can see.
     std::size_t deleted_keyframes = 0;
     std::size_t stripped_frets = 0;
     for (common::core::ChartNote& note : notes.rest)
@@ -771,37 +772,46 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
         {
             continue;
         }
-        // Every keyed fret is withdrawn first, ascending like the points, so each survivor below is
-        // judged with its neighbours' withdrawals already made.
+        // A point is judged against the note WITHOUT it, the commit law's own terms.
+        const auto without_point = [](common::core::ChartNote without,
+                                      const common::core::Fraction offset) {
+            std::erase_if(without.keyframes, [offset](const common::core::Keyframe& other) {
+                return other.offset == offset;
+            });
+            return without;
+        };
+        // Every keyed fret that says something is withdrawn first, each asked of the note as the
+        // selection found it and ascending like the points, so each survivor below is judged with
+        // its neighbours' withdrawals already made.
         std::vector<common::core::Fraction> withdrawn;
+        const common::core::ChartNote as_found = note;
         for (common::core::Keyframe& keyframe : note.keyframes)
         {
-            if (std::ranges::binary_search(offsets, keyframe.offset) && keyframe.fret.has_value())
+            if (std::ranges::binary_search(offsets, keyframe.offset) &&
+                common::core::shedSilentStatements(
+                    without_point(as_found, keyframe.offset), keyframe)
+                    .fret.has_value())
             {
                 keyframe.fret.reset();
                 withdrawn.push_back(keyframe.offset);
             }
         }
         // Only the keyed points are judged: a silent point elsewhere on the note, planted and not
-        // yet landed, is the commit law's to take when focus leaves, never this Delete's. A point
-        // is judged against the note WITHOUT it, the commit law's own terms.
+        // yet landed, is the commit law's to take when focus leaves, never this Delete's.
         const common::core::ChartNote before_sweep = note;
-        const auto goes =
-            [&offsets, &withdrawn, &before_sweep](const common::core::Keyframe& point) {
-                if (!std::ranges::binary_search(offsets, point.offset))
-                {
-                    return false;
-                }
-                if (!std::ranges::binary_search(withdrawn, point.offset))
-                {
-                    return true;
-                }
-                common::core::ChartNote without = before_sweep;
-                std::erase_if(without.keyframes, [&point](const common::core::Keyframe& other) {
-                    return other.offset == point.offset;
-                });
-                return common::core::keyframeSaysNothingNew(without, point);
-            };
+        const auto goes = [&offsets, &withdrawn, &before_sweep, &without_point](
+                              const common::core::Keyframe& point) {
+            if (!std::ranges::binary_search(offsets, point.offset))
+            {
+                return false;
+            }
+            if (!std::ranges::binary_search(withdrawn, point.offset))
+            {
+                return true;
+            }
+            return common::core::keyframeSaysNothingNew(
+                without_point(before_sweep, point.offset), point);
+        };
         deleted_keyframes += std::erase_if(note.keyframes, goes);
         // A point that lost its fret and still stands kept a technique of its own.
         stripped_frets += static_cast<std::size_t>(

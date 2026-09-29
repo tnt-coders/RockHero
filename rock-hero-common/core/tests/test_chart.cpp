@@ -1478,6 +1478,48 @@ TEST_CASE("keyframeSaysNothingNew judges a width against the leg before it", "[c
     }
 }
 
+// The commit law is asked of each statement too: a point standing for one channel does not keep a
+// silent statement beside it, so a fret retyped to the one in force on a vibrato change goes, and
+// the point stays for its vibrato.
+TEST_CASE(
+    "stripSilentKeyframes withdraws a silent statement from a point that stands", "[core][chart]")
+{
+    SECTION("the fret in force beside a vibrato change")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None,
+            {Keyframe{.offset = Fraction{2}, .fret = 5, .vibrato = VibratoState::Narrow}});
+        CHECK(
+            shedSilentStatements(vibratoLegNote(VibratoState::None, {}), note.keyframes[0]) ==
+            Keyframe{.offset = Fraction{2}, .fret = {}, .vibrato = VibratoState::Narrow});
+        CHECK(stripSilentKeyframes(note));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(
+            note.keyframes[0] ==
+            Keyframe{.offset = Fraction{2}, .fret = {}, .vibrato = VibratoState::Narrow});
+    }
+
+    SECTION("a bend at rest where the curve rests beside a new fret")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None, {Keyframe{.offset = Fraction{2}, .fret = 7, .bend = 0.0}});
+        CHECK(stripSilentKeyframes(note));
+        REQUIRE(note.keyframes.size() == 1);
+        CHECK(note.keyframes[0] == Keyframe{.offset = Fraction{2}, .fret = 7, .bend = {}});
+    }
+
+    SECTION("a point whose every statement says something is untouched")
+    {
+        ChartNote note = vibratoLegNote(
+            VibratoState::None,
+            {Keyframe{
+                .offset = Fraction{2}, .fret = 7, .bend = 1.0, .vibrato = VibratoState::Narrow
+            }});
+        CHECK_FALSE(stripSilentKeyframes(note));
+        CHECK(note.keyframes.size() == 1);
+    }
+}
+
 // A keyframe is a leg boundary and may carry any subset of its channels, none included: a bare
 // one is legal, and where it says nothing the commit law sweeps it. The channels it may state are
 // bounded — a fret is a real position, and a bend is a PUSH, which a finger cannot make downward

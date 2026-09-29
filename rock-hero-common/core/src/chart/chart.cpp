@@ -152,16 +152,36 @@ struct PathStop
 
 } // namespace
 
-bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
+Keyframe shedSilentStatements(const ChartNote& note, Keyframe point)
 {
     // Each channel bound to a local so the presence test and the read are provably one object.
-    const std::optional<int>& fret = point.fret;
-    if (fret.has_value() && statesNewPathPoint(note, point.offset, *fret))
+    // The vibrato has no absent value to shed to: a width equal to the leg before simply changes
+    // nothing, and the point's other statements decide whether it stands.
+    //
+    // A fret on the path can still be a STOP: a vibrato change stands only at a stop or where the
+    // hand rests (shedMidTravelVibrato), so a fret lying on a glide is what a change there stands
+    // on. On a hold — the fret already in force — the change needs no stop and the fret goes.
+    if (const std::optional<int>& fret = point.fret;
+        fret.has_value() && !statesNewPathPoint(note, point.offset, *fret))
     {
-        return false;
+        const RingState before = ringStateAt(note, point.offset);
+        if (*fret == before.fret || point.vibrato == before.vibrato)
+        {
+            point.fret.reset();
+        }
     }
-    const std::optional<double>& bend = point.bend;
-    if (bend.has_value() && statesNewBendPoint(note, point.offset, *bend))
+    if (const std::optional<double>& bend = point.bend;
+        bend.has_value() && !statesNewBendPoint(note, point.offset, *bend))
+    {
+        point.bend.reset();
+    }
+    return point;
+}
+
+bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
+{
+    const Keyframe spoken = shedSilentStatements(note, point);
+    if (spoken.fret.has_value() || spoken.bend.has_value())
     {
         return false;
     }
@@ -176,9 +196,10 @@ bool keyframeSaysNothingNew(const ChartNote& note, const Keyframe& point)
 
 bool stripSilentKeyframes(ChartNote& note)
 {
-    // Each point is judged against the note WITHOUT it and WITH every other: a silent point leaves
-    // the path unchanged by definition, so the verdicts do not depend on the order they are read
-    // in, and one pass takes every silent point at once.
+    // Each point is judged against the note WITHOUT it and WITH every other: a silent statement
+    // leaves the path unchanged by definition, so the verdicts do not depend on the order they are
+    // read in, and one pass takes every silent statement — and every point left saying nothing —
+    // at once.
     std::vector<Keyframe> kept;
     kept.reserve(note.keyframes.size());
     for (const Keyframe& keyframe : note.keyframes)
@@ -189,10 +210,10 @@ bool stripSilentKeyframes(ChartNote& note)
         });
         if (!keyframeSaysNothingNew(without, keyframe))
         {
-            kept.push_back(keyframe);
+            kept.push_back(shedSilentStatements(without, keyframe));
         }
     }
-    const bool stripped = kept.size() != note.keyframes.size();
+    const bool stripped = kept != note.keyframes;
     note.keyframes = std::move(kept);
     return stripped;
 }

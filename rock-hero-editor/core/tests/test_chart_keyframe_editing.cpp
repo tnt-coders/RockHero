@@ -559,6 +559,49 @@ TEST_CASE("Delete takes a bending junction's fret and keeps it selected", "[core
     CHECK(currentChart(fixture.controller) == original);
 }
 
+// The user's sighting: a junction retyped to the fret already in force, then vibrated. That fret
+// says nothing, so the point states no fret, and one Delete takes it whole — the vibrato, which was
+// all it said — rather than withdrawing a fret whose head looked the same without it.
+TEST_CASE("Delete takes a point whose fret says nothing whole in one press", "[core][chart]")
+{
+    KeyframeFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    // The glide opens at 5, so a 5 at the junction is the fret already in force.
+    fixture.controller.onChartRingDigitTyped(5);
+    fixture.controller.onChartTechniqueToggleRequested(ChartTechnique::Vibrato);
+    const common::core::Chart vibrating = currentChart(fixture.controller);
+    REQUIRE(vibrating.notes.size() == 1);
+    REQUIRE(vibrating.notes[0].keyframes.size() == 1);
+    CHECK(vibrating.notes[0].keyframes[0].fret == std::optional{5});
+    CHECK(vibrating.notes[0].keyframes[0].vibrato == common::core::VibratoState::Narrow);
+
+    fixture.controller.onSelectionDeleteRequested();
+    const common::core::Chart deleted = currentChart(fixture.controller);
+    REQUIRE(deleted.notes.size() == 1);
+    CHECK(deleted.notes[0].keyframes.empty());
+    CHECK(publishedState(fixture.view).chart_edit.selected_keyframes.empty());
+
+    // Undo brings back what the history holds, which is the WRITTEN form: the vibrato change, and
+    // not the silent fret beside it.
+    fixture.controller.onUndoRequested();
+    const common::core::Chart restored = currentChart(fixture.controller);
+    REQUIRE(restored.notes.size() == 1);
+    REQUIRE(restored.notes[0].keyframes.size() == 1);
+    CHECK(
+        restored.notes[0].keyframes[0] == common::core::Keyframe{
+                                              .offset = common::core::Fraction{4},
+                                              .fret = {},
+                                              .bend = {},
+                                              .vibrato = common::core::VibratoState::Narrow,
+                                          });
+    // Then the vibrato, then the retype, each its own entry.
+    fixture.controller.onUndoRequested();
+    fixture.controller.onUndoRequested();
+    CHECK(currentChart(fixture.controller) == original);
+}
+
 // Deleting a point must leave an empty armed slot, so a ring digit can recreate it without moving.
 TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart]")
 {
