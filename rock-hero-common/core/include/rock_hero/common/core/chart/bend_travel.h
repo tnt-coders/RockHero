@@ -52,4 +52,19 @@ the same curve.
     return std::copysign(std::sqrt(tension_gain / half_step_gain), semitones);
 }
 
+/*!
+\brief Returns the pitch offset whose bend travels \p travel: the inverse of \ref bendTravel.
+
+For a curve shaped in the displacement it draws rather than in pitch, which still has to hand a
+pitch to everything that places it.
+
+\param travel The string's sideways travel, in units of the travel a half step takes.
+\return The pitch offset in half steps, signed like \p travel.
+*/
+[[nodiscard]] inline double bendSemitonesForTravel(const double travel)
+{
+    const double half_step_gain = std::exp2(1.0 / 6.0) - 1.0;
+    return std::copysign(6.0 * std::log2(1.0 + (travel * travel * half_step_gain)), travel);
+}
+
 } // namespace rock_hero::common::core

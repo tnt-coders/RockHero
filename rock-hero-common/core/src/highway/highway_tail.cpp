@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -72,8 +73,12 @@ double highwayBendSemitonesAt(
     }
     const double mix = std::clamp((seconds - point_seconds(segment)) / span, 0.0, 1.0);
     const double eased = highwaySlideEaseWeight(mix, false);
-    return point_semitones(segment) +
-           ((point_semitones(segment + 1) - point_semitones(segment)) * eased);
+    // The ease runs on the DISPLACEMENT the board draws (bendTravel), not on pitch: the travel law
+    // is a square root at the unbent string, so a pitch eased flat into or out of zero still meets
+    // the string line at an angle — a corner wherever a bend starts from or releases to rest.
+    const double from = bendTravel(point_semitones(segment));
+    const double to = bendTravel(point_semitones(segment + 1));
+    return bendSemitonesForTravel(from + ((to - from) * eased));
 }
 
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept

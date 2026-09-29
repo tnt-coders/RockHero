@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -84,25 +85,31 @@ TEST_CASE("Highway tail taper anchors both ends", "[core][highway][tail]")
     CHECK(highwayTailTaper(2.0, 0.1) == Catch::Approx(0.0));
 }
 
-// Bend evaluation uses the same per-segment cosine ease as pitched slides, and hits every
-// control point exactly. The ramp anchors at the onset unless the first point is a prebend at
-// the onset itself.
+// Bend evaluation uses the same per-segment cosine ease as pitched slides, run on the drawn
+// DISPLACEMENT (bendTravel), and hits every control point exactly. The ramp anchors at the onset
+// unless the first point is a prebend at the onset itself.
 TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway][tail]")
 {
     const std::vector<BendPointViewState> bend{
         BendPointViewState{.seconds = 11.0, .semitones = 2.0},
         BendPointViewState{.seconds = 12.0, .semitones = 1.0},
     };
+    const auto travel_at = [&bend](const double seconds) {
+        return bendTravel(highwayBendSemitonesAt(bend, 10.0, seconds));
+    };
 
     CHECK(highwayBendSemitonesAt(bend, 10.0, 10.0) == Catch::Approx(0.0));
-    CHECK(highwayBendSemitonesAt(bend, 10.0, 10.5) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.0) == Catch::Approx(2.0));
-    CHECK(highwayBendSemitonesAt(bend, 10.0, 11.5) == Catch::Approx(1.5));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 12.0) == Catch::Approx(1.0));
-    // One quarter into a cosine segment has eased 0.1464466094 of the way.
-    CHECK(highwayBendSemitonesAt(bend, 10.0, 10.25) == Catch::Approx(2.0 * 0.1464466094));
-    CHECK(highwayBendSemitonesAt(bend, 10.0, 10.75) == Catch::Approx(2.0 * (1.0 - 0.1464466094)));
-    CHECK(highwayBendSemitonesAt(bend, 10.0, 11.25) == Catch::Approx(2.0 - 0.1464466094));
+    // Halfway through a segment the travel is halfway between its ends', and one quarter into a
+    // cosine segment has eased 0.1464466094 of the way.
+    CHECK(travel_at(10.5) == Catch::Approx(bendTravel(2.0) / 2.0));
+    CHECK(travel_at(11.5) == Catch::Approx((bendTravel(2.0) + bendTravel(1.0)) / 2.0));
+    CHECK(travel_at(10.25) == Catch::Approx(bendTravel(2.0) * 0.1464466094));
+    CHECK(travel_at(10.75) == Catch::Approx(bendTravel(2.0) * (1.0 - 0.1464466094)));
+    CHECK(
+        travel_at(11.25) ==
+        Catch::Approx(bendTravel(2.0) - ((bendTravel(2.0) - bendTravel(1.0)) * 0.1464466094)));
     // After the last point the final value holds.
     CHECK(highwayBendSemitonesAt(bend, 10.0, 20.0) == Catch::Approx(1.0));
     // An empty curve is a flat zero.
@@ -126,9 +133,13 @@ TEST_CASE("Highway bend curve eases through same-direction points", "[core][high
         BendPointViewState{.seconds = 11.0, .semitones = 1.0},
         BendPointViewState{.seconds = 12.0, .semitones = 2.0},
     };
-    CHECK(highwayBendSemitonesAt(rise, 10.0, 10.5) == Catch::Approx(0.5));
+    CHECK(
+        bendTravel(highwayBendSemitonesAt(rise, 10.0, 10.5)) ==
+        Catch::Approx(bendTravel(1.0) / 2.0));
     CHECK(highwayBendSemitonesAt(rise, 10.0, 11.0) == Catch::Approx(1.0));
-    CHECK(highwayBendSemitonesAt(rise, 10.0, 11.5) == Catch::Approx(1.5));
+    CHECK(
+        bendTravel(highwayBendSemitonesAt(rise, 10.0, 11.5)) ==
+        Catch::Approx((bendTravel(1.0) + bendTravel(2.0)) / 2.0));
     // The cosine rule makes the intermediate point an eased arrival.
     const double just_before = highwayBendSemitonesAt(rise, 10.0, 11.0 - 0.01);
     const double just_after = highwayBendSemitonesAt(rise, 10.0, 11.0 + 0.01);
@@ -152,6 +163,29 @@ TEST_CASE("Highway bend curve eases through same-direction points", "[core][high
     CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.1) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.25) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.4) == Catch::Approx(1.0));
+}
+
+// A BEND COMES TO REST AT THE UNBENT STRING TOO. The travel law is a square root there, so a curve
+// eased in pitch reached the string line at an angle — a visible corner wherever a bend starts
+// from rest or releases to it (sighted 2026-09-29). Eased in the drawn travel, the curve leaves and
+// arrives flat: over a small step the travel moves second-order, not first.
+TEST_CASE("Highway bend curve leaves and reaches the unbent string flat", "[core][highway][tail]")
+{
+    // At rest until 11.0, up a whole step by 12.0, released by 13.0.
+    const std::vector<BendPointViewState> bend{
+        BendPointViewState{.seconds = 11.0, .semitones = 0.0},
+        BendPointViewState{.seconds = 12.0, .semitones = 2.0},
+        BendPointViewState{.seconds = 13.0, .semitones = 0.0},
+    };
+    const auto travel_at = [&bend](const double seconds) {
+        return bendTravel(highwayBendSemitonesAt(bend, 10.0, seconds));
+    };
+    constexpr double step = 1.0e-3;
+    // A first-order departure would move the travel about step x its slope; this one moves it
+    // step squared, three orders of magnitude less.
+    CHECK(std::abs(travel_at(11.0 + step)) < 1.0e-4);
+    CHECK(std::abs(travel_at(13.0 - step)) < 1.0e-4);
+    CHECK(travel_at(13.0) == Catch::Approx(0.0).margin(1.0e-12));
 }
 
 // Bends on the upper half of the displayed stack invert so the curve stays inside the board;

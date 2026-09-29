@@ -189,8 +189,11 @@ and end exactly on the string line.
 /*!
 \brief Evaluates a note's bend curve at an absolute time.
 
-Each segment uses the same cosine ease as a pitched slide, so the bend leaves one stated value and
-arrives at the next one tangentially — and therefore comes to REST at every authored point. That
+Each segment uses the same cosine ease as a pitched slide, run on the DISPLACEMENT the board draws
+(\ref bendTravel) rather than on pitch, so the drawn bend leaves one stated value and arrives at the
+next one tangentially — and therefore comes to REST at every authored point, a bend starting from
+or releasing to the unbent string included: the travel law is a square root there, so a pitch
+eased flat into zero would still meet the string line at an angle. That
 rest is the point's meaning: a two-step bend that goes straight to two has no point at one, so a
 point at one says the bend stops there, and the drawn shelf must show it (user ruling, 2026-09-24,
 replacing a monotone cubic that flowed through same-direction points). The curve hits every
