@@ -1143,7 +1143,7 @@ TEST_CASE("Chart selection keys a keyframe by its offset", "[core][chart]")
         (std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}}));
 
     // A key naming an offset no keyframe sits on resolves to nothing, exactly as a note key whose
-    // note was deleted does — which is also what carries the dissolve law's linger.
+    // note was deleted does.
     selection.clear();
     selection.add(keyframeKey(slot, common::core::Fraction{3}));
     CHECK(selectedKeyframeIndices(notes, tab.notes, selection).empty());

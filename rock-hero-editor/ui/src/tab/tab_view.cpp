@@ -520,7 +520,7 @@ void TabView::paint(juce::Graphics& g)
     // just outside the plate's own border, following its corners, so the chip reads whole inside
     // its ring rather than as a chip with a doubled edge — and the ring claims the chip's own
     // extent rather than the wider box its click lands in. A held stop's satellite, which has no
-    // plate, wears the same ring around its slot.
+    // plate, wears the same ring around its digit's cell.
     const auto ring_plate = [&g, accent](const juce::Rectangle<float>& plate) {
         const float stroke = overlayRingStroke(plate.getHeight());
         g.setColour(accent);
@@ -718,8 +718,8 @@ void TabView::paint(juce::Graphics& g)
                         metrics, tab.notes[index], presence(index).revealing());
                 satellite.has_value())
             {
-                const common::ui::TabLayoutRect& slot = satellite->box;
-                ring_plate(juce::Rectangle<float>{slot.x, slot.y, slot.width, slot.height});
+                const common::ui::TabLayoutRect& digit = satellite->digit;
+                ring_plate(juce::Rectangle<float>{digit.x, digit.y, digit.width, digit.height});
             }
         }
     }

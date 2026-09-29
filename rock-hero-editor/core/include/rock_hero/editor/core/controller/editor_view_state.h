@@ -423,10 +423,10 @@ struct ChartCaretViewState
     \brief WHICH face of the object here the caret stands on (\ref ChartCaretFace).
 
     The surface reads THIS rather than re-deriving it from the note, because the controller is what
-    decided the caret could be there at all: the square moves onto a held stop's satellite, which is
-    a column of its own, and on a bend chip it stays on the slot while the chip, not the head, wears
-    the selection ring. A face is published only where it is drawn, which is the same invariant the
-    caret itself holds.
+    decided the caret could be there at all: the square stays on the slot on every face, and the
+    selection ring moves onto the face — the held stop's satellite, the bend chip — in place of the
+    head. A face is published only where it is drawn, which is the same invariant the caret itself
+    holds.
     */
     ChartCaretFace face{ChartCaretFace::Mark};
 

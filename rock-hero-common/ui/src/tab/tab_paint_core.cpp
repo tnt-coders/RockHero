@@ -2183,9 +2183,9 @@ void drawStringLineLabel(
         });
 }
 
-// One satellite digit, outboard of the bracket column's closing edge at `bar_right`: the two marks
-// that print one — the span's displaced posture digit and a note's own held face — share this, so
-// they cannot differ.
+// One satellite digit, printed inside the slot the layout manifest states (tabSatelliteLayoutAt):
+// the two marks that print one — the span's displaced posture digit and a note's own held face —
+// share this, so they cannot differ, and the hit test and a selection ring read the same cell.
 //
 // White ink on the tail's own fill, and the known ground is what lets it be plain white: a
 // satellite has to read on every string, and the per-string inks do not carry that on their own —
@@ -2199,16 +2199,15 @@ void drawStringLineLabel(
 // whole slot and lays the ribbon's own light back over it, so what is left reads as a clean stretch
 // of the tail with a number on it — a translucent core alone would dim the line, not remove it.
 void drawSatelliteDigit(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, const int bar_right,
-    const float center_y, const juce::String& text, const std::optional<TailFade>& fade,
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const TabHeldStopLayout& layout, const juce::String& text, const std::optional<TailFade>& fade,
     const juce::Colour ground)
 {
-    const TabSatelliteSlot slot = metrics.satelliteSlot();
-    const TailInterior interior = tailInterior(metrics, center_y);
+    const TailInterior interior = tailInterior(metrics, layout.center_y);
     const juce::Rectangle<int> patch{
-        bar_right,
+        juce::roundToInt(layout.box.x),
         juce::roundToInt(interior.top),
-        slot.extent(),
+        juce::roundToInt(layout.box.width),
         juce::roundToInt(interior.bottom) - juce::roundToInt(interior.top)
     };
     g.setColour(ground);
@@ -2217,11 +2216,12 @@ void drawSatelliteDigit(
     // with the tail rather than a solid block over it.
     setTailInk(g, style[Ink::Tail], fade);
     g.fillRect(patch);
+    const int digit_left = juce::roundToInt(layout.digit.x);
     drawStringLineLabel(
         g,
         metrics,
-        center_y,
-        juce::Range<int>{bar_right + slot.gap, bar_right + slot.gap + slot.width},
+        layout.center_y,
+        juce::Range<int>{digit_left, digit_left + juce::roundToInt(layout.digit.width)},
         juce::Colours::white,
         text);
 }
@@ -3059,8 +3059,7 @@ void paintTabLane(
                     g,
                     metrics,
                     style,
-                    bracket.bar_right,
-                    center_y,
+                    tabSatelliteLayoutAt(metrics, bracket.center_x, center_y),
                     bracket.digit_text,
                     std::nullopt,
                     ground);
@@ -3114,13 +3113,19 @@ void paintTabLane(
             {
                 continue;
             }
+            // The slot the layout manifest states at the mark's own instant, which the hit test
+            // bounds the click in too.
+            const std::optional<TabHeldStopLayout> satellite =
+                tabHeldStopLayout(metrics, note, note_presence.revealing());
+            if (!satellite.has_value())
+            {
+                continue;
+            }
             // A stepped-back note's satellite fades with it. Drawn here rather than in its group,
             // whose bounds stop short of the satellite column, and still beneath everything in
             // front: nothing else on its string stands in its column while its note rings.
             std::optional<ScopedTransparencyLayer> faint;
-            if (const std::optional<TabHeldStopLayout> satellite =
-                    tabHeldStopLayout(metrics, note, note_presence.revealing());
-                note_presence.receded() && satellite.has_value())
+            if (note_presence.receded())
             {
                 const TabLayoutRect& box = satellite->box;
                 const juce::Rectangle<int> bounds =
@@ -3130,18 +3135,12 @@ void paintTabLane(
                     faint.emplace(g, bounds, recededWeight(note_presence.recede));
                 }
             }
-            const float center_y = metrics.laneY(note.string);
-            // The mark's own instant, which for a note's own face is its onset: the same column
-            // the layout manifest bounds the click in, from the same geometry.
-            const TabBracketColumns columns =
-                metrics.bracketColumnsAt(metrics.x(mark->seconds), center_y);
             // A held stop is always a PRESSED fret, so its text is the fret's own number.
             drawSatelliteDigit(
                 g,
                 metrics,
                 lane_styles(note.string),
-                columns.bar_right,
-                center_y,
+                *satellite,
                 juce::String{*held},
                 tailFade(metrics, note, note_presence.revealing()),
                 ground);

@@ -637,10 +637,10 @@ TEST_CASE("Typing recreates a deleted tail keyframe at the caret", "[core][chart
     CHECK(currentChart(fixture.controller) == recreated);
 }
 
-// The UNDO twin of the same law. Undo takes the object back but not the key that named it — the
-// dissolve law's linger, which serves a live verb window the transition has already ended — and a
-// digit routes by the retype OPERAND, so a key resolving to nothing swallowed the keystroke into a
-// retype that found nothing to retype. The caret never moved, so nothing else could clear it.
+// The UNDO twin of the same law. Undo takes the object back, and the key that named it must go
+// with it: a digit routes by the retype OPERAND, so a key resolving to nothing would swallow the
+// keystroke into a retype that found nothing to retype. The caret never moved, so the transition's
+// own selection landing is what clears it.
 TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[core][chart]")
 {
     KeyframeFixture fixture;
@@ -664,7 +664,7 @@ TEST_CASE("Typing recreates a tail keyframe at the caret after undoing it", "[co
     CHECK(recreated.notes[0].keyframes[1].fret == 9);
 }
 
-// The HEAD twin: the same linger, the same swallowed digit, on the note the insert took away.
+// The HEAD twin: the same stale key, the same swallowed digit, on the note the insert took away.
 TEST_CASE("Typing recreates a head at the caret after undoing it", "[core][chart]")
 {
     KeyframeFixture fixture;

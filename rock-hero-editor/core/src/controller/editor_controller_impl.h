@@ -429,12 +429,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // slot's objects; the walk and the pointer carry that key into the landing instead.
     [[nodiscard]] std::optional<ChartSelectionKey> chartObjectAt(
         common::core::GridPosition position, int string) const;
-    // Drops every selection key naming an object the chart no longer holds, asked of the key's own
-    // kind rather than of the slot it sits on. Called once an undo/redo transition commits: the
-    // dissolve law's linger serves a live verb window, which the transition has already ended, and
-    // past it a key resolving to nothing simply swallows the next digit into a retype that finds no
-    // operand.
-    void dropChartSelectionKeysNamingNothing();
     // Brings what an undo or redo transition left into focus (IEdit::focus): it becomes the
     // selection and the keyboard position moves onto it, so the view keeps it in sight and centres
     // it when it lands off screen (EditorView::setState). Skipped while the transport plays:
@@ -457,11 +451,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // only state in which the held face is legal. Read from the projection, which is where the
     // derivation published whether the stop has a face and on what terms it is drawn.
     [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
-    // THE one test of whether a face can be stood on, for the object at a slot: asked by the
-    // arming and by the read.
+    // THE one test of whether a face can be stood on, for the object the caret names: asked by
+    // the arming and by the read.
     [[nodiscard]] bool chartFaceShown(
-        const ChartSlotKey& slot, ChartCaretFace face,
-        const std::optional<ChartSelectionKey>& object) const;
+        ChartCaretFace face, const std::optional<ChartSelectionKey>& object) const;
     // The object the armed caret stands on — the selection's one key — or nothing.
     [[nodiscard]] std::optional<ChartSelectionKey> chartCaretObject() const;
     // The caret's face as every reader must see it: the stored face held to chartFaceShown, so an
@@ -723,6 +716,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Replaces the history's top entry with one describing the already-applied edit that entry
     // grew into; a refusal leaves the edit standing untracked, exactly as a refused push does.
     bool replaceUndoTop(std::unique_ptr<IEdit> edit);
+    // Drops the history's top entry once the edit it described has been walked back; a refusal
+    // leaves the chart standing untracked, exactly as a refused push does.
+    bool dropUndoTop();
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
     void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(
@@ -1109,6 +1105,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         bool marquee{false};
         // Set when Down hit a glyph; the gesture then owns selection instead of click-vs-marquee.
         std::optional<ChartHitTarget> hit_target{};
+        // Set when Down hit an ALREADY-SELECTED object, whose arming the press deferred to the
+        // release so a drag could still move the selection; an unselected one armed at the press.
+        bool collapse_on_release{false};
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
 

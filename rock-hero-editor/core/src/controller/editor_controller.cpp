@@ -2123,13 +2123,17 @@ void EditorController::Impl::completeUndoTransition(
     focusUndoTransition(pending.edit->focus(pending.direction));
     // The chart the transition just replayed may no longer hold what the selection names — undoing
     // an insert takes the very object the insert selected — and a key resolving to nothing would
-    // keep the next digit routed at a retype with no operand. After the focus, because a recorded
-    // focus can name a silent point the undo's begin dissolved. Asked of every transition rather
-    // than of the chart ones alone: the question is answered against the live chart, so a
-    // transition that moved no note finds every key still naming its object and changes nothing,
-    // and it is all that answers for an edit with no focus of its own (the plugin chain, the tone
-    // designer).
-    dropChartSelectionKeysNamingNothing();
+    // keep the next digit routed at a retype with no operand, so the selection lands again the way
+    // every edit lands it (landChartSelection). After the focus, because a recorded focus can name
+    // a silent point the undo's begin dissolved. Asked of every transition: a transition that moved
+    // no note finds every key still naming its object, and it is all that answers for an edit with
+    // no focus of its own (the plugin chain, the tone designer). PRUNED, not cleared — a selection
+    // no caret owns (a chord, a marquee) is still the charter's scope. Only a CHART selection is
+    // landed, or a tone region's would be replaced by an empty chart one.
+    if (!chartSelection().empty())
+    {
+        landChartSelection(chartSelection().keys());
+    }
     releaseMarkerSelectionNamingNothing();
     reconcileToneDesignerCleanMarker();
 
@@ -2329,6 +2333,21 @@ bool EditorController::Impl::replaceUndoTop(std::unique_ptr<IEdit> edit)
     if (result.status != EditorUndoTransitionStatus::Applied)
     {
         markUntrackedUnsavedEdit("undo.reset.failed_replace");
+        return false;
+    }
+    return true;
+}
+
+// Drops the top entry after the edit it described has been walked back. Its callers prove the
+// splice's preconditions first, so a refusal is a logic error; the chart stays as walked and the
+// history is reset rather than left naming an edit the chart no longer holds.
+bool EditorController::Impl::dropUndoTop()
+{
+    const EditorUndoTransitionResult result = m_undo_history.dropTop();
+    logEditorUndoTransitionResult("undo.drop_top", result);
+    if (result.status != EditorUndoTransitionStatus::Applied)
+    {
+        markUntrackedUnsavedEdit("undo.reset.failed_drop");
         return false;
     }
     return true;

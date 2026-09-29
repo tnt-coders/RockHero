@@ -86,9 +86,8 @@ slot plus a kind. The offset and not an index: removing an earlier keyframe shif
 index and moves no offset, so an index-keyed selection would silently point at a different
 keyframe after any edit that dropped one.
 
-A key whose note or keyframe an edit removed simply resolves to nothing, exactly like a note key
-whose note was deleted — which is also what carries the dissolve law's LINGER, since a keyframe
-the editor emptied is gone from the chart while its key rides on to the next press.
+A key whose note or keyframe an edit removed resolves to nothing, exactly like a note key whose
+note was deleted, and every edit's landing and the undo repair drop it (\ref chartHoldsKey).
 */
 struct ChartKeyframeKey
 {
@@ -302,8 +301,8 @@ public:
     \brief The selected keyframes in ascending (note slot, offset) order.
 
     The order the chart stores them in, so a planner walking the note stream and this list together
-    walks both forward once. Keys naming a keyframe an edit removed stay until the selection next
-    changes and resolve to nothing meanwhile — the dissolve law's linger.
+    walks both forward once. A key naming a keyframe an edit removed does not survive the edit's
+    landing (\ref chartHoldsKey).
 
     \return Sorted unique selected keyframe keys.
     */

@@ -1870,9 +1870,9 @@ TEST_CASE(
         on_held.getPixelAt(square_left, square_upper) ==
         on_mark.getPixelAt(square_left, square_upper));
 
-    // The ring stands just outside the satellite's slot, on its right edge at mid-height, where
-    // nothing but the ring can land: the held face draws it, the mark face does not.
-    const int ring_x = juce::roundToInt(satellite->box.x + satellite->box.width) + 1;
+    // The ring hugs the satellite digit's cell, standing just outside its right edge at mid-height,
+    // where nothing but the ring can land: the held face draws it, the mark face does not.
+    const int ring_x = juce::roundToInt(satellite->digit.x + satellite->digit.width) + 1;
     const int ring_y = juce::roundToInt(satellite->center_y);
     CHECK(on_held.getPixelAt(ring_x, ring_y) != on_mark.getPixelAt(ring_x, ring_y));
 }

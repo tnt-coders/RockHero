@@ -250,7 +250,26 @@ struct TabHeldStopLayout
 
     /*! \brief Bounding rectangle of the satellite slot: its drawn extent, and its clickable one. */
     TabLayoutRect box{};
+
+    /*!
+    \brief The digit's own cell inside the slot, where the painter prints it: the column between
+    the slot's gaps, as tall as a chip's plate on the string line — what a selection ring traces.
+    */
+    TabLayoutRect digit{};
 };
+
+/*!
+\brief The satellite slot and digit cell beside a bracket closing at `mark_x` on the line at
+`center_y` — THE one statement of that geometry, which the painter prints inside and the hit test
+and a selection ring read.
+
+\param geometry Lane geometry.
+\param mark_x The instant's x the bracket is centred on.
+\param center_y The string line's y.
+\return The slot's layout.
+*/
+[[nodiscard]] TabHeldStopLayout tabSatelliteLayoutAt(
+    const TabLaneGeometry& geometry, float mark_x, float center_y) noexcept;
 
 /*!
 \brief Computes the pixel layout of one note's held-stop satellite, when it draws one.

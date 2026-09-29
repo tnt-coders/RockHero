@@ -134,21 +134,39 @@ std::optional<TabHeldStopLayout> tabHeldStopLayout(
     {
         return std::nullopt;
     }
+    return tabSatelliteLayoutAt(geometry, geometry.x(mark->seconds), geometry.laneY(note.string));
+}
+
+TabHeldStopLayout tabSatelliteLayoutAt(
+    const TabLaneGeometry& geometry, const float mark_x, const float center_y) noexcept
+{
     const TabBracketGeometry bracket = geometry.bracketGeometry();
     const TabSatelliteSlot slot = geometry.satelliteSlot();
-    const float bar_right =
-        geometry.x(mark->seconds) + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-    const auto width = static_cast<float>(slot.extent());
-    TabHeldStopLayout layout;
-    layout.center_x = bar_right + width / 2.0f;
-    layout.center_y = geometry.laneY(note.string);
-    layout.box = TabLayoutRect{
-        .x = bar_right,
-        .y = layout.center_y - bracket.half_height,
-        .width = width,
-        .height = bracket.half_height * 2.0f,
+    // The closing bar's column as the bracket pass fills it, so the satellite lands on exactly
+    // the pixels beside it.
+    const auto bar_right =
+        static_cast<float>(geometry.bracketColumnsAt(mark_x, center_y).bar_right);
+    const auto extent = static_cast<float>(slot.extent());
+    // The digit's cell stands as tall as a chip's plate (tabBendPointChipBox), so a ring around a
+    // held stop and one around a chip are the same height.
+    const float digit_height = geometry.fretTextHeight() + 2.0f;
+    return TabHeldStopLayout{
+        .center_x = bar_right + extent / 2.0f,
+        .center_y = center_y,
+        .box =
+            TabLayoutRect{
+                .x = bar_right,
+                .y = center_y - bracket.half_height,
+                .width = extent,
+                .height = bracket.half_height * 2.0f,
+            },
+        .digit = TabLayoutRect{
+            .x = bar_right + static_cast<float>(slot.gap),
+            .y = center_y - digit_height / 2.0f,
+            .width = static_cast<float>(slot.width),
+            .height = digit_height,
+        },
     };
-    return layout;
 }
 
 // Mirrors drawKeyframeHeadShape: the linked head is the note's own head shape at the note's

@@ -1311,3 +1311,17 @@ against the tree on the date above.
   edit touches one record and a marker selection has no caret-versus-object ambiguity — so no
   defect, but recording there too would make the three timeline edit families one shape and let
   `firstChangedRecord` go.
+
+## Found in the second simplicity review of the caret faces (2026-09-29)
+
+- **The chart has one write authority and no read authority.** `Session::writeChart` owns every
+  write, while `session().currentArrangement()` → `chart.has_value()` → `->notes` is hand-restated
+  about 43 times in `chart_handlers.cpp` alone, most with the bind-once ritual. A
+  `const Chart* Session::currentChart() const noexcept` (the const twin of the private
+  `loadedChart`) and one mechanical sweep collapse each to one line. Deferred as its own change: the
+  sweep touches every chart handler.
+- **The two folds restate the walk-back.** The gesture fold and the settle sweep each reconstruct
+  the pre-burst chart and each walk the live chart back and forward through `writeChart` with the
+  same lambda (differing only in `burst == nullptr ||`). One `preBurstChart(burst)` and one
+  `rewriteBurst(burst, plan)` serve both. Pre-existing; deferred because both functions are dense
+  and each carries its own proofs.

@@ -288,9 +288,9 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
     {
         // Outboard of the closing bar's column at the note's own onset (x = 100), centred in the
         // slot — the same columns the paint core draws the digit in.
-        const TabBracketGeometry bracket = geometry.bracketGeometry();
         const TabSatelliteSlot slot = geometry.satelliteSlot();
-        const float bar_right = 100.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+        const auto bar_right =
+            static_cast<float>(geometry.bracketColumnsAt(100.0f, 220.5f).bar_right);
         CHECK(standing->box.x == Catch::Approx(bar_right));
         CHECK(standing->box.width == Catch::Approx(static_cast<float>(slot.extent())));
         CHECK(

@@ -437,54 +437,6 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartObjectAt(
     return std::nullopt;
 }
 
-// Drops every selection key naming an object the chart no longer holds — the undo/redo
-// transition's selection repair, and the only caller it has.
-//
-// A key outliving its object is THE DISSOLVE LAW'S LINGER, and inside a verb window it is
-// deliberate: a second press proves it is acting on the same selection, so a keyframe key stays
-// after the keyframe it named dissolved. The linger is scoped to a live window, though, and
-// undo/redo ENDS one (performActionImpl(Undo) disarms it before either direction replays). Past
-// the transition the key is pure staleness, and it is not inert: a digit routes by the RETYPE
-// OPERAND, so a selection holding a key that resolves to nothing swallows the keystroke — the
-// retype finds no operand and the caret never gets to author there. Undoing an insert and typing
-// again at the same slot did exactly nothing, the undo twin of the delete the empty selection
-// fixed.
-//
-// PRUNED, not cleared: a selection the transition left whole is still the user's scope, including
-// one no caret owns (a chord, a marquee). The question is the KEY's own — does the
-// chart still hold what this names (chartHoldsKey) — asked of the kind the key is, and deliberately
-// NOT of what a landing at its slot would address: a ring's END STATEMENT is a real object that no
-// landing addresses (see chartObjectAt), and a selection holding one must survive a transition
-// exactly as any other does.
-void EditorController::Impl::dropChartSelectionKeysNamingNothing()
-{
-    if (chartSelection().empty())
-    {
-        return;
-    }
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
-    {
-        return;
-    }
-    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-    const std::vector<ChartSelectionKey> selected = chartSelection().keys();
-    std::vector<ChartSelectionKey> surviving;
-    surviving.reserve(selected.size());
-    for (const ChartSelectionKey& key : selected)
-    {
-        if (chartHoldsKey(notes, key))
-        {
-            surviving.push_back(key);
-        }
-    }
-    if (surviving.size() == selected.size())
-    {
-        return;
-    }
-    chartSelectionMutable().applyBox(surviving, false);
-}
-
 // Whether the note at this slot is IN FOCUS for the keyframe commit law: the charter's attention is
 // on it — it is selected, the caret stands somewhere inside its ring, or it carries a selected
 // point. The last arm is the one the caret cannot answer, because a multi-selection of points
@@ -641,16 +593,17 @@ bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) co
 // is drawn, a bend chip where the object states a bend. The arming and the read both ask it, so a
 // face is one predicate applied at two moments rather than two rules.
 bool EditorController::Impl::chartFaceShown(
-    const ChartSlotKey& slot, const ChartCaretFace face,
-    const std::optional<ChartSelectionKey>& object) const
+    const ChartCaretFace face, const std::optional<ChartSelectionKey>& object) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
+    // Only a NOTE wears a held stop; a keyframe standing on the same slot has no held face.
+    const auto* const note = object.has_value() ? std::get_if<ChartNoteKey>(&*object) : nullptr;
     switch (face)
     {
         case ChartCaretFace::Mark:
             return true;
         case ChartCaretFace::HeldStop:
-            return chartSlotShowsHeldStop(slot);
+            return note != nullptr && chartSlotShowsHeldStop(note->slot);
         case ChartCaretFace::BendChip:
             return arrangement != nullptr && arrangement->chart.has_value() && object.has_value() &&
                    chartObjectStatesBend(arrangement->chart->notes, *object);
@@ -682,9 +635,7 @@ ChartCaretFace EditorController::Impl::chartCaretFace() const
     {
         return ChartCaretFace::Mark;
     }
-    const ChartSlotKey slot{.position = caret->position, .string = caret->string};
-    return chartFaceShown(slot, caret->face, chartCaretObject()) ? caret->face
-                                                                 : ChartCaretFace::Mark;
+    return chartFaceShown(caret->face, chartCaretObject()) ? caret->face : ChartCaretFace::Mark;
 }
 
 // The stop the digits state: the held one on the held face, and the one that sounds everywhere
@@ -721,7 +672,7 @@ void EditorController::Impl::armChartCaret(
     // mark instead of parking the caret on a face that is not there. This funnel is the face's one
     // writer, and the READ (chartCaretFace) asks the same predicate again at the moment the face is
     // spent, so an edit that takes a face away leaves the caret on the mark.
-    if (!chartFaceShown(key, face, landed))
+    if (!chartFaceShown(face, landed))
     {
         face = ChartCaretFace::Mark;
     }
@@ -1238,12 +1189,20 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     else if (!chartSelection().contains(*key))
     {
         // Arming takes the object the press HIT as the singleton selection, on the face it hit —
-        // the press knows which mark it reached, and at a shared instant the slot cannot say. A
-        // press on an already-selected one keeps the standing selection (and marker) untouched
-        // until the release collapses it onto what it hit — the gap a future drag-move gesture
-        // lives in.
+        // the press knows which mark it reached, and at a shared instant the slot cannot say.
         const ChartSlotKey slot = chartCaretSlotFor(session().song().tempo_map, *key);
         armChartCaret(slot.position, slot.string, face, key);
+    }
+    else
+    {
+        // A press on an already-selected one keeps the standing selection (and marker) untouched
+        // until the release collapses it onto what it hit — the gap a future drag-move gesture
+        // lives in. Guarded rather than assumed: the gesture was set above, but the calls since
+        // leave nothing a checker can tie back to that assignment.
+        if (m_chart_gesture.has_value())
+        {
+            m_chart_gesture->collapse_on_release = true;
+        }
     }
     updateView();
 }
@@ -1309,7 +1268,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         // arms the caret there, on the face the click hit (the press deferred both while a drag
         // was still possible) — a chord member's chip or satellite as much as its head. The
         // second release of a double click leaves what the second press made standing.
-        if (clicked && !gesture.modifiers.ctrl && event.clicks < 2)
+        if (clicked && gesture.collapse_on_release && !gesture.modifiers.ctrl && event.clicks < 2)
         {
             if (const std::optional<ChartSelectionKey> key =
                     chartSelectionKeyAt(*gesture.hit_target);
@@ -1478,8 +1437,8 @@ void EditorController::Impl::stepFocusRow(const bool up, const bool reach, const
         const ChartSlotKey slot{.position = caret->position, .string = caret->string};
         const ChartCaretFace face = chartCaretFace();
         const std::optional<ChartSelectionKey> object = chartCaretObject();
-        const bool onto_chip = up && face == ChartCaretFace::Mark &&
-                               chartFaceShown(slot, ChartCaretFace::BendChip, object);
+        const bool onto_chip =
+            up && face == ChartCaretFace::Mark && chartFaceShown(ChartCaretFace::BendChip, object);
         if (onto_chip || (!up && face == ChartCaretFace::BendChip))
         {
             armChartCaret(
@@ -1666,15 +1625,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     // means.
     if (!measure && !caret.lane.has_value())
     {
-        const ChartSlotKey slot{.position = caret.position, .string = caret.string};
         // A bend chip is a face of the mark's own column, so a step from it walks as from the mark.
+        // The held stop asked of the OBJECT the caret names, so a ring's end statement sharing the
+        // slot with a head never steps onto that head's face.
         const bool on_head = chartCaretFace() != ChartCaretFace::HeldStop;
-        if (on_head == (sign > 0) && chartSlotShowsHeldStop(slot))
+        const std::optional<ChartSelectionKey> object = chartCaretObject();
+        if (on_head == (sign > 0) && chartFaceShown(ChartCaretFace::HeldStop, object))
         {
             armChartCaret(
                 caret.position,
                 caret.string,
-                on_head ? ChartCaretFace::HeldStop : ChartCaretFace::Mark);
+                on_head ? ChartCaretFace::HeldStop : ChartCaretFace::Mark,
+                object);
             updateView();
             return;
         }
@@ -3198,14 +3160,12 @@ bool EditorController::Impl::commitChartGestureStep(
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
         if (plan.error() == ChartPlanRefusal::NoChange && burst != nullptr)
         {
-            // The selection goes back with the chart. A verb whose steps re-key its objects has
-            // been pointing at where the run had reached, and a replay describing nothing is
-            // exactly the case where that landing IS the start.
-            if (select_exactly.has_value())
-            {
-                chartSelectionMutable().applyBox(*select_exactly, false);
-            }
+            // The selection goes back with the chart, landed once it is written. A verb whose
+            // steps re-key its objects has been pointing at where the run had reached, and a
+            // replay describing nothing is exactly the case where that landing IS the start.
             retireChartGesture(burst->plan);
+            landChartSelection(select_exactly.value_or(chartSelection().keys()));
+            updateView();
             // The chart MOVED — back to where the run began — so this is a step the caller must
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
             return true;
@@ -3352,14 +3312,8 @@ const EditorController::Impl::ChartVerbWindowVerb* EditorController::Impl::liveC
 // applied: the plan the entry holds, which is why the record naming it is retired last.
 void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
 {
-    // The history moves BEFORE the model, this file's discipline everywhere: the two states must
-    // never disagree, and a live gesture is exactly dropTop's precondition, so a refusal here is a
-    // logic error reported with the chart untouched.
-    if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
-    {
-        reportError("Could not apply chart edit: " + applied.label);
-        return;
-    }
+    // The model moves first and the history follows, the order every chart edit takes
+    // (applyChartEditPlan).
     const std::optional<bool> reversed =
         m_session.writeChart([&applied](common::core::Chart& chart) {
             return applyChartChange(chart, applied.reversed()).has_value();
@@ -3369,6 +3323,7 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
         reportError("Could not apply chart edit: " + applied.label);
         return;
     }
+    static_cast<void>(dropUndoTop());
     // The entry both the record and the window name is gone, so both go with it: the next press
     // opens a fresh gesture from rings that ARE the pre-gesture rings. (Between the drop and here
     // the record is already inert — every reader proves ownership by the history position first.)
@@ -3413,10 +3368,8 @@ bool EditorController::Impl::reverseChartVerbWindow(
         return false;
     }
     const ChartEditPlan applied = burst->plan;
-    // The history moves BEFORE the model, the settle sweep's own discipline: the two states must
-    // never disagree, and the guards above are exactly the history's preconditions, so a refusal
-    // here is a logic error reported with the chart untouched rather than left reversed under an
-    // entry that still describes the edit.
+    // The model moves first and the history follows, the order every chart edit takes
+    // (applyChartEditPlan).
     //
     // A save mid-window makes the entry the file's clean state, so erasing it would make "return
     // to clean" a lie. The reversal still happens — the toggle stays genuine and the grown tail
@@ -3425,19 +3378,6 @@ bool EditorController::Impl::reverseChartVerbWindow(
     m_chart_notes_top.reset();
     ChartEditPlan reversal = applied.reversed();
     reversal.label = std::string{revert_label};
-    if (clean_entry)
-    {
-        // The written form, like every entry; a record exists only for a plan that wrote as
-        // something, and the reversal of such a plan writes as its reverse. The reversal keeps
-        // the selection, so the charter stands in one place on both sides of it.
-        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
-        pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal), here, here));
-    }
-    else if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
-    {
-        reportError("Could not apply chart edit: " + applied.label);
-        return true;
-    }
     const std::optional<bool> reversed =
         m_session.writeChart([&reversal](common::core::Chart& chart) {
             return applyChartChange(chart, reversal).has_value();
@@ -3446,6 +3386,18 @@ bool EditorController::Impl::reverseChartVerbWindow(
     {
         reportError("Could not apply chart edit: " + applied.label);
         return true;
+    }
+    if (clean_entry)
+    {
+        // The written form, like every entry; a record exists only for a plan that wrote as
+        // something, and the reversal of such a plan writes as its reverse. The reversal keeps
+        // the selection, so the charter stands in one place on both sides of it.
+        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
+        pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal), here, here));
+    }
+    else
+    {
+        static_cast<void>(dropUndoTop());
     }
     updateView();
     return true;

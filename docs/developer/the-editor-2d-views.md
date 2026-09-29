@@ -940,11 +940,11 @@ yet; that arrives with the span-marker work.
 **SATELLITES ARE NOTE-SCOPED, ALWAYS.** A satellite is its note's held FACE and nothing else: a
 press on one addresses that note's held stop, whatever the selection is. There is deliberately no
 dual scope — no reading in which an unselected satellite acts as the bracket's displaced digit and
-writes through the whole span. **SELECTION HANDLES** ride on top of that: a selected note's
-satellite is hit-tested as PART of that selection, so pressing it moves the caret onto that note's held stop and
-leaves a wider selection standing — naming a stop inside a selection must not be the thing that
-takes the selection away. A press on an unselected note's satellite is the ordinary press: the note
-becomes the selection, with the caret on the stop that was clicked.
+writes through the whole span. **A FACE IS ONE OBJECT'S** (user ruling 2026-09-29, which retired the
+selection handle): a click on a satellite — or a bend chip — selects that note alone with the caret
+on that face, even when the note was a member of a selected chord, exactly as a click on its head
+selects it alone. The caret square stays on the note's slot and the selection ring moves onto the
+face.
 
 **SPAN-WIDE FRET EDITING IS DEFERRED**, and the reason is the keystroke it collides with: typing a
 number over a bracket already means INSERT A NOTE at the caret, so a bracket-digit write-through
