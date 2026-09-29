@@ -133,9 +133,9 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   through the slide, at least one finger arrived, two members ringing strictly past the landing. A
   string that merely rings on past a break opens nothing: ring-out is a tail. A member is a sounding
   fretting-hand onset, a ring still sounding at a stated stop, or a stop the hand CLAIMS, since they
-  are three ways of stating where a finger is; the claims arrive as `claimed_stops`, RESOLVED once
-  for the revision, because a pull-off derives the held stop under a right-hand onset and only the
-  connection walk knows that. Such a span dates from its FRONT — the earliest member onset no
+  are three ways of stating where a finger is; a claim is the stop the NOTATION states under a
+  right-hand onset (`notatedStopUnder`: a tapped harmonic's pressed stop, else a pull-off's plant),
+  resolved inside the derivation because only the connection walk knows the pull-off. Such a span dates from its FRONT — the earliest member onset no
   preceding span already covers — and then **RUNS UNTIL ITS GRIP BREAKS**, which only two things do:
   a MEMBER QUITS (any posture member's sound out with nothing renewing that string at that instant,
   an onset of either hand renewing), or a CONTRADICTION states a different stop on a string the grip
@@ -270,29 +270,23 @@ instead — the saved stream, the resolved motions and each note's same-string p
 nothing derived from presentation, because `resolveLegato` reads none of it. That is the pass the
 settle sweep and the editor's `H` verb take, and they run at every caret move, seek and selection
 change; `chartResolutions` carries its result rather than repeating the walk. The same walk answers
-`chartClaimedStops` — each note's RESOLVED claimed stop, carried on `chartResolutions` as
-`claimed_stops` — because a pull-off states the held stop under a right-hand onset, so which stop a
-note claims is a fact about its NEIGHBOUR. What it resolves OVER is the claim query's own two
-sources (`claimedStop`): the planted `held` under a plain tap or a pick slide, and the pressed
-`fret` under a tapped harmonic sounded over one, whose stop is the one its own pitch is measured
-from — over the OPEN string that harmonic claims nothing, being a natural one whose node the picking
-hand touches. Every consumer reads that resolution and never `ChartNote::held`.
+`chartPlantedStops` — the stop a pull-off lands on beneath its source, whichever hand made the
+onset — because you cannot pull off onto a fret unless a finger is waiting there, so what a note
+holds is a fact about its NEIGHBOUR. A held stop is DERIVED, never stored (ruled 2026-09-29).
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
-COMPLETE held stop under every head that sounds ELSEWHERE. Under an onset the PICKING HAND STOPS THE
-STRING FOR that is the resolved claim — the authored `held`, or the stop a pull-off
-derives over it — or, where the chart states neither, **the
-DEFAULT: the PRESSED fret the covering span's posture holds on that string — a harmonic node in the
-posture presses nothing — else 0**. Under every OTHER note it is the pressed stop of a harmonic
-sounded over one, else the stop a pull-off PLANTS beneath it — the wide `planted_stops` table, read
-here at its one field-scoped site, THE PLANT'S
-FACE — because that head IS the fretting hand, so the plant is the one second stop it can hold, and
-it wears it as its OWN reveal-only satellite rather than the bracket printing it. It reads the derived
-postures, so it computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default
-folded into `claimed_stops` would be an input to the very spans it is read out of, and would make
-every bare tap a member of the shape above it. `NoteViewState::held` is this table copied across,
-which is why that field is present for every right-hand onset and for every fretting-hand onset a
-pull-off plants under, and absent everywhere else.
+COMPLETE held stop under every head that sounds ELSEWHERE, each entry a `HeldStop{fret, source}`.
+What the notation states comes first (`notatedStopUnder`): the PRESSED stop of a harmonic sounded
+over one, else the PLANT a pull-off lands on beneath the note. Under an onset the PICKING HAND STOPS
+THE STRING FOR that states neither, **the DEFAULT: the PRESSED fret the covering span's posture
+holds on that string — a harmonic node in the posture presses nothing — else 0**; coverage is
+half-open, so a tap at the instant a span closes stands in no grip. It reads the derived postures, so
+it computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default folded into
+the spans' claims would be an input to the very postures it is read out of, and would make every
+bare tap a member of the shape above it. `NoteViewState::stop_mark` carries this table's fret, where
+it draws and on what terms (the source decides the face: a pressed stop stands, a plant or a default
+waits for the reveal), so it is present for every right-hand onset and for every onset a pull-off
+plants under, and absent everywhere else.
 
 # The TempoMap
 

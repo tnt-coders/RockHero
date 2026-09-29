@@ -756,7 +756,8 @@ removed from the model entirely: there is no verb left to refuse a press and no 
 Stating a fretting-hand stop on a string where nothing sounds is now unauthorable, ACCEPTED, and
 waits on the span templates of `docs/plans/roadmap/60-hand-markers.md` Phase 5; it is tracked there
 and in `docs/plans/todo/span-marker-redesign.md` rather than reopened here. This
-item watched invisible records, and there are none. Reopen only if the sweep is ever weakened.
+item watched invisible records, and there are none. The sweep itself retired 2026-09-29 with the
+`held` field: every claim is derived, so nothing stored can state nothing.
 
 ### Staggered keyframe landings open no successor span — trigger: a real chart carries a chord slide whose members land at different moments and the missing landing bracket reads wrong
 
@@ -884,10 +885,10 @@ narrow: `resolveLegato` accepts a tapped harmonic as a pull-off source (it refus
 a `fretHandHarmonic` predecessor), so `chartPlantedStops` records the plant beneath it and the span
 derivation reads that table through `gripStatement` — which is how an ORDINARY source's grip gets
 its planted finger, and where a harmonic over a pressed stop is refused one (RULED 2026-09-18: such
-a harmonic states its pressed fret instead). The CLAIM column does narrow (`chartDerivedStops` asks
-`pickingHandStopsString`), so a pull-off from a TAPPED harmonic derives no claim at all: the
-successor sounds wherever it states and the harmonic's claim stays its pressed fret whatever that
-destination is. One figure therefore reaches the spans through one reader for the fretting hand and
+a harmonic states its pressed fret instead). The CLAIM column does not see it (`notatedStopUnder`
+ranks the pressed stop over the plant, and held stops are derived-only since 2026-09-29), so a
+pull-off from a TAPPED harmonic derives no claim of its own: the successor sounds wherever it
+states and the harmonic's claim stays its pressed fret whatever that destination is. One figure therefore reaches the spans through one reader for the fretting hand and
 not the other for the picking hand. Resolving that asymmetry — refusing the source, or narrowing the
 wide table with the others — is this item's remedy. Accepted because the single-finger reading is
 the figure the corpus and the importer actually carry, and because the alternative is a second
@@ -895,9 +896,10 @@ stored stop on a note whose own pitch is measured from the first.
 
 **Trigger**: a corpus or authored figure where a tapped harmonic is followed by a pull-off to a
 stop OTHER than its pressed fret — the destination the derivation would have to invent a planted
-finger for. **Remedy**: allow `held` beside a node ONLY as a planted finger strictly BELOW `fret`
-(the pressed stop stays the claim, so nothing about pitch moves), with the pull-off derivation of
-rule 12c supplying it first, so the notation states the finger before the stored field may.
+finger for. **Remedy**: let the complete held table carry the plant beneath a pressed-stop harmonic
+as a SECOND derived stop strictly BELOW `fret` (the pressed stop stays the claim, so nothing about
+pitch moves), supplied by the pull-off derivation of rule 12c — nothing stored, as every held stop
+is.
 
 ### A slide on the pressed stop under a harmonic would draw the wrong hand — trigger: a fret keyframe on a pressed-stop harmonic
 

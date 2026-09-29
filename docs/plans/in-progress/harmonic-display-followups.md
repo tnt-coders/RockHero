@@ -92,7 +92,7 @@ founds one.
   node arm resolves through `frettingStopAt` (`chart_shapes.cpp:137`) to the PRESSED fret. That is
   `own == 1`.
 - A TAPPED harmonic makes no fretting-hand strike at all (`chart_shapes.cpp:803`, the
-  right-hand-onset skip), and reaches the slot as a CLAIM instead — `claimedStop` answers its own
+  right-hand-onset skip), and reaches the slot as a CLAIM instead — `notatedStopUnder` answers its own
   `fret` for a harmonic over a pressed stop
   (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:984`). Claims are counted at
   `chart_shapes.cpp:1442` (`own += slot.claims.size()`), which is again `own == 1`.

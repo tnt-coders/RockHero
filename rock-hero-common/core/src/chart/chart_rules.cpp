@@ -268,15 +268,6 @@ std::string_view chartRepairText(const ChartRepair repair)
         {
             return "a legato mark had nothing to connect to and reads as a plain pick";
         }
-        case ChartRepair::InertHeldStop:
-        {
-            return "a held stop belonged to no shape, so it was cleared from the onset carrying it";
-        }
-        case ChartRepair::DerivedHeldStop:
-        {
-            return "a pull-off already states the stop under its onset, so the stored held fret "
-                   "was dropped";
-        }
         case ChartRepair::EndStatementVibrato:
         {
             return "vibrato stated where the string is let go had no ring to vibrate in and was "
@@ -429,14 +420,6 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    values; a stated fret is clamped rather than stripped because it still names real travel.
     bool past_board = note.fret > g_max_fret;
     note.fret = std::min(note.fret, g_max_fret);
-    // The held stop is a stop on the same neck, so the same ceiling clamps it. Bound to a local so
-    // the optional check and the access are provably the same object.
-    std::optional<int>& held = note.held;
-    if (held.has_value() && *held > g_max_fret)
-    {
-        past_board = true;
-        held = g_max_fret;
-    }
     for (Keyframe& keyframe : note.keyframes)
     {
         // Bound to a local so the optional check and the access are provably the same object.
@@ -683,31 +666,9 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
             normalizeFretHandPosition(position, chart.tuning),
             "hand position " + positionText(position.position));
     }
-    // The relational settles run LAST, against the stream as it will actually stand: a trimmed
-    // tail may have been the hold a neighbour's claim depended on. Nothing the claim sweep takes
-    // can justify or withdraw a legato claim, since a held stop neither sounds nor bounds a ring —
-    // clearing the field leaves the onset carrying it entirely untouched.
-    //
-    // The legato settle's OWN precedence over the claim sweep is not a dependency: rule 11 keys
-    // spans by POSITION rather than by articulation, and flattening writes an attack and nothing
-    // else, so the spans the claim sweep judges against are the same either way. The order is kept
-    // because it is the order the repairs read in, not because the answer depends on it.
+    // The relational settle runs LAST, against the stream as it will actually stand: a trimmed
+    // tail may have been the hold a neighbour's legato claim depended on.
     std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
-    // The residue sweep runs BEFORE the inert one and AFTER the legato settle, and both orders are
-    // the same rule: judge a stored held stop against the connections as they will finally stand.
-    // A flattened claim is no longer a pull-off, so it states nothing and its predecessor's field
-    // is authored truth again; and clearing residue first is what reports a superseded field under
-    // the law that explains it rather than as a claim that stated nothing.
-    std::vector<ChartConversion> residue = sweepDerivedHeldStops(chart.notes, tempo_map);
-    std::vector<ChartConversion> swept = sweepInertClaimedStops(chart.notes, tempo_map);
-    settled.insert(
-        settled.end(),
-        std::make_move_iterator(residue.begin()),
-        std::make_move_iterator(residue.end()));
-    settled.insert(
-        settled.end(),
-        std::make_move_iterator(swept.begin()),
-        std::make_move_iterator(swept.end()));
     conversions.insert(
         conversions.end(),
         std::make_move_iterator(settled.begin()),
@@ -819,42 +780,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
     }
-    // The finger the fretting hand plants under an onset the picking hand stops the string for.
-    // WHICH notes may carry one is the fixpoint below; these are the two facts a stop of its own
-    // has. The board and the capo bind it exactly as they bind `fret` — 0 is the open string a
-    // voicing deliberately leaves, and a stop the capo covers has no repair that is not an invented
-    // pitch — while the ceiling is the normalizer's clamp, asked as that same fixpoint.
-    //
-    // And it must lie OUTSIDE the onset's own travel: the planted finger is on the string, so the
-    // picking hand cannot start on it, end on it, or pass through it. One rule for both shapes
-    // that can carry a stop, because \ref travelsThroughFret reads the PATH rather than the attack
-    // — an onset stating none has a hull of one point, which is the equal-fret refusal as the
-    // degenerate case, while a scrape always states a path and a tap does wherever the charter
-    // wrote one, and the finger is in the way anywhere along it. Such a record is a physical
-    // impossibility rather than a technique to shed, so it stays a refusal.
-    //
-    // Bound to a local so the optional check and the accesses are provably the same object.
-    const std::optional<int>& held = note.held;
-    if (held.has_value())
-    {
-        if (*held < 0 || (*held != 0 && *held < firstPlayableFret(tuning.capo)))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "held stop must be 0 or above the capo at " + positionText(note.position),
-            }};
-        }
-        if (travelsThroughFret(note, *held))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "a held stop is a planted finger: the onset cannot start on, end on, "
-                           "or pass through its fret at " +
-                           positionText(note.position),
-            }};
-        }
-    }
     // A finger cannot lower a stopped string's pitch, so a negative push is a data error rather
     // than a technique; dips and dives belong to the whammy bar's own model. Checked at the onset
     // value here and at every keyframe below, because the channel is one channel.
@@ -915,32 +840,17 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }
     }
     // WHAT THIS NOTE MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
-    // must already equal its own saved form. Two things carry less than the whole record — a SAVED
-    // pick slide carries no pitched technique, because the writer omits the in-memory overrides
-    // (chart.h); and a HELD stop rides only a note the picking hand stops the string for, because
-    // everywhere else — an ordinary press, and a harmonic of either hand — the fretting hand's stop
-    // already is the note's own fret — and enumerating either set here would duplicate exactly what
-    // savedChartNote strips, leaving the writer and this rule to agree by hand while a field added
-    // to ChartNote updated only one of them. Asked unconditionally because the comparison is
-    // identity for every note that overrides nothing.
-    //
-    // The message names the cause because the two cases are disjoint: a scrape can only have failed
-    // on the pitched latents (it is the one attack that keeps a held stop AND sheds techniques),
-    // and every other note on exactly one thing — the held stop it may not carry.
-    // Emphasis is a scrape's own dynamics and is never stripped.
+    // must already equal its own saved form. A SAVED pick slide carries no pitched technique,
+    // because the writer omits the in-memory overrides (chart.h), and enumerating that set here
+    // would duplicate exactly what savedChartNote strips, leaving the writer and this rule to agree
+    // by hand while a field added to ChartNote updated only one of them. Asked unconditionally
+    // because the comparison is identity for every note that overrides nothing, so only a scrape
+    // can fail it. Emphasis is a scrape's own dynamics and is never stripped.
     if (!(savedChartNote(note) == note))
     {
-        if (isScrape(note.attack))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidPickSlide,
-                .message = "pick-slide note must not carry pitched techniques at " +
-                           positionText(note.position),
-            }};
-        }
         return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "only a plain tap or a pick slide carries a held stop at " +
+            .code = ChartErrorCode::InvalidPickSlide,
+            .message = "pick-slide note must not carry pitched techniques at " +
                        positionText(note.position),
         }};
     }

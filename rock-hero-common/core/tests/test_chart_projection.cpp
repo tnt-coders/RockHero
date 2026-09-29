@@ -32,6 +32,14 @@ namespace
     return arrangement.chart.has_value() ? &*arrangement.chart : nullptr;
 }
 
+// The held fret a note's face prints, or nothing where the note holds no second stop.
+[[nodiscard]] std::optional<int> heldFretOf(const NoteViewState& note)
+{
+    // Bound once so the presence test and the read are provably the same object.
+    const std::optional<StopMarkViewState>& mark = note.stop_mark;
+    return mark.has_value() ? std::optional{mark->fret} : std::nullopt;
+}
+
 [[nodiscard]] Arrangement makeArrangementWithChart()
 {
     Chart chart;
@@ -1000,19 +1008,19 @@ TEST_CASE(
                 .keyframes = {},
             };
         };
-    // A bare tap claiming a stop the fretting hand takes without striking it: the picking hand
-    // makes the onset, so the claim is the only thing the fretting hand states at that slot.
-    const auto claim =
-        [](const GridPosition& position, const int string, const int fret, const int held) {
-            ChartNote claimed;
-            claimed.position = position;
-            claimed.string = string;
-            claimed.fret = fret;
-            claimed.sustain = Fraction{1, 4};
-            claimed.attack = NoteAttack::Tap;
-            claimed.held = held;
-            return claimed;
-        };
+    // A tapped harmonic over a stop the fretting hand presses without striking it: the picking
+    // hand makes the onset, so the pressed stop is the only thing the fretting hand states at that
+    // slot — a claim.
+    const auto claim = [](const GridPosition& position, const int string, const int pressed) {
+        ChartNote claimed;
+        claimed.position = position;
+        claimed.string = string;
+        claimed.fret = pressed;
+        claimed.sustain = Fraction{1, 4};
+        claimed.attack = NoteAttack::Tap;
+        claimed.harmonic_node = static_cast<double>(pressed) + 12.0;
+        return claimed;
+    };
     const auto project = [](std::vector<ChartNote> notes) {
         Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1130,7 +1138,7 @@ TEST_CASE(
             note(one, 1, 5, Fraction{2}),
             note(one, 2, 7, Fraction{2}),
             note(one, 3, 9, Fraction{2}),
-            claim(two, 1, 17, 12),
+            claim(two, 1, 12),
         });
         REQUIRE(state.shapes.size() == 1);
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
@@ -1519,19 +1527,24 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             note.sustain = sustain;
             return note;
         };
+    // A tap landing at `fret` — or, where `pressed` names a stop, a tapped harmonic over that stop,
+    // which the fretting hand presses: the one held stop the notation states unconditionally.
     const auto tap = [](const int beat,
                         const int string,
                         const int fret,
                         const std::optional<int>
-                            held,
+                            pressed,
                         const Fraction sustain) {
         ChartNote note;
         note.position = GridPosition{.measure = 1, .beat = beat};
         note.string = string;
-        note.fret = fret;
+        note.fret = pressed.value_or(fret);
         note.sustain = sustain;
         note.attack = NoteAttack::Tap;
-        note.held = held;
+        if (pressed.has_value())
+        {
+            note.harmonic_node = static_cast<double>(*pressed) + 12.0;
+        }
         return note;
     };
     const auto project = [&tempo_map](std::vector<ChartNote> notes) {
@@ -1557,7 +1570,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         return nullptr;
     };
 
-    SECTION("a mid-span authored tap prints in the frame AND stands its own satellite")
+    SECTION("a mid-span pressed tap prints in the frame AND stands its own satellite")
     {
         // String 1 rings from beat 1; the strum at beat 2 arrives under it, so the span's FRONT
         // backdates to that ring's onset and the bracket draws there. The tap's held stop joins at
@@ -1596,16 +1609,15 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
             });
 
         // AND THE TAP WEARS ITS OWN FACE BESIDE THAT. Two facts, two inks: the digit above is the
-        // span's furniture stating MEMBERSHIP, and this is the note-scoped satellite — what a press
-        // addresses and a typed digit retypes. AUTHORED here, so it STANDS, and it stands at the
-        // tap's own slot (0.5 s) rather than at the bracket the membership digit printed in
-        // (0.0 s). Gating publication on the span's digit reaching the satellite column would leave
-        // this tap no mark at all.
+        // span's furniture stating MEMBERSHIP, and this is the note-scoped satellite. PRESSED here,
+        // so it STANDS, and it stands at the tap's own slot (0.5 s) rather than at the bracket the
+        // membership digit printed in (0.0 s). Gating publication on the span's digit reaching the
+        // satellite column would leave this tap no mark at all.
         const NoteViewState* const tapped = tap_view(state);
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
         {
-            CHECK(tapped->held == std::optional{9});
+            CHECK(heldFretOf(*tapped) == std::optional{9});
             const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -1669,7 +1681,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // WHERE THE 5 WENT, asserted beside the silence so the two are read together: the note's
         // own satellite, standing, which is the whole ground for the suppression above.
         REQUIRE(!state.notes.empty());
-        CHECK(state.notes.front().held == std::optional{5});
+        CHECK(heldFretOf(state.notes.front()) == std::optional{5});
         const std::optional<StopMarkViewState>& mark = state.notes.front().stop_mark;
         REQUIRE(mark.has_value());
         if (mark.has_value())
@@ -1716,10 +1728,10 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a DERIVED held stop is one of the frame's members like any other")
     {
-        // Nothing authors the stop here: the tap is pulled off onto fret 9, and you cannot pull
-        // off onto a fret unless a finger was already waiting on it, so the notation itself states
-        // what the hand held (\ref chartClaimedStops). The projection reads that one resolution,
-        // so the frame prints 9 exactly as it does for an authored claim.
+        // The tap is pulled off onto fret 9, and you cannot pull off onto a fret unless a finger
+        // was already waiting on it, so the notation itself states what the hand held
+        // (\ref chartPlantedStops). The projection reads that one resolution, so the frame prints
+        // 9 exactly as it does for a pressed claim.
         ChartNote pull;
         pull.position = GridPosition{.measure = 1, .beat = 3};
         pull.string = 3;
@@ -1736,11 +1748,11 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
         {
-            CHECK(tapped->held == std::optional{9});
+            CHECK(heldFretOf(*tapped) == std::optional{9});
             // AND ITS OWN FACE WAITS FOR THE REVEAL. The pull-off already prints that 9, so a
             // standing satellite would state it twice; revealing the note is what shows the whole
             // truth about it at once. This is the discrimination against a law that would stand
-            // every satellite: the same figure with the stop AUTHORED stands (the section above).
+            // every satellite: the same figure with the stop PRESSED stands (the section above).
             const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -1765,9 +1777,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
     {
         // Nothing else sounds with it, so the tap founds no span and its claim reaches none: the
         // face is its own either way, which is exactly the point — a held stop's satellite does not
-        // depend on a bracket existing. AUTHORED here.
-        const ChartViewState authored = project({tap(2, 3, 12, 9, Fraction{1})});
-        const NoteViewState* const lone = tap_view(authored);
+        // depend on a bracket existing. PRESSED here.
+        const ChartViewState pressed = project({tap(2, 3, 12, 9, Fraction{1})});
+        const NoteViewState* const lone = tap_view(pressed);
         REQUIRE(lone != nullptr);
         if (lone != nullptr)
         {
@@ -1793,7 +1805,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(pulled != nullptr);
         if (pulled != nullptr)
         {
-            CHECK(pulled->held == std::optional{9});
+            CHECK(heldFretOf(*pulled) == std::optional{9});
             const std::optional<StopMarkViewState>& mark = pulled->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -1805,8 +1817,8 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
     SECTION("a BARE tap in a span wears THE DEFAULT, on the reveal's terms")
     {
-        // THE DEFAULT FACT: a tap that states no held stop of its own still carries a `held` and a
-        // mark — whatever the fretting hand has under it answers the question.
+        // THE DEFAULT FACT: a tap the notation states no held stop under still carries a mark —
+        // whatever the fretting hand has under it answers the question.
         //
         // A claim states fret 7 on string 3 at beat 1; the longer note beside it gives the span its
         // extent; and the tap at beat 3 states nothing of its own, so what is under it is that
@@ -1825,7 +1837,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
         {
-            CHECK(tapped->held == std::optional{7});
+            CHECK(heldFretOf(*tapped) == std::optional{7});
             const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -1841,7 +1853,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a span-less bare tap defaults to the open string, and an AUTHORED zero still stands")
+    SECTION("a span-less bare tap defaults to the open string")
     {
         // Nothing covers this tap, so nothing is held under it: zero, the open string. The face is
         // still its own, because the question arose and was answered.
@@ -1850,31 +1862,13 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(untold != nullptr);
         if (untold != nullptr)
         {
-            CHECK(untold->held == std::optional{0});
+            CHECK(heldFretOf(*untold) == std::optional{0});
             const std::optional<StopMarkViewState>& mark = untold->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
             {
                 CHECK(mark->face == StopMarkFace::Revealed);
                 CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
-            }
-        }
-
-        // THE DISCRIMINATION the default makes necessary: the same VALUE, authored. Zero is also
-        // what a default answers, so a value comparison cannot tell a charter who typed the open
-        // string from a tap holding nothing — only the face can, and it does.
-        const ChartViewState authored = project({tap(2, 3, 12, 0, Fraction{1})});
-        const NoteViewState* const stated = tap_view(authored);
-        REQUIRE(stated != nullptr);
-        if (stated != nullptr)
-        {
-            CHECK(stated->held == std::optional{0});
-            const std::optional<StopMarkViewState>& mark = stated->stop_mark;
-            REQUIRE(mark.has_value());
-            if (mark.has_value())
-            {
-                CHECK(mark->face == StopMarkFace::Standing);
-                CHECK(stopMarkShown(*mark, false));
             }
         }
     }
@@ -1956,7 +1950,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(later != span.strings.end());
         CHECK(later->digit == std::optional{StopMarkSlot::Bracket});
 
-        CHECK(source->held == std::optional{5});
+        CHECK(heldFretOf(*source) == std::optional{5});
         const std::optional<StopMarkViewState>& mark = source->stop_mark;
         REQUIRE(mark.has_value());
         if (mark.has_value())
@@ -1996,7 +1990,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         {
             return;
         }
-        CHECK(source->held == std::optional{5});
+        CHECK(heldFretOf(*source) == std::optional{5});
         const std::optional<StopMarkViewState>& mark = source->stop_mark;
         REQUIRE(mark.has_value());
         if (mark.has_value())
@@ -2032,7 +2026,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(tapped != nullptr);
         if (tapped != nullptr)
         {
-            CHECK(tapped->held == std::optional{9});
+            CHECK(heldFretOf(*tapped) == std::optional{9});
             const std::optional<StopMarkViewState>& mark = tapped->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -2064,7 +2058,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(source != nullptr);
         if (source != nullptr)
         {
-            CHECK(source->held == std::optional{0});
+            CHECK(heldFretOf(*source) == std::optional{0});
             const std::optional<StopMarkViewState>& mark = source->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -2088,7 +2082,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(touched != nullptr);
         if (touched != nullptr)
         {
-            CHECK(touched->held == std::optional{5});
+            CHECK(heldFretOf(*touched) == std::optional{5});
             const std::optional<StopMarkViewState>& mark = touched->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -2114,7 +2108,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(touched != nullptr);
         if (touched != nullptr)
         {
-            CHECK_FALSE(touched->held.has_value());
+            CHECK_FALSE(heldFretOf(*touched).has_value());
             CHECK_FALSE(touched->stop_mark.has_value());
         }
     }
@@ -2132,7 +2126,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
 
         REQUIRE(state.notes.size() == 1);
         const NoteViewState& pressed = state.notes.front();
-        CHECK(pressed.held == std::optional{5});
+        CHECK(heldFretOf(pressed) == std::optional{5});
         const std::optional<StopMarkViewState>& mark = pressed.stop_mark;
         REQUIRE(mark.has_value());
         if (mark.has_value())
@@ -2190,7 +2184,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         {
             return;
         }
-        CHECK(touched->held == std::optional{5});
+        CHECK(heldFretOf(*touched) == std::optional{5});
         const std::optional<StopMarkViewState>& mark = touched->stop_mark;
         REQUIRE(mark.has_value());
         if (mark.has_value())
@@ -2232,7 +2226,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(touched != nullptr);
         if (touched != nullptr)
         {
-            CHECK(touched->held == std::optional{5});
+            CHECK(heldFretOf(*touched) == std::optional{5});
             const std::optional<StopMarkViewState>& mark = touched->stop_mark;
             REQUIRE(mark.has_value());
             if (mark.has_value())
@@ -2291,7 +2285,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(touched != state.notes.end());
         if (touched != state.notes.end())
         {
-            CHECK(touched->held == std::optional{5});
+            CHECK(heldFretOf(*touched) == std::optional{5});
         }
     }
 }

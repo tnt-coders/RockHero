@@ -141,7 +141,7 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // satellite column against the bars this pass fills and must land on exactly the same pixels. The
 // brackets draw as pixel-snapped rectangles: a fractional width or position antialiases into
 // fuzzy, unsquare edges. The displaced digit's own column lives on the geometry for the same
-// reason (TabLaneGeometry::satelliteSlot): it is the independent hit target for a held stop.
+// reason (TabLaneGeometry::satelliteSlot), where the layout manifest places a held stop's digit.
 
 // The plate rect the mute number-plate and the editor's pending entry box share: sized against
 // the text's own ink so the box reads as the number's ground, never a fixed chip. One authority
@@ -2997,8 +2997,8 @@ void paintTabLane(
     // which the arrival rule names as one of the things that MAKE a span an arpeggio, and under a
     // harmonic, whose finger stands on a node while its head prints where it rings — so the case
     // is ordinary rather than rare, and it is the ordinary case outright, because a right-hand
-    // onset states the stop under it as its RESOLVED held fret (`chartClaimedStops`, which a
-    // pull-off states where nothing was authored). Two slots make the conflict unrepresentable
+    // onset states the stop under it as its held fret (`chartHeldStops`: a pull-off's plant, else
+    // the grip the covering span holds). Two slots make the conflict unrepresentable
     // instead of arbitrated: the head's centre carries what SOUNDS and the satellite carries what
     // the fretting hand HOLDS. Outboard RIGHT because every other side is spoken for — the attack
     // icons own the upper-left shoulder, the floating chips own the space above, and the left is
@@ -3099,22 +3099,20 @@ void paintTabLane(
         for (std::size_t index = first; index < last; ++index)
         {
             const common::core::NoteViewState& note = tab.notes[index];
-            // Each bound to a local so its presence test and its reads are provably one object.
-            const std::optional<int>& held = note.held;
+            // Bound to a local so its presence test and its reads are provably one object.
             const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
             const TabNotePresence note_presence = tabPresence(presence, index);
             // The same window test the note pass applies, and for the same reason: the index range
             // is a tight superset, so each pass still drops the notes that really end before it.
             // The face this pass draws sits at its note's own onset, so the note's own window
             // bounds it.
-            if (!held.has_value() || !mark.has_value() || note.ring_end_seconds < span_start ||
+            if (!mark.has_value() || note.ring_end_seconds < span_start ||
                 mark->face == common::core::StopMarkFace::Posture ||
                 !common::core::stopMarkShown(*mark, note_presence.revealing()))
             {
                 continue;
             }
-            // The slot the layout manifest states at the mark's own instant, which the hit test
-            // bounds the click in too.
+            // The slot the layout manifest states at the mark's own instant.
             const std::optional<TabHeldStopLayout> satellite =
                 tabHeldStopLayout(metrics, note, note_presence.revealing());
             if (!satellite.has_value())
@@ -3141,7 +3139,7 @@ void paintTabLane(
                 metrics,
                 lane_styles(note.string),
                 *satellite,
-                juce::String{*held},
+                juce::String{mark->fret},
                 tailFade(metrics, note, note_presence.revealing()),
                 ground);
         }

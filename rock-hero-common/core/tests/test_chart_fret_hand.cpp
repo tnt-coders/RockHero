@@ -37,14 +37,11 @@ namespace
     return note;
 }
 
-// A two-hand tap landing at `fret`, optionally claiming the stop the fretting hand holds beneath.
-[[nodiscard]] ChartNote tapAt(
-    const int measure, const int beat, const int string, const int fret,
-    const std::optional<int> held)
+// A two-hand tap landing at `fret`.
+[[nodiscard]] ChartNote tapAt(const int measure, const int beat, const int string, const int fret)
 {
     ChartNote note = noteAt(measure, beat, string, fret);
     note.attack = NoteAttack::Tap;
-    note.held = held;
     return note;
 }
 
@@ -54,25 +51,25 @@ namespace
     return FretHandPosition{.position = GridPosition{.measure = measure, .beat = 1}, .fret = fret};
 }
 
-// The widths the derivation gives one stream, with the claims resolved the way every production
-// caller resolves them.
+// The widths the derivation gives one stream, each note holding the held fret the column names
+// (\ref chartHeldStops is what production hands in): nothing where the column says nothing.
 [[nodiscard]] std::vector<int> widthsOf(
-    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& placements)
+    const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& placements,
+    std::vector<std::optional<int>> held_frets = {})
 {
-    const TempoMap tempo_map = makeTempoMap();
-    return deriveFretHandWidths(
-        notes, chartClaimedStops(chartConnections(notes, tempo_map)), placements, tempo_map);
+    held_frets.resize(notes.size());
+    return deriveFretHandWidths(notes, held_frets, placements, makeTempoMap());
 }
 
 } // namespace
 
 // A placement nothing widens is the narrowest hand, whether nothing sounds under it at all or only
-// what the fretting hand does not stop: the open string, and a tap that claims no held finger.
+// what the fretting hand does not stop: the open string, and a tap with no held finger under it.
 TEST_CASE("Fret-hand width floors at four frets with nothing stated", "[core][chart]")
 {
     CHECK(widthsOf({}, {placementAt(1, 5)}) == std::vector<int>{4});
     CHECK(
-        widthsOf({noteAt(1, 1, 1, 0), tapAt(1, 2, 2, 17, std::nullopt)}, {placementAt(1, 5)}) ==
+        widthsOf({noteAt(1, 1, 1, 0), tapAt(1, 2, 2, 17)}, {placementAt(1, 5)}) ==
         std::vector<int>{4});
 }
 
@@ -96,11 +93,11 @@ TEST_CASE("Fret-hand width reaches a pitched keyframe but not a slide-out", "[co
     CHECK(widthsOf({glide}, {placementAt(1, 5)}) == std::vector<int>{6});
 }
 
-// Under a tap the fretting hand's stop is the claimed held finger, and the tap's own landing fret
-// belongs to the picking hand.
-TEST_CASE("Fret-hand width reaches a tap's held claim, not the tap", "[core][chart]")
+// Under a tap the fretting hand's stop is the held finger, and the tap's own landing fret belongs
+// to the picking hand.
+TEST_CASE("Fret-hand width reaches a tap's held stop, not the tap", "[core][chart]")
 {
-    CHECK(widthsOf({tapAt(1, 1, 1, 15, 9)}, {placementAt(1, 5)}) == std::vector<int>{5});
+    CHECK(widthsOf({tapAt(1, 1, 1, 15)}, {placementAt(1, 5)}, {9}) == std::vector<int>{5});
 }
 
 // A natural harmonic presses nothing, but the fretting hand touches its node, so it counts at the
@@ -185,19 +182,19 @@ TEST_CASE("Fret-hand width splits a ring at a keyframe on a placement", "[core][
 // only the finger the fretting hand holds beneath it does.
 TEST_CASE("Fret-hand width skips a tap's own keyframes", "[core][chart]")
 {
-    ChartNote tap = tapAt(1, 1, 1, 15, 9);
+    ChartNote tap = tapAt(1, 1, 1, 15);
     tap.sustain = Fraction{2};
     tap.keyframes = {Keyframe{.offset = Fraction{1}, .fret = 18}};
-    CHECK(widthsOf({tap}, {placementAt(1, 5)}) == std::vector<int>{5});
+    CHECK(widthsOf({tap}, {placementAt(1, 5)}, {9}) == std::vector<int>{5});
 }
 
-// A tap struck before the placement and still ringing carries its claim into it, never the fret
-// the tapping finger landed on.
-TEST_CASE("Fret-hand width carries a tap's claim into the next placement", "[core][chart]")
+// A tap struck before the placement and still ringing carries its held stop into it, never the
+// fret the tapping finger landed on.
+TEST_CASE("Fret-hand width carries a tap's held stop into the next placement", "[core][chart]")
 {
-    ChartNote tap = tapAt(1, 1, 1, 17, 9);
+    ChartNote tap = tapAt(1, 1, 1, 17);
     tap.sustain = Fraction{8};
-    CHECK(widthsOf({tap}, {placementAt(2, 5)}) == std::vector<int>{5});
+    CHECK(widthsOf({tap}, {placementAt(2, 5)}, {9}) == std::vector<int>{5});
 }
 
 // A note struck before the first placement still states its keyframes where they land, so one
@@ -242,7 +239,7 @@ TEST_CASE("Held fret range spans a stretch's stops without the open string", "[c
     const std::vector<ChartNote> notes{noteAt(1, 1, 1, 0), noteAt(1, 2, 2, 9), noteAt(1, 3, 3, 7)};
     const std::vector<std::optional<HeldFretRange>> ranges = deriveHeldFretRanges(
         notes,
-        chartClaimedStops(chartConnections(notes, tempo_map)),
+        std::vector<std::optional<int>>(notes.size()),
         {placementAt(1, 5), placementAt(3, 5)},
         tempo_map);
     REQUIRE(ranges.size() == 2);

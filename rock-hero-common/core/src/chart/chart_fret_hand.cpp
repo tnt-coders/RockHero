@@ -18,16 +18,16 @@ namespace
 {
 
 // Visits every finger a note holds down, as `visit(from, to, fret)` over the ring offsets
-// [from, to), the fret empty where no finger is down. A right-hand onset holds its claim over the
-// whole ring. Otherwise each fret statement — the onset, then every keyframe stating a fret — holds
-// until the next one or the ring's end, so the statement AT the end yields an empty interval and
-// holds nothing, with no case of its own.
+// [from, to), the fret empty where no finger is down. A note the picking hand stops the string for
+// holds its held stop over the whole ring. Otherwise each fret statement — the onset, then every
+// keyframe stating a fret — holds until the next one or the ring's end, so the statement AT the
+// end yields an empty interval and holds nothing, with no case of its own.
 template <typename Visit>
-void forEachHeldFret(const ChartNote& note, const std::optional<int>& claim, const Visit& visit)
+void forEachHeldFret(const ChartNote& note, const std::optional<int>& held, const Visit& visit)
 {
-    if (rightHandOnset(note.attack))
+    if (pickingHandStopsString(note.attack, note.harmonic_node))
     {
-        visit(Fraction{}, note.sustain, heldFretAt(note, claim, Fraction{}));
+        visit(Fraction{}, note.sustain, heldFretAt(note, held, Fraction{}));
         return;
     }
     Fraction from{};
@@ -37,10 +37,10 @@ void forEachHeldFret(const ChartNote& note, const std::optional<int>& claim, con
         {
             continue;
         }
-        visit(from, keyframe.offset, heldFretAt(note, claim, from));
+        visit(from, keyframe.offset, heldFretAt(note, held, from));
         from = keyframe.offset;
     }
-    visit(from, note.sustain, heldFretAt(note, claim, from));
+    visit(from, note.sustain, heldFretAt(note, held, from));
 }
 
 // THE width rule over the held ranges: a stretch holding nothing gets the narrowest window, the
@@ -67,7 +67,7 @@ void forEachHeldFret(const ChartNote& note, const std::optional<int>& claim, con
 // stretch it overlaps: the stretch standing at its start (the last placement at or before it, or
 // the first placement when it starts earlier) through the last placement starting before its end.
 std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
-    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& held_frets,
     const std::vector<FretHandPosition>& placements, const TempoMap& tempo_map)
 {
     std::vector<std::optional<HeldFretRange>> ranges(placements.size());
@@ -76,7 +76,7 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
         const ChartNote& note = notes[index];
         forEachHeldFret(
             note,
-            claimed_stops[index],
+            held_frets[index],
             [&](const Fraction from, const Fraction to, const std::optional<int>& held) {
                 if (!held.has_value() || !(from < to))
                 {
@@ -112,21 +112,28 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     return ranges;
 }
 
-// The saved notes and the claims resolved beside them are index-parallel by construction; this is
-// the one place that pairs them for the fold.
+// The saved notes and the held stops resolved beside them are index-parallel by construction; this
+// is the one place that pairs them for the fold. The COMPLETE table, so a bare tap's default — the
+// grip the covering span holds — is a finger the window covers like any other.
 std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     const ChartResolutions& resolutions, const std::vector<FretHandPosition>& placements,
     const TempoMap& tempo_map)
 {
+    std::vector<std::optional<int>> held_frets;
+    held_frets.reserve(resolutions.held_stops.size());
+    for (const std::optional<HeldStop>& held : resolutions.held_stops)
+    {
+        held_frets.push_back(held.has_value() ? std::optional{held->fret} : std::nullopt);
+    }
     return deriveHeldFretRanges(
-        resolutions.connections.saved_notes, resolutions.claimed_stops, placements, tempo_map);
+        resolutions.connections.saved_notes, held_frets, placements, tempo_map);
 }
 
 std::vector<int> deriveFretHandWidths(
-    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& held_frets,
     const std::vector<FretHandPosition>& placements, const TempoMap& tempo_map)
 {
-    return widthsOf(deriveHeldFretRanges(notes, claimed_stops, placements, tempo_map), placements);
+    return widthsOf(deriveHeldFretRanges(notes, held_frets, placements, tempo_map), placements);
 }
 
 std::vector<int> deriveFretHandWidths(

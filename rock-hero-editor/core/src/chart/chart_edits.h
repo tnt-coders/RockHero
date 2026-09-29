@@ -1012,9 +1012,7 @@ Per note the verb asks \ref chartHarmonicNodeCandidates for what that fret names
 with the chosen node measured from the open string's stop (the nut, or the capo), and runs
 \ref common::core::normalizeChartNote so a payload a touch cannot carry (the bend, the vibrato, the
 travel of a finger that presses nothing) is stripped by the ONE authority rather than by a list
-copied into this verb. A planted finger goes the same way, by the rule rather than by the
-normalizer: a note carrying a node states no \ref common::core::ChartNote::held, so the write
-releases one the note was holding. A note whose fret names nothing it can reach is SKIPPED, never
+copied into this verb. A note whose fret names nothing it can reach is SKIPPED, never
 repaired: moving the hand to the nearest node would author a position the charter never typed.
 
 THE CHOICE BINDS ONLY WHAT IT NAMES. `chosen_partial` takes that partial's node on every note whose

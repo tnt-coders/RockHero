@@ -263,21 +263,6 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         static_cast<void>(common::core::flattenStrandedStrike(note));
     }
-    // The relational settle a plan DOES carry, and the one the cascade rests on: a claimed stop
-    // that reaches no shape states nothing anywhere, so an edit that leaves one takes it in the
-    // same undo entry rather than saving a statement nothing draws — the whole note where the note
-    // IS the claim, the field alone where a sounding onset carries it. It rides the plan for the
-    // same reason the stranded strike does — the truth it repairs is the edit's own product — and
-    // it is the whole of what makes "every claimed stop in the chart states something" an invariant
-    // instead of a hope. Deliberately unlike the legato settle beside it, which stays out of a
-    // burst because a claim the burst broke is still visible and still the user's; a stop the edit
-    // stranded is neither. The derivation's residue, taken in the same entry and for the same
-    // reason the settle above is: authoring a pull-off is what makes its predecessor's stored held
-    // stop a second spelling of a fact the notation now states, so the edit that created the
-    // duplication is the edit that clears it (DERIVED HELD). No verb states this rule — the plan
-    // gate does, once, for every present and future one.
-    static_cast<void>(common::core::sweepDerivedHeldStops(candidate, tempo_map));
-    static_cast<void>(common::core::sweepInertClaimedStops(candidate, tempo_map));
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
     std::vector<common::core::ChartNote> saved_form;
@@ -1877,9 +1862,7 @@ namespace
 // cannot carry — a bend, vibrato, the travel of a finger that presses nothing — so the note takes
 // the harmonic instead of being skipped for a payload it never needed. Safe here in a way it would
 // not be for a pinch: no repair can undo an on-neck node, so the normalizer can only take payloads,
-// never the harmonic. A planted finger the note was holding stays where the charter put it, as a
-// latent the saved form strips exactly as an attack change's latents are stripped, so clearing the
-// harmonic presses the fret back down with that finger under it again.
+// never the harmonic.
 [[nodiscard]] common::core::ChartNote harmonicTouchNote(
     const common::core::ChartNote& note, const double position,
     const common::core::ChartTuning& tuning)

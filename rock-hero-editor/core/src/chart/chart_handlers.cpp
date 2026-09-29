@@ -2080,8 +2080,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         const ChartSlotKey under = chartCaretSlotFor(session().song().tempo_map, live_keys.front());
         caret_rides = caret->position == under.position && caret->string == under.string;
     }
-    // The caret rides its FACE, not just its slot: a charter typing into the held stop who nudges
-    // the note would otherwise find the next digit stating the sounding fret instead. Read before
+    // The caret rides its FACE, not just its slot: a charter on a bend chip who nudges the note
+    // would otherwise find the caret back on the mark. Read before
     // the edit and copied by value, because the marker below is what the reference points into;
     // a face the moved object no longer draws is dropped where every other read drops it
     // (chartCaretFace), so this needs no test of the destination.

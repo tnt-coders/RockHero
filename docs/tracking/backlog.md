@@ -648,14 +648,6 @@ an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by 
     where the stop IS the node, a natural; since 2026-09-18 a harmonic standing over a PRESSED stop
     runs it from the stop to the node instead.
 
-- **Merge or keep the ordered legato/claim sweeps** (2026-08-30, from the rule-11 rebuild): the
-  documented reason the two normalization sweeps were order-dependent ("flattening a claim
-  changes an articulation, and spans are keyed by articulation") dissolved when continuation
-  went position-only — sweepUnjustifiedLegato writes only note.attack, and both Legato and Pick
-  are fretting-hand attacks, so the spans judged by sweepInertClaimedStops are identical
-  either way. The three comments are already corrected (order = reading order, not a condition).
-  Open cleanup: keep the order as harmless, or merge the two sweeps into one pass.
-
 ## 2026-09-01 bracket law (the clip/tail mini-seam) — CLOSED 2026-09-04
 
 - **`ChartShape::covers_travel` had NO READER — DELETED with the tail law (stage C, 2026-09-04).**
@@ -693,15 +685,6 @@ window-anchored comment records as having pulsed visibly before. Found by the 20
 pass; pre-existing (the in-flight phase no longer carries a gradient at all, so exposure shrank).
 Fix shape: inject the window-boundary sixteenths into the modulated branch's sample positions for
 `rested && landed` tails, or verify the arc-length density already oversamples enough to hide it.
-
-## sweepInertClaimedStops derives against the raw stream (noted 2026-09-06)
-
-`chart_legato.cpp`'s inert-claim sweep hands `notes` (the raw in-memory stream) to
-`deriveChartShapes` while every other deriver hands the SAVED form — the two differ on a pick
-slide's latent mute, so the sweep can judge a claim against spans the saved chart would not
-derive. Index-parallel, so nothing crashes; found during the hold-under law's caller audit and
-kept out of that change set deliberately. Fix shape: bind the connections' `saved_notes` like
-`chartResolutions` does, with a discriminating pick-slide fixture.
 
 ## Found by the 2026-09-08 post-session review
 
@@ -1101,7 +1084,7 @@ written down.
 ## Found while ruling the pressed stop's display (2026-09-18)
 
 - **A plain tap's planted finger has no 3D cue at all.** 2D prints it on the tap's own satellite —
-  the planted `held`, authored or derived or the default fact — while the highway draws the tap's
+  its plant or the default fact — while the highway draws the tap's
   head at the fret it sounds and says nothing about the stop the fretting hand is holding under it.
   The 2026-09-18 pressed-stop rule gave the highway a stop→node line for a harmonic standing over a
   pressed stop (`harmonicMarkFootprint`), which is the same class of fact for a different family, so
@@ -1185,14 +1168,12 @@ against the tree on the date above.
   owns the overlap-conflict work. (task #275)
 
 - **"Planted" names two things (PARKED by the user 2026-09-06 — "forget the renaming for now").**
-  The naming judge's verdict: `chartDerivedStops` is `chartPlantedStops` with a filter — one fact,
-  two nouns — and "planted" is a live homonym with the FHP derivation's "planted finger"
+  "Planted" is a live homonym with the FHP derivation's "planted finger"
   (`gp_chart_builder.cpp`, `docs/developer/the-project-lifecycle.md`). With fret 0 deriving,
   "planted" also lies at the nut, where "held 0" is signed tab vocabulary. Recommended shape, rooted
   on "held": `chartPlantedStops` → `chartHoldUnderStops`, `planted_stops` → `hold_under_stops`,
-  `plants_under` / `planted_under` → `holds_under_here` / `holds_under_down`, `chartDerivedStops` →
-  `chartDerivedHeldStops`; `chartHeldStops`, `ChartNote::held` and the JSON `held` key unchanged.
-  About 20 files, no format change. The two files above carry BOTH senses, so rename them by hand,
+  `plants_under` / `planted_under` → `holds_under_here` / `holds_under_down`, and
+  `HeldStopSource::Plant` with them; `chartHeldStops` unchanged. No format change. The two files above carry BOTH senses, so rename them by hand,
   never by sweep. Pick up only when the user asks. (task #287)
 
 - **`StringHand::sounds` serves two masters through two helpers.** The zero-length-span bug fixed

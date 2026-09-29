@@ -14,7 +14,7 @@ when the derivation lands.*
 - **Width is derived, never stored** (user): `width = max(4, highest stated fret SOUNDING in
   the placement's stretch − fret + 1)`. The stretch runs from the placement up to the next one
   (the last to the chart's end); the stated frets are every fretting-hand stop sounding in it —
-  onset frets, pitched mid-ring keyframe frets at their positions, a tap's held claim, and a
+  onset frets, pitched mid-ring keyframe frets at their positions, a tap's held stop, and a
   note struck before the stretch whose true ring still sounds at its start (a finger still down
   is a stop the chart proves; the same evidence the floor light reads). Open strings and bare
   taps count for nothing; a note's end statement counts nothing (the hand is leaving). A stated
@@ -24,12 +24,15 @@ when the derivation lands.*
   only where the fret changes (its fabricated same-fret placements only split stretches now), and
   the format drops `"width"` with no back-compat path. A user MAY insert a same-fret placement
   deliberately, to narrow the window after a wide passage; the validator allows it.
-- **The claim is the RESOLVED one** (`chartClaimedStops`, the reader authority: a pull-off plant
-  is a stated stop), passed to the derivation as a column, never `ChartNote::held`. The one
-  "fretting-hand stop at an instant" authority is `fretHandStopAt(note, claim, offset)` in
-  `chart.h`, with `fretFor` its offset-0 case; the importer's `statedStopAt` and the census rig
-  ask it. Carried seam: the floor light's evidence still reads `NoteViewState::held`, which also
-  carries the covering span's default; settle when plan 60 defines the one stop authority.
+- **A tap's held stop is the COMPLETE one** (`chartHeldStops`: its plant, else the covering span's
+  default — held stops are derived-only since 2026-09-29), passed to the derivation as a column.
+  The one "fretting-hand stop at an instant" authority is `fretHandStopAt(note, held, offset)` in
+  `chart.h`, with `fretFor` its offset-0 case; the census rig asks it, and the importer's
+  `statedStopAt` asks it with no held stop, the stream being unresolved there. Since the
+  2026-09-29 change a bare tap's DEFAULT counts toward the window like any other held finger (it
+  used to be invisible to it); with half-open span coverage the default is nearly always 0, so
+  this seldom widens anything. The floor light's evidence reads the same table's fret
+  (`NoteViewState::stop_mark`).
 - **Phase 0 deviation:** the reader does NOT refuse an unsorted `fhps` stream at parse — the
   validator runs on every load and nothing searches the stream in between, so the parse-time
   check was the order rule stated twice. The validator refuses equal positions.

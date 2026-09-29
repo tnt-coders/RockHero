@@ -120,17 +120,15 @@ TabNoteLayout tabNoteLayout(
 // draws at — a fronting tap's digit sits beside its span's bracket, a note's own satellite beside
 // its own head, and at a front those are the same column by construction.
 //
-// Answers for a note that states a held stop whose face is SHOWN — asked of the published mark
-// rather than inferred from the held field, so the target can neither outlive the digit nor appear
-// before a reveal brings it in.
+// Answers for a note whose held stop's face is SHOWN — asked of the published mark, so the slot
+// can neither outlive the digit nor appear before a reveal brings it in.
 std::optional<TabHeldStopLayout> tabHeldStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const bool revealed) noexcept
 {
-    // Each bound to a local so its check and its accesses are provably the same object.
-    const std::optional<int>& held = note.held;
+    // Bound to a local so its check and its accesses are provably the same object.
     const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
-    if (!held.has_value() || !mark.has_value() || !common::core::stopMarkShown(*mark, revealed))
+    if (!mark.has_value() || !common::core::stopMarkShown(*mark, revealed))
     {
         return std::nullopt;
     }

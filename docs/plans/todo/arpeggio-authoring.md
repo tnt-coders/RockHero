@@ -1,6 +1,12 @@
 # Arpeggio Authoring — The Held Shape a Note Stream Cannot State
 
-Status: **HISTORICAL as of 2026-09-17.** The `N` verb ("Arpeggio Hold") and the attack value this
+Status: **HISTORICAL as of 2026-09-17, and the `held` field this record describes retired
+2026-09-29**: held stops are derived-only (a pull-off's plant, a harmonic's pressed stop, the
+covering span's default — `chartHeldStops`), the editor's held face is gone, and a document's
+`held` key is silently ignored (`docs/plans/in-progress/chart-ruleset.md`, LAW I). Every
+`claimedStop` / `held` mention below is history.
+
+Earlier status: **HISTORICAL as of 2026-09-17.** The `N` verb ("Arpeggio Hold") and the attack value this
 record settled on, `NoteAttack::None`, were removed from the model entirely on that date; `N` is
 unbound and free for reuse. A claim is now read through ONE query (`claimedStop`) — the `held` stop
 under a plain tap or a pick slide, and a tapped harmonic's own pressed `fret` — and stating a

@@ -1233,9 +1233,9 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         sounded.string = 3;
         sounded.fret = 12;
         sounded.attack = sounded_by;
-        sounded.held = held;
         sounded.harmonic_node = node;
-        sounded.stop_mark = common::core::StopMarkViewState{.seconds = 10.0, .face = face};
+        sounded.stop_mark =
+            common::core::StopMarkViewState{.seconds = 10.0, .fret = held, .face = face};
         state.notes = {sounded};
         indexVisibleRanges(state);
 

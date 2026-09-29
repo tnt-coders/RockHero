@@ -67,9 +67,9 @@ consequence of the principle, not an independent wish:
    the stored ring itself, or only its membership in a founding — is the first thing a build here
    has to settle, and it is NOT settled by this record.
 5. **The `N` verb's fake-note coaxing** — **DONE 2026-09-17** with the verb. Stating "a finger is on
-   fret 5 of the A string" no longer means authoring a note there and converting it. Where a
-   right-hand onset sounds the string, the charter clicks or arrow-steps onto that note's drawn
-   satellite and types the fret; where NOTHING sounds it, the figure waits on a marker's template.
+   fret 5 of the A string" no longer means authoring a note there and converting it. Held stops
+   are derived-only since 2026-09-29 (the satellite is display-only); a stop the notation does not
+   prove waits on a marker's template.
 6. **The POSTURE GAP** (2026-08-31, ruled frozen under the N-verb stop-loss): a claim reaches a span
    in the ledger while its fret never joins that span's posture, so no bracket digit prints for it.
    Its justification-driven form left with the justification half on 2026-09-17 — a claim now
@@ -110,6 +110,13 @@ THE NAMED SEQUENCING COST — DECIDED 2026-09-17: the figure LAPSES in the gap, 
 ACCEPTED that. `NoteAttack::None` shipped out ahead of the template editor, so until that editor
 lands there is no way to state a fretting-hand stop on a string nothing sounds, and a location-only
 marker cannot state it either. Brackets are wholly derived in the meantime.
+
+THE GAP WIDENED 2026-09-29, and was accepted the same way: the per-note `held` field retired, so a
+stop under a TAP is now stated only where the notation proves it (a pull-off's plant, riding a grip
+that already holds it) — the template is where the grip itself will prove the rest. Two figures
+lapse until it lands: a tap-founded two-member span (a tap's held stop beside one other member,
+founding a bracket nothing sounded), and a tap over a stop nothing sounds and no pull-off lands on.
+Both were authorable with `held` and derive nothing today.
 
 A premise worth stating because it was asked (user, 2026-08-31): **no template storage exists
 today, anywhere.** A derived span references nothing — its grip is computed from the notes on

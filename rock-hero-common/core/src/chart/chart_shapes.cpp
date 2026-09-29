@@ -220,9 +220,9 @@ struct StringHand
     std::optional<ChartStop> stated_beneath;
 };
 
-// One authored claim inside a span: the record the charter stated, carried apart from the sounded
-// grip because it holds provenance the sound never has — the published face and the inert sweep
-// are both keyed on it.
+// One claim inside a span: the stop the notation states under a right-hand onset, carried apart
+// from the sounded grip because it holds provenance the sound never has — the published face is
+// keyed on it.
 struct StopClaim
 {
     std::size_t note_index{0};
@@ -259,7 +259,7 @@ struct StopClaim
 }
 
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
-// carries is only its statement — which strings at which stops, the authored claims, and the
+// carries is only its statement — which strings at which stops, the claims, and the
 // handful of facts published at emit that only the walk's own passage through the slots can know.
 struct OpenSpan
 {
@@ -272,9 +272,9 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // The authored claims this span carries (\ref StopClaim): stops asserted with no sound of
-    // their own. They never date the front and never bound the reach, because a claim is no
-    // evidence; they reach the published posture only at emit, on strings the grip left empty.
+    // The claims this span carries (\ref StopClaim): stops stated with no sound of their own. They
+    // never date the front and never bound the reach, because a claim is no evidence; they reach
+    // the published posture only at emit, on strings the grip left empty.
     std::vector<StopClaim> claims;
 
     // Where this span's opening mark draws, published to \ref ChartShape::bracket_position. Every
@@ -352,10 +352,21 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     // Both stop tables are derivations of the connections themselves, so they are asked here rather
-    // than handed in: a caller could otherwise pass tables built from another revision, and one
-    // that needs them for its own sake keeps its own copy (\ref ChartResolutions).
-    const std::vector<std::optional<int>> claimed_stops = chartClaimedStops(connections);
+    // than handed in: a caller could otherwise pass tables built from another revision.
     const std::vector<std::optional<int>> planted_stops = chartPlantedStops(connections);
+    // THE CLAIM COLUMN: the stop the fretting hand states under a RIGHT-HAND onset, which only the
+    // notation states (\ref notatedStopUnder) — a tapped harmonic's pressed stop, else the stop a
+    // pull-off plants. A fretting-hand onset claims nothing: its own fret is its statement.
+    std::vector<std::optional<int>> claimed_stops(saved_notes.size());
+    for (std::size_t index = 0; index < saved_notes.size(); ++index)
+    {
+        const ChartNote& note = saved_notes[index];
+        if (const std::optional<HeldStop> notated = notatedStopUnder(note, planted_stops[index]);
+            rightHandOnset(note.attack) && notated.has_value())
+        {
+            claimed_stops[index] = notated->fret;
+        }
+    }
     // A SLIDE-OUT or an ARRIVAL at every end statement, resolved once for the revision by the one
     // walk that establishes the pair (\ref ChartConnections::arrives_into). Read by the channel
     // reader and by the two sound tests below: every place this walk asks what a fret at a ring's
@@ -761,7 +772,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             }
             // THE FRETTING HAND'S OWN STRIKES alone: a right-hand onset is the other hand's and
             // asserts no grip of its own, so it strikes nothing here — the fretting-hand stop under
-            // it reaches the statement path as the claim above (\ref claimedStop).
+            // it reaches the statement path as the claim above.
             if (string_index.has_value() && !rightHandOnset(member.attack))
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
@@ -808,21 +819,20 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 }
             }
         }
-        // A claim the charter did not write is the pull-off's landing stop under a right-hand
-        // onset, and it is the same derivation under the same law as under a fretting-hand one: it
-        // states the grip only where that grip already holds it. An AUTHORED claim is the
-        // charter's word and always states. The proof cannot bootstrap: a carried claim proves a
-        // later one only if it was itself admitted here, so every chain ends in a sounded stop or
-        // an authored one. It weighs a claim as much as a sounded stop on purpose — the claim
+        // A PLANTED claim is the pull-off's landing stop under a right-hand onset, and it is the
+        // same derivation under the same law as under a fretting-hand one: it states the grip only
+        // where that grip already holds it. A tapped harmonic's PRESSED stop is the stop its own
+        // pitch is measured from, and always states. The proof cannot bootstrap: a carried claim
+        // proves a later one only if it was itself admitted here, so every chain ends in a sounded
+        // stop or a pressed one. It weighs a claim as much as a sounded stop on purpose — the claim
         // witness below GRADES the two because it asks whether a DIFFERING strike breaks a claim,
         // while this asks whether a source that does NOT differ may ride one.
         std::erase_if(
             slot.claims, [&saved_notes, &planted_stops, &gripped_before](const StopClaim& claim) {
                 const ChartNote& member = saved_notes[claim.note_index];
-                const bool authored = claimedStop(member).has_value();
                 const std::optional<ChartStop> proven = gripStatement(
                     member, planted_stops[claim.note_index], gripped_before[claim.string_index]);
-                return !authored && !proven.has_value();
+                return !harmonicOverPressedStop(member) && !proven.has_value();
             });
 
         // WHAT THIS SLOT STATES per string, strikes and claims as one table: a tap's claimed stop

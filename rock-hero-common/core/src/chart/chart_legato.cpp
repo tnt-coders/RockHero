@@ -209,98 +209,28 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
         // finger it proves is on the string AT THE RELEASE, and a finger arriving behind a sliding
         // one and waiting there when it lifts is the ordinary two-finger landing of a slid
         // pull-off. The Pull resolution already puts the stop strictly below the fret released
-        // from; no other bound exists (RULED 2026-09-29). The onset's traveled range bounds two
-        // other facts instead: the AUTHORED `held` and the RIDE (\ref gripStatement).
+        // from; no other bound exists (RULED 2026-09-29). The onset's traveled range bounds the
+        // RIDE instead (\ref gripStatement).
         planted[onset] = stop;
     }
     return planted;
 }
 
-std::vector<std::optional<int>> chartDerivedStops(const ChartConnections& connections)
-{
-    // THE FIELD'S SCOPE, stated HERE and nowhere else. What a derivation can supersede is a stop
-    // the `held` FIELD states, and only a note the picking hand stops the string for carries that
-    // field at all (pickingHandStopsString). Under a FRETTING-hand onset the same planted finger
-    // rides BESIDE the note's own fret: it states nothing the charter could have typed, supersedes
-    // no field and leaves no residue. Under a TAPPED HARMONIC the fretting hand is on the stop the
-    // note itself states, and the model gives that hand no second finger, so a pull-off from one
-    // derives nothing here either — its claim stays what the claim query answers, the pressed stop
-    // or nothing at all over the open string. Every FIELD-scoped reader takes this narrowing, so a
-    // plant under either can never reach the claim column or the writer's residue sweep. Who reads
-    // the WIDE table instead is stated once, on \ref chartPlantedStops.
-    std::vector<std::optional<int>> derived = chartPlantedStops(connections);
-    for (std::size_t index = 0; index < derived.size(); ++index)
-    {
-        const ChartNote& note = connections.saved_notes[index];
-        if (!pickingHandStopsString(note.attack, note.harmonic_node))
-        {
-            derived[index].reset();
-        }
-    }
-    return derived;
-}
-
-std::vector<std::optional<int>> chartClaimedStops(const ChartConnections& connections)
-{
-    const std::vector<ChartNote>& notes = connections.saved_notes;
-    // The fold, and the direction is the rule: the derivation SUPERSEDES the stored field rather
-    // than agreeing with it, which is the whole point — one statement of the fact, and the notation
-    // itself is where it is written.
-    std::vector<std::optional<int>> claimed = chartDerivedStops(connections);
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        // Bound to a local so the presence test and the write are provably the same object.
-        std::optional<int>& stop = claimed[index];
-        if (!stop.has_value())
-        {
-            stop = claimedStop(notes[index]);
-        }
-    }
-    return claimed;
-}
-
-std::vector<std::optional<int>> chartHeldStops(
-    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& claimed_stops,
-    const std::vector<std::optional<int>>& planted_stops, const ChartShapes& shapes,
-    const TempoMap& tempo_map)
+std::vector<std::optional<HeldStop>> chartHeldStops(
+    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& planted_stops,
+    const ChartShapes& shapes, const TempoMap& tempo_map)
 {
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
-    // (\ref SpanCover) — the same coverage the hold extension is measured against, the only other
-    // reader left since the curtain became universal, so the default can never sit under a span
-    // that walk says is not there.
+    // (\ref SpanCover) — the same coverage the hold extension is measured against, so the default
+    // can never sit under a span that walk says is not there.
     const SpanCover cover{shapes.shapes, tempo_map};
-    std::vector<std::optional<int>> held(notes.size());
+    std::vector<std::optional<HeldStop>> held(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        // THE PRESSED STOP, first of these two tiers: a harmonic sounded over a pressed stop prints
-        // the NODE at its head while the hand is on the stop below it
-        // (\ref harmonicOverPressedStop), so that stop is what this note holds — and it OUTRANKS
-        // the plant, because the pressed fret is pitch-critical and nothing else states it, while a
-        // plant is a span fact the bracket prints.
-        //
-        // THE PLANT'S FACE: every other note here IS the fretting hand on the string, so the one
-        // second stop it can hold is the one a pull-off PLANTS beneath it — the wide table the
-        // hold-under law derives whichever hand made the onset.
-        //
-        // These are the tiers of every note the picking hand does NOT stop the string for: the
-        // ordinary press, the harmonic of either hand, and a TAPPED harmonic with them, whose stop
-        // is the fretting hand's exactly as an artificial one's is (\ref pickingHandStopsString).
-        // The tiers below are the rest of the right-hand onsets', whose fretting-hand stop the
-        // claim query names (\ref claimedStop): the planted finger beside a plain tap or a scrape.
-        if (!pickingHandStopsString(note.attack, note.harmonic_node))
+        held[index] = notatedStopUnder(note, planted_stops[index]);
+        if (held[index].has_value() || !pickingHandStopsString(note.attack, note.harmonic_node))
         {
-            held[index] =
-                harmonicOverPressedStop(note) ? std::optional{note.fret} : planted_stops[index];
-            continue;
-        }
-        // Bound to a local so the presence test and the read are provably the same object. The
-        // resolved claim already carries the first two tiers folded in that order — the
-        // pull-off derivation over the authored field — so a note that states one is done here.
-        const std::optional<int>& claimed = claimed_stops[index];
-        if (claimed.has_value())
-        {
-            held[index] = claimed;
             continue;
         }
         // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap that states
@@ -308,9 +238,6 @@ std::vector<std::optional<int>> chartHeldStops(
         // where no span covers the tap, and equally where the covering posture says nothing about
         // THIS string: a posture is a per-string statement, and a string it never names is a string
         // no finger was on.
-        //
-        // Read live off the derived postures rather than stored anywhere, which is the whole of
-        // why an edit reflowing the spans moves the default with them.
         int stop = 0;
         // Bound to a local so the presence test and the reads are provably the same object.
         if (const std::optional<SpanCoverage> covering = cover.reaching(note.position);
@@ -333,7 +260,7 @@ std::vector<std::optional<int>> chartHeldStops(
                 }
             }
         }
-        held[index] = stop;
+        held[index] = HeldStop{.fret = stop, .source = HeldStopSource::Default};
     }
     return held;
 }
@@ -343,32 +270,16 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
     const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
-    // The claims the spans are derived against, resolved once for the revision: a right-hand
-    // onset's held stop is DERIVED where a pull-off states it, and every surface downstream reads
-    // this rather than the raw field (\ref chartClaimedStops).
-    //
-    // Both halves of that one derivation are carried, because two different questions are asked of
-    // it: WHAT the stop is, which the fold below answers, and WHO states it, which only the
-    // derivation alone can — a stop the notation owns is read-only and shows its face on the
-    // reveal's terms, and a consumer comparing values could not tell the two apart. The fold walks
-    // the derivation again rather than being restated here over this vector: one linear pass per
-    // chart revision is cheaper than a second copy of the fold free to disagree with the first.
-    resolutions.claimed_stops = chartClaimedStops(resolutions.connections);
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
-    // every stop they compare comes off a stored fret channel. The wide planted table rides
-    // beside the claims for the hold-under law's verdicts, and is published for exactly two more
-    // readers — the held table's fretting-hand tier below and the editor's retype refusal (THE
-    // PLANT'S FACE); the claim column never sees it (\ref chartPlantedStops).
-    resolutions.planted_stops = chartPlantedStops(resolutions.connections);
+    // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(resolutions.connections, tempo_map);
     // THE COMPLETE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
-    // DEFAULT held stop is the grip the covering span holds, so it reads the postures the claims
-    // above just produced. It therefore runs AFTER the derivation and feeds nothing that runs
-    // before it — a default folded into the claims would be an input to the very spans it is read
-    // out of. Handed the whole derivation rather than its two vectors apart, because `shapes`
-    // indexes `postures` and passing them separately is a mismatch waiting to happen.
-    resolutions.held_stops = chartHeldStops(
-        saved_notes, resolutions.claimed_stops, resolutions.planted_stops, derived, tempo_map);
+    // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
+    // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the
+    // whole derivation rather than its two vectors apart, because `shapes` indexes `postures` and
+    // passing them separately is a mismatch waiting to happen.
+    resolutions.held_stops =
+        chartHeldStops(saved_notes, chartPlantedStops(resolutions.connections), derived, tempo_map);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
@@ -421,84 +332,6 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
         conversions.push_back(
             ChartConversion{
                 .repair = ChartRepair::UnjustifiedLegato,
-                .where = formatGridPositionToken(note.position) + " string " +
-                         std::to_string(note.string),
-            });
-    }
-    return conversions;
-}
-
-std::vector<ChartConversion> sweepInertClaimedStops(
-    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
-{
-    // A stream stating no field claim at all has nothing to sweep, and this runs on every plan the
-    // editor gates. The scan is a bare read; the derivation below presents and walks the whole
-    // stream before it could answer the same question.
-    if (std::ranges::none_of(notes, [](const ChartNote& note) {
-            return pickingHandStopsString(note.attack, note.harmonic_node) &&
-                   claimedStop(note).has_value();
-        }))
-    {
-        return {};
-    }
-    std::vector<ChartConversion> conversions;
-    // ONE PASS. What this takes is a claim that reached NO span, so it was a member of nothing and
-    // no span's membership moves when it goes — the cascade a fixpoint would iterate for cannot
-    // arise. The spans read the stored stream alone, so no presentation pass is paid for here:
-    // one would only hand back the frets it started with.
-    const ChartConnections connections = chartConnections(notes, tempo_map);
-    const ChartShapes derived = deriveChartShapes(connections, tempo_map);
-    // Clearing a field leaves every index in place, so each repair is applied as the scan finds it.
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        ChartNote& note = notes[index];
-        // FIELD SCOPE, the same narrowing the residue sweep takes: what this clears is the `held`
-        // FIELD, so the only claim it can take is one that field states. A harmonic over a pressed
-        // stop claims that pressed fret (\ref claimedStop) — the sound the charter wrote, carrying
-        // no field to clear and no more inert than a head is.
-        if (!pickingHandStopsString(note.attack, note.harmonic_node) ||
-            !claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
-        {
-            continue;
-        }
-        const std::string where =
-            formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
-        // The note still states its own onset, so only the statement that reached nothing goes:
-        // the sound the charter wrote stays exactly as authored.
-        note.held.reset();
-        conversions.push_back(
-            ChartConversion{.repair = ChartRepair::InertHeldStop, .where = where});
-    }
-    return conversions;
-}
-
-std::vector<ChartConversion> sweepDerivedHeldStops(
-    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
-{
-    // Nothing stores a held stop, so nothing can be residue — and this runs on every plan the
-    // editor gates, where the connection walk below is the expensive half.
-    if (std::ranges::none_of(notes, [](const ChartNote& note) { return note.held.has_value(); }))
-    {
-        return {};
-    }
-    std::vector<ChartConversion> conversions;
-    const std::vector<std::optional<int>> derived =
-        chartDerivedStops(chartConnections(notes, tempo_map));
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        ChartNote& note = notes[index];
-        // Neither optional is ever READ here, only asked whether it is there: what the derivation
-        // states is already the answer every consumer gets, and what the field held is what this
-        // takes away.
-        if (!derived[index].has_value() || !note.held.has_value())
-        {
-            continue;
-        }
-        // Unconditional: agreeing or contradicting, the notation is where this stop is written.
-        note.held.reset();
-        conversions.push_back(
-            ChartConversion{
-                .repair = ChartRepair::DerivedHeldStop,
                 .where = formatGridPositionToken(note.position) + " string " +
                          std::to_string(note.string),
             });

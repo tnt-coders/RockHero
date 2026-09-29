@@ -314,9 +314,9 @@ TEST_CASE("Chart hit testing never resolves a held stop's satellite", "[core][ch
     tap.string = 5;
     tap.fret = 12;
     tap.attack = common::core::NoteAttack::Tap;
-    tap.held = 5;
     tap.stop_mark = common::core::StopMarkViewState{
         .seconds = 6.0,
+        .fret = 5,
         .face = common::core::StopMarkFace::Revealed,
     };
     tab.notes.push_back(tap);

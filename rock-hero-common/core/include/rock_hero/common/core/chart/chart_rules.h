@@ -225,23 +225,6 @@ enum class ChartRepair : std::uint8_t
     /*! \brief A legato claim nothing justifies was recorded as the plain pick it plays as. */
     UnjustifiedLegato,
     /*!
-    \brief A held stop reaching no shape was cleared, leaving the onset that carried it alone.
-
-    Only the FIELD goes: the held stop rides a note that still states its own onset, so the note
-    itself survives the sweep and a load notice can say exactly that.
-    */
-    InertHeldStop,
-
-    /*!
-    \brief A stored held stop a pull-off already states was cleared: the notation states the fret.
-
-    Not an inert claim — the stop is still stated, and every surface still draws it. What went is
-    the second SPELLING of it (\ref sweepDerivedHeldStops), which is why the notice says the fret
-    survives rather than that a statement was taken.
-    */
-    DerivedHeldStop,
-
-    /*!
     \brief VIBRATO stated at the ring's end was dropped: a width is the statement of the leg its
     keyframe begins, and one stated where the string is let go begins no leg
     (\ref shedEndStatementVibrato). A BEND there is the curve's last value and stays.
@@ -550,12 +533,9 @@ Pro importer — calls this and nothing else, so the two cannot drift, and the v
 refuses only what no repair can express. It applies \ref normalizeChartNote to every note, bounds
 every ring at its own string's next onset with \ref normalizeSustainOverlaps (the one stream-level
 note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand position, then settles the
-two relational truths — \ref sweepUnjustifiedLegato, then \ref sweepInertClaimedStops — last,
-because a truncated tail can be the hold a neighbour's claim depended on, and both must be judged
-against the stream as it will actually stand. Their order is not a dependency: rule 11 keys shapes
-by POSITION rather than by articulation, and flattening a claim writes an attack alone, so the
-shapes a held stop is judged against are the same either way. The order is the order the repairs
-read in rather than a condition of the answer.
+one relational truth — \ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold
+a neighbour's legato claim depended on, and it must be judged against the stream as it will actually
+stand.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer

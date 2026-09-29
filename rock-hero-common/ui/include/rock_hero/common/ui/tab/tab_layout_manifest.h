@@ -248,20 +248,19 @@ struct TabHeldStopLayout
     /*! \brief Vertical lane center of the note's string: the digit's centre row. */
     float center_y{};
 
-    /*! \brief Bounding rectangle of the satellite slot: its drawn extent, and its clickable one. */
+    /*! \brief Bounding rectangle of the satellite slot: its drawn extent. */
     TabLayoutRect box{};
 
     /*!
     \brief The digit's own cell inside the slot, where the painter prints it: the column between
-    the slot's gaps, as tall as a chip's plate on the string line — what a selection ring traces.
+    the slot's gaps, as tall as a chip's plate on the string line.
     */
     TabLayoutRect digit{};
 };
 
 /*!
 \brief The satellite slot and digit cell beside a bracket closing at `mark_x` on the line at
-`center_y` — THE one statement of that geometry, which the painter prints inside and the hit test
-and a selection ring read.
+`center_y` — THE one statement of that geometry, which the painter prints inside.
 
 \param geometry Lane geometry.
 \param mark_x The instant's x the bracket is centred on.
@@ -274,28 +273,24 @@ and a selection ring read.
 /*!
 \brief Computes the pixel layout of one note's held-stop satellite, when it draws one.
 
-The second stop a note states (\ref common::core::NoteViewState::held) prints in its own column
-outboard of the head's own bracket columns, because the head's centre is already carrying what
-that head SOUNDS. That column is its independent target: clicking it addresses the held stop
-where clicking the head addresses the sounding fret. THREE populations wear one: the planted finger
-under a plain tap or a scrape, whose own fret is the picking hand's; the PRESSED stop of a harmonic
-whose head prints its node instead (\ref common::core::harmonicOverPressedStop) — the artificial one
-and the tapped one alike, the fretting hand's stop under a node the picking hand only touches; and
-the stop a pull-off PLANTS beneath a note the picking hand does NOT stop the string for (THE PLANT'S
+The second stop a note states (\ref common::core::NoteViewState::stop_mark) prints in its own
+column outboard of the head's own bracket columns, because the head's centre is already carrying
+what that head SOUNDS. It is display-only: every held stop is derived. THREE populations wear one:
+the stop under a plain tap or a scrape (its plant, else the covering grip), whose own fret is the
+picking hand's; the PRESSED stop of a harmonic whose head prints its node instead
+(\ref common::core::harmonicOverPressedStop) — the artificial one and the tapped one alike; and the
+stop a pull-off PLANTS beneath a note the picking hand does NOT stop the string for (THE PLANT'S
 FACE), which the bracket then prints nothing of on that string, so exactly one ink states it either
 way.
 
-Both facts are the whole test, and neither can be inferred from the other: the stop itself says the
-note states one, and the resolved mark says whether its digit is SHOWN and where. A stop whose face
-waits for the reveal (\ref common::core::StopMarkFace::Revealed) lays out to nothing until
-`revealed` says its note's truth is on show — the same per-note pick that draws the note to its
-ring end, asked here through \ref common::core::stopMarkShown so the drawn digit and the clickable
-one can never part.
+The resolved mark says whether its digit is SHOWN and where. A stop whose face waits for the reveal
+(\ref common::core::StopMarkFace::Revealed) lays out to nothing until `revealed` says its note's
+truth is on show — the same per-note pick that draws the note to its ring end, asked here through
+\ref common::core::stopMarkShown.
 
 The vertical extent is the bracket's own, so the two halves of a bracketed mark present the same
-target height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn
-becomes clickable. The column sits outboard of the closing bar, so it never overlaps the bars or a
-digit centred between them.
+height. The column sits outboard of the closing bar, so it never overlaps the bars or a digit
+centred between them.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.

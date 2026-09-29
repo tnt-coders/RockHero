@@ -270,8 +270,8 @@ and has no instances on that material.
     one; the selection reveals the thing under scrutiny so a selected zone keyframe always has a
     ring; and the caret inside a ring answers "is something here?".
 - **C — shape spans and their postures are DERIVED from the notes**, per chart revision, in core:
-  `deriveChartShapes(saved_notes, claimed_stops, planted_stops, tempo_map)` (`chart/chart_shapes.h`)
-  reads the stored stream and the resolved claim tables, and `ChartResolutions` carries `shapes` and
+  `deriveChartShapes(connections, tempo_map)` (`chart/chart_shapes.h`)
+  reads the stored stream and derives the claim tables from its connections, and `ChartResolutions` carries `shapes` and
   `postures` beside the ink ends. The shared arrival rule `chartShapeArrivals` lives in the
   same header: with the span rules gone from the validator it was the last thing making
   `chart_rules` know spans exist, and both halves of one derivation belong in one file. Item #59

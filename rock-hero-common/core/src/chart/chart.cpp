@@ -246,15 +246,6 @@ bool ringEndMayLandOnLastKeyframe(const ChartNote& note)
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
-    // A planted finger exists only where the picking hand is what stops the string. Everywhere
-    // else — an ordinary press, and a harmonic of either hand — the fretting hand's stop already IS
-    // `fret`, and a second copy beside it could only ever drift; stripping it here rather than
-    // listing the legal shapes in the validator is what makes one rule answer for the reader, the
-    // writer and the refusal at once.
-    if (!pickingHandStopsString(saved.attack, saved.harmonic_node))
-    {
-        saved.held.reset();
-    }
     if (isScrape(saved.attack))
     {
         saved.palm_mute = false;

@@ -889,7 +889,7 @@ void countDerivation(
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
     const std::vector<common::core::FretHandPosition>& hand_positions,
-    const std::vector<int>& hand_widths, const std::vector<std::optional<int>>& claimed_stops,
+    const std::vector<int>& hand_widths, const std::vector<std::optional<int>>& held_frets,
     const TempoMap& tempo_map, DerivationCounters& out)
 {
     const StreamIndex index = makeStreamIndex(saved, tempo_map);
@@ -951,13 +951,13 @@ void countDerivation(
         // to the new window and is the convergence invariant's business, not a pin. The finger is
         // read AT the arrival through heldFretAt — the one "is a finger down, and where" authority
         // the width derivation reads — so a slid ring pins with the fret it is sounding, not the
-        // fret it was struck at, a tap pins with its claim, and an open string pins nothing.
+        // fret it was struck at, a tap pins with its held stop, and an open string pins nothing.
         struct SoundingRing
         {
             Fraction onset;
             Fraction end;
             const ChartNote* note;
-            const std::optional<int>* claim;
+            const std::optional<int>* held;
         };
         std::vector<SoundingRing> rings;
         for (std::size_t note = 0; note < saved.size(); ++note)
@@ -969,7 +969,7 @@ void countDerivation(
                     .onset = beat,
                     .end = beat + saved[note].sustain,
                     .note = &saved[note],
-                    .claim = &claimed_stops[note],
+                    .held = &held_frets[note],
                 });
         }
         for (std::size_t placement = 0; placement < hand_position_beats.size(); ++placement)
@@ -987,7 +987,7 @@ void countDerivation(
                     continue;
                 }
                 const std::optional<int> held =
-                    common::core::heldFretAt(*ring.note, *ring.claim, arrival - ring.onset);
+                    common::core::heldFretAt(*ring.note, *ring.held, arrival - ring.onset);
                 if (held.has_value() && !window.covers(*held))
                 {
                     ++pinned;
@@ -1629,16 +1629,9 @@ struct Census
 
     // DERIVED HELD: the population the derivation populates — right-hand onsets a PULL-OFF states a
     // fretting-hand stop under, which is a fact about the note's NEIGHBOUR and therefore a corpus
-    // question rather than a per-note one. The residue row beside it is a construction promise with
-    // teeth: `normalizeChart` clears every stored `held` the notation already states, so a built
-    // chart carrying one means the sweep did not run or did not reach it. Teeth it cannot bite with
-    // on an IMPORT-ONLY corpus, though — the importer writes no `held`, so `stored_held_stops` is
-    // zero here by construction and the residue with it; the row guards the editor-authored path,
-    // and starts discriminating when authored charts reach this rig.
+    // question rather than a per-note one.
     long long right_hand_onsets{0};
     long long derived_held_stops{0};
-    long long stored_held_stops{0};
-    long long derived_held_residue{0};
 
     long long letring_marks{0};
     long long letring_marks_on_graces{0};
@@ -2322,21 +2315,22 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 common::core::chartResolutions(chart.notes, built->tempo_map);
 
             // DERIVED HELD's population, read off the production derivation rather than restated:
-            // an entry is present exactly where a pull-off states the stop under a right-hand
-            // onset. The residue count beside it is what the normalizer promises is zero.
-            const std::vector<std::optional<int>> derived_stops =
-                common::core::chartDerivedStops(resolutions.connections);
+            // a PLANT under a note the picking hand stops the string for is exactly a pull-off
+            // stating the stop under a right-hand onset.
+            std::vector<std::optional<int>> held_frets;
+            held_frets.reserve(chart.notes.size());
             for (std::size_t note = 0; note < chart.notes.size(); ++note)
             {
                 const ChartNote& record = chart.notes[note];
                 census.right_hand_onsets += common::core::rightHandOnset(record.attack) ? 1 : 0;
-                census.stored_held_stops += record.held.has_value() ? 1 : 0;
-                if (!derived_stops[note].has_value())
+                // Bound once so the presence test and the reads are provably the same object.
+                const std::optional<common::core::HeldStop>& held = resolutions.held_stops[note];
+                held_frets.push_back(held.has_value() ? std::optional{held->fret} : std::nullopt);
+                if (held.has_value() && held->source == common::core::HeldStopSource::Plant &&
+                    common::core::pickingHandStopsString(record.attack, record.harmonic_node))
                 {
-                    continue;
+                    ++census.derived_held_stops;
                 }
-                ++census.derived_held_stops;
-                census.derived_held_residue += record.held.has_value() ? 1 : 0;
             }
             // THE TAIL LAW's reach, from the one place that decides it. A stroke counts once,
             // which is the atom the law itself judges by. A ring is HIDDEN where the curtain owns
@@ -2379,11 +2373,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.arrivals,
                 chart.fret_hand_positions,
                 common::core::deriveFretHandWidths(
-                    resolutions.connections.saved_notes,
-                    resolutions.claimed_stops,
-                    chart.fret_hand_positions,
-                    built->tempo_map),
-                resolutions.claimed_stops,
+                    resolutions, chart.fret_hand_positions, built->tempo_map),
+                held_frets,
                 built->tempo_map,
                 census.derivation);
         }
@@ -2399,9 +2390,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "  chart notes (bare build)                : " << census.chart_notes << "\n";
     std::cout << "  right-hand onsets                       : " << census.right_hand_onsets << "\n";
     std::cout << "  ... whose held stop a PULL-OFF derives  : " << census.derived_held_stops
-              << "\n";
-    std::cout << "  stored held stops surviving the sweep   : " << census.stored_held_stops << "\n";
-    std::cout << "  ... beside a derived one (promise: 0)   : " << census.derived_held_residue
               << "\n";
     std::cout << "  let-ring marked note occurrences        : " << census.letring_marks << "\n";
     std::cout << "  ... plus, on grace beats, not walked    : " << census.letring_marks_on_graces
@@ -2812,23 +2800,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
                 .expected = 904.0,
-            },
-            CrossCheck{
-                // DERIVED HELD's residue: `normalizeChart` clears every stored held stop a
-                // pull-off already states, so a BUILT chart carrying one is the sweep having
-                // failed to run or failed to reach it. Exact-match for the imported-claims row's
-                // reason — there is no band in which a document holding two spellings of one
-                // statement is acceptable.
-                //
-                // ON THIS CORPUS IT CANNOT DISCRIMINATE, and says so rather than reading as a
-                // green light: every chart here is IMPORTED, and the importer writes no `held` at
-                // all, so the count is zero whether the sweep ran or not. What the row genuinely
-                // guards is the EDITOR-AUTHORED path — a held stop typed onto an onset a pull-off
-                // later states — which reaches this rig only once authored charts do. It stays
-                // pinned because the promise is a promise; it is simply not evidence yet.
-                .label = "stored held beside a derived one (ZERO)",
-                .rig = static_cast<double>(census.derived_held_residue),
-                .expected = 0.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a

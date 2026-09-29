@@ -193,9 +193,9 @@ struct TabLaneGeometry
 
     The bracket hugs a note head's ring, so every value derives from \ref headSize and the bracket
     tracks the heads at each lane size. It lives on the geometry rather than in the painter because
-    the satellite column beside the bracket is a HIT TARGET — selecting a held stop means clicking
-    the digit outboard of the closing bar, placed and sized from these numbers — and a second copy
-    of them in the layout manifest would be the drift the manifest exists to prevent.
+    the layout manifest places the satellite column beside the bracket — a held stop's digit
+    outboard of the closing bar — from these numbers, and a second copy of them there would be the
+    drift the manifest exists to prevent.
 
     \return The bracket pair's radius, half height, bar width and serif length.
     */

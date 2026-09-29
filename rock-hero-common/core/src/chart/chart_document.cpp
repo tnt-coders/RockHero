@@ -302,7 +302,6 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         ScalarRule{.key = "fret", .matches = [](const juce::var& v) { return v.isInt(); }},
         ScalarRule{.key = "sustain", .matches = [](const juce::var& v) { return v.isString(); }},
         ScalarRule{.key = "attack", .matches = [](const juce::var& v) { return v.isString(); }},
-        ScalarRule{.key = "held", .matches = [](const juce::var& v) { return v.isInt(); }},
         ScalarRule{.key = "palmMute", .matches = [](const juce::var& v) { return v.isBool(); }},
         ScalarRule{.key = "dead", .matches = [](const juce::var& v) { return v.isBool(); }},
         ScalarRule{
@@ -382,15 +381,6 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
         return std::unexpected{std::move(sustain.error())};
     }
     note.sustain = *sustain;
-
-    // The fretting hand's stop under a right-hand onset. Absence is a MEANING here — the hand
-    // states no stop of its own — so presence is the whole read and there is no default to fall
-    // back to; the out-of-range sentinel the lenient reader needs cannot arise, because the key's
-    // type was checked above and every integer it can hold is judged by the rules.
-    if (!Json::value(note_json, "held").isVoid())
-    {
-        note.held = Json::readOptionalInt(note_json, "held", -1);
-    }
 
     note.palm_mute = Json::readOptionalBool(note_json, "palmMute", false);
     note.dead = Json::readOptionalBool(note_json, "dead", false);
@@ -519,14 +509,6 @@ void appendJsonString(std::string& out, const std::string& text)
             line += R"(, "attack": "pickSlide")";
             break;
         }
-    }
-    // Elided when the hand states no stop of its own, because absence is that meaning rather than
-    // a shorter spelling of some default: fret 0 is the open string a voicing deliberately leaves,
-    // and it is written like any other stop. Bound to a local so the optional check and the access
-    // are provably the same object.
-    if (const std::optional<int>& held = note.held; held.has_value())
-    {
-        line += R"(, "held": )" + std::to_string(*held);
     }
     if (note.palm_mute)
     {

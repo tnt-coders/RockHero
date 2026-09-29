@@ -1964,7 +1964,10 @@ void checkEveryStretchOpensOnANote(const HighwayViewState& state)
     for (const HighwayLitStretch& stretch : state.fret_hand.lit)
     {
         CHECK(std::ranges::any_of(state.chart.notes, [&stretch](const NoteViewState& note) {
-            const bool evidence = !rightHandOnset(note.attack) || note.held.value_or(0) > 0;
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<StopMarkViewState>& held = note.stop_mark;
+            const bool evidence =
+                !rightHandOnset(note.attack) || (held.has_value() && held->fret > 0);
             return evidence &&
                    std::abs(note.start_seconds - stretch.start_seconds) < g_onset_match_epsilon;
         }));
@@ -1996,9 +1999,9 @@ TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][
 }
 
 // A bare tap proves nothing about the fretting hand, so it leaves that hand dark while the tap
-// itself still strikes and lights the picking hand. A tap whose held stop is pressed is the
-// fretting hand holding that stop, lit through the claim.
-TEST_CASE("Fret-hand light ignores a bare tap and lights a claimed one", "[core][highway][light]")
+// itself still strikes and lights the picking hand. A tapped harmonic over a pressed stop is the
+// fretting hand holding that stop, lit through its held stop.
+TEST_CASE("Fret-hand light ignores a bare tap and lights a pressed one", "[core][highway][light]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     ChartNote tap =
@@ -2010,7 +2013,8 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a claimed one", "[core]
     CHECK(bare.tap_onsets.size() == 1);
     CHECK(bare.pick_hand.lit.size() == 1);
 
-    tap.held = 5;
+    tap.fret = 5;
+    tap.harmonic_node = 17.0;
     const HighwayViewState claimed =
         makeHighwayViewState(makeLightArrangement({tap}), tempo_map, {}, {});
     REQUIRE(claimed.chart.notes.size() == 1);

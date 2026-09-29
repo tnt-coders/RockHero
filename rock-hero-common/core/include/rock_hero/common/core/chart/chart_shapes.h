@@ -342,15 +342,12 @@ struct ChartShapes
     none.
 
     Same order and size as the note streams, so a caller indexes it by the note it already holds.
-    Every claim resolves through it (\ref chartClaimedStops): the stop a right-hand onset states its
-    fretting hand holds, whose note has a head of its own but whose claimed fret does not.
+    A claim is the stop the notation states under a right-hand onset (\ref notatedStopUnder), whose
+    note has a head of its own but whose claimed fret does not.
 
-    This is where a claim BECOMES visible. A held stop prints in the satellite slot beside that
-    span's posture bracket, which is its own independent target, and the editor reads this to place
-    that face and to hit test it. An absent entry means the claim resolved to nothing and therefore
-    draws nowhere — exactly the property "nothing undrawn is clickable" needs, published by the pass
-    that knows rather than re-derived by the surface, and the same entry the inert sweep reads to
-    decide what states nothing.
+    This is where a claim BECOMES visible: the projection reads it to tell whether a tap fronting a
+    span's bracket owes that bracket's digit its face. An absent entry means the claim reached no
+    span, published by the pass that knows rather than re-derived by the surface.
     */
     std::vector<std::optional<std::size_t>> claim_shapes;
 };
@@ -399,11 +396,11 @@ it, so what the test governs is a charter's own crowded landing.
        shift slide's ARRIVAL at every end statement (\ref arrivesIntoNextHead): a slide-out takes
        the finger off the board where an arrival lands it on a stop. Handed over whole rather than
        as two vectors, because they are index-parallel and passing them apart is a mismatch waiting
-       to happen. The two stop tables this reads — the resolved claims (\ref chartClaimedStops: what
-       the fretting hand HOLDS under each right-hand onset, so a claimed fret participates fully on
-       the statement path) and the hold-under table (\ref chartPlantedStops, never read bare: every
-       site asks \ref gripStatement) — are derivations OF the connections, so they are asked here
-       rather than handed in and no caller can pass tables built from another revision.
+       to happen. The two stop tables this reads — the claims (\ref notatedStopUnder under each
+       right-hand onset, so a claimed fret participates fully on the statement path) and the
+       hold-under table (\ref chartPlantedStops, never read bare: every site asks
+       \ref gripStatement) — are derivations OF the connections, so they are asked here rather
+       than handed in and no caller can pass tables built from another revision.
 \param tempo_map The beat axis every instant above is measured on.
 
 \return The spans, their posture table, and per-note claim reaches (\ref ChartShapes).

@@ -157,8 +157,9 @@ without them in view.
 - Spans are derived at read (`chart_shapes.cpp`), store nothing, never overlap, leave gaps; the
   three-member accumulation minimum is a signed constant. `NoteAttack::None` and the `N` verb are
   GONE (DONE 2026-09-17, ahead of this plan and out of phase — see Phase 3 item 5). A claim is read
-  through one query (`claimedStop`) — the `held` stop under a plain tap or a pick slide, the pressed
-  `fret` under a tapped harmonic (ruled the same day) — and the claims machinery around it stands —
+  through one query (`notatedStopUnder`) — a pull-off's plant under a plain tap or a pick slide, the
+  pressed `fret` under a tapped harmonic; the stored `held` field retired 2026-09-29 — and the
+  claims machinery around it stands —
   except LAW II's justification half, which left with the attack value as dead code: a claim's
   carrier is a note that sounds at its slot, so a hand-alone shape publishes at its instant with
   nothing to justify and nothing to dissolve.
@@ -398,7 +399,7 @@ decided and why.
 - **60-Q1** — sign (or amend) the 11-rule algorithm. Two salvaged agenda questions ride the
   law-by-law session: does an UNLABELLED section mark segment under rule 3 (the bar-line trigger
   subsumes GP section marks, which sit at measure starts — confirm that suffices); and does a
-  claimedStop join the coverage group (rule 1 counts fretted non-tap notes and rule 6 keys on
+  claim join the coverage group (rule 1 counts fretted non-tap notes and rule 6 keys on
   written rings — neither mentions claims; a tap's held claim dies at the right-hand-onset
   filter). Two deliberate considerations preceded the
   signing (user, 2026-09-05); the corrective measurement pass over all 4,555 arrangements is DONE

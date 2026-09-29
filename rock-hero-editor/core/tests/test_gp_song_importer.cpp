@@ -302,8 +302,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     const std::size_t placement)
 {
     return common::core::deriveFretHandWidths(
-        chart.notes,
-        common::core::chartClaimedStops(common::core::chartConnections(chart.notes, tempo_map)),
+        common::core::chartResolutions(chart.notes, tempo_map),
         chart.fret_hand_positions,
         tempo_map)[placement];
 }
@@ -1905,7 +1904,6 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
             CHECK(note.attack == common::core::NoteAttack::Pick);
             CHECK(note.fret == 5);
             CHECK_FALSE(note.harmonic_node.has_value());
-            CHECK_FALSE(note.held.has_value());
         }
     }
 
@@ -3435,12 +3433,8 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // Three soundings and NOTHING ELSE: the members' own rings state the grip, so a held stop
-        // stated beside them would restate what the sound already says.
+        // Three soundings and NOTHING ELSE: the members' own rings state the grip.
         REQUIRE(chart.notes.size() == 3);
-        CHECK(std::ranges::none_of(chart.notes, [](const common::core::ChartNote& note) {
-            return note.held.has_value();
-        }));
         CHECK(chart.notes[0].string == 1);
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
@@ -3674,12 +3668,8 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        // Four strokes of three struck notes, and not one held stop stated among them.
+        // Four strokes of three struck notes.
         REQUIRE(chart.notes.size() == 12);
-        for (const common::core::ChartNote& note : chart.notes)
-        {
-            CHECK_FALSE(note.held.has_value());
-        }
         CHECK(anyNoteContains(built->notes, "dropped their roll mark"));
     }
 

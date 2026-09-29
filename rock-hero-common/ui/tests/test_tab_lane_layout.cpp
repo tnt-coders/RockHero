@@ -262,8 +262,7 @@ TEST_CASE("Tab note layout matches the painted head geometry", "[ui][tab-layout]
 // THE HELD STOP'S SATELLITE, and the terms it is shown on (THE SATELLITE REVEAL). The column stands
 // outboard of the head's own bracket columns at the instant the mark carries — for a note's own
 // face that is its onset, so the satellite sits beside its head whether or not a bracket draws
-// there — and a REVEAL-ONLY face lays out to nothing until the reveal brings it in, which is what
-// keeps the drawn digit and the clickable one one rectangle.
+// there — and a REVEAL-ONLY face lays out to nothing until the reveal brings it in.
 TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-layout]")
 {
     const TabLaneGeometry geometry = makeReferenceGeometry();
@@ -275,8 +274,7 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
         note.string = 1;
         note.fret = 12;
         note.attack = common::core::NoteAttack::Tap;
-        note.held = 5;
-        note.stop_mark = common::core::StopMarkViewState{.seconds = 5.0, .face = face};
+        note.stop_mark = common::core::StopMarkViewState{.seconds = 5.0, .fret = 5, .face = face};
         return note;
     };
 
@@ -351,13 +349,15 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
     // never about the number — a presence test that read the value would drop exactly this
     // satellite.
     common::core::NoteViewState defaulted = tap(common::core::StopMarkFace::Revealed);
-    defaulted.held = 0;
+    defaulted.stop_mark = common::core::StopMarkViewState{
+        .seconds = 5.0, .fret = 0, .face = common::core::StopMarkFace::Revealed
+    };
     CHECK_FALSE(tabHeldStopLayout(geometry, defaulted, false).has_value());
     CHECK(tabHeldStopLayout(geometry, defaulted, true).has_value());
 
     // And the reveal grants nothing to a note that states no held stop: the column is the STOP's.
     common::core::NoteViewState unheld = tap(common::core::StopMarkFace::Standing);
-    unheld.held.reset();
+    unheld.stop_mark.reset();
     CHECK_FALSE(tabHeldStopLayout(geometry, unheld, true).has_value());
 }
 

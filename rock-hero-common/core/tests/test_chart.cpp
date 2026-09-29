@@ -4290,259 +4290,28 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK(arrivesAsArpeggio(dead_ring.notes, strum_at, tempo_map));
 }
 
-// WHICH FIELD A CLAIM COMES OUT OF, asked at the two functions that own the answer. A claim is the
-// fretting hand's stop under an onset the OTHER hand made, and where it is written down depends on
-// what the picking hand is doing at the fret: stopping the string itself, so the hand's own stop is
-// the separate `held`; or only touching a node, so the stop the string speaks from — `fret` — is
-// the fretting hand's already — and where that stop is the OPEN string the hand presses nothing, so
-// there is no claim at all. Everything span-scoped reads the one query, which is why these answers
-// are worth pinning apart from the surfaces that consume them.
-TEST_CASE("A claim reads the held stop or the fret, by what the picking hand does", "[core][chart]")
-{
-    const auto note_with = [](const NoteAttack attack,
-                              const int fret,
-                              const std::optional<int>
-                                  held,
-                              const std::optional<double>
-                                  node) {
-        ChartNote note;
-        note.position = GridPosition{.measure = 1, .beat = 1};
-        note.string = 3;
-        note.fret = fret;
-        note.sustain = Fraction{1, 4};
-        note.attack = attack;
-        note.held = held;
-        note.harmonic_node = node;
-        return note;
-    };
-
-    SECTION("a plain tap and a scrape stop the string, so the claim is the planted finger")
-    {
-        CHECK(pickingHandStopsString(NoteAttack::Tap, std::nullopt));
-        CHECK(claimedStop(note_with(NoteAttack::Tap, 17, 5, std::nullopt)) == std::optional{5});
-        CHECK(pickingHandStopsString(NoteAttack::PickSlide, std::nullopt));
-        CHECK(
-            claimedStop(note_with(NoteAttack::PickSlide, 5, 11, std::nullopt)) ==
-            std::optional{11});
-    }
-
-    SECTION("a tapped harmonic over a pressed stop claims that stop, not a planted finger")
-    {
-        CHECK_FALSE(pickingHandStopsString(NoteAttack::Tap, std::optional{17.0}));
-        CHECK(claimedStop(note_with(NoteAttack::Tap, 5, std::nullopt, 17.0)) == std::optional{5});
-        // And the FRET is the answer whatever a latent field left behind by an earlier form still
-        // says, which is what makes this a query about the record's shape rather than about which
-        // members happen to be set.
-        CHECK(claimedStop(note_with(NoteAttack::Tap, 5, 3, 17.0)) == std::optional{5});
-    }
-
-    SECTION("a tapped harmonic over the OPEN string claims nothing, exactly as a natural does")
-    {
-        // Every harmonic is one record, and this one is a NATURAL whose node the picking hand
-        // happens to touch: the fretting hand presses nothing, so there is no stop to state beside
-        // the head (\ref harmonicOverPressedStop).
-        CHECK_FALSE(harmonicOverPressedStop(note_with(NoteAttack::Tap, 0, std::nullopt, 12.0)));
-        CHECK_FALSE(claimedStop(note_with(NoteAttack::Tap, 0, std::nullopt, 12.0)).has_value());
-        // And a latent field an earlier form left behind changes nothing, exactly as above.
-        CHECK_FALSE(claimedStop(note_with(NoteAttack::Tap, 0, 3, 12.0)).has_value());
-    }
-
-    SECTION("a fretting-hand onset claims nothing, harmonic or not")
-    {
-        // Its own fret is already the hand's stop, so there is no second stop to state — and an
-        // artificial harmonic is exactly that note with a node above the fret it presses.
-        CHECK_FALSE(pickingHandStopsString(NoteAttack::Pick, std::nullopt));
-        CHECK_FALSE(
-            claimedStop(note_with(NoteAttack::Pick, 5, std::nullopt, std::nullopt)).has_value());
-        CHECK_FALSE(pickingHandStopsString(NoteAttack::Pick, std::optional{17.0}));
-        CHECK_FALSE(claimedStop(note_with(NoteAttack::Pick, 5, std::nullopt, 17.0)).has_value());
-    }
-}
-
-// The held stop's format and its two validity rules. The field is the one way the chart can say
-// what the FRETTING hand is doing under an onset the other hand made, so what must hold is that
-// absence stays a meaning, that the attacks it is legal on are exactly the ones the picking hand
-// stops the string for, and that a stop lying anywhere in the onset's own travel — which no hand
-// can play — is refused rather than saved.
-TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "[core][chart]")
+// THE RETIRED `held` KEY (RULED 2026-09-29): a held stop is derived, never stored, so a document
+// that still carries the key reads exactly as though it did not — whatever the value's type — and
+// the writer never emits it.
+TEST_CASE("A chart document ignores the retired held key", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    const auto make_chart = [](ChartNote note) {
-        Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        chart.notes = {std::move(note)};
-        return chart;
-    };
-    const auto tap_holding = [](const std::optional<int> held) {
-        ChartNote note;
-        note.position = GridPosition{.measure = 1, .beat = 1};
-        note.string = 3;
-        note.fret = 12;
-        note.sustain = Fraction{1, 4};
-        note.attack = NoteAttack::Tap;
-        note.held = held;
-        return note;
-    };
-
-    SECTION("a stated stop survives the round trip and an absent one writes nothing")
-    {
-        const Chart chart = make_chart(tap_holding(5));
-        const std::string text = chartDocumentText(chart, tempo_map);
-        CHECK(text.find(R"("held": 5)") != std::string::npos);
-        const auto parsed = parseChartDocument(text);
-        REQUIRE(parsed.has_value());
-        REQUIRE(parsed->notes.size() == 1);
-        CHECK(parsed->notes.front() == chart.notes.front());
-
-        // Absence is the meaning "the hand states no stop of its own", so the key is elided —
-        // and fret 0 is NOT that absence, because an open string a voicing deliberately leaves is
-        // a real statement. Both halves, so an elision keyed on the value could not pass.
-        const std::string silent = chartDocumentText(make_chart(tap_holding({})), tempo_map);
-        CHECK(silent.find(R"("held")") == std::string::npos);
-        const std::string open = chartDocumentText(make_chart(tap_holding(0)), tempo_map);
-        CHECK(open.find(R"("held": 0)") != std::string::npos);
-        const auto open_parsed = parseChartDocument(open);
-        REQUIRE(open_parsed.has_value());
-        REQUIRE(open_parsed->notes.size() == 1);
-        CHECK(open_parsed->notes.front().held == std::optional{0});
-    }
-
-    SECTION("only a plain tap or a pick slide may carry one")
-    {
-        // The two onsets the picking hand stops the string for keep it; every other attack is
-        // refused, because there the note's own fret already IS the fretting hand's stop.
-        for (const NoteAttack attack : {NoteAttack::Tap, NoteAttack::PickSlide})
-        {
-            ChartNote note = tap_holding(5);
-            note.attack = attack;
-            if (isScrape(attack))
-            {
-                // A scrape's own required shape, so the case tests the held rule and not this one.
-                setSlideOut(note, 17);
-            }
-            // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time
-            // in the never-run short-circuit clause, and a `std::move` there reads as a use after
-            // the move to the CI-only checker.
-            const auto accepted = validateChartRules(make_chart(std::move(note)), tempo_map);
-            CHECK(accepted.has_value());
-        }
-        for (const NoteAttack attack :
-             {NoteAttack::Pick, NoteAttack::Legato, NoteAttack::LeftTap, NoteAttack::Pinch})
-        {
-            ChartNote note = tap_holding(5);
-            note.attack = attack;
-            if (attack == NoteAttack::Pinch)
-            {
-                note.harmonic_node = 17.0;
-            }
-            const auto refused = validateChartRules(make_chart(std::move(note)), tempo_map);
-            REQUIRE_FALSE(refused.has_value());
-            CHECK(refused.error().message.find("held") != std::string::npos);
-        }
-    }
-
-    SECTION("a stop inside the onset's own travel is physically impossible and is refused")
-    {
-        // The travel-range rule, which the equal-fret refusal is the degenerate case of: the
-        // planted finger is on the string, so the onset cannot start on it, end on it, or pass
-        // through it.
-        //
-        // An onset that states NO path has a hull of one point, which is the shipped equal-fret
-        // refusal as the degenerate case. This tap states none.
-        const auto tapped_on_the_finger =
-            validateChartRules(make_chart(tap_holding(12)), tempo_map);
-        REQUIRE_FALSE(tapped_on_the_finger.has_value());
-        CHECK(tapped_on_the_finger.error().message.find("pass through") != std::string::npos);
-        // The control, one fret away: the refusal is about the stop lying in the travel, not about
-        // the value.
-        CHECK(validateChartRules(make_chart(tap_holding(11)), tempo_map).has_value());
-
-        // A SCRAPE travels its whole path, so the range is the closed hull of the start, every
-        // keyframe it turns at, and the terminal it ends on. Built to travel 5 -> 15 -> 9,
-        // whose hull is [5, 15].
-        const auto scrape_holding = [](const std::optional<int> held) {
-            ChartNote note;
-            note.position = GridPosition{.measure = 1, .beat = 1};
-            note.string = 3;
-            note.fret = 5;
-            note.sustain = Fraction{1, 2};
-            note.attack = NoteAttack::PickSlide;
-            note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
-            setSlideOut(note, 9);
-            note.held = held;
-            return note;
-        };
-        // Each end of the path and one fret strictly inside it: the pick cannot start on the
-        // finger, end on it, or run over it on the way.
-        for (const int planted : {5, 9, 15, 7, 12})
-        {
-            const auto refused = validateChartRules(make_chart(scrape_holding(planted)), tempo_map);
-            REQUIRE_FALSE(refused.has_value());
-            CHECK(refused.error().message.find("pass through") != std::string::npos);
-        }
-        // And the controls the refusals need: a finger safely OUTSIDE the hull on either side is a
-        // legal record, which is what proves the rule reads the path rather than refusing every
-        // held stop a scrape carries.
-        for (const int planted : {0, 4, 16})
-        {
-            CHECK(validateChartRules(make_chart(scrape_holding(planted)), tempo_map).has_value());
-        }
-
-        // And it is the PATH the rule reads, never the attack: a tap the charter gave keyframes
-        // and a slide-out travels exactly as the scrape above does, over the same 5 -> 15 -> 9
-        // hull, so the same range binds it. The discrimination for the one-point case at the top
-        // of this section, which would otherwise pass for a tap-shaped reason.
-        const auto travelling_tap = [](const std::optional<int> held) {
-            ChartNote note;
-            note.position = GridPosition{.measure = 1, .beat = 1};
-            note.string = 3;
-            note.fret = 5;
-            note.sustain = Fraction{1, 2};
-            note.attack = NoteAttack::Tap;
-            note.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 15}};
-            setSlideOut(note, 9);
-            note.held = held;
-            return note;
-        };
-        const auto crossed = validateChartRules(make_chart(travelling_tap(12)), tempo_map);
-        REQUIRE_FALSE(crossed.has_value());
-        CHECK(crossed.error().message.find("pass through") != std::string::npos);
-        CHECK(validateChartRules(make_chart(travelling_tap(16)), tempo_map).has_value());
-    }
-
-    SECTION("the board and the capo bind it exactly as they bind a fret")
-    {
-        Chart capoed = make_chart(tap_holding(2));
-        capoed.tuning.capo = 3;
-        CHECK_FALSE(validateChartRules(capoed, tempo_map).has_value());
-        // Fret 0 under the same capo is the capo'd open string, which is legal for a held stop
-        // exactly as it is for a fret.
-        capoed.notes.front().held = 0;
-        CHECK(validateChartRules(capoed, tempo_map).has_value());
-        // Past the board is the NORMALIZER's clamp, not a refusal, so it is asked of the note.
-        ChartNote past = tap_holding(g_max_fret + 6);
-        const std::vector<ChartRepair> repairs = normalizeChartNote(past, ChartTuning{});
-        CHECK(past.held == std::optional{g_max_fret});
-        CHECK(std::ranges::find(repairs, ChartRepair::FretPastBoard) != repairs.end());
-    }
-
-    SECTION("a wrong-typed key is malformed rather than absent")
-    {
-        const auto parsed = parseChartDocument(
-            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
-            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/4",)"
-            R"( "attack": "tap", "held": "5" } ] })");
-        REQUIRE_FALSE(parsed.has_value());
-        CHECK(parsed.error().message.find("held") != std::string::npos);
-    }
+    const auto parsed = parseChartDocument(
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/4",)"
+        R"( "attack": "tap", "held": "5" } ] })");
+    REQUIRE(parsed.has_value());
+    REQUIRE(parsed->notes.size() == 1);
+    CHECK(parsed->notes.front().fret == 12);
+    CHECK(parsed->notes.front().attack == NoteAttack::Tap);
+    CHECK(chartDocumentText(*parsed, tempo_map).find("held") == std::string::npos);
 }
 
 // The record a tap harmonic IS: the fretting hand presses a stop and the tapping finger touches a
 // node above it, so one note states the stop the string speaks from and the point the touch lies
 // at — the same two facts an artificial harmonic states, in the same two fields. Three layers have
 // to agree about it — the rules, the derivation and the document — and every one of them reads the
-// pressed stop out of `fret` (\ref physicalStopFret). A planted finger is a third fact this record
-// cannot carry, and the saved-form fixpoint is what says so.
+// pressed stop out of `fret` (\ref physicalStopFret).
 //
 // The form is DISABLED for now: the rules refuse it by name, so the validation sections below pin
 // the refusal, while the derivation and document sections keep pinning the settled record and the
@@ -4628,31 +4397,6 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         CHECK(capoed(15.0).has_value());
     }
 
-    SECTION("a planted finger beside the node is no part of the record")
-    {
-        // A `held` on this note would be a second stop on a string the fretting hand is already
-        // pressing at `fret`, so the writer strips it and the saved-form fixpoint refuses the
-        // in-memory record that still carries one — the same gate a pick slide's pitched latents
-        // pass through, asked once for every field an attack may not state.
-        ChartNote planted = tapped_harmonic();
-        planted.held = 3;
-        CHECK_FALSE(savedChartNote(planted).held.has_value());
-        // The saved-form fixpoint is asked before the normal-form check that refuses the disabled
-        // form, so the held stop is what this refusal names.
-        const auto refused = validateChartRules(make_chart({planted}), tempo_map);
-        REQUIRE_FALSE(refused.has_value());
-        CHECK(refused.error().message.find("held") != std::string::npos);
-
-        // The control that keeps the strip about the NODE rather than about the tap: the same
-        // attack with nothing touched keeps the finger the charter typed.
-        ChartNote plain = tapped_harmonic();
-        plain.fret = 17;
-        plain.harmonic_node.reset();
-        plain.held = 5;
-        CHECK(savedChartNote(plain).held == std::optional{5});
-        CHECK(validateChartRules(make_chart({plain}), tempo_map).has_value());
-    }
-
     SECTION("the claim joins the shape's posture, and its stop shows in the satellite")
     {
         Arrangement arrangement;
@@ -4676,10 +4420,9 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
                 .string = 3, .stop = frettedStop(5), .digit = StopMarkSlot::Satellite
             });
 
-        // The tap's own mark, which is what makes the displaced digit reachable: at the bracket it
-        // was printed under, in the column it was printed in — and POSTURE ink, because this tap
-        // FRONTS the bracket, so the span's own furniture states the stop and it stands there
-        // whatever its authorship.
+        // The tap's own mark: at the bracket it was printed under, in the column it was printed in
+        // — and POSTURE ink, because this tap FRONTS the bracket, so the span's own furniture
+        // states the stop and it stands there.
         const auto tap = std::ranges::find(state.notes, 3, &NoteViewState::string);
         REQUIRE(tap != state.notes.end());
         const std::optional<StopMarkViewState>& mark = tap->stop_mark;
@@ -4687,12 +4430,12 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         if (mark.has_value())
         {
             CHECK(mark->face == StopMarkFace::Posture);
+            CHECK(mark->fret == 5);
             CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(shape.start_seconds, 1e-9));
         }
-        CHECK(tap->held == std::optional{5});
     }
 
-    SECTION("the document carries both, and the settle leaves the record alone")
+    SECTION("the document carries both")
     {
         const std::string text = chartDocumentText(chart, tempo_map);
         CHECK(text.find(R"("fret": 5)") != std::string::npos);
@@ -4702,85 +4445,13 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == chart.notes.size());
         CHECK(parsed->notes == chart.notes);
-
-        // The settle judges what states nothing, and nothing here does: both claims reach the span.
-        // It is also the sweep's whole reach that this record is out of — it takes the `held`
-        // FIELD, and this note has none to take.
-        std::vector<ChartNote> settled = chart.notes;
-        CHECK(sweepInertClaimedStops(settled, tempo_map).empty());
-        CHECK(settled == chart.notes);
-    }
-}
-
-// DERIVED HELD, the document half. A stored held stop a pull-off already states is a second
-// spelling of one fact, so the normalizer takes it on every load and the writer therefore never
-// emits it — and because the derivation does not read the field it clears, nothing the chart states
-// moves.
-TEST_CASE("The normalizer clears a held stop a pull-off states", "[core][chart]")
-{
-    const TempoMap tempo_map = makeTempoMap();
-
-    // A tap sounding fret 12 on string 1 with a fretting stop under it, and the note a beat later
-    // at fret 5. Where that note CLAIMS legato it resolves to a pull off the tap, which is the
-    // statement that a finger was waiting on 5.
-    const auto figure = [&tempo_map](const NoteAttack successor_attack, const int stored_held) {
-        Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        ChartNote tap;
-        tap.position = GridPosition{.measure = 1, .beat = 1};
-        tap.string = 1;
-        tap.fret = 12;
-        tap.sustain = Fraction{1};
-        tap.attack = NoteAttack::Tap;
-        tap.held = stored_held;
-        // A string ringing underneath, so the tap's claim reaches a span and the INERT sweep has
-        // no reason of its own to take the field: what clears it below has to be the derivation.
-        ChartNote drone;
-        drone.position = GridPosition{.measure = 1, .beat = 1};
-        drone.string = 2;
-        drone.fret = 7;
-        drone.sustain = Fraction{4};
-        ChartNote successor;
-        successor.position = GridPosition{.measure = 1, .beat = 2};
-        successor.string = 1;
-        successor.fret = 5;
-        successor.sustain = Fraction{1};
-        successor.attack = successor_attack;
-        chart.notes = {tap, drone, successor};
-        REQUIRE(validateChartRules(chart, tempo_map).has_value());
-        return chart;
-    };
-
-    SECTION("the field goes, reported, and the stop stays exactly where it was")
-    {
-        Chart chart = figure(NoteAttack::Legato, 7);
-        const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);
-        REQUIRE(conversions.size() == 1);
-        CHECK(conversions.front().repair == ChartRepair::DerivedHeldStop);
-        CHECK_FALSE(chart.notes.front().held.has_value());
-        // The whole point: the resolution is unchanged, because it never read the field.
-        CHECK(
-            chartClaimedStops(chartConnections(chart.notes, tempo_map)).front() ==
-            std::optional{5});
-        // One pass reaches the fixpoint, like every other rule the normalizer owns.
-        CHECK(normalizeChart(chart, tempo_map).empty());
-    }
-
-    SECTION("no pull-off, no residue: the stored value is the authority and stays")
-    {
-        Chart chart = figure(NoteAttack::Pick, 7);
-        CHECK(normalizeChart(chart, tempo_map).empty());
-        CHECK(chart.notes.front().held == std::optional{7});
-        CHECK(
-            chartClaimedStops(chartConnections(chart.notes, tempo_map)).front() ==
-            std::optional{7});
     }
 }
 
 // AND THE DERIVATION IS BOUND BY THE RELEASE ALONE (RULED 2026-09-29): a pull-off proves a finger
 // on its landing stop at the release, whatever path the source travelled first, so a stop the
 // source's own path swept derives exactly as one it never touched. (The traveled range still bounds
-// the AUTHORED held stop and the ride; it no longer bounds the derivation.)
+// the ride; it no longer bounds the derivation.)
 TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -4819,8 +4490,7 @@ TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][
         const Chart chart = figure(3);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
-        CHECK(chartDerivedStops(connections).front() == std::optional{5});
-        CHECK(chartClaimedStops(connections).front() == std::optional{5});
+        CHECK(chartPlantedStops(connections).front() == std::optional{5});
     }
 
     SECTION("the untravelled tap still states it")
@@ -4829,8 +4499,7 @@ TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][
         const Chart chart = figure(std::nullopt);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
-        CHECK(chartDerivedStops(connections).front() == std::optional{5});
-        CHECK(chartClaimedStops(connections).front() == std::optional{5});
+        CHECK(chartPlantedStops(connections).front() == std::optional{5});
     }
 }
 
@@ -4861,8 +4530,6 @@ TEST_CASE("A slid pull-off source plants its stop and wears it at the landing", 
     const ChartConnections connections = chartConnections(chart.notes, tempo_map);
     REQUIRE(connections.legato[1] == LegatoMotion::Pull);
     CHECK(chartPlantedStops(connections).front() == std::optional{7});
-    // A fretting-hand source claims nothing: the plant is its face, never a claim.
-    CHECK_FALSE(chartDerivedStops(connections).front().has_value());
     // The source's path swept 7, so it cannot ride a grip holding 7.
     CHECK_FALSE(gripStatement(chart.notes.front(), std::optional{7}, frettedStop(7)).has_value());
 
@@ -4878,15 +4545,53 @@ TEST_CASE("A slid pull-off source plants its stop and wears it at the landing", 
         CHECK_THAT(
             mark->seconds,
             Catch::Matchers::WithinAbs(view.notes.front().start_seconds + 0.25, 1e-9));
+        CHECK(mark->fret == 7);
     }
-    CHECK(view.notes.front().held == std::optional{7});
+}
+
+// The same law under a TAP (RULED 2026-09-29, R3): every plant draws at its source's release
+// statement, so a tap that slides 12 to 16 and is pulled off onto 9 wears its 9 at the slide's
+// landing — the instant the tapping finger lets go onto the finger waiting there.
+TEST_CASE("A slid tap's plant wears it at the landing", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote tap;
+    tap.position = GridPosition{.measure = 1, .beat = 1};
+    tap.string = 1;
+    tap.fret = 12;
+    tap.sustain = Fraction{1};
+    tap.attack = NoteAttack::Tap;
+    tap.keyframes = {Keyframe{.offset = Fraction{1, 2}, .fret = 16}};
+    ChartNote successor;
+    successor.position = GridPosition{.measure = 1, .beat = 2};
+    successor.string = 1;
+    successor.fret = 9;
+    successor.sustain = Fraction{1};
+    successor.attack = NoteAttack::Legato;
+    chart.notes = {tap, successor};
+    REQUIRE(validateChartRules(chart, tempo_map).has_value());
+
+    Arrangement arrangement;
+    arrangement.chart = chart;
+    const ChartViewState view = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(view.notes.size() == 2);
+    const std::optional<StopMarkViewState>& mark = view.notes.front().stop_mark;
+    REQUIRE(mark.has_value());
+    if (mark.has_value())
+    {
+        // The landing keyframe half a beat in: 0.25s past the onset at 120 bpm.
+        CHECK_THAT(
+            mark->seconds,
+            Catch::Matchers::WithinAbs(view.notes.front().start_seconds + 0.25, 1e-9));
+        CHECK(mark->fret == 9);
+        CHECK(mark->face == StopMarkFace::Revealed);
+    }
 }
 
 // THE HOLD-UNDER LAW's derivation half: the planted stop is a fact about EVERY pull-off source,
-// whichever hand made its onset, while the held FIELD's scope — and with it the claim column, the
-// satellites, the editor's refusals and the writer's sweeps — stays the narrower one. The first
-// section IS the narrow form: it is the test that fails first if anyone ever collapses
-// chartPlantedStops and chartDerivedStops into one function.
+// whichever hand made its onset.
 TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -4913,24 +4618,20 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
         return chart;
     };
 
-    SECTION("a fretting-hand source plants wide and claims nothing")
+    SECTION("a fretting-hand source plants")
     {
         const Chart chart = figure(NoteAttack::Pick, 5);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
         CHECK(chartPlantedStops(connections).front() == std::optional{5});
-        CHECK_FALSE(chartDerivedStops(connections).front().has_value());
-        CHECK_FALSE(chartClaimedStops(connections).front().has_value());
     }
 
-    SECTION("a tap source plants and claims alike")
+    SECTION("a tap source plants alike")
     {
         const Chart chart = figure(NoteAttack::Tap, 5);
         const ChartConnections connections = chartConnections(chart.notes, tempo_map);
         REQUIRE(connections.legato[1] == LegatoMotion::Pull);
         CHECK(chartPlantedStops(connections).front() == std::optional{5});
-        CHECK(chartDerivedStops(connections).front() == std::optional{5});
-        CHECK(chartClaimedStops(connections).front() == std::optional{5});
     }
 
     SECTION("a hammer plants nothing")

@@ -202,8 +202,9 @@ TEST_CASE("EditorController arms in place on the first object step", "[core][cha
     CHECK(fixture.caret().string == 1);
 }
 
-// A held stop's satellite is part of its note, not an object of its own: an arrow arriving from the
-// right lands on the note's head like every arrival, and so does Tab.
+// A held stop's satellite is display-only, never an object of its own: an arrow arriving from the
+// right lands on the note's head like every arrival, and so does Tab. The tap here holds the grip
+// the chord states beneath it, so its satellite is drawn.
 TEST_CASE("EditorController steps over a held stop's satellite onto its head", "[core][chart]")
 {
     common::core::Chart chart;
@@ -214,7 +215,6 @@ TEST_CASE("EditorController steps over a held stop's satellite onto its head", "
         makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 2}),
     };
     chart.notes[2].attack = common::core::NoteAttack::Tap;
-    chart.notes[2].held = 7;
     RowObjectStepFixture fixture{std::move(chart)};
 
     // The tap sits at measure 2 beat 2 (2.5s); the caret starts on its string one beat later.

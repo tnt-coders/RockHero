@@ -1792,22 +1792,19 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
 // reader for both halves of the contradiction test below — the stop the sounding ring is holding,
 // and the statement the arriving onset makes — because those are the same question asked of two
 // notes, and two spellings of "where is this finger" would be free to disagree. The answer is the
-// chart's own (fretHandStopAt); this only moves the instant onto the note's ring and supplies the
-// claim.
+// chart's own (fretHandStopAt); this only moves the instant onto the note's ring.
 //
-// The claim is the FIELD's (claimedStop), not the resolved column: the stop a pull-off lands on
-// beneath a tap is a derivation, and it states a grip only where the figure already holds it
-// (gripStatementAt), exactly as it does beneath a fretting-hand source. An import writes no
-// `held`, so an imported plain tap states a grip only that way, while a tapped harmonic still
-// states the stop its fretting hand presses.
+// No held stop is supplied: the stop a pull-off lands on beneath a tap is a derivation, and it
+// states a grip only where the figure already holds it (gripStatementAt), exactly as it does
+// beneath a fretting-hand source. So an imported plain tap states a grip only that way, while a
+// tapped harmonic states the stop its fretting hand presses, which is its own fret.
 [[nodiscard]] std::optional<common::core::ChartStop> statedStopAt(
     const std::vector<BuiltNote>& built, const std::size_t index, const Fraction instant)
 {
     const BuiltNote& entry = built[index];
     // fretHandStopAt rather than heldFretAt: an open note is a statement here, one a grip can
     // contradict.
-    return common::core::fretHandStopAt(
-        entry.note, common::core::claimedStop(entry.note), instant - entry.global_beat);
+    return common::core::fretHandStopAt(entry.note, std::nullopt, instant - entry.global_beat);
 }
 
 // THE LET-RING FIGURE LAW. Three rules, held in one breath: a marked tail rings to the first onset
@@ -2665,24 +2662,17 @@ void upsertPlacement(
 }
 
 // Every placement's window, index-parallel to `placements`: its fret and the width the chart
-// derives for it over the stream as it stands (deriveFretHandWidths). The claims are the FIELD's
-// (claimedStop) rather than the resolved column every loaded chart reads: the stream is still being
-// built and nothing has resolved it, and an import writes no `held`, so the two differ only by a
-// pull-off's derived plant beneath a tap, which this pass does not need to see.
+// derives for it over the stream as it stands (deriveFretHandWidths). No held stop is supplied: the
+// stream is still being built and nothing has resolved it, so a tap's held stop — a pull-off's
+// plant or the covering grip — is not a finger this pass sees.
 [[nodiscard]] std::vector<common::core::FretWindow> fretWindowsOf(
     const std::vector<BuiltNote>& built,
     const std::vector<common::core::FretHandPosition>& placements,
     const common::core::TempoMap& tempo_map)
 {
     const std::vector<ChartNote> notes = storedNotes(built);
-    std::vector<std::optional<int>> claims;
-    claims.reserve(notes.size());
-    for (const ChartNote& note : notes)
-    {
-        claims.push_back(common::core::claimedStop(note));
-    }
-    const std::vector<int> widths =
-        common::core::deriveFretHandWidths(notes, claims, placements, tempo_map);
+    const std::vector<int> widths = common::core::deriveFretHandWidths(
+        notes, std::vector<std::optional<int>>(notes.size()), placements, tempo_map);
     std::vector<common::core::FretWindow> windows;
     windows.reserve(placements.size());
     for (std::size_t index = 0; index < placements.size(); ++index)
