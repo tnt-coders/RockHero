@@ -1314,15 +1314,9 @@ against the tree on the date above.
 
 ## Found in the simplicity review of the bend chip face (2026-09-29)
 
-- **The selection lingers on dissolved keys only to feed the verb window's proof.** The default
-  follow in `applyChartEditPlan` keeps a keyframe key after its point dissolved so a second press
-  still finds `armed_keys == chartSelection().keys()`. The window already stores `armed_keys`;
-  proving against those (pruned by `chartHoldsKey`) would let every apply prune and delete the
-  linger and its comments, leaving one selection-follow policy.
-- **`←`/`→` onto a held stop collapses a chord; `↑`/`↓` onto a bend chip keeps it.** The horizontal
-  within-slot step arms through `armChartCaret`, the vertical face step through
-  `armChartFaceHandle`. The keyboard path onto a face should be one mechanism (the handle).
-- **A gesture fold records `after` before its write.** In `commitChartGestureStep` the fold's
-  `ChartEditFocus` is captured before `replaceTop` and the chart write, so its face is judged on the
-  pre-write chart. Harmless while the arming demotes an unshown face on redo; capture it from the
-  landing's keys against the re-planned chart to make it exact.
+- **A face step inside a kept chord collapses it one way and not the other.** Reachable only after
+  clicking the held stop or bend chip of a member of an already-selected chord (the handle keeps the
+  chord selected, the caret on that member's face). From there `←`/`→` between the member's head
+  and its held stop re-arm through `armChartCaret`, collapsing the selection to that member, while
+  `↓` from its bend chip back to the head goes through `armChartFaceHandle` and keeps the chord.
+  One mechanism — the handle — for every step between faces of one slot makes them agree.

@@ -522,6 +522,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+    // Makes `keys` the chart selection, keeping only what the chart holds (chartHoldsKey): where
+    // every chart edit lands its selection once the chart is written.
+    void landChartSelection(std::vector<ChartSelectionKey> keys);
     // Where the charter stands in the chart with `selected` as the chart selection: the one
     // capture both sides of a chart undo entry record (ChartEditFocus). Nothing where no slot
     // says it — a caret riding an automation lane, or a passive cursor with nothing selected and
@@ -724,6 +727,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SaveToneFileAs& action);
     [[nodiscard]] EditorEditContext editContext() noexcept;
     bool pushUndoEntry(std::unique_ptr<IEdit> edit);
+    // Replaces the history's top entry with one describing the already-applied edit that entry
+    // grew into; a refusal leaves the edit standing untracked, exactly as a refused push does.
+    bool replaceUndoTop(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
     void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(

@@ -203,10 +203,28 @@ TEST_CASE("A move gesture is one undo entry and one undo restores it", "[core][c
         fixture.onsetOfFret(g_measure_3_fret) ==
         common::core::GridPosition{.measure = 3, .beat = 4, .offset = {}});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+    const common::core::Chart moved = fixture.currentChart();
 
     fixture.controller.onUndoRequested();
     CHECK(fixture.currentChart() == original);
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+
+    // Redo returns the charter to where the run LEFT them, which the folded entry records once the
+    // last step has written: the moved note selected under the caret, three beats on (5.5s).
+    fixture.controller.onRedoRequested();
+    CHECK(fixture.currentChart() == moved);
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    if (state != nullptr)
+    {
+        CHECK(state->chart_edit.selected_notes.size() == 1);
+        const std::optional<ChartCaretViewState>& caret = state->chart_edit.caret;
+        REQUIRE(caret.has_value());
+        if (caret.has_value())
+        {
+            CHECK_THAT(caret->seconds, Catch::Matchers::WithinAbs(5.5, 1e-9));
+        }
+    }
 }
 
 // Why the run keeps a step LIST rather than one summed delta: a time step is the placement quantum

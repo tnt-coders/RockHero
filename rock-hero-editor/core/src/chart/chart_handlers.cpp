@@ -1017,33 +1017,17 @@ bool EditorController::Impl::applyChartEditPlan(
     discardChartFretEntry();
     disarmChartVerbWindow();
 
-    // The selection follows the edit: retyped/moved/inserted records stay selected under their
-    // new keys, deleted ones drop out (their keys no longer resolve).
+    // The selection follows the edit: a verb that knows where its objects landed says so, and
+    // otherwise retyped/moved/inserted records stay selected under their new keys.
+    std::vector<ChartSelectionKey> next_selection;
     if (select_exactly.has_value())
     {
-        // A key the edit took away names nothing, and would leave the next digit retyping no
-        // operand; the written chart answers which, by the same rule the undo repair asks.
-        const common::core::Arrangement* const arrangement = session().currentArrangement();
-        std::vector<ChartSelectionKey> landing;
-        if (arrangement != nullptr)
-        {
-            const std::optional<common::core::Chart>& written = arrangement->chart;
-            for (const ChartSelectionKey& key : *select_exactly)
-            {
-                if (written.has_value() && chartHoldsKey(written->notes, key))
-                {
-                    landing.push_back(key);
-                }
-            }
-        }
-        chartSelectionMutable().applyBox(landing, false);
+        next_selection = *select_exactly;
     }
     else
     {
         // (selection - removed keys) + inserted keys: retyped/resized notes stay selected even
-        // when the edit left some of them unchanged, moved notes follow to their new keys, and
-        // deleted ones drop out.
-        std::vector<ChartSelectionKey> next_selection;
+        // when the edit left some of them unchanged, and moved notes follow to their new keys.
         const auto in_side = [](const auto& side, const ChartSlotKey& key) {
             return std::ranges::any_of(
                 side, [&key](const auto& record) { return chartSlotKeyOf(record) == key; });
@@ -1077,11 +1061,9 @@ bool EditorController::Impl::applyChartEditPlan(
             };
         follow(chartSelection().notes());
         // A keyframe key rides an edit that rewrote its note IN PLACE, which is every keyframe
-        // verb there is — and that is what carries the dissolve law's linger: the key stays
-        // selected after the keyframe it named dissolved, so a second press inside the verb
-        // window still proves it is acting on the same selection and reverses exactly. A note the
-        // plan MOVED or DELETED takes its keyframes' keys with it, because the key names the old
-        // slot and the plan carries no map from an old slot to a new one.
+        // verb there is. A note the plan MOVED or DELETED takes its keyframes' keys with it,
+        // because the key names the old slot and the plan carries no map from an old slot to a
+        // new one.
         for (const ChartKeyframeKey& keyframe : chartSelection().keyframes())
         {
             if (!in_side(plan->removed, keyframe.note) || in_side(plan->inserted, keyframe.note))
@@ -1089,8 +1071,8 @@ bool EditorController::Impl::applyChartEditPlan(
                 next_selection.emplace_back(keyframe);
             }
         }
-        chartSelectionMutable().applyBox(next_selection, false);
     }
+    landChartSelection(std::move(next_selection));
 
     // The history takes the WRITTEN form of the transition and the burst record the whole of it
     // (writtenChartPlan): a transition that only planted or moved a silent point writes as nothing,
@@ -1125,6 +1107,27 @@ bool EditorController::Impl::applyChartEditPlan(
     }
     updateView();
     return true;
+}
+
+// A key the edit took away names nothing, and would leave the next digit retyping no operand, so
+// the selection keeps only what the written chart holds — the same rule the undo repair asks.
+void EditorController::Impl::landChartSelection(std::vector<ChartSelectionKey> keys)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const common::core::Chart* written = nullptr;
+    if (arrangement != nullptr)
+    {
+        // Bound to a local so the presence test and the read are provably one object.
+        const std::optional<common::core::Chart>& chart = arrangement->chart;
+        if (chart.has_value())
+        {
+            written = &*chart;
+        }
+    }
+    std::erase_if(keys, [written](const ChartSelectionKey& key) {
+        return written == nullptr || !chartHoldsKey(written->notes, key);
+    });
+    chartSelectionMutable().applyBox(keys, false);
 }
 
 std::optional<ChartEditFocus> EditorController::Impl::chartEditFocusOf(
@@ -3319,23 +3322,10 @@ bool EditorController::Impl::commitChartGestureStep(
     }
     else
     {
-        // The history entry is swapped BEFORE the model moves, the settle fold's discipline: the
-        // two states must never disagree, and the live-gesture proofs above are exactly
-        // replaceTop's own preconditions, so a refusal here is a logic error reported with the
-        // chart untouched rather than left between two entries.
-        //
-        // The run began where the burst record says; it now leaves the charter on its landing.
-        std::optional<ChartEditFocus> after =
-            chartEditFocusOf(select_exactly.value_or(chartSelection().keys()));
-        if (m_undo_history
-                .replaceTop(std::make_unique<ChartEdit>(std::move(written), burst->before, after))
-                .status != EditorUndoTransitionStatus::Applied)
-        {
-            reportError("Could not apply chart edit: " + plan->label);
-            return false;
-        }
-        // Walk the live chart back to the pre-gesture stream and then to the re-planned one, so
-        // the state the top entry describes is exactly the state the chart holds.
+        // The model moves first and the history follows, the order every chart edit takes
+        // (applyChartEditPlan), so the entry records where the step LEFT the charter. Walk the
+        // live chart back to the pre-gesture stream and then to the re-planned one, so the state
+        // the top entry describes is exactly the state the chart holds.
         const std::optional<bool> walked =
             m_session.writeChart([&burst, &plan](common::core::Chart& chart) {
                 return applyChartChange(chart, burst->plan.reversed()).has_value() &&
@@ -3346,16 +3336,22 @@ bool EditorController::Impl::commitChartGestureStep(
             reportError("Could not apply chart edit: " + plan->label);
             return false;
         }
-        // The burst record follows the entry it names, or the next step would reverse a plan the
-        // history no longer holds.
-        burst->plan = std::move(*plan);
-        burst->after = std::move(after);
         // The replace path has no plan-driven selection follow of its own (that lives in
         // applyChartEditPlan, which only the first step runs), so a verb whose step re-keys its
         // objects states the landing here or leaves the next press holding keys naming nothing.
-        if (select_exactly.has_value())
+        landChartSelection(select_exactly.value_or(chartSelection().keys()));
+        // The run began where the burst record says; it now leaves the charter on its landing.
+        std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
+        if (replaceUndoTop(std::make_unique<ChartEdit>(std::move(written), burst->before, after)))
         {
-            chartSelectionMutable().applyBox(*select_exactly, false);
+            // The burst record follows the entry it names, or the next step would reverse a plan
+            // the history no longer holds.
+            burst->plan = std::move(*plan);
+            burst->after = std::move(after);
+        }
+        else
+        {
+            m_chart_notes_top.reset();
         }
         updateView();
     }
@@ -4176,21 +4172,9 @@ bool EditorController::Impl::settleChartClaims()
         return true;
     }
 
-    // The history entry is swapped BEFORE the model moves, because the two states must never
-    // disagree: the guards above are exactly replaceTop's own preconditions, so a refusal is a
-    // logic error, and reporting it leaves the chart untouched instead of stranded between entries.
-    //
-    // A flatten changes how a claim resolves, not where the edit left the charter, so the fold
-    // keeps the burst's recorded focuses.
-    if (burst != nullptr &&
-        m_undo_history.replaceTop(std::make_unique<ChartEdit>(written, burst->before, burst->after))
-                .status != EditorUndoTransitionStatus::Applied)
-    {
-        reportError("Could not apply chart edit: " + settled->label);
-        return false;
-    }
-    // Walk the live chart back to pre-burst and then to the settled state, so the state the history
-    // top describes is exactly the state the chart holds (the fret-entry widen's own discipline).
+    // The model moves first and the history follows, the order every chart edit takes
+    // (applyChartEditPlan). Walk the live chart back to pre-burst and then to the settled state,
+    // so the state the history top describes is exactly the state the chart holds.
     const ChartEditPlan& settled_plan = *settled;
     const std::optional<bool> walked = m_session.writeChart([&burst, &settled_plan](
                                                                 common::core::Chart& chart) {
@@ -4202,7 +4186,14 @@ bool EditorController::Impl::settleChartClaims()
         reportError("Could not apply chart edit: " + settled->label);
         return false;
     }
-    if (burst == nullptr)
+    if (burst != nullptr)
+    {
+        // A flatten changes how a claim resolves, not where the edit left the charter, so the
+        // fold keeps the burst's recorded focuses.
+        replaceUndoTop(
+            std::make_unique<ChartEdit>(std::move(written), burst->before, burst->after));
+    }
+    else
     {
         // At the top of the stack a push truncates nothing, so the flatten simply becomes its own
         // undo step, standing wherever the charter stands now on both sides.

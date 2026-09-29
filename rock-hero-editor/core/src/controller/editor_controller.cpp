@@ -2319,6 +2319,21 @@ EditorEditContext EditorController::Impl::editContext() noexcept
     };
 }
 
+// Replaces the top entry with the already-applied edit it grew into. The chart folds prove the
+// splice's preconditions before they write, so a refusal is a logic error; the edit stays applied
+// and untracked rather than stranded under an entry that no longer describes it.
+bool EditorController::Impl::replaceUndoTop(std::unique_ptr<IEdit> edit)
+{
+    const EditorUndoTransitionResult result = m_undo_history.replaceTop(std::move(edit));
+    logEditorUndoTransitionResult("undo.replace_top", result);
+    if (result.status != EditorUndoTransitionStatus::Applied)
+    {
+        markUntrackedUnsavedEdit("undo.reset.failed_replace");
+        return false;
+    }
+    return true;
+}
+
 // Pushes one already-applied user edit into the product-level history stack.
 bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
