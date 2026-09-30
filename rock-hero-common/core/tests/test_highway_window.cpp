@@ -335,6 +335,21 @@ TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][
         stepped.back().ramp_seconds = 0.0;
         CHECK(highwayLitLineAfterglowAt(stepped, held, 3.0, 6.5, 1.0) == Catch::Approx(0.5));
     }
+
+    SECTION("a light starting at a step leaves nothing of the window before it")
+    {
+        // The picking hand's shape: each strike is its own instant light, and its track steps
+        // straight off the previous chord's window at the strike. That window stood until the
+        // light's start and was never shown lit, so its lines keep nothing — the whole of the
+        // strike's afterglow is its own window's, which the coverage term already draws.
+        std::vector<HighwayHandArrival> stepped = makePlacements();
+        stepped.back().ramp_seconds = 0.0;
+        const HighwayLitStretch strike{
+            .start_seconds = 6.0, .release_seconds = 6.0, .rise_seconds = 0.0
+        };
+        CHECK(highwayLitLineAfterglowAt(stepped, strike, 3.0, 6.0, 1.0) == Catch::Approx(0.0));
+        CHECK(highwayLitLineAfterglowAt(stepped, strike, 3.0, 6.2, 1.0) == Catch::Approx(0.0));
+    }
 }
 
 // THE LEG LOOKUP at its breakpoints: a leg is in progress from its ramp's start inclusive to its

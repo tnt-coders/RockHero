@@ -200,11 +200,14 @@ the light itself does not make.
 
 THE LEAVING RULE: a line goes dark over the layer's decay from the instant its light leaves it,
 whether the light leaves by moving off it or by releasing while it stands there. The instant is the
-last one, inside the light's hold and not before its start, at which the light stood settled on its
+last one, inside the light's hold and after its start, at which the light stood settled on its
 track with the line fully covered: the release, for a light still standing on the line then; or the
-ramp start of the leg that carried the window away. The level falls linearly from 1 at that instant
-to 0 one decay later, and is 0 for a line the light never stood on. Past the release the light
-leaves nothing new, since the reading rule (\ref highwayLitTrackTime) never starts a leg there.
+ramp start of the leg that carried the window away. A window that stopped standing at the light's
+very start was never shown lit, so it leaves nothing: a strike that steps the picking hand off the
+previous chord's window does not light that window's lines. The level falls linearly from 1 at
+that instant to 0 one decay later, and is 0 for a line the light never stood on. Past the release
+the light leaves nothing new, since the reading rule (\ref highwayLitTrackTime) never starts a leg
+there.
 
 This is the part of the brightness a moving light leaves behind; the part it casts where it stands
 is \ref highwayHandWindowLineCoverage over \ref highwayLitWindowAt, and a layer takes the larger of

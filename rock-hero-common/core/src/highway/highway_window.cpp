@@ -222,8 +222,10 @@ HighwayHandWindow highwayLitWindowAt(
 
 // Rationale lives on the declaration in highway_window.h. Walks back from the window standing at
 // the held instant, one settled window at a time, until one covers the line. Each window stood
-// until the next leg's ramp began, and the walk stops at the light's start or once a window's end
-// lies a whole decay back, so it visits only the few windows a decay spans.
+// until the next leg's ramp began, and the walk stops once a window's end lies a whole decay back
+// or no later than the light's start: a window that stopped standing AT the start was never shown
+// lit — a strike stepping the picking hand straight off the last chord's window is exactly that —
+// and a light still at its start is lit where it stands, which the coverage term already draws.
 double highwayLitLineAfterglowAt(
     const std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
     const double line, const double seconds, const double decay_seconds) noexcept
@@ -237,7 +239,7 @@ double highwayLitLineAfterglowAt(
     auto settled = next == track.begin() ? next : std::prev(next);
     double stood_until =
         legBefore(track, next, held).has_value() ? next->seconds - next->ramp_seconds : held;
-    while (stood_until >= stretch.start_seconds && stood_until > seconds - decay_seconds)
+    while (stood_until > stretch.start_seconds && stood_until > seconds - decay_seconds)
     {
         if (highwayHandWindowLineCoverage(settledWindow(*settled), line) >= 1.0)
         {
