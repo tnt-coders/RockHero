@@ -230,14 +230,14 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
     const auto match = findPlacement(after.placements, position);
     if (match == after.placements.end())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     *match = retyped(*match, edge, fret);
-    std::expected<FretHandPositionsSnapshot, MarkerModelRefusal> judged =
+    std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        return std::unexpected{judged.error().reason};
+        return std::unexpected{std::move(judged.error())};
     }
     return ChartFretHandPlan{.placements = std::move(*judged), .edge = edge};
 }

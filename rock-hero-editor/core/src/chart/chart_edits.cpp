@@ -253,7 +253,9 @@ enum class StrandedStrikeRepair : std::uint8_t
         common::core::normalizeSustainOverlaps(candidate, tempo_map);
     if (std::ranges::any_of(truncated, &common::core::TailTruncation::statement_lost))
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{
+            ChartPlanInvalid{"the edit would cut an authored statement off a ring it shortens"}
+        };
     }
     // The in-plan repair (E4). Relational truths deliberately do not repair here (see
     // planSettleChart): mid-burst a claim the chart cannot justify simply plays as the pick it
@@ -271,14 +273,16 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         saved_form.push_back(common::core::savedChartNote(note));
     }
-    if (!common::core::validateChartNotes(saved_form, chart.tuning, tempo_map).has_value())
+    if (std::expected<void, common::core::ChartError> valid =
+            common::core::validateChartNotes(saved_form, chart.tuning, tempo_map);
+        !valid.has_value())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
     ChartEditPlan plan = diffNotes(base, candidate, label);
     if (plan.empty())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     return plan;
 }
@@ -300,7 +304,7 @@ template <typename Write>
 {
     if (keys.empty())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     std::vector<common::core::ChartNote> candidate = chart.notes;
     bool changed = false;
@@ -334,7 +338,7 @@ template <typename Write>
     }
     if (!changed)
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
@@ -439,13 +443,13 @@ struct AddressedStop
     // refuses a scrape on either side, so such a product could never be joined back.
     if (common::core::isScrape(note.attack))
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"a scrape has no junction to split"}};
     }
     for (const common::core::Fraction& instant : instants)
     {
         if (!(common::core::Fraction{0, 1} < instant) || !(instant < note.sustain))
         {
-            return std::unexpected{ChartPlanRefusal::Invalid};
+            return std::unexpected{ChartPlanInvalid{"the split instant is not inside the ring"}};
         }
     }
     common::core::Fraction start{0, 1};
@@ -532,13 +536,17 @@ struct AddressedStop
         common::core::slideOutFretOrNull(predecessor, arrives) != nullptr ||
         common::core::fretHandHarmonic(predecessor))
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{
+            ChartPlanInvalid{"the ring before this head has no stop to hand to a point"}
+        };
     }
     // A scrape is not a fretted stop, so its ring is no path a point could continue; and a point
     // states frets and channels, never a harmonic node.
     if (common::core::isScrape(head.attack) || head.harmonic_node.has_value())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{
+            ChartPlanInvalid{"a scrape or harmonic head cannot become a point on a ring"}
+        };
     }
 
     const common::core::Fraction gap =
@@ -640,7 +648,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertKeyframe(
         });
     if (target == candidate.end())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"no note stands at that slot"}};
     }
     // Inserted at its sorted place and never merged onto a record already there: a second keyframe
     // on one offset leaves the note's offsets no longer strictly ascending, which is the rule
@@ -667,7 +675,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planCutRing(
         });
     if (origin == chart.notes.end())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"no note stands at that slot"}};
     }
     std::vector<common::core::ChartNote> products;
     const std::expected<void, ChartPlanRefusal> walked =
@@ -800,7 +808,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     }
     if (deleted_notes == 0 && deleted_keyframes == 0 && stripped_frets == 0)
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     // The label names what was actually deleted rather than counting one kind for both: a mixed
     // burst has no honest noun, so it names the selection instead of claiming a count of notes.
@@ -926,7 +934,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     if ((note_keys.empty() && keyframe_keys.empty()) ||
         (whole_note_delta.numerator == 0 && string_delta == 0))
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
 
     const int string_count = static_cast<int>(chart.tuning.strings.size());
@@ -1009,7 +1017,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
                     // would stack it on the slide-out.
                     if (!(keyframe.offset < end))
                     {
-                        return std::unexpected{ChartPlanRefusal::Invalid};
+                        return std::unexpected{ChartPlanInvalid{
+                            "the move would stand a point on or past its ring's end"
+                        }};
                     }
                 }
                 stepped_keyframe = true;
@@ -1021,13 +1031,13 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     {
         if (!stepped_keyframe)
         {
-            return std::unexpected{ChartPlanRefusal::NoChange};
+            return std::unexpected{ChartPlanNoChange{}};
         }
         return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
     }
     if (!moveKeyedNotes(tempo_map, notes.keyed, whole_note_delta, string_delta, string_count))
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"the move would leave the neck or the grid"}};
     }
 
     // Converging moves that stack two notes on one slot are refused, as is landing on a slot an
@@ -1041,7 +1051,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     std::ranges::sort(target_keys);
     if (std::ranges::adjacent_find(target_keys) != target_keys.end())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"two moved notes would land on one slot"}};
     }
     const bool lands_on_unmoved =
         std::ranges::any_of(notes.rest, [&target_keys](const common::core::ChartNote& note) {
@@ -1049,7 +1059,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
         });
     if (lands_on_unmoved)
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"a moved note would land on a note that stays"}};
     }
     notes.rest.insert(notes.rest.end(), notes.keyed.begin(), notes.keyed.end());
     return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
@@ -1062,7 +1072,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
 {
     if (base.empty())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     // Null for a shift, which names no value of its own.
     const ChartFretSet* const set = std::get_if<ChartFretSet>(&write);
@@ -1087,7 +1097,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             // leaving it looking typed. Restating a node is press `H`, type, press `H`.
             if (common::core::fretHandHarmonic(note))
             {
-                return std::unexpected{ChartPlanRefusal::Invalid};
+                return std::unexpected{
+                    ChartPlanInvalid{"a fret-hand harmonic has no stop to retype"}
+                };
             }
             addressed.push_back(
                 AddressedStop{.base_index = base_index, .keyframe_offset = {}, .value = note.fret});
@@ -1210,7 +1222,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
     // NoChange anyway, so say it up front.
     if (steps.empty())
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     // The candidate starts from the LIVE stream because a floored note keeps the ring it currently
     // has; every note the replay does reach is then rebuilt WHOLE from its pre-gesture value, which
@@ -1644,7 +1656,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
                 // stating points is interpolated travel. The other half of that ruling — a
                 // keyframe at the ring's end, with no remainder to hand over — is the walk's own
                 // range refusal below and is not restated here.
-                return std::unexpected{ChartPlanRefusal::Invalid};
+                return std::unexpected{ChartPlanInvalid{"a head must sit on a stated fret"}};
             }
             // The instant is all this verb supplies: the keyframe the cut consumes states its own
             // fret, which is exactly the fret in force there and therefore the walk's own value,
@@ -1702,7 +1714,9 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
             if (predecessor == common::core::g_no_chart_predecessor)
             {
                 // Nothing holds this string, so there is no path for the point to join.
-                return std::unexpected{ChartPlanRefusal::Invalid};
+                return std::unexpected{
+                    ChartPlanInvalid{"nothing earlier on the string holds a path to join"}
+                };
             }
             const std::expected<common::core::Fraction, ChartPlanRefusal> at =
                 joinHeadIntoPath(tempo_map, joined[predecessor], note);
@@ -1726,7 +1740,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
 
     if (!split_any && !join_any)
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        return std::unexpected{ChartPlanNoChange{}};
     }
     // The label is the walk's answer, not the caller's: only this pass knows which halves a mixed
     // selection actually ran.

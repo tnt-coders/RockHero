@@ -1198,13 +1198,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
         // std::expected's value-state default, which would be an empty-but-valid plan.
         std::expected<ChartFretEntryPlan, ChartPlanRefusal> plan{
-            std::unexpected{ChartPlanRefusal::NoChange}
+            std::unexpected{ChartPlanNoChange{}}
         };
         // Whether the typed value is REFUSED — the red box's one question, and the entry's open
         // error state: a refused entry pends until a further digit, Esc or another intent ends it.
         [[nodiscard]] bool refused() const
         {
-            return !plan.has_value() && plan.error() == ChartPlanRefusal::Invalid;
+            return !plan.has_value() && std::holds_alternative<ChartPlanInvalid>(plan.error());
         }
         // Tick of the arming keystroke: the injected clock is the authority for the window, so
         // a wake that fires early (an immediate test scheduler) no-ops instead of settling.
@@ -1521,13 +1521,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the commit would do with a model (a pending fret entry's red box): the produced model
     // normalized, refused Invalid where it breaks a rule (with the rule's diagnostic), NoChange
     // where it matches `before`. Defined beside the commit in marker_model_commit.h.
-    struct MarkerModelRefusal
-    {
-        ChartPlanRefusal reason{ChartPlanRefusal::NoChange};
-        std::string detail;
-    };
     template <typename Snapshot>
-    [[nodiscard]] std::expected<Snapshot, MarkerModelRefusal> judgeMarkerModel(
+    [[nodiscard]] std::expected<Snapshot, ChartPlanRefusal> judgeMarkerModel(
         const Snapshot& before, Snapshot after) const;
 
     // The index of the row's marker starting exactly at a position, or nothing where none does —

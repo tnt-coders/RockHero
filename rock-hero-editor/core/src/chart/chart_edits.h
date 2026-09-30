@@ -70,6 +70,21 @@ struct [[nodiscard]] ChartEditPlan
     }
 };
 
+/*! \brief The edit would change nothing a document records — legal, just empty. */
+struct ChartPlanNoChange
+{
+};
+
+/*!
+\brief The result would break a chart rule or a planner's own bound, so the whole plan is refused,
+never clamped.
+*/
+struct ChartPlanInvalid
+{
+    /*! \brief Why, in words for the log: the rule's own message, or the planner's bound. */
+    std::string reason;
+};
+
 /*!
 \brief Why a planner returned no plan: a valid no-op is not a refusal.
 
@@ -77,19 +92,11 @@ The two emptinesses are kept apart because sharing one `std::nullopt` makes ever
 editor silent — no caller can tell "this edit is not allowed" from "this edit changes nothing", so
 nothing can report the former without lying about the latter. W3's pending fret entry is the
 consumer that forces the split: a provisional value that plans to a no-op is VALID and must not
-paint red. A bare enum rather than a code-plus-message error type on purpose: both reasons map to
-fixed meanings, the callers branch rather than display, and any user-facing text belongs to the
-surface that shows it.
+paint red. A sum rather than a kind beside a string, so only a refusal can carry a reason; the
+reason goes to the log, and what the screen shows is the refusal flash's
+(`docs/plans/in-progress/refusal-flash.md`).
 */
-enum class ChartPlanRefusal : std::uint8_t
-{
-    /*! \brief The edit would change nothing a document records — legal, just empty. */
-    NoChange,
-
-    /*! \brief The result would break a chart rule (or a planner's own bound), so the whole plan
-    is refused, never clamped. */
-    Invalid,
-};
+using ChartPlanRefusal = std::variant<ChartPlanNoChange, ChartPlanInvalid>;
 
 /*! \brief Writes one fret at every addressed stop: the typed digit. */
 struct ChartFretSet

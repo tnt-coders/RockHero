@@ -18,6 +18,7 @@ member template needs its body where every marker handler translation unit can s
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -34,22 +35,17 @@ inline void logMarkerRefusal(const std::string_view label, const std::string_vie
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
 // about what the commit would refuse.
 template <typename Snapshot>
-std::expected<Snapshot, EditorController::Impl::MarkerModelRefusal> EditorController::Impl::
-    judgeMarkerModel(const Snapshot& before, Snapshot after) const
+std::expected<Snapshot, ChartPlanRefusal> EditorController::Impl::judgeMarkerModel(
+    const Snapshot& before, Snapshot after) const
 {
     after.normalize();
     if (std::optional<std::string> violation = after.validate(session()); violation.has_value())
     {
-        return std::unexpected{MarkerModelRefusal{
-            .reason = ChartPlanRefusal::Invalid,
-            .detail = std::move(*violation),
-        }};
+        return std::unexpected{ChartPlanInvalid{std::move(*violation)}};
     }
     if (after == before)
     {
-        return std::unexpected{
-            MarkerModelRefusal{.reason = ChartPlanRefusal::NoChange, .detail = {}}
-        };
+        return std::unexpected{ChartPlanNoChange{}};
     }
     return after;
 }
@@ -68,12 +64,12 @@ std::expected<Snapshot, EditorController::Impl::MarkerModelRefusal> EditorContro
 template <typename Snapshot>
 bool EditorController::Impl::commitMarkerModel(Snapshot before, Snapshot after, std::string label)
 {
-    std::expected<Snapshot, MarkerModelRefusal> judged = judgeMarkerModel(before, std::move(after));
+    std::expected<Snapshot, ChartPlanRefusal> judged = judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        if (judged.error().reason == ChartPlanRefusal::Invalid)
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
         {
-            logMarkerRefusal(label, judged.error().detail);
+            logMarkerRefusal(label, invalid->reason);
             return false;
         }
         return true;

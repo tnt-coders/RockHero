@@ -20,6 +20,7 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
@@ -2342,7 +2343,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return std::unexpected{ChartPlanRefusal::Invalid};
+        return std::unexpected{ChartPlanInvalid{"no chart is loaded"}};
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
@@ -2440,6 +2441,18 @@ void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
 // valid value settles in the same keystroke.
 void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
 {
+    // The red box says THAT the value cannot land; the log says why.
+    if (!entry.plan.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
+        {
+            RH_LOG_WARNING(
+                "editor.chart",
+                "Refused fret entry value={} detail={:?}",
+                entry.value,
+                invalid->reason);
+        }
+    }
     if (entry.refused() || chartFretValueExtendable(entry.value))
     {
         armChartFretEntry(std::move(entry));
@@ -3012,7 +3025,7 @@ bool EditorController::Impl::commitChartGestureStep(
         // from the current values rather than paying back steps that never moved anything; a
         // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
-        if (plan.error() == ChartPlanRefusal::NoChange && burst != nullptr)
+        if (std::holds_alternative<ChartPlanNoChange>(plan.error()) && burst != nullptr)
         {
             // The selection goes back with the chart, landed once it is written. A verb whose
             // steps re-key its objects has been pointing at where the run had reached, and a
@@ -3656,7 +3669,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
         }
     }
     std::expected<ChartEditPlan, ChartPlanRefusal> clear_plan =
-        legato_keys.empty() ? std::unexpected{ChartPlanRefusal::NoChange}
+        legato_keys.empty() ? std::unexpected{ChartPlanNoChange{}}
                             : planSetAttack(
                                   *arrangement->chart,
                                   session().song().tempo_map,

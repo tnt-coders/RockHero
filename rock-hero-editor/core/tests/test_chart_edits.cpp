@@ -23,6 +23,7 @@
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -417,7 +418,10 @@ TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
     REQUIRE_FALSE(plan.has_value());
     if (!plan.has_value())
     {
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        // The refusal carries the rule's own words, which is what the log reports.
+        const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error());
+        REQUIRE(invalid != nullptr);
+        CHECK_FALSE(invalid->reason.empty());
     }
 }
 
@@ -577,7 +581,7 @@ TEST_CASE(
         });
         const auto plan = insert();
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].sustain == common::core::Fraction{2});
         CHECK(chart.notes[0].keyframes.size() == 2);
@@ -598,7 +602,7 @@ TEST_CASE(
         });
         const auto plan = insert();
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].sustain == common::core::Fraction{2});
         CHECK(chart.notes[0].keyframes.size() == 1);
@@ -792,16 +796,16 @@ TEST_CASE("planInsertKeyframe refuses what the rules refuse", "[core][chart]")
 
     // Offset zero is the ONSET, whose facts the note itself carries: a keyframe there would be a
     // second spelling of a value the note already states.
-    CHECK(refused(common::core::Fraction{0}, 11) == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{0}, 11)));
     // Past the ring there is nothing left to state on.
-    CHECK(refused(common::core::Fraction{5}, 11) == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{5}, 11)));
     // A second record on one offset leaves the offsets no longer strictly ascending.
-    CHECK(refused(common::core::Fraction{2}, 11) == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(refused(common::core::Fraction{2}, 11)));
     // And a slot holding no note names nothing to state a point on.
     const auto empty = planInsertKeyframe(
         chart, tempo_map, keyAt({.measure = 4, .beat = 1}, 1), common::core::Fraction{1}, 5);
     REQUIRE_FALSE(empty.has_value());
-    CHECK(empty.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(empty.error()));
 }
 
 // A scrape keeps travelling or it is no scrape, and the two halves of that fall out of the two
@@ -827,7 +831,7 @@ TEST_CASE("planInsertKeyframe leaves a scrape travelling", "[core][chart]")
     const auto stilled =
         planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 3);
     REQUIRE_FALSE(stilled.has_value());
-    CHECK(stilled.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(stilled.error()));
 
     // A real turnaround between the two is an ordinary leg and commits.
     CHECK(planInsertKeyframe(chart, tempo_map, slot, common::core::Fraction{3, 4}, 7).has_value());
@@ -1054,21 +1058,21 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, first, common::core::Fraction{-1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped past the ring")
     {
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, second, common::core::Fraction{1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped onto its neighbour")
     {
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, first, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped across its neighbour")
     {
@@ -1077,7 +1081,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, first, common::core::Fraction{3, 8}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped onto a later onset of its own string")
     {
@@ -1090,7 +1094,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             repicked, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped exactly onto the ring's end")
     {
@@ -1101,7 +1105,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("stepped to the last offset strictly below the end")
     {
@@ -1148,7 +1152,7 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             one_point, tempo_map, {}, second, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         // A refused plan is not applied, so the point keeps every statement it made.
         REQUIRE(one_point.notes.size() == 1);
         REQUIRE(one_point.notes.front().keyframes.size() == 1);
@@ -1309,7 +1313,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         const auto plan = planMoveSelection(
             parked, tempo_map, {}, at_head, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
         // And stepping BACK moves again: the ring shortens with the slide-out, which never had a
         // ceiling in that direction.
         const auto back = planMoveSelection(
@@ -1347,7 +1351,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         const auto plan = planMoveSelection(
             parked, tempo_map, {}, both, common::core::Fraction{1, 4}, 0, "Move Selection");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("a note moved back onto the slide-out leaves the ring alone")
     {
@@ -1378,7 +1382,7 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, slide_out, common::core::Fraction{-1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("the figure selected whole keeps its shape")
     {
@@ -1449,7 +1453,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("a slide-out past the landing rides back onto the landing itself")
@@ -1566,7 +1570,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
         common::core::setSlideOut(chart.notes.front(), 3);
         const auto refused = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE_FALSE(refused.has_value());
-        CHECK(refused.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(refused.error()));
 
         // The same landing onto a point already stating the slide-out's fret overwrites nothing:
         // the two statements of one instant say the same, and the shortened tail keeps one of them.
@@ -1605,7 +1609,7 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             });
         const auto refused = moveNotes(erasing, tempo_map, ringing, step_forward, 0, "Move Note");
         REQUIRE_FALSE(refused.has_value());
-        CHECK(refused.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(refused.error()));
 
         // With nothing standing past the head, the moved ring simply ends on it.
         const common::core::Chart clear = figure(
@@ -1671,7 +1675,7 @@ TEST_CASE("planMoveSelection leaves a keyframe-only selection to the string step
         1,
         "Move Keyframe");
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
 
 // Set-exact mode assigns the typed fret to every note in the snapshot.
@@ -1733,7 +1737,7 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     const auto plan = retypeNotes(
         chart, makeTempoMap(), base, ChartFretShift{.delta = common::core::g_max_fret - 3});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
 }
 
 // An empty snapshot has nothing to write, so no plan is produced — and that emptiness is a
@@ -1742,7 +1746,7 @@ TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][char
 {
     const auto plan = retypeNotes(makeTestChart(), makeTempoMap(), {}, ChartFretShift{.delta = 2});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
 
 // A target already matching plans nothing, like every planner sharing the finalize diff — and it
@@ -1757,7 +1761,7 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
 
     const auto plan = retypeNotes(chart, makeTempoMap(), base, ChartFretSet{.fret = 5});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
 
 // A selected keyframe retypes like a head (W13's ruling), and needs no channel of its own: the
@@ -1864,7 +1868,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
             ChartFretSet{.fret = 0});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("below a real capo's floor")
     {
@@ -1878,7 +1882,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
             ChartFretSet{.fret = 4});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
     SECTION("a member pushed past the fret cap refuses the whole plan")
     {
@@ -1896,7 +1900,7 @@ TEST_CASE("planRetypeFrets refuses a keyframe fret the rules reject", "[core][ch
             },
             ChartFretShift{.delta = common::core::g_max_fret - 9});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 }
 
@@ -1937,7 +1941,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     const std::vector<ChartSlotKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
     const auto unchanged = planAdjustSustain(chart, tempo_map, chart.notes, only_short, steps);
     REQUIRE_FALSE(unchanged.has_value());
-    CHECK(unchanged.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(unchanged.error()));
 }
 
 // What the step list exists for: a GRID step moves the ring's END onto the adjacent grid line, so
@@ -2058,7 +2062,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     steps.push_back(gridStep(g_quarter_grid, false));
     const auto closed = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
     REQUIRE_FALSE(closed.has_value());
-    CHECK(closed.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
 
 // Each note replays the steps over its OWN end, so a chord whose members were nudged to
@@ -2200,7 +2204,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
         keys,
         {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
     REQUIRE_FALSE(closed.has_value());
-    CHECK(closed.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
 
 // Growth stops at exact adjacency with the next onset on the note's OWN string — the one bound on
@@ -2301,7 +2305,7 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
     const auto plan =
         planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
 
 // Empty keys and an empty step list both plan no sustain change — from a stream that IS the base,
@@ -2315,11 +2319,11 @@ TEST_CASE("planAdjustSustain plans nothing for no-op inputs", "[core][chart]")
     const auto no_keys =
         planAdjustSustain(chart, tempo_map, chart.notes, {}, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(no_keys.has_value());
-    CHECK(no_keys.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(no_keys.error()));
 
     const auto no_steps = planAdjustSustain(chart, tempo_map, chart.notes, keys, {});
     REQUIRE_FALSE(no_steps.has_value());
-    CHECK(no_steps.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(no_steps.error()));
 }
 
 // The gesture's whole point, at the planner level: every press replays the whole run over the rings
@@ -2395,7 +2399,7 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
     steps.push_back(gridStep(g_quarter_grid, false));
     const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
     REQUIRE_FALSE(closed.has_value());
-    CHECK(closed.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
 
 // A ring the replay would empty holds the value it CURRENTLY has — read from the live chart, not
@@ -2481,7 +2485,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     recorded.push_back(gridStep(g_quarter_grid, true));
     const auto closed = planAdjustSustain(live, tempo_map, base, keys, recorded);
     REQUIRE_FALSE(closed.has_value());
-    CHECK(closed.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
 
 // Payload is clipped out of the PRE-GESTURE note, so growing back inside one gesture restores a
@@ -2601,7 +2605,7 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
         keys,
         {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
     REQUIRE_FALSE(returned.has_value());
-    CHECK(returned.error() == ChartPlanRefusal::NoChange);
+    CHECK(std::holds_alternative<ChartPlanNoChange>(returned.error()));
 }
 
 // Applying a removal-and-insertion whose preconditions hold swaps in the new stream.
@@ -3297,11 +3301,11 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
 
     const auto exact = retypeNotes(chart, makeTempoMap(), chart.notes, ChartFretSet{.fret = 3});
     REQUIRE_FALSE(exact.has_value());
-    CHECK(exact.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(exact.error()));
     const auto shifted = retypeNotes(
         chart, makeTempoMap(), chart.notes, ChartFretShift{.delta = 3 - chart.notes.front().fret});
     REQUIRE_FALSE(shifted.has_value());
-    CHECK(shifted.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(shifted.error()));
 }
 
 // An open string cannot slide, so retyping a slid note to 0 refuses whole — and the refusal is
@@ -3318,7 +3322,7 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 
     const auto plan = retypeNotes(chart, makeTempoMap(), chart.notes, ChartFretSet{.fret = 0});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
 }
 
 // The stilled-scrape refusal is scrape-only: a pitched slide's equal-fret segment is the legal
@@ -3589,7 +3593,7 @@ TEST_CASE("planInsertNote shortens a scrape under a note placed on its path", "[
         makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5),
         g_fixture_sustain);
     REQUIRE_FALSE(onto_turnaround.has_value());
-    CHECK(onto_turnaround.error() == ChartPlanRefusal::Invalid);
+    CHECK(std::holds_alternative<ChartPlanInvalid>(onto_turnaround.error()));
 }
 
 // A slide that HOLDS a fret cannot become a scrape. The rule authority requires a scrape's whole
@@ -4476,7 +4480,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         const auto plan =
             splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
         CHECK(chart == original);
     }
 
@@ -4486,7 +4490,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         const auto plan =
             splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{4})});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("a scrape, whose terminal the origin would lose")
@@ -4506,7 +4510,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         const auto plan =
             splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("a key naming no keyframe")
@@ -4515,7 +4519,7 @@ TEST_CASE("planToggleJunctions refuses what cannot carry a head", "[core][chart]
         const auto plan =
             splitAt(chart, tempo_map, {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{3})});
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
     }
 }
 
@@ -4801,7 +4805,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
         const auto plan = planCutRing(
             chart, tempo_map, keyAt({.measure = 2, .beat = 1}, 1), common::core::Fraction{1, 4}, 5);
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("an offset at the ring's end")
@@ -4810,7 +4814,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
         const auto plan =
             planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{4}, 5);
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("an offset at the onset")
@@ -4819,7 +4823,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
         const auto plan =
             planCutRing(chart, tempo_map, keyAt(glideOnset(), 1), common::core::Fraction{0}, 5);
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 
     SECTION("a slot holding no note")
@@ -4828,7 +4832,7 @@ TEST_CASE("planCutRing refuses what has no remainder to strike", "[core][chart]"
         const auto plan =
             planCutRing(chart, tempo_map, keyAt(glideOnset(), 2), common::core::Fraction{1}, 5);
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 }
 
@@ -5073,7 +5077,7 @@ TEST_CASE("planSetHarmonic skips a fret that names no node", "[core][chart]")
     REQUIRE_FALSE(plan.has_value());
     if (!plan.has_value())
     {
-        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
     }
 }
 
@@ -5165,7 +5169,7 @@ TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[cor
         REQUIRE_FALSE(plan.has_value());
         if (!plan.has_value())
         {
-            CHECK(plan.error() == ChartPlanRefusal::NoChange);
+            CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
         }
         // Nothing was written, so the thumb's graze and the attack carrying it both stand.
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Pinch);
@@ -5243,7 +5247,7 @@ TEST_CASE("planClearPinchHarmonic returns the pinch to the pick it was picked as
         REQUIRE_FALSE(plan.has_value());
         if (!plan.has_value())
         {
-            CHECK(plan.error() == ChartPlanRefusal::NoChange);
+            CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
         }
     }
 }
@@ -5299,7 +5303,7 @@ TEST_CASE("planRetypeFrets refuses the sounding stop of a fret-hand harmonic", "
     REQUIRE_FALSE(plan.has_value());
     if (!plan.has_value())
     {
-        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
     }
 }
 
@@ -5444,7 +5448,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         CHECK_FALSE(law.carried(chart, nothing_reached));
         const auto plan = law.plan(chart, makeTempoMap(), nothing_reached, true, "Vibrato");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+        CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
     }
 }
 
@@ -5715,7 +5719,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         const common::core::Chart chart = makeSingleNoteChart(5);
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
     }
 
     SECTION("a predecessor whose tail already slides out")
@@ -5731,7 +5735,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
     }
 
     SECTION("a scrape predecessor, which has no fretting finger to hand over")
@@ -5744,7 +5748,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 2}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
     }
 
     SECTION("a head carrying a harmonic node, which a point cannot state")
@@ -5761,7 +5765,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(joined.error() == ChartPlanRefusal::Invalid);
+        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
     }
 }
 
