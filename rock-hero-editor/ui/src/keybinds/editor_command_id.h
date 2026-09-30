@@ -483,8 +483,7 @@ enum class EditorCommandId : std::uint16_t
     \brief Type digit 0 on the RING plane (`Alt`+`0`): "a point on the ring here"
     (\ref rock_hero::editor::core::IEditorController::onChartRingDigitTyped states the rule).
 
-    Top-row digits only: Windows reads `Alt`+numpad digits as an Alt code and never delivers the
-    chord.
+    Bound on the top row; an `Alt`+numpad digit arrives as this same chord (keyboard-input.md).
     */
     TypeRingDigit0 = 0x1815,
 

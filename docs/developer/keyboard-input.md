@@ -207,9 +207,11 @@ dialog and one entry in menu shortcut text; the chip's change/remove operate on 
 its group, so no ghost binding can survive a visible removal.
 
 **Windows composes a character out of `Alt`+numpad digits.** The ring digits ("Type Digit N on
-Ring", `Alt`+top-row digit) therefore have no numpad twin — the chord never reaches the editor from
-there — but a charter holding `Alt` for the ring reveal can still strike one, and Windows reads the
-pair as an **Alt code**: it accumulates numpad digits while `Alt` is held and delivers
+Ring") are bound as `Alt`+top-row digit and still work from the numpad: while `Alt` is held a
+numpad digit posts no `WM_CHAR`, so JUCE's key-down path synthesizes the press from the key's own
+character (`MapVirtualKey (key, 2)`, `juce_Windowing_windows.cpp:3141-3160`) — the top-row digit,
+with `Alt` held — and the bound chord matches. Windows ALSO reads the pair as an **Alt code**: it
+accumulates numpad digits while `Alt` is held and delivers
 the COMPOSED CHARACTER as a bare key press on the release, so `Alt`+7 `Alt`+6 would arrive as a
 plain `L` and fire the legato verb, and the codes 27 and 32 would arrive as cancel and play/pause.
 Each top-level window therefore filters at its key entry — `MainWindow` and `PreviewWindow`, the two

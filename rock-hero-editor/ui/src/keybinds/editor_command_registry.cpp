@@ -536,9 +536,10 @@ constexpr int g_add_lane_key = 'a';
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
-    // first-class alias of the same command. The ring plane is the same digit under `Alt`, from
-    // the top row only: Windows composes `Alt`+numpad digits into an Alt code and never delivers
-    // the chord (keyboard-input.md), so a numpad alias would be a lying entry.
+    // first-class alias of the same command. The ring plane is the same digit under `Alt`, bound
+    // on the top row alone and reached from the numpad through it: with `Alt` held a numpad digit
+    // posts no WM_CHAR, so JUCE synthesizes the press from the key's own character, the top-row
+    // digit (keyboard-input.md). A numpad chord here would never match.
     for (int digit = 0; digit <= 9; ++digit)
     {
         static constexpr std::array<const char*, 10> g_digit_names{

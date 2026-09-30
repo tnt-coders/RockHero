@@ -340,8 +340,8 @@ where they rule on these keys, and the surface summary.
 id, so a new id would silently drop a user's custom binding. "Type Digit 0–9 on Ring" takes the next
 free block `0x1815`–`0x181E`; `0x180B`–`0x1814` stay spent, and the spent-values comment in
 `editor_command_id.h` (which credits the end statement to `Insert`) is rewritten. The naming
-expert checks the three names before they ship. `Alt`+numpad digit never reaches the editor on
-Windows (Alt codes, `keyboard-input.md`), which the decoding paragraph records; AltGr+digit does
+expert checks the three names before they ship. `Alt`+numpad digit reaches the editor as the same
+top-row chord, and the Alt code composed on the release is filtered (`keyboard-input.md`); AltGr+digit does
 reach it as `Alt`+digit on layouts where AltGr types `{`, `[`, `]`, `}`, `²` or `³`, blocked while
 a text field is being edited and otherwise a `watch-items.md` entry with a reporting trigger.
 
