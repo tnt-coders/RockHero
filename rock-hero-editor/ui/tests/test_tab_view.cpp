@@ -782,6 +782,83 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
+// THE REFUSAL FLASH rings a refused head in the theme's red, lit at the keystroke, and a new
+// projection drops it, since its indices name other notes. Probed on the band the selection test
+// reads. The stroke is antialiased and its level falls with time, so the probe asks only that the
+// band gained red, which holds at any level above zero — a slow runner cannot flake it.
+TEST_CASE("TabView flashes a refused head red until the projection changes", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    setFixtureState(view);
+    view.setVisibleContentLeft(180);
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image.getPixelAt(2, 110);
+    };
+    const juce::Colour plain = render();
+
+    view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+    CHECK(render().getRed() > plain.getRed());
+
+    setFixtureState(view);
+    CHECK(render() == plain);
+}
+
+// A refusal reported again while a flash runs joins it as a UNION: the ring is stroked once
+// whatever the report count, so a held key's repeats cannot stack into solid red and lose the
+// pulse. Asked over the whole ring's box rather than one pixel: at the keystroke the level is
+// nearly full, where only the stroke's antialiased edge pixels show a second stroke, and those are
+// the ones a region sum catches.
+TEST_CASE("TabView strokes a refused head once however often it is reported", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const auto render_after = [](const int reports, const juce::Image& image) {
+        TabView view{};
+        view.setBounds(0, 0, 200, 120);
+        view.setVisibleTimeline(
+            common::core::TimeRange{
+                .start = common::core::TimePosition{},
+                .end = common::core::TimePosition{20.0},
+            });
+        setFixtureState(view);
+        view.setVisibleContentLeft(180);
+        for (int report = 0; report < reports; ++report)
+        {
+            view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+        }
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+    };
+    const juce::Image once{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    render_after(1, once);
+    const juce::Image many{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    render_after(15, many);
+    // The head sits at x = 10, centre y = 110; its ring lies inside this box.
+    int red_difference = 0;
+    for (int y = 100; y < 120; ++y)
+    {
+        for (int x = 0; x < 20; ++x)
+        {
+            red_difference += std::abs(
+                static_cast<int>(many.getPixelAt(x, y).getRed()) -
+                static_cast<int>(once.getPixelAt(x, y).getRed()));
+        }
+    }
+    // A union renders as one stroke, up to the level's drift over the milliseconds between the
+    // two renders; stacked strokes saturate every antialiased edge pixel of the ring.
+    CHECK(red_difference <= 40);
+}
+
 // The reveal, which is the WHOLE-LANE arm of the drawn-extent pick: while it is held every visible
 // note draws to its RING end with nothing selected, so a note the presentation rules left
 // tail-less grows a real tail — notation, not an annotation over it. Probed mid-tail on its own

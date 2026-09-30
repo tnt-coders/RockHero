@@ -17,7 +17,7 @@ One verb, one window, one law for every value: a selection already carrying the 
 every note clears it, anything else sets it on all of them (the uniform-scope law), each press is
 one compound undo entry, and a second press inside the toggle window reverses the first exactly.
 Which notes can take the technique is the chart rule authority's to say, never this enum's: the
-verb asks it per note and skips the rest.
+verb asks it per note and names the rest as refused.
 
 `Legato` runs under the same verb and window with its own planning law — the connection resolver
 decides eligibility, the assist grows a predecessor's tail, and a press that would set nothing

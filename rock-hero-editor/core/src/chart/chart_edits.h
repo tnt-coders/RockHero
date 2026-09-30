@@ -812,8 +812,8 @@ nothing else.
 binary-search this precondition).
 \param attack Attack every keyed note receives.
 \param label User-visible undo label.
-\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
-        Invalid when the gate refuses the result.
+\return The plan; NoChange when nothing changes (an ineligible note is named in `refused`
+        and the plan covers the rest), Invalid when the gate refuses the result.
 */
 [[nodiscard]] ChartSelectionPlan planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -888,7 +888,7 @@ One planner for every such verb because they are the same edit over different fi
 independent properties of a note, so a note may end up carrying any combination the rules allow.
 
 Eligibility is asked of the per-note rule authority rather than restated, so a mixed selection
-applies to the notes that can take the flag and silently skips the rest — and each flag inherits
+applies to the notes that can take the flag and names the rest as refused — and each flag inherits
 its OWN rules that way, which are not the same rules. `dead` is refused wherever a technique needs
 the pitch it removes (a bend, vibrato, a pinch's squeal); `tremolo` is refused on a tap harmonic,
 whose damping finger leaves the string so nothing holds the node under re-picking. An on-neck
@@ -903,8 +903,8 @@ binary-search this precondition).
 \param which Which mute the write targets.
 \param value Value that mute receives.
 \param label User-visible undo label.
-\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
-        Invalid when the gate refuses the result.
+\return The plan; NoChange when nothing changes (an ineligible note is named in `refused`
+        and the plan covers the rest), Invalid when the gate refuses the result.
 */
 [[nodiscard]] ChartSelectionPlan planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -931,8 +931,8 @@ refuses this" as a second fact maintained by hand.
 binary-search this precondition).
 \param value Emphasis every keyed note receives.
 \param label User-visible undo label.
-\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
-        Invalid when the gate refuses the result.
+\return The plan; NoChange when nothing changes (an ineligible note is named in `refused`
+        and the plan covers the rest), Invalid when the gate refuses the result.
 */
 [[nodiscard]] ChartSelectionPlan planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -1020,7 +1020,7 @@ preselects, so the two ways of pressing `H` agree.
 binary-search this precondition).
 \param chosen_partial Partial the charter chose, or absent for the lowest partial.
 \param label User-visible undo label.
-\return The plan; NoChange when every note skipped, Invalid when the gate refuses the result.
+\return The plan; NoChange when every note was refused, Invalid when the gate refuses the result.
 */
 [[nodiscard]] ChartSelectionPlan planSetHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -1267,7 +1267,7 @@ covered slot starts a vibrato mid-ring.
        not, sorted ascending, same precondition.
 \param set Width written at every anchor; `None` takes it off.
 \param label User-visible undo label.
-\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
+\return The plan; NoChange when nothing changes (an ineligible note is named in `refused`, and
         a redundant statement is a no-op), Invalid when the gate refuses the result.
 */
 [[nodiscard]] ChartSelectionPlan planSetVibrato(

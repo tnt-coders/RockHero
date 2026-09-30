@@ -104,16 +104,12 @@ and an arrangement in a chosen tuning.
 The verbs exist; what is missing is the editor telling the charter what it did, two
 unenforced rulings, and a set of defects on supported material.
 
-- **Build the refusal flash** (task #278; design record `refusal-flash.md`). This is the single
-  prerequisite under everything else in this phase. The user ruled the surface on 2026-08-28: the
+- **The refusal flash — BUILT 2026-09-30** (task #278; design record `refusal-flash.md`). The
   selected elements a verb refused glow red a couple of times and stay unchanged, and the reason
-  goes to the log — NOT a status line or toast, which is the proposal it replaced and the wording
-  this entry carried until the ruling was recovered on 2026-09-21. `IEditorView::showNotice` is the
-  modal load-time notice, not this. Three reports wait on it, and only the first exists in code:
-  the legato verb's skip (`ChartLegatoPlan`, which already returns the refused notes with their
-  reasons, `aa9b9491`, unwired), the harmonic picker's skip, and the mixed-validity report for
-  technique and keyframe edits (`chart-span-and-selection-model.md` §9a). Until it lands, `L` on
-  an ineligible selection is a dead key.
+  goes to the log (user ruling, 2026-08-28). All three waiting reports are wired: the legato
+  verb's refusals, the harmonic picker's, and the mixed-validity report for technique and keyframe
+  edits, through one per-note result type (`ChartSelectionPlan`). What remains is its sighting
+  (F1 pulses and timing, F2 geometry) and the open rows F8–F10 in its record.
 - **The slide tail lock — BUILT, and closed 2026-09-21** (W6, roadmap 40-Q5). This entry said a
   shortened sustain silently dropped the keyframes past its new end; that was already untrue when
   it was written. `planAdjustSustain` floors a shrinking ring at its last keyframe (`83f2afcd`,
@@ -508,8 +504,12 @@ standing registries" sentence in `CLAUDE.md`, so it waits for the user's word.
    span-law fixes (`902da3de`, `9d095609`, `25640d82`), the pick-slide turnarounds (`eb5aaa3c`).
    Ring-ends phases 1 and 2 were sighted and signed 2026-09-24; the 1b item that waited on bends
    was signed 2026-09-28.
-3. **Current.** Land the ungated work while gates are signed: the refusal flash
-   (Phase 2), plan 60 Phase 0, plan 41 Phases 1–2, tuning / capo (plan 40 Phase 10). Two small rulings are cheapest
+3. **Current.** The refusal flash (Phase 2) was built 2026-09-30. Next, by the user's choice the
+   same day: plan 60, first revised against the 2026-09-25..29 rulings (the stopgap's editable
+   placements and authored end fret, derived-only held stops, a tap at a claimed stop being legal),
+   then its G60 session. Plan 60 Phase 0 is mostly met by the stopgap; the reader still accepts an
+   unsorted `fhps` stream. Plan 41 Phases 1–2 and tuning / capo (plan 40 Phase 10) stay ungated
+   beside it. Two small rulings are cheapest
    signed before Phase 2's verbs are wired — both RULED 2026-09-25: #277 (a tap at a claimed
    stop is legal; the derivation split is a Phase 2 build) and the split product (struck, built).
 4. Schedule the signing sessions in the order their phases arrive: G41-TS closes at its own

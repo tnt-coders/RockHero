@@ -92,6 +92,18 @@ public:
     virtual void showChartBendPicker(ChartBendPicker picker) = 0;
 
     /*!
+    \brief Asks the view to flash the elements a chart edit refused: they glow red a couple of times
+    and stay as they were (`docs/plans/in-progress/refusal-flash.md`).
+
+    A one-shot effect rather than view state: the pulse has a lifetime of its own, and a refusal
+    changes nothing a re-derivation could compare. Why the edit was refused goes to the log, never
+    to the view. With no view attached the flash is dropped.
+
+    \param flash The refused elements, in the current tab projection's indices.
+    */
+    virtual void flashChartRefusal(ChartRefusalFlash flash) = 0;
+
+    /*!
     \brief Runs a callback after the busy overlay has painted once.
 
     Message-thread-only operations that would otherwise block repaint can use this fence after

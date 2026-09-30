@@ -377,7 +377,7 @@ TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
 
 // The eligible-subset skip reaching the user: a dead note sounds no pitch, so X over a selection
 // holding a vibrato note mutes what it can and leaves that note exactly as it was, rather than
-// refusing the whole edit for every note in the selection.
+// refusing the whole edit for every note in the selection — and the note it left flashes, alone.
 TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][chart]")
 {
     FakeTransport transport;
@@ -409,6 +409,8 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     CHECK_FALSE(chart->notes[0].dead);
     CHECK(common::core::hasVibrato(chart->notes[0].vibrato));
     CHECK(chart->notes[1].dead);
+    REQUIRE(view.refusal_flashes.size() == 1);
+    CHECK(view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
 }
 
 // The two vibrato verbs are toggles of their OWN tier on one width axis, which is the whole of

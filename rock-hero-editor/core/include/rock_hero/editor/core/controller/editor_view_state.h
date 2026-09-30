@@ -890,6 +890,21 @@ struct ChartBendPicker
 };
 
 /*!
+\brief The elements a refused chart edit turned down, for the view to flash red.
+
+In the same projection indices the lane draws the selection by (\ref ChartEditViewState), and valid
+for the same \ref EditorViewState::tab instance they were derived with.
+*/
+struct ChartRefusalFlash
+{
+    /*! \brief Ascending indices of the refused notes in the tab projection's note order. */
+    std::vector<std::size_t> notes{};
+
+    /*! \brief The refused keyframes as projected positions. */
+    std::vector<ChartKeyframeRef> keyframes{};
+};
+
+/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the

@@ -6,6 +6,7 @@
 #include "shared/editor_controller_logging.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -19,6 +20,7 @@
 #include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/overloaded.h>
@@ -76,6 +78,67 @@ const common::core::ChartViewState* EditorController::Impl::currentTabProjection
 {
     refreshChartProjections();
     return m_tab_view_state.get();
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+void EditorController::Impl::flashChartElements(
+    const std::span<const ChartSlotKey> notes, const std::span<const ChartKeyframeKey> keyframes)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (m_view == nullptr || arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    const std::vector<common::core::ChartNote>& chart_notes = arrangement->chart->notes;
+    ChartRefusalFlash flash{.notes = slotIndicesForKeys(chart_notes, notes), .keyframes = {}};
+    if (m_tab_view_state != nullptr)
+    {
+        flash.keyframes = keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, keyframes);
+    }
+    if (!flash.notes.empty() || !flash.keyframes.empty())
+    {
+        m_view->flashChartRefusal(std::move(flash));
+    }
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+void EditorController::Impl::reportChartPlanRefusal(const ChartPlanRefusal& refusal)
+{
+    const auto* const invalid = std::get_if<ChartPlanInvalid>(&refusal);
+    if (invalid == nullptr)
+    {
+        return;
+    }
+    RH_LOG_WARNING(
+        "editor.chart",
+        "Refused chart edit selected={} detail={:?}",
+        chartSelection().keys().size(),
+        invalid->reason);
+    flashChartElements(chartSelection().notes(), chartSelection().keyframes());
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The refused notes arrive in the
+// planner's walk order, which is the chart's slot order the index resolution merges against.
+void EditorController::Impl::reportChartRefusedNotes(
+    const std::span<const ChartRefusedNote> refused)
+{
+    if (refused.empty())
+    {
+        return;
+    }
+    std::vector<ChartSlotKey> notes;
+    notes.reserve(refused.size());
+    for (const ChartRefusedNote& note : refused)
+    {
+        RH_LOG_WARNING(
+            "editor.chart",
+            "Refused note position={} string={} detail={:?}",
+            common::core::formatGridPositionToken(note.note.position),
+            note.note.string,
+            note.reason);
+        notes.push_back(note.note);
+    }
+    flashChartElements(notes, {});
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -820,23 +883,27 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     return std::pair{position, string};
 }
 
-// Rationale lives on the declaration in editor_controller_impl.h.
+// Rationale lives on the declaration in editor_controller_impl.h. The notes are reported after the
+// apply, so the flash is addressed in the projection the apply published.
 bool EditorController::Impl::applyChartEditPlan(
     ChartSelectionPlan planned, std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
-    return applyChartEditPlan(std::move(planned.plan), std::move(select_exactly));
+    const bool applied = applyChartEditPlan(std::move(planned.plan), std::move(select_exactly));
+    reportChartRefusedNotes(planned.refused);
+    return applied;
 }
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
-// shape; the refusal kind is not consumed here — a caller that wants to distinguish NoChange from
-// Invalid branches before handing the plan over.
+// shape, and is where a refused plan is reported: a caller that wants to distinguish NoChange from
+// Invalid for its own behavior still branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
     std::expected<ChartEditPlan, ChartPlanRefusal> plan,
     std::optional<std::vector<ChartSelectionKey>> select_exactly)
 {
     if (!plan.has_value())
     {
+        reportChartPlanRefusal(plan.error());
         return false;
     }
 
@@ -2819,9 +2886,29 @@ void EditorController::Impl::insertAtChartCaret(const ChartEntryPlane plane)
     {
         return;
     }
+    const ChartSlotKey site = *slot;
     const int fret =
-        chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, *slot);
-    settleChartFretEntry(plannedChartFretEntry(fret, std::move(*target), m_now_milliseconds()));
+        chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, site);
+    // What a refusal flashes, since no red box shows one here: the ring a cut or a point would
+    // divide, else the slot itself, which flashes nothing when no note stands there.
+    const ChartSlotKey refused_site = std::visit(
+        common::core::Overloaded{
+            [](const ChartFretEntry::Cut& cut) { return cut.note; },
+            [](const ChartFretEntry::CreateKeyframe& create) { return create.note; },
+            [site](const auto&) { return site; },
+        },
+        *target);
+    ChartFretEntry entry = plannedChartFretEntry(fret, std::move(*target), m_now_milliseconds());
+    if (!entry.plan.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
+        {
+            reportChartRefusedNotes(
+                std::array{ChartRefusedNote{.note = refused_site, .reason = invalid->reason}});
+            return;
+        }
+    }
+    settleChartFretEntry(std::move(entry));
 }
 
 // `Insert`: the note plane at the fret in force — a head on an empty slot or at a ring's end, the
@@ -3366,18 +3453,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
     {
         return;
     }
-    std::optional<ChartHarmonicNodePicker> picker = chartHarmonicNodePicker();
-    if (!picker.has_value())
-    {
-        // No member's label names a node — open strings, pinches — so nothing is on offer. No
-        // carrier lands here: a touching note's label is the fret its node lies at, which names
-        // that node among its rows (the candidate window is the rounding window), and a pressed
-        // note carrying an imported artificial node keeps the rows its pressed fret names.
-        return;
-    }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const std::vector<ChartSlotKey> keys = chartSelection().notes();
+    std::optional<ChartHarmonicNodePicker> picker = chartHarmonicNodePicker();
+    if (!picker.has_value())
+    {
+        // No member's label names a node — open strings, pinches — so nothing is on offer, and
+        // the choiceless plan names each of them as refused. No carrier lands here: a touching
+        // note's label is the fret its node lies at, which names that node among its rows (the
+        // candidate window is the rounding window), and a pressed note carrying an imported
+        // artificial node keeps the rows its pressed fret names.
+        reportChartRefusedNotes(
+            planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").refused);
+        return;
+    }
     // Bound once above the loop, the shape this file uses wherever an optional's guarantee has to
     // survive a loop the checker cannot see through.
     ChartHarmonicNodePicker& rows = *picker;
@@ -3466,18 +3556,23 @@ void EditorController::Impl::commitChartHarmonic(const std::optional<int> partia
         live_verb != nullptr && std::holds_alternative<ChartHarmonicGesture>(*live_verb);
     // Bound before the step so the replan reads the keys the proof was made against.
     const std::vector<ChartSlotKey> keys = chartSelection().notes();
+    // The notes the choice refused, reported once the step has published the chart they are named
+    // against.
+    std::vector<ChartRefusedNote> refused;
     static_cast<void>(commitChartGestureStep(
         continues,
-        [this, &keys, partial](const common::core::Chart& pre_gesture) {
+        [this, &keys, partial, &refused](const common::core::Chart& pre_gesture) {
             ChartSelectionPlan planned =
                 partial.has_value()
                     ? planSetHarmonic(
                           pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
                     : planClearHarmonic(
                           pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
+            refused = std::move(planned.refused);
             return std::move(planned.plan);
         },
         ChartHarmonicGesture{}));
+    reportChartRefusedNotes(refused);
 }
 
 namespace
@@ -3588,12 +3683,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartBend&
 // The one technique toggle verb. Uniform scope, one compound undo entry: a selection where every
 // note already carries the technique clears it, anything else sets it on all of them; the planner
 // owns eligibility, so a selection the technique is only partly legal on applies to the notes that
-// can take it rather than refusing as a whole. Both directions arm the toggle window, because
-// either press is what a second press must be able to reverse exactly — which for a scrape means
-// the sustain the default grew and the glide a conversion consumed, and for an emphasis the ghost
-// an accent overwrote, neither of which the plain apply-or-clear law could put back. Every
-// technique is one row of chartTechniqueLaw; the legato claim shares the window and the contract
-// but plans through the resolver, so it branches to its own law once the shared prologue has run.
+// can take it rather than refusing as a whole, and flashes the ones it could not. Both directions
+// arm the toggle window, because either press is what a second press must be able to reverse
+// exactly — which for a scrape means the sustain the default grew and the glide a conversion
+// consumed, and for an emphasis the ghost an accent overwrote, neither of which the plain
+// apply-or-clear law could put back. Every technique is one row of chartTechniqueLaw; the legato
+// claim shares the window and the contract but plans through the resolver, so it branches to its
+// own law once the shared prologue has run.
 void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTechnique& action)
 {
     const ChartTechnique technique = action.technique;
@@ -3698,6 +3794,9 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
         }
         return;
     }
+    // Nothing claimed and nothing to clear: the refused notes are why the key did nothing. Their
+    // refusals to SET are not reported by a press that cleared, which never asked them to be set.
+    reportChartRefusedNotes(planned.refused);
 }
 
 // The junction toggle (`Shift+L`): at every selected junction the press moves it to its other
@@ -3709,9 +3808,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
 // No verb window is armed, and none is needed: the toggle rides the SELECTION instead. Each press
 // leaves exactly what it made selected — a split's new heads, a join's new point — so pressing
 // again reverses it for as long as the user leaves that selection alone, with no window to expire
-// and no second press to arm. Refusals stay silent as the disconnect's always did (W5's feedback
-// channel is deferred): the press simply does nothing, which is what an operand that cannot be
-// joined reads as.
+// and no second press to arm. A refusal flashes the selection it refused.
 void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJunction&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3726,6 +3823,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
         chartSelection().keyframes());
     if (!toggled.has_value())
     {
+        reportChartPlanRefusal(toggled.error());
         return;
     }
     // The planner's own selection, never the apply's default follow: only the walk that made them

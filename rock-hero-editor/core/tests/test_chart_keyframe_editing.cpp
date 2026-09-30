@@ -1986,7 +1986,8 @@ TEST_CASE("Insert at the caret states a note at the fret in force", "[core][char
 }
 
 // A SCRAPE has no junction to divide, so the cut refuses: a bare digit shows it through the pending
-// entry's red box at the cut's slot, while `Insert`, settled in its own keystroke, says nothing.
+// entry's red box at the cut's slot, while `Insert`, settled in its own keystroke with nothing
+// typed to box, flashes the scrape it would have divided.
 TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
 {
     common::core::Chart scraping;
@@ -2022,11 +2023,23 @@ TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
         }
     }
 
-    SECTION("Insert is silent")
+    SECTION("Insert flashes the scrape")
     {
         fixture.controller.onInsertAtCaretRequested();
         CHECK(currentChart(fixture.controller) == original);
         CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+        REQUIRE(fixture.view.refusal_flashes.size() == 1);
+        CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
+    }
+
+    SECTION("the junction toggle on the scrape's keyframe flashes that keyframe")
+    {
+        click(fixture.controller, g_junction_x, g_string_3_y);
+        fixture.controller.onChartJunctionToggleRequested();
+        CHECK(currentChart(fixture.controller) == original);
+        REQUIRE(fixture.view.refusal_flashes.size() == 1);
+        CHECK(fixture.view.refusal_flashes[0].notes.empty());
+        CHECK(fixture.view.refusal_flashes[0].keyframes.size() == 1);
     }
 }
 

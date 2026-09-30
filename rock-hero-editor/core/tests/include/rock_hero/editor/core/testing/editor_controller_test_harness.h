@@ -123,6 +123,12 @@ public:
         shown_bend_pickers.push_back(std::move(picker));
     }
 
+    // Records each refusal flash, in request order.
+    void flashChartRefusal(ChartRefusalFlash flash) override
+    {
+        refusal_flashes.push_back(std::move(flash));
+    }
+
     // Runs or stores a busy-overlay paint fence callback for controller tests.
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
@@ -194,6 +200,7 @@ public:
     std::vector<ShownNotice> shown_notices{};
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
+    std::vector<ChartRefusalFlash> refusal_flashes{};
 
     // Durable state that was current when each one-shot error was shown.
     std::vector<std::optional<EditorViewState>> states_seen_at_errors{};

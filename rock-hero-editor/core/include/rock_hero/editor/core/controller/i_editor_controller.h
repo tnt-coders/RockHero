@@ -435,11 +435,12 @@ public:
     One verb for every technique (\ref ChartTechnique), under one law: uniform scope and one
     compound undo entry — a selection already carrying the technique on every note clears it,
     anything else sets it on all of them — with eligibility the chart rule authority's per note, so
-    a mixed selection applies to the notes that can take the technique and skips the rest (a dead
-    note refuses the pitch modulations, a tap harmonic refuses tremolo, a scrape's saved form
-    records no mute). The emphasis pair writes one AXIS: accenting a ghosted note replaces the
-    ghost. The pick slide keeps each note's fret as the scrape's start and grows the default path;
-    clearing it lets the overridden techniques resurface. While the selection and undo history
+    a mixed selection applies to the notes that can take the technique and flashes the ones that
+    refuse it (a dead note refuses the pitch modulations, a tap harmonic refuses tremolo), while a
+    write the saved form would not record, such as a scrape's mute, is an honest no-op. The
+    emphasis pair writes one AXIS: accenting a ghosted note replaces the ghost. The pick slide
+    keeps each note's fret as the scrape's start and grows the default path; clearing it lets the
+    overridden techniques resurface. While the selection and undo history
     still prove the previous press was this verb's own entry, a second press of the SAME technique
     reverses that
     entry exactly — grown tails included — and leaves no history entry behind: a true on/off

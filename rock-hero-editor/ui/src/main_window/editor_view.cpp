@@ -1413,6 +1413,12 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
         });
 }
 
+// The refusal flash belongs to the lane that draws the refused elements.
+void EditorView::flashChartRefusal(core::ChartRefusalFlash flash)
+{
+    m_tab_view.flashRefusal(std::move(flash));
+}
+
 // The bend picker the bend verb asks for: every amount from rest to three whole steps, spelled as
 // the lane's bend chips spell them (tabBendAmountText), so a row and the chip it produces read the
 // same. Anchored at the instant the question is about — a head's onset, or the point along a ring,

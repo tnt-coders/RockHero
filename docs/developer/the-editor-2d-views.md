@@ -224,6 +224,14 @@ on says nothing, so it is silent authoring state — no undo entry, gone when th
 never written. A fret-stating point inside an OPEN STRING's tail is refused by chart law
 (`OpenStringSlide`) and paints the red pending box. The keymap side is \ref guide_keyboard.
 
+**A refused key flashes what it refused.** Where a key does nothing and the screen would not say
+why, the elements it turned down wear the selection ring in the theme's red, pulsing twice, and
+the reason goes to the log: the whole selection for a refused plan, and only the named notes for a
+per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` in
+`chart_handlers.cpp`, drawn by `TabView::flashRefusal`). A visible bound, such as a move stopping at
+the next head, is not a refusal and flashes nothing. The design record is
+`docs/plans/in-progress/refusal-flash.md`.
+
 **The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE
 walk**, `splitNoteIntoProducts` — the split at a selected point, the cut at the caret with a
 struck head in place of the severed one. Under the split the point becomes the new

@@ -133,23 +133,25 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         CHECK(note_attack(2) == common::core::NoteAttack::LeftTap);
     }
 
-    SECTION("a press that only skipped is silent, like every other verb that applies nothing")
+    SECTION("a press that only refused flashes the refused note, never an error box")
     {
         // Nothing precedes the open string on its own string, so this press can neither claim nor
-        // clear. It stays SILENT: selecting a phrase's first note and pressing H is the commonest
-        // press there is, and the only reporting seam the view offers is a modal error box. The
-        // count and the dominant reason still travel on planSetLegato's own return (pinned in
-        // test_chart_edits.cpp) and surface once a non-modal refusal channel exists.
+        // clear. The key must not read as dead: the refused note flashes, and the reason goes to
+        // the log. The modal error box stays for failures, which this is not.
         click(controller, 40.0f, 180.0f);
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
         CHECK(view.shown_errors.empty());
+        REQUIRE(view.refusal_flashes.size() == 1);
+        CHECK(view.refusal_flashes[0].notes == std::vector<std::size_t>{1});
 
-        // Nor does a press that applies report anything: the marks it moved are the feedback.
+        // A press that applies to everything it names flashes nothing: the marks it moved are the
+        // feedback.
         click(controller, 80.0f, 220.0f);
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
         CHECK(view.shown_errors.empty());
+        CHECK(view.refusal_flashes.size() == 1);
     }
 }
 

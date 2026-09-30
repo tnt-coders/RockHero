@@ -1,15 +1,15 @@
 # Refusal flash (task #278)
 
-Status: DIRECTION RULED, realization open. Written 2026-09-21 from a recovered discussion — see
-"Provenance" — because the ruling had survived in one conversation only, and task #278 had gone on
-describing the design the ruling replaced.
+Status: BUILT 2026-09-30, awaiting its sighting (F1, F2). Written 2026-09-21 from a recovered
+discussion — see "Provenance" — because the ruling had survived in one conversation only, and task
+#278 had gone on describing the design the ruling replaced.
 
 When an edit key is refused, the editor says so **on the thing that refused it**: the selected
 elements the verb turned down glow red a couple of times and stay as they were. Why it was refused
 goes to the log. There is no status line, no toast and no caret callout — that was the proposal on
 the table, and the flash was chosen instead of it.
 
-Every claim about current code below was verified on 2026-09-21. Re-verify before acting on one.
+Every claim about current code below was verified on 2026-09-21 and the Shape section on 2026-09-30. Re-verify before acting on one.
 
 ## What was ruled
 
@@ -35,7 +35,7 @@ So, ruled:
 - **One mechanism for every verb.** No per-verb feedback design.
 
 Accepted in the same exchange without objection, but the assistant's words and not the user's: the
-flash fires on a real refusal only, never on an honest no-op (`ChartPlanRefusal::Invalid`, never
+flash fires on a real refusal only, never on an honest no-op (`ChartPlanInvalid`, never
 `NoChange`); a fading glow modulates luminance, so the signal does not rest on hue alone; and if
 sighting ever shows charters not finding the why, the log line is the thing to surface — not a
 redesign.
@@ -59,18 +59,15 @@ token, behaviour under key repeat, and any 3D treatment.
 Task #278 read "the one non-modal notice channel (status bar / toast)" and the release plan called
 four payloads "built and waiting" for it. Neither survives:
 
-- **Only one of the four payloads exists.** `ChartLegatoPlan{plan, refused}`
-  (`rock-hero-editor/core/src/chart/chart_edits.h`) is produced and read nowhere outside tests. The
-  harmonic picker's skip reason is three bare `return`s in `chart_handlers.cpp`; the slide-tail
-  clip, `clipPayloadsToSustain`, now returns whether it lost an authored statement, carried per
-  truncation as `TailTruncation`, and `finalizePlan` refuses on it (`df5ef1ab`) — a refusal with
-  no flash yet; the mixed-validity count is doc-only.
-- **The count-plus-dominant-reason shape was the wrong shape for a flash — DONE for
-  `ChartLegatoPlan` (`aa9b9491`).** A flash needs the refused elements' identities. `planSetLegato`
-  walked each note and knew each one's reason, then folded that into a tally and a single dominant
-  reason, discarding what the flash and the log both need. It now returns the refused notes with
-  their reasons: the tally array and the dominant-reason fold are gone, and the count is the
-  list's size. One datum, stored once.
+- **The payloads are one type now.** Every per-note verb — legato and every technique write —
+  returns `ChartSelectionPlan{plan, refused}` (`rock-hero-editor/core/src/chart/chart_edits.h`):
+  the whole-plan answer beside each note it could not write, with its reason. It replaced
+  `ChartLegatoPlan` and its skip enum. A whole-plan refusal carries its reason too
+  (`ChartPlanInvalid::reason`, the rule's own message where the gate refused), so the slide-tail
+  clip's refusal and every other gate refusal reach the log with their words.
+- **The count-plus-dominant-reason shape was the wrong shape for a flash.** A flash needs the
+  refused elements' identities, so the planner returns them and the count is the list's size. One
+  datum, stored once.
 - **§9a's "applied to 7 of 8" sentence has no screen to live on** and needs none: the seven changed
   and the one glowed. "Never silent partial application" is met by the flash. The sentence becomes
   the log line.
@@ -78,55 +75,60 @@ four payloads "built and waiting" for it. Neither survives:
   note; relational refusals belong to a pair). The ruling already covers it: "every selection where
   the action was refused" — when the whole plan is refused, the whole selection flashes.
 
-## Shape
+## Shape, as built (2026-09-30)
 
-Settled by the ruling and the code as it stands; small enough to build in one pass.
+1. **Core: refusals carry reasons and identities.** `ChartPlanRefusal` is
+   `variant<ChartPlanNoChange, ChartPlanInvalid>`, and only the refusal carries a reason. The
+   per-note verbs return `ChartSelectionPlan`, whose `refused` names each note they could not
+   write. In `planNoteWrite` a verb's write either refuses a note with a reason (the harmonic's
+   "no node is reachable") or leaves the no-op test to find "already so", so a no-op is never a
+   refusal; a note the per-note rules refuse is named with the rule's message.
+2. **Controller: one report path.** `reportChartPlanRefusal` logs a whole-plan refusal and flashes
+   the selection; `reportChartRefusedNotes` logs each refused note and flashes those; both reach the
+   view through `flashChartElements`, which resolves keys through the two authorities the
+   selection is published by. The funnel `applyChartEditPlan` reports, and its per-note overload
+   reports the notes AFTER applying the rest, because the flash is addressed in the projection the
+   apply published. The junction toggle, `Insert`'s refused cut (the ring's note, since nothing was
+   typed to box) and the harmonic picker's "nothing on offer" report through the same two.
+3. **Port: a one-shot effect**, `IEditorView::flashChartRefusal(ChartRefusalFlash)`, not view state.
+   The test fake records each flash, which is what controller tests assert.
+4. **View: the tab lane.** The selection ring, stroked again in `EditorTheme::invalid` at the
+   flash's level; the lane's one frame attachment steps it beside the presence ease, and a new
+   projection drops it. The level is `cos²(π·(pulses − ½)·t/T)`: lit at the keystroke, dark between
+   pulses and at the end.
+5. **The log.** The Quill-backed `RH_LOG_*` facade, at `%APPDATA%/Rock Hero/Rock Hero Editor.log`.
+   The app still has no way to open it (F5): the reason is developer-visible until an "Open Log"
+   entry exists, which is small and the user's to call.
 
-1. **Core: refusals carry identities.** A verb's outcome names the selected elements it turned
-   down, each with its reason. `ChartLegatoPlan` has that shape (done, `aa9b9491`); the other
-   per-note verbs (`planSetAttack`, `planSetHarmonic`, `planSetNoteFlag`, the keyframe verbs)
-   follow the same return as they are wired. A whole-plan `Invalid` refuses every selected element.
-2. **Controller: one report path.** One function takes a refusal — elements and reasons — writes
-   the log lines and asks the view to flash. Every verb head calls it; none formats its own
-   message.
-3. **Port: a one-shot effect**, beside `showError` and the node picker on `IEditorView`, not view
-   state. The pulse is presentation with a lifetime of its own; putting it in `EditorViewState`
-   would make every re-derivation ask whether it is the same flash. The test fake records the
-   flashed elements, which is what controller tests assert.
-4. **View: one pulse driver in the tab lane** that draws the glow over the named elements and
-   retires itself. Red is `EditorTheme`'s existing `invalid` role — the role W3's pending entry
-   already uses for "this will not apply". The driver must respect the VBlank-runs-before-paint
-   ordering that has frozen memoised values before.
-5. **The log.** Verified 2026-09-21: the editor has a durable one — the Quill-backed
-   `RH_LOG_*` facade (`rock_hero/common/core/shared/logger.h`), rotating at
-   `%APPDATA%/Rock Hero/Rock Hero Editor.log` — and NO way to open it from the app: the menu bar
-   is File / Edit / View, and the path reaches a charter only inside the load-repair notice. So
-   under F5 the reason is developer-visible until an "Open Log" entry exists. That entry is small
-   and is the user's to call.
-
-Follow `docs/developer/adding-an-editor-ui-view.md` Part B for the silent steps.
+**Deliberately silent:** the held-key gestures (move, resize) — their `Invalid` is mostly a visible
+bound, and the gesture step never hands a refused plan to the funnel; an honest `NoChange`; and a
+legato press that CLEARED, whose notes' refusals to set were never asked for.
 
 ## Open — the user's to rule
 
 | # | Question | Recommendation |
 |---|---|---|
-| F1 | Pulse count and timing | Sight two and three pulses at a few periods in the built editor; no number is worth guessing |
-| F2 | Drawn geometry: the selection ring turning red, or a glow around it | Sight both; the ring is the smaller build |
-| F3 | Key repeat — a refusal arriving while a flash is still running | Let the running flash finish; a held key then reads as one steady pulse train instead of a strobe. Much smaller since the bound ruling: the held-key gestures (resize, move) stop silently, so what repeats is a toggle verb |
+| F1 | Pulse count and timing | BUILT at two pulses over 0.6 s (`g_refusal_flash_pulses`, `g_refusal_flash_seconds` in `tab_view.cpp`); sight and tune |
+| F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, the smaller build; sight it |
+| ~~F3~~ | ~~Key repeat~~ | BUILT as recommended: a refusal arriving mid-flash joins the running one on its clock, so a held key reads as one pulse train |
+| F8 | The fret shift at the neck's edge (`ShiftChartFrets` below fret 0 or past the last) flashes the selection, while a move stopping at the edge is silent | Sight it: the fret on screen already says why, so under the bound ruling it may belong with the silent bounds |
+| F9 | The move gesture's `Invalid` carries both visible bounds (neck edge, occupied slot) and a real refusal (a landing that would strand a point), so the gesture stays silent for both | If a real move refusal needs its flash, a bound should plan `NoChange` as the sustain clamp does, leaving `Invalid` for refusals only |
+| F10 | A keyframe a per-note rule refuses flashes its NOTE's head, since the rule authority names notes, not keyframes | Sight it; naming the keyframe needs the rule authority to name one |
+| F11 | A legato press that CLEARS flashes nothing, even where some selected notes could not have been claimed | Built silent: the press cleared, which never asked those notes to be set; the ruling's "applies to seven, flashes the three" reads either way for a clear |
 | ~~F4~~ | ~~2D only?~~ | RULED 2026-09-21: yes, 2D only |
 | ~~F5~~ | ~~Reason to the log ONLY~~ | RULED 2026-09-21: yes, "for now" — the log line is the thing to surface if charters cannot find the why |
 | ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report |
 | ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
-**A second consumer, RULED 2026-09-21 (user): it flashes.** An `Alt` digit or `Alt+Insert` at a
-ring's exact end naming the fret already in force plants a SILENT end statement: it says nothing,
-survives in focus under the keyframe commit law and dissolves when its note leaves focus
-(`dissolveSilentKeyframes`; the same-edit `dissolveSilentRelease` this ruling named is gone,
-2026-09-22). The key does nothing lasting for a reason the screen does not show, which is the
-flash's own line, so the note flashes. A third consumer since 2026-09-23: `Insert` cutting a
-scrape, which refuses with no box of its own. It also corrects the rider above: the trigger is not `Invalid` versus `NoChange` but
-whether the screen already explains the nothing — a toggle that finds its claim already set is an
-honest no-op, this press is a refusal that happens to plan as one.
+**A second consumer, RULED 2026-09-21 (user), STRUCK 2026-09-30 (user).** An `Alt` digit or
+`Alt+Insert` at a ring's exact end naming the fret already in force was to flash, because it
+planted a statement that said nothing. Since `09d34cf6` (2026-09-22) that point draws its chip, so
+it can be seen, selected, retyped and deleted, and `planInsertKeyframe` applies it: the screen now
+shows what the key did, which is the flash's own line for silence. A third consumer since
+2026-09-23, built: `Insert` cutting a scrape, which refuses with no box of its own.
+
+**Legato's "nothing earlier to connect to" flashes (user, 2026-09-30).** It is the commonest
+refused press, but a key that does nothing visible is the case the flash exists for.
 
 One unreconciled line from 2026-09-05 suggested the flash could "hint `Shift+S` as the verb they
 actually want" — on-screen text, which contradicts F5. It was never put to the user and is not part

@@ -64,6 +64,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -930,6 +931,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportNotice(const std::string& title, const std::string& message);
     void requestChartHarmonicNodePicker(ChartHarmonicNodePicker picker);
     void requestChartBendPicker(ChartBendPicker picker);
+    // THE REFUSAL REPORT (docs/plans/in-progress/refusal-flash.md): each reason goes to the log and
+    // the refused elements flash red. A whole plan refused flashes the selection; a NoChange is an
+    // honest no-op and reports nothing. Per-note refusals flash only the notes named. Called after
+    // any apply, because the flash is addressed in the projection the view is showing.
+    void reportChartPlanRefusal(const ChartPlanRefusal& refusal);
+    void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
+    // The flash's one path: keys to the lane's projection indices, through the two authorities
+    // resolvedChartEdit reads the selection by.
+    void flashChartElements(
+        std::span<const ChartSlotKey> notes, std::span<const ChartKeyframeKey> keyframes);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the

@@ -157,6 +157,9 @@ public:
     /*! \copydoc core::IEditorView::showChartBendPicker */
     void showChartBendPicker(core::ChartBendPicker picker) override;
 
+    /*! \copydoc core::IEditorView::flashChartRefusal */
+    void flashChartRefusal(core::ChartRefusalFlash flash) override;
+
     /*!
     \brief Runs a callback after the busy overlay paints.
     \param callback Callback to run after the overlay paint fence is crossed.

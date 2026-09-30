@@ -156,6 +156,19 @@ public:
     void setEditState(core::ChartEditViewState edit);
 
     /*!
+    \brief Flashes the elements a chart edit refused: their selection ring glows red a couple of
+    times, then the lane stands as it was.
+
+    A flash arriving while one runs joins it on the running clock, so a held key reads as one pulse
+    train rather than restarting it. It runs on the clock whether or not the lane is on screen, so
+    a lane shown late never plays it late, and a new projection drops it, since its indices name
+    other notes.
+
+    \param flash The refused elements, in the current projection's indices.
+    */
+    void flashRefusal(core::ChartRefusalFlash flash);
+
+    /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
 
     The lane-wide ground of the reveal (core::chartPresence carries the selection's and the
@@ -401,6 +414,12 @@ private:
     // (common::ui::TabNotePresence).
     [[nodiscard]] common::ui::TabNotePresence presence(std::size_t index) const;
 
+    // Retires the refusal flash once its pulses have run, and repaints while it runs.
+    void stepRefusalFlash();
+
+    // The refusal flash's glow now, in [0, 1]: lit at once, pulsing, dark at its end.
+    [[nodiscard]] double refusalFlashLevel() const;
+
     // The chart projection, shared with the controller; null without a chart. It is the whole of
     // the pointer path too: the controller hit-tests, selects and inserts against the projection
     // it published.
@@ -449,6 +468,16 @@ private:
     // When the ease last stepped, in milliseconds on JUCE's high-resolution counter.
     double m_presence_stepped_at_ms{0.0};
 
+    // The refusal flash while it runs: what glows — the union of every report it has joined, in
+    // arrival order — and when it began on the same counter. Its indices address m_tab, so a new
+    // projection drops it.
+    struct RefusalFlash
+    {
+        core::ChartRefusalFlash flash;
+        double started_ms{0.0};
+    };
+    std::optional<RefusalFlash> m_refusal{};
+
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
 
@@ -480,10 +509,13 @@ private:
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
 
-    // Steps the presence ease each display frame while it has work (stepPresenceEase). Last, so
-    // every member the step reads is constructed before the attachment can fire and destroyed
+    // Steps the presence ease and the refusal flash each display frame while they have work. Last,
+    // so every member the steps read is constructed before the attachment can fire and destroyed
     // after it.
-    juce::VBlankAttachment m_presence_vblank{this, [this] { stepPresenceEase(); }};
+    juce::VBlankAttachment m_frame_vblank{this, [this] {
+                                              stepPresenceEase();
+                                              stepRefusalFlash();
+                                          }};
 };
 
 } // namespace rock_hero::editor::ui
