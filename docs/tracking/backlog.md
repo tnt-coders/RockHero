@@ -1045,10 +1045,10 @@ written down.
   "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the
   enumeration omits four functions that DO carry the planner shape — `planInsertKeyframe`,
   `planSetHarmonic`, `planClearHarmonic` and `planClearPinchHarmonic` — while naming three that
-  return other plan types: `planSetLegato` (`ChartLegatoPlan`), `planSettleChart`
+  return other plan types: `planSetLegato` (`ChartSelectionPlan`), `planSettleChart`
   (`std::optional<ChartEditPlan>`) and `planToggleJunctions`
-  (`std::expected<ChartJunctionPlan, ChartPlanRefusal>`). Verified against
-  `rock-hero-editor/core/src/chart/chart_edits.h`: fourteen functions there return
+  (`std::expected<ChartJunctionPlan, ChartPlanRefusal>`). Since 2026-09-30 the eight per-note
+  technique verbs also return `ChartSelectionPlan` rather than
   `std::expected<ChartEditPlan, ChartPlanRefusal>`, so neither the count nor the membership is right
   under either reading. Pre-existing. Fix shape: decide what the guide means by "planner" (returns
   `std::expected<ChartEditPlan, ChartPlanRefusal>`, or any plan-producing function), then list by

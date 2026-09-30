@@ -2696,7 +2696,8 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2748,7 +2749,8 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
     };
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pinch, "Pinch Harmonic");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pinch, "Pinch Harmonic")
+            .plan;
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2780,7 +2782,8 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
     };
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2810,7 +2813,8 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2843,7 +2847,8 @@ TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[c
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2873,7 +2878,8 @@ TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto enter =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(enter.has_value());
     if (!enter.has_value())
     {
@@ -2882,7 +2888,8 @@ TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
     REQUIRE(applyChartChange(chart, *enter).has_value());
 
     const auto exit =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide")
+            .plan;
     REQUIRE(exit.has_value());
     if (!exit.has_value())
     {
@@ -2903,11 +2910,17 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
-    CHECK_FALSE(
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
-            .has_value());
-    CHECK_FALSE(
-        planSetAttack(chart, tempo_map, {}, common::core::NoteAttack::Pick, "Pick").has_value());
+    // A note already at the attack is a no-op, never a refusal: nothing is named for the flash.
+    const ChartSelectionPlan unchanged =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE_FALSE(unchanged.plan.has_value());
+    if (!unchanged.plan.has_value())
+    {
+        CHECK(std::holds_alternative<ChartPlanNoChange>(unchanged.plan.error()));
+    }
+    CHECK(unchanged.refused.empty());
+    CHECK_FALSE(planSetAttack(chart, tempo_map, {}, common::core::NoteAttack::Pick, "Pick")
+                    .plan.has_value());
 }
 
 // The three boolean techniques share ONE planner, and the reason that is safe rather than merely
@@ -2934,7 +2947,13 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
         keyAt({.measure = 2, .beat = 1}, 2),
     };
 
-    const auto dead = planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead");
+    const ChartSelectionPlan deadened =
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead");
+    // The pinch is named as the one note refused, with the rule's own words for the log.
+    REQUIRE(deadened.refused.size() == 1);
+    CHECK(deadened.refused[0].note == keys[0]);
+    CHECK_FALSE(deadened.refused[0].reason.empty());
+    const auto& dead = deadened.plan;
     REQUIRE(dead.has_value());
     if (dead.has_value())
     {
@@ -2952,8 +2971,10 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
     // read the same authority rather than restating it.
     common::core::Chart dead_chart = makeTestChart();
     dead_chart.notes[0].dead = true;
-    const auto vibrato = planSetVibrato(
-        dead_chart, tempo_map, keys, {}, common::core::VibratoState::Narrow, "Vibrato");
+    const auto vibrato =
+        planSetVibrato(
+            dead_chart, tempo_map, keys, {}, common::core::VibratoState::Narrow, "Vibrato")
+            .plan;
     REQUIRE(vibrato.has_value());
     if (vibrato.has_value())
     {
@@ -2976,7 +2997,8 @@ TEST_CASE("planSetEmphasis moves a note along one axis", "[core][chart]")
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto ghost =
-        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Ghost, "Ghost Note");
+        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Ghost, "Ghost Note")
+            .plan;
     REQUIRE(ghost.has_value());
     if (!ghost.has_value())
     {
@@ -2991,7 +3013,7 @@ TEST_CASE("planSetEmphasis moves a note along one axis", "[core][chart]")
     }
 
     const auto accent =
-        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Accent, "Accent");
+        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Accent, "Accent").plan;
     REQUIRE(accent.has_value());
     if (!accent.has_value())
     {
@@ -3011,10 +3033,10 @@ TEST_CASE("planSetEmphasis moves a note along one axis", "[core][chart]")
     // entry — the same savedChartNote gate the mute verb uses.
     CHECK_FALSE(
         planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Accent, "Accent")
-            .has_value());
+            .plan.has_value());
     CHECK_FALSE(
         planSetEmphasis(chart, tempo_map, {}, common::core::NoteEmphasis::Ghost, "Ghost Note")
-            .has_value());
+            .plan.has_value());
 }
 
 // The two mutes are independent fields, so each verb writes exactly its own and reads nothing of
@@ -3027,7 +3049,7 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto palm =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute").plan;
     REQUIRE(palm.has_value());
     if (!palm.has_value())
     {
@@ -3043,7 +3065,7 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     }
 
     const auto dead =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note").plan;
     REQUIRE(dead.has_value());
     if (!dead.has_value())
     {
@@ -3060,7 +3082,8 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     }
 
     const auto cleared =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, false, "Remove Palm Mute");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, false, "Remove Palm Mute")
+            .plan;
     REQUIRE(cleared.has_value());
     if (!cleared.has_value())
     {
@@ -3091,7 +3114,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto dead =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note").plan;
     REQUIRE(dead.has_value());
     if (dead.has_value())
     {
@@ -3144,7 +3167,7 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
     };
 
     const auto dead =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note").plan;
     REQUIRE(dead.has_value());
     if (!dead.has_value())
     {
@@ -3164,7 +3187,7 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
     applyAndValidate(chart, tempo_map, *dead);
 
     const auto palm =
-        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute");
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute").plan;
     REQUIRE(palm.has_value());
     if (palm.has_value())
     {
@@ -3186,9 +3209,9 @@ TEST_CASE("planSetNoteFlag leaves a pick slide unmuted", "[core][chart]")
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute")
-                    .has_value());
+                    .plan.has_value());
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note")
-                    .has_value());
+                    .plan.has_value());
 }
 
 // Keyed notes already carrying the mute plan nothing, and neither does an empty key set.
@@ -3200,11 +3223,11 @@ TEST_CASE("planSetNoteFlag returns nullopt when nothing changes", "[core][chart]
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute")
-                    .has_value());
+                    .plan.has_value());
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, false, "Remove Dead")
-                    .has_value());
+                    .plan.has_value());
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, {}, ChartNoteFlag::PalmMute, true, "Palm Mute")
-                    .has_value());
+                    .plan.has_value());
 }
 
 // The fret-verb law: retyping edits exactly the selected notes' own frets, so a slide's path
@@ -3612,7 +3635,8 @@ TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core]
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     CHECK_FALSE(plan.has_value());
 }
 
@@ -3633,7 +3657,8 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto enter =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(enter.has_value());
     if (!enter.has_value())
     {
@@ -3665,7 +3690,8 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     }
 
     const auto exit =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide")
+            .plan;
     REQUIRE(exit.has_value());
     if (!exit.has_value())
     {
@@ -3698,7 +3724,8 @@ TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", 
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto enter =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .plan;
     REQUIRE(enter.has_value());
     if (!enter.has_value())
     {
@@ -3719,7 +3746,8 @@ TEST_CASE("planSetAttack keeps a vibrato ending through the scrape round trip", 
     }
 
     const auto exit =
-        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide")
+            .plan;
     REQUIRE(exit.has_value());
     if (!exit.has_value())
     {
@@ -3766,7 +3794,7 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 4}, 2),
     };
-    const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+    const ChartSelectionPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
     CHECK(planned.refused.empty());
     REQUIRE(planned.plan.has_value());
     if (planned.plan.has_value())
@@ -3805,12 +3833,12 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 1}, 2, 5),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
+        CHECK(planned.refused[0].reason == "nothing earlier on the string to connect to");
     }
 
     SECTION("the earlier note sits at the same fret")
@@ -3824,12 +3852,12 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].sustain = common::core::Fraction{1};
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
+        CHECK(planned.refused[0].reason == "no connection between the two stops");
     }
 
     SECTION("a released predecessor whose connection cannot be authored")
@@ -3844,12 +3872,14 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
         common::core::setSlideOut(chart.notes[0], 5);
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::PredecessorReleased);
+        CHECK(
+            planned.refused[0].reason ==
+            "the ring before it stops short and cannot be grown to reach it");
     }
 
     SECTION("the earlier note is a fret-hand harmonic")
@@ -3863,12 +3893,12 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].harmonic_node = 12.0;
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
+        CHECK(planned.refused[0].reason == "no connection between the two stops");
     }
 
     SECTION("a picking-hand rider is skipped in both directions")
@@ -3887,14 +3917,18 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             keyAt({.measure = 1, .beat = 2}, 1),
             keyAt({.measure = 1, .beat = 3}, 2),
         };
-        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        const ChartSelectionPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         // Both refusals are listed, in the planner's walk order: the tap, then the scrape.
         REQUIRE(planned.refused.size() == 2);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::PickingHandOnset);
+        CHECK(
+            planned.refused[0].reason ==
+            "the picking hand strikes it, so no connection describes it");
         CHECK(planned.refused[1].note == keyAt({.measure = 1, .beat = 3}, 2));
-        CHECK(planned.refused[1].reason == ChartLegatoSkip::PickingHandOnset);
+        CHECK(
+            planned.refused[1].reason ==
+            "the picking hand strikes it, so no connection describes it");
     }
 
     SECTION("two notes refused for different reasons each keep their own")
@@ -3914,13 +3948,15 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             keyAt({.measure = 1, .beat = 2}, 1),
             keyAt({.measure = 1, .beat = 2}, 2),
         };
-        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        const ChartSelectionPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 2);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::PickingHandOnset);
+        CHECK(
+            planned.refused[0].reason ==
+            "the picking hand strikes it, so no connection describes it");
         CHECK(planned.refused[1].note == keyAt({.measure = 1, .beat = 2}, 2));
-        CHECK(planned.refused[1].reason == ChartLegatoSkip::NoPredecessor);
+        CHECK(planned.refused[1].reason == "nothing earlier on the string to connect to");
     }
 }
 
@@ -3940,7 +3976,7 @@ TEST_CASE(
             makeTestNote({.measure = 1, .beat = 1}, 1, 3),
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
@@ -3962,7 +3998,7 @@ TEST_CASE(
             makeTestNote({.measure = 1, .beat = 1}, 1, 9),
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
@@ -3990,7 +4026,7 @@ TEST_CASE(
             keyAt({.measure = 2, .beat = 1}, 1),
             keyAt({.measure = 2, .beat = 1}, 2),
         };
-        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        const ChartSelectionPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
@@ -4015,12 +4051,14 @@ TEST_CASE(
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
         common::core::setSlideOut(chart.notes[0], 12);
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::PredecessorReleased);
+        CHECK(
+            planned.refused[0].reason ==
+            "the ring before it stops short and cannot be grown to reach it");
     }
 
     SECTION("a scrape predecessor connects to nothing, however its hold reaches")
@@ -4034,12 +4072,12 @@ TEST_CASE(
             makeScrape({.measure = 1, .beat = 1}, 1),
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 3}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
+        CHECK(planned.refused[0].reason == "no connection between the two stops");
     }
 }
 
@@ -4064,12 +4102,12 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
             makeTestNote({.measure = 1, .beat = 2}, 1, 5),
         };
         chart.notes[1].harmonic_node = 17.0;
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
+        CHECK(planned.refused[0].reason == "no connection between the two stops");
     }
 
     SECTION("an open-string harmonic skips itself")
@@ -4084,12 +4122,12 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
             makeTestNote({.measure = 1, .beat = 2}, 1, 0),
         };
         chart.notes[1].harmonic_node = 12.0;
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoConnection);
+        CHECK(planned.refused[0].reason == "no connection between the two stops");
     }
 }
 
@@ -4112,7 +4150,7 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 2}, 2),
     };
-    const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+    const ChartSelectionPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
     REQUIRE(planned.plan.has_value());
     if (planned.plan.has_value())
     {
@@ -4124,7 +4162,7 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
     // The refusal names the note that kept its pick, not just that one did.
     REQUIRE(planned.refused.size() == 1);
     CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 2));
-    CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
+    CHECK(planned.refused[0].reason == "nothing earlier on the string to connect to");
 }
 
 // A left-hand tap is a LOCAL statement, so the resolver reports its motion unconditionally — but
@@ -4140,12 +4178,12 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {makeTestNote({.measure = 1, .beat = 2}, 1, 7)};
         chart.notes[0].attack = common::core::NoteAttack::LeftTap;
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         REQUIRE(planned.refused.size() == 1);
         CHECK(planned.refused[0].note == keyAt({.measure = 1, .beat = 2}, 1));
-        CHECK(planned.refused[0].reason == ChartLegatoSkip::NoPredecessor);
+        CHECK(planned.refused[0].reason == "nothing earlier on the string to connect to");
     }
 
     SECTION("a tap the chart CAN justify becomes the claim")
@@ -4157,7 +4195,7 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[1].attack = common::core::NoteAttack::LeftTap;
-        const ChartLegatoPlan planned =
+        const ChartSelectionPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
@@ -4962,7 +5000,7 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
     SECTION("an open string's typed fret resolves against the nut")
     {
         common::core::Chart chart = makeSingleNoteChart(5);
-        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -4992,7 +5030,7 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         // is what names the partial.
         common::core::Chart chart = makeSingleNoteChart(7);
         chart.tuning.capo = 2;
-        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5023,7 +5061,7 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
         common::core::ChartNote& tap = chart.notes[0];
         tap.attack = common::core::NoteAttack::Tap;
         chart.notes.push_back(makeTestNote({.measure = 2, .beat = 1}, 2, 7));
-        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
         CHECK_FALSE(plan.has_value());
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Tap);
         CHECK(chart.notes[0].fret == 17);
@@ -5041,7 +5079,7 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
             keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
         };
 
-        const auto plan = planSetHarmonic(chart, tempo_map, chord, 7, "Harmonic");
+        const auto plan = planSetHarmonic(chart, tempo_map, chord, 7, "Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5062,23 +5100,26 @@ TEST_CASE("planSetHarmonic states the typed fret as the node it names", "[core][
     }
 }
 
-// The skip is the whole of the ruling on a fret that names nothing: the verb states a node or
+// The refusal is the whole of the ruling on a fret that names nothing: the verb states a node or
 // leaves the note alone, and never moves the hand to the nearest node to invent one. An open string
 // states no position at all — its offset is zero, which is not a touch — and under the editor's
-// partial bound it is the only fret in that position. A press that only skipped is NoChange, silent
-// like the mute rows.
-TEST_CASE("planSetHarmonic skips a fret that names no node", "[core][chart]")
+// partial bound it is the only fret in that position. The plan is NoChange, and the note is named
+// as refused, so the press is not a dead key.
+TEST_CASE("planSetHarmonic refuses a fret that names no node", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const common::core::Chart chart = makeSingleNoteChart(0);
-    const auto plan = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
-    REQUIRE_FALSE(plan.has_value());
-    if (!plan.has_value())
+    const ChartSelectionPlan planned =
+        planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+    REQUIRE_FALSE(planned.plan.has_value());
+    if (!planned.plan.has_value())
     {
-        CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
+        CHECK(std::holds_alternative<ChartPlanNoChange>(planned.plan.error()));
     }
+    REQUIRE(planned.refused.size() == 1);
+    CHECK(planned.refused[0].note == keys[0]);
 }
 
 // The clear inverts the set exactly, which is what makes the pair a true toggle with no memory of
@@ -5095,13 +5136,13 @@ TEST_CASE("planClearHarmonic presses the fret the touch was standing on", "[core
     {
         INFO("fret " << fret);
         common::core::Chart chart = makeSingleNoteChart(fret);
-        const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
         REQUIRE(set.has_value());
         if (set.has_value())
         {
             applyAndValidate(chart, tempo_map, *set);
             CHECK(chart.notes[0].fret == 0);
-            const auto cleared = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+            const auto cleared = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").plan;
             REQUIRE(cleared.has_value());
             if (cleared.has_value())
             {
@@ -5128,7 +5169,7 @@ TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[cor
         common::core::Chart chart = makeSingleNoteChart(5);
         chart.notes[0].harmonic_node = 17.0;
 
-        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5147,7 +5188,7 @@ TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[cor
         chart.notes[0].attack = common::core::NoteAttack::Tap;
         chart.notes[0].harmonic_node = 17.0;
 
-        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5165,7 +5206,7 @@ TEST_CASE("planClearHarmonic removes the harmonic the fretting hand owns", "[cor
         pinch.attack = common::core::NoteAttack::Pinch;
         pinch.harmonic_node = 17.0;
 
-        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic");
+        const auto plan = planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").plan;
         REQUIRE_FALSE(plan.has_value());
         if (!plan.has_value())
         {
@@ -5200,7 +5241,8 @@ TEST_CASE("planClearPinchHarmonic returns the pinch to the pick it was picked as
         pinch.attack = common::core::NoteAttack::Pinch;
         pinch.harmonic_node = 17.0;
 
-        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        const auto plan =
+            planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5220,7 +5262,8 @@ TEST_CASE("planClearPinchHarmonic returns the pinch to the pick it was picked as
         pinch.attack = common::core::NoteAttack::Pinch;
         pinch.harmonic_node = 12.0;
 
-        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        const auto plan =
+            planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic").plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -5236,14 +5279,15 @@ TEST_CASE("planClearPinchHarmonic returns the pinch to the pick it was picked as
         // The mirror of the clear above: this row owns one hand, and the other hand's touch stays
         // planClearHarmonic's.
         common::core::Chart chart = makeSingleNoteChart(5);
-        const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+        const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
         REQUIRE(set.has_value());
         if (set.has_value())
         {
             applyAndValidate(chart, tempo_map, *set);
         }
 
-        const auto plan = planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic");
+        const auto plan =
+            planClearPinchHarmonic(chart, tempo_map, keys, "Remove Pinch Harmonic").plan;
         REQUIRE_FALSE(plan.has_value());
         if (!plan.has_value())
         {
@@ -5265,7 +5309,7 @@ TEST_CASE("carriesNeckHarmonic answers for the hand that owns the node", "[core]
     // The fret-hand touch, made through the verb: fret 0, because the finger presses nothing, with
     // the node it stands on.
     common::core::Chart touched = makeSingleNoteChart(12);
-    const auto set = planSetHarmonic(touched, tempo_map, keys, std::nullopt, "Harmonic");
+    const auto set = planSetHarmonic(touched, tempo_map, keys, std::nullopt, "Harmonic").plan;
     REQUIRE(set.has_value());
     if (set.has_value())
     {
@@ -5291,7 +5335,7 @@ TEST_CASE("planRetypeFrets refuses the sounding stop of a fret-hand harmonic", "
     const common::core::TempoMap tempo_map = makeTempoMap();
     common::core::Chart chart = makeSingleNoteChart(5);
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
-    const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic");
+    const auto set = planSetHarmonic(chart, tempo_map, keys, std::nullopt, "Harmonic").plan;
     REQUIRE(set.has_value());
     if (set.has_value())
     {
@@ -5446,7 +5490,7 @@ TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][cha
         ChartSelection nothing_reached;
         nothing_reached.add(ChartNoteKey{.slot = keyAt(glideOnset(), 2)});
         CHECK_FALSE(law.carried(chart, nothing_reached));
-        const auto plan = law.plan(chart, makeTempoMap(), nothing_reached, true, "Vibrato");
+        const auto plan = law.plan(chart, makeTempoMap(), nothing_reached, true, "Vibrato").plan;
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
     }
@@ -5831,12 +5875,13 @@ TEST_CASE("planSetVibrato states the vibrato at a selected keyframe", "[core][ch
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planSetVibrato(
-        chart,
-        tempo_map,
-        {},
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                          chart,
+                          tempo_map,
+                          {},
+                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                          common::core::VibratoState::Narrow,
+                          "Vibrato")
+                          .plan;
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -5891,12 +5936,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         chart.notes = {std::move(note)};
         const common::core::Chart original = chart;
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::Narrow,
-            "Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::Narrow,
+                              "Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -5949,12 +5995,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -5989,12 +6036,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {keyAt(glideOnset(), 1)},
-            {},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {keyAt(glideOnset(), 1)},
+                              {},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6030,12 +6078,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::Narrow,
-            "Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::Narrow,
+                              "Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6078,12 +6127,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6119,12 +6169,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6175,12 +6226,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6243,7 +6295,7 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
                         {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{1})},
                         common::core::VibratoState::Narrow,
                         "Add Vibrato")
-                        .has_value());
+                        .plan.has_value());
     }
 
     SECTION("clearing the vibrato from a point that also states a fret keeps the point")
@@ -6253,12 +6305,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::None,
-            "Remove Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::None,
+                              "Remove Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6300,12 +6353,13 @@ TEST_CASE("planSetVibrato leaves silent points to the commit law", "[core][chart
         const common::core::Chart original = chart;
 
         const auto plan = planSetVibrato(
-            chart,
-            tempo_map,
-            {},
-            {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-            common::core::VibratoState::Narrow,
-            "Vibrato");
+                              chart,
+                              tempo_map,
+                              {},
+                              {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                              common::core::VibratoState::Narrow,
+                              "Vibrato")
+                              .plan;
         REQUIRE(plan.has_value());
         if (!plan.has_value())
         {
@@ -6337,12 +6391,13 @@ TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planSetVibrato(
-        chart,
-        tempo_map,
-        {keyAt(glideOnset(), 1)},
-        {},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                          chart,
+                          tempo_map,
+                          {keyAt(glideOnset(), 1)},
+                          {},
+                          common::core::VibratoState::Narrow,
+                          "Vibrato")
+                          .plan;
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -6365,12 +6420,13 @@ TEST_CASE("planSetVibrato on a note vibrates its first leg only", "[core][chart]
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planSetVibrato(
-        chart,
-        tempo_map,
-        {keyAt(glideOnset(), 1)},
-        {},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                          chart,
+                          tempo_map,
+                          {keyAt(glideOnset(), 1)},
+                          {},
+                          common::core::VibratoState::Narrow,
+                          "Vibrato")
+                          .plan;
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -6398,12 +6454,13 @@ TEST_CASE("planSetVibrato on a keyframe vibrates only up to the next slide stop"
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto plan = planSetVibrato(
-        chart,
-        tempo_map,
-        {},
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                          chart,
+                          tempo_map,
+                          {},
+                          {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                          common::core::VibratoState::Narrow,
+                          "Vibrato")
+                          .plan;
     REQUIRE(plan.has_value());
     if (!plan.has_value())
     {
@@ -6432,12 +6489,13 @@ TEST_CASE("planSetVibrato through a slide stop is one press per leg", "[core][ch
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     const auto first_leg = planSetVibrato(
-        chart,
-        tempo_map,
-        {keyAt(glideOnset(), 1)},
-        {},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                               chart,
+                               tempo_map,
+                               {keyAt(glideOnset(), 1)},
+                               {},
+                               common::core::VibratoState::Narrow,
+                               "Vibrato")
+                               .plan;
     REQUIRE(first_leg.has_value());
     if (!first_leg.has_value())
     {
@@ -6447,12 +6505,13 @@ TEST_CASE("planSetVibrato through a slide stop is one press per leg", "[core][ch
     const common::core::Chart after_first = chart;
 
     const auto second_leg = planSetVibrato(
-        chart,
-        tempo_map,
-        {},
-        {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
-        common::core::VibratoState::Narrow,
-        "Vibrato");
+                                chart,
+                                tempo_map,
+                                {},
+                                {keyframeKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+                                common::core::VibratoState::Narrow,
+                                "Vibrato")
+                                .plan;
     REQUIRE(second_leg.has_value());
     if (!second_leg.has_value())
     {
@@ -6847,7 +6906,12 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
         // which is one eighth-note beat and 479/480 of the next. Stated as one BEAT at the onset's
         // meter it would end 479.5 ticks into measure 3, between two ticks.
         const auto plan = planSetAttack(
-            chart, tempo_map, {keyAt(onset, 1)}, common::core::NoteAttack::PickSlide, "Pick Slide");
+                              chart,
+                              tempo_map,
+                              {keyAt(onset, 1)},
+                              common::core::NoteAttack::PickSlide,
+                              "Pick Slide")
+                              .plan;
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {

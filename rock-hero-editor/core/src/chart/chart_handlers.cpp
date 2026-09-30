@@ -820,6 +820,13 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     return std::pair{position, string};
 }
 
+// Rationale lives on the declaration in editor_controller_impl.h.
+bool EditorController::Impl::applyChartEditPlan(
+    ChartSelectionPlan planned, std::optional<std::vector<ChartSelectionKey>> select_exactly)
+{
+    return applyChartEditPlan(std::move(planned.plan), std::move(select_exactly));
+}
+
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
 // shape; the refusal kind is not consumed here — a caller that wants to distinguish NoChange from
@@ -3381,7 +3388,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
     for (std::size_t row = 0; row < rows.choices.size(); ++row)
     {
         const int partial = std::get<ChartHarmonicNodeChoice>(rows.choices[row]).partial;
-        if (planSetHarmonic(chart, tempo_map, keys, partial, "Harmonic").has_value())
+        if (planSetHarmonic(chart, tempo_map, keys, partial, "Harmonic").plan.has_value())
         {
             changes.emplace_back(partial);
             if (!first_changing_row.has_value())
@@ -3394,7 +3401,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ChooseChartHa
     // moves between states: where it opens selected, Down walks the partials from the lowest, the
     // likeliest next choice, instead of Up landing on the highest.
     const bool clear_offered =
-        planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").has_value();
+        planClearHarmonic(chart, tempo_map, keys, "Remove Harmonic").plan.has_value();
     if (clear_offered)
     {
         changes.emplace_back(std::nullopt);
@@ -3462,11 +3469,13 @@ void EditorController::Impl::commitChartHarmonic(const std::optional<int> partia
     static_cast<void>(commitChartGestureStep(
         continues,
         [this, &keys, partial](const common::core::Chart& pre_gesture) {
-            return partial.has_value()
-                       ? planSetHarmonic(
-                             pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
-                       : planClearHarmonic(
-                             pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
+            ChartSelectionPlan planned =
+                partial.has_value()
+                    ? planSetHarmonic(
+                          pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
+                    : planClearHarmonic(
+                          pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
+            return std::move(planned.plan);
         },
         ChartHarmonicGesture{}));
 }
@@ -3646,20 +3655,26 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
     {
         return;
     }
-    ChartLegatoPlan planned =
+    ChartSelectionPlan planned =
         planSetLegato(*arrangement->chart, session().song().tempo_map, keys, "Legato");
-    if (planned.plan.has_value())
+    const auto arm_window = [this] {
+        m_chart_verb_window = ChartVerbWindow{
+            .keys = chartSelection().keys(),
+            .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
+        };
+    };
+    // A claim that resolved sets, and a gate refusal of one is a refused press: only a press with
+    // nothing left to claim means clear.
+    if (planned.plan.has_value() || std::holds_alternative<ChartPlanInvalid>(planned.plan.error()))
     {
-        if (applyChartEditPlan(std::move(*planned.plan), operand.keys()))
+        if (applyChartEditPlan(std::move(planned), operand.keys()))
         {
-            m_chart_verb_window = ChartVerbWindow{
-                .keys = chartSelection().keys(),
-                .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
-            };
+            arm_window();
         }
         return;
     }
-    // Nothing left to claim, so this press clears — the stored claims only.
+    // Nothing left to claim, so this press clears — the stored claims only. The clear press arms
+    // the window too: reversing it restores the exact previous mix.
     std::vector<ChartSlotKey> legato_keys;
     for (const common::core::ChartNote& note : chartNotesForKeys(keys))
     {
@@ -3668,34 +3683,21 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
             legato_keys.push_back(ChartSlotKey{.position = note.position, .string = note.string});
         }
     }
-    std::expected<ChartEditPlan, ChartPlanRefusal> clear_plan =
-        legato_keys.empty() ? std::unexpected{ChartPlanNoChange{}}
-                            : planSetAttack(
-                                  *arrangement->chart,
-                                  session().song().tempo_map,
-                                  legato_keys,
-                                  common::core::NoteAttack::Pick,
-                                  "Remove Legato");
-    if (clear_plan.has_value())
+    if (!legato_keys.empty())
     {
-        // The clear press arms the window too: reversing it restores the exact previous mix.
-        if (applyChartEditPlan(std::move(clear_plan), operand.keys()))
+        if (applyChartEditPlan(
+                planSetAttack(
+                    *arrangement->chart,
+                    session().song().tempo_map,
+                    legato_keys,
+                    common::core::NoteAttack::Pick,
+                    "Remove Legato"),
+                operand.keys()))
         {
-            m_chart_verb_window = ChartVerbWindow{
-                .keys = chartSelection().keys(),
-                .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
-            };
+            arm_window();
         }
         return;
     }
-    // A press that changed nothing is SILENT, exactly like every other technique verb that applies
-    // nothing: selecting a phrase's first note and pressing L is the commonest press there is, and
-    // it is not an error. `planned.refused` still names every note the resolver turned down and why
-    // — that IS the feedback payload — but the only reporting seam the view offers today is a modal
-    // "Could not complete request" box, which interrupts a keystroke to say nothing failed. The
-    // refusals surface once the refusal flash exists
-    // (docs/plans/in-progress/refusal-flash.md); until then they are deferred rather than
-    // mis-routed.
 }
 
 // The junction toggle (`Shift+L`): at every selected junction the press moves it to its other

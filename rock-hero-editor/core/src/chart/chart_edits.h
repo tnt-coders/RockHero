@@ -681,51 +681,36 @@ binary-search this precondition).
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps);
 
-/*! \brief Why an `L` press left a selected note as it found it. */
-enum class ChartLegatoSkip : std::uint8_t
-{
-    /*! \brief The onset is the picking hand's (tap, pinch, scrape) — no connection describes it. */
-    PickingHandOnset,
-
-    /*! \brief Nothing earlier on the note's own string to connect to. */
-    NoPredecessor,
-
-    /*! \brief The predecessor's ring stops before the onset, and could not be grown to reach. */
-    PredecessorReleased,
-
-    /*! \brief A predecessor that reaches, but no connection between the two stops. */
-    NoConnection
-};
-
-/*! \brief One selected note the legato verb left as it found it, and why. */
-struct ChartLegatoRefusal
+/*! \brief One selected note a verb left as it found it because the note cannot take the write. */
+struct ChartRefusedNote
 {
     /*! \brief Slot of the refused note. */
     ChartSlotKey note;
 
-    /*! \brief Why the resolver refused a claim on that note. */
-    ChartLegatoSkip reason{};
+    /*! \brief Why, in words for the log: the rule's own message, or the verb's. */
+    std::string reason;
 };
 
 /*!
-\brief One `L` press's outcome: the change to apply, and the notes the resolver refused.
+\brief A per-note verb's outcome over a selection: the plan, or why there is none, and the notes it
+refused one by one.
 
-The refusal channel exists so an all-skipped press is never a dead key. It names only notes the
-resolver REFUSED — a note already carrying the claim the press would set is unchanged, not refused,
-which is what lets the caller tell "nothing left to claim, so this press means clear" from "this
-press had nothing to say".
+A verb over a selection applies to what CAN take its write and leaves the rest, so the whole-plan
+answer alone would hide the notes it turned down. It names only notes that cannot take the write —
+a note already as the verb would leave it is unchanged, not refused — which is what lets the legato
+toggle tell "nothing left to claim, so this press means clear" from "this press was refused".
 
 The notes themselves rather than a count, because the planner already walked them and the consumer
 is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows the very elements the
 verb turned down: returning them costs no second pass, and no count in a corner could name them.
 */
-struct [[nodiscard]] ChartLegatoPlan
+struct [[nodiscard]] ChartSelectionPlan
 {
-    /*! \brief The planned change, or empty when no selected note gained a claim. */
-    std::optional<ChartEditPlan> plan;
+    /*! \brief The planned change, or why there is none. */
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan;
 
-    /*! \brief The selected notes the resolver refused a claim for, in the planner's walk order. */
-    std::vector<ChartLegatoRefusal> refused;
+    /*! \brief The selected notes refused one by one, in the planner's walk order. */
+    std::vector<ChartRefusedNote> refused;
 };
 
 /*!
@@ -752,10 +737,11 @@ such guard: the resolver disqualifies it outright, so its ring is never the only
 \param keys Notes to set, sorted-unique in chart order.
 \param label User-visible undo label.
 
-\return The planned change plus the refused notes; the plan is empty when no selected note's claim
-        resolves, which is what makes the press mean clear.
+\return The planned change plus the refused notes; NoChange when no selected note's claim
+        resolves, which is what makes the press mean clear, and Invalid when the gate refuses the
+        claims that did resolve.
 */
-[[nodiscard]] ChartLegatoPlan planSetLegato(
+[[nodiscard]] ChartSelectionPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
@@ -829,7 +815,7 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
+[[nodiscard]] ChartSelectionPlan planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, common::core::NoteAttack attack, std::string_view label);
 
@@ -920,7 +906,7 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
+[[nodiscard]] ChartSelectionPlan planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, ChartNoteFlag which, bool value, std::string_view label);
 
@@ -948,7 +934,7 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetEmphasis(
+[[nodiscard]] ChartSelectionPlan planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, common::core::NoteEmphasis value,
     std::string_view label);
@@ -1036,7 +1022,7 @@ binary-search this precondition).
 \param label User-visible undo label.
 \return The plan; NoChange when every note skipped, Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
+[[nodiscard]] ChartSelectionPlan planSetHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, std::optional<int> chosen_partial,
     std::string_view label);
@@ -1063,7 +1049,7 @@ binary-search this precondition).
 \param label User-visible undo label.
 \return The plan; NoChange when no keyed note carried one, Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
+[[nodiscard]] ChartSelectionPlan planClearHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
@@ -1083,7 +1069,7 @@ binary-search this precondition).
 \return The plan; NoChange when no keyed note was a pinch carrying a node, Invalid when the gate
 refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planClearPinchHarmonic(
+[[nodiscard]] ChartSelectionPlan planClearPinchHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, std::string_view label);
 
@@ -1284,7 +1270,7 @@ covered slot starts a vibrato mid-ring.
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
         a redundant statement is a no-op), Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
+[[nodiscard]] ChartSelectionPlan planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::VibratoState set, std::string_view label);
@@ -1311,7 +1297,7 @@ picker's "No bend" row and `Delete` on a bend chip both plan through it.
 \return The plan; NoChange when nothing changes, Invalid when the gate refuses the result (a bend
         on a dead note or a fret-hand harmonic, or an instant outside the ring).
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
+[[nodiscard]] ChartSelectionPlan planSetBend(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     std::optional<double> semitones, std::string_view label);
@@ -1349,7 +1335,7 @@ struct ChartTechniqueLaw
     \brief Plans setting (`set`) or clearing the technique across the selection under `label`, with
     the per-note eligibility the planner owns.
     */
-    std::expected<ChartEditPlan, ChartPlanRefusal> (*plan)(
+    ChartSelectionPlan (*plan)(
         const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
         const ChartSelection& selection, bool set, std::string_view label);
 };

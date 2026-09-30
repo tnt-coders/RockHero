@@ -508,6 +508,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::expected<ChartEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+    // The same apply for a per-note verb's outcome, whose notes refused one by one are reported
+    // whether or not the rest applied.
+    bool applyChartEditPlan(
+        ChartSelectionPlan planned,
+        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     // Makes `keys` the chart selection, keeping only what the chart holds (chartHoldsKey): where
     // every chart edit lands its selection once the chart is written.
     void landChartSelection(std::vector<ChartSelectionKey> keys);

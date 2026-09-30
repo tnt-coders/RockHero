@@ -289,23 +289,23 @@ enum class StrandedStrikeRepair : std::uint8_t
 
 // The one per-note write plan every property verb runs — flags, emphasis, and attack — so the law
 // is written once: each selected note is built as the verb would WRITE it (`write` fills `written`
-// from `note`, or returns false to leave the note alone), a write that changes nothing the document
-// would record is skipped (asked of the writer's own authority, so a scrape, whose saved form
-// strips its latents, never earns an undo entry for a flag no surface draws), the plan's own
-// repair rides the eligibility test, and the per-note rule authority then judges the SAVED form so
-// a mixed selection applies to what CAN take the write and leaves the rest alone. One skeleton
-// rather than a copy inside each of the three planners, which are then free to disagree about the
-// no-op test.
+// from `note`, or refuses the note with a reason when the note cannot take the write at all), a
+// write that changes nothing the document would record is skipped (asked of the writer's own
+// authority, so a scrape, whose saved form strips its latents, never earns an undo entry for a flag
+// no surface draws), the plan's own repair rides the eligibility test, and the per-note rule
+// authority then judges the SAVED form so a mixed selection applies to what CAN take the write and
+// names the rest. A skip is never a refusal: a note already as the write would leave it has nothing
+// to report. One skeleton rather than a copy inside each planner, which would then be free to
+// disagree about the no-op test.
+using NoteWrite = std::expected<void, std::string>;
+
 template <typename Write>
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planNoteWrite(
+[[nodiscard]] ChartSelectionPlan planNoteWrite(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label,
     const StrandedStrikeRepair stranded, const Write& write)
 {
-    if (keys.empty())
-    {
-        return std::unexpected{ChartPlanNoChange{}};
-    }
+    std::vector<ChartRefusedNote> refused;
     std::vector<common::core::ChartNote> candidate = chart.notes;
     bool changed = false;
     for (common::core::ChartNote& note : candidate)
@@ -315,8 +315,9 @@ template <typename Write>
             continue;
         }
         common::core::ChartNote written = note;
-        if (!write(std::as_const(note), written))
+        if (NoteWrite wrote = write(std::as_const(note), written); !wrote.has_value())
         {
+            refused.push_back({.note = chartSlotKeyOf(note), .reason = std::move(wrote.error())});
             continue;
         }
         if (common::core::savedChartNote(written) == common::core::savedChartNote(note))
@@ -327,10 +328,13 @@ template <typename Write>
         {
             static_cast<void>(common::core::flattenStrandedStrike(written));
         }
-        if (!common::core::validateChartNoteAlone(
-                 common::core::savedChartNote(written), chart.tuning, tempo_map)
-                 .has_value())
+        if (std::expected<void, common::core::ChartError> valid =
+                common::core::validateChartNoteAlone(
+                    common::core::savedChartNote(written), chart.tuning, tempo_map);
+            !valid.has_value())
         {
+            refused.push_back(
+                {.note = chartSlotKeyOf(note), .reason = std::move(valid.error().message)});
             continue;
         }
         note = std::move(written);
@@ -338,9 +342,12 @@ template <typename Write>
     }
     if (!changed)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return {.plan = std::unexpected{ChartPlanNoChange{}}, .refused = std::move(refused)};
     }
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
+    return {
+        .plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label),
+        .refused = std::move(refused),
+    };
 }
 
 // The offsets one note carries selected keyframes at, in ascending order. Keyframe keys are sorted
@@ -1343,17 +1350,17 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
 // Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but a
 // predecessor still holding is a predecessor, and the author asserting the connection is the
 // authority on whether the notes connect. Refusing on distance would be second-guessing them.
-ChartLegatoPlan planSetLegato(
+ChartSelectionPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
 {
     // Each refused note is recorded as the walk reaches it, with the reason that walk established:
     // the refusal flash glows those very notes, so naming them here is what keeps a consumer from
     // re-deriving a judgement this loop already made.
-    std::vector<ChartLegatoRefusal> refused;
+    std::vector<ChartRefusedNote> refused;
     if (keys.empty())
     {
-        return ChartLegatoPlan{.plan = std::nullopt, .refused = {}};
+        return ChartSelectionPlan{.plan = std::unexpected{ChartPlanNoChange{}}, .refused = {}};
     }
 
     // Connections of the ORIGINAL stream, in the SAVED form the gate validates: the original so
@@ -1379,9 +1386,9 @@ ChartLegatoPlan planSetLegato(
         if (!common::core::legatoClaimable(note.attack))
         {
             refused.push_back(
-                ChartLegatoRefusal{
+                ChartRefusedNote{
                     .note = chartSlotKeyOf(note),
-                    .reason = ChartLegatoSkip::PickingHandOnset,
+                    .reason = "the picking hand strikes it, so no connection describes it",
                 });
             continue;
         }
@@ -1439,11 +1446,12 @@ ChartLegatoPlan planSetLegato(
         if (resolved == common::core::LegatoMotion::Unjustified)
         {
             refused.push_back(
-                ChartLegatoRefusal{
+                ChartRefusedNote{
                     .note = chartSlotKeyOf(note),
-                    .reason = predecessor == nullptr      ? ChartLegatoSkip::NoPredecessor
-                              : hold_was_the_only_blocker ? ChartLegatoSkip::PredecessorReleased
-                                                          : ChartLegatoSkip::NoConnection,
+                    .reason = predecessor == nullptr ? "nothing earlier on the string to connect to"
+                              : hold_was_the_only_blocker
+                                  ? "the ring before it stops short and cannot be grown to reach it"
+                                  : "no connection between the two stops",
                 });
             continue;
         }
@@ -1456,20 +1464,18 @@ ChartLegatoPlan planSetLegato(
         }
     }
 
-    ChartLegatoPlan outcome{.plan = std::nullopt, .refused = std::move(refused)};
-    if (changed)
+    if (!changed)
     {
-        // The refusal kind is deliberately not forwarded: an Invalid finalize leaves the plan
-        // empty exactly like an all-skipped press, so the press falls through to its clear
-        // meaning — the behavior this verb always had. The refusal channel, not the plan's
-        // absence, is this planner's feedback payload.
-        if (auto plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
-            plan.has_value())
-        {
-            outcome.plan = std::move(*plan);
-        }
+        return ChartSelectionPlan{
+            .plan = std::unexpected{ChartPlanNoChange{}}, .refused = std::move(refused)
+        };
     }
-    return outcome;
+    // A gate refusal is forwarded as one: claims that resolved but cannot be kept are a refused
+    // press, never an empty one that falls through to clear.
+    return ChartSelectionPlan{
+        .plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label),
+        .refused = std::move(refused),
+    };
 }
 
 std::optional<ChartEditPlan> planSettleChart(
@@ -1515,7 +1521,7 @@ ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
     return diffNotes(removed, inserted, plan.label);
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
+ChartSelectionPlan planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const common::core::NoteAttack attack,
     const std::string_view label)
@@ -1529,10 +1535,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
         keys,
         label,
         StrandedStrikeRepair::Skip,
-        [&](const common::core::ChartNote& note, common::core::ChartNote& retyped) {
+        [&](const common::core::ChartNote& note, common::core::ChartNote& retyped) -> NoteWrite {
             if (note.attack == attack)
             {
-                return false;
+                return {};
             }
             retyped.attack = attack;
             if (nodeLeavesWithAttack(note, attack))
@@ -1598,11 +1604,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
                         chart.tuning.capo);
                 }
             }
-            return true;
+            return {};
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
+ChartSelectionPlan planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const ChartNoteFlag which, const bool value,
     const std::string_view label)
@@ -1621,9 +1627,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
         keys,
         label,
         StrandedStrikeRepair::Flatten,
-        [field, value](const common::core::ChartNote&, common::core::ChartNote& written) {
+        [field,
+         value](const common::core::ChartNote&, common::core::ChartNote& written) -> NoteWrite {
             written.*field = value;
-            return true;
+            return {};
         });
 }
 
@@ -1755,7 +1762,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     return ChartJunctionPlan{.plan = std::move(*plan), .selection = std::move(selection)};
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
+ChartSelectionPlan planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     const common::core::VibratoState set, const std::string_view label)
@@ -1767,7 +1774,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
         label,
         StrandedStrikeRepair::Flatten,
         [&note_keys, &keyframe_keys, set](
-            const common::core::ChartNote& note, common::core::ChartNote& written) {
+            const common::core::ChartNote& note, common::core::ChartNote& written) -> NoteWrite {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             // The onset statement, written only when the NOTE itself is selected: a note reached
             // solely because one of its keyframes is selected keeps the vibrato it opens with.
@@ -1787,11 +1794,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
                     common::core::endVibratoAt(written, offset);
                 }
             }
-            return true;
+            return {};
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
+ChartSelectionPlan planSetBend(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     const std::optional<double> semitones, const std::string_view label)
@@ -1803,7 +1810,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
         label,
         StrandedStrikeRepair::Flatten,
         [&note_keys, &keyframe_keys, semitones](
-            const common::core::ChartNote& note, common::core::ChartNote& written) {
+            const common::core::ChartNote& note, common::core::ChartNote& written) -> NoteWrite {
             const ChartSlotKey slot = chartSlotKeyOf(note);
             // The onset statement, written only when the NOTE itself is named — a note reached
             // solely through one of its instants keeps the pre-bend it opens with. An onset always
@@ -1840,11 +1847,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetBend(
                                    common::core::noteWithoutKeyframe(cleared, point.offset), point);
                     });
             }
-            return true;
+            return {};
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetEmphasis(
+ChartSelectionPlan planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const common::core::NoteEmphasis value,
     const std::string_view label)
@@ -1855,9 +1862,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetEmphasis(
         keys,
         label,
         StrandedStrikeRepair::Flatten,
-        [value](const common::core::ChartNote&, common::core::ChartNote& struck) {
+        [value](const common::core::ChartNote&, common::core::ChartNote& struck) -> NoteWrite {
             struck.emphasis = value;
-            return true;
+            return {};
         });
 }
 
@@ -1961,7 +1968,7 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     return candidates;
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
+ChartSelectionPlan planSetHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::optional<int> chosen_partial,
     const std::string_view label)
@@ -1976,16 +1983,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
         label,
         StrandedStrikeRepair::Skip,
         [&chart, &tempo_map, chosen_partial](
-            const common::core::ChartNote& note, common::core::ChartNote& touched) {
+            const common::core::ChartNote& note, common::core::ChartNote& touched) -> NoteWrite {
             const std::vector<common::core::HarmonicNodeCandidate> candidates =
                 chartHarmonicNodeCandidates(note, chart.tuning, tempo_map);
             if (candidates.empty())
             {
                 // The typed fret names no node this note can reach — an open string, whose zero
                 // offset names no touch at all, and a pinch, whose node is the other hand's.
-                // Skipped, never repaired: moving the finger to the nearest node would author a
+                // Refused, never repaired: moving the finger to the nearest node would author a
                 // position the charter never typed.
-                return false;
+                return std::unexpected{std::string{"no harmonic node is reachable from its fret"}};
             }
             // THE CHOICE BINDS ONLY WHAT IT NAMES. A chosen partial takes the node of that partial
             // on every note whose label offers it; a note whose label does not, and a press that
@@ -1998,11 +2005,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetHarmonic(
             const common::core::HarmonicNodeCandidate& chosen =
                 named != candidates.end() ? *named : candidates.front();
             touched = harmonicTouchNote(note, chosen.position, chart.tuning);
-            return true;
+            return {};
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
+ChartSelectionPlan planClearHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
 {
@@ -2012,14 +2019,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
         keys,
         label,
         StrandedStrikeRepair::Flatten,
-        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) {
+        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) -> NoteWrite {
             // The fretting hand's node only: a pinch's is the picking thumb's, and the row that
             // owns that hand clears it (planClearPinchHarmonic). A shared clear once reached both,
             // which let this verb's "No harmonic" strip a pinch selected beside a
             // fret-hand carrier.
             if (!carriesNeckHarmonic(note))
             {
-                return false;
+                return {};
             }
             // The finger presses where it was touching — the label the verb reads off a carrier,
             // which is what makes the clear the exact inverse of the set. On a PRESSED-STOP
@@ -2027,11 +2034,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planClearHarmonic(
             // stopped exactly where it already was.
             cleared.fret = harmonicLabelFret(note);
             cleared.harmonic_node.reset();
-            return true;
+            return {};
         });
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planClearPinchHarmonic(
+ChartSelectionPlan planClearPinchHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
 {
@@ -2041,16 +2048,16 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planClearPinchHarmonic(
         keys,
         label,
         StrandedStrikeRepair::Flatten,
-        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) {
+        [](const common::core::ChartNote& note, common::core::ChartNote& cleared) -> NoteWrite {
             if (note.attack != common::core::NoteAttack::Pinch || !note.harmonic_node.has_value())
             {
-                return false;
+                return {};
             }
             // The note goes back to the plain pick it was picked as, and the thumb's node goes with
             // it; the fret is untouched, because a pinch's fret was pressed all along.
             cleared.attack = common::core::NoteAttack::Pick;
             cleared.harmonic_node.reset();
-            return true;
+            return {};
         });
 }
 
