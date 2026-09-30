@@ -210,12 +210,17 @@ brightness(line, t) = max over lights of  coverage(highwayHandWindowAt(path, t),
 
 One decay per LAYER: the light's (`g_light_decay_seconds`, 0.1 s: a release is a gesture, so the
 floor patch and the face's fret lines fade over a short visual constant) and the lane-border
-ribbons' slower one (`g_ribbon_decay_seconds`, 0.45 s). *History, both ruled 2026-09-25:* the
+ribbons' slower one (`g_ribbon_decay_seconds`, 0.6 s since 2026-09-30, 0.45 s before). *History, both ruled 2026-09-25:* the
 ribbon decay was first deleted as having no job once the rest tolerance merged runs — and then
 the picking hand was ruled back to a pulse per strike, and the sighting showed exactly what the
 constant's old doc said: a full-length strip flashing on every strike reads as jarring. The
 ribbons bridge the picking hand's pulses by their own decay; the fretting hand's runs are bridged
-by the establishment tolerance. The decay belongs to the layer, never to the hand.
+by the establishment tolerance. The decay belongs to the layer, never to the hand. *2026-09-30
+(user: the two hands' ribbons faded inconsistently):* the decay now runs from the instant the
+light LEAVES a line, not only from its release (`highwayLitLineAfterglowAt`, the leaving rule).
+A fretting-hand position change leaves lines without releasing, so those lines used to go dark
+over the move's ramp while a picking-hand release faded over the full decay. The decay was
+raised to 0.6 s at the same time.
 
 - **Floor** (`drawFloorLight`, replacing `drawHandWindowLight` and `drawTappingHandLight`): per
   visited light, today's tap-light sample list — the lit interval's ends, start, release, the

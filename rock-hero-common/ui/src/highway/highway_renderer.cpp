@@ -106,12 +106,14 @@ constexpr double g_window_morph_dim = 0.95;
 // light or a pulse per note is the producer's merge tolerance (common::core::g_hand_rest_seconds
 // for the fretting hand, common::core::g_pick_light_rest_seconds for the picking hand).
 constexpr double g_light_decay_seconds = 0.1;
-// THE RIBBONS' RELEASE FADE: the lane-border ribbons' bright and mid tiers fade over this instead
-// of the light's own decay. A ribbon is a full-length runway strip, and one flashing per strike —
-// which the picking hand's per-strike pulse makes of every tap under the light's short decay —
-// reads as jarring (sighted twice, 2026-09-25 included), so the ribbon layer lets the light go out
-// slowly while the floor patch and the fret-line tier keep the light's own decay.
-constexpr double g_ribbon_decay_seconds = 0.45;
+// THE RIBBONS' FADE: the lane-border ribbons' bright and mid tiers fade over this instead of the
+// light's own decay, from the instant the light leaves a line, whether it releases or moves off
+// (the leaving rule, highwayLitLineAfterglowAt). A ribbon is a full-length runway strip, and one
+// flashing per strike — which the picking hand's per-strike pulse makes of every tap under the
+// light's short decay — reads as jarring (sighted twice, 2026-09-25 included), so the ribbon layer
+// lets the light go out slowly while the floor patch and the fret-line tier keep the light's own
+// decay. Raised from 0.45 on 2026-09-30, when the fretting hand's moves first faded here too.
+constexpr double g_ribbon_decay_seconds = 0.6;
 // Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
 // surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
 // wobble — read from shading alone even where screen-space lift is foreshortened at center
@@ -2202,10 +2204,11 @@ struct HighwayRenderer::Impl
     THE BRIGHTNESS RULE at one instant, per fret line: the max over every light of the window's
     coverage of the line (highwayHandWindowLineCoverage over highwayLitWindowAt: the one morph both
     hands move by, read so a light never starts a leg outside its own stretch) times the light's
-    strength there (the envelope times the motion dim, read at the same track instant).
-    Every layer that brightens lines asks this, with its own decay: the ribbons' bright tier at
-    now and mid tier along z, and the fret lines' active tier at now. Lights max-combine, so two
-    hands over one line never sum.
+    strength there (the envelope times the motion dim, read at the same track instant), or of what
+    the line keeps after the light left it (highwayLitLineAfterglowAt, the leaving rule), whichever
+    is larger. Every layer that brightens lines asks this, with its own decay: the ribbons' bright
+    tier at now and mid tier along z, and the fret lines' active tier at now. Lights max-combine,
+    so two hands over one line never sum.
     */
     void lineLightAt(const double seconds, const double decay_seconds, LineLight& lines) const
     {
@@ -2228,10 +2231,16 @@ struct HighwayRenderer::Impl
                 {
                     double& slot = lines.at(static_cast<std::size_t>(line));
                     slot = std::max(
-                        slot,
-                        common::core::highwayHandWindowLineCoverage(
-                            window, static_cast<double>(line)) *
-                            strength);
+                        {slot,
+                         common::core::highwayHandWindowLineCoverage(
+                             window, static_cast<double>(line)) *
+                             strength,
+                         common::core::highwayLitLineAfterglowAt(
+                             hand.track,
+                             stretch,
+                             static_cast<double>(line),
+                             seconds,
+                             decay_seconds)});
                 }
             });
     }
@@ -2279,6 +2288,19 @@ struct HighwayRenderer::Impl
         if (followed_from <= followed_to)
         {
             common::core::highwayTrackSampleTimes(hand.track, followed_from, followed_to, times);
+        }
+        // A line's afterglow falls linearly for one decay from the ramp start of the leg that
+        // carried the light off it, so each such end is a breakpoint too. Ramp starts ascend with
+        // the arrivals, which bounds the walk to the legs a decay reaches back to.
+        for (auto arrival = std::ranges::upper_bound(
+                 hand.track,
+                 from_seconds - decay_seconds,
+                 std::ranges::less{},
+                 &common::core::HighwayHandArrival::seconds);
+             arrival != hand.track.end() && arrival->seconds - arrival->ramp_seconds <= to_seconds;
+             ++arrival)
+        {
+            keep_in(arrival->seconds - arrival->ramp_seconds + decay_seconds);
         }
     }
 

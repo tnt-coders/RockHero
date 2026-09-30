@@ -220,6 +220,39 @@ HighwayHandWindow highwayLitWindowAt(
     return highwayHandWindowAt(track, highwayLitTrackTime(track, stretch, seconds));
 }
 
+// Rationale lives on the declaration in highway_window.h. Walks back from the window standing at
+// the held instant, one settled window at a time, until one covers the line. Each window stood
+// until the next leg's ramp began, and the walk stops at the light's start or once a window's end
+// lies a whole decay back, so it visits only the few windows a decay spans.
+double highwayLitLineAfterglowAt(
+    const std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
+    const double line, const double seconds, const double decay_seconds) noexcept
+{
+    if (track.empty() || seconds < stretch.start_seconds)
+    {
+        return 0.0;
+    }
+    const double held = std::min(seconds, stretch.release_seconds);
+    const auto next = nextArrival(track, held);
+    auto settled = next == track.begin() ? next : std::prev(next);
+    double stood_until =
+        legBefore(track, next, held).has_value() ? next->seconds - next->ramp_seconds : held;
+    while (stood_until >= stretch.start_seconds && stood_until > seconds - decay_seconds)
+    {
+        if (highwayHandWindowLineCoverage(settledWindow(*settled), line) >= 1.0)
+        {
+            return 1.0 - ((seconds - stood_until) / decay_seconds);
+        }
+        if (settled == track.begin())
+        {
+            break;
+        }
+        stood_until = settled->seconds - settled->ramp_seconds;
+        settled = std::prev(settled);
+    }
+    return 0.0;
+}
+
 // Rationale lives on the declaration in highway_window.h.
 HighwayHandWindow highwayBoxSidesAt(
     const std::span<const HighwayHandArrival> track, const double onset_seconds,

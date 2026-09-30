@@ -180,7 +180,8 @@ struct HighwayHandArrival
     \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
     A placement's is \ref FhpViewState::ramp_seconds. On the picking hand's track a strike's first
-    arrival is instant, and every later arrival ramps over the leg from the arrival before it.
+    arrival is instant, and every later arrival ramps over the leg from the arrival before it. A
+    ramp never reaches back past the arrival before it, so ramp starts ascend with the arrivals.
     */
     double ramp_seconds{0.0};
 

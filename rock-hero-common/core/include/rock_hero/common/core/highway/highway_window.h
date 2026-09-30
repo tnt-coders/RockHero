@@ -196,6 +196,33 @@ the light itself does not make.
     double seconds) noexcept;
 
 /*!
+\brief Returns how much of a lit light a fret line keeps after the light has LEFT it, as [0, 1].
+
+THE LEAVING RULE: a line goes dark over the layer's decay from the instant its light leaves it,
+whether the light leaves by moving off it or by releasing while it stands there. The instant is the
+last one, inside the light's hold and not before its start, at which the light stood settled on its
+track with the line fully covered: the release, for a light still standing on the line then; or the
+ramp start of the leg that carried the window away. The level falls linearly from 1 at that instant
+to 0 one decay later, and is 0 for a line the light never stood on. Past the release the light
+leaves nothing new, since the reading rule (\ref highwayLitTrackTime) never starts a leg there.
+
+This is the part of the brightness a moving light leaves behind; the part it casts where it stands
+is \ref highwayHandWindowLineCoverage over \ref highwayLitWindowAt, and a layer takes the larger of
+the two. Without this, a line the fretting hand moves off went dark over the move's ramp while a
+line the picking hand releases went dark over the whole decay.
+
+\param track Arrivals in ascending order.
+\param stretch The light's lit stretch over that track.
+\param line Fret-line coordinate to measure.
+\param seconds Absolute time the light is drawn at.
+\param decay_seconds The layer's decay; positive.
+\return The level the line keeps, in [0, 1].
+*/
+[[nodiscard]] double highwayLitLineAfterglowAt(
+    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch, double line,
+    double seconds, double decay_seconds) noexcept;
+
+/*!
 \brief Returns where a boxed strike's two sides stand at an instant: its hand's window at
 `max(onset, now)`.
 

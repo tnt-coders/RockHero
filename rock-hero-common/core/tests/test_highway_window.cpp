@@ -290,6 +290,53 @@ TEST_CASE("Hand window line coverage ramps across the edges", "[core][highway][w
     CHECK(highwayHandWindowLineCoverage(sweeping, 7.0) == Catch::Approx(0.5));
 }
 
+// THE LEAVING RULE over the fixture's move from lines 2-6 to lines 7-13, whose leg starts at 4.0:
+// line 3 is covered only before the move, line 10 only after it, and line 0 never. A line keeps
+// the light from the instant the light stopped standing on it, falling over one decay.
+TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][highway][window]")
+{
+    const std::vector<HighwayHandArrival> track = makePlacements();
+    const HighwayLitStretch held{
+        .start_seconds = 1.0, .release_seconds = 10.0, .rise_seconds = 0.0
+    };
+
+    // A line the light stands on keeps it whole; one it never stood on keeps nothing.
+    CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 3.0, 1.0) == Catch::Approx(1.0));
+    CHECK(highwayLitLineAfterglowAt(track, held, 10.0, 7.0, 1.0) == Catch::Approx(1.0));
+    CHECK(highwayLitLineAfterglowAt(track, held, 0.0, 3.0, 1.0) == Catch::Approx(0.0));
+
+    // The move carries the window off line 3 from its ramp start, not its arrival.
+    CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 4.0, 1.0) == Catch::Approx(1.0));
+    CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 4.5, 1.0) == Catch::Approx(0.5));
+    CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 5.0, 1.0) == Catch::Approx(0.0));
+    CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 7.0, 1.0) == Catch::Approx(0.0));
+
+    SECTION("a release while standing leaves at the release, and a later leg changes nothing")
+    {
+        const HighwayLitStretch released{
+            .start_seconds = 1.0, .release_seconds = 3.0, .rise_seconds = 0.0
+        };
+        CHECK(highwayLitLineAfterglowAt(track, released, 3.0, 3.5, 2.0) == Catch::Approx(0.75));
+        CHECK(highwayLitLineAfterglowAt(track, released, 3.0, 4.5, 2.0) == Catch::Approx(0.25));
+    }
+
+    SECTION("nothing is left before the light's start, or by a window it stood on unlit")
+    {
+        const HighwayLitStretch late{
+            .start_seconds = 4.5, .release_seconds = 10.0, .rise_seconds = 0.0
+        };
+        CHECK(highwayLitLineAfterglowAt(track, held, 3.0, 0.5, 1.0) == Catch::Approx(0.0));
+        CHECK(highwayLitLineAfterglowAt(track, late, 3.0, 4.6, 1.0) == Catch::Approx(0.0));
+    }
+
+    SECTION("a step with no ramp leaves at its arrival")
+    {
+        std::vector<HighwayHandArrival> stepped = makePlacements();
+        stepped.back().ramp_seconds = 0.0;
+        CHECK(highwayLitLineAfterglowAt(stepped, held, 3.0, 6.5, 1.0) == Catch::Approx(0.5));
+    }
+}
+
 // THE LEG LOOKUP at its breakpoints: a leg is in progress from its ramp's start inclusive to its
 // arrival exclusive, the first arrival never has one, and neither does a zero ramp.
 TEST_CASE("Hand leg lookup finds the ramp in progress", "[core][highway][window]")

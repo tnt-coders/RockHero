@@ -491,7 +491,7 @@ ring — for that test). Each stretch rises over its first note's arrival margin
 reaches back past the previous release, holds to its release (the drawn end, or the last pitched
 keyframe before a drawn slide-out), and fades over a decay that belongs to the LAYER drawing it,
 never to the hand: `g_light_decay_seconds` (0.1 s) under the hand — the floor patch and the
-fret-line tier — because a release is a gesture, and the slower `g_ribbon_decay_seconds` (0.45 s)
+fret-line tier — because a release is a gesture, and the slower `g_ribbon_decay_seconds` (0.6 s)
 on the lane-border ribbons, because a full-length runway strip flashing on every per-strike pulse
 of the picking hand reads as jarring (sighted twice, 2026-09-25 included).
 
@@ -499,7 +499,12 @@ of the picking hand reads as jarring (sighted twice, 2026-09-25 included).
 `max over lights of coverage(highwayLitWindowAt(track, stretch, t), line) ×
 highwayLightLevel(stretch, t) × motionDim(track, highwayLitTrackTime(track, stretch, t))`, where the
 motion dim is the sin-squared bell a window sweeping across lanes dims by, whichever hand moves it —
-read off the leg `highwayHandLegAt` finds, the same lookup the window eases through.
+read off the leg `highwayHandLegAt` finds, the same lookup the window eases through. Each light
+also contributes what the line keeps after the light LEFT it, and the larger of the two terms
+wins: `highwayLitLineAfterglowAt` is the LEAVING RULE, under which a line goes dark over the layer's
+decay from the instant its light leaves it — at the release for a light still standing on it, or at
+the ramp start of the leg that carried the window away. So a fretting-hand move fades the lines it
+leaves exactly as a picking-hand release does, instead of dropping them over the move's ramp.
 `highwayLitWindowAt` (`highway_window.h`) is the READING RULE: a light never starts a new leg of its
 track outside its own stretch, because a placement whose ramp lies in a dark gap must not move a
 light nothing displays. Through its rise it already stands where its start stands; after its
@@ -521,7 +526,8 @@ hand, each with its `HandLightStyle`), and visits one hand's lights in the drawn
   composite in submission order instead of summing toward white.
 - **`drawLaneBorderRibbons`** — the bright tier is the rule at now (`lineLightAt`); the mid tier is
   the rule along z at each sample's time, so a line is lit only while its light is. Both tiers
-  fade over `g_ribbon_decay_seconds`.
+  fade over `g_ribbon_decay_seconds` from the instant the light leaves a line, by moving or by
+  releasing; the samples gain each leaving leg's ramp start plus that decay, where the fade ends.
 - **`drawFretLines`** — the active tier is the rule at now, on the light's own decay.
 
 **ONE SAMPLING POLICY.** Everything drawn along a hand's track — the floor light over the stretch
