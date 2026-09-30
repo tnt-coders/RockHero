@@ -1026,6 +1026,13 @@ written down.
 
 ## Found while deleting the span-claim machinery (2026-09-29)
 
+- **The plant and the held stop share one representation.** `chartPlantedStops` keeps a raw
+  `std::optional<int>` (0 included, because the span law compares plants as PLACES in
+  `gripStatement`) while `chartHeldStops` normalizes the same type through `pressedFret`, so the
+  question "is 0 a finger" is answered at the seam between two tables of one type. Typing the plant
+  as a `ChartStop` (a place) and the held column as a pressed fret would make the two unmixable.
+  Not required while only these two readers exist; raised by the review of e40cab06.
+
 - **The importer's hand windows see no held stop.** `fretWindowsOf`
   (`rock-hero-editor/core/src/project/gp_chart_builder.cpp`) passes an all-`nullopt` held column to
   `deriveFretHandWidths`, so a tap's plant or default never widens an IMPORTED window, while the
