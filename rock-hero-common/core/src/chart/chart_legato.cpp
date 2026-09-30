@@ -116,7 +116,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
 
     // The last note seen per string: the stream is sorted, so this IS each note's same-string
     // predecessor when it is reached.
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
+    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings)> last_per_string{};
     last_per_string.fill(g_no_chart_predecessor);
     connections.legato.reserve(notes.size());
     connections.predecessors.reserve(notes.size());
@@ -126,10 +126,10 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
-        const bool string_in_range = note.string >= 1 && note.string <= g_max_chart_strings;
+        // Bound once so the presence test and both reads are provably the same object.
+        const std::optional<std::size_t> string_index = chartStringIndex(note);
         const std::size_t predecessor_index =
-            string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
-                            : g_no_chart_predecessor;
+            string_index.has_value() ? last_per_string.at(*string_index) : g_no_chart_predecessor;
         connections.predecessors.push_back(predecessor_index);
         const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
                                                  ? nullptr
@@ -173,9 +173,9 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
                 predecessor->position, predecessor->sustain, note.position, tempo_map);
         }
         // A PREDECESSOR is the last note on the string: a connection continues a ringing string.
-        if (string_in_range)
+        if (string_index.has_value())
         {
-            last_per_string.at(static_cast<std::size_t>(note.string)) = index;
+            last_per_string.at(*string_index) = index;
         }
     }
     return connections;
@@ -216,51 +216,38 @@ std::vector<std::optional<int>> chartPlantedStops(const ChartConnections& connec
     return planted;
 }
 
-std::vector<std::optional<HeldStop>> chartHeldStops(
-    const std::vector<ChartNote>& notes, const std::vector<std::optional<int>>& planted_stops,
-    const ChartShapes& shapes, const TempoMap& tempo_map)
+std::vector<std::optional<int>> chartHeldStops(
+    const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map)
 {
+    const std::vector<ChartNote>& notes = connections.saved_notes;
+    std::vector<std::optional<int>> held = chartPlantedStops(connections);
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
     // (\ref SpanCover) — the same coverage the hold extension is measured against, so the default
     // can never sit under a span that walk says is not there.
     const SpanCover cover{shapes.shapes, tempo_map};
-    std::vector<std::optional<HeldStop>> held(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        held[index] = notatedStopUnder(note, planted_stops[index]);
         if (held[index].has_value() || !pickingHandStopsString(note.attack, note.harmonic_node))
         {
             continue;
         }
-        // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap that states
-        // nothing releases onto the covering span's posture. Zero — the open string, nothing held —
-        // where no span covers the tap, and equally where the covering posture says nothing about
-        // THIS string: a posture is a per-string statement, and a string it never names is a string
-        // no finger was on.
+        // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap the notation says
+        // nothing under releases onto the covering span's posture — its PRESSED fret, which a node
+        // grip states as 0 by construction. Zero — the open string, nothing held — where no span
+        // covers the tap, and equally where the covering posture says nothing about THIS string:
+        // a string a posture never names is a string no finger was on.
         int stop = 0;
-        // Bound to a local so the presence test and the reads are provably the same object.
-        if (const std::optional<SpanCoverage> covering = cover.reaching(note.position);
-            covering.has_value() && note.string >= 1)
+        // Each bound to a local so the presence test and the reads are provably the same object.
+        const std::optional<SpanCoverage> covering = cover.reaching(note.position);
+        const std::optional<std::size_t> string_index = chartStringIndex(note);
+        if (covering.has_value() && string_index.has_value())
         {
-            const ChartShape& span = shapes.shapes[covering->span];
-            if (span.posture < shapes.postures.size())
-            {
-                // Posture array index 0 is the lowest string, exactly as the projection reads it.
-                const std::vector<std::optional<ChartStop>>& stops =
-                    shapes.postures[span.posture].stops;
-                const auto string_index = static_cast<std::size_t>(note.string - 1);
-                if (string_index < stops.size())
-                {
-                    // Bound to a local so the presence test and the read are one object. The
-                    // PRESSED fret, which a node grip states as 0 by construction: a node presses
-                    // nothing, so a tap under one releases onto the open string.
-                    const std::optional<ChartStop>& posture_stop = stops[string_index];
-                    stop = posture_stop.has_value() ? posture_stop->fret : 0;
-                }
-            }
+            const std::optional<ChartStop>& posture_stop =
+                shapes.postures[shapes.shapes[covering->span].posture].stops[*string_index];
+            stop = posture_stop.has_value() ? posture_stop->fret : 0;
         }
-        held[index] = HeldStop{.fret = stop, .source = HeldStopSource::Default};
+        held[index] = stop;
     }
     return held;
 }
@@ -278,8 +265,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the
     // whole derivation rather than its two vectors apart, because `shapes` indexes `postures` and
     // passing them separately is a mismatch waiting to happen.
-    resolutions.held_stops =
-        chartHeldStops(saved_notes, chartPlantedStops(resolutions.connections), derived, tempo_map);
+    resolutions.held_stops = chartHeldStops(resolutions.connections, derived, tempo_map);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
     // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
     // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
@@ -294,7 +280,6 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     ChartPresentation presentation = chartPresentation(resolutions.connections, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
-    resolutions.claim_shapes = std::move(derived.claim_shapes);
     // The holds read the drawn lengths AND the law's verdict, which is what makes the two
     // complementary by construction: presentation only RESTS a member's ribbon, and the hold
     // hands a resting member its own stored ring.

@@ -189,9 +189,9 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     const std::map<GridPosition, SlideRamp> slide_ramp_starts =
         makeSlideRampStarts(resolutions.connections, tempo_map);
 
-    // The span pass runs BEFORE the notes: a claim's mark is a column of the bracket its fret went
-    // into, so the note loop below reads the answer this pass publishes rather than deciding it a
-    // second time from the same inputs.
+    // The span pass runs BEFORE the notes: whether a held stop's face defers to a bracket is a
+    // question about the digit that bracket prints, so the note loop below reads the answer this
+    // pass publishes rather than deciding it a second time from the same inputs.
     state.shapes.reserve(resolutions.shapes.size());
     // The shared arrival rule, answered for every span once per chart revision beside the spans
     // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
@@ -227,14 +227,12 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     //
     // WHO PRINTS the displaced digit is the hand's question, and THE PLANT'S FACE settles both
     // halves. The bracket's number is the one statement that the left hand is on that string at
-    // all, so under a RIGHT-hand head the bracket prints the held stop itself, standing whatever
-    // its authorship, and the note's face defers to it (\ref StopMarkFace::Posture) — a TAPPED
-    // harmonic over a PRESSED stop included, whose pressed stop is that statement while its own
-    // head prints the node it sounds. A FRETTING-hand head carries its OWN satellite for whatever
-    // second stop it holds (\ref chartHeldStops) — the stop a pull-off plants beneath it, or the
-    // pressed stop under a harmonic whose head prints the node instead — and the bracket then
-    // prints nothing on that string, so exactly one ink states it. A fretting-hand head holding no
-    // second stop states the hand's presence with its own number, which is the place test above.
+    // all, so under a RIGHT-hand head the bracket prints the held stop itself, and the note's face
+    // defers to it where the two agree (\ref StopMarkFace::Posture). A FRETTING-hand head carries
+    // its OWN satellite for the second stop it holds (\ref chartHeldStops) — the stop a pull-off
+    // plants beneath it — and the bracket then prints nothing on that string, so exactly one ink
+    // states it. A fretting-hand head holding no second stop states the hand's presence with its
+    // own number, which is the place test above.
     //
     // The held table is index-parallel to the stream, as every resolution is.
     const auto digit_slot = [&notes, &resolutions](
@@ -260,22 +258,15 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 return std::nullopt;
             }
             // The note's own face already states a fretting-hand head's second stop, so the bracket
-            // does not — WHICHEVER tier answered it, the plant beneath the head or the pressed stop
-            // under a harmonic printing its node, because the satellite is one ink either way and
-            // this arm reads the resolved table rather than the tier that filled it. Asked as an
-            // EQUALITY with the posture's stop rather than as the held stop's presence, because the
-            // two answer different questions and only their agreement is one number stated twice: a
-            // planting strike's posture entry IS its plant and so equals its held stop, and a
-            // harmonic over a pressed stop hands the span that same pressed stop as its grip
-            // statement (chart_shapes.cpp, RULED 2026-09-18), so it agrees here too. Where the span
-            // states something else on that string — a later slide-out the same hand restated into
-            // the span — the bracket keeps its digit, so both are published and neither is
-            // silenced.
+            // does not. Asked as an EQUALITY with the posture's stop rather than as the held stop's
+            // presence, because only their agreement is one number stated twice: a planting
+            // strike's posture entry IS its plant. Where the span states something else on that
+            // string — a later slide-out the same hand restated into the span — the bracket keeps
+            // its digit, so both are published and neither is silenced.
             // Bound once so the presence test and the read are provably the same object.
             const auto index = static_cast<std::size_t>(head - notes.begin());
-            const std::optional<HeldStop>& held = resolutions.held_stops[index];
-            if (!rightHandOnset(head->attack) && held.has_value() &&
-                frettedStop(held->fret) == stop)
+            const std::optional<int>& held = resolutions.held_stops[index];
+            if (!rightHandOnset(head->attack) && held.has_value() && frettedStop(*held) == stop)
             {
                 return std::nullopt;
             }
@@ -294,6 +285,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                                      : std::optional<GridPosition>{};
     };
 
+    // Every drawn bracket's position beside its span, in order — spans never overlap and each
+    // bracket draws inside its own span — so the note pass finds the bracket at a note's own
+    // position by one search rather than a scan.
+    std::vector<std::pair<GridPosition, std::size_t>> drawn_brackets;
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
@@ -311,7 +306,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
         // span states itself with its strums' own boxes and opens no mark of its own, which is the
         // ordinary disposition of a landing successor rather than a corner of one. Everything
-        // downstream keys on this optional: the deferred bracket, the claim's published face, and
+        // downstream keys on this optional: the deferred bracket, a held stop's deferring face, and
         // the coincidence rule that suppresses a chord box under an arpeggio box all ask "is a mark
         // drawn here", and there is one answer to ask.
         //
@@ -350,6 +345,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                                                      : std::optional<StopMarkSlot>{},
                     });
             }
+        }
+        if (bracket.has_value())
+        {
+            drawn_brackets.emplace_back(*bracket, shape_index);
         }
         state.shapes.push_back(
             ShapeViewState{
@@ -430,60 +429,42 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         view.fret = note.fret;
         view.attack = note.attack;
         // THE FACE THIS NOTE'S HELD STOP WEARS (\ref chartHeldStops) — its fret, where its ink
-        // draws, and on what terms it shows (THE SATELLITE REVEAL). A held stop's face is its own
-        // satellite, at the note's own slot, for EVERY note carrying one.
+        // draws, and on what terms it shows (THE SATELLITE REVEAL). Every held stop is derived and
+        // already printed elsewhere — a plant by its pull-off, a default by the posture — so its
+        // own satellite waits for the reveal, which shows the whole truth about the note at once.
         //
         // Bound to a local so the presence test and the reads below are provably the same object.
-        if (const std::optional<HeldStop>& held = resolutions.held_stops[note_index];
-            held.has_value())
+        if (const std::optional<int>& held = resolutions.held_stops[note_index]; held.has_value())
         {
-            // THE PRESSED STOP STANDS: a harmonic over a pressed stop prints the NODE at its head,
-            // so the stop below is pitch-critical and no other ink in the lane states it. A PLANT
-            // and a DEFAULT are already printed — by the pull-off, by the posture — so each waits
-            // for the reader to ask; the reveal shows the whole truth about the note at once.
-            StopMarkFace face = held->source == HeldStopSource::Pressed ? StopMarkFace::Standing
-                                                                        : StopMarkFace::Revealed;
-            // THE PLANT'S FACE DRAWS AT THE RELEASE STATEMENT (RULED 2026-09-29): a plant is a
-            // finger waiting where the source's own finger lets go, so it stands at the last fret
-            // the source states inside its ring — the landing keyframe of a slid source, the head
-            // of an unslid one — whichever hand made the onset.
+            // THE STOP DRAWS AT THE RELEASE STATEMENT (RULED 2026-09-29): the finger it names is
+            // waiting where the note's own finger lets go, so it stands at the last fret the note
+            // states inside its ring — the landing keyframe of a slid note, the head of an unslid
+            // one — whichever hand made the onset.
             double mark_seconds = view.start_seconds;
-            if (const Keyframe* const release = lastInteriorFretStatement(note);
-                held->source == HeldStopSource::Plant && release != nullptr)
+            if (const Keyframe* const release = lastInteriorFretStatement(note); release != nullptr)
             {
                 mark_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(onset_beat + release->offset.toDouble());
             }
-            // THE ONE EXCEPTION, and it is [D2]'s displaced digit: a tap FRONTING its span's
-            // bracket has that bracket printing its stop, because the tap's own head holds the
-            // string's centre there. The bracket OWES the statement, so the stop stands whatever
-            // its authorship and this note draws nothing of its own beside it — and the face
-            // carries the BRACKET's instant, the very number the bracket pass positions the digit
-            // with, so print and click stay one decision.
-            //
-            // Both halves are the test: the mark draws at this note's own position, AND the span's
-            // digit for this string went to the satellite column there. Reading the column alone
-            // would let a tap further along the span claim the face the FRONT tap's head displaced.
-            //
-            // A DEFAULT never reaches here, by construction rather than by a test: this face is
-            // owed by the span a note's CLAIM joined, and a tap that states nothing joins none
-            // (ChartShapes::claim_shapes is absent for it). So a default wears the note's own
-            // satellite even where its value coincides with the posture digit beside it. Nor does
-            // a fretting-hand source's PLANT: a fretting-hand onset claims nothing, and the slot
-            // rule leaves the bracket's digit absent on a string whose head wears the stop as its
-            // own face, so the column test below could not pass either (THE PLANT'S FACE).
-            if (const std::optional<std::size_t>& shape_index =
-                    resolutions.claim_shapes[note_index];
-                shape_index.has_value() && *shape_index < state.shapes.size())
+            StopMarkFace face = StopMarkFace::Revealed;
+            // DECIDED BY INK (RULED 2026-09-29): where a bracket drawn at this note's own position
+            // already prints this very stop in the satellite column — [D2]'s displaced digit, the
+            // tap's own head holding the string's centre there — the bracket owes the statement
+            // and this note draws nothing of its own beside it.
+            const auto bracket = std::ranges::lower_bound(
+                drawn_brackets, note.position, std::ranges::less{}, [](const auto& drawn) {
+                    return drawn.first;
+                });
+            if (bracket != drawn_brackets.end() && bracket->first == note.position &&
+                bracket->second < state.shapes.size())
             {
-                const ShapeViewState& span = state.shapes[*shape_index];
-                // Bound once so the presence test and the read are provably the same object.
-                const std::optional<double>& bracket_seconds = span.bracket_seconds;
+                const ShapeViewState& span = state.shapes[bracket->second];
                 const auto entry =
                     std::ranges::find(span.strings, note.string, &ShapeStringViewState::string);
-                if (bracket_seconds.has_value() &&
-                    bracket_position(*shape_index) == note.position &&
-                    entry != span.strings.end() && entry->digit == StopMarkSlot::Satellite)
+                // Bound once so the presence test and the read are provably the same object.
+                const std::optional<double>& bracket_seconds = span.bracket_seconds;
+                if (bracket_seconds.has_value() && entry != span.strings.end() &&
+                    entry->digit == StopMarkSlot::Satellite && entry->stop == frettedStop(*held))
                 {
                     mark_seconds = *bracket_seconds;
                     face = StopMarkFace::Posture;
@@ -491,7 +472,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
             }
             view.stop_mark = StopMarkViewState{
                 .seconds = mark_seconds,
-                .fret = held->fret,
+                .fret = *held,
                 .face = face,
             };
         }

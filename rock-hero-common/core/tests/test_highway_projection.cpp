@@ -1999,12 +1999,12 @@ TEST_CASE("Fret-hand light lights a lone open note with a margin rise", "[core][
 }
 
 // A bare tap proves nothing about the fretting hand, so it leaves that hand dark while the tap
-// itself still strikes and lights the picking hand. A tapped harmonic over a pressed stop is the
-// fretting hand holding that stop, lit through its held stop.
-TEST_CASE("Fret-hand light ignores a bare tap and lights a pressed one", "[core][highway][light]")
+// itself still strikes and lights the picking hand. A tap a pull-off proves a finger under is the
+// fretting hand holding that stop, lit from the tap's own onset through its held stop.
+TEST_CASE("Fret-hand light ignores a bare tap and lights a planted one", "[core][highway][light]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    ChartNote tap =
+    const ChartNote tap =
         lightNote(GridPosition{.measure = 2, .beat = 1}, 1, 12, Fraction{1}, NoteAttack::Tap);
 
     const HighwayViewState bare =
@@ -2013,18 +2013,15 @@ TEST_CASE("Fret-hand light ignores a bare tap and lights a pressed one", "[core]
     CHECK(bare.tap_onsets.size() == 1);
     CHECK(bare.pick_hand.lit.size() == 1);
 
-    tap.fret = 5;
-    tap.harmonic_node = 17.0;
-    const HighwayViewState claimed =
-        makeHighwayViewState(makeLightArrangement({tap}), tempo_map, {}, {});
-    REQUIRE(claimed.chart.notes.size() == 1);
-    REQUIRE(claimed.fret_hand.lit.size() == 1);
+    const ChartNote pull =
+        lightNote(GridPosition{.measure = 2, .beat = 2}, 1, 5, Fraction{1}, NoteAttack::Legato);
+    const HighwayViewState planted =
+        makeHighwayViewState(makeLightArrangement({tap, pull}), tempo_map, {}, {});
+    REQUIRE(planted.chart.notes.size() == 2);
+    REQUIRE_FALSE(planted.fret_hand.lit.empty());
     CHECK(
-        claimed.fret_hand.lit.front().start_seconds ==
-        Catch::Approx(claimed.chart.notes.front().start_seconds));
-    CHECK(
-        claimed.fret_hand.lit.front().release_seconds ==
-        Catch::Approx(claimed.chart.notes.front().ink_end_seconds));
+        planted.fret_hand.lit.front().start_seconds ==
+        Catch::Approx(planted.chart.notes.front().start_seconds));
 }
 
 // A pick slide is the picking hand dragging across the strings, and without a claim it says

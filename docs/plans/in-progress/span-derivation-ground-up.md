@@ -81,14 +81,9 @@ is bookkeeping about that tenure.
      the import's contradiction cut of co-terminating let-ring rings at grip changes as what keeps
      this from fragmenting passages.
    - A CONTRADICTION — a statement naming a different stop on a string the grip states or the
-     hand audibly holds (Law A). It is a graded witness, because EVIDENCE OUTRANKS ASSERTION: the
-     hand's SOUNDING stop and the span's SOUNDED stops always witness (same-stop is the tie
-     doctrine, even beside a claim that dated a move away); a differing CLAIM against a carried
-     claim always witnesses (assertion against assertion is the charter re-authoring the hand);
-     and a differing STRIKE against a carried claim witnesses only where the grip is ESTABLISHED
-     (the span has sounded members) and the string is silent — against a still-assembling silent
-     statement the strike is evidence arriving, not contradiction: it joins the assembly in place
-     (LAW II). The seam ownership stands: a ring dying where a
+     hand audibly holds (Law A): the hand's SOUNDING stop and the span's SOUNDED stops witness
+     (same-stop is the tie doctrine), and a right-hand onset contradicts only through THE TAP'S
+     FLOOR (a right-hand onset states no grip, ruled 2026-09-29). The seam ownership stands: a ring dying where a
      new grip begins belongs to its own span; onsets at a seam belong to the opener.
    - THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in parts —
      and the walk splits where the character turns, so the class is a fact of the span's founding
@@ -294,9 +289,10 @@ event-algebra, edge-first, deletion-first).
   12a's display trim stays wholly at the projection.
 - LAW II (a claim is a member its own carrier sounds; hand-alone spans stand at their instant) and
   posture dedup are unchanged. THE PUBLISH LIST is
-  exactly nine fields, complete: `position`, `sustain` (the musical close), `stated_extent`,
-  `closing_onset`, `posture`, `silent_member`, `sounds_in_parts`, `bracket_position` and
-  `landing_opened`. `landing_opened` is kept because its one honest census key is itself — the
+  exactly eight fields, complete: `position`, `sustain` (the musical close), `stated_extent`,
+  `closing_onset`, `posture`, `sounds_in_parts`, `bracket_position` and `landing_opened`
+  (`silent_member` left with the claims, 2026-09-29). `landing_opened` is kept because its one
+  honest census key is itself — the
   `stated_extent` proxy fails both ways on pinned fixtures — and it has exactly one cause now that
   ring-out opens nothing. There is no `founding` field: with growth answering the arriving-stop
   question for everyone, how a span was born stops being a fact anything reads. Publication rides
@@ -353,9 +349,8 @@ span — the derivation does not guess that the finger stayed. The second arm, `
 reads the verdict rather than re-asking: a strike's answer is recorded once, at the strike, in
 `StringHand::stated_beneath`, because the strike itself replaces the evidence it was judged
 against — gated on the same `sounding_before` witness the displacement reads, so a dead source
-exempts nothing. The claim witness takes the strike arm only — no finger sounds a carried claim.
-The pair reaches the verdicts, the statement-began column and the foreign-sound floor; a tapped
-source's derived claim is admitted at the slot read under the same proof, an authored one always. The character split's arithmetic counts a stated string
+exempts nothing. The pair reaches the verdicts, the statement-began column and the foreign-sound
+floor. The character split's arithmetic counts a stated string
 as touched only where the strike RESTATES the span's own stop and is no pull-off landing — a
 provable no-op before the law, and what keeps the ornament from reading as the statement coming
 apart, neither when it arrives nor at its release. The whole-grip test reads GRIP STATEMENTS

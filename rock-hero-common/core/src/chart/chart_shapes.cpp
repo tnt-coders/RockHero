@@ -220,17 +220,6 @@ struct StringHand
     std::optional<ChartStop> stated_beneath;
 };
 
-// One claim inside a span: the stop the notation states under a right-hand onset, carried apart
-// from the sounded grip because it holds provenance the sound never has — the published face is
-// keyed on it.
-struct StopClaim
-{
-    std::size_t note_index{0};
-    std::size_t string_index{0};
-    Fraction beat{};
-    int fret{0};
-};
-
 // A HAND-FREE stop: one the fretting hand presses NOTHING for, so its RING proves nothing about
 // where the hand is once the strike is over. The open string and the node a natural (or open-string
 // tap) harmonic touches both record fret 0 — the one place the "fret is 0 under a node" invariant
@@ -259,8 +248,8 @@ struct StopClaim
 }
 
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
-// carries is only its statement — which strings at which stops, the claims, and the
-// handful of facts published at emit that only the walk's own passage through the slots can know.
+// carries is only its statement — which strings at which stops, and the handful of facts published
+// at emit that only the walk's own passage through the slots can know.
 struct OpenSpan
 {
     GridPosition position;
@@ -272,11 +261,6 @@ struct OpenSpan
     // grip, never what shrinks it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // The claims this span carries (\ref StopClaim): stops stated with no sound of their own. They
-    // never date the front and never bound the reach, because a claim is no evidence; they reach
-    // the published posture only at emit, on strings the grip left empty.
-    std::vector<StopClaim> claims;
-
     // Where this span's opening mark draws, published to \ref ChartShape::bracket_position. Every
     // span an event states seeds it with its front, where its first member's statement began — a
     // strike or a glide's landing alike; a landing successor seeds nothing and the first sounding
@@ -287,8 +271,6 @@ struct OpenSpan
     // nothing has stated yet. Published as \ref ChartShape::stated_extent (the display trim's
     // floor); its presence is the landing emit rule's stated arm (rule 6).
     std::optional<Fraction> last_stated_beat{};
-
-    bool silent_only{false};
 
     // The hand's OWN strokes have sounded this grip in parts — what the unison-restatement break
     // and the partial-sounding guards read, published as \ref ChartShape::sounds_in_parts.
@@ -321,8 +303,6 @@ struct SlotReading
     // against a standing grip, since the tap cannot sound at or below a finger holding the string.
     std::vector<std::optional<int>> tap_floors;
 
-    std::vector<StopClaim> claims;
-
     std::size_t struck{0};
 };
 
@@ -354,26 +334,12 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     // Both stop tables are derivations of the connections themselves, so they are asked here rather
     // than handed in: a caller could otherwise pass tables built from another revision.
     const std::vector<std::optional<int>> planted_stops = chartPlantedStops(connections);
-    // THE CLAIM COLUMN: the stop the fretting hand states under a RIGHT-HAND onset, which only the
-    // notation states (\ref notatedStopUnder) — a tapped harmonic's pressed stop, else the stop a
-    // pull-off plants. A fretting-hand onset claims nothing: its own fret is its statement.
-    std::vector<std::optional<int>> claimed_stops(saved_notes.size());
-    for (std::size_t index = 0; index < saved_notes.size(); ++index)
-    {
-        const ChartNote& note = saved_notes[index];
-        if (const std::optional<HeldStop> notated = notatedStopUnder(note, planted_stops[index]);
-            rightHandOnset(note.attack) && notated.has_value())
-        {
-            claimed_stops[index] = notated->fret;
-        }
-    }
     // A SLIDE-OUT or an ARRIVAL at every end statement, resolved once for the revision by the one
     // walk that establishes the pair (\ref ChartConnections::arrives_into). Read by the channel
     // reader and by the two sound tests below: every place this walk asks what a fret at a ring's
     // end means.
     const std::vector<bool>& arrives_into = connections.arrives_into;
     ChartShapes derived;
-    derived.claim_shapes.assign(saved_notes.size(), std::nullopt);
 
     constexpr auto string_count = static_cast<std::size_t>(g_max_chart_strings);
 
@@ -386,13 +352,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     }
     const auto ring_end_of = [&saved_notes, &onset_beat](const std::size_t note) {
         return onset_beat[note] + saved_notes[note].sustain;
-    };
-    const auto note_string_index = [](const ChartNote& note) -> std::optional<std::size_t> {
-        if (note.string < 1 || note.string > g_max_chart_strings)
-        {
-            return std::nullopt;
-        }
-        return static_cast<std::size_t>(note.string - 1);
     };
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
@@ -490,8 +449,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
 
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
     // (rule 8's quit arm), with its per-string renewal: a member string whose sound ends exactly
-    // here and is re-sounded by this slot was REPLACED, not silenced. Claims are outside it
-    // entirely — a claim has no evidence, so it has no sound of its own to quit.
+    // here and is re-sounded by this slot was REPLACED, not silenced.
     const auto in_force = [&hand](
                               const OpenSpan& span,
                               const Fraction now,
@@ -516,8 +474,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
     };
 
     // How far the span's own statement reaches: the minimum of its sounded members' coverage —
-    // the fretting hand's rings, landing-capped. Claims never bound (a claim has no evidence);
-    // a span whose members are all claims reaches its own start, which is the honest zero.
+    // the fretting hand's rings, landing-capped.
     const auto span_reach = [&hand](const OpenSpan& span) {
         std::optional<Fraction> reach;
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
@@ -570,29 +527,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 return;
             }
         }
-        std::vector<std::optional<ChartStop>> stops = open->stops;
-        bool silent_member = false;
-        for (const StopClaim& claim : open->claims)
-        {
-            const bool inside = claim.beat < end || claim.beat == open->front_beat;
-            if (!inside)
-            {
-                continue;
-            }
-            silent_member = true;
-            std::optional<ChartStop>& stop = stops[claim.string_index];
-            if (!stop.has_value())
-            {
-                stop = frettedStop(claim.fret);
-            }
-            std::optional<std::size_t>& reach_entry = derived.claim_shapes[claim.note_index];
-            if (!reach_entry.has_value())
-            {
-                reach_entry = derived.shapes.size();
-            }
-        }
         // Built once and handed to the table; the row copies it only on a first sighting.
-        ChartPosture posture{.stops = std::move(stops)};
+        ChartPosture posture{.stops = open->stops};
         const auto [entry, inserted] =
             posture_indices.try_emplace(std::move(posture), derived.postures.size());
         if (inserted)
@@ -607,7 +543,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                                  open->front_beat,
                 .closing_onset = head,
                 .posture = entry->second,
-                .silent_member = silent_member,
                 .sounds_in_parts = open->struck_in_parts,
                 .landing_opened = open->landing_opened,
                 .bracket_position = open->bracket_position,
@@ -692,7 +627,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 arrived = arrived || (hand[string_index].covers == boundary &&
                                       boundary < ring_end_of(*finger));
             }
-            std::vector<StopClaim> carried_claims = open->claims;
             const bool opens_successor = arrived && survivors >= g_span_member_threshold;
             if (!opens_successor)
             {
@@ -708,12 +642,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 .position = boundary_position,
                 .front_beat = boundary,
                 .stops = std::move(landed),
-                // The fingers slid; they never lifted — the authored records ride the statement
-                // they were authored against.
-                .claims = std::move(carried_claims),
                 .bracket_position = std::nullopt,
                 .last_stated_beat = std::nullopt,
-                .silent_only = false,
                 .struck_in_parts = false,
                 .landing_opened = true,
             };
@@ -743,15 +673,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
             .sounding = std::vector<std::optional<Fraction>>(string_count),
             .tap_floors = std::vector<std::optional<int>>(string_count),
-            .claims = {},
             .struck = 0,
         };
         std::size_t onset_end = index;
         while (onset_end < saved_notes.size() && saved_notes[onset_end].position == slot.position)
         {
             const ChartNote& member = saved_notes[onset_end];
-            const std::optional<std::size_t> string_index = note_string_index(member);
-            const std::optional<int> claim = claimed_stops[onset_end];
+            const std::optional<std::size_t> string_index = chartStringIndex(member);
             if (string_index.has_value())
             {
                 slot.sounding[*string_index] = ring_end_of(onset_end);
@@ -760,19 +688,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     slot.tap_floors[*string_index] = fretHull(member).lowest;
                 }
             }
-            if (claim.has_value() && string_index.has_value())
-            {
-                slot.claims.push_back(
-                    StopClaim{
-                        .note_index = onset_end,
-                        .string_index = *string_index,
-                        .beat = slot.beat,
-                        .fret = *claim,
-                    });
-            }
             // THE FRETTING HAND'S OWN STRIKES alone: a right-hand onset is the other hand's and
-            // asserts no grip of its own, so it strikes nothing here — the fretting-hand stop under
-            // it reaches the statement path as the claim above.
+            // asserts no grip of its own, so it strikes nothing here — its only span-facing
+            // evidence is its sound (above) and THE TAP'S FLOOR.
             if (string_index.has_value() && !rightHandOnset(member.attack))
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
@@ -798,59 +716,15 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         // member whose sound ends exactly here and is re-sounded was replaced, not silenced).
         const bool standing = open.has_value() && in_force(*open, slot.beat, slot.sounding);
 
-        // THE GRIP ALREADY HELD, per string: the standing span's own entry — sounded, or claimed
-        // where nothing sounded it — and nothing where no span stands. It is the only evidence
-        // \ref gripStatement is given for what this slot's notes state, because the law's premise
-        // is a finger ADDED ABOVE A GRIP THAT IS HELD — a stroke that FOUNDS a span states the
-        // frets it strikes, however its strings were ringing a moment before, so a chord box is
-        // never labelled with a fret nobody struck. ONE spelling of what is down on a string: the
-        // claim witness below asks the same carried claims, and two readings of one grip are how
-        // an ornament rides a claim's contradiction test and then rewrites its entry anyway.
+        // THE GRIP ALREADY HELD, per string: the standing span's own entry, and nothing where no
+        // span stands. It is the only evidence \ref gripStatement is given for what this slot's
+        // notes state, because the law's premise is a finger ADDED ABOVE A GRIP THAT IS HELD — a
+        // stroke that FOUNDS a span states the frets it strikes, however its strings were ringing
+        // a moment before, so a chord box is never labelled with a fret nobody struck.
         std::vector<std::optional<ChartStop>> gripped_before(string_count);
         if (standing)
         {
             gripped_before = open->stops;
-            for (const StopClaim& claim : open->claims)
-            {
-                std::optional<ChartStop>& entry = gripped_before[claim.string_index];
-                if (!entry.has_value())
-                {
-                    entry = frettedStop(claim.fret);
-                }
-            }
-        }
-        // A PLANTED claim is the pull-off's landing stop under a right-hand onset, and it is the
-        // same derivation under the same law as under a fretting-hand one: it states the grip only
-        // where that grip already holds it. A tapped harmonic's PRESSED stop is the stop its own
-        // pitch is measured from, and always states. The proof cannot bootstrap: a carried claim
-        // proves a later one only if it was itself admitted here, so every chain ends in a sounded
-        // stop or a pressed one. It weighs a claim as much as a sounded stop on purpose — the claim
-        // witness below GRADES the two because it asks whether a DIFFERING strike breaks a claim,
-        // while this asks whether a source that does NOT differ may ride one.
-        std::erase_if(
-            slot.claims, [&saved_notes, &planted_stops, &gripped_before](const StopClaim& claim) {
-                const ChartNote& member = saved_notes[claim.note_index];
-                const std::optional<ChartStop> proven = gripStatement(
-                    member, planted_stops[claim.note_index], gripped_before[claim.string_index]);
-                return !harmonicOverPressedStop(member) && !proven.has_value();
-            });
-
-        // WHAT THIS SLOT STATES per string, strikes and claims as one table: a tap's claimed stop
-        // is a STATEMENT about where the fretting hand is, exactly as a strike is (rule 2 — the
-        // claimed fret participates fully on the statement path), so the contradiction and
-        // displacement witnesses read them identically. A slot never states one string twice: two
-        // records at one (position, string) are a collision, not an overlap.
-        std::vector<std::optional<ChartStop>> stated_here(string_count);
-        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-        {
-            stated_here[string_index] = slot.strikes[string_index];
-        }
-        for (const StopClaim& claim : slot.claims)
-        {
-            if (!stated_here[claim.string_index].has_value())
-            {
-                stated_here[claim.string_index] = frettedStop(claim.fret);
-            }
         }
 
         // THE DISPLACEMENT WITNESS (Law A), against the PRE-instant hand and read
@@ -895,8 +769,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         // beneath it.
         //
         // WHAT THE LAW REACHES (the one list; the deriveChartShapes \param is a pointer here). The
-        // pair feeds every seam verdict — displacement, the grip contradiction, the claim witness —
-        // and, under THE FOLD, the statement-began column and the foreign-sound floor, so a span
+        // pair feeds every seam verdict — displacement and the grip contradiction — and, under
+        // THE FOLD, the statement-began column and the foreign-sound floor, so a span
         // fronts where the held evidence began. \c grip_statement_of carries the same verdict
         // into the grip column, so an ornament never rewrites the entry it rides above. A genuine
         // foreign restrike still pushes the front (the 17:3.5 figure) because the floor's skip
@@ -961,7 +835,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_since_here[string_index] = stated_since_at(string_index, slot.beat);
-            const std::optional<ChartStop>& stated_stop = stated_here[string_index];
+            const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
             if (!stated_stop.has_value())
             {
                 continue;
@@ -986,8 +860,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
             // end of whatever foreign stop it last sounded — the displacing strike's own instant
             // under a displacement, the dead ring's own end after a gap of silence.
-            const std::optional<ChartStop>& struck_stop = slot.strikes[string_index];
-            if (struck_stop.has_value() && finger.has_value() &&
+            const ChartStop& struck_stop = *stated_stop;
+            if (finger.has_value() &&
                 slideOutFretOrNull(saved_notes[*finger], arrives_into[*finger]) == nullptr)
             {
                 const Fraction sounded_until = std::min(hand[string_index].sounds, slot.beat);
@@ -997,8 +871,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // finger, and a strike the sounding finger plants is the same hand releasing one —
                 // neither marks a foreign spell, so the floor cannot push a front past ground the
                 // plant accounts for.
-                if (last_held.has_value() &&
-                    differs_by_hand(string_index, *last_held, *struck_stop))
+                if (last_held.has_value() && differs_by_hand(string_index, *last_held, struck_stop))
                 {
                     hand[string_index].foreign_until = sounded_until;
                 }
@@ -1014,34 +887,30 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             // statement of its own. The held side reads what the finger STATED over its audible
             // stop for the same reason the grip column does: the sound is the ornament, the
             // statement is the grip.
-            if (struck_stop.has_value())
+            const std::optional<ChartStop> statement = grip_statement_of(string_index);
+            const std::optional<ChartStop> held_statement =
+                held.has_value() && hand[string_index].stated_beneath.has_value()
+                    ? hand[string_index].stated_beneath
+                    : held;
+            const bool statement_continues = statement.has_value() && held_statement.has_value() &&
+                                             *statement == *held_statement;
+            if (!statement_continues)
             {
-                const std::optional<ChartStop> statement = grip_statement_of(string_index);
-                const std::optional<ChartStop> held_statement =
-                    held.has_value() && hand[string_index].stated_beneath.has_value()
-                        ? hand[string_index].stated_beneath
-                        : held;
-                const bool statement_continues = statement.has_value() &&
-                                                 held_statement.has_value() &&
-                                                 *statement == *held_statement;
-                if (!statement_continues)
-                {
-                    stated_since_here[string_index] = slot.beat;
-                }
+                stated_since_here[string_index] = slot.beat;
             }
         }
 
         // A CONTRADICTION breaks the grip (rule 8): a statement naming a different stop on a
         // string whose stop the span SOUNDED, displacing a stop the hand still audibly holds
         // anywhere (Law A's foreign-ring break: the grip provably moved even where the span
-        // never stated that string), or crossing a carried claim per the graded witness below.
+        // never stated that string).
         bool contradiction = false;
         if (standing)
         {
             for (std::size_t string_index = 0; string_index < string_count && !contradiction;
                  ++string_index)
             {
-                const std::optional<ChartStop>& stated_stop = stated_here[string_index];
+                const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
                 if (!stated_stop.has_value())
                 {
                     continue;
@@ -1053,8 +922,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 }
                 // Judged against the strike's GRIP STATEMENT where one strikes: a source over the
                 // stop its string still held restates it, and every other strike is judged on
-                // the fret it sounds. A stated string nothing strikes (a carried claim) keeps its
-                // stated stop.
+                // what it sounds — a node strike, which states no grip, on its node.
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 const ChartStop here_stop = statement.value_or(*stated_stop);
                 const std::optional<ChartStop>& stated = open->stops[string_index];
@@ -1076,37 +944,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 {
                     contradiction = true;
                     continue;
-                }
-                // THE CLAIM WITNESS, and it is graded because EVIDENCE OUTRANKS ASSERTION (the
-                // sighted Law A semantics). A differing CLAIM against a carried claim always
-                // breaks: assertion against assertion is the charter re-authoring the hand, and
-                // there is no evidence for either side to outrank. A differing STRIKE breaks a
-                // carried claim only where the grip is ESTABLISHED — the span has sounded
-                // members — and the string is silent: an established grip's assertion says where
-                // the finger IS, so playing elsewhere is a different hand (the re-pick split). A
-                // strike over a string still SOUNDING its stop is the tie doctrine (displacement
-                // above heard any disagreement), and a strike against a still-assembling SILENT
-                // statement is new evidence arriving, not a contradiction — it joins the assembly.
-                for (const StopClaim& claim : open->claims)
-                {
-                    // The hold-under exemption takes arm (a) ONLY: a source striking here that
-                    // PLANTS the claimed stop is the claim's own grip with a finger added above
-                    // it. `planted_under` is deliberately NOT composed — its premise is "the
-                    // note sounding the first argument", and no finger sounds a carried claim,
-                    // so composing it would exempt a figure whose claim genuinely IS
-                    // contradicted (claim 8, finger sounding 10 planting 5, slot stating 5).
-                    if (claim.string_index != string_index ||
-                        frettedStop(claim.fret) == *stated_stop ||
-                        plants_under(string_index, frettedStop(claim.fret)))
-                    {
-                        continue;
-                    }
-                    const bool statement_is_claim = !slot.strikes[string_index].has_value();
-                    if (statement_is_claim ||
-                        (!open->silent_only && !sounding_before[string_index]))
-                    {
-                        contradiction = true;
-                    }
                 }
             }
             // THE TAP'S FLOOR (RULED 2026-09-29). A picking-hand stop sounds only ABOVE the finger
@@ -1153,9 +990,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         //
         // What continues is exactly the chug chain: a never-in-parts span restruck at
         // precisely its own grip. The FOUNDING slot never splits (no span stands at its own
-        // open). Claim-carrying spans stand OUTSIDE both directions for now: a strike at a
-        // claim-carrying span is evidence arriving against the claims, not a character turn, so
-        // those figures keep the riding behavior until sighted. A differing fret on a stated
+        // open). A differing fret on a stated
         // string does not always break above — THE HOLD-UNDER LAW exempts a pull-off source
         // planting the grip's stop — so the direction's arithmetic counts a string as touched
         // only where the strike RESTATES the span's own stop; the source's ornament above the
@@ -1287,35 +1122,24 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                  ++ahead)
             {
                 const ChartNote& member = saved_notes[ahead];
-                const std::optional<std::size_t> string_index = note_string_index(member);
+                const std::optional<std::size_t> string_index = chartStringIndex(member);
                 if (!string_index.has_value())
                 {
                     return false;
                 }
                 const std::optional<ChartStop> stated = grip_statement_of(*string_index);
-                // What a part SOUNDS on the fret axis, read exactly as the slot open reads it: a
-                // fretting-hand strike sounds the stop it presses, and a right-hand onset sounds
-                // the stop the OTHER hand holds under it — its claim — which is same-hold material
-                // by definition, and a tap with no claim sounds no stop of the grip at all.
-                // Restatement is judged on GRIP STATEMENTS, like every identity question: the
-                // part is asked against the stroke's own statement, so a source riding above the
-                // very stop the stroke stated restates it, and any other part is judged on the
-                // fret it sounds.
-                std::optional<ChartStop> sounded_stop;
+                // A right-hand onset is the other hand's and sounds no stop of the grip, so it is
+                // no part; a fretting-hand strike sounds the stop it presses (a channel is never
+                // mid-travel at offset zero). Restatement is judged on GRIP STATEMENTS, like every
+                // identity question: the part is asked against the stroke's own statement, so a
+                // source riding above the very stop the stroke stated restates it, and any other
+                // part is judged on the fret it sounds.
                 if (rightHandOnset(member.attack))
                 {
-                    const std::optional<int> claim = claimed_stops[ahead];
-                    if (!claim.has_value())
-                    {
-                        continue;
-                    }
-                    sounded_stop = frettedStop(*claim);
+                    continue;
                 }
-                else
-                {
-                    // A channel is never mid-travel at offset zero, so this always states a stop.
-                    sounded_stop = statedStopFrom(member, Fraction{}, arrives_into[ahead]).stop;
-                }
+                const std::optional<ChartStop> sounded_stop =
+                    statedStopFrom(member, Fraction{}, arrives_into[ahead]).stop;
                 if (!stated.has_value() || !sounded_stop.has_value())
                 {
                     return false;
@@ -1366,7 +1190,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
 
         bool unison_restatement = false;
         bool partial_sounding = false;
-        if (standing && !contradiction && open->claims.empty())
+        if (standing && !contradiction)
         {
             std::size_t stated_count = 0;
             std::size_t touched_stated = 0;
@@ -1424,7 +1248,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
         // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
         if (standing && !contradiction && !unison_restatement && !partial_sounding)
         {
-            // GROWTH IS ACCUMULATION (rule 8): every struck or claimed stop the grip lacks joins in
+            // GROWTH IS ACCUMULATION (rule 8): every struck stop the grip lacks joins in
             // place; the quit arm is what guarantees absorption only ever unions grips whose sounds
             // genuinely overlap. Same-grip restatements ride as continuation. The grip records GRIP
             // STATEMENTS (\c grip_statement_of), so a source riding above the stop its string
@@ -1440,8 +1264,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             if (slot.struck > 0)
             {
                 open->last_stated_beat = slot.beat;
-                // Live only for the spans the character splits exclude — a claim-carrying span, a
-                // landing successor's FIRST sounding, growth by strings the span never stated, and
+                // Live only for the spans the character splits exclude — a landing successor's
+                // FIRST sounding, growth by strings the span never stated, and
                 // the ABSORBED whole-grip stroke the span now flows through — whose class still
                 // turns in place, for every way a statement divides: sounding fewer members than
                 // sound, the partial slide, and a stroke that stated the whole grip but did not
@@ -1459,10 +1283,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 {
                     open->bracket_position = slot.position;
                 }
-            }
-            else if (!slot.claims.empty())
-            {
-                open->last_stated_beat = slot.beat;
             }
         }
         else
@@ -1495,7 +1315,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     ++own;
                 }
             }
-            own += slot.claims.size();
             std::size_t total = own;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -1534,11 +1353,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     // (\ref nodeGrip, the same clause the struck path reads).
                     continue;
                 }
-                // A carry never folds in on a string this slot STATES OTHERWISE: a claim at a
-                // different stop is proof the finger left the ring, so the ring is a tail and the
-                // claim's stop is the grip's (it joins through the claims path at emit). This one
-                // scope is the whole of the supersession rule.
-                const std::optional<ChartStop>& stated_stop = stated_here[string_index];
+                // A carry never folds in on a string this slot STRIKES OTHERWISE: a node struck
+                // over the ring states no grip of its own, yet proves the finger left it, so the
+                // ring is a tail. This one scope is the whole of the supersession rule.
+                const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
                 if (stated_stop.has_value() && *stated_stop != *carried)
                 {
                     continue;
@@ -1634,7 +1452,6 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                 // knows exactly, and the same measurement the landing makes forward.
                 const GridPosition front =
                     advanceGridPosition(tempo_map, slot.position, front_beat - slot.beat);
-                const bool silent = slot.struck == 0 && total == slot.claims.size();
                 // The opening mark draws at the front: the chord frame states the grip where its
                 // first member's statement began, and a glide's landing begins one exactly as a
                 // strike does, so a front dated to a landing takes the mark there too.
@@ -1642,10 +1459,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
                     .position = front,
                     .front_beat = front_beat,
                     .stops = std::move(stops),
-                    .claims = {},
                     .bracket_position = front,
                     .last_stated_beat = slot.beat,
-                    .silent_only = silent,
                     .struck_in_parts = false,
                     .landing_opened = false,
                 };
@@ -1655,25 +1470,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const TempoMa
             }
         }
 
-        // ---- 5. ATTACH this slot's claims to whatever stands ---------------------------------
-        if (open.has_value())
-        {
-            for (const StopClaim& claim : slot.claims)
-            {
-                const std::optional<ChartStop>& stated = open->stops[claim.string_index];
-                const bool restates = stated.has_value() && *stated == frettedStop(claim.fret);
-                if (!restates)
-                {
-                    open->claims.push_back(claim);
-                }
-            }
-        }
-
-        // ---- 6. APPLY the slot to the hand table (after every verdict has read it) -----------
+        // ---- 5. APPLY the slot to the hand table (after every verdict has read it) -----------
         for (std::size_t note_at = index; note_at < onset_end; ++note_at)
         {
             const ChartNote& member = saved_notes[note_at];
-            const std::optional<std::size_t> string_index = note_string_index(member);
+            const std::optional<std::size_t> string_index = chartStringIndex(member);
             if (!string_index.has_value())
             {
                 continue;
@@ -1733,7 +1534,7 @@ std::vector<bool> chartShapeArrivals(
         {
             ++next_note;
         }
-        if (shape.silent_member || shape.sounds_in_parts)
+        if (shape.sounds_in_parts)
         {
             arpeggio.push_back(true);
             continue;

@@ -4397,44 +4397,6 @@ TEST_CASE("A tapped harmonic states its pressed stop and its node", "[core][char
         CHECK(capoed(15.0).has_value());
     }
 
-    SECTION("the claim joins the shape's posture, and its stop shows in the satellite")
-    {
-        Arrangement arrangement;
-        arrangement.chart = chart;
-        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
-
-        // Two members open the span — the struck stop and the tap's claim, which is the very fret
-        // this note presses — so the pressed 5 joins the posture it founds.
-        REQUIRE(state.shapes.size() == 1);
-        const ShapeViewState& shape = state.shapes.front();
-        REQUIRE(shape.strings.size() == 2);
-        // The struck member's own head already prints that very fret, so the bracket states
-        // nothing beside it; the tap's stop is displaced outboard, because the head at that slot
-        // prints the node it touches rather than the stop it presses.
-        CHECK(
-            shape.strings[0] ==
-            ShapeStringViewState{.string = 1, .stop = frettedStop(7), .digit = std::nullopt});
-        CHECK(
-            shape.strings[1] ==
-            ShapeStringViewState{
-                .string = 3, .stop = frettedStop(5), .digit = StopMarkSlot::Satellite
-            });
-
-        // The tap's own mark: at the bracket it was printed under, in the column it was printed in
-        // — and POSTURE ink, because this tap FRONTS the bracket, so the span's own furniture
-        // states the stop and it stands there.
-        const auto tap = std::ranges::find(state.notes, 3, &NoteViewState::string);
-        REQUIRE(tap != state.notes.end());
-        const std::optional<StopMarkViewState>& mark = tap->stop_mark;
-        REQUIRE(mark.has_value());
-        if (mark.has_value())
-        {
-            CHECK(mark->face == StopMarkFace::Posture);
-            CHECK(mark->fret == 5);
-            CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(shape.start_seconds, 1e-9));
-        }
-    }
-
     SECTION("the document carries both")
     {
         const std::string text = chartDocumentText(chart, tempo_map);

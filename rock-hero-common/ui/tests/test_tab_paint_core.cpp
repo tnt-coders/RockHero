@@ -1199,11 +1199,10 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
 // NOT state prints beside its own head, in the same column and the same ink the displaced posture
 // digit uses — one statement of how a satellite prints, two marks that print one. No bracket is
 // involved at all here, which is the point: the face is the note's, at the note's own slot, and a
-// span-less claim wears it exactly as a mid-span member does.
+// span-less held stop wears it exactly as a mid-span member does.
 //
-// And the terms are the mark's: a STANDING face draws whatever the host answers, a REVEALED one
-// draws only while that note's whole truth is on show — the same per-note pick that draws the note
-// on to its ring end.
+// And the terms are the mark's: a REVEALED face draws only while that note's whole truth is on show
+// — the same per-note pick that draws the note on to its ring end.
 TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1216,40 +1215,36 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
     // The held VALUE is incidental to every case here but one, so it defaults: what these probe is
     // the face. The exception is THE DEFAULT's open string, whose number is the one a value test
     // would have dropped.
-    const auto paint = [&bounds, &visible_timeline](
-                           const common::core::StopMarkFace face,
-                           const bool revealed,
-                           const int held = 7,
-                           const std::optional<double> node = std::nullopt,
-                           const common::core::NoteAttack sounded_by =
-                               common::core::NoteAttack::Tap) {
-        common::core::ChartViewState state;
-        state.open_strings = common::core::testing::standardTuning();
-        common::core::NoteViewState sounded;
-        // No tail unrevealed; the reveal draws the ring only to 10.5s (x = 210), under the head.
-        sounded.start_seconds = 10.0;
-        sounded.ring_end_seconds = 10.5;
-        sounded.ink_end_seconds = 10.0;
-        sounded.string = 3;
-        sounded.fret = 12;
-        sounded.attack = sounded_by;
-        sounded.harmonic_node = node;
-        sounded.stop_mark =
-            common::core::StopMarkViewState{.seconds = 10.0, .fret = held, .face = face};
-        state.notes = {sounded};
-        indexVisibleRanges(state);
+    const auto paint =
+        [&bounds, &visible_timeline](
+            const common::core::StopMarkFace face, const bool revealed, const int held = 7) {
+            common::core::ChartViewState state;
+            state.open_strings = common::core::testing::standardTuning();
+            common::core::NoteViewState sounded;
+            // No tail unrevealed; the reveal draws the ring only to 10.5s (x = 210), under the
+            // head.
+            sounded.start_seconds = 10.0;
+            sounded.ring_end_seconds = 10.5;
+            sounded.ink_end_seconds = 10.0;
+            sounded.string = 3;
+            sounded.fret = 12;
+            sounded.attack = common::core::NoteAttack::Tap;
+            sounded.stop_mark =
+                common::core::StopMarkViewState{.seconds = 10.0, .fret = held, .face = face};
+            state.notes = {sounded};
+            indexVisibleRanges(state);
 
-        const TabLaneMetrics metrics = makeTabLaneMetrics(
-            bounds,
-            visible_timeline,
-            common::core::displayedStringCount(state.stringCount(), 0),
-            state.stringCount());
-        const juce::Image image{juce::SoftwareImageType{}.create(
-            juce::Image::ARGB, 400, 240, true)};
-        juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, revealedAll(revealed));
-        return image;
-    };
+            const TabLaneMetrics metrics = makeTabLaneMetrics(
+                bounds,
+                visible_timeline,
+                common::core::displayedStringCount(state.stringCount(), 0),
+                state.stringCount());
+            const juce::Image image{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, 240, true)};
+            juce::Graphics graphics{image};
+            paintTabLane(graphics, metrics, state, revealedAll(revealed));
+            return image;
+        };
 
     // The same columns the displaced case reads: the onset at 10.0s lands at x = 200, the head's
     // own bracket column closes at 216, and string 3 renders at lane centre y = 140. Derived from
@@ -1274,16 +1269,7 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
         return false;
     };
 
-    // AUTHORED: the "7" stands in the column beside the head, revealed or not.
-    CHECK(white_in(
-        paint(common::core::StopMarkFace::Standing, false),
-        chip_left + slot.gap,
-        chip_right - slot.gap,
-        135,
-        144));
-
-    // DERIVED: nothing at all until the note's truth is on show, and the digit exactly then. This
-    // is the discrimination against a law that stood every satellite.
+    // Nothing at all until the note's truth is on show, and the digit exactly then.
     CHECK_FALSE(white_in(
         paint(common::core::StopMarkFace::Revealed, false),
         chip_left + slot.gap,
@@ -1317,41 +1303,6 @@ TEST_CASE("Tab paint core prints a note's own held satellite on its terms", "[ui
     // displaced digit, so a second copy from this pass would be one number drawn twice.
     CHECK_FALSE(white_in(
         paint(common::core::StopMarkFace::Posture, true),
-        chip_left + slot.gap,
-        chip_right - slot.gap,
-        135,
-        144));
-
-    // A TAPPED HARMONIC prints both of its numbers, in the two inks that belong to them: its head
-    // states the node the tapping finger touches, and this column states the stop the fretting hand
-    // presses. The reveal-only control is what pins the second number to this pass — the head's own
-    // ink never reaches the column, so the digit that appears when the face stands is the
-    // satellite's.
-    CHECK_FALSE(white_in(
-        paint(common::core::StopMarkFace::Revealed, false, 5, 17.0),
-        chip_left + slot.gap,
-        chip_right - slot.gap,
-        135,
-        144));
-    CHECK(white_in(
-        paint(common::core::StopMarkFace::Standing, false, 5, 17.0),
-        chip_left + slot.gap,
-        chip_right - slot.gap,
-        135,
-        144));
-
-    // AN ARTIFICIAL HARMONIC prints the same pair for the same reason — a head on the node, the
-    // pressed stop in this column — and only the hand that sounded the string differs. This pass
-    // reads the published face rather than the attack, so the pick's satellite has to be the tap's
-    // to the pixel; an arm that gated on the tapping hand would leave this number undrawn.
-    CHECK_FALSE(white_in(
-        paint(common::core::StopMarkFace::Revealed, false, 5, 17.0, common::core::NoteAttack::Pick),
-        chip_left + slot.gap,
-        chip_right - slot.gap,
-        135,
-        144));
-    CHECK(white_in(
-        paint(common::core::StopMarkFace::Standing, false, 5, 17.0, common::core::NoteAttack::Pick),
         chip_left + slot.gap,
         chip_right - slot.gap,
         135,

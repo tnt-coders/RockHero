@@ -530,9 +530,8 @@ void TabView::paint(juce::Graphics& g)
     };
 
     // The selection wears its ring on the FACE the caret stands on, which is what the next key acts
-    // on: the marks, or — with the caret on a note's held stop or a bend chip — that face alone,
-    // the head unringed. The caret square stays on the slot either way: it says where, the ring
-    // says which face.
+    // on: the marks, or — with the caret on a bend chip — that chip alone, the head unringed. The
+    // caret square stays on the slot either way: it says where, the ring says which face.
     const core::ChartCaretFace face =
         m_edit.caret.has_value() ? m_edit.caret->face : core::ChartCaretFace::Mark;
     const bool on_face = face != core::ChartCaretFace::Mark;

@@ -1024,24 +1024,15 @@ written down.
   the Invalid-versus-`NoChange` distinction to be answered explicitly instead of read off
   `.has_value()`.
 
-## Found while removing the silent hold (2026-09-17)
+## Found while deleting the span-claim machinery (2026-09-29)
 
-- **A claim's face can contradict the posture it points at.** `emit`'s claims loop
-  (`rock-hero-common/core/src/chart/chart_shapes.cpp`) fills a posture string only where that string
-  is still EMPTY, but publishes the claim's reach (`ChartShapes::claim_shapes`) unconditionally, so
-  a later strike that GROWS the span with a different fret on a claimed string leaves the claim
-  pointing at a span whose posture prints another stop there. Measured: a claim of 7 on string 2
-  whose span prints 9. Pre-existing rather than new — the removal only made it easy to see — and a
-  surface drawing the claim's satellite digit beside that bracket would show two numbers for one
-  string. Fix shape: either the growth that overwrites a claimed string ENDS that
-  claim's reach, or the claim witness treats a strike at a different stop on a claimed string as a
-  contradiction even inside a `silent_only` span.
-
-- **A span of claims alone publishes with zero sustain.** Two taps each holding a stop, with nothing
-  else sounding, derive a real arpeggio-classed shape of length zero, published at its own instant
-  (LAW II, since the justification half left). Whether a zero-length bracket over two short taps is
-  the right PICTURE is a sighting question, not a derivation bug — the derivation is saying exactly
-  what happened. Accepted until sighted.
+- **The importer's hand windows see no held stop.** `fretWindowsOf`
+  (`rock-hero-editor/core/src/project/gp_chart_builder.cpp`) passes an all-`nullopt` held column to
+  `deriveFretHandWidths`, so a tap's plant or default never widens an IMPORTED window, while the
+  editor's own derivation (`deriveHeldFretRanges`) reads `ChartResolutions::held_stops` and does.
+  The comment says so honestly, but the two derivations then disagree about one chart. Fix shape:
+  resolve the built stream once (`chartResolutions`) and pass its `held_stops`, or state why the
+  importer's pass may ignore the picking hand's stops.
 
 - **The design-pattern guide's planner list is stale.** `docs/developer/design-patterns.md` counts
   "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the
@@ -1173,7 +1164,7 @@ against the tree on the date above.
   "planted" also lies at the nut, where "held 0" is signed tab vocabulary. Recommended shape, rooted
   on "held": `chartPlantedStops` → `chartHoldUnderStops`, `planted_stops` → `hold_under_stops`,
   `plants_under` / `planted_under` → `holds_under_here` / `holds_under_down`, and
-  `HeldStopSource::Plant` with them; `chartHeldStops` unchanged. No format change. The two files above carry BOTH senses, so rename them by hand,
+  `chartHeldStops` unchanged. No format change. The two files above carry BOTH senses, so rename them by hand,
   never by sweep. Pick up only when the user asks. (task #287)
 
 - **`StringHand::sounds` serves two masters through two helpers.** The zero-length-span bug fixed

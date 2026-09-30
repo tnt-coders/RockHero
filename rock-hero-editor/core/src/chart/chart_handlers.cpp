@@ -68,9 +68,9 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 } // namespace
 
 // The memoized projection of the current chart, refreshed on read: pointer events resolve against
-// it, which is the projection the view last drew, and a read between an edit and the next view
-// push — an undo transition's focus asking whether a held stop is drawn — sees the chart it acts
-// on rather than the one the edit replaced. Null while no arrangement is displayed.
+// it, which is the projection the view last drew, and a read between an edit and the next view push
+// sees the chart it acts on rather than the one the edit replaced. Null while no arrangement is
+// displayed.
 const common::core::ChartViewState* EditorController::Impl::currentTabProjection() const
 {
     refreshChartProjections();
@@ -1596,7 +1596,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row, the one
     // row rule every horizontal landing shares. EVERY ARRIVAL LANDS ON THE MARK (user ruling
     // 2026-09-29): a walk between slots is a walk between objects, and the head is the object; a
-    // face — the held stop to the right, the bend chip above — is stepped onto from its own mark.
+    // face — the bend chip above — is stepped onto from its own mark.
     landOnRow(prepareLandingRow(tab->stringCount()), stepped, ChartCaretFace::Mark, stepped_object);
     updateView();
 }

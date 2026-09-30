@@ -561,10 +561,7 @@ lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels"
 and the same for a linked keyframe's head, and for the painter a **held stop's satellite** — the
 digit column
 outboard of a bracket's closing bar, where a right-hand onset prints the stop the fretting hand
-holds while its own head prints where the note sounds (the stop beside a plain tap), where
-a HARMONIC OVER A PRESSED STOP prints that pressed fret beside the node its own head prints —
-the ARTIFICIAL one, sounded by a pick or by the fretting hand itself, exactly as much as the tapped
-one — and where
+holds while its own head prints where the note sounds (the stop beside a plain tap), and where
 a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
 column's width lives on `TabLaneGeometry`, derived from the lane's text scale rather
 than measured from the digits, which is exactly what lets the framework-free layout bound the mark
@@ -572,7 +569,7 @@ the painter draws. It is DISPLAY-ONLY (user ruling 2026-09-29): a held stop is d
 typed, so the column is no click target and no caret face.
 
 WHICH column a posture digit lands in is the projection's derivation, not the painter's: it is
-published per posture string (`ShapeStringViewState::digit`), with each claim's own FACE beside it
+published per posture string (`ShapeStringViewState::digit`), with each note's own FACE beside it
 (`NoteViewState::stop_mark` — a fronting tap's displaced digit, or a note's own reveal-only
 satellite), so the painter draws where the hit test looks. **WHETHER one lands at all is asked AT
 THE MARK'S OWN INSTANT and at no other — THE DIGIT WINDOW.** One head can stand on the string there,
@@ -587,19 +584,12 @@ SLOT test, because the centred digit sits exactly where a head at that instant s
 pass paints after the brackets, so any head sounding elsewhere covers a centred digit; the satellite
 is the only slot that survives. **The hand IS the answer to WHO prints a displaced digit — THE
 PLANT'S FACE.** The bracket's number is the one statement that the left hand is on the string at
-all, so under a RIGHT-hand head the bracket prints the CLAIMED stop itself — the plant under a
-plain tap, the pressed fret under a tapped harmonic sounded over one — standing whatever derived it. A FRETTING-hand head already states the hand's presence with its own number, so the stop
-a pull-off plants beneath it is the refinement the pull-off already prints: the NOTE wears it as its
-own reveal-only satellite (`NoteViewState::stop_mark`, `StopMarkFace::Revealed`), and the bracket prints
-nothing on that string. A fretting-hand head whose own number is a NODE — an artificial harmonic, pressing a fret
-its head does not print — HAS a face: it states that pressed fret on its own satellite, standing and
-read-only (`harmonicOverPressedStop`, RULED 2026-09-18), so the bracket prints nothing on that
-string either, the note's own ink having already said it. **The bracket states the PRESSED fret
-under such a harmonic**, never a planted finger a pull-off derives beneath it (RULED 2026-09-18):
-the node the head prints is measured from that stop, so the pressed fret is the grip the figure
-needs, the span's own grip statement is that fret, and satellite and bracket therefore agree — which
-is exactly why the digit falls away. The planted finger stays true in the derived table because it
-is real; it is the FRET-HAND POSITION derivation that must reach it, not the bracket that prints it.
+all, so under a RIGHT-hand head the bracket prints the stop itself. A FRETTING-hand head already
+states the hand's presence with its own number, so the stop a pull-off plants beneath it is the
+refinement the pull-off already prints: the NOTE wears it as its own reveal-only satellite
+(`NoteViewState::stop_mark`, `StopMarkFace::Revealed`), and the bracket prints nothing on that
+string. Under an artificial harmonic (disabled for now) **the bracket states the PRESSED fret**,
+never a planted finger a pull-off derives beneath it (RULED 2026-09-18).
 A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
 FRAME, so it states the whole membership where the reader meets it and an accumulation's members
 print their frets there, their own heads restating them as they arrive. That is why the window is
@@ -851,32 +841,24 @@ can still see; the marquee and keyboard selection both still reach such a note, 
 recorded as a sighting item in `docs/tracking/watch-items.md` rather than pre-emptively patched.
 
 **WHERE A SATELLITE STANDS.** A satellite is the note's held FACE, note-scoped, at the note's own
-slot — and whether it stands is a question about whether any OTHER ink prints the stop, not about
-where in a span the note sits. A **harmonic over a pressed stop** — the tapped one and the artificial
-one alike (`harmonicOverPressedStop`) — prints its node at the head, so its pressed `fret`, the stop
-its own pitch is measured from, is printed nowhere else and stands (`HeldStopSource::Pressed`). That pressed stop stands even where a
-PULL-OFF plants another beneath it: the press is what the pitch is measured from, so it OUTRANKS the
-plant, and the plant reaches the picture through the covering span's posture instead of through this
-note's face. A stop a PULL-OFF **derives** is already printed by that notation, so
-it does not stand; it is **revealed** on the note's own truth channel — visible exactly while the
-note's real ring is (`core::chartPresence`: the lane reveal, the note selected, or the caret on
-it). Revealing a note shows the whole truth about it at once. And a **tap fronting a bracket**
-stands whatever derived its stop, because there the bracket owes the statement: the tap's head holds the string's centre,
-so the posture's digit is displaced into the satellite column and IS that tap's face ([D2]).
+release statement (the landing of a slid note, else its head). Every held stop is already printed
+by other ink — a plant by its pull-off, a default by the posture — so the satellite is **revealed**
+on the note's own truth channel, visible exactly while the note's real ring is
+(`core::chartPresence`: the lane reveal, the note selected, or the caret on it). Revealing a note
+shows the whole truth about it at once. And where a bracket drawn at the note's own position
+already prints that very stop in the satellite column — a **tap fronting a bracket**, whose head
+holds the string's centre — the bracket owes the statement and the note draws nothing of its own
+(decided by ink, ruled 2026-09-29; [D2]).
 
 **AND EVERY ONSET THE PICKING HAND STOPS THE STRING FOR HAS ONE, because every one of them has a
-held stop** — THE DEFAULT HELD FACT, which a tapped harmonic never reaches: over a pressed stop its
-claim is that fret, and over the OPEN string it states nothing at all, being a natural harmonic
-whose node the picking hand touches — no satellite, exactly as a natural wears none
-(RULED 2026-09-18). A tap the notation states nothing under — no pull-off to derive one — is not a
+held stop** — THE DEFAULT HELD FACT. A tap the notation states nothing under — no pull-off to derive one — is not a
 tap with no fretting hand under it; the hand is holding whatever grip it is holding, so the release lands on
 the **covering span's posture PRESSED fret for that string** (a harmonic node in the posture presses
 nothing, so a tap under a node grip releases onto the open string), or on **0**, the open string,
 where no span covers the tap (coverage is half-open: a tap at the instant a span closes stands in
 no grip) or the posture names no fret there. It is LIVE-DERIVED off the postures, so an edit that
 reflows the spans moves it. Its face is a plant's — **revealed**, because the posture already prints
-it. A default wears the note's OWN satellite column even where the bracket beside it prints the same
-number — the two are different statements about one fret.
+it.
 
 **Two facts, two inks, for a mid-span tap.** Its fret prints in the opening bracket as grip
 MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is

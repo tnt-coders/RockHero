@@ -1463,8 +1463,7 @@ void countDerivation(
         if (foldins_here > 0)
         {
             ++out.trigger4_spans;
-            const bool other_trigger =
-                struck_at_start.size() < 2 || picking_hand_inside || shape.silent_member;
+            const bool other_trigger = struck_at_start.size() < 2 || picking_hand_inside;
             if (!other_trigger)
             {
                 ++out.trigger4_only_spans;
@@ -2317,16 +2316,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             // DERIVED HELD's population, read off the production derivation rather than restated:
             // a PLANT under a note the picking hand stops the string for is exactly a pull-off
             // stating the stop under a right-hand onset.
-            std::vector<std::optional<int>> held_frets;
-            held_frets.reserve(chart.notes.size());
+            const std::vector<std::optional<int>> planted =
+                common::core::chartPlantedStops(resolutions.connections);
             for (std::size_t note = 0; note < chart.notes.size(); ++note)
             {
                 const ChartNote& record = chart.notes[note];
                 census.right_hand_onsets += common::core::rightHandOnset(record.attack) ? 1 : 0;
-                // Bound once so the presence test and the reads are provably the same object.
-                const std::optional<common::core::HeldStop>& held = resolutions.held_stops[note];
-                held_frets.push_back(held.has_value() ? std::optional{held->fret} : std::nullopt);
-                if (held.has_value() && held->source == common::core::HeldStopSource::Plant &&
+                if (planted[note].has_value() &&
                     common::core::pickingHandStopsString(record.attack, record.harmonic_node))
                 {
                     ++census.derived_held_stops;
@@ -2374,7 +2370,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 chart.fret_hand_positions,
                 common::core::deriveFretHandWidths(
                     resolutions, chart.fret_hand_positions, built->tempo_map),
-                held_frets,
+                resolutions.held_stops,
                 built->tempo_map,
                 census.derivation);
         }

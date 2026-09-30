@@ -119,14 +119,8 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     const ChartResolutions& resolutions, const std::vector<FretHandPosition>& placements,
     const TempoMap& tempo_map)
 {
-    std::vector<std::optional<int>> held_frets;
-    held_frets.reserve(resolutions.held_stops.size());
-    for (const std::optional<HeldStop>& held : resolutions.held_stops)
-    {
-        held_frets.push_back(held.has_value() ? std::optional{held->fret} : std::nullopt);
-    }
     return deriveHeldFretRanges(
-        resolutions.connections.saved_notes, held_frets, placements, tempo_map);
+        resolutions.connections.saved_notes, resolutions.held_stops, placements, tempo_map);
 }
 
 std::vector<int> deriveFretHandWidths(

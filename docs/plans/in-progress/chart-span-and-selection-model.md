@@ -32,18 +32,15 @@ selection), and `editing-interaction-model.md`, and this document dissolves into
   SEPARATELY, and stays a chord-box span only while every sounding of it is the shape whole. The
   span and its posture are derived from the notes, so nothing authors either and nothing can
   disagree with them; the classification is `chartShapeArrivals` (`chart/chart_shapes.h`), which
-  asks that one question at the four places a sounding can be incomplete: a posture string carried
-  into the span's start still ringing with no onset at it, a CLAIMED member — the stop a right-hand
-  onset claims (`notatedStopUnder`) — that no stroke sounds as a voice of its own, a slot inside the span that
-  sounds only part of the shape, and a picking-hand
+  asks that one question at the three places a sounding can be incomplete: a posture string carried
+  into the span's start still ringing with no onset at it, a slot inside the span that sounds only
+  part of the shape, and a picking-hand
   onset (a tap or a pick slide) sounding anywhere within the span.
-- Because the classification reads the sounds, a claim flips the span
-  by construction: a member the hand holds that no stroke of its own sounds is the second trigger.
-  Display stays fully derived.
+- Display stays fully derived: a right-hand onset states no grip (ruled 2026-09-29), so the
+  classification reads only what sounds.
 - **Importer obligation:** nothing in the format carries a hand shape, so there is no posture for a
-  converter to trim to the struck strings; the arrival rule reads what the notes sound. Imports
-  author zero claims, so a source's own arpeggio marking survives as the notes themselves and
-  nothing else.
+  converter to trim to the struck strings; the arrival rule reads what the notes sound, so a
+  source's own arpeggio marking survives as the notes themselves and nothing else.
 - Degenerate spans (single note total, or repeated identical single notes) are neither chord
   nor arpeggio: dropped from display and flagged by validation. Data is not auto-deleted for
   now; automatic removal may graduate later if the ruleset fully hardens.
@@ -186,11 +183,9 @@ mechanism the "all tails display" phrasing above only sketches, and the outcomes
   dedicated template editor, for every string a right-hand onset reaches. Stating a stop on a string
   where NOTHING sounds waits on plan 60's span templates (RULED 2026-09-17).
 
-> **How the member is stored, and what the span is.** A claimed member is the `held` field on an
-> onset the picking hand stops the string for — a plain tap or a pick slide — or the pressed `fret`
-> of a tapped harmonic, read through one query (`notatedStopUnder`) and resolved against the DERIVED span
-> at read time.
-> There is no authored template in the format, no extent that belongs to one, and no
+> **How the member is stored, and what the span is.** Superseded 2026-09-29: the claimed member
+> is gone — a right-hand onset states no grip, and what it holds is derived (`chartHeldStops`)
+> from the spans it never feeds. There is no authored template in the format, no extent that belongs to one, and no
 > template-relative comparison: the span and its posture are derived from the notes
 > (`deriveChartShapes`), and the arpeggio flip is carried on the span the derivation resolved the
 > member into. A separate slot-keyed array for these members was rejected — a second array has to

@@ -507,9 +507,11 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     // attack) are reduced to a plain note at the pressed stop — the fundamental the harmonic
     // divides — so no chart can hold either form while its display is unsettled: the normal-form
     // fixpoint in validateChartNoteAlone refuses the un-normalized record, the loader and the
-    // import shed apply this repair and report it. The code that would derive and draw the forms
-    // stays in place behind this one rule, because it IS the settled design and deleting it is what
-    // reopening would cost (docs/plans/in-progress/harmonic-display-followups.md). Pinch is
+    // import shed apply this repair and report it. The code that would draw the forms stays in
+    // place behind this one rule, but it reads the pressed stop off the note's own `fret`, which is
+    // NOT the reopened design: those harmonics will take their held stop from the stated grip, so
+    // that code needs rework before this rule lifts
+    // (docs/plans/in-progress/harmonic-display-followups.md). Pinch is
     // excluded by harmonicOverPressedStop (its node lies off the neck); the tap arm catches the
     // open-string tapped harmonic, whose stop is 0.
     if (harmonicOverPressedStop(note) ||

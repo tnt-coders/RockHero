@@ -127,15 +127,13 @@ against the stored rings. E25, by contrast, takes a dead note's tail off what a 
   it, so deriving it is the only way it can never disagree with them. **A span is GRIP TENURE — the
   statement "the hand holds this grip, from here to here"** (the grip-tenure law); everything else
   here is bookkeeping about that tenure. THREE things open one and nothing else does: an onset
-  STATING a grip — two or more stops struck or claimed at one slot; SOUND ALONE accumulating three
+  STATING a grip — two or more stops struck at one slot; SOUND ALONE accumulating three
   or more overlapping members — the minimum gates founding by sound and nothing else, since growing
   a standing span has no minimum; and a LANDED TRAVEL, the one onset-less open — the grip held
   through the slide, at least one finger arrived, two members ringing strictly past the landing. A
   string that merely rings on past a break opens nothing: ring-out is a tail. A member is a sounding
-  fretting-hand onset, a ring still sounding at a stated stop, or a stop the hand CLAIMS, since they
-  are three ways of stating where a finger is; a claim is the stop the NOTATION states under a
-  right-hand onset (`notatedStopUnder`: a tapped harmonic's pressed stop, else a pull-off's plant),
-  resolved inside the derivation because only the connection walk knows the pull-off. Such a span dates from its FRONT — the earliest member onset no
+  fretting-hand onset or a ring still sounding at a stated stop; a right-hand onset states no grip
+  (ruled 2026-09-29). Such a span dates from its FRONT — the earliest member onset no
   preceding span already covers — and then **RUNS UNTIL ITS GRIP BREAKS**, which only two things do:
   a MEMBER QUITS (any posture member's sound out with nothing renewing that string at that instant,
   an onset of either hand renewing), or a CONTRADICTION states a different stop on a string the grip
@@ -275,18 +273,15 @@ onset — because you cannot pull off onto a fret unless a finger is waiting the
 holds is a fact about its NEIGHBOUR. A held stop is DERIVED, never stored (ruled 2026-09-29).
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
-COMPLETE held stop under every head that sounds ELSEWHERE, each entry a `HeldStop{fret, source}`.
-What the notation states comes first (`notatedStopUnder`): the PRESSED stop of a harmonic sounded
-over one, else the PLANT a pull-off lands on beneath the note. Under an onset the PICKING HAND STOPS
-THE STRING FOR that states neither, **the DEFAULT: the PRESSED fret the covering span's posture
-holds on that string — a harmonic node in the posture presses nothing — else 0**; coverage is
-half-open, so a tap at the instant a span closes stands in no grip. It reads the derived postures, so
-it computes AFTER `deriveChartShapes` and feeds nothing that runs before it — a default folded into
-the spans' claims would be an input to the very postures it is read out of, and would make every
-bare tap a member of the shape above it. `NoteViewState::stop_mark` carries this table's fret, where
-it draws and on what terms (the source decides the face: a pressed stop stands, a plant or a default
-waits for the reveal), so it is present for every right-hand onset and for every onset a pull-off
-plants under, and absent everywhere else.
+COMPLETE held fret under every head that sounds ELSEWHERE: the PLANT a pull-off lands on beneath
+the note, else — under an onset the PICKING HAND STOPS THE STRING FOR — **the DEFAULT: the PRESSED
+fret the covering span's posture holds on that string — a harmonic node in the posture presses
+nothing — else 0**; coverage is half-open, so a tap at the instant a span closes stands in no grip.
+It reads the derived postures, so it computes AFTER `deriveChartShapes` and feeds nothing that runs
+before it. `NoteViewState::stop_mark` carries this table's fret, where it draws (the note's release
+statement) and on what terms (revealed with the note, unless a bracket at the note's own position
+prints the same stop in the satellite column, which then owes it), so it is present for every
+right-hand onset and for every onset a pull-off plants under, and absent everywhere else.
 
 # The TempoMap
 

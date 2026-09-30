@@ -53,7 +53,9 @@ consequence of the principle, not an independent wish:
    claim's own dating rule, the growth split, posture membership (`silent_member`) and the
    published reach (`ChartShapes::claim_shapes`) — `claimed_stops[]` still carries `held` under taps
    and scrapes, so a claim still founds, still dates and still grows a span. A claim-only span now
-   publishes AT ONCE with zero sustain instead of waiting to be justified.
+   publishes AT ONCE with zero sustain instead of waiting to be justified. **2026-09-29**: everything
+   that STAYED here left too — a right-hand onset states no grip, so no claim founds, dates or grows
+   anything.
 3. **`sweepInertClaimedStops`.** Its NOTE half is gone with `None` (DONE 2026-09-17), along with
    `ChartRepair::InertSilentHold`. The held-field half — `ChartRepair::InertHeldStop`, the function
    name and its one-pass justification — was kept UNCHANGED. Markers are never inert: a marker

@@ -278,65 +278,21 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
         return note;
     };
 
-    // A STANDING face is there whether anything is revealed or not.
-    const std::optional<TabHeldStopLayout> standing =
-        tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Standing), false);
-    REQUIRE(standing.has_value());
-    if (standing.has_value())
+    // A revealed face lays out outboard of the closing bar's column at the note's own onset
+    // (x = 100), centred in the slot — the same columns the paint core draws the digit in.
+    const std::optional<TabHeldStopLayout> shown =
+        tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), true);
+    REQUIRE(shown.has_value());
+    if (shown.has_value())
     {
-        // Outboard of the closing bar's column at the note's own onset (x = 100), centred in the
-        // slot — the same columns the paint core draws the digit in.
         const TabSatelliteSlot slot = geometry.satelliteSlot();
         const auto bar_right =
             static_cast<float>(geometry.bracketColumnsAt(100.0f, 220.5f).bar_right);
-        CHECK(standing->box.x == Catch::Approx(bar_right));
-        CHECK(standing->box.width == Catch::Approx(static_cast<float>(slot.extent())));
+        CHECK(shown->box.x == Catch::Approx(bar_right));
+        CHECK(shown->box.width == Catch::Approx(static_cast<float>(slot.extent())));
         CHECK(
-            standing->center_x ==
-            Catch::Approx(bar_right + static_cast<float>(slot.extent()) / 2.0f));
-        CHECK(standing->center_y == Catch::Approx(220.5f));
-    }
-
-    // A TAPPED HARMONIC wears that same column. Its head prints the node the tapping finger
-    // touches, while the satellite states the stop the fretting hand presses — two different
-    // numbers for one note, so the column has to be the STOP's and unmoved by what the head says.
-    common::core::NoteViewState touched = tap(common::core::StopMarkFace::Standing);
-    touched.fret = 5;
-    touched.harmonic_node = 17.0;
-    const std::optional<TabHeldStopLayout> tapped_harmonic =
-        tabHeldStopLayout(geometry, touched, false);
-    REQUIRE(tapped_harmonic.has_value());
-    if (tapped_harmonic.has_value())
-    {
-        REQUIRE(standing.has_value());
-        if (standing.has_value())
-        {
-            CHECK(tapped_harmonic->box.x == Catch::Approx(standing->box.x));
-            CHECK(tapped_harmonic->box.width == Catch::Approx(standing->box.width));
-            CHECK(tapped_harmonic->center_x == Catch::Approx(standing->center_x));
-            CHECK(tapped_harmonic->center_y == Catch::Approx(standing->center_y));
-        }
-    }
-
-    // AN ARTIFICIAL HARMONIC wears it too, and for the same reason: the picking hand touches the
-    // node its head prints while the fretting hand presses the stop this column states. The column
-    // answers the FACE and the stop, never which hand sounded the string, so the two harmonics lay
-    // out on one rectangle.
-    common::core::NoteViewState picked = touched;
-    picked.attack = common::core::NoteAttack::Pick;
-    const std::optional<TabHeldStopLayout> artificial_harmonic =
-        tabHeldStopLayout(geometry, picked, false);
-    REQUIRE(artificial_harmonic.has_value());
-    if (artificial_harmonic.has_value())
-    {
-        REQUIRE(standing.has_value());
-        if (standing.has_value())
-        {
-            CHECK(artificial_harmonic->box.x == Catch::Approx(standing->box.x));
-            CHECK(artificial_harmonic->box.width == Catch::Approx(standing->box.width));
-            CHECK(artificial_harmonic->center_x == Catch::Approx(standing->center_x));
-            CHECK(artificial_harmonic->center_y == Catch::Approx(standing->center_y));
-        }
+            shown->center_x == Catch::Approx(bar_right + static_cast<float>(slot.extent()) / 2.0f));
+        CHECK(shown->center_y == Catch::Approx(220.5f));
     }
 
     // A REVEAL-ONLY face is absent until the note's truth is on show, and present exactly then.
@@ -356,7 +312,7 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
     CHECK(tabHeldStopLayout(geometry, defaulted, true).has_value());
 
     // And the reveal grants nothing to a note that states no held stop: the column is the STOP's.
-    common::core::NoteViewState unheld = tap(common::core::StopMarkFace::Standing);
+    common::core::NoteViewState unheld = tap(common::core::StopMarkFace::Revealed);
     unheld.stop_mark.reset();
     CHECK_FALSE(tabHeldStopLayout(geometry, unheld, true).has_value());
 }

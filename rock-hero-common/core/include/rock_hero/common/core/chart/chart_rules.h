@@ -29,6 +29,23 @@ ninth-and-beyond lane colors are chosen.
 inline constexpr int g_max_chart_strings{8};
 
 /*!
+\brief The zero-based index a note's one-based string names — lowest string first, the key every
+per-string table (a posture, the hand table) is indexed by.
+
+\param note The note asked about.
+
+\return The index, or nothing where the string lies outside `[1, g_max_chart_strings]`.
+*/
+[[nodiscard]] constexpr std::optional<std::size_t> chartStringIndex(const ChartNote& note) noexcept
+{
+    if (note.string < 1 || note.string > g_max_chart_strings)
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::size_t>(note.string - 1);
+}
+
+/*!
 \brief Highest fret a note, slide keyframe, or fret-hand position may reference.
 
 Capped at the drawn 24-fret board: headroom for extended-range hardware would be a fret the model

@@ -249,7 +249,6 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return common::core::ChartShapes{
         .shapes = std::move(resolutions.shapes),
         .postures = std::move(resolutions.postures),
-        .claim_shapes = std::move(resolutions.claim_shapes),
     };
 }
 
@@ -3553,17 +3552,11 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         }
 
         // (2) CLASS: a bracket, because the members sound SEPARATELY — which for a roll is the
-        // whole of what the mark says. No claim is involved in reaching that verdict, and none
-        // exists to reach it with.
+        // whole of what the mark says.
         const std::vector<bool>& arrivals = resolutions.arrivals;
         REQUIRE(arrivals.size() == 1);
         CHECK(arrivals.front());
-        CHECK_FALSE(span.silent_member);
         CHECK(span.sounds_in_parts);
-        CHECK(
-            std::ranges::none_of(
-                resolutions.claim_shapes,
-                [](const std::optional<std::size_t>& reach) { return reach.has_value(); }));
     }
 
     SECTION("a stagger the beat cannot hold leaves the chord simultaneous")
@@ -3806,11 +3799,6 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         CHECK(
             resolutions.shapes.front().position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-        CHECK_FALSE(resolutions.shapes.front().silent_member);
-        CHECK(
-            std::ranges::none_of(
-                resolutions.claim_shapes,
-                [](const std::optional<std::size_t>& reach) { return reach.has_value(); }));
     }
 
     SECTION("a partial slider value shifts by the rounded fraction of the written span")
