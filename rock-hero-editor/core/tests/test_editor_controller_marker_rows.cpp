@@ -1154,9 +1154,10 @@ TEST_CASE("A fret-hand position refuses a fret the board cannot hold", "[core][m
     }
 }
 
-// No ring reaches a placement, so the ring plane's digit does exactly what the bare one does, and
-// the `Insert` chords, which need an armed caret, do nothing while a placement holds the selection.
-TEST_CASE("The ring plane over a fret-hand position is the bare digit", "[core][marker-rows]")
+// The ring plane states the far end of what is selected: over a placement, its window's END fret,
+// as one undo entry, the placement staying selected, and the chip reading the authored range. The
+// `Insert` chords, which need an armed caret, do nothing while a placement holds the selection.
+TEST_CASE("The ring plane types a fret-hand position's end fret", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
     editor.controller.onFretHandPositionSelected(1);
@@ -1166,9 +1167,121 @@ TEST_CASE("The ring plane over a fret-hand position is the bare digit", "[core][
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
 
-    editor.controller.onChartRingDigitTyped(5);
-    CHECK(editor.placements()[1] == placementAt(downbeat(5), 5));
+    const std::size_t entries_before = editor.undoEntryCount();
+    editor.controller.onChartRingDigitTyped(1);
+    editor.controller.onChartRingDigitTyped(4);
+    REQUIRE(editor.placements().size() == 4);
+    common::core::FretHandPosition expected = placementAt(downbeat(5), 12);
+    expected.end_fret = 14;
+    CHECK(editor.placements()[1] == expected);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.state().undo_history.labels.back() == "Set Hand Position End Fret");
+    const std::shared_ptr<const common::core::ChartViewState>& tab = editor.state().tab;
+    REQUIRE(tab != nullptr);
+    REQUIRE(tab->fret_hand_positions.size() == 4);
+    CHECK(tab->fret_hand_positions[1].width == 3);
+    CHECK(tab->fret_hand_positions[1].end_authored);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+}
+
+// Retyping the start keeps an authored end where it is, and a start retyped above that end is
+// refused like any other illegal fret, its box carrying the chip the typed value would have made so
+// the refused half is readable in the chip's own notation; an end typed below the start is refused
+// the same way.
+TEST_CASE(
+    "A fret-hand position's two frets refuse a window reaching nowhere", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(0);
+    editor.controller.onChartRingDigitTyped(7);
+    common::core::FretHandPosition expected = placementAt(downbeat(1), 5);
+    expected.end_fret = 7;
+    REQUIRE(editor.placements()[0] == expected);
+
+    editor.controller.onChartFretDigitTyped(6);
+    expected.fret = 6;
+    CHECK(editor.placements()[0] == expected);
+    CHECK(editor.state().undo_history.labels.back() == "Set Hand Position Start Fret");
+
+    const std::size_t entries_before = editor.undoEntryCount();
+    editor.controller.onChartFretDigitTyped(8);
+    {
+        const std::optional<ChartPendingFretViewState>& pending =
+            editor.state().chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK(pending->text == "8");
+            CHECK_FALSE(pending->valid);
+            const auto* const chip = std::get_if<ChartPendingFretHandPosition>(&pending->at);
+            REQUIRE(chip != nullptr);
+            if (chip != nullptr)
+            {
+                CHECK(chip->index == 0);
+                CHECK(chip->typed.fret == 8);
+                CHECK(common::core::FretWindow{.fret = 8, .width = chip->typed.width}.top() == 7);
+                CHECK(chip->typed.end_authored);
+            }
+        }
+    }
+    CHECK(editor.placements()[0] == expected);
+    CHECK(editor.undoEntryCount() == entries_before);
+
+    editor.controller.onChartEscapePressed();
+    editor.controller.onFretHandPositionSelected(1);
+    editor.controller.onChartRingDigitTyped(9);
+    {
+        const std::optional<ChartPendingFretViewState>& pending =
+            editor.state().chart_edit.pending_fret;
+        REQUIRE(pending.has_value());
+        if (pending.has_value())
+        {
+            CHECK(pending->text == "9");
+            CHECK_FALSE(pending->valid);
+            const auto* const chip = std::get_if<ChartPendingFretHandPosition>(&pending->at);
+            REQUIRE(chip != nullptr);
+            if (chip != nullptr)
+            {
+                CHECK(chip->typed.fret == 12);
+                CHECK(common::core::FretWindow{.fret = 12, .width = chip->typed.width}.top() == 9);
+                CHECK(chip->typed.end_authored);
+            }
+        }
+    }
+    CHECK(editor.placements()[1] == placementAt(downbeat(5), 12));
+    CHECK(editor.undoEntryCount() == entries_before);
+}
+
+// Alt+Delete clears an authored end back to the derived window as one undo entry, the placement
+// staying selected; over an end that is already derived it does nothing at all — no undo entry,
+// and never the placement's deletion, which is Delete's.
+TEST_CASE("Alt+Delete clears a fret-hand position's authored end fret", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.controller.onFretHandPositionSelected(1);
+
+    const std::size_t entries_before = editor.undoEntryCount();
+    editor.controller.onHandEndClearRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.undoEntryCount() == entries_before);
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+
+    editor.controller.onChartRingDigitTyped(1);
+    editor.controller.onChartRingDigitTyped(4);
+    REQUIRE(editor.placements()[1].end_fret == std::optional{14});
+
+    editor.controller.onHandEndClearRequested();
+    CHECK(editor.placements() == makeHandChart().fret_hand_positions);
+    CHECK(editor.undoEntryCount() == entries_before + 2);
+    CHECK(editor.state().undo_history.labels.back() == "Clear Hand Position End Fret");
+    CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
+
+    editor.controller.onHandEndClearRequested();
+    CHECK(editor.undoEntryCount() == entries_before + 2);
+    CHECK(editor.placements().size() == 4);
 }
 
 // With no placement selected a digit keeps its caret-slot meaning: it types a note there and leaves

@@ -28,21 +28,26 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Which plane an entry key acts on: the operand itself, or the ring at the operand's instant.
+\brief Which plane an entry key acts on: the operand itself, or the far end of its extent.
 
 A key first finds its OPERAND — the selection, else the armed caret's slot — and its plane then
 decides what it does there. A bare key acts on the operand: a note here, a retype of what is
-selected. An `Alt` key acts on the RING that covers or ends at the operand's instant on its string
-— a point on it, or the statement already standing there — and where none does, acts exactly as the
-bare key would. The redirect is a property of one slot, so over a selection of more than one
-element the plane is ignored and the key retypes everything selected.
+selected. An `Alt` key acts on the operand's EXTENT, whose far end is its end statement: at a slot,
+the RING that covers or ends at the operand's instant on its string — a point on it, or the
+statement already standing there; over a selected fret-hand position, its window's END fret.
+Where the operand has no extent it acts exactly as the bare key would. The redirect is a property
+of one slot or one placement, so over a selection of more than one element the plane is ignored
+and the key retypes everything selected.
 */
 enum class ChartEntryPlane : std::uint8_t
 {
     /*! \brief The operand itself: a note at the slot, a retype of the selection. */
     Note,
 
-    /*! \brief The ring at the operand's instant: a point on it, or its standing statement. */
+    /*!
+    \brief The operand's extent: the ring at its instant (a point on it, or its standing
+    statement), or a selected fret-hand position's end fret.
+    */
     Ring,
 };
 
@@ -904,6 +909,16 @@ struct EditorAction
     };
 
     /*!
+    \brief `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
+
+    Carries nothing: the subject is the selection, and a placement whose end is already derived has
+    nothing to clear, so the verb does nothing there rather than falling through to deleting it.
+    */
+    struct ClearFretHandEnd
+    {
+    };
+
+    /*!
     \brief Insert a song-structure section at a position's measure downbeat.
 
     Carries the position the surface captured AT THE PRESS, exactly as the tone-change insert
@@ -965,7 +980,8 @@ struct EditorAction
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         ChooseChartBend, SetChartBend, SetChartLeftTap, ToggleChartJunction, SelectSongSection,
         InsertSongSection, RenameSongSection, SelectTempoAnchor, SelectTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, StepToRowObject, JumpToFocusRow>;
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
+        JumpToFocusRow>;
 };
 
 /*!

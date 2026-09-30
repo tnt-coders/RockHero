@@ -266,6 +266,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectFretHandPosition, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AuthorFretHandPositionAtCursor, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ClearFretHandEnd, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
@@ -275,6 +276,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     // The fret-hand positions are the chart's own, so their marker verbs open with it.
     CHECK(isActionAvailable(ActionId::SelectFretHandPosition, conditions));
     CHECK(isActionAvailable(ActionId::AuthorFretHandPositionAtCursor, conditions));
+    CHECK(isActionAvailable(ActionId::ClearFretHandEnd, conditions));
     CHECK(isActionAvailable(ActionId::StepChartCaret, conditions));
     CHECK(isActionAvailable(ActionId::StepToRowObject, conditions));
     CHECK(isActionAvailable(ActionId::JumpToFocusRow, conditions));

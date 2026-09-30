@@ -1195,6 +1195,37 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     CHECK_FALSE(white_in(218, 228, 54, 66));
 }
 
+// A chip prints the index finger alone for the standard four-fret hand the notes derive, and the
+// whole range wherever the window is wider or narrower or its end is authored — so a four-fret
+// window the charter stated reads differently from one the notes derived.
+TEST_CASE("Tab FHP chip text prints an authored end as a range", "[ui][tab-paint]")
+{
+    CHECK(tabFhpChipText(common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 4}) == "5");
+    CHECK(
+        tabFhpChipText(common::core::FhpViewState{.seconds = 0.0, .fret = 5, .width = 6}) ==
+        "5-10");
+    CHECK(
+        tabFhpChipText(
+            common::core::FhpViewState{
+                .seconds = 0.0, .fret = 5, .width = 4, .end_authored = true
+            }) == "5-8");
+    CHECK(
+        tabFhpChipText(
+            common::core::FhpViewState{
+                .seconds = 0.0, .fret = 1, .width = 3, .end_authored = true
+            }) == "1-3");
+    // A refused entry's box prints the chip the typed value would have made, even a window whose
+    // end falls below its start, so the refused half reads in place.
+    CHECK(
+        tabFhpChipText(
+            common::core::FhpViewState{
+                .seconds = 0.0,
+                .fret = 5,
+                .width = common::core::FretWindow::through(5, 3).width,
+                .end_authored = true,
+            }) == "5-3");
+}
+
 // A fret-hand harmonic's head names its node, not its fret.
 TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint]")
 {

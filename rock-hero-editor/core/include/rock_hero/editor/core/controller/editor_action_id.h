@@ -223,6 +223,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Author a fret-hand position at the cursor: restate the one there, else insert one. */
     AuthorFretHandPositionAtCursor,
 
+    /*! \brief Clear the selected fret-hand position's authored end fret back to the derived one. */
+    ClearFretHandEnd,
+
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,
 

@@ -369,10 +369,11 @@ TYPED, a click never creates, and every entry key has TWO PLANES**. Every entry 
 follows from that one sentence (`ring-ends-and-authoring-planes.md`, *The keys*, 2026-09-23). A key
 first finds its OPERAND — the selection, else the armed caret's slot — and its plane decides what it
 does there. The BARE digit (`TypeDigit0`–`9`, "Type Digit N") says "a note here": over a selection
-it retypes what is selected — a selected fret-hand position included, whose FRET the digits state
-through the same entry (`ChartFretEntry::RetypeHandFret`, settled through the marker funnel as
-"Set Hand Position Fret", refused red by the funnel's own front half, `judgeMarkerModel`; the `Alt`
-digit does the same there, no ring reaching a placement); at the caret, on an EMPTY slot and at a
+it retypes what is selected — a selected fret-hand position included, whose START fret the digits
+state through the same entry (`ChartFretEntry::RetypeHandFret`, settled through the marker funnel
+as "Set Hand Position Start Fret", refused red by the funnel's own front half, `judgeMarkerModel`),
+while the `Alt` digit states its window's END fret ("Set Hand Position End Fret") and `Alt+Delete`
+(`ClearHandPositionEndFret`) clears that end back to the derived one; at the caret, on an EMPTY slot and at a
 ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply the next note, since the
 ring already stops there, which is why sequential entry is safe, whatever that end states — the
 head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
@@ -380,8 +381,9 @@ head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
 The `ALT` digit (`TypeRingDigit0`–`9`, "Type Digit N on Ring") says "a point on the ring here": on
 the ring that covers or ends at the operand's instant, a POINT at the typed fret strictly inside,
 the END STATEMENT at the end, and a statement already standing there SELECTED and retyped, never
-doubled (`chartRingDigitTarget`); where no ring reaches the operand it does exactly what the bare
-digit does. The operand is ONE slot — the caret's, armed on nothing or on the one selected head,
+doubled (`chartRingDigitTarget`); over a selected fret-hand position, its window's END fret — the
+same key on the operand's extent, whose far end is its end statement; where no ring reaches the
+operand it does exactly what the bare digit does. The operand is ONE slot — the caret's, armed on nothing or on the one selected head,
 where the ring ending at that head is what the key names; over a wider selection the plane is
 ignored and every selected object is retyped (`chartEntryTarget`, the one resolver the digits and
 the `Insert` chords share). `INSERT` and `ALT+INSERT` are the same two planes with the digit

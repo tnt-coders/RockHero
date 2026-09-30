@@ -3130,8 +3130,13 @@ void roundOntoTickLattice(Chart& chart, const common::core::TempoMap& tempo_map)
 // passage, which is an authored choice the importer never makes.
 void dropRestatedPlacements(std::vector<common::core::FretHandPosition>& placements)
 {
-    const auto restated =
-        std::ranges::unique(placements, {}, &common::core::FretHandPosition::fret);
+    // A placement's statement is its whole payload: the fret and any authored end.
+    const auto restated = std::ranges::unique(
+        placements,
+        [](const common::core::FretHandPosition& earlier,
+           const common::core::FretHandPosition& later) {
+            return earlier.fret == later.fret && earlier.end_fret == later.end_fret;
+        });
     placements.erase(restated.begin(), restated.end());
 }
 

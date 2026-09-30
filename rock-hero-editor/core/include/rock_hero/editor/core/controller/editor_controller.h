@@ -524,6 +524,9 @@ public:
     /*! \copydoc IEditorController::onHandChordRequested */
     void onHandChordRequested() override;
 
+    /*! \copydoc IEditorController::onHandEndClearRequested */
+    void onHandEndClearRequested() override;
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override;

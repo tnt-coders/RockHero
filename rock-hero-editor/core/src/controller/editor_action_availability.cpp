@@ -63,6 +63,7 @@ namespace
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::ClearFretHandEnd:
         {
             return true;
         }
@@ -183,6 +184,7 @@ namespace
             case EditorAction::Id::SelectTimeSignature:
             case EditorAction::Id::SelectFretHandPosition:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
+            case EditorAction::Id::ClearFretHandEnd:
             {
                 return false;
             }
@@ -327,6 +329,7 @@ namespace
         // only like every other marker verb.
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::ClearFretHandEnd:
         {
             return conditions.has_chart && !conditions.transport_playing;
         }
@@ -459,6 +462,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::ClearFretHandEnd:
         {
             return false;
         }

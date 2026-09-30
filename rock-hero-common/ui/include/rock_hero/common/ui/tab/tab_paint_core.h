@@ -503,7 +503,8 @@ juce::Rectangle<float> paintTabSlideChip(
 
 /*!
 \brief THE ONE STATEMENT of what a fret-hand-position chip says: the index-finger fret for the
-standard four-fret hand, the full inclusive range ("3-7") for a wider or narrower one.
+standard four-fret hand whose end is derived, the full inclusive range ("3-7") for a wider or
+narrower one or wherever the end fret is authored.
 
 Exported so a host drawing over a chip — the editor's pending fret entry — prints exactly the text
 the chip itself prints, in the box \ref tabFhpChipBounds measured for it.

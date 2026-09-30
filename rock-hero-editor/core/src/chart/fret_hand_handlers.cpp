@@ -21,11 +21,27 @@ namespace rock_hero::editor::core
 {
 
 // The hand row's markers (docs/plans/in-progress/hand-marker-stopgap.md): the chart's stored
-// fret-hand positions, authored through the marker grammar every other marker kind shares. Only
-// where the hand arrives and its index finger's fret are stored; the window's reach is derived.
+// fret-hand positions, authored through the marker grammar every other marker kind shares. Where
+// the hand arrives and its index finger's fret are stored; the window's reach is derived unless the
+// charter states its end fret.
 
 namespace
 {
+
+// The placement with `fret` typed at one edge: its index finger's start, or its window's end.
+[[nodiscard]] common::core::FretHandPosition retyped(
+    common::core::FretHandPosition placement, const FretHandEdge edge, const int fret)
+{
+    if (edge == FretHandEdge::End)
+    {
+        placement.end_fret = fret;
+    }
+    else
+    {
+        placement.fret = fret;
+    }
+    return placement;
+}
 
 // Finds the placement arriving exactly at a position; a placement's position is its identity.
 [[nodiscard]] std::vector<common::core::FretHandPosition>::iterator findPlacement(
@@ -202,10 +218,12 @@ void EditorController::Impl::moveSelectedFretHandPosition(
 }
 
 // A placement's fret entry, planned the way the commit will judge it: the funnel's own front half
-// over the stream with the fret replaced, so the red box refuses exactly what the settle would. A
-// placement the selection no longer names plans nothing.
-std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> EditorController::Impl::planFretHandFret(
-    const common::core::GridPosition& position, const int fret) const
+// over the stream with the one fret replaced, so the red box refuses exactly what the settle would
+// — a start retyped above an authored end included. A placement the selection no longer names plans
+// nothing.
+std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> EditorController::Impl::
+    planFretHandFret(
+        const common::core::GridPosition& position, const FretHandEdge edge, const int fret) const
 {
     const FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
@@ -214,24 +232,69 @@ std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> EditorController::Imp
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    match->fret = fret;
+    *match = retyped(*match, edge, fret);
     std::expected<FretHandPositionsSnapshot, MarkerModelRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
         return std::unexpected{judged.error().reason};
     }
-    return std::move(*judged);
+    return ChartFretHandPlan{.placements = std::move(*judged), .edge = edge};
 }
 
 // The settle of a placement's fret entry. Its selection names the placement by position, which the
 // fret does not move, so it stays selected with nothing to re-select.
-void EditorController::Impl::commitFretHandFret(FretHandPositionsSnapshot placements)
+void EditorController::Impl::commitFretHandFret(ChartFretHandPlan plan)
 {
     static_cast<void>(commitMarkerModel(
         FretHandPositionsSnapshot::capture(session()),
-        std::move(placements),
-        "Set Hand Position Fret"));
+        std::move(plan.placements),
+        plan.edge == FretHandEdge::End ? "Set Hand Position End Fret"
+                                       : "Set Hand Position Start Fret"));
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
+    const common::core::GridPosition& position, const FretHandEdge edge, const int value) const
+{
+    FretHandPositionsSnapshot placements = FretHandPositionsSnapshot::capture(session());
+    const auto match = findPlacement(placements.placements, position);
+    const common::core::FretHandPosition typed =
+        match == placements.placements.end()
+            ? common::core::FretHandPosition{.position = position, .fret = value}
+            : retyped(*match, edge, value);
+    // Bound once so the presence test and the read are provably one object.
+    const std::optional<int>& end_fret = typed.end_fret;
+    return common::core::FhpViewState{
+        .fret = typed.fret,
+        .width = end_fret.has_value()
+                     ? common::core::FretWindow::through(typed.fret, *end_fret).width
+                     : common::core::g_min_fret_hand_width,
+        .end_authored = end_fret.has_value(),
+    };
+}
+
+// Alt+Delete over a selected placement: its authored end fret is cleared, and the notes derive the
+// window's reach again. A placement whose end is already derived has nothing to clear, so the verb
+// does nothing — no commit, no undo entry, and never the placement's own deletion, which is
+// Delete's. The placement stays selected: its position, which names it, is untouched.
+void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*action*/)
+{
+    const auto* const selection = std::get_if<FretHandPositionSelection>(&m_selection);
+    if (selection == nullptr)
+    {
+        return;
+    }
+    FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
+    FretHandPositionsSnapshot after = before;
+    const auto match = findPlacement(after.placements, selection->position);
+    if (match == after.placements.end() || !match->end_fret.has_value())
+    {
+        return;
+    }
+    match->end_fret.reset();
+    static_cast<void>(
+        commitMarkerModel(std::move(before), std::move(after), "Clear Hand Position End Fret"));
 }
 
 // Deletes the selected placement. Nothing refuses it — a chart with no placement left is the nut

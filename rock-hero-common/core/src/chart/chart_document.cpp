@@ -712,10 +712,20 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
                 return std::unexpected{malformed(
                     "chart hand position \"fret\" has the wrong type")};
             }
+            // The end fret is optional: absent, the notes derive the window's reach.
+            const juce::var& end_fret_json = Json::value(fhp_json, "endFret");
+            if (!end_fret_json.isVoid() && !end_fret_json.isInt())
+            {
+                return std::unexpected{malformed(
+                    "chart hand position \"endFret\" has the wrong type")};
+            }
             chart.fret_hand_positions.push_back(
                 FretHandPosition{
                     .position = *position,
                     .fret = Json::readOptionalInt(fhp_json, "fret", 0),
+                    .end_fret = end_fret_json.isVoid()
+                                    ? std::nullopt
+                                    : std::optional{Json::readOptionalInt(fhp_json, "endFret", 0)},
                 });
         }
     }
@@ -766,8 +776,14 @@ namespace
 
     append_array("notes", chart.notes, noteLine);
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
-        return R"({ "position": ")" + formatGridPositionToken(fhp.position) + R"(", "fret": )" +
-               std::to_string(fhp.fret) + " }";
+        std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
+                           R"(", "fret": )" + std::to_string(fhp.fret);
+        // Written only where authored: an absent end is the derived window.
+        if (const std::optional<int>& end_fret = fhp.end_fret; end_fret.has_value())
+        {
+            line += R"(, "endFret": )" + std::to_string(*end_fret);
+        }
+        return line + " }";
     });
 
     // Drop the trailing comma from the final array before closing the document.

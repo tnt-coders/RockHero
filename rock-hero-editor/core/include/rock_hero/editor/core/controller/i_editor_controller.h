@@ -392,9 +392,10 @@ public:
     statement already stands there, that statement retyped (it is selected, never doubled) — and
     where no ring reaches the operand it does exactly what the bare digit does. The operand is one
     slot: the caret's, armed on nothing or on the one selected head, where the ring ending at that
-    head is what the key names. Over a wider selection — or a head selected without the caret on
-    it — the plane is ignored and every selected object is retyped, exactly as the bare digit
-    would.
+    head is what the key names. Over a selected fret-hand position it types the window's END fret,
+    the far end of that operand's extent, as the bare digit types its start. Over a wider
+    selection — or a head selected without the caret on it — the plane is ignored and every
+    selected object is retyped, exactly as the bare digit would.
 
     \param digit Typed digit in [0, 9].
     */
@@ -635,6 +636,15 @@ public:
     no chart, and on the song's closing barline.
     */
     virtual void onHandChordRequested() = 0;
+
+    /*!
+    \brief Handles `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
+
+    The window's end returns to the one the notes derive, and the placement stays selected. Does
+    nothing where the selection is no placement or its end is already derived — never deleting the
+    placement, which is Delete's — and is inert while playing and with no chart.
+    */
+    virtual void onHandEndClearRequested() = 0;
 
     /*!
     \brief Handles a request to insert a song-structure section at the marker.

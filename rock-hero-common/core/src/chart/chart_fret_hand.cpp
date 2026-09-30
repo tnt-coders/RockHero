@@ -43,8 +43,9 @@ void forEachHeldFret(const ChartNote& note, const std::optional<int>& held, cons
     visit(from, note.sustain, heldFretAt(note, held, from));
 }
 
-// THE width rule over the held ranges: a stretch holding nothing gets the narrowest window, the
-// same answer a highest stop below the authored fret gives.
+// THE width rule over the held ranges: an authored end fret is the window's end; otherwise a
+// stretch holding nothing gets the narrowest window, the same answer a highest stop below the
+// authored fret gives.
 [[nodiscard]] std::vector<int> widthsOf(
     const std::vector<std::optional<HeldFretRange>>& ranges,
     const std::vector<FretHandPosition>& placements)
@@ -53,10 +54,17 @@ void forEachHeldFret(const ChartNote& note, const std::optional<int>& held, cons
     widths.reserve(placements.size());
     for (std::size_t index = 0; index < placements.size(); ++index)
     {
-        // Bound once so the presence test and the read are provably one object.
+        const FretHandPosition& placement = placements[index];
+        // Each bound once so the presence test and the read are provably one object.
+        const std::optional<int>& end_fret = placement.end_fret;
+        if (end_fret.has_value())
+        {
+            widths.push_back(FretWindow::through(placement.fret, *end_fret).width);
+            continue;
+        }
         const std::optional<HeldFretRange>& range = ranges[index];
         const int highest = range.has_value() ? range->highest : 0;
-        widths.push_back(std::max(g_min_fret_hand_width, highest - placements[index].fret + 1));
+        widths.push_back(std::max(g_min_fret_hand_width, highest - placement.fret + 1));
     }
     return widths;
 }

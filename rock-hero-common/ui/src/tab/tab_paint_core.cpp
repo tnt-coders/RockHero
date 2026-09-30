@@ -2457,7 +2457,8 @@ juce::Rectangle<float> paintTabPendingEntryBox(
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabFhpChipText(const common::core::FhpViewState& fhp)
 {
-    if (fhp.width == common::core::g_min_fret_hand_width)
+    // An authored end always prints as a range, so the chip says which ends the charter stated.
+    if (!fhp.end_authored && fhp.width == common::core::g_min_fret_hand_width)
     {
         return juce::String{fhp.fret};
     }

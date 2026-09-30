@@ -397,6 +397,12 @@ public:
         hand_chord_count += 1;
     }
 
+    /*! \copydoc IEditorController::onHandEndClearRequested */
+    void onHandEndClearRequested() override
+    {
+        hand_end_clear_count += 1;
+    }
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override
@@ -981,6 +987,9 @@ public:
 
     /*! \brief Number of onHandChordRequested() intents received. */
     int hand_chord_count{0};
+
+    /*! \brief Number of onHandEndClearRequested() intents received. */
+    int hand_end_clear_count{0};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

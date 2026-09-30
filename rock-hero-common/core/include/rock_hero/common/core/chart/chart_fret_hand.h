@@ -79,11 +79,14 @@ beside them (\ref ChartResolutions::held_stops), the one pairing every resolved 
 \brief Derives every fret-hand placement's window width from the stops the notes hold under it.
 
 THE RULE, stated once: a placement's width is `max(4, highest fretting-hand stop held during its
-stretch - fret + 1)`, the stops being the ones \ref deriveHeldFretRanges finds.
+stretch - fret + 1)`, the stops being the ones \ref deriveHeldFretRanges finds — unless the
+placement states its end fret (\ref FretHandPosition::end_fret), when the width is exactly
+`end_fret - fret + 1`.
 
-Only the index finger's fret is authored. A stop BELOW it widens nothing — it stays outside the
-window, which is the honest report that the placement is wrong — and nothing narrows a window
-below \ref g_min_fret_hand_width.
+A stop BELOW the index finger's fret widens nothing — it stays outside the window, which is the
+honest report that the placement is wrong — and nothing narrows a DERIVED window below
+\ref g_min_fret_hand_width. An authored window may be narrower; its index finger still leaves the
+narrowest window's room under the last fret (\ref normalizeFretHandPosition).
 
 \param notes The note stream.
 \param held_frets Each note's held fret, index-parallel to \p notes: the complete table's fret

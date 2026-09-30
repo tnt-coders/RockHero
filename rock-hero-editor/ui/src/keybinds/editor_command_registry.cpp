@@ -395,6 +395,12 @@ constexpr int g_add_lane_key = 'a';
         "Delete Selection",
         "Selection",
         {chord(juce::KeyPress::deleteKey)});
+    // The Alt plane of Delete: remove the stated END, as Alt+digit states it. No Alt+Backspace
+    // twin, because that chord is Undo to anyone raised on Windows.
+    add(EditorCommandId::ClearHandPositionEndFret,
+        "Clear Hand Position End Fret",
+        "Selection",
+        {chord(juce::KeyPress::deleteKey, alt)});
     // Cancel/Clear sits with the selection verbs (its user-visible rungs disarm the caret and
     // clear the selection); its 0x1708 id stays in the authoring block — id blocks are
     // historical hints, the registry row owns the category.

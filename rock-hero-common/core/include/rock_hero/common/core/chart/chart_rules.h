@@ -530,9 +530,9 @@ so applying this twice changes nothing the second time.
 \brief Fits a fret-hand window onto the playable board, in place.
 
 The index finger lifts above the capo and drops until the narrowest window
-(\ref g_min_fret_hand_width) fits under the last fret. The window's reach past that is derived from
-the notes (\ref deriveFretHandWidths), which never state a fret off the board, so the finger is the
-only thing to fit.
+(\ref g_min_fret_hand_width) fits under the last fret, and an authored end fret past the last fret
+comes down onto it. The window's reach past that is derived from the notes
+(\ref deriveFretHandWidths), which never state a fret off the board.
 
 \param position Hand position to normalize.
 \param tuning Tuning the hand plays under; supplies the capo.

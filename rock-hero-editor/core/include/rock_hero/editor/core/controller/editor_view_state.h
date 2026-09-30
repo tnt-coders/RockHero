@@ -701,13 +701,20 @@ struct ChartPendingFretTargets
 The chip is the placement's one mark on the lane, and its fret is the value the chip prints, so the
 box fills the chip's own box rather than a head's plate or a slot. A value that would apply is
 previewed into the published chart like a creating entry's product, so the chip already prints what
-the settle will leave — the committed text and its derived window — and the box carries that; a
-refused value carries the typed text.
+the settle will leave and the box carries that; a refused value previews nothing, so the box
+carries the chip the typed value WOULD have made — printed by the chip's own notation, so a refused
+end on a start of 5 reads "5-3" rather than a bare "3" that could be either half.
 */
 struct ChartPendingFretHandPosition
 {
     /*! \brief Index of the placement in the tab projection's placement order. */
     std::size_t index{};
+
+    /*!
+    \brief The placement's chip as the typed value would leave it: its start fret, its width, and
+    whether its end is authored. Read only while the value is refused.
+    */
+    common::core::FhpViewState typed{};
 
     /*!
     \brief Compares two targets field by field.

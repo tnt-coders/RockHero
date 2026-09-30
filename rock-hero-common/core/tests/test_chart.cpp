@@ -2451,6 +2451,26 @@ TEST_CASE("Chart rules refuse two hand positions at one position", "[core][chart
     CHECK(result.error().code == ChartErrorCode::InvalidFretHandPosition);
 }
 
+// A placement's end fret is written only where it is authored, and reads back as authored; an
+// absent key is the derived window.
+TEST_CASE("Chart document round-trips a hand position's authored end fret", "[core][chart]")
+{
+    Chart chart = makeFullChart();
+    REQUIRE_FALSE(chart.fret_hand_positions.empty());
+    const std::string derived_text = chartDocumentText(chart, makeTempoMap());
+    CHECK(derived_text.find(R"("endFret")") == std::string::npos);
+
+    chart.fret_hand_positions.front().end_fret = chart.fret_hand_positions.front().fret + 2;
+    const std::string text = chartDocumentText(chart, makeTempoMap());
+    CHECK(text.find(R"("endFret")") != std::string::npos);
+    const auto reparsed = parseChartDocument(text);
+    REQUIRE(reparsed.has_value());
+    if (reparsed.has_value())
+    {
+        CHECK(*reparsed == chart);
+    }
+}
+
 // A placement states only its fret, so a document omitting it states no placement at all: the
 // reader refuses it rather than inventing one the normalizer would then lift onto the board.
 TEST_CASE("Chart document refuses a hand position without a fret", "[core][chart]")
@@ -3118,6 +3138,19 @@ TEST_CASE("Chart normalizer repairs what the validator refuses, once", "[core][c
             std::vector<ChartRepair>{ChartRepair::FretPastBoard});
         CHECK(high.fret == g_max_fret - g_min_fret_hand_width + 1);
         CHECK(normalizeFretHandPosition(high, tuning).empty());
+
+        // An authored end past the last fret comes down onto it.
+        FretHandPosition reaching{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .fret = 20,
+            .end_fret = g_max_fret + 2,
+        };
+        CHECK(
+            normalizeFretHandPosition(reaching, tuning) ==
+            std::vector<ChartRepair>{ChartRepair::FretPastBoard});
+        CHECK(reaching.fret == 20);
+        CHECK(reaching.end_fret == std::optional{g_max_fret});
+        CHECK(normalizeFretHandPosition(reaching, tuning).empty());
     }
 
     SECTION("the whole chart normalizes in one call, with the settle sweep last")

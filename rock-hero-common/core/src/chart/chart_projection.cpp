@@ -545,6 +545,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 .seconds = arrival_seconds,
                 .fret = fhp.fret,
                 .width = fhp_widths[fhp_index],
+                .end_authored = fhp.end_fret.has_value(),
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
                 .unpitched_ramp = unpitched_ramp,
                 .settle_seconds = settle_seconds,

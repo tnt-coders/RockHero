@@ -877,7 +877,8 @@ void TabView::paint(juce::Graphics& g)
     // A placement's pending fret entry fills the placement's own chip box, where the value will
     // print, above the chip in the furniture's layer. A value that will apply is already the chip's
     // own — the controller previews it into the projection, derived window included — so the plate
-    // carries the chip's text; a refused one previews nothing and carries what was typed.
+    // carries the chip's text; a refused one previews nothing and carries the chip the typed value
+    // would have made, in the same notation.
     if (pending.has_value())
     {
         if (const auto* const hand = std::get_if<core::ChartPendingFretHandPosition>(&pending->at);
@@ -890,7 +891,7 @@ void TabView::paint(juce::Graphics& g)
                     metrics,
                     metrics.fret_font,
                     chip->box,
-                    pending_refused ? pending_text : common::ui::tabFhpChipText(*chip->fhp),
+                    common::ui::tabFhpChipText(pending_refused ? hand->typed : *chip->fhp),
                     pending_refused,
                     pending_ink,
                     accent);

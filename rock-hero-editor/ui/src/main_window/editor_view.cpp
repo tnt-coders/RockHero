@@ -284,6 +284,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SelectTimeSignature:
             case core::EditorActionId::SelectFretHandPosition:
             case core::EditorActionId::AuthorFretHandPositionAtCursor:
+            case core::EditorActionId::ClearFretHandEnd:
             {
                 return "Save your tone before continuing?";
             }
@@ -376,6 +377,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectTimeSignature:
         case core::EditorActionId::SelectFretHandPosition:
         case core::EditorActionId::AuthorFretHandPositionAtCursor:
+        case core::EditorActionId::ClearFretHandEnd:
         {
             return "Save changes before continuing?";
         }
@@ -1745,6 +1747,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionMoveUp:
         case EditorCommandId::SelectionMoveDown:
         case EditorCommandId::SelectionDelete:
+        case EditorCommandId::ClearHandPositionEndFret:
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
         case EditorCommandId::ChartLeftTap:
@@ -2462,6 +2465,15 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (m_state.selection_present)
             {
                 m_controller.onSelectionDeleteRequested();
+            }
+            return true;
+        }
+
+        case EditorCommandId::ClearHandPositionEndFret:
+        {
+            if (m_state.selection_present)
+            {
+                m_controller.onHandEndClearRequested();
             }
             return true;
         }

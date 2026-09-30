@@ -103,6 +103,28 @@ TEST_CASE("EditorView forwards the hand chord to the core", "[ui][editor-view]")
     CHECK_FALSE(controller.last_selected_fret_hand_position.has_value());
 }
 
+// Alt+Delete forwards the end-fret clear only while something is selected, as Delete does; the core
+// decides whether the selection is a placement with an authored end to clear.
+TEST_CASE("EditorView forwards the hand end clear while a selection stands", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    const juce::ApplicationCommandTarget::InvocationInfo info{static_cast<juce::CommandID>(
+        EditorCommandId::ClearHandPositionEndFret)};
+    CHECK(view.perform(info));
+    CHECK(controller.hand_end_clear_count == 0);
+
+    core::EditorViewState state;
+    state.selection_present = true;
+    view.setState(state);
+    CHECK(view.perform(info));
+    CHECK(controller.hand_end_clear_count == 1);
+}
+
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
@@ -487,6 +509,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::SelectionDelete,
          .value = 0x1611,
          .chords = {chord(juce::KeyPress::deleteKey)}},
+        {.id = EditorCommandId::ClearHandPositionEndFret,
+         .value = 0x1612,
+         .chords = {chord(juce::KeyPress::deleteKey, alt)}},
         {.id = EditorCommandId::CancelDismiss,
          .value = 0x1708,
          .chords = {chord(juce::KeyPress::escapeKey)}},

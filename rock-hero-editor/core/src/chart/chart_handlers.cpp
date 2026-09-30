@@ -2324,7 +2324,7 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
 // compound on its own earlier digit. Each note-stream plan carries what its settle selects — the
 // head it planted, the ring site it struck or pointed, the objects it retyped — so the settle
 // never reads the target again. A hand placement's retype is the one whose plan is not a
-// note-stream change: its stream with the placement's fret replaced (planFretHandFret).
+// note-stream change: its stream with one of the placement's frets replaced (planFretHandFret).
 std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> EditorController::Impl::
     replanChartFretEntry(const ChartFretEntry& entry) const
 {
@@ -2387,7 +2387,7 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
                     chartRetypeKeys(retype));
             },
             [&](const ChartFretEntry::RetypeHandFret& hand) -> Planned {
-                return planFretHandFret(hand.position, entry.value);
+                return planFretHandFret(hand.position, hand.edge, entry.value);
             },
         },
         entry.target);
@@ -2426,9 +2426,7 @@ void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
                     static_cast<void>(
                         applyChartEditPlan(std::move(notes.plan), std::move(notes.select)));
                 },
-                [this](FretHandPositionsSnapshot& placements) {
-                    commitFretHandFret(std::move(placements));
-                },
+                [this](ChartFretHandPlan& hand) { commitFretHandFret(std::move(hand)); },
             },
             *entry.plan);
     }
@@ -2530,11 +2528,14 @@ std::optional<decltype(EditorController::Impl::ChartFretEntry::target)> EditorCo
         return std::nullopt;
     }
     // A SELECTED fret-hand placement is a selection like any other, and the digits retype what is
-    // selected: here, the placement's fret. Selecting it demoted the caret, so no slot competes.
-    // Both planes land here: no ring reaches a placement, so `Alt`+digit is the bare digit.
+    // selected: the bare key its start fret, the ring plane its window's end fret — the same key
+    // on the object's extent, as on a note. Selecting it demoted the caret, so no slot competes.
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
-        return ChartFretEntry::RetypeHandFret{.position = placement->position};
+        return ChartFretEntry::RetypeHandFret{
+            .position = placement->position,
+            .edge = plane == ChartEntryPlane::Ring ? FretHandEdge::End : FretHandEdge::Start,
+        };
     }
     const std::vector<ChartSlotKey>& notes = chartSelection().notes();
     const std::vector<ChartKeyframeKey>& keyframes = chartSelection().keyframes();

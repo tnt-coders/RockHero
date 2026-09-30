@@ -214,6 +214,24 @@ TEST_CASE("Fret-hand width of the last placement runs to the chart's end", "[cor
         std::vector<int>{6});
 }
 
+// An authored end fret is the window's end, whatever the notes hold: narrower than the derived
+// floor (a pinky on the third fret reaching down from it), and not widened by a stop above it,
+// which stays outside the window as a stop below the index finger does.
+TEST_CASE("Fret-hand width reaches exactly an authored end fret", "[core][chart]")
+{
+    FretHandPosition narrow = placementAt(1, 1);
+    narrow.end_fret = 3;
+    CHECK(widthsOf({noteAt(1, 1, 1, 3)}, {narrow}) == std::vector<int>{3});
+
+    FretHandPosition capped = placementAt(1, 5);
+    capped.end_fret = 7;
+    CHECK(widthsOf({noteAt(1, 1, 1, 5), noteAt(1, 2, 2, 11)}, {capped}) == std::vector<int>{3});
+
+    FretHandPosition wide = placementAt(1, 5);
+    wide.end_fret = 10;
+    CHECK(widthsOf({}, {wide}) == std::vector<int>{6});
+}
+
 // The projection publishes the derived reach, so both surfaces draw the window the notes prove.
 TEST_CASE("Chart projection publishes the derived fret-hand width", "[core][chart]")
 {
@@ -228,6 +246,14 @@ TEST_CASE("Chart projection publishes the derived fret-hand width", "[core][char
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].fret == 5);
     CHECK(state.fret_hand_positions[0].width == 7);
+    CHECK_FALSE(state.fret_hand_positions[0].end_authored);
+
+    // An authored end is published as authored, which is what the chip prints as a range.
+    arrangement.chart->fret_hand_positions.front().end_fret = 8;
+    const ChartViewState authored = makeChartViewState(arrangement, makeTempoMap());
+    REQUIRE(authored.fret_hand_positions.size() == 1);
+    CHECK(authored.fret_hand_positions[0].width == 4);
+    CHECK(authored.fret_hand_positions[0].end_authored);
 }
 
 // The one fold reports both ends of what each stretch holds: its LOWEST stop is the default an
@@ -260,6 +286,23 @@ TEST_CASE("Fret-hand validation refuses a placement on the closing barline", "[c
                     {FretHandPosition{.position = terminal, .fret = 5}}, tuning, tempo_map)
                     .has_value());
     CHECK(validateFretHandPositions({placementAt(1, 5)}, tuning, tempo_map).has_value());
+}
+
+// An authored end below the index finger is a window reaching nowhere, and no fit can say which of
+// the two frets was meant, so it is refused; an end at the finger is a one-fret window and stands.
+TEST_CASE("Fret-hand validation refuses an end fret below the index finger", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+
+    FretHandPosition below = placementAt(1, 5);
+    below.end_fret = 4;
+    CHECK_FALSE(validateFretHandPositions({below}, tuning, tempo_map).has_value());
+
+    FretHandPosition single = placementAt(1, 5);
+    single.end_fret = 5;
+    CHECK(validateFretHandPositions({single}, tuning, tempo_map).has_value());
 }
 
 } // namespace rock_hero::common::core

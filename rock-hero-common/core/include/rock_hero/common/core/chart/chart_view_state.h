@@ -949,8 +949,17 @@ struct FhpViewState
     /*! \brief Lowest fret under the index finger. */
     int fret{1};
 
-    /*! \brief Fret span covered by the hand, derived from the notes (\ref deriveFretHandWidths). */
+    /*!
+    \brief Fret span covered by the hand: derived from the notes, or reaching an authored end fret
+    (\ref deriveFretHandWidths).
+    */
     int width{g_min_fret_hand_width};
+
+    /*!
+    \brief True when the window's end fret is authored rather than derived
+    (\ref FretHandPosition::end_fret), so the editor's chip always prints it as a range.
+    */
+    bool end_authored{false};
 
     /*!
     \brief Duration of the hand's eased approach ending at \ref seconds; zero arrives instantly.
@@ -994,7 +1003,8 @@ struct FhpViewState
     friend constexpr bool operator==(const FhpViewState& lhs, const FhpViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
+               lhs.width == rhs.width && lhs.end_authored == rhs.end_authored &&
+               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
                lhs.unpitched_ramp == rhs.unpitched_ramp &&
                std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
     }

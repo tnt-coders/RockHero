@@ -207,8 +207,9 @@ statement standing exactly at the cut becomes the origin's end statement — an 
 names the new head's own stop, a slide-out onto it where it does not). The `ALT` key says "a
 point on the ring here": on the ring that covers or ends at the operand's instant, a POINT at the
 typed fret strictly inside, the END STATEMENT at the end, and a statement already standing there
-selected and retyped, never doubled; where no ring reaches the operand it does exactly what the
-bare key does. `Insert` and `Alt+Insert` are the same two planes with the digit SUPPLIED — the
+selected and retyped, never doubled; over a selected fret-hand position it types the window's END
+fret, the far end of that operand's extent; where no ring reaches the operand it does exactly what
+the bare key does. `Insert` and `Alt+Insert` are the same two planes with the digit SUPPLIED — the
 fret ALREADY IN FORCE at the caret (`chartFretInForceAt`: inside a ring the stop its path states
 there, past a ring's end the last pitched stop of the string's latest note): a head, the cut, or —
 where the digit would retype — the object SELECTED; a silent point, or the end statement at the
@@ -384,8 +385,9 @@ Four consequences worth knowing before touching this:
   affected head — and is not projected. A selected fret-hand position's fret IS
   projected, like a creation (a fret change keeps every placement's index), and its box fills the
   placement's own chip (`ChartPendingFretHandPosition`, `paintTabPendingEntryPlate` over
-  `tabFhpChipBounds`), carrying the chip's committed text and derived window, or the typed text when
-  refused. Nothing else needs previewing, because nothing else authors: the pointer creates under
+  `tabFhpChipBounds`), carrying the chip's committed text and window, or, when refused, the typed
+  value in the chip's own range notation (`fretHandEntryText`: "8-7" for a start typed above an
+  authored end). An authored end fret always prints as a range (`FhpViewState::end_authored`). Nothing else needs previewing, because nothing else authors: the pointer creates under
   no modifier, and what `Alt` shows while it is held is the ring REVEAL — every visible note drawn
   on to its stored ring end — not a preview of a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the

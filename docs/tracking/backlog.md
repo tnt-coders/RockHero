@@ -1291,3 +1291,29 @@ against the tree on the date above.
   same lambda (differing only in `burst == nullptr ||`). One `preBurstChart(burst)` and one
   `rewriteBurst(burst, plan)` serve both. Pre-existing; deferred because both functions are dense
   and each carries its own proofs.
+
+## Found while authoring the fret-hand end fret (2026-09-29)
+
+- **The `Alt`+digit commands are named for the ring alone.** "Type Digit N on Ring"
+  (`TypeRingDigit0`–`9`, `0x1815`–`0x181E`) now also types a selected fret-hand position's END
+  fret, where "on Ring" is false. Rename the display names to what the plane means ("the same key
+  on the object's extent") — a naming-expert question; the command ids stay, because persisted
+  keymaps key on them.
+- **A bare digit then `Alt`+digit inside the 750 ms window is one entry.** The first key decides
+  and every digit continues a live entry, so `5` then `Alt+7` types start 57 (refused red) and `1`
+  then `Alt+2` types start 12 (legal, wrong, visible and undoable). Kept because the same law
+  protects a sloppy `Alt` release on the chart lane. If sighting shows charters hitting it, the
+  narrow fix is one-directional — an `Alt` digit after a bare-plane entry closes that entry — on
+  both surfaces or neither.
+- **A pending fret entry pairs its target and its plan by an unenforced rule.** `ChartFretEntry`
+  holds a `target` variant and a separate `plan` variant (`editor_controller_impl.h`), and every
+  reader relies on a hand target always carrying a hand plan: the settle reads the plan, the view
+  derivation branches on the plan for the preview and on the target for the box
+  (`editor_controller.cpp`, `deriveViewState`), and the hand plan carries its edge a second time so
+  the settle need not read the target. A variant of per-kind `{target, plan}` pairs would make a
+  mismatched pair unrepresentable and delete the duplicated edge. Pre-existing; raised by the
+  simplicity review of the end-fret change.
+- **The optional-integer key read is spelled three times in `chart_document.cpp`.** The keyframe
+  fret, the keyframe bend and the hand position's `"endFret"` each write "absent is nullopt, else
+  `std::optional{Json::readOptionalInt(...)}`". A `readOptionalIntKey(json, key)` helper would own
+  it.

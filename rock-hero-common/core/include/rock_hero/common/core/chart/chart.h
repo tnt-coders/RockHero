@@ -2225,6 +2225,17 @@ struct FretWindow
     }
 
     /*!
+    \brief The window spanning `[fret, top]`, the inverse of \ref top.
+    \param fret Lowest fret under the index finger.
+    \param top Highest fret the window covers.
+    \return The window.
+    */
+    [[nodiscard]] static constexpr FretWindow through(const int fret, const int top) noexcept
+    {
+        return FretWindow{.fret = fret, .width = top - fret + 1};
+    }
+
+    /*!
     \brief Reports whether the window covers a fret.
     \param stop Fret to test.
     \return True when the fret lies within `[fret, top()]`.
@@ -2238,9 +2249,10 @@ struct FretWindow
 /*!
 \brief Fret-hand position: where the hand sits on the neck from this point on.
 
-Only WHERE the index finger sits is authored. How far the window reaches is derived from the stops
-the notes hold while the placement stands (\ref deriveFretHandWidths), so a stored span could only
-ever disagree with the notes under it.
+WHERE the index finger sits is authored. How far the window reaches is derived from the stops the
+notes hold while the placement stands (\ref deriveFretHandWidths) unless the charter states its
+END fret: the notes prove which frets are played but not which way the hand faces, so a pinky on
+the third fret reaching down from it is a fact only the charter can state.
 */
 struct FretHandPosition
 {
@@ -2249,6 +2261,18 @@ struct FretHandPosition
 
     /*! \brief Lowest fret under the index finger. */
     int fret{1};
+
+    /*!
+    \brief The authored highest fret the window covers, or absent where the notes derive it.
+
+    Where stated the window is exactly `[fret, end_fret]`, however narrow — the narrowest derived
+    window (\ref g_min_fret_hand_width) floors only the derived width. The index finger still leaves
+    that narrowest window's room under the last fret (\ref normalizeFretHandPosition), so clearing
+    an authored end always leaves a legal window, and an authored window never starts above
+    `g_max_fret - 3`. A stop the notes hold above the end stays outside the window, the same honest
+    report a stop below \ref fret gives.
+    */
+    std::optional<int> end_fret{};
 
     /*!
     \brief Compares two fret-hand positions by their stored fields.

@@ -188,6 +188,16 @@ std::expected<void, ChartError> validateFretHandPositions(
                            positionText(fhp.position),
             }};
         }
+        // An authored end below the index finger is a window reaching nowhere, and no fit can say
+        // which of the two frets was meant.
+        if (fhp.end_fret.has_value() && *fhp.end_fret < fhp.fret)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidFretHandPosition,
+                .message =
+                    "fret-hand window ends below its index finger at " + positionText(fhp.position),
+            }};
+        }
         FretHandPosition normal = fhp;
         if (const std::vector<ChartRepair> repairs = normalizeFretHandPosition(normal, tuning);
             !repairs.empty())
@@ -594,20 +604,27 @@ std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
     // The window's reach is derived from the notes (deriveFretHandWidths), which never hold a fret
-    // past the board, so the index finger only has to leave room for the narrowest window. Every
-    // legal capo leaves that room above it; the floor still wins on a capo out of range, which the
+    // past the board, so the index finger only has to leave room for the narrowest window — kept
+    // even under an authored end, so clearing that end always leaves a legal window. Every legal
+    // capo leaves that room above it; the floor still wins on a capo out of range, which the
     // validator refuses after this runs.
     static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
     const int floor = firstPlayableFret(tuning.capo);
     const int overshoot =
         FretWindow{.fret = position.fret, .width = g_min_fret_hand_width}.top() - g_max_fret;
-    const bool past_board = overshoot > 0;
+    bool past_board = overshoot > 0;
     if (past_board)
     {
         position.fret -= overshoot;
     }
     const bool below_capo = position.fret < floor;
     position.fret = std::max(position.fret, floor);
+    // An authored end past the last fret comes down onto it, the same fit the finger takes.
+    if (position.end_fret.has_value() && *position.end_fret > g_max_fret)
+    {
+        position.end_fret = g_max_fret;
+        past_board = true;
+    }
     std::vector<ChartRepair> repairs;
     if (past_board)
     {

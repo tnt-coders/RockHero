@@ -344,6 +344,10 @@ namespace
         {
             return "AuthorFretHandPositionAtCursor";
         }
+        case EditorAction::Id::ClearFretHandEnd:
+        {
+            return "ClearFretHandEnd";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -429,6 +433,7 @@ namespace
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
+            case EditorAction::Id::ClearFretHandEnd:
             {
                 return "input-calibration-prompt";
             }
@@ -550,6 +555,7 @@ namespace
         case EditorAction::Id::ExtendTimeSelection:
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::ClearFretHandEnd:
         {
             return conditions.has_chart ? "transport-playing" : "no-chart";
         }
@@ -1213,6 +1219,11 @@ void EditorController::onFretHandPositionSelected(const std::size_t index)
 void EditorController::onHandChordRequested()
 {
     m_impl->runAction(EditorAction::AuthorFretHandPositionAtCursor{});
+}
+
+void EditorController::onHandEndClearRequested()
+{
+    m_impl->runAction(EditorAction::ClearFretHandEnd{});
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -3043,12 +3054,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     project(preview);
                 }
             }
-            else if (const auto* const placements = std::get_if<FretHandPositionsSnapshot>(&plan))
+            else if (const auto* const hand = std::get_if<Impl::ChartFretHandPlan>(&plan))
             {
                 common::core::Arrangement preview = *arrangement;
                 if (preview.chart.has_value())
                 {
-                    preview.chart->fret_hand_positions = placements->placements;
+                    preview.chart->fret_hand_positions = hand->placements.placements;
                     project(preview);
                 }
             }
@@ -3130,7 +3141,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         index.has_value())
                     {
                         state.chart_edit.pending_fret = ChartPendingFretViewState{
-                            .at = ChartPendingFretHandPosition{.index = *index},
+                            .at =
+                                ChartPendingFretHandPosition{
+                                    .index = *index,
+                                    .typed =
+                                        fretHandEntryChip(hand->position, hand->edge, entry.value),
+                                },
                             .text = text,
                             .valid = valid,
                         };

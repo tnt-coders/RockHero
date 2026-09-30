@@ -325,6 +325,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Delete the selection, whatever its kind (`Delete`). */
     SelectionDelete = 0x1611,
 
+    /*!
+    \brief Clear the selected hand position's authored end fret back to the derived one
+    (`Alt+Delete`).
+    */
+    ClearHandPositionEndFret = 0x1612,
+
     /*! \brief Lengthen the selected sustain one grid step (`Alt+Shift+Right`). */
     SustainLengthen = 0x1701,
 

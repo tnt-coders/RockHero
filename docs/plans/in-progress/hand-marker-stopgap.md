@@ -1,7 +1,8 @@
 # The hand-marker stopgap: editable fret-hand positions before plan 60
 
 **Status: BUILT and merged to master 2026-09-26** (`753498f9`, `8b7831f7`, `391c0104`, with the
-sighting fixes `ac36e557` and `4298e161`). Plan 60 takes over from here.
+sighting fixes `ac36e557` and `4298e161`); step 4, the authored end fret, added 2026-09-29. Plan 60
+takes over from here.
 
 *Ruled 2026-09-25. Built on the branch `hand-marker-stopgap`. The user's words: "the BIGGEST pain
 with editing charts right now is no ability to insert or delete frethand positions"; plan 60
@@ -11,7 +12,8 @@ when the derivation lands.*
 
 ## 1. Rulings
 
-- **Width is derived, never stored** (user): `width = max(4, highest stated fret SOUNDING in
+- **Width is derived unless the end fret is authored** (user; amended 2026-09-29, step 4 — it
+  was "derived, never stored"): `width = max(4, highest stated fret SOUNDING in
   the placement's stretch − fret + 1)`. The stretch runs from the placement up to the next one
   (the last to the chart's end); the stated frets are every fretting-hand stop sounding in it —
   onset frets, pitched mid-ring keyframe frets at their positions, a tap's held stop, and a
@@ -73,9 +75,28 @@ when the derivation lands.*
    multi-digit entry, committed through the funnel ("Set Hand Position Fret"), refused with the
    red box on the lane chip where the fret is illegal for the board. No `Enter` arm.
 
+4. **The authored end fret** (2026-09-29, user: "I need to be able to edit start AND end frets";
+   sighted on a passage whose pinky sits on the third fret and reaches down from it, a 3-fret
+   window). The notes prove which frets are played but not which way the hand faces, so the end
+   is the charter's to state: `FretHandPosition::end_fret`, optional — absent, the derivation
+   above; present, the window is exactly `[fret, end_fret]`, the 4-fret floor binding only the
+   derivation. Keys, after a UI-expert review: **`Alt`+digit** on a selected placement types its
+   END fret through the same entry (the ring plane is "the same key on the object's extent, whose
+   far end is its end statement", as on a note), **`Alt+Delete`** clears an authored end back to
+   the derived one and does nothing where the end is already derived (never deleting the
+   placement, which is `Delete`'s; no `Alt+Backspace` twin — that chord is Windows Undo). Retyping
+   the start keeps an authored end; a start above it or an end below the start is refused red, the
+   box printing the chip's own range ("8-7"). An authored end ALWAYS prints as a range, so a stated
+   4-fret window reads apart from a derived one. The index finger keeps the narrowest window's room
+   under an authored end too, so clearing it always leaves a legal window — which means an
+   authored window never starts above fret 21 (`g_max_fret - 3`). The format gains an
+   optional `"endFret"`. Plan 60's markers keep the same field as their override, and a future
+   `Ctrl+H` grip popup would show the derived end as the empty field's placeholder.
+
 ## 3. What survives plan 60
 
-Everything in steps 1-2: the strict stream, the derived width, the marker kind, its row, selection,
+Everything in steps 1-2 and the authored end fret of step 4: the strict stream, the derived width,
+the marker kind, its row, selection,
 chords, funnel snapshot and move/delete arms are Phase 0 and Phase 3 deliverables. When derivation
 lands, the marker keeps its position and drops its payload; step 3 becomes the override path or
 goes.

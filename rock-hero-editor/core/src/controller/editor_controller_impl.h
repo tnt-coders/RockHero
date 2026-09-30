@@ -105,6 +105,15 @@ struct InsertUndoPreparationRollbackResult
     std::string detail;
 };
 
+// Which of a fret-hand placement's two frets a hand entry types: the bare digit its index finger's
+// START fret, the ring plane (`Alt`+digit) the window's END fret — the same key on the object's
+// extent, whose far end is its end statement, as on a note's ring.
+enum class FretHandEdge : std::uint8_t
+{
+    Start,
+    End,
+};
+
 // Owns every implementation detail that does not need to be part of the public controller type.
 struct EditorController::Impl final : private common::audio::ITransport::Listener,
                                       private common::audio::IAudioDeviceConfiguration::Listener
@@ -264,16 +273,30 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         ChartEditPlan plan;
         std::vector<ChartSelectionKey> select;
     };
+    // A pending entry's placement-stream change, carrying which fret it types so the settle names
+    // its undo entry without reading the target again.
+    struct ChartFretHandPlan
+    {
+        FretHandPositionsSnapshot placements;
+        FretHandEdge edge{};
+    };
     // What a pending entry's settle applies, by the store it writes: the note stream through the
     // chart history, or the placement stream through the marker funnel. Which one is the entry
     // target's answer, made once where the entry is planned (replanChartFretEntry).
-    using ChartFretEntryPlan = std::variant<ChartFretNotePlan, FretHandPositionsSnapshot>;
+    using ChartFretEntryPlan = std::variant<ChartFretNotePlan, ChartFretHandPlan>;
     // A selected placement's fret entry, planned: its stream with the placement at `position`
-    // taking `fret`, judged by the marker funnel's own front half (fret_hand_handlers.cpp).
-    [[nodiscard]] std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> planFretHandFret(
-        const common::core::GridPosition& position, int fret) const;
+    // taking `fret` at `edge`, judged by the marker funnel's own front half
+    // (fret_hand_handlers.cpp).
+    [[nodiscard]] std::expected<ChartFretHandPlan, ChartPlanRefusal> planFretHandFret(
+        const common::core::GridPosition& position, FretHandEdge edge, int fret) const;
     // Commits a settled placement fret through the marker funnel; the placement stays selected.
-    void commitFretHandFret(FretHandPositionsSnapshot placements);
+    void commitFretHandFret(ChartFretHandPlan plan);
+    // The chip a placement's pending entry would leave: the placement at `position` with `value`
+    // typed at `edge` (the one substitution planFretHandFret applies), as the projection would
+    // publish it — its derived end standing at the narrowest window, since a refused value derives
+    // nothing. What a refused entry's box prints (ChartPendingFretHandPosition::typed).
+    [[nodiscard]] common::core::FhpViewState fretHandEntryChip(
+        const common::core::GridPosition& position, FretHandEdge edge, int value) const;
     // Combining a digit into the pending entry: false = no live entry claimed it — an expired one
     // settled and the digit falls through to a fresh entry.
     bool combineChartFretEntry(int digit, std::uint32_t now_ms);
@@ -671,6 +694,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SelectTimeSignature& action);
     void performActionImpl(const EditorAction::SelectFretHandPosition& action);
     void performActionImpl(EditorAction::AuthorFretHandPositionAtCursor action);
+    void performActionImpl(EditorAction::ClearFretHandEnd action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
@@ -1144,14 +1168,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             ChartSlotKey note{};
             common::core::Fraction offset{};
         };
-        // An entry begun over a selected fret-hand placement: the digits state the placement's
-        // FRET, the one payload a hand marker carries. The same entry the note retype is — one
-        // window, one first-key-decides rule, one red box — whose settle commits through the
+        // An entry begun over a selected fret-hand placement: the digits state one of the
+        // placement's two frets, its start or its window's end. The same entry the note retype is
+        // — one window, one first-key-decides rule, one red box — whose settle commits through the
         // marker funnel rather than the chart-notes history, because a placement is a marker. It
         // names the placement by position, its identity; the placement stays selected.
         struct RetypeHandFret
         {
             common::core::GridPosition position{};
+            FretHandEdge edge{};
         };
 
         // The typed fret so far.
