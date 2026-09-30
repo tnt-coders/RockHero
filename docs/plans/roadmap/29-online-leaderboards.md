@@ -153,10 +153,9 @@ all block Phase 1.
 - **Q1 — Hosting.** Options: (A) budget VPS (~$4–7/mo, datacenter availability, full control,
   trivial AGPL source hosting, you patch it); (B) serverless/managed free tier ($0 at friends
   scale, minimal ops, free tiers can change or vanish, some lock-in); (C) home self-host ($0
-  rent, residential availability — the exact problem a prior self-hosted leaderboard service
-  (github.com/tnt-coders/rock-buddy-app) hit: boards vanish when the host machine or home
-  connection is down). **Recommendation: A**, with B as the fallback if recurring cost must be
-  zero; C is rejected on the availability record. Cost table refreshed in Phase 0b.
+  rent, residential availability: boards vanish whenever the host machine or home connection is
+  down). **Recommendation: A**, with B as the fallback if recurring cost must be
+  zero; C is rejected on availability. Cost table refreshed in Phase 0b.
 - **Q2 — Identity/auth.** Options: (A) client-generated keypair (public key = identity,
   self-asserted display name, key stored per profile; zero signup friction, no email infra; a
   lost key = lost history unless exported); (B) third-party OAuth (e.g. Discord — natural for a
@@ -211,7 +210,7 @@ plan-date indicative — re-verify at gate close), then resolve Q1–Q6 with the
 |---|---|---|---|---|---|
 | Budget VPS | Hetzner CX-class, DigitalOcean/Vultr basic | ~4–7 USD | Datacenter-grade | OS patching, backups, TLS | Fixed cost; full control; AGPL source link trivially hosted alongside |
 | Serverless / free tier | Cloudflare Workers + D1, Supabase free tier, Fly.io | ~0 at friends scale | High (managed) | Minimal | Free tiers mutate/expire; some lock-in; Supabase bundles auth + Postgres |
-| Home self-host | Spare machine + dynamic DNS | 0 rent | Residential-grade | Port-forwarding, uptime babysitting | Prior art: a prior self-hosted leaderboard service (github.com/tnt-coders/rock-buddy-app) — its home-hosting availability problem is the thing to avoid |
+| Home self-host | Spare machine + dynamic DNS | 0 rent | Residential-grade | Port-forwarding, uptime babysitting | Boards go down with the host machine or home connection — the availability problem to avoid |
 
 Also in 0b: the AGPL analysis for the chosen Q3 stance, and the drafted (not applied)
 docs/design/architecture.md § Licensing amendment for user confirmation.

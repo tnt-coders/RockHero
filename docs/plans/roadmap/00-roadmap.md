@@ -459,7 +459,7 @@ plan's Gate record.**
 
 ### docs/plans/roadmap/29-online-leaderboards.md (Deferred; gates G29-STABILITY)
 
-- **29-Q1** hosting: (A) budget VPS ~$4–7/mo; (B) serverless/free tier; (C) home self-host. **R: A** (B if cost must be zero; C rejected on the prior-self-hosted-leaderboard availability record).
+- **29-Q1** hosting: (A) budget VPS ~$4–7/mo; (B) serverless/free tier; (C) home self-host. **R: A** (B if cost must be zero; C rejected on availability).
 - **29-Q2** identity/auth: (A) client-generated keypair + self-asserted display name; (B) third-party OAuth; (C) email magic links. **R: A at v1**, optional B later.
 - **29-Q3** backend licensing under AGPLv3: (A) backend in this repo under AGPL, API serves the Corresponding Source link; (B) separate repo/license sharing no project source. **R: A**; either way architecture.md § Licensing needs a confirmed update when the backend lands.
 - **29-Q4** backend stack: (A) small C++ service reusing the project's score-record/re-scoring code; (B) managed-runtime service with a reimplemented validator pinned to plan 23 golden fixtures. **R: A if 29-Q3 = A**, else B with golden cross-validation.
