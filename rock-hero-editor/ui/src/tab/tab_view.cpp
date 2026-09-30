@@ -37,6 +37,45 @@ namespace
     return std::max(1.0f, head_size / 15.0f) * 1.5f;
 }
 
+// A mark an overlay traces: its closed outline, and the size its ring and glow scale with.
+struct MarkOutline
+{
+    juce::Path path;
+    float extent{0.0f};
+};
+
+// How far the refusal glow reaches past a mark's outline, as a fraction of the mark's size: wider
+// than the accent's halo (0.2 of a head), so the flash reads as a light rather than a ring. A
+// sighting value (refusal-flash.md F2).
+constexpr float g_refusal_glow_reach{0.45f};
+
+// The glow's layers: nested strokes of the outline, each wider and each faint, which pile up to
+// nearly the full colour at the outline and thin to one faint layer at the reach.
+constexpr int g_refusal_glow_layers{4};
+constexpr float g_refusal_glow_layer_alpha{0.4f};
+
+// Paints a soft glow spreading outward from a mark's outline, clipped to the OUTSIDE of the mark
+// so the glow never tints the mark it surrounds — the look of the accent's halo, which stands
+// behind its head, from chrome drawn over the lane.
+void glowAround(juce::Graphics& g, const MarkOutline& mark, const juce::Colour colour)
+{
+    const float reach = mark.extent * g_refusal_glow_reach;
+    const juce::Graphics::ScopedSaveState saved{g};
+    // Even-odd over the outline and a box past the reach: the region outside the mark.
+    juce::Path outside = mark.path;
+    outside.addRectangle(mark.path.getBounds().expanded(reach * 2.0f));
+    outside.setUsingNonZeroWinding(false);
+    g.reduceClipRegion(outside);
+    g.setColour(colour.withMultipliedAlpha(g_refusal_glow_layer_alpha));
+    for (int layer = 1; layer <= g_refusal_glow_layers; ++layer)
+    {
+        // A stroke centered on the outline reaches half its width outside it.
+        const float width =
+            2.0f * reach * static_cast<float>(layer) / static_cast<float>(g_refusal_glow_layers);
+        g.strokePath(mark.path, juce::PathStrokeType{width});
+    }
+}
+
 // How long a reveal takes to run from the crop to the ring's end, or back: long enough that a chip
 // riding the tail's end reads as travelling from where it was clicked, short enough not to hold up
 // a keyboard walk. A head stepping back fades over the same run, so it clears as the ring arrives.
@@ -590,18 +629,24 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // A selected chip is repainted over whatever covers it (chips pushed back by their ring's limit
-    // stack at one place) and wears its ring AROUND the plate the repaint filled: a rounded outline
-    // just outside the plate's own border, following its corners, so the chip reads whole inside
-    // its ring rather than as a chip with a doubled edge — and the ring claims the chip's own
-    // extent rather than the wider box its click lands in.
-    const auto ring_plate = [&g](const juce::Rectangle<float>& plate, const juce::Colour colour) {
+    // Every overlay that traces a mark — the selection ring, the refusal glow — reads the mark's
+    // OUTLINE from one place per kind of mark, so the two can never disagree about a shape: a
+    // head's is the paint core's own silhouette (re-deriving it here would draw a circle around a
+    // head the overlay does not know, such as the plectrum), a dot's is its disc, and a chip's is a
+    // rounded outline just outside its plate, following its corners, so the chip reads whole
+    // inside its ring rather than as a chip with a doubled edge. The ring is stroked centered on
+    // the outline at one and a half border-widths: on a head that sits between the head's own
+    // border and the accent glow, leaving the glow annulus readable on accented notes.
+    const auto plate_outline = [](const juce::Rectangle<float>& plate) {
         const float stroke = overlayRingStroke(plate.getHeight());
+        juce::Path outline;
+        outline.addRoundedRectangle(
+            plate.expanded(stroke / 2.0f), common::ui::g_lane_chip_corner_radius + stroke / 2.0f);
+        return MarkOutline{.path = std::move(outline), .extent = plate.getHeight()};
+    };
+    const auto ring = [&g](const MarkOutline& mark, const juce::Colour colour) {
         g.setColour(colour);
-        g.drawRoundedRectangle(
-            plate.expanded(stroke / 2.0f),
-            common::ui::g_lane_chip_corner_radius + stroke / 2.0f,
-            stroke);
+        g.strokePath(mark.path, juce::PathStrokeType{overlayRingStroke(mark.extent)});
     };
 
     // The selection wears its ring on the FACE the caret stands on, which is what the next key acts
@@ -611,34 +656,27 @@ void TabView::paint(juce::Graphics& g)
         m_edit.caret.has_value() ? m_edit.caret->face : core::ChartCaretFace::Mark;
     const bool on_face = face != core::ChartCaretFace::Mark;
 
-    // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
-    // centered on the edge, at one and a half border-widths thick, so it sits between the
-    // head's own border ring and the accent glow while leaving the glow annulus readable on
-    // accented notes (a fully-outward cut buried the glow, and a double-width stroke still
-    // covered too much of it). The silhouette comes from the paint core, so the ring always
-    // traces the head that is actually under it — re-deriving the shape here would draw a circle
-    // around a head whose silhouette the overlay does not know about, such as the plectrum.
-    const auto ring_note = [&](const std::size_t index, const juce::Colour colour) {
+    const auto note_outline = [&](const std::size_t index) -> std::optional<MarkOutline> {
         if (index >= tab.notes.size())
         {
-            return;
+            return std::nullopt;
         }
         const common::core::NoteViewState& note = tab.notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-        g.setColour(colour);
-        common::ui::strokeTabNoteHeadOutline(
-            g,
-            note,
-            layout.onset_x,
-            layout.center_y,
-            layout.head_size,
-            overlayRingStroke(layout.head_size));
+        return MarkOutline{
+            .path = common::ui::tabNoteHeadOutline(
+                note, layout.onset_x, layout.center_y, layout.head_size),
+            .extent = layout.head_size,
+        };
     };
     if (!on_face)
     {
         for (const std::size_t index : m_edit.selected_notes)
         {
-            ring_note(index, accent);
+            if (const std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
+            {
+                ring(*mark, accent);
+            }
         }
     }
 
@@ -678,95 +716,86 @@ void TabView::paint(juce::Graphics& g)
         }
     };
 
-    // Selected keyframes wear the SAME accent ring, traced on the mark the paint core drew for
-    // them — the linked head at a junction or a resting point, the slide-out chip's plate at a
-    // slide-out, a disc around a bend-only point's dot — one selection idiom for every selectable,
-    // so a selected junction reads exactly as a selected head does.
-    //
-    // THE SELECTED OBJECT DRAWS LAST: a linked head is redrawn here before its ring, because the
-    // lane paints notes in chart order and an ARRIVAL sits at the next head's own instant, which
-    // would otherwise leave the ring around a mark the charter cannot read; a chip is repainted
-    // over the chips stacked with it. A selected HEAD keeps drawing over the arrival, as the
-    // instant's owner should. With no ring colour the mark is only repainted: the caret rings
-    // another face of it.
-    const auto ring_keyframe = [&](const common::core::NoteViewState& note,
-                                   const common::core::KeyframeViewState& keyframe,
-                                   const common::ui::TabKeyframeLayout& layout,
-                                   const std::optional<juce::Colour>
-                                       ring) {
-        const common::ui::TabLayoutRect& box = layout.box;
-        const juce::Rectangle<float> mark_bounds{box.x, box.y, box.width, box.height};
-        // A mark the lane does not draw wears no ring: a bend point's dot on the shared instant,
-        // whose chip is its only face there. The mark is still repainted with the caret on its
-        // chip, so the selected object draws last whichever face is ringed.
+    // A keyframe's mark, REPAINTED and then outlined, so a traced keyframe draws last: the lane
+    // paints notes in chart order and an ARRIVAL sits at the next head's own instant, which would
+    // otherwise leave the ring around a mark the charter cannot read, and a chip is repainted over
+    // the chips stacked with it. A selected HEAD keeps drawing over the arrival, as the instant's
+    // owner should. One selection idiom for every selectable — the linked head at a junction or a
+    // resting point, the slide-out chip's plate, a bend-only point's dot — so a selected junction
+    // reads exactly as a selected head does. A mark the lane does not draw has no outline: a bend
+    // point's dot on the shared instant, whose chip is its only face there.
+    const auto keyframe_outline =
+        [&](const common::core::NoteViewState& note,
+            const common::core::KeyframeViewState& keyframe,
+            const common::ui::TabKeyframeLayout& layout) -> std::optional<MarkOutline> {
         if (!layout.mark_drawn)
         {
-            return;
+            return std::nullopt;
         }
+        const common::ui::TabLayoutRect& box = layout.box;
         switch (layout.shape)
         {
             case common::ui::TabKeyframeShape::Head:
                 common::ui::paintTabKeyframeHead(g, metrics, note, keyframe);
-                if (ring.has_value())
-                {
-                    g.setColour(*ring);
-                    common::ui::strokeTabNoteHeadOutline(
-                        g,
-                        note,
-                        layout.center_x,
-                        layout.center_y,
-                        layout.head_size,
-                        overlayRingStroke(layout.head_size));
-                }
-                break;
+                return MarkOutline{
+                    .path = common::ui::tabNoteHeadOutline(
+                        note, layout.center_x, layout.center_y, layout.head_size),
+                    .extent = layout.head_size,
+                };
             case common::ui::TabKeyframeShape::Chip:
                 if (const auto* const stop =
                         std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
                     stop != nullptr)
                 {
-                    const juce::Rectangle<float> plate =
-                        common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box);
-                    if (ring.has_value())
-                    {
-                        ring_plate(plate, *ring);
-                    }
+                    return plate_outline(
+                        common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box));
                 }
-                break;
+                return std::nullopt;
             case common::ui::TabKeyframeShape::Dot:
-                if (ring.has_value())
-                {
-                    g.setColour(*ring);
-                    g.drawEllipse(mark_bounds, overlayRingStroke(box.width));
-                }
-                break;
+            {
+                juce::Path disc;
+                disc.addEllipse(box.x, box.y, box.width, box.height);
+                return MarkOutline{.path = std::move(disc), .extent = box.width};
+            }
         }
+        return std::nullopt;
     };
-    const std::optional<juce::Colour> selection_ring =
-        on_face ? std::nullopt : std::optional<juce::Colour>{accent};
     for_each_drawn_keyframe(
         m_edit.selected_keyframes,
         [&](const common::core::NoteViewState& note,
             const common::core::KeyframeViewState& keyframe,
             const common::ui::TabKeyframeLayout& layout) {
-            ring_keyframe(note, keyframe, layout, selection_ring);
+            if (const std::optional<MarkOutline> mark = keyframe_outline(note, keyframe, layout);
+                mark.has_value() && !on_face)
+            {
+                ring(*mark, accent);
+            }
         });
 
-    // THE REFUSAL FLASH: the elements a refused edit turned down wear the selection's ring in the
-    // theme's red, fading in and out over the accent ring beneath (refusal-flash.md).
+    // THE REFUSAL FLASH: the elements a refused edit turned down glow in the theme's red, the glow
+    // pulsing with the flash's level (refusal-flash.md).
     if (m_refusal.has_value())
     {
         const juce::Colour red =
             editorTheme().invalid.withAlpha(static_cast<float>(refusalFlashLevel()));
         for (const std::size_t index : m_refusal->flash.notes)
         {
-            ring_note(index, red);
+            if (const std::optional<MarkOutline> mark = note_outline(index); mark.has_value())
+            {
+                glowAround(g, *mark, red);
+            }
         }
         for_each_drawn_keyframe(
             m_refusal->flash.keyframes,
             [&](const common::core::NoteViewState& note,
                 const common::core::KeyframeViewState& keyframe,
                 const common::ui::TabKeyframeLayout& layout) {
-                ring_keyframe(note, keyframe, layout, red);
+                if (const std::optional<MarkOutline> mark =
+                        keyframe_outline(note, keyframe, layout);
+                    mark.has_value())
+                {
+                    glowAround(g, *mark, red);
+                }
             });
     }
 
@@ -807,12 +836,13 @@ void TabView::paint(juce::Graphics& g)
     // The selection's BEND CHIPS draw over the caret: a chip stands above its head, into the square
     // the caret draws there, and the amount it prints must stay readable. Each is repainted, and
     // wears the ring when the caret stands on the chips, the face the next key acts on.
-    const auto repaint_chip = [&ring_plate, face, accent](const juce::Rectangle<float>& plate) {
-        if (face == core::ChartCaretFace::BendChip)
-        {
-            ring_plate(plate, accent);
-        }
-    };
+    const auto repaint_chip =
+        [&ring, &plate_outline, face, accent](const juce::Rectangle<float>& plate) {
+            if (face == core::ChartCaretFace::BendChip)
+            {
+                ring(plate_outline(plate), accent);
+            }
+        };
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())

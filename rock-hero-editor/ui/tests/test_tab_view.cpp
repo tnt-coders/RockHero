@@ -782,11 +782,11 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// THE REFUSAL FLASH rings a refused head in the theme's red, lit at the keystroke, and a new
-// projection drops it, since its indices name other notes. Probed on the band the selection test
-// reads. The stroke is antialiased and its level falls with time, so the probe asks only that the
-// band gained red, which holds at any level above zero — a slow runner cannot flake it.
-TEST_CASE("TabView flashes a refused head red until the projection changes", "[ui][tab-view]")
+// THE REFUSAL FLASH glows around a refused head in the theme's red, lit at the keystroke, and a
+// new projection drops it, since its indices name other notes. Probed just outside the head, where
+// the glow lies. Its level falls with time, so the probe asks only that the pixel gained red, which
+// holds at any level above zero — a slow runner cannot flake it.
+TEST_CASE("TabView glows a refused head red until the projection changes", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{};
@@ -814,12 +814,11 @@ TEST_CASE("TabView flashes a refused head red until the projection changes", "[u
     CHECK(render() == plain);
 }
 
-// A refusal reported again while a flash runs joins it as a UNION: the ring is stroked once
+// A refusal reported again while a flash runs joins it as a UNION: the glow is painted once
 // whatever the report count, so a held key's repeats cannot stack into solid red and lose the
-// pulse. Asked over the whole ring's box rather than one pixel: at the keystroke the level is
-// nearly full, where only the stroke's antialiased edge pixels show a second stroke, and those are
-// the ones a region sum catches.
-TEST_CASE("TabView strokes a refused head once however often it is reported", "[ui][tab-view]")
+// pulse. Asked as a sum over the whole head's box rather than of one pixel, so a second glow shows
+// wherever it lands in the halo.
+TEST_CASE("TabView glows a refused head once however often it is reported", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const auto render_after = [](const int reports, const juce::Image& image) {
@@ -855,7 +854,7 @@ TEST_CASE("TabView strokes a refused head once however often it is reported", "[
         }
     }
     // A union renders as one stroke, up to the level's drift over the milliseconds between the
-    // two renders; stacked strokes saturate every antialiased edge pixel of the ring.
+    // two renders; stacked glows saturate the halo.
     CHECK(red_difference <= 40);
 }
 

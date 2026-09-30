@@ -85,7 +85,7 @@ Keep this list and the session task list in step.
     export ONE primitive, a head painter with a text/colour substitution, so the digit's typography
     and placement cannot drift from the committed head the way the retired insert ghost once did.
     Unbuilt: the shipped head primitives are `tabNoteHeadText(note, fret_at_head)` and
-    `strokeTabNoteHeadOutline` (`tab_paint_core.h`).
+    `tabNoteHeadOutline` (`tab_paint_core.h`; `strokeTabNoteHeadOutline` until 2026-09-30).
   - **The window rides `IMessageThreadScheduler::callAfterDelay`** with `safeCallback`, and the
     injected clock is the authority so a stale or duplicated wake is a no-op. Trap for anyone
     extending it: `ImmediateMessageThreadScheduler` runs the work SYNCHRONOUSLY, so a controller

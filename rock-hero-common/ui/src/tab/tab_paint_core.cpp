@@ -2348,9 +2348,9 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 
 // Rationale lives on the declaration in tab_paint_core.h. The silhouette comes from headShapeFor,
 // the same authority the drawn head uses, which is the whole point of exporting this.
-void strokeTabNoteHeadOutline(
-    juce::Graphics& g, const common::core::NoteViewState& note, const float center_x,
-    const float center_y, const float extent, const float stroke_thickness)
+juce::Path tabNoteHeadOutline(
+    const common::core::NoteViewState& note, const float center_x, const float center_y,
+    const float extent)
 {
     const float half = extent / 2.0f;
     juce::Path outline;
@@ -2370,7 +2370,7 @@ void strokeTabNoteHeadOutline(
             outline.addEllipse(center_x - half, center_y - half, extent, extent);
             break;
     }
-    g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+    return outline;
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.

@@ -225,7 +225,7 @@ never written. A fret-stating point inside an OPEN STRING's tail is refused by c
 (`OpenStringSlide`) and paints the red pending box. The keymap side is \ref guide_keyboard.
 
 **A refused key flashes what it refused.** Where a key does nothing and the screen would not say
-why, the elements it turned down wear the selection ring in the theme's red, pulsing twice, and
+why, the elements it turned down glow in the theme's red, pulsing twice, and
 the reason goes to the log: the whole selection for a refused plan, and only the named notes for a
 per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` in
 `chart_handlers.cpp`, drawn by `TabView::flashRefusal`). A visible bound, such as a move stopping at
@@ -623,7 +623,7 @@ is deliberately single-sourced:
   fret NUMBER. In 2D the diamond is the only thing that says "harmonic"; reading the shape off
   where the note sounds left a pinch as a bar on an ordinary head. The
   enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
-  exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor leaves every pick
+  exported `tabNoteHeadOutline` instead: re-deriving the rule in the editor leaves every pick
   slide wearing a circular selection ring around a plectrum head.
 - **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
   stop being labeled* rather than reading the note's own fret. The label predicate is
