@@ -293,13 +293,11 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AdjustChartSustain, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 
     conditions.has_chart_selection = true;
     CHECK(isActionAvailable(ActionId::ShiftChartFrets, conditions));
     CHECK(isActionAvailable(ActionId::AdjustChartSustain, conditions));
     CHECK(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
-    CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
 
     conditions.has_armed_caret = true;
     CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));

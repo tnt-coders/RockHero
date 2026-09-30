@@ -316,7 +316,7 @@ one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCare
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `InsertRingPoint`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`ChooseChartHarmonic`, `SetChartHarmonicNode`, `ChooseChartBend`, `SetChartBend`, `SetChartLeftTap`,
+`ChooseChartHarmonic`, `SetChartHarmonicNode`, `ChooseChartBend`, `SetChartBend`,
 `ToggleChartJunction`) — so
 path (b) is path (a) with
 a different trigger: the availability policy
@@ -462,9 +462,8 @@ for the stating verb described below. Every
 compatibility consequence a conversion owes belongs to `planSetAttack` and the rule authority
 behind it in BOTH directions — the scrape's path and terminal drop when a note converts away, a
 tap with nothing to strike is skipped (E4) — so a row states none of it. `Shift+T`'s left-hand tap
-is deliberately NOT a
-row: it is a statement no toggle may withdraw, so it keeps its own stating verb
-(`onChartLeftTapRequested`) over the same planner.
+is one of these attack rows (`ChartTechnique::LeftTap`), toggled like `T`'s right-hand tap since
+2026-09-30; before that it was a set-only verb.
 The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
 take a keyframe the drop emptied — all SILENT when they apply nothing, because the view's only
@@ -472,7 +471,6 @@ reporting seam is a modal error box and "nothing to do" is not an error — lega
 refused note with its own reason
 in `ChartLegatoPlan::refused` for the refusal flash
 (`docs/plans/in-progress/refusal-flash.md`), and shows nothing until then),
-`onChartLeftTapRequested`,
 `onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
 because a junction has exactly two states and the press moves each selected one to the other. A
 selected KEYFRAME becomes a head: the note's path ends there and a new STRUCK head (`Pick`) takes

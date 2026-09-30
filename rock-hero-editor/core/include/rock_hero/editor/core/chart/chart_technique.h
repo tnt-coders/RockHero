@@ -31,16 +31,14 @@ declined at the ruling: a cycling verb has no "already carries it" answer to giv
 law, and `Shift+`letter is this keymap's stated shape for a magnitude variant of a plain letter's
 own technique.
 
-`PickSlide`, `Tap`, `Slap` and `Pop` are four values of that same shape one level up: they are
-values of the note's ATTACK, which holds exactly one, so each is the toggle of its own attack
-against the plain pick. A press on a scope already at that attack clears it back to the pick, and a
-press on a scope at another one is an ordinary set that replaces it in a single entry — the vibrato
-pair's rule, applied to a field with four claimants here instead of two. `LeftTap` is deliberately
-NOT among them: the fretting hand's tap is a statement no toggle may withdraw, so it keeps its own
-stating verb rather than a row (\ref IEditorController::onChartLeftTapRequested).
+`PickSlide`, `Tap`, `LeftTap`, `Slap` and `Pop` are five values of that same shape one level up:
+they are values of the note's ATTACK, which holds exactly one, so each is the toggle of its own
+attack against the plain pick. A press on a scope already at that attack clears it back to the pick,
+and a press on a scope at another one is an ordinary set that replaces it in a single entry — the
+vibrato pair's rule, applied to a field with five claimants here instead of two.
 
 `PinchHarmonic` is the attack verb of the picking thumb's harmonic, with one difference from the
-four attacks above: its noun is a HARMONIC, so its clear removes one (`planClearPinchHarmonic`,
+five attacks above: its noun is a HARMONIC, so its clear removes one (`planClearPinchHarmonic`,
 the thumb's own clear) — clearing to the plain pick alone would leave a stop and a node behind, an
 artificial harmonic nobody authored.
 
@@ -70,6 +68,8 @@ enum class ChartTechnique : std::uint8_t
     PickSlide,
     /*! \brief The two-hand tap attack — the PICKING hand's tap, the dark-T plate's letter. */
     Tap,
+    /*! \brief The left-hand tap attack — the FRETTING hand's tap, the light-T plate's letter. */
+    LeftTap,
     /*! \brief The slapped attack. */
     Slap,
     /*! \brief The popped attack. */

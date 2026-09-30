@@ -316,10 +316,6 @@ namespace
         {
             return "SetChartBend";
         }
-        case EditorAction::Id::SetChartLeftTap:
-        {
-            return "SetChartLeftTap";
-        }
         case EditorAction::Id::ToggleChartJunction:
         {
             return "ToggleChartJunction";
@@ -428,7 +424,6 @@ namespace
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::ChooseChartBend:
             case EditorAction::Id::SetChartBend:
-            case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
@@ -579,7 +574,6 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
-        case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
@@ -1179,11 +1173,6 @@ void EditorController::onChartBendChosen(const std::optional<double> semitones)
 void EditorController::onChartHarmonicNodeRequested(const std::optional<int> partial)
 {
     m_impl->runAction(EditorAction::SetChartHarmonicNode{.partial = partial});
-}
-
-void EditorController::onChartLeftTapRequested()
-{
-    m_impl->runAction(EditorAction::SetChartLeftTap{});
 }
 
 void EditorController::onChartJunctionToggleRequested()

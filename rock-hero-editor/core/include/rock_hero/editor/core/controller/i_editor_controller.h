@@ -538,18 +538,6 @@ public:
     virtual void onChartBendChosen(std::optional<double> semitones) = 0;
 
     /*!
-    \brief Handles a request to set the selected notes to the left-hand tap attack.
-
-    The stating verb beside the inferring toggle, and the sole author of the left-hand tap: the
-    fretting hand striking a note from nowhere is a LOCAL statement no predecessor can justify or
-    withdraw, which is why the connection toggle can never produce it and never destroys it.
-    Uniform scope, one compound undo entry, applying where valid: any note with something to strike
-    — a positive fret, or a harmonic node the strike re-hands — becomes a left-hand tap, while the
-    open string with no node is skipped.
-    */
-    virtual void onChartLeftTapRequested() = 0;
-
-    /*!
     \brief Handles a request to toggle every selected junction between its two states.
 
     One verb, two directions, one compound undo entry. A selected KEYFRAME becomes a head: the

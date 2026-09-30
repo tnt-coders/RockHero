@@ -360,8 +360,8 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Claim or clear a legato connection on the selected notes (`L`). */
     ChartLegatoToggle = 0x170A,
 
-    /*! \brief Set the selected notes to the left-hand tap attack (`Shift+T`). */
-    ChartLeftTap = 0x170B,
+    /*! \brief Toggle the selected notes to or from the left-hand tap attack (`Shift+T`). */
+    ChartLeftTapToggle = 0x170B,
 
     /*! \brief Toggle the picking hand's palm mute on the selected notes (`M`). */
     ChartPalmMuteToggle = 0x170C,

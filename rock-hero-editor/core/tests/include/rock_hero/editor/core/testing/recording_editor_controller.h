@@ -350,12 +350,6 @@ public:
         chart_bend_answers.push_back(semitones);
     }
 
-    /*! \copydoc IEditorController::onChartLeftTapRequested */
-    void onChartLeftTapRequested() override
-    {
-        chart_left_tap_count += 1;
-    }
-
     /*! \copydoc IEditorController::onChartJunctionToggleRequested */
     void onChartJunctionToggleRequested() override
     {
@@ -963,9 +957,6 @@ public:
 
     /*! \brief Every bend answer chosen through the picker, in order (absent clears). */
     std::vector<std::optional<double>> chart_bend_answers{};
-
-    /*! \brief Number of onChartLeftTapRequested() intents received. */
-    int chart_left_tap_count{0};
 
     /*! \brief Number of onChartJunctionToggleRequested() intents received. */
     int chart_junction_toggle_count{0};

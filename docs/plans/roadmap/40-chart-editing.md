@@ -536,7 +536,7 @@ What remains is the §9a counted mixed-validity feedback, delivered through the 
 (`docs/plans/in-progress/refusal-flash.md`).
 
 **The connection family is DONE as of 2026-08-11** and is the pattern the remaining verbs should
-copy. `L` (`ChartLegatoToggle`) and `Shift+T` (`ChartLeftTap`) — default chords since the
+copy. `L` (`ChartLegatoToggle`) and `Shift+T` (`ChartLeftTapToggle`, a toggle since 2026-09-30) — default chords since the
 2026-08-12 technique-letter amendment (`keymap-matrix.md`); they shipped on `H`/`Ctrl+H` — ship the full ruled model
 (`docs/plans/in-progress/legato-authoring-model.md`): the chart stores a claim and never a direction,
 `resolveLegato` answers the motion for every consumer, and the planner uses that resolver as its own

@@ -57,7 +57,6 @@ namespace
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
-        case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
         // The section and hand-marker verbs edit the project the calibration prompt is parked over.
         case EditorAction::Id::InsertSongSection:
@@ -175,7 +174,6 @@ namespace
             case EditorAction::Id::SetChartHarmonicNode:
             case EditorAction::Id::ChooseChartBend:
             case EditorAction::Id::SetChartBend:
-            case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartJunction:
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
@@ -359,7 +357,6 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
-        case EditorAction::Id::SetChartLeftTap:
         // The junction toggle is selection-scoped like the verbs beside it: its operand is a
         // selected keyframe or head, however that selection was made.
         case EditorAction::Id::ToggleChartJunction:
@@ -453,7 +450,6 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetChartHarmonicNode:
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
-        case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartJunction:
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:

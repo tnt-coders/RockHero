@@ -261,9 +261,9 @@ enum class LegatoMotion : std::uint8_t
 };
 
 /*!
-\brief Reports whether the attack belongs to the connection family — the `H` toggle's domain.
+\brief Reports whether the attack belongs to the connection family — the `L` toggle's domain.
 
-`Pick`, `Legato`, and `LeftTap` are the three states `H` and `Ctrl+H` move a note between; every
+`Pick`, `Legato`, and `LeftTap` are the three states `L` and `Shift+T` move a note between; every
 other attack is produced by the picking hand (`Tap`, `Pinch`, `PickSlide`) or is a bass articulation
 (`Pop`, `Slap`) whose onset is already fully described, so a connection claim would say nothing
 about it and the toggle skips it in both directions.

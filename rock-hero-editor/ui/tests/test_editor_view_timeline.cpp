@@ -1741,9 +1741,8 @@ TEST_CASE("EditorView routes Shift+L to the junction toggle", "[ui][editor-view]
     CHECK(controller.chart_junction_toggle_count == 1);
 }
 
-// The three attack letters reach their toggle rows, and `Shift+T` still reaches the left-hand
-// tap's own STATING verb: one letter carrying two verbs of two different kinds, told apart by the
-// exact modifier matching the mapping set installs.
+// The attack letters reach their toggle rows, `Shift+T` the left-hand tap's: one letter carrying
+// two rows, told apart by the exact modifier matching the mapping set installs.
 TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1762,17 +1761,15 @@ TEST_CASE("EditorView routes the attack letters to their verbs", "[ui][editor-vi
     CHECK(mappings->keyPressed(juce::KeyPress{'t', juce::ModifierKeys{}, 0}, &view));
     CHECK(mappings->keyPressed(juce::KeyPress{'s', juce::ModifierKeys{}, 0}, &view));
     CHECK(mappings->keyPressed(juce::KeyPress{'p', juce::ModifierKeys{}, 0}, &view));
-    CHECK(
-        controller.chart_technique_toggles ==
-        std::vector<core::ChartTechnique>{
-            core::ChartTechnique::Tap, core::ChartTechnique::Slap, core::ChartTechnique::Pop
-        });
-    CHECK(controller.chart_left_tap_count == 0);
-
     CHECK(mappings->keyPressed(
         juce::KeyPress{'t', juce::ModifierKeys{juce::ModifierKeys::shiftModifier}, 0}, &view));
-    CHECK(controller.chart_left_tap_count == 1);
-    CHECK(controller.chart_technique_toggles.size() == 3);
+    CHECK(
+        controller.chart_technique_toggles == std::vector<core::ChartTechnique>{
+                                                  core::ChartTechnique::Tap,
+                                                  core::ChartTechnique::Slap,
+                                                  core::ChartTechnique::Pop,
+                                                  core::ChartTechnique::LeftTap
+                                              });
 }
 
 // The harmonic letter is its OWN verb, not a row of the technique toggle: its set states a value

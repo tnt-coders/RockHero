@@ -275,7 +275,6 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetChartHarmonicNode:
             case core::EditorActionId::ChooseChartBend:
             case core::EditorActionId::SetChartBend:
-            case core::EditorActionId::SetChartLeftTap:
             case core::EditorActionId::ToggleChartJunction:
             case core::EditorActionId::SelectSongSection:
             case core::EditorActionId::InsertSongSection:
@@ -368,7 +367,6 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ChooseChartBend:
         case core::EditorActionId::SetChartBend:
         case core::EditorActionId::ToggleChartTechnique:
-        case core::EditorActionId::SetChartLeftTap:
         case core::EditorActionId::ToggleChartJunction:
         case core::EditorActionId::SelectSongSection:
         case core::EditorActionId::InsertSongSection:
@@ -1250,7 +1248,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     // chord, and the menu's job is to TEACH those chords rather than to be a second way to act.
     // A verb missing here is a chord nobody discovers.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
-    add(note_menu, EditorCommandId::ChartLeftTap);
+    add(note_menu, EditorCommandId::ChartLeftTapToggle);
     add(note_menu, EditorCommandId::ChartTapToggle);
     add(note_menu, EditorCommandId::ChartSlapToggle);
     add(note_menu, EditorCommandId::ChartPopToggle);
@@ -1750,7 +1748,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ClearHandPositionEndFret:
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
-        case EditorCommandId::ChartLeftTap:
+        case EditorCommandId::ChartLeftTapToggle:
         case EditorCommandId::ChartPalmMuteToggle:
         case EditorCommandId::ChartDeadNoteToggle:
         case EditorCommandId::ChartAccentToggle:
@@ -2135,11 +2133,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ChartLeftTap:
+        case EditorCommandId::ChartLeftTapToggle:
         {
             if (hasChart())
             {
-                m_controller.onChartLeftTapRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::LeftTap);
             }
             return true;
         }

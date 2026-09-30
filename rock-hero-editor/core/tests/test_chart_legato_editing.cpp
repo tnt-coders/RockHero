@@ -110,11 +110,11 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         CHECK(note_attack(2) == common::core::NoteAttack::Tap);
     }
 
-    SECTION("a left-hand tap survives the clear, because Ctrl+H is its sole author")
+    SECTION("a left-hand tap survives the legato clear, because Shift+T is its author")
     {
-        // The clear flattens stored claims only. A tap is the one attack plain H must never
-        // destroy: the toggle cannot re-create it, so flattening it would lose authored intent no
-        // press could bring back.
+        // The clear flattens stored claims only. A tap is the one attack plain L must never
+        // destroy: L cannot re-create it, so flattening it would lose authored intent that only
+        // Shift+T could bring back.
         click(controller, 80.0f, 220.0f);
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
@@ -122,7 +122,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         // The rider becomes a deliberate tap of its own. Nothing precedes it on its string, so no
         // press can ever justify a claim there.
         click(controller, 40.0f, 140.0f);
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         CHECK(note_attack(2) == common::core::NoteAttack::LeftTap);
 
         // With both selected there is nothing left to claim — the connection already stands and the
@@ -153,10 +153,10 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
     }
 }
 
-TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
+TEST_CASE("EditorController Shift+T toggles the left-hand tap", "[core][chart]")
 {
     // String 1 carries a resolvable descending pair (7 at the ring's end over fret 5, tail reaching
-    // the onset, so plain H claims a connection that reads as a pull-off); string 2 the open string
+    // the onset, so plain L claims a connection that reads as a pull-off); string 2 the open string
     // with no node — the verb's sole matrix-grounds refusal; string 3 a natural harmonic whose node
     // is a strike point the left hand can take; string 4 a stopped pinch, which the verb refuses
     // because the result would be the disabled artificial form; string 5 an open-string pinch whose
@@ -240,18 +240,45 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         return controller.session().currentArrangement()->chart->notes[index];
     };
 
-    SECTION("it overrides a standing claim, and plain H claims the connection back")
+    SECTION("a second press inside the toggle window reverses the tap exactly")
+    {
+        click(controller, 80.0f, 220.0f);
+        const common::core::ChartNote original = note(5);
+
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
+        CHECK(note(5).attack == common::core::NoteAttack::LeftTap);
+
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
+        CHECK(note(5) == original);
+    }
+
+    SECTION("a selection that is all left-hand taps clears back to the pick")
+    {
+        click(controller, 80.0f, 220.0f);
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
+        CHECK(note(5).attack == common::core::NoteAttack::LeftTap);
+
+        // A history move commits the entry and closes the toggle window, so the next press runs
+        // the law — every selected note already carries the tap, so it clears — rather than
+        // reversing the press above. Redo selects what it changed, which is the tapped note.
+        controller.onUndoRequested();
+        controller.onRedoRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
+        CHECK(note(5).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("it overrides a standing claim, and plain L claims the connection back")
     {
         click(controller, 80.0f, 220.0f);
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(5).attack == common::core::NoteAttack::Legato);
 
         // Only the author knows the predecessor was damped, so the tap overrides the claim.
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         CHECK(note(5).attack == common::core::NoteAttack::LeftTap);
 
         // The signed symmetry between the stating verb and the inferring one: where the chart DOES
-        // justify a connection, plain H writes it again.
+        // justify a connection, plain L writes it again.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(5).attack == common::core::NoteAttack::Legato);
     }
@@ -261,7 +288,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         click(controller, 80.0f, 220.0f);
         click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
 
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         CHECK(note(5).attack == common::core::NoteAttack::LeftTap);
         CHECK(note(1).attack == common::core::NoteAttack::Pick);
     }
@@ -270,7 +297,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
     {
         click(controller, 40.0f, 140.0f);
 
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         const common::core::ChartNote& tapped = note(2);
         CHECK(tapped.attack == common::core::NoteAttack::LeftTap);
         REQUIRE(tapped.harmonic_node.has_value());
@@ -287,7 +314,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         // stands.
         click(controller, 40.0f, 100.0f);
 
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         const common::core::ChartNote& kept = note(3);
         CHECK(kept.attack == common::core::NoteAttack::Pinch);
         REQUIRE(kept.harmonic_node.has_value());
@@ -301,7 +328,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
     {
         click(controller, 40.0f, 60.0f);
 
-        controller.onChartLeftTapRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::LeftTap);
         const common::core::ChartNote& tapped = note(4);
         CHECK(tapped.attack == common::core::NoteAttack::Pinch);
         REQUIRE(tapped.harmonic_node.has_value());

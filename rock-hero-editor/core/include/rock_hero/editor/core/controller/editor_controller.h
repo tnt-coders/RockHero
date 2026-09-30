@@ -500,9 +500,6 @@ public:
     /*! \copydoc IEditorController::onChartBendChosen */
     void onChartBendChosen(std::optional<double> semitones) override;
 
-    /*! \copydoc IEditorController::onChartLeftTapRequested */
-    void onChartLeftTapRequested() override;
-
     /*! \copydoc IEditorController::onChartJunctionToggleRequested */
     void onChartJunctionToggleRequested() override;
 

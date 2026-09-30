@@ -846,11 +846,6 @@ struct EditorAction
         std::optional<double> semitones{};
     };
 
-    /*! \brief Set the chart selection to the left-hand tap attack. */
-    struct SetChartLeftTap
-    {
-    };
-
     /*!
     \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point.
 
@@ -978,10 +973,9 @@ struct EditorAction
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
-        ChooseChartBend, SetChartBend, SetChartLeftTap, ToggleChartJunction, SelectSongSection,
-        InsertSongSection, RenameSongSection, SelectTempoAnchor, SelectTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject,
-        JumpToFocusRow>;
+        ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
+        RenameSongSection, SelectTempoAnchor, SelectTimeSignature, SelectFretHandPosition,
+        AuthorFretHandPositionAtCursor, ClearFretHandEnd, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

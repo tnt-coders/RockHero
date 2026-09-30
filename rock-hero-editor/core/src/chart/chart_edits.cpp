@@ -2135,10 +2135,10 @@ template <common::core::VibratoState Tier>
     };
 }
 
-// One attack's whole row of the technique law. The four attack verbs differ ONLY in the value they
+// One attack's whole row of the technique law. The five attack verbs differ ONLY in the value they
 // name, so stating the row once and handing it that value is what keeps "toggle my attack, replace
-// whatever else was there" a single rule rather than four copies free to disagree — the vibrato
-// pair's argument one level up, on a field with four claimants instead of two. `carried` asks
+// whatever else was there" a single rule rather than five copies free to disagree — the vibrato
+// pair's argument one level up, on a field with five claimants instead of two. `carried` asks
 // whether every selected note already stands at THIS attack, so a scope at another one answers no
 // and the press is an ordinary set that replaces it in one entry; `plan` writes this attack or
 // clears back to the plain pick.
@@ -2182,7 +2182,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
 {
     // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
     // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the two
-    // vibrato rows are one shared row shape handed their own width, and the four attack rows are
+    // vibrato rows are one shared row shape handed their own width, and the five attack rows are
     // another handed their own attack value, the plain pick being what each of them clears to; the
     // pinch row sets through the attack verb and clears the thumb's node with it.
     // Every row but the vibrato pair reads `selection.notes()` alone, which is the empty-operand
@@ -2337,6 +2337,10 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
             // show it beside "Left-Hand Tap": the plates already name these two by hand rather
             // than by letter, so the words do too.
             return attackLaw<common::core::NoteAttack::Tap>("Right-Hand Tap");
+        }
+        case ChartTechnique::LeftTap:
+        {
+            return attackLaw<common::core::NoteAttack::LeftTap>("Left-Hand Tap");
         }
         case ChartTechnique::Slap:
         {

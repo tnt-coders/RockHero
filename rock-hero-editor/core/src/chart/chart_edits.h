@@ -1350,7 +1350,7 @@ struct ChartTechniqueLaw
 /*!
 \brief The law for every uniformly planned technique.
 
-Total over the twelve techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
+Total over the thirteen techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
 among them — its plan is \ref planSetLegato, which decides set-or-clear itself from what the
 resolver justifies — so asking for it is a caller error, not a row. The fret-hand harmonic is not
 a technique at all: its set states a value, so it has its own verb over \ref planSetHarmonic and

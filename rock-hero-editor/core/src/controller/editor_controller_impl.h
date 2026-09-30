@@ -348,7 +348,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetChartHarmonicNode& action);
     void performActionImpl(const EditorAction::ChooseChartBend& action);
     void performActionImpl(const EditorAction::SetChartBend& action);
-    void performActionImpl(const EditorAction::SetChartLeftTap& action);
     // Severs each selected keyframe's gesture (Shift+L, W10's addendum): the path ends
     // at the keyframe and a new head takes the remainder, in one compound undo entry. Inert with
     // no keyframe selected.

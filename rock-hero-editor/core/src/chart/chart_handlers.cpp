@@ -3624,7 +3624,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
 // would change nothing does the press mean clear. Measuring the press by what the PLAN does rather
 // than by what the selection already holds is what keeps a rider note from stranding the toggle in
 // apply mode forever. The clear flattens only the stored claims: a left-hand tap riding the
-// selection keeps its attack, since Ctrl+H is its sole author.
+// selection keeps its attack, which is Shift+T's to withdraw.
 void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
 {
     const std::vector<ChartSlotKey>& keys = operand.notes();
@@ -3683,29 +3683,6 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
     // refusals surface once the refusal flash exists
     // (docs/plans/in-progress/refusal-flash.md); until then they are deferred rather than
     // mis-routed.
-}
-
-// Sets the selection to the left-hand tap attack as one compound undo entry, uniform scope. The
-// stating verb beside the inferring toggle (Shift+letter is the sibling technique, so Shift+T sits
-// beside plain T on the letter map): the fretting hand striking a
-// note from nowhere is a LOCAL statement, so no predecessor can justify it and plain H can never
-// produce it. planSetAttack already IS the mixed-validity policy: each note is retyped and asked of
-// the rule authority, so the open string with no node (E4's boundary) is skipped, a pinch's
-// bridge-side graze refuses to re-hand, and a tap harmonic's strike point carries into the form E13
-// names.
-void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftTap&)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
-    {
-        return;
-    }
-    static_cast<void>(applyChartEditPlan(planSetAttack(
-        *arrangement->chart,
-        session().song().tempo_map,
-        chartSelection().notes(),
-        common::core::NoteAttack::LeftTap,
-        "Left-Hand Tap")));
 }
 
 // The junction toggle (`Shift+L`): at every selected junction the press moves it to its other

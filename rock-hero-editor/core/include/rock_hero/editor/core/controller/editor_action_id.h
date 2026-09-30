@@ -196,9 +196,6 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Take the bend picker's answer: one amount, or no bend point at all. */
     SetChartBend,
 
-    /*! \brief Set the chart selection to the left-hand tap attack. */
-    SetChartLeftTap,
-
     /*! \brief Toggle every selected junction: a keyframe becomes a head, a head becomes a point. */
     ToggleChartJunction,
 
