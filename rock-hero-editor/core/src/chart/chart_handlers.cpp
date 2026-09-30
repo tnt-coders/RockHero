@@ -596,7 +596,6 @@ void EditorController::Impl::armChartCaret(
     // means the verb's ordinary law — never a reversal of the entry the window remembers, and
     // never a continuation of the duration gesture it was accumulating.
     disarmChartVerbWindow();
-    const ChartSlotKey key{.position = position, .string = string};
     // THE LANDING'S OWN OBJECT when it carries one, and what the slot holds otherwise: the walk and
     // the pointer both know which object they reached, and at a shared instant the slot cannot say
     // — a head and the previous ring's end statement stand on one slot, and re-deriving would take
