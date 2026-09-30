@@ -611,9 +611,9 @@ The split within path (b) is deliberate:
   the dispatch may replace the very variant the reference pointed into (see
   \ref guide_invariants).
 
-A HELD STOP IS NO FACE (user ruling 2026-09-29): a held stop is derived — the pull-off's plant, a
-harmonic's pressed stop, the default posture stop — and never typed, so its satellite digit is
-display-only. No arrow steps onto it, no click reaches it, and no digit states it. Every arrival
+A HELD STOP IS NO FACE (user ruling 2026-09-29): a held stop is derived — the pull-off's plant or
+the default posture stop — never typed, and never drawn on its note. No arrow steps onto it, no
+click reaches it, and no digit states it. Every arrival
 from another slot lands on the head (user ruling 2026-09-29), from either side, as every vertical
 arrival does: a walk between slots is a walk between notes. A measure jump is not traversal and
 always lands on the mark every object has.

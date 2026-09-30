@@ -202,10 +202,9 @@ TEST_CASE("EditorController arms in place on the first object step", "[core][cha
     CHECK(fixture.caret().string == 1);
 }
 
-// A held stop's satellite is display-only, never an object of its own: an arrow arriving from the
-// right lands on the note's head like every arrival, and so does Tab. The tap here holds the grip
-// the chord states beneath it, so its satellite is drawn.
-TEST_CASE("EditorController steps over a held stop's satellite onto its head", "[core][chart]")
+// A tap holding the grip the chord states beneath it is no object beyond its head: an arrow
+// arriving from the right lands on the head like every arrival, and so does Tab.
+TEST_CASE("EditorController lands an arrival on a tap's head", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};

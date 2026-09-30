@@ -371,8 +371,8 @@ struct ChartResolutions
     /*!
     \brief Each note's held fret (\ref chartHeldStops); absent where the note holds no second stop.
 
-    What \ref StopMarkViewState carries, copied straight across. Read out of the postures above,
-    never into them.
+    What \ref NoteViewState::held_fret carries, copied straight across. Read out of the postures
+    above, never into them.
     */
     std::vector<std::optional<int>> held_stops;
 

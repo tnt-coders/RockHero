@@ -31,8 +31,8 @@ when the derivation lands.*
   `statedStopAt` asks it with no held stop, the stream being unresolved there. Since the
   2026-09-29 change a bare tap's DEFAULT counts toward the window like any other held finger (it
   used to be invisible to it); with half-open span coverage the default is nearly always the open
-  string, which holds nothing, so this seldom widens anything. The floor light's evidence reads the same table's fret
-  (`NoteViewState::stop_mark`).
+  string, which holds nothing, so this seldom widens anything. The floor light's evidence reads
+  the same table's fret (`NoteViewState::held_fret`).
 - **Phase 0 deviation:** the reader does NOT refuse an unsorted `fhps` stream at parse — the
   validator runs on every load and nothing searches the stream in between, so the parse-time
   check was the order rule stated twice. The validator refuses equal positions.

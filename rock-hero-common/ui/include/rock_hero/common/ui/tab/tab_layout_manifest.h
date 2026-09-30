@@ -34,8 +34,8 @@ stepped back behind the note the charter is editing.
 
 THE EDITOR'S FOCUS, handed to the paint core, its overlays and the hit tester as one answer per
 note, so the picture and the reachable marks agree. A revealed note is drawn to its ring's end
-(\ref common::core::drawnEndSeconds), every keyframe it stores at its true instant and its
-reveal-only marks with it (\ref common::core::stopMarkShown). A host easing its presence hands the
+(\ref common::core::drawnEndSeconds) with every keyframe it stores at its true instant. A host
+easing its presence hands the
 painter the eased amounts, so a revealed tail GROWS from its crop and every mark riding it travels
 with it, and a head stepping back fades as it goes; what a press reaches reads the settled answer,
 the state the ease is heading for. A surface without an editor (the game's tab strips) presents
@@ -58,8 +58,8 @@ struct TabNotePresence
     float recede{};
 
     /*!
-    \brief Whether the note's reveal has begun: its reveal-only marks are in, and its tail no longer
-    fades at the crop, the extent alone easing.
+    \brief Whether the note's reveal has begun: its tail no longer fades at the crop, the extent
+    alone easing.
     \return True while \ref reveal is above 0.
     */
     [[nodiscard]] bool revealing() const noexcept
@@ -239,8 +239,8 @@ is addressed by: heads are targets, tails are testimony.
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
-/*! \brief Pixel layout of one held stop's satellite digit, outboard of its posture bracket. */
-struct TabHeldStopLayout
+/*! \brief Pixel layout of a bracket's satellite digit, outboard of its closing bar. */
+struct TabSatelliteLayout
 {
     /*! \brief Horizontal centre of the digit column. */
     float center_x{};
@@ -267,41 +267,8 @@ struct TabHeldStopLayout
 \param center_y The string line's y.
 \return The slot's layout.
 */
-[[nodiscard]] TabHeldStopLayout tabSatelliteLayoutAt(
+[[nodiscard]] TabSatelliteLayout tabSatelliteLayoutAt(
     const TabLaneGeometry& geometry, float mark_x, float center_y) noexcept;
-
-/*!
-\brief Computes the pixel layout of one note's held-stop satellite, when it draws one.
-
-The second stop a note states (\ref common::core::NoteViewState::stop_mark) prints in its own
-column outboard of the head's own bracket columns, because the head's centre is already carrying
-what that head SOUNDS. It is display-only: every held stop is derived. THREE populations wear one:
-the stop under a plain tap or a scrape (its plant, else the covering grip), whose own fret is the
-picking hand's; the PRESSED stop of a harmonic whose head prints its node instead
-(\ref common::core::harmonicOverPressedStop) — the artificial one and the tapped one alike; and the
-stop a pull-off PLANTS beneath a note the picking hand does NOT stop the string for (THE PLANT'S
-FACE), which the bracket then prints nothing of on that string, so exactly one ink states it either
-way.
-
-The resolved mark says whether its digit is SHOWN and where. A stop whose face waits for the reveal
-(\ref common::core::StopMarkFace::Revealed) lays out to nothing until `revealed` says its note's
-truth is on show — the same per-note pick that draws the note to its ring end, asked here through
-\ref common::core::stopMarkShown.
-
-The vertical extent is the bracket's own, so the two halves of a bracketed mark present the same
-height. The column sits outboard of the closing bar, so it never overlaps the bars or a digit
-centred between them.
-
-\param geometry Lane geometry the notation was painted with.
-\param note Seconds-resolved note to lay out.
-\param revealed True when this note's whole truth is on show, which is what a reveal-only face
-       waits for. Deliberately not defaulted: a surface with no reveal answers false, and it says
-       so, rather than a forgotten argument quietly deciding a mark is absent.
-\return The satellite's layout, or nothing when the note states no held stop or none is shown.
-*/
-[[nodiscard]] std::optional<TabHeldStopLayout> tabHeldStopLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    bool revealed) noexcept;
 
 /*! \brief What a keyframe's mark is, so a host tracing it traces the right outline. */
 enum class TabKeyframeShape : std::uint8_t

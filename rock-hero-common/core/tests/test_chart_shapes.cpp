@@ -5318,9 +5318,8 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
     }
 }
 
-// THE PLANT'S FACE. A fretting-hand onset IS the hand, so the one second stop it can hold is the
-// one a pull-off PLANTS beneath it: that plant is its held stop, and it reaches the claim column
-// never — a fretting-hand onset claims nothing, its own fret being its statement.
+// A fretting-hand onset IS the hand, so the one second stop it can hold is the one a pull-off
+// PLANTS beneath it: that plant is its held stop.
 TEST_CASE("A pull-off source's plant is its held stop", "[core][chart]")
 {
     // The source on string 1 rings to the very onset that pulls it off onto 5 — strict adjacency,

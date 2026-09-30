@@ -346,9 +346,9 @@ exactly where the committed one will land.
 
 \param g Graphics context to draw into.
 \param metrics Metrics of the lane being painted.
-\param note Note whose head the box rides, or null where no head stands (an empty insert slot, a
-       held stop's satellite); supplies the head shape the digit placement follows.
-\param center_x Box center on the time axis — a head's onset x, a satellite's, or a slot's.
+\param note Note whose head the box rides, or null where no head stands (an empty insert slot);
+       supplies the head shape the digit placement follows.
+\param center_x Box center on the time axis — a head's onset x, or a slot's.
 \param center_y The head's center on the lane's string line; the box derives the digit's own
        center from it.
 \param text Provisional value exactly as typed.
@@ -558,16 +558,15 @@ each pass in turn.
        ChartViewState::shape_close_prefix_max).
 \param presence Per-note presentation (\ref TabNotePresence). Its reveal at 1 draws the note to its
        ring end, every keyframe at its true instant; between, it draws that far, the marks and
-       chips riding the extent there; above 0 its reveal-only held-stop satellite comes in and its
-       tail stops fading at the crop. Its recede above 0 draws the whole note — head, digit, tail,
-       chips and satellite — fading toward a fifth of its weight, beneath every other note. Empty
-       presents every note plainly: it crops at its ink end, and the leg the crop cuts wears a
-       destination chip there (\ref tabKeyframeLayout).
+       chips riding the extent there; above 0 its tail stops fading at the crop. Its recede above 0
+       draws the whole note — head, digit, tail and chips — fading toward a fifth of its weight,
+       beneath every other note. Empty presents every note plainly: it crops at its ink end, and
+       the leg the crop cuts wears a destination chip there (\ref tabKeyframeLayout).
 \param ground The colour the host painted under the lane. The tail's core is light laid over it
        (\ref common::core::g_tail_core_alpha), and the one mark that must knock out what lies
-       beneath — the satellite digit's ground — restores this colour before laying the core back
-       over it, so the knockout reads as a clean stretch of the tail. Transparent where the host
-       composites the lane itself.
+       beneath — a bracket's satellite digit's ground — restores this colour before laying the core
+       back over it, so the knockout reads as a clean stretch of the tail. Transparent where the
+       host composites the lane itself.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,

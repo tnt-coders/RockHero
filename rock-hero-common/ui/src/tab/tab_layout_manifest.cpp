@@ -114,28 +114,7 @@ TabNoteLayout tabNoteLayout(
     return layout;
 }
 
-// Mirrors the satellite column wherever one is drawn: it opens a gap past the closing bar's column
-// and runs one slot wide, at the bracket's own height so the two halves of a bracketed mark present
-// the same target. One rectangle for both anchors, because the mark carries the instant its own ink
-// draws at — a fronting tap's digit sits beside its span's bracket, a note's own satellite beside
-// its own head, and at a front those are the same column by construction.
-//
-// Answers for a note whose held stop's face is SHOWN — asked of the published mark, so the slot
-// can neither outlive the digit nor appear before a reveal brings it in.
-std::optional<TabHeldStopLayout> tabHeldStopLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    const bool revealed) noexcept
-{
-    // Bound to a local so its check and its accesses are provably the same object.
-    const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
-    if (!mark.has_value() || !common::core::stopMarkShown(*mark, revealed))
-    {
-        return std::nullopt;
-    }
-    return tabSatelliteLayoutAt(geometry, geometry.x(mark->seconds), geometry.laneY(note.string));
-}
-
-TabHeldStopLayout tabSatelliteLayoutAt(
+TabSatelliteLayout tabSatelliteLayoutAt(
     const TabLaneGeometry& geometry, const float mark_x, const float center_y) noexcept
 {
     const TabBracketGeometry bracket = geometry.bracketGeometry();
@@ -146,9 +125,9 @@ TabHeldStopLayout tabSatelliteLayoutAt(
         static_cast<float>(geometry.bracketColumnsAt(mark_x, center_y).bar_right);
     const auto extent = static_cast<float>(slot.extent());
     // The digit's cell stands as tall as a chip's plate (tabBendPointChipBox), so a ring around a
-    // held stop and one around a chip are the same height.
+    // satellite digit and one around a chip are the same height.
     const float digit_height = geometry.fretTextHeight() + 2.0f;
-    return TabHeldStopLayout{
+    return TabSatelliteLayout{
         .center_x = bar_right + extent / 2.0f,
         .center_y = center_y,
         .box =

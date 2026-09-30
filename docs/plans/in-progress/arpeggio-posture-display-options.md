@@ -22,7 +22,7 @@ One decision per posture string, at the span start:
 | nothing sounds | the posture states CENTRED in the bracket, at fret-number size |
 | a head at the posture's own PLACE | nothing added; the head already states it |
 | a head at a DIFFERENT place, picking-hand onset | the tap keeps the centre; the posture takes a side chip beside the bracket, on a ground of the tail's own fill |
-| a head at a different place, fretting-hand onset | the NOTE prints it, not the bracket, and the bracket prints nothing on that string: a head that plants a stop (a pull-off source) wears the plant as its own reveal-only satellite, and a head whose own number is a NODE (an artificial harmonic) wears the fret it presses as a standing read-only one (RULED 2026-09-18) |
+| a head at a different place, fretting-hand onset | satellite column, as for a tap: the bracket prints the posture's stop (2026-09-29, when notes stopped printing held stops of their own; earlier the note wore it as its own satellite and the bracket printed nothing on that string) |
 
 Technique marks riding a tail — slide diagonals, bend curves, the vibrato sine — CLIP against every
 arpeggio bracket's columns on their string (the tail's body and the tremolo teeth show through

@@ -127,8 +127,8 @@ What that commits to:
    once revealed (built 2026-09-23 this way rather than keeping the chip at the crop under the
    reveal too: the chip is never a target, so no click can select it and see it move, and a
    second chip naming the mark standing beside it said nothing). The
-   reveal-only held-stop satellites return with the peek and the selection, as before their
-   withdrawal. The peek and the selection were withdrawn because revealing moved a clicked chip;
+   reveal returns with the peek and the selection, as before its withdrawal (held-stop satellites
+   no longer exist, 2026-09-29). The peek and the selection were withdrawn because revealing moved a clicked chip;
    once no reveal moves a mark that reason is gone (decided 2026-09-23).
 
 What is lost, deliberately: a gesture that begins and ends inside the zone (a flick up and back
@@ -420,8 +420,7 @@ it until the single form carries one.
 
 ### Phase 1c — The caret peek returns
 
-- The caret peek comes back as a reveal that adds ink, the held-stop satellites with it and with
-  the selection; the `tab_view` cull table follows. Sight the peek beside `Alt` and the selection.
+- The caret peek comes back as a reveal that adds ink, with the selection too; the `tab_view` cull table follows. Sight the peek beside `Alt` and the selection.
   **Signed 2026-09-24.**
 - **Docs:** `chart_reveal.h`, `the-editor-2d-views.md`, `keymap-matrix.md`'s reveal rows.
 
@@ -485,7 +484,7 @@ the entry beginnings are visited, so a fifth one fails to compile at every site.
 
 None open; phase 2's rulings were re-read against the sighted lane and stand. Decided 2026-09-23
 and recorded where they apply: scoring is the ink (*The display*); no 3D label and a hard 2D
-crop (display items 4 and 5); the reveals return with their satellites (item 6); `Alt`+digit
+crop (display items 4 and 5); the reveals return (item 6); `Alt`+digit
 stays and the uniform-scope law is amended (*The keys*); the bare digit cuts (*Why the bare
 digit cuts*); a placed head and a cut head take different rings (*A note here*); the command
 names — "Insert at Caret", "Insert Point on Ring", "Type Digit 0–9 on Ring" — as the naming

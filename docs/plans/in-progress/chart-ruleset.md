@@ -45,12 +45,14 @@ Sound truth is never bent for display; nothing derivable is stored.
   beneath its source — and under a plain tap or a pick slide stating none, THE DEFAULT HELD FACT
   answers. It feeds nothing the spans read: a right-hand onset states no grip. Stating a
   stop the notation does not prove waits on span templates, where the grip itself proves it
-  (`docs/plans/todo/span-marker-redesign.md`). **R3**: every plant draws at its source's release
-  statement, taps included, and so does a default (THE PLANT'S FACE). **R4**: THE TAP'S FLOOR
-  (LAW III). **An open string holds nothing** (user, 2026-09-29, reversing the earlier "fret 0 in
-  a held stop is a voicing member"): a 0 satellite told the reader nothing and in tab reads as
-  "sound the open string", so a stop of 0 is no held stop and draws no satellite. The span law
-  still reads the raw plant, 0 included (`chartPlantedStops`, THE HOLD-UNDER LAW).
+  (`docs/plans/todo/span-marker-redesign.md`). **R4**: THE TAP'S FLOOR (LAW III). **A held stop
+  has no mark of its own** (user, 2026-09-29, retiring R3's release-statement satellite and the
+  ink-decided face): it is internal information the app builds the chart with — the hand windows
+  and the 3D fret-hand light read it — because other ink prints every one, a plant by the pull's
+  own destination head and a default by its span's bracket. The charter states grips through span
+  markers and chord templates. **An open string holds nothing** (user, 2026-09-29, reversing the
+  earlier "fret 0 in a held stop is a voicing member"). The span law still reads the raw plant, 0
+  included (`chartPlantedStops`, THE HOLD-UNDER LAW).
 - **Artificial and tapped harmonics are DISABLED for now** (RULED 2026-09-18, late): validation
   refuses a node over a pressed stop under any attack but the pinch, and a node under the tap
   attack, so no chart can hold either form — the reader hard-errors, every editor plan is refused
@@ -540,11 +542,6 @@ pull entail the finger at both ends.
   source whose plant lies inside its travel therefore states what it sounds, lands at its keyframe
   and releases as a new statement, exactly as the same notes plainly picked. Taps take the same
   derivation.
-- **THE PLANT'S FACE draws at the RELEASE STATEMENT** under EVERY source (R3, RULED 2026-09-29,
-  reversing the tap-head reading of the same day): the last fret the source states strictly inside
-  its ring (`lastInteriorFretStatement`) — the landing keyframe of a slid source, a tapping slide's
-  included, its head where it states none. The finger the pull-off proves waits where the source's
-  finger lets go, whichever hand that finger belongs to.
 - **THE FOLD survives exactly as far as the proof does**: a span dates back across a source only
   where that source rode above an already-held stop. A source over any other ground begins nothing
   early; the statement begins at its release.
@@ -651,23 +648,10 @@ satellite what the fretting hand HOLDS. THE PLACE IS PART OF THE TEST on every a
 stop and never as a printed number: a node head over a node grip suppresses because both are that
 node, and a fretted head printing the same digit over a node grip does not.
 
-**WHO PRINTS A DISPLACED POSTURE DIGIT is the hand's question.** A RIGHT-hand head shows nothing
-about the left hand, so under a tap the bracket prints the stop itself in the satellite column,
-and where that digit IS the tap's held stop the note's face defers to it
-(`StopMarkFace::Posture`, decided by ink) — the
-bracket's number is the one statement that the left hand is on that string at all, and a bracket's
-fret number is important information. A FRETTING-hand head already states the hand's presence with
-its own number, so the stop a pull-off PLANTS beneath it is the refinement the notation already
-prints in the pull-off: the NOTE wears it as its own reveal-only satellite and the bracket prints
-nothing on that string — one ink states it.
-
-**THE SATELLITE REVEAL.** A satellite is the note's held FACE, note-scoped, at the note's own
-release statement, and DISPLAY-ONLY (RULED 2026-09-29). Every held stop is already printed by other
-ink — a PLANT by its pull-off, THE DEFAULT by the posture — so it is REVEALED on the note's truth
-channel, shown exactly while the note's full ring is. Revealing a note shows the whole truth about
-it at once. Where a bracket drawn at the note's own position already prints that very stop in the
-satellite column, the note draws nothing of its own (`StopMarkFace::Posture`, decided by ink,
-RULED 2026-09-29).
+**A DISPLACED POSTURE DIGIT IS THE BRACKET'S, whichever hand made the head.** The bracket's
+number is the one statement that the left hand is on that string at all, and a bracket's fret
+number is important information. No note prints a held stop of its own (RULED 2026-09-29): a
+plant is printed by the pull's own destination head and a default by the bracket.
 
 **THE HELD PRECEDENCE, complete** (`chartHeldStops`, a fret per note): THE PLANT a pull-off lands on
 > THE DEFAULT FACT.
@@ -675,8 +659,8 @@ RULED 2026-09-29).
 **THE DEFAULT HELD FACT.** An onset the PICKING HAND STOPS THE STRING FOR whose held stop is
 UNDEFINED still HAS one, because a tap says nothing about the other hand and the other hand is
 holding whatever it is holding. It is a
-FACT of the tap, not presentation decoration, which is why it resolves in core and every surface
-copies it. Inside a span the release lands on WHATEVER STOP THE COVERING SPAN'S POSTURE HOLDS on the
+FACT of the tap, not presentation decoration, which is why it resolves in core — the hand windows
+and the fret-hand light read it. Inside a span the release lands on WHATEVER STOP THE COVERING SPAN'S POSTURE HOLDS on the
 tap's own string; span-less, or where the posture states nothing on that string (or a node, which
 presses nothing), the tap releases onto the open string and holds NOTHING (`pressedFret`). A pull-off
 onto the open string likewise holds nothing, and the default does not answer beneath it: the
@@ -691,16 +675,11 @@ as its own table (`chartHeldStops` → `ChartResolutions::held_stops`). It must 
 the span derivation reads — the default is read out of the postures, so feeding it back would be
 circular and would move spans corpus-wide.
 
-**SATELLITES ARE NOTE-SCOPED, ALWAYS.** A press on one addresses that note's held stop whatever the
-selection was. What a
-SELECTION adds is a handle alone: a selected note's satellite is hit-tested as PART of that
-selection, so pressing it moves the caret onto that note's held stop and leaves a wider selection
-standing — naming a stop inside a selection must not be what takes the selection away. Bracket
-column digits are not hit targets at all: a digit an accumulating member prints in the opening
+Bracket column digits are not hit targets: a digit an accumulating member prints in the opening
 bracket is READ-ONLY notation, reached through that member's own head.
 
-**SPAN-WIDE FRET EDITING IS DEFERRED TO THE TEMPLATE EDITOR**, and it is the reason satellite scope
-collapsed to note scope: typing a number over a bracket ALREADY means INSERT A NOTE at the caret, so
+**SPAN-WIDE FRET EDITING IS DEFERRED TO THE TEMPLATE EDITOR**: typing a number over a bracket
+ALREADY means INSERT A NOTE at the caret, so
 a bracket-digit write-through would have to steal that keystroke. Re-queued for the template editor,
 where a span's grip is edited as a grip and nothing competes for the digits — also the natural home
 for editing tap-held values in bulk (`docs/plans/todo/span-marker-redesign.md`).
@@ -829,7 +808,7 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
 - Outside spans, crossing tails are simply TRUE — truth-first let-ring, denser than the published
   dashed span and more truthful; same-lane overlap is structurally impossible because of the ring
   bound.
-- The tap-harmonic tail extends from the TOUCH position; the satellite carries the stop.
+- The tap-harmonic tail extends from the TOUCH position; the bracket carries the stop.
 - A natural harmonic is no grip member (re-ruled 2026-09-24) and wears no bracket on either
   surface: the head prints the node, and in 3D the node states itself by SITTING ON ITS OWN WIRE
   (`highwayStopX`). A harmonic over a PRESSED stop is the pressed fret's member and wears that
@@ -857,7 +836,7 @@ STORED ring and asks strict adjacency, so nothing about tails moves a hammer-on 
 
 One scope authority: the selection, else the armed caret's slot, else inert. One meaning per verb
 per occupant. Digits retype the record's own fret; a held stop is never typed (RULED 2026-09-29:
-held stops are derived, and their satellites display-only). Plans are atomic over their product, and the sweep rides the entry (LAW II
+held stops are derived, and no note prints one). Plans are atomic over their product, and the sweep rides the entry (LAW II
 at edit time).
 
 - A typed digit STATES a stop and a transpose SHIFTS one, each on the record's own fret.

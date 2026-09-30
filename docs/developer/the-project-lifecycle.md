@@ -1056,20 +1056,14 @@ neighbours.
     the notation does not prove waits on span templates, where the grip itself proves it
     (`docs/plans/todo/span-marker-redesign.md`).
 
-    **A held stop's face is the SATELLITE beside the head.** The note carrying it has a head of its
-    own, and that head is already printing what the picking hand sounds, so the fretting hand's
-    stop takes the digit column outboard of the bracket's closing bar — the two-slot rule the
-    posture display was built with. It is DISPLAY-ONLY (ruled 2026-09-29): no click, arrow or
-    digit reaches it, and it is revealed with its note, since the pull-off or the posture already
-    prints the stop. Where a bracket drawn at the note's own position already prints that very
-    stop in the satellite column — a tap FRONTING a bracket, whose head holds the string's centre
-    there — the bracket owes the statement and the note draws nothing of its own
-    (`StopMarkFace::Posture`, decided by ink, ruled 2026-09-29).
-
-    **A DISPLACED posture digit is its owner's face.** Which column a posture string's fret prints
-    in is a property of the (span, string) pair, and the projection publishes it
-    (`ShapeStringViewState::digit`), with each note's own face published beside it
-    (`NoteViewState::stop_mark`), so the painter reads one answer.
+    **A held stop has no mark of its own** (ruled 2026-09-29). It is internal information the app
+    builds the chart with — the hand windows and the 3D fret-hand light read it
+    (`NoteViewState::held_fret`) — because other ink already prints every one: a pull-off's plant
+    by the pull's own destination head, a tap's default by its span's bracket. Where a tap's head
+    holds the string's centre at the bracket, the posture's stop takes the digit column outboard
+    of the closing bar — the two-slot rule the posture display was built with. Which column a
+    posture string's fret prints in is a property of the (span, string) pair, and the projection
+    publishes it (`ShapeStringViewState::digit`), so the painter reads one answer.
 
     **THE DIGIT WINDOW is the bracket's own instant and nothing besides.**
     One head can stand on the string there, and the three answers are one question about it:
@@ -1083,12 +1077,8 @@ neighbours.
     stands beside cannot paint over it. The hand is no part of the SLOT test, because a centred
     digit sits exactly where a head at that instant sits and the note pass paints after the
     brackets, so any head sounding elsewhere covers it; the satellite is the only slot that
-    survives. **The hand IS the answer to WHO prints a displaced digit — THE PLANT'S FACE**: the
-    bracket's number is the one statement that the left hand is on the string at all, so under a
-    RIGHT-hand head the bracket prints the stop itself; a FRETTING-hand head already states the
-    hand's presence with its own number, so the stop a pull-off plants beneath it is the note's own
-    reveal-only satellite (`NoteViewState::stop_mark`, `StopMarkFace::Revealed`) and the bracket
-    prints nothing on that string. Under an artificial harmonic (disabled for now) the SPAN states
+    survives. The bracket's number is the one statement that the left hand is on the string at
+    all, whichever hand made the head beside it. Under an artificial harmonic (disabled for now) the SPAN states
     its pressed fret as its grip and never a planted finger a pull-off derives beneath it (RULED
     2026-09-18). That answer holds wherever the slide-out lands, because the HOLD-UNDER test asks
     the same authority: a landing rides beneath a source only where it is the stop that
@@ -1097,8 +1087,8 @@ neighbours.
     harmonic exception (re-ruled 2026-09-19): a pull-off proves a finger at its RELEASE and no
     earlier, so EVERY source states the fret it sounds and its release is a new statement — except
     a source arriving above a stop its string is demonstrably already at, which states that stop
-    and rides (`gripStatement`). The landing stop stays in the derived table as the source's
-    reveal-only satellite; it is not the bracket's to print.
+    and rides (`gripStatement`). The landing stop stays in the derived table as the source's held
+    stop; the pull's own head prints it.
     A head LATER in the span suppresses nothing, because the opening bracket is the span's
     CHORD FRAME: it states the full membership at the moment the reader meets it, so an
     accumulation's members print their frets there and their own heads restate them as they arrive.
@@ -1113,18 +1103,14 @@ neighbours.
     with it — a released string hands nothing over), and the successor stops the string at a fret
     LOWER than the onset's own — every fret alike, the open string's 0 included; only a destination
     the chart never defines derives nothing — whichever hand made the source. The plant is the
-    source's held stop and its own reveal-only satellite (THE PLANT'S FACE, 12b above). A picking-
-    hand onset with no plant holds THE DEFAULT: the covering span's posture stop on its string
-    (coverage is half-open, so a tap at the instant a span closes stands in no grip). An open
-    string is no finger, so a stop of 0 — the plant of a pull onto the open string, or a default
-    with no grip beneath it — holds nothing and draws no satellite; the pull's own head already
-    prints the 0, and spans still read the raw plant (`chartPlantedStops`). Every
-    held stop's face draws at its note's RELEASE STATEMENT (`lastInteriorFretStatement`, RULED
-    2026-09-29) — the landing keyframe of a slid note, a tap's included, the head of an unslid
-    one — because the finger it names waits where the note's own finger lets go.
+    source's held stop. A picking-hand onset with no plant holds THE DEFAULT: the covering span's
+    posture stop on its string (coverage is half-open, so a tap at the instant a span closes stands
+    in no grip). An open string is no finger, so a stop of 0 — the plant of a pull onto the open
+    string, or a default with no grip beneath it — holds nothing; spans still read the raw plant
+    (`chartPlantedStops`).
 
-    Nothing stores the stop and nothing feeds it to the spans: the notation is where it is written,
-    and `chartHeldStops` is the one table every surface reads.
+    Nothing stores the stop and nothing feeds it to the spans or draws it on a note (12b above):
+    `chartHeldStops` is the one table the hand windows and the fret-hand light read.
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):

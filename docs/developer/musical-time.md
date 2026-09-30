@@ -279,10 +279,8 @@ the covering span's posture holds on that string**; coverage is half-open, so a 
 span closes stands in no grip. **An open string is no finger**, so a stop of 0 — a plant onto the
 open string, a default with no grip beneath it, a harmonic node in the posture — holds nothing.
 It reads the derived postures, so it computes AFTER `deriveChartShapes` and feeds nothing that runs
-before it. `NoteViewState::stop_mark` carries this table's fret, where it draws (the note's release
-statement) and on what terms (revealed with the note, unless a bracket at the note's own position
-prints the same stop in the satellite column, which then owes it), so it is present wherever a
-finger is pressed beneath the note, and absent everywhere else.
+before it. `NoteViewState::held_fret` carries this table's fret for the fret-hand light; no note
+draws it, because other ink already prints every held stop.
 
 # The TempoMap
 

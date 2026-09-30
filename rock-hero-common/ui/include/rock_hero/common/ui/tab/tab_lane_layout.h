@@ -55,8 +55,8 @@ every count.
 instant.
 
 The bracket is the only mark that states a fret nothing struck — the stop a hand holds under a
-right-hand onset, printed at its span's own instant. The satellite column beside it is the half
-that is clicked, and both are sized from these numbers (\ref TabLaneGeometry::bracketGeometry).
+right-hand onset, printed at its span's own instant. The satellite column beside it is sized from
+these numbers too (\ref TabLaneGeometry::bracketGeometry).
 */
 struct TabBracketGeometry
 {
@@ -110,8 +110,7 @@ The width is derived from the lane's own text scale rather than measured from th
 carry, and that is what makes the slot a GEOMETRY fact instead of a font one. Two things fall out
 of it: every satellite in the lane is the same column, so a stack of them closes on one straight
 right wall without anyone scanning a span for its widest value; and the framework-free layout
-manifest can bound the slot exactly, which is what lets the editor hit-test the satellite as its
-own target under the rule that every drawn mark is clickable and nothing undrawn is.
+manifest can bound the slot exactly, so the painter and anything measuring the lane agree on it.
 */
 struct TabSatelliteSlot
 {
@@ -193,7 +192,7 @@ struct TabLaneGeometry
 
     The bracket hugs a note head's ring, so every value derives from \ref headSize and the bracket
     tracks the heads at each lane size. It lives on the geometry rather than in the painter because
-    the layout manifest places the satellite column beside the bracket — a held stop's digit
+    the layout manifest places the satellite column beside the bracket — a displaced digit
     outboard of the closing bar — from these numbers, and a second copy of them there would be the
     drift the manifest exists to prevent.
 

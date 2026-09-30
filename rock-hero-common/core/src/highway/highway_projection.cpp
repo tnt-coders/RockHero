@@ -509,7 +509,7 @@ std::vector<HighwayLitStretch> makeFretHandLight(
         const NoteViewState& note = scene.notes[index];
         // A bare right-hand onset says nothing about the fretting hand; one with a held stop —
         // always a pressed finger — is that hand holding it.
-        if (rightHandOnset(note.attack) && !note.stop_mark.has_value())
+        if (rightHandOnset(note.attack) && !note.held_fret.has_value())
         {
             continue;
         }

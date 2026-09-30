@@ -50,59 +50,14 @@ enum class StopMarkSlot : std::uint8_t
     /*!
     \brief The satellite column outboard of the closing bar.
 
-    Where a head at THE MARK'S OWN INSTANT owns the string's centre printing a DIFFERENT stop, and
-    states no satellite of its own carrying this one: the head keeps the centre because it is what
-    rings, and the posture's stop — still true — takes the column beside the bracket. The FRONT
-    head, in other words, which is the only one that displaces anything: one further along the span
-    heads nothing at the mark's instant, so its stop prints in the bracket as an ordinary membership
-    digit.
-
-    A right-hand onset printing another stop always lands here, the front tap and the tapped
-    harmonic alike, because the bracket owes that statement. A fretting-hand head lands here only
-    where its own satellite holds some OTHER stop: one already printing the posture's stop would say
-    the number twice, so nothing is drawn on that string at all.
+    Where a head at THE MARK'S OWN INSTANT owns the string's centre printing a DIFFERENT stop: the
+    head keeps the centre because it is what rings, and the posture's stop — still true — takes the
+    column beside the bracket. The FRONT head, in other words, which is the only one that displaces
+    anything: one further along the span heads nothing at the mark's instant, so its stop prints in
+    the bracket as an ordinary membership digit. Whichever hand made the head, the bracket owes that
+    statement.
     */
     Satellite,
-};
-
-/*!
-\brief Whose ink states a held stop, and on what terms that ink is shown.
-
-THE SATELLITE REVEAL LAW. A satellite is the note's own held FACE, display-only (every held stop is
-derived, RULED 2026-09-29). Every held stop is already printed by other ink — a plant by its
-pull-off, a default by the posture — so the note's own digit waits for the reader to ask. What the
-reveal shows is the whole truth about one note at once, which is why the terms below are the same
-ones its real ring is shown on.
-
-Two answers, because "shown" and "who draws it" are one question here: a face the SPAN's own
-furniture already prints is drawn wherever that furniture is, and one the note prints for itself is
-drawn on the note's terms. Consumers ask \ref stopMarkShown for presence and this for the painter's
-half.
-*/
-enum class StopMarkFace : std::uint8_t
-{
-    /*!
-    \brief The span's own posture furniture states it, so it is drawn wherever that is.
-
-    Decided by INK (RULED 2026-09-29): a bracket drawn at the note's own position already prints
-    this very stop in \ref StopMarkSlot::Satellite — [D2]'s displaced digit, the tap's own head
-    holding the string's centre there — so the bracket owes the statement and the note draws nothing
-    of its own beside it.
-    */
-    Posture,
-
-    /*!
-    \brief The note's own satellite, shown only while the note's truth is revealed.
-
-    Every held stop no bracket at the note's own position prints: a PLANT, which the pull-off
-    notation already prints, under a tap and under a fretting-hand source alike; and THE DEFAULT
-    under a bare tap, the grip the covering span holds on its string.
-
-    Revealing the note shows the whole truth about it at once, so this appears exactly while its
-    real ring does — the editor's selection-and-reveal pick, which the host answers, this core
-    never learns, and no game surface makes at all.
-    */
-    Revealed,
 };
 
 /*! \brief One bend curve point resolved to an absolute timeline second. */
@@ -449,63 +404,6 @@ struct KeyframeViewState
     }
 };
 
-/*! \brief Where a held stop's face draws, and on what terms it is shown. */
-struct StopMarkViewState
-{
-    /*!
-    \brief Absolute timeline position the face draws at.
-
-    WHERE ITS OWN INK IS, which is not one anchor for every face: a \ref StopMarkFace::Posture one
-    draws where the span's bracket does, so it carries that bracket's instant and comes from the
-    very number the bracket pass positions with; a PLANT draws at its source's RELEASE STATEMENT
-    (\ref lastInteriorFretStatement, RULED 2026-09-29) — the landing keyframe of a slid source, the
-    head of an unslid one — because the finger it proves is waiting where the source's finger lets
-    go; every other face sits beside the note's own head, at its onset. One field, one meaning —
-    where this stop is stated.
-    */
-    double seconds{0.0};
-
-    /*! \brief The held fret the face prints (\ref chartHeldStops); always a pressed fret. */
-    int fret{0};
-
-    /*! \brief Whose ink states the stop, and on what terms it is shown (\ref StopMarkFace). */
-    StopMarkFace face{StopMarkFace::Posture};
-
-    /*!
-    \brief Compares two stop marks by their stored fields.
-    \param lhs Left-hand mark.
-    \param rhs Right-hand mark.
-    \return True when both marks store equal values.
-    */
-    friend constexpr bool operator==(
-        const StopMarkViewState& lhs, const StopMarkViewState& rhs) noexcept
-    {
-        // Hand-written for the float member, like every other float-bearing view state here.
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.face == rhs.face;
-    }
-};
-
-/*!
-\brief Whether a held stop's face is on show, given whether its note's truth is revealed.
-
-The ONE presence rule for a stop mark, so the painter that draws the digit and the layout that
-bounds it cannot disagree about whether there is one: a \ref StopMarkFace::Revealed face waits for
-the reveal and every other face stands.
-The reveal itself is the host's per-note pick — the same one that draws a note to its ring end —
-and is never a fact this core holds.
-
-\param mark The stop mark being asked about.
-\param revealed True when this note's whole truth is on show.
-
-\return True when the face is drawn.
-*/
-[[nodiscard]] constexpr bool stopMarkShown(
-    const StopMarkViewState& mark, const bool revealed) noexcept
-{
-    return mark.face != StopMarkFace::Revealed || revealed;
-}
-
 /*!
 \brief One sounding note resolved to timeline seconds: the stored note, and where its ink stops.
 
@@ -607,21 +505,15 @@ struct NoteViewState
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
-    \brief The face that states this note's HELD stop — the fret, where it draws, and on what terms;
-           absent where the note holds no second stop.
+    \brief The pressed fret the fretting hand holds beneath this note (\ref chartHeldStops); absent
+           where none is.
 
-    The held stop (\ref chartHeldStops): present wherever a finger is pressed beneath the note — a
-    pull-off's plant, or THE DEFAULT under a note the picking hand stops the string for — and absent
-    over the open string, which no finger holds. A satellite is the note's own face, note-scoped and
-    display-only; \ref StopMarkFace says whose ink states it and on what terms it shows.
-
-    Two facts about a mid-span tap, and they are not the same fact: its fret prints in the opening
-    bracket as grip MEMBERSHIP (\ref ShapeStringViewState::digit, the digit window, unchanged and
-    independent), and its satellite here is the note's own face — unless a bracket at the note's own
-    position prints the same stop in the satellite column, which then owes it
-    (\ref StopMarkFace::Posture).
+    Internal to the app, never drawn: every held stop is already printed by other ink — a
+    pull-off's plant by its destination head, a tap's default by the covering span's bracket — so
+    the lane carries no note-scoped mark for it. The fret-hand light reads it as the evidence that a
+    right-hand onset has the fretting hand holding a stop beneath it.
     */
-    std::optional<StopMarkViewState> stop_mark{};
+    std::optional<int> held_fret{};
 
     /*!
     \brief What this note's connection claim resolves to (\ref resolveLegato).
@@ -717,7 +609,7 @@ struct NoteViewState
                std::is_eq(lhs.ring_end_seconds <=> rhs.ring_end_seconds) &&
                std::is_eq(lhs.ink_end_seconds <=> rhs.ink_end_seconds) &&
                lhs.rested == rhs.rested && lhs.string == rhs.string && lhs.fret == rhs.fret &&
-               lhs.attack == rhs.attack && lhs.stop_mark == rhs.stop_mark &&
+               lhs.attack == rhs.attack && lhs.held_fret == rhs.held_fret &&
                lhs.legato == rhs.legato && lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
@@ -905,15 +797,7 @@ struct ShapeStringViewState
     facts that happen to print the same number are still two facts, so a tap at fret 12 under a
     node-12 grip takes the satellite and both print "12", and a fretted-5 head printing its node
     "17" over a grip holding 5 is a head sounding at ANOTHER place, so the 5 is never lost under the
-    head — which ink states it is the hand's question below.
-
-    The hand IS the answer to WHO prints a displaced digit (THE PLANT'S FACE). The bracket's number
-    is the one statement that the left hand is on the string at all, so under a RIGHT-hand head the
-    bracket prints the held stop itself (\ref StopMarkFace::Posture). A FRETTING-hand head already
-    states the hand's presence with its own number, so the second stop a pull-off plants beneath it
-    is the note's OWN face (\ref NoteViewState::stop_mark), reveal-only, and this entry is absent —
-    one ink states it either way. A fretting-hand head holding no second stop but printing a node
-    (the fretted-5 head above) leaves its 5 to this entry, in the satellite column.
+    head.
 
     A head LATER in the span suppresses nothing, because the opening bracket is the span's CHORD
     FRAME: it states the full membership at the moment the reader meets it, so an accumulation's
@@ -922,14 +806,11 @@ struct ShapeStringViewState
     onset that CLOSED the span decide the digits inside it.
 
     Absent is about the DIGIT alone wherever a bracket draws at all: the bars draw for every posture
-    string either way. What the slot decides, where a tap FRONTS this bracket, is that the bracket
-    is what prints that tap's held stop (\ref StopMarkFace::Posture). This entry is the SPAN's
-    membership statement and nothing else: a tap further along carries its held fret here as an
-    ordinary member AND wears its own satellite (\ref NoteViewState::stop_mark), two facts stated
-    in two inks.
-    Where the span draws NO bracket the entry is absent for a different reason entirely, and the
-    posture entry beside it still stands: the posture is a fact the class rule and the box identity
-    both read.
+    string either way. This entry is the SPAN's membership statement, and it is also what prints a
+    tap's held stop: the bracket's number is the one statement that the left hand is on that string
+    at all. Where the span draws NO bracket the entry is absent for a different reason entirely, and
+    the posture entry beside it still stands: the posture is a fact the class rule and the box
+    identity both read.
     */
     std::optional<StopMarkSlot> digit{StopMarkSlot::Bracket};
 

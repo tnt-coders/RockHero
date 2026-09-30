@@ -97,7 +97,7 @@ the rules refuse, like any refused verb.
    objects on rows of their own take it away.
 2. **One face enum on the caret**: `{Mark, HeldStop, BendChip}`, with the digit channel derived
    (`HeldStop` → `Held`, else `Sounding`). **Superseded 2026-09-29 (R2):** held stops became
-   derived-only and their satellites display-only, so the `HeldStop` face, the stop channel and
+   derived-only and (later the same day) undrawn on their notes, so the `HeldStop` face, the stop channel and
    `planClearHeldStops` were deleted; the enum is `{Mark, BendChip}`. Every held-stop clause in the
    decisions below is historical.
 3. **Arrows.** Left/Right walk keyframes and heads as today; from the chip they drop back into the

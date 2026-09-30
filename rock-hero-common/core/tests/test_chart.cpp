@@ -4466,10 +4466,9 @@ TEST_CASE("A pull-off states its stop whatever the onset's own travel", "[core][
 }
 
 // A SLID fretting-hand source plants its stop too — the two-finger landing: 5 slides to 9, a finger
-// arrives behind it on 7, and the pull-off lands there — and the plant's face stands at the slide's
-// LANDING, where the finger it waits beneath lets go, not beside a head sounding 5 (RULED
-// 2026-09-29). The span gains nothing from it: the path swept 7, so the source cannot ride it.
-TEST_CASE("A slid pull-off source plants its stop and wears it at the landing", "[core][chart]")
+// arrives behind it on 7, and the pull-off lands there. The span gains nothing from it: the path
+// swept 7, so the source cannot ride it.
+TEST_CASE("A slid pull-off source plants its stop", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
@@ -4499,22 +4498,12 @@ TEST_CASE("A slid pull-off source plants its stop and wears it at the landing", 
     arrangement.chart = chart;
     const ChartViewState view = makeChartViewState(arrangement, tempo_map);
     REQUIRE(view.notes.size() == 2);
-    const std::optional<StopMarkViewState>& mark = view.notes.front().stop_mark;
-    REQUIRE(mark.has_value());
-    if (mark.has_value())
-    {
-        // The landing keyframe half a beat in: 0.25s past the onset at 120 bpm.
-        CHECK_THAT(
-            mark->seconds,
-            Catch::Matchers::WithinAbs(view.notes.front().start_seconds + 0.25, 1e-9));
-        CHECK(mark->fret == 7);
-    }
+    CHECK(view.notes.front().held_fret == std::optional{7});
 }
 
-// The same law under a TAP (RULED 2026-09-29, R3): every plant draws at its source's release
-// statement, so a tap that slides 12 to 16 and is pulled off onto 9 wears its 9 at the slide's
-// landing — the instant the tapping finger lets go onto the finger waiting there.
-TEST_CASE("A slid tap's plant wears it at the landing", "[core][chart]")
+// The same law under a TAP: a tap that slides 12 to 16 and is pulled off onto 9 holds that 9, the
+// finger waiting where the tapping finger lets go.
+TEST_CASE("A slid tap holds its plant", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
@@ -4539,17 +4528,7 @@ TEST_CASE("A slid tap's plant wears it at the landing", "[core][chart]")
     arrangement.chart = chart;
     const ChartViewState view = makeChartViewState(arrangement, tempo_map);
     REQUIRE(view.notes.size() == 2);
-    const std::optional<StopMarkViewState>& mark = view.notes.front().stop_mark;
-    REQUIRE(mark.has_value());
-    if (mark.has_value())
-    {
-        // The landing keyframe half a beat in: 0.25s past the onset at 120 bpm.
-        CHECK_THAT(
-            mark->seconds,
-            Catch::Matchers::WithinAbs(view.notes.front().start_seconds + 0.25, 1e-9));
-        CHECK(mark->fret == 9);
-        CHECK(mark->face == StopMarkFace::Revealed);
-    }
+    CHECK(view.notes.front().held_fret == std::optional{9});
 }
 
 // THE HOLD-UNDER LAW's derivation half: the planted stop is a fact about EVERY pull-off source,

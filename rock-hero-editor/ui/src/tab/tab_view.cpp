@@ -464,9 +464,8 @@ void TabView::paint(juce::Graphics& g)
     // How each note is presented: the rule lives in the editor core beside the hit test that must
     // agree with it (core::chartPresence), and this lane EASES toward that answer (presence).
     // Everything the reveal decides reads the one eased amount: how far a note is drawn, the tail
-    // growing toward its ring's end and every mark riding it to its true instant, and whether its
-    // reveal-only held-stop satellite is there at all (THE SATELLITE REVEAL, in from the moment
-    // the reveal starts). A head stepping back behind the focused ring fades on the same run.
+    // growing toward its ring's end and every mark riding it to its true instant. A head stepping
+    // back behind the focused ring fades on the same run.
     const common::ui::TabPresence lane_presence = [this](std::size_t index) {
         return presence(index);
     };

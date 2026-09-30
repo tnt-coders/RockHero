@@ -558,20 +558,16 @@ color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore bo
 color strings through it. The glyph renderer itself is the **shared notation paint core** in
 `rock-hero-common/ui` `tab/`: `tab_lane_layout.h` holds the framework-free `TabLaneGeometry` and
 lane math, `tab_layout_manifest.h` answers "where is this note's head in pixels" for hit testing,
-and the same for a linked keyframe's head, and for the painter a **held stop's satellite** — the
-digit column
-outboard of a bracket's closing bar, where a right-hand onset prints the stop the fretting hand
-holds while its own head prints where the note sounds (the stop beside a plain tap), and where
-a fretting-hand source prints the stop its pull-off PLANTS beneath the fret its head sounds. That
-column's width lives on `TabLaneGeometry`, derived from the lane's text scale rather
-than measured from the digits, which is exactly what lets the framework-free layout bound the mark
-the painter draws. It is DISPLAY-ONLY (user ruling 2026-09-29): a held stop is derived, never
-typed, so the column is no click target and no caret face.
+and the same for a linked keyframe's head, and for the painter a bracket's **satellite column** —
+the digit column outboard of a bracket's closing bar, where the posture prints a stop while the
+head at the bracket's instant prints where that note sounds (the grip beside a tap). That column's
+width lives on `TabLaneGeometry`, derived from the lane's text scale rather than measured from the
+digits, which is exactly what lets the framework-free layout bound the mark the painter draws. It
+is no click target and no caret face.
 
 WHICH column a posture digit lands in is the projection's derivation, not the painter's: it is
-published per posture string (`ShapeStringViewState::digit`), with each note's own FACE beside it
-(`NoteViewState::stop_mark` — a fronting tap's displaced digit, or a note's own reveal-only
-satellite), so the painter draws where the hit test looks. **WHETHER one lands at all is asked AT
+published per posture string (`ShapeStringViewState::digit`), so the painter and every other
+reader take one answer. **WHETHER one lands at all is asked AT
 THE MARK'S OWN INSTANT and at no other — THE DIGIT WINDOW.** One head can stand on the string there,
 and the three answers are one question about it: the bracket's centre where NOTHING heads the
 string; the satellite column where a head there, WHICHEVER HAND MADE IT, sounds at ANOTHER place;
@@ -582,13 +578,8 @@ though both print "12", and a fretted-5 head printing its node "17" over a grip 
 in the SATELLITE, where the head it stands beside cannot paint over it. The hand is no part of the
 SLOT test, because the centred digit sits exactly where a head at that instant sits and the note
 pass paints after the brackets, so any head sounding elsewhere covers a centred digit; the satellite
-is the only slot that survives. **The hand IS the answer to WHO prints a displaced digit — THE
-PLANT'S FACE.** The bracket's number is the one statement that the left hand is on the string at
-all, so under a RIGHT-hand head the bracket prints the stop itself. A FRETTING-hand head already
-states the hand's presence with its own number, so the stop a pull-off plants beneath it is the
-refinement the pull-off already prints: the NOTE wears it as its own reveal-only satellite
-(`NoteViewState::stop_mark`, `StopMarkFace::Revealed`), and the bracket prints nothing on that
-string. Under an artificial harmonic (disabled for now) **the bracket states the PRESSED fret**,
+is the only slot that survives. The bracket's number is the one statement that the left hand is on
+the string at all, whichever hand made the head beside it. Under an artificial harmonic (disabled for now) **the bracket states the PRESSED fret**,
 never a planted finger a pull-off derives beneath it (RULED 2026-09-18).
 A head LATER in the span suppresses nothing: the opening bracket is the span's CHORD
 FRAME, so it states the whole membership where the reader meets it and an accumulation's members
@@ -655,7 +646,7 @@ is deliberately single-sourced:
   The height is `slideOutChipY` for a slide chip, the one spelling of where a tail chip sits.
 - **THE HEAD A FOCUSED RING ENDS ON STEPS BACK**: while the selection or the caret is on a ring
   that ends on the next head of its own string (the edit's FOCUS), that head, unless it is in
-  focus too, is drawn at a fifth of its weight — head, digit, tail, chips and satellite — beneath
+  focus too, is drawn at a fifth of its weight — head, digit, tail and chips — beneath
   every other note, so the ring being edited reads whole over it (`chartPresence`,
   `chart_reveal.h`; `common::ui::TabNotePresence::recede`). The lane reveal steps nothing back: it
   shows every ring at once, and no one ring is the subject. Hit testing follows the paint: a
@@ -820,8 +811,8 @@ from the other side: a mark drawn ON TOP of a target resolves the pointer that l
 mark has no menu to open, so its answer is silence.
 
 **HEADS ARE TARGETS; TAILS ARE TESTIMONY**, and that is the lane's whole hit model. What a press can
-select is a mark drawn at the instant the thing it stands for happens: a note's head, a held stop's
-satellite column, a linked keyframe's head. A
+select is a mark drawn at the instant the thing it stands for happens: a note's head, a linked
+keyframe's head. A
 tail selects nothing at all, and the rule is UNIFORM — a plainly visible ribbon as much as one a
 covering span's furniture HIDES — so a press over a ribbon resolves to no note and falls through to
 what a press on bare lane area does: seek, and arm the caret at the slot under the pointer. Since
@@ -840,38 +831,21 @@ costs is selecting a long sustain whose head has scrolled out of view by clickin
 can still see; the marquee and keyboard selection both still reach such a note, and the loss is
 recorded as a sighting item in `docs/tracking/watch-items.md` rather than pre-emptively patched.
 
-**WHERE A SATELLITE STANDS.** A satellite is the note's held FACE, note-scoped, at the note's own
-release statement (the landing of a slid note, else its head). Every held stop is already printed
-by other ink — a plant by its pull-off, a default by the posture — so the satellite is **revealed**
-on the note's own truth channel, visible exactly while the note's real ring is
-(`core::chartPresence`: the lane reveal, the note selected, or the caret on it). Revealing a note
-shows the whole truth about it at once. And where a bracket drawn at the note's own position
-already prints that very stop in the satellite column — a **tap fronting a bracket**, whose head
-holds the string's centre — the bracket owes the statement and the note draws nothing of its own
-(decided by ink, ruled 2026-09-29; [D2]).
-
-**AND EVERY ONSET THE PICKING HAND STOPS THE STRING FOR HAS ONE, because every one of them has a
-held stop** — THE DEFAULT HELD FACT. A tap the notation states nothing under — no pull-off to derive one — is not a
-tap with no fretting hand under it; the hand is holding whatever grip it is holding, so the release lands on
-the **covering span's posture PRESSED fret for that string** (a harmonic node in the posture presses
-nothing, so a tap under a node grip releases onto the open string), or on **0**, the open string,
-where no span covers the tap (coverage is half-open: a tap at the instant a span closes stands in
-no grip) or the posture names no fret there. It is LIVE-DERIVED off the postures, so an edit that
-reflows the spans moves it. Its face is a plant's — **revealed**, because the posture already prints
-it.
-
-**Two facts, two inks, for a mid-span tap.** Its fret prints in the opening bracket as grip
-MEMBERSHIP — the digit window, unchanged and independent — and its satellite beside its own head is
-the note's own face, which states the stop and is never typed at.
+**A HELD STOP HAS NO MARK OF ITS OWN** (user ruling 2026-09-29). The stop the fretting hand holds
+beneath a note (`chartHeldStops`) is internal information the app builds the chart with — the hand
+windows and the 3D fret-hand light read it (`NoteViewState::held_fret`) — and never a note-scoped
+mark, because other ink already prints every one of them: a pull-off's plant by the pull's own
+destination head, and a tap's DEFAULT (the covering span's posture fret on its string) by that
+span's bracket, displaced into the satellite column where the tap's head fronts it. A charter
+states grips through span markers and chord templates, not through a per-note digit.
 
 **One reveal, one answer.** A note is revealed while the lane reveal modifier is held
 (`TabView::setRingReveal`), while it is SELECTED — the note itself or any keyframe of it — or
 while the CARET stands on it (inside its ring, except at an end that is the next head's onset),
 and `core::chartPresence` is the one spelling of that, read by the lane that paints and by the
 controller's hit test. Everything downstream reads that
-one answer: how far the note draws and whether the paint core draws its satellite. The projection
-stays selection-agnostic: it publishes the face and its terms (`common::core::StopMarkFace`), and the
-editor layers apply the reveal.
+one answer: how far the note draws. The projection stays selection-agnostic, and the editor layers
+apply the reveal.
 
 **And a predicate for the other subject: SPANS** (`core::chartSpanRevealed`). Rule 12a stops
 a span's rails one minimum-sustain-distance margin before the head that closed it, so the drawn
@@ -885,8 +859,7 @@ reach the paint core as a bare per-index answer (`common::ui::TabNotePresence` p
 projected event already carries both of its ends. Spans are not selectable in their own right
 yet; that arrives with the span-marker work.
 
-**SATELLITES ARE DISPLAY-ONLY** (user ruling 2026-09-29): every held stop is derived, so no press,
-arrow or digit reaches one. **A FACE IS ONE OBJECT'S** (user ruling 2026-09-29, which retired the
+**A FACE IS ONE OBJECT'S** (user ruling 2026-09-29, which retired the
 selection handle): a click on a bend chip selects its object alone with the caret on that face, even
 when the object was a member of a selected chord, exactly as a click on its head selects it alone.
 The caret square stays on the slot and the selection ring moves onto the face.
@@ -961,8 +934,7 @@ Three grounds, and what each is for:
   the selection can say whether the caret holds the head or the previous ring's end keyframe. The keyframe commit law's own attention
   (`chartNoteInFocus`) still counts the caret there on the ring, so an end statement typed at the
   seam is kept. Deterministic and keyed on the edit position alone — no timer, nothing latched,
-  and the peek selects nothing — so the caret leaving is the whole of what hides it again, and the
-  reveal-only held-stop satellite comes in with it.
+  and the peek selects nothing — so the caret leaving is the whole of what hides it again.
 
 **The mark is the notation itself.** A revealed note is the same stored note drawn further: its
 tail runs to the real ring end, with its techniques and its payload riding it. Nothing is
@@ -1000,7 +972,7 @@ Six things about it are deliberate:
   so the ring ends bound whatever is drawn, and the paint pass drops each note whose DRAWN end
   really precedes the window; the reveal going down changes no index. The cull runs inside
   `paintTabLane`, and the reveal reaches it as a per-index answer
-  (`common::ui::TabNotePresence`) that also decides whether a reveal-only satellite is drawn, so there is no second loop and no editor
+  (`common::ui::TabNotePresence`), so there is no second loop and no editor
   ink at all. The host answers from its ONE reveal state, this core being told the answer rather
   than the reason.
 - **A second running maximum, over the SPANS.** The two span passes — the bracket marks in

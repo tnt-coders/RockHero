@@ -1081,9 +1081,10 @@ written down.
 
 ## Found while ruling the pressed stop's display (2026-09-18)
 
-- **A plain tap's planted finger has no 3D cue at all.** 2D prints it on the tap's own satellite —
-  its plant or the default fact — while the highway draws the tap's
-  head at the fret it sounds and says nothing about the stop the fretting hand is holding under it.
+- **Neither surface cues a plain tap's planted finger beside the tap.** Since 2026-09-29 no note
+  draws its held stop on either surface (the pull's destination head prints a plant, the bracket
+  prints a default), and the highway draws the tap's head at the fret it sounds and says nothing
+  about the stop the fretting hand is holding under it.
   The 2026-09-18 pressed-stop rule gave the highway a stop→node line for a harmonic standing over a
   pressed stop (`harmonicMarkFootprint`), which is the same class of fact for a different family, so
   the asymmetry is now visible by contrast — but it is PRE-EXISTING and out of that rule's scope,

@@ -141,7 +141,7 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // satellite column against the bars this pass fills and must land on exactly the same pixels. The
 // brackets draw as pixel-snapped rectangles: a fractional width or position antialiases into
 // fuzzy, unsquare edges. The displaced digit's own column lives on the geometry for the same
-// reason (TabLaneGeometry::satelliteSlot), where the layout manifest places a held stop's digit.
+// reason (TabLaneGeometry::satelliteSlot), where the layout manifest places a displaced digit.
 
 // The plate rect the mute number-plate and the editor's pending entry box share: sized against
 // the text's own ink so the box reads as the number's ground, never a fixed chip. One authority
@@ -2183,9 +2183,8 @@ void drawStringLineLabel(
         });
 }
 
-// One satellite digit, printed inside the slot the layout manifest states (tabSatelliteLayoutAt):
-// the two marks that print one — the span's displaced posture digit and a note's own held face —
-// share this, so they cannot differ, and the hit test and a selection ring read the same cell.
+// One satellite digit — the span's displaced posture digit — printed inside the slot the layout
+// manifest states (tabSatelliteLayoutAt), so the hit test and a selection ring read the same cell.
 //
 // White ink on the tail's own fill, and the known ground is what lets it be plain white: a
 // satellite has to read on every string, and the per-string inks do not carry that on their own —
@@ -2200,8 +2199,7 @@ void drawStringLineLabel(
 // of the tail with a number on it — a translucent core alone would dim the line, not remove it.
 void drawSatelliteDigit(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const TabHeldStopLayout& layout, const juce::String& text, const std::optional<TailFade>& fade,
-    const juce::Colour ground)
+    const TabSatelliteLayout& layout, const juce::String& text, const juce::Colour ground)
 {
     const TailInterior interior = tailInterior(metrics, layout.center_y);
     const juce::Rectangle<int> patch{
@@ -2212,9 +2210,9 @@ void drawSatelliteDigit(
     };
     g.setColour(ground);
     g.fillRect(patch);
-    // The ribbon's own ink over it, so a satellite inside the fade sits on a patch dissolving
-    // with the tail rather than a solid block over it.
-    setTailInk(g, style[Ink::Tail], fade);
+    // The ribbon's own ink over it. A bracket's ground is the shape's, not one note's, so it draws
+    // solid: the bracket stands where a posture is held rather than where a tail ends.
+    setTailInk(g, style[Ink::Tail], std::nullopt);
     g.fillRect(patch);
     const int digit_left = juce::roundToInt(layout.digit.x);
     drawStringLineLabel(
@@ -2791,7 +2789,7 @@ void paintTabLane(
 
     // Each note is drawn as far as its presence says (drawnExtentSeconds): a host eases the
     // amount, so a revealing tail grows and the marks riding it travel with it, and once the
-    // reveal has begun its tail stops fading at the crop and its reveal-only satellite comes in.
+    // reveal has begun its tail stops fading at the crop.
 
     // Floating labels collected during the note passes and drawn above every head; a stepped-back
     // note's are drawn with it, beneath every other note.
@@ -3004,13 +3002,8 @@ void paintTabLane(
     // icons own the upper-left shoulder, the floating chips own the space above, and the left is
     // where the previous note's head and its arriving sustain ribbon live.
     //
-    // This pass draws the SPAN's digits and no others. A held stop's own face is the note's
-    // satellite, published per note and drawn by the pass below — except where a tap FRONTS this
-    // bracket, when the displaced digit above IS that tap's face and the note draws nothing beside
-    // it; a fretting-hand head's PLANT runs the other way, the note's own reveal-only face with
-    // the bracket printing nothing on its string (THE PLANT'S FACE). Which of the two owns a
-    // number is the projection's answer (`StopMarkFace` and the digit slot), never this pass's, so
-    // exactly one of them prints it.
+    // This pass draws the SPAN's digits, and no note draws a held stop of its own: the bracket's
+    // number is the one statement that the left hand is on the string at all.
     //
     // The bracket bars are unchanged by all this — only the lane-line gap grew to cover the digit.
     //
@@ -3050,18 +3043,15 @@ void paintTabLane(
             // Only the SIDE slot carries a ground of its own — it sits outside the bracket bars,
             // past the clip that already keeps technique marks out of the bracket's own columns,
             // which is all the ground a centred digit requires. It draws through the one satellite
-            // statement (drawSatelliteDigit), the same one a note's own held face draws through.
+            // statement (drawSatelliteDigit).
             if (bracket.side_slot)
             {
-                // A bracket's ground is the shape's, not one note's: it draws solid, the bracket
-                // standing where a posture is held rather than where a tail ends.
                 drawSatelliteDigit(
                     g,
                     metrics,
                     style,
                     tabSatelliteLayoutAt(metrics, bracket.center_x, center_y),
                     bracket.digit_text,
-                    std::nullopt,
                     ground);
             }
             else
@@ -3075,73 +3065,6 @@ void paintTabLane(
                 g.setColour(juce::Colours::white);
                 metrics.fret_font.draw(g, bracket.digit_text, box);
             }
-        }
-    }
-
-    // THE NOTE'S OWN HELD SATELLITE (THE SATELLITE REVEAL): a note carrying a held stop states it
-    // in its own satellite column beside its head — note-scoped, at the note's own slot — wherever
-    // the SPAN's furniture does not already state it. The one exception is the tap FRONTING a
-    // bracket, whose stop the pass above just printed as that bracket's displaced digit, and its
-    // mark says so (common::core::StopMarkFace::Posture), so exactly one pass draws any given
-    // number.
-    //
-    // A mid-span tap therefore wears TWO marks and they are not the same fact: its fret prints in
-    // the opening bracket as grip MEMBERSHIP, and this is the note's own face. An AUTHORED stop
-    // stands; a DERIVED one waits for the reveal, since the pull-off notation already prints that
-    // fret — asked through the host's per-note pick, the same one that hands this pass the note's
-    // real ring, so revealing a note shows the whole truth about it at once.
-    //
-    // Drawn in the bracket digits' own layer rather than after the heads: a satellite belongs to
-    // the column beside its head, and a later head overlapping it covers it exactly as it covers
-    // the bracket's displaced digit.
-    if (metrics.draw_text)
-    {
-        for (std::size_t index = first; index < last; ++index)
-        {
-            const common::core::NoteViewState& note = tab.notes[index];
-            // Bound to a local so its presence test and its reads are provably one object.
-            const std::optional<common::core::StopMarkViewState>& mark = note.stop_mark;
-            const TabNotePresence note_presence = tabPresence(presence, index);
-            // The same window test the note pass applies, and for the same reason: the index range
-            // is a tight superset, so each pass still drops the notes that really end before it.
-            // The face this pass draws sits at its note's own onset, so the note's own window
-            // bounds it.
-            if (!mark.has_value() || note.ring_end_seconds < span_start ||
-                mark->face == common::core::StopMarkFace::Posture ||
-                !common::core::stopMarkShown(*mark, note_presence.revealing()))
-            {
-                continue;
-            }
-            // The slot the layout manifest states at the mark's own instant.
-            const std::optional<TabHeldStopLayout> satellite =
-                tabHeldStopLayout(metrics, note, note_presence.revealing());
-            if (!satellite.has_value())
-            {
-                continue;
-            }
-            // A stepped-back note's satellite fades with it. Drawn here rather than in its group,
-            // whose bounds stop short of the satellite column, and still beneath everything in
-            // front: nothing else on its string stands in its column while its note rings.
-            std::optional<ScopedTransparencyLayer> faint;
-            if (note_presence.receded())
-            {
-                const TabLayoutRect& box = satellite->box;
-                const juce::Rectangle<int> bounds =
-                    layerBounds(juce::Rectangle<float>{box.x, box.y, box.width, box.height});
-                if (g.clipRegionIntersects(bounds))
-                {
-                    faint.emplace(g, bounds, recededWeight(note_presence.recede));
-                }
-            }
-            // A held stop is always a PRESSED fret, so its text is the fret's own number.
-            drawSatelliteDigit(
-                g,
-                metrics,
-                lane_styles(note.string),
-                *satellite,
-                juce::String{mark->fret},
-                tailFade(metrics, note, note_presence.revealing()),
-                ground);
         }
     }
 

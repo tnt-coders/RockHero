@@ -20,7 +20,9 @@ it would cost more than keeping it. **Revised 2026-09-29**: the standing satelli
 tapped harmonic's claim are GONE (held stops are derived-only and a right-hand onset states no
 grip), and the reopened forms will read the pressed stop from the STATED GRIP — the covering span —
 rather than from the note's own `fret`; the display code that still reads `fret` as the pressed
-stop needs that rework before the rule lifts. Reopening = delete the rule and its importer guard, regenerate the
+stop needs that rework before the rule lifts. Later the same day no note draws a held-stop satellite at all
+(the bracket prints a grip's stops), so every item below about a note's own satellite is
+historical. Reopening = delete the rule and its importer guard, regenerate the
 showcase fixture with its artificial/tapped measures, then resume items 1, 3, 5, 6, 7 and 8 below,
 which are PARKED. Items **2** (the satellite ground) and **9** (the two-chord figure) do not depend on
 the disabled forms and stay live.

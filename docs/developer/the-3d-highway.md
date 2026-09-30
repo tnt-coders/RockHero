@@ -259,8 +259,8 @@ made at are stated — the press the head never prints, and the touch that makes
 is node-centred exactly where the stop **is** the node, which is a natural harmonic: that hand
 stands on the node its head already prints, its two ends coincide, and the run collapses to the
 node-centred mark. A pressed-stop harmonic's stop is stated on this surface the same way the 2D
-lane states it in the satellite beside the head. A plain tap's planted finger, by contrast, still
-has no 3D cue at all — the remaining 2D/3D asymmetry.
+lane states it in its span's bracket. A plain tap's planted finger is printed on neither surface
+beside the tap: the pull's own destination head states it.
 
 Where every one of those lines ENDS is not a per-line question. **The taper is consistent
 everywhere**: every horizontal line the board lays on its floor — the fret-span line under a note,
@@ -601,7 +601,7 @@ by exclusion (its node is an in-memory latent, not a touch — refused by `isHar
 
 Neither the node light's absence nor the floor light states a FACT the 2D lane would have to
 answer, which is why neither needs a tab-side change: the stop-to-node line restates on the floor
-what the 2D lane already says with the diamond head, the node number and the satellite's pressed
+what the 2D lane already says with the diamond head, the node number and the bracket's pressed
 stop, and the hand WINDOW and its light are board-only furniture 2D has no lit region for.
 
 # Two visual paths: chart visuals and screen-space overlays

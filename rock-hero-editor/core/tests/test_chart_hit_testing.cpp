@@ -298,39 +298,6 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
     CHECK(empty.empty());
 }
 
-// A held stop's satellite is DISPLAY-ONLY (RULED 2026-09-29): a held stop is derived, never typed,
-// so the digit outboard of a bracket is no target. A press there reaches nothing even while the
-// note is revealed and the digit is drawn, and falls through to the ordinary placement; the head
-// beside it still answers.
-TEST_CASE("Chart hit testing never resolves a held stop's satellite", "[core][chart]")
-{
-    common::core::ChartViewState tab = makeTabState();
-    // A tap on string 5 at 6s (x = 120, y = 60.5) over a stop the hand holds, on a lane the
-    // fixture leaves empty so nothing else can answer the probes.
-    common::core::NoteViewState tap;
-    tap.start_seconds = 6.0;
-    tap.ring_end_seconds = 6.5;
-    tap.ink_end_seconds = 6.0;
-    tap.string = 5;
-    tap.fret = 12;
-    tap.attack = common::core::NoteAttack::Tap;
-    tap.stop_mark = common::core::StopMarkViewState{
-        .seconds = 6.0,
-        .fret = 5,
-        .face = common::core::StopMarkFace::Revealed,
-    };
-    tab.notes.push_back(tap);
-
-    const common::ui::TabLaneGeometry geometry = makeGeometry();
-    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
-    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
-    const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-    const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
-
-    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f, revealEverything()).has_value());
-    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f, revealEverything()) == noteTarget(3));
-}
-
 // Selection keys resolve back to projection indices through the sorted chart note stream, and
 // keys whose notes vanished drop out instead of mismapping.
 TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]")

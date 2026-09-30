@@ -1964,7 +1964,7 @@ void checkEveryStretchOpensOnANote(const HighwayViewState& state)
     for (const HighwayLitStretch& stretch : state.fret_hand.lit)
     {
         CHECK(std::ranges::any_of(state.chart.notes, [&stretch](const NoteViewState& note) {
-            const bool evidence = !rightHandOnset(note.attack) || note.stop_mark.has_value();
+            const bool evidence = !rightHandOnset(note.attack) || note.held_fret.has_value();
             return evidence &&
                    std::abs(note.start_seconds - stretch.start_seconds) < g_onset_match_epsilon;
         }));
