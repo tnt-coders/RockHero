@@ -30,8 +30,8 @@ when the derivation lands.*
   `chart.h`, with `fretFor` its offset-0 case; the census rig asks it, and the importer's
   `statedStopAt` asks it with no held stop, the stream being unresolved there. Since the
   2026-09-29 change a bare tap's DEFAULT counts toward the window like any other held finger (it
-  used to be invisible to it); with half-open span coverage the default is nearly always 0, so
-  this seldom widens anything. The floor light's evidence reads the same table's fret
+  used to be invisible to it); with half-open span coverage the default is nearly always the open
+  string, which holds nothing, so this seldom widens anything. The floor light's evidence reads the same table's fret
   (`NoteViewState::stop_mark`).
 - **Phase 0 deviation:** the reader does NOT refuse an unsorted `fhps` stream at parse — the
   validator runs on every load and nothing searches the stream in between, so the parse-time

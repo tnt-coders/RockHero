@@ -1114,8 +1114,11 @@ neighbours.
     LOWER than the onset's own — every fret alike, the open string's 0 included; only a destination
     the chart never defines derives nothing — whichever hand made the source. The plant is the
     source's held stop and its own reveal-only satellite (THE PLANT'S FACE, 12b above). A picking-
-    hand onset with no plant holds THE DEFAULT: the covering span's posture stop on its string,
-    else 0 (coverage is half-open, so a tap at the instant a span closes stands in no grip). Every
+    hand onset with no plant holds THE DEFAULT: the covering span's posture stop on its string
+    (coverage is half-open, so a tap at the instant a span closes stands in no grip). An open
+    string is no finger, so a stop of 0 — the plant of a pull onto the open string, or a default
+    with no grip beneath it — holds nothing and draws no satellite; the pull's own head already
+    prints the 0, and spans still read the raw plant (`chartPlantedStops`). Every
     held stop's face draws at its note's RELEASE STATEMENT (`lastInteriorFretStatement`, RULED
     2026-09-29) — the landing keyframe of a slid note, a tap's included, the head of an unslid
     one — because the finger it names waits where the note's own finger lets go.

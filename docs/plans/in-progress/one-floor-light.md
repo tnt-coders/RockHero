@@ -173,9 +173,9 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
 - **Fretting hand — `makeFretHandLight(const ChartViewState&, std::span<const double>
   margin_rise)`.** Evidence items:
   - every note with `!rightHandOnset(attack)`: `{start, noteReleaseAt(note), margin_rise[i]}`;
-  - every right-hand onset with `note.held.value_or(0) > 0`, same extent — a tap lit through its
-    claim. No authorship tier is needed: a DEFAULT held stop is above 0 only under a covering span,
-    which is evidence anyway, and a bare tap's default is 0;
+  - every right-hand onset with a held stop (`NoteViewState::stop_mark`, always a pressed fret),
+    same extent — a tap lit through the finger beneath it. No authorship tier is needed: a DEFAULT
+    held stop exists only under a covering span, which is evidence anyway;
   - every span: `{start_seconds, drawn_end_seconds, 0}` — a span never OPENS a stretch (it starts
     at a note onset, which carries the rise, or tiles onto its predecessor as a carry-opened
     successor). Section 4 tests that claim; if it fails, the fix is a rise taken from the note at

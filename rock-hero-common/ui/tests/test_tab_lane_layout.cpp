@@ -300,17 +300,6 @@ TEST_CASE("A held stop's satellite lays out where its face is shown", "[ui][tab-
         tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), false).has_value());
     CHECK(tabHeldStopLayout(geometry, tap(common::core::StopMarkFace::Revealed), true).has_value());
 
-    // THE DEFAULT wears the same reveal-only face, and its ZERO is the case worth naming: a tap
-    // holding nothing resolves to the open string, so the column is a question about the FACE and
-    // never about the number — a presence test that read the value would drop exactly this
-    // satellite.
-    common::core::NoteViewState defaulted = tap(common::core::StopMarkFace::Revealed);
-    defaulted.stop_mark = common::core::StopMarkViewState{
-        .seconds = 5.0, .fret = 0, .face = common::core::StopMarkFace::Revealed
-    };
-    CHECK_FALSE(tabHeldStopLayout(geometry, defaulted, false).has_value());
-    CHECK(tabHeldStopLayout(geometry, defaulted, true).has_value());
-
     // And the reveal grants nothing to a note that states no held stop: the column is the STOP's.
     common::core::NoteViewState unheld = tap(common::core::StopMarkFace::Revealed);
     unheld.stop_mark.reset();

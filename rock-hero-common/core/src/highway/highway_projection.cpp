@@ -507,12 +507,9 @@ std::vector<HighwayLitStretch> makeFretHandLight(
     for (std::size_t index = 0; index < scene.notes.size(); ++index)
     {
         const NoteViewState& note = scene.notes[index];
-        // A bare right-hand onset says nothing about the fretting hand; one whose held stop is
-        // pressed is that hand holding it. No tier is needed: a DEFAULT held stop is above zero
-        // only under a covering span, which is evidence anyway. Bound to a local so the presence
-        // test and the read are provably the same object.
-        const std::optional<StopMarkViewState>& held = note.stop_mark;
-        if (rightHandOnset(note.attack) && (!held.has_value() || held->fret <= 0))
+        // A bare right-hand onset says nothing about the fretting hand; one with a held stop —
+        // always a pressed finger — is that hand holding it.
+        if (rightHandOnset(note.attack) && !note.stop_mark.has_value())
         {
             continue;
         }

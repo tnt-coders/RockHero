@@ -113,8 +113,8 @@ std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
 }
 
 // The saved notes and the held stops resolved beside them are index-parallel by construction; this
-// is the one place that pairs them for the fold. The COMPLETE table, so a bare tap's default — the
-// grip the covering span holds — is a finger the window covers like any other.
+// is the one place that pairs them for the fold. A bare tap's default — the grip the covering span
+// holds — is a finger the window covers like any other.
 std::vector<std::optional<HeldFretRange>> deriveHeldFretRanges(
     const ChartResolutions& resolutions, const std::vector<FretHandPosition>& placements,
     const TempoMap& tempo_map)

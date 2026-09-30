@@ -220,7 +220,8 @@ std::vector<std::optional<int>> chartHeldStops(
     const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
-    std::vector<std::optional<int>> held = chartPlantedStops(connections);
+    const std::vector<std::optional<int>> planted = chartPlantedStops(connections);
+    std::vector<std::optional<int>> held(notes.size());
     // WHICH span covers an instant, from the one authority every span-scoped rule asks
     // (\ref SpanCover) — the same coverage the hold extension is measured against, so the default
     // can never sit under a span that walk says is not there.
@@ -228,26 +229,30 @@ std::vector<std::optional<int>> chartHeldStops(
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = notes[index];
-        if (held[index].has_value() || !pickingHandStopsString(note.attack, note.harmonic_node))
+        // The source is chosen on the RAW plant: a pull-off onto the open string states that no
+        // finger is there, so the default must not answer beneath it.
+        std::optional<int> stated = planted[index];
+        if (!stated.has_value() && pickingHandStopsString(note.attack, note.harmonic_node))
         {
-            continue;
+            // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap the notation
+            // says nothing under releases onto the covering span's posture — its PRESSED fret,
+            // which a node grip states as 0 by construction. Nothing where no span covers the tap,
+            // or where the covering posture says nothing about THIS string.
+            // Each bound to a local so the presence test and the reads are provably one object.
+            const std::optional<SpanCoverage> covering = cover.reaching(note.position);
+            const std::optional<std::size_t> string_index = chartStringIndex(note);
+            if (covering.has_value() && string_index.has_value())
+            {
+                const std::optional<ChartStop>& posture_stop =
+                    shapes.postures[shapes.shapes[covering->span].posture].stops[*string_index];
+                if (posture_stop.has_value())
+                {
+                    stated = posture_stop->fret;
+                }
+            }
         }
-        // THE DEFAULT FACT: the hand is holding whatever grip it holds, so a tap the notation says
-        // nothing under releases onto the covering span's posture — its PRESSED fret, which a node
-        // grip states as 0 by construction. Zero — the open string, nothing held — where no span
-        // covers the tap, and equally where the covering posture says nothing about THIS string:
-        // a string a posture never names is a string no finger was on.
-        int stop = 0;
-        // Each bound to a local so the presence test and the reads are provably the same object.
-        const std::optional<SpanCoverage> covering = cover.reaching(note.position);
-        const std::optional<std::size_t> string_index = chartStringIndex(note);
-        if (covering.has_value() && string_index.has_value())
-        {
-            const std::optional<ChartStop>& posture_stop =
-                shapes.postures[shapes.shapes[covering->span].posture].stops[*string_index];
-            stop = posture_stop.has_value() ? posture_stop->fret : 0;
-        }
-        held[index] = stop;
+        // The open string is no finger, so it holds nothing.
+        held[index] = stated.and_then(pressedFret);
     }
     return held;
 }
@@ -260,7 +265,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // The SPANS are independent of presentation entirely: they read the stored stream alone, since
     // every stop they compare comes off a stored fret channel.
     ChartShapes derived = deriveChartShapes(resolutions.connections, tempo_map);
-    // THE COMPLETE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
+    // THE HELD TABLE, and its place in the pipeline is part of the rule: a bare tap's
     // DEFAULT held stop is the grip the covering span holds, so it reads the postures just derived.
     // It therefore runs AFTER the derivation and feeds nothing that runs before it. Handed the
     // whole derivation rather than its two vectors apart, because `shapes` indexes `postures` and

@@ -1691,23 +1691,15 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a span-less bare tap defaults to the open string")
+    SECTION("a span-less bare tap holds nothing and wears no satellite")
     {
-        // Nothing covers this tap, so nothing is held under it: zero, the open string. The face is
-        // still its own, because the question arose and was answered.
+        // Nothing covers this tap, so it releases onto the open string, which no finger holds.
         const ChartViewState bare = project({tap(2, 3, 12, Fraction{1})});
         const NoteViewState* const untold = tap_view(bare);
         REQUIRE(untold != nullptr);
         if (untold != nullptr)
         {
-            CHECK(heldFretOf(*untold) == std::optional{0});
-            const std::optional<StopMarkViewState>& mark = untold->stop_mark;
-            REQUIRE(mark.has_value());
-            if (mark.has_value())
-            {
-                CHECK(mark->face == StopMarkFace::Revealed);
-                CHECK_THAT(mark->seconds, Catch::Matchers::WithinAbs(0.5, 1e-9));
-            }
+            CHECK_FALSE(untold->stop_mark.has_value());
         }
     }
 
@@ -1875,11 +1867,10 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         }
     }
 
-    SECTION("a plant on the OPEN string is a held 0 with the same face")
+    SECTION("a plant on the OPEN string holds nothing and wears no satellite")
     {
-        // Every fret derives alike, the open string included: a pull onto 0 plants the open string
-        // beneath the source, so its satellite reads "0" on the reveal and the bracket prints
-        // nothing on that string, exactly as for a pressed plant.
+        // A pull onto 0 plants the open string beneath the source, which no finger holds, so the
+        // source states no held stop; the pull's own head prints the 0.
         const ChartViewState state = project(
             {strike(1, 3, 7, Fraction{1}),
              pull_to(2, 3, 0, Fraction{3}),
@@ -1896,13 +1887,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(source != nullptr);
         if (source != nullptr)
         {
-            CHECK(heldFretOf(*source) == std::optional{0});
-            const std::optional<StopMarkViewState>& mark = source->stop_mark;
-            REQUIRE(mark.has_value());
-            if (mark.has_value())
-            {
-                CHECK(mark->face == StopMarkFace::Revealed);
-            }
+            CHECK_FALSE(source->stop_mark.has_value());
         }
     }
 

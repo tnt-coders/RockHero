@@ -96,7 +96,7 @@ enum class StopMarkFace : std::uint8_t
 
     Every held stop no bracket at the note's own position prints: a PLANT, which the pull-off
     notation already prints, under a tap and under a fretting-hand source alike; and THE DEFAULT
-    under a bare tap, the grip the covering span holds on its string, or 0 where nothing does.
+    under a bare tap, the grip the covering span holds on its string.
 
     Revealing the note shows the whole truth about it at once, so this appears exactly while its
     real ring does — the editor's selection-and-reveal pick, which the host answers, this core
@@ -465,7 +465,7 @@ struct StopMarkViewState
     */
     double seconds{0.0};
 
-    /*! \brief The held fret the face prints (\ref chartHeldStops); 0 is the open string. */
+    /*! \brief The held fret the face prints (\ref chartHeldStops); always a pressed fret. */
     int fret{0};
 
     /*! \brief Whose ink states the stop, and on what terms it is shown (\ref StopMarkFace). */
@@ -610,10 +610,10 @@ struct NoteViewState
     \brief The face that states this note's HELD stop — the fret, where it draws, and on what terms;
            absent where the note holds no second stop.
 
-    The COMPLETE held stop (\ref chartHeldStops): present for every note the picking hand stops the
-    string for (its plant, or THE DEFAULT) and for every other note a pull-off plants a stop beneath
-    (the plant). A satellite is the note's own face, note-scoped and display-only;
-    \ref StopMarkFace says whose ink states it and on what terms it shows.
+    The held stop (\ref chartHeldStops): present wherever a finger is pressed beneath the note — a
+    pull-off's plant, or THE DEFAULT under a note the picking hand stops the string for — and absent
+    over the open string, which no finger holds. A satellite is the note's own face, note-scoped and
+    display-only; \ref StopMarkFace says whose ink states it and on what terms it shows.
 
     Two facts about a mid-span tap, and they are not the same fact: its fret prints in the opening
     bracket as grip MEMBERSHIP (\ref ShapeStringViewState::digit, the digit window, unchanged and

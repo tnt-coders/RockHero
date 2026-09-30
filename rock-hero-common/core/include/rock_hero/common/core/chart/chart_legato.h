@@ -287,16 +287,15 @@ held table (\ref chartHeldStops).
     const ChartConnections& connections);
 
 /*!
-\brief THE COMPLETE HELD TABLE: the fret the fretting hand holds under every head that sounds
-       elsewhere.
+\brief THE HELD TABLE: the fret the fretting hand presses under every head that sounds elsewhere.
 
 A held stop is DERIVED, never typed (RULED 2026-09-29). Every note a pull-off plants a stop beneath
 (\ref chartPlantedStops) holds that stop, whichever hand made the onset. A note the PICKING HAND
 STOPS THE STRING FOR (\ref pickingHandStopsString) — a plain tap or a pick slide — with no plant
-still holds one: THE DEFAULT, the fret the covering span's posture holds on its own string, or 0 —
-the open string, nothing held — where no span covers it (coverage is half-open, \ref SpanCover) or
-the posture names nothing there. A tap says nothing about the other hand, so the question always has
-an answer. Every other note holds no second stop.
+holds THE DEFAULT: the fret the covering span's posture holds on its own string (coverage is
+half-open, \ref SpanCover). An OPEN string is no finger, so a stop of 0 — a plant onto the open
+string, or a default with no grip beneath it — holds nothing (\ref pressedFret), and every held stop
+is a pressed fret. Every other note holds no second stop.
 
 A POST-SHAPES FACT, which is why it is a table of its own: the default READS the derived postures,
 so this runs AFTER \ref deriveChartShapes and feeds nothing that runs before it. LIVE-DERIVED: an
@@ -306,8 +305,8 @@ edit that reflows the spans re-derives every default.
 \param shapes The spans and postures derived from them (\ref deriveChartShapes).
 \param tempo_map Song tempo map supplying the beat axis each span's extent is advanced along.
 
-\return Per note, the fret the fretting hand holds under it, or nothing where the note holds no
-        second stop; index-parallel to `connections.saved_notes`.
+\return Per note, the fret the fretting hand presses under it, or nothing where no finger is down
+        beneath it; index-parallel to `connections.saved_notes`.
 */
 [[nodiscard]] std::vector<std::optional<int>> chartHeldStops(
     const ChartConnections& connections, const ChartShapes& shapes, const TempoMap& tempo_map);

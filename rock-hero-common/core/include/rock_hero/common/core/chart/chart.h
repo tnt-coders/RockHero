@@ -2104,6 +2104,18 @@ hand on.
 }
 
 /*!
+\brief The fret a fretting finger occupies, or nothing for the open string, where no finger is down.
+
+\param fret Fret slot, 0 for the open string.
+
+\return The fret where it is pressed, or nothing for the open string.
+*/
+[[nodiscard]] constexpr std::optional<int> pressedFret(const int fret) noexcept
+{
+    return fret > 0 ? std::optional{fret} : std::nullopt;
+}
+
+/*!
 \brief THE FINGER-DOWN READING of \ref fretHandStopAt: the fret slot a fretting finger occupies at
 an instant, or nothing where no finger is down — an open string, or a picking-hand onset with no
 held stop.
@@ -2122,8 +2134,7 @@ held stop.
     {
         return std::nullopt;
     }
-    const int fret = handFretOf(*stop);
-    return fret > 0 ? std::optional{fret} : std::nullopt;
+    return pressedFret(handFretOf(*stop));
 }
 
 /*!

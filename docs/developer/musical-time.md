@@ -273,15 +273,16 @@ onset — because you cannot pull off onto a fret unless a finger is waiting the
 holds is a fact about its NEIGHBOUR. A held stop is DERIVED, never stored (ruled 2026-09-29).
 
 One table is deliberately later than all of that: `chartHeldStops`, carried as `held_stops`, is the
-COMPLETE held fret under every head that sounds ELSEWHERE: the PLANT a pull-off lands on beneath
-the note, else — under an onset the PICKING HAND STOPS THE STRING FOR — **the DEFAULT: the PRESSED
-fret the covering span's posture holds on that string — a harmonic node in the posture presses
-nothing — else 0**; coverage is half-open, so a tap at the instant a span closes stands in no grip.
+pressed fret under every head that sounds ELSEWHERE: the PLANT a pull-off lands on beneath the
+note, else — under an onset the PICKING HAND STOPS THE STRING FOR — **the DEFAULT: the PRESSED fret
+the covering span's posture holds on that string**; coverage is half-open, so a tap at the instant a
+span closes stands in no grip. **An open string is no finger**, so a stop of 0 — a plant onto the
+open string, a default with no grip beneath it, a harmonic node in the posture — holds nothing.
 It reads the derived postures, so it computes AFTER `deriveChartShapes` and feeds nothing that runs
 before it. `NoteViewState::stop_mark` carries this table's fret, where it draws (the note's release
 statement) and on what terms (revealed with the note, unless a bracket at the note's own position
-prints the same stop in the satellite column, which then owes it), so it is present for every
-right-hand onset and for every onset a pull-off plants under, and absent everywhere else.
+prints the same stop in the satellite column, which then owes it), so it is present wherever a
+finger is pressed beneath the note, and absent everywhere else.
 
 # The TempoMap
 

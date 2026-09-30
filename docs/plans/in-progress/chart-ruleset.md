@@ -47,8 +47,10 @@ Sound truth is never bent for display; nothing derivable is stored.
   stop the notation does not prove waits on span templates, where the grip itself proves it
   (`docs/plans/todo/span-marker-redesign.md`). **R3**: every plant draws at its source's release
   statement, taps included, and so does a default (THE PLANT'S FACE). **R4**: THE TAP'S FLOOR
-  (LAW III). **Fret 0 in a
-  held stop is a VOICING member** — the chord frame's "o", not a finger — and is described that way.
+  (LAW III). **An open string holds nothing** (user, 2026-09-29, reversing the earlier "fret 0 in
+  a held stop is a voicing member"): a 0 satellite told the reader nothing and in tab reads as
+  "sound the open string", so a stop of 0 is no held stop and draws no satellite. The span law
+  still reads the raw plant, 0 included (`chartPlantedStops`, THE HOLD-UNDER LAW).
 - **Artificial and tapped harmonics are DISABLED for now** (RULED 2026-09-18, late): validation
   refuses a node over a pressed stop under any attack but the pinch, and a node under the tap
   attack, so no chart can hold either form — the reader hard-errors, every editor plan is refused
@@ -675,11 +677,13 @@ UNDEFINED still HAS one, because a tap says nothing about the other hand and the
 holding whatever it is holding. It is a
 FACT of the tap, not presentation decoration, which is why it resolves in core and every surface
 copies it. Inside a span the release lands on WHATEVER STOP THE COVERING SPAN'S POSTURE HOLDS on the
-tap's own string (the pressed fret, which a node grip states as 0 by construction, since a node
-presses nothing); span-less, or where the posture states nothing on that string, it is 0 — the open
-string, nothing held. Coverage is HALF-OPEN (`SpanCover`): a tap at the very instant a span
-closes stands in no grip, since the span closed there because the chart stopped proving it — the
-tap that splits a span under THE TAP'S FLOOR defaults to 0, never to the stop it just displaced.
+tap's own string; span-less, or where the posture states nothing on that string (or a node, which
+presses nothing), the tap releases onto the open string and holds NOTHING (`pressedFret`). A pull-off
+onto the open string likewise holds nothing, and the default does not answer beneath it: the
+notation stated that no finger is there. Coverage is HALF-OPEN (`SpanCover`): a tap at the very
+instant a span closes stands in no grip, since the span closed there because the chart stopped
+proving it — the tap that splits a span under THE TAP'S FLOOR holds nothing, never the stop it just
+displaced.
 It is LIVE-DERIVED: an edit that reflows the spans re-derives it, which falls
 out of per-revision recomputation because there is no stored value to go stale. **THE LAYERING is
 half the ruling**: the default READS the derived posture, so it computes AFTER `deriveChartShapes`,

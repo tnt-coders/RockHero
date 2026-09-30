@@ -232,10 +232,10 @@ void derivesLike(const std::vector<ChartNote>& notes, const std::vector<ChartNot
     return note;
 }
 
-// THE DEFAULT HELD FACT. A tap says nothing about the fretting hand, so asking what is under one
-// always has an answer: the hand is holding whatever grip it is holding, and the tap's release
-// lands on it. Inside a span that is the covering posture's fret on the tap's own string;
-// span-less, or on a string the posture never names, it is 0 — the open string, nothing held.
+// THE DEFAULT HELD FACT. A tap says nothing about the fretting hand, so the hand is holding
+// whatever grip it is holding, and the tap's release lands on it. Inside a span that is the
+// covering posture's fret on the tap's own string; span-less, or on a string the posture never
+// names, it is the open string, which no finger holds.
 //
 // THE CHUG FIGURE is how a legal chart reaches a covering span at all: a tap on a string the grip
 // holds cuts that string's ring, and the span would end at the tap, but the grip RESTRUCK a half
@@ -3488,7 +3488,7 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
     {
         const std::vector<ChartNote> notes = chord_with(tapAt(2, Fraction{}, 3, 9, Fraction{1}));
         const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
-        CHECK(resolutions.held_stops[indexAt(notes, 1, 2, 3)] == std::optional{0});
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 2, 3)].has_value());
     }
 }
 
@@ -5368,15 +5368,14 @@ TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds",
         CHECK(resolutions.held_stops[indexAt(notes, 1, 2, 3)] == std::optional{7});
     }
 
-    SECTION("a tap on a string the posture never names releases onto the open string")
+    SECTION("a tap on a string the posture never names holds nothing: the open string")
     {
-        // Zero rather than absent, because the question still arose.
-        CHECK(resolutions.held_stops[indexAt(notes, 1, 2, 5)] == std::optional{0});
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 1, 2, 5)].has_value());
     }
 
-    SECTION("a span-less tap releases onto the open string")
+    SECTION("a span-less tap holds nothing: the open string")
     {
-        CHECK(resolutions.held_stops[indexAt(notes, 3, 1, 3)] == std::optional{0});
+        CHECK_FALSE(resolutions.held_stops[indexAt(notes, 3, 1, 3)].has_value());
     }
 
     SECTION("only a right-hand onset takes one")
@@ -5390,19 +5389,26 @@ TEST_CASE("A bare tap's held stop defaults to the grip the covering span holds",
 // notation states nothing.
 TEST_CASE("A pull-off's plant beats the tap's default", "[core][chart]")
 {
-    // The chug figure with string 3's restrike made a pull-off from the tap onto 3.
-    std::vector<ChartNote> notes = chugOverTap(7);
-    for (ChartNote& note : notes)
-    {
-        if (note.string == 3 &&
-            note.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}})
+    // The chug figure with string 3's restrike made a pull-off from the tap onto `fret`.
+    const auto held_under_pull_to = [](const int fret) {
+        std::vector<ChartNote> notes = chugOverTap(7);
+        for (ChartNote& note : notes)
         {
-            note.fret = 3;
-            note.attack = NoteAttack::Legato;
+            if (note.string == 3 &&
+                note.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}})
+            {
+                note.fret = fret;
+                note.attack = NoteAttack::Legato;
+            }
         }
-    }
-    const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
-    CHECK(resolutions.held_stops[indexAt(notes, 1, 2, 3)] == std::optional{3});
+        const ChartResolutions resolutions = chartResolutions(notes, makeTempoMap());
+        return resolutions.held_stops[indexAt(notes, 1, 2, 3)];
+    };
+
+    CHECK(held_under_pull_to(3) == std::optional{3});
+    // A pull-off onto the OPEN string states that no finger is there, so the grip's 7 does not
+    // answer beneath it either.
+    CHECK_FALSE(held_under_pull_to(0).has_value());
 }
 
 // LIVE-DERIVED: the default is re-derived from whatever span covers the tap NOW, so an edit that
@@ -5419,7 +5425,7 @@ TEST_CASE("The held default follows an edit that reflows the covering span", "[c
     CHECK(default_under(7) == std::optional{7});
     CHECK(default_under(9) == std::optional{9});
     // With string 3 withdrawn from the grip, the posture names nothing there: the open string.
-    CHECK(default_under(std::nullopt) == std::optional{0});
+    CHECK_FALSE(default_under(std::nullopt).has_value());
 }
 
 } // namespace rock_hero::common::core
