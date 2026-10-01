@@ -36,6 +36,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
     switch (action)
     {
         case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:
@@ -101,7 +102,6 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         case EditorAction::Id::CancelSaveAsPrompt:
         case EditorAction::Id::CancelBusyOperation:
-        case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
@@ -271,8 +271,11 @@ using Verdict = std::optional<ActionUnavailableReason>;
             });
         }
         // Play needs an open device, since only its callback moves the playhead; seeking, the grid
-        // and the arrangement verbs do not, so they keep working without one.
+        // and the arrangement verbs do not, so they keep working without one. Stop shares Play's
+        // gate exactly: the pair reads as one transport, so it is never half available, and while
+        // Play is refused nothing plays for Stop to stop.
         case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
         {
             return firstFailure({
                 require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
@@ -307,13 +310,6 @@ using Verdict = std::optional<ActionUnavailableReason>;
             return firstFailure({
                 require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
                 require(!conditions.transport_playing, Reason::TransportPlaying),
-            });
-        }
-        case EditorAction::Id::Stop:
-        {
-            return firstFailure({
-                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
-                require(conditions.can_stop_transport, Reason::TransportAtStart),
             });
         }
         case EditorAction::Id::ShowPluginBrowser:
@@ -630,10 +626,6 @@ std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noex
         case Reason::TransportPlaying:
         {
             return "transport-playing";
-        }
-        case Reason::TransportAtStart:
-        {
-            return "transport-at-start";
         }
         case Reason::AudioDeviceClosed:
         {

@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/transport_controls_test_helpers.h>
 
@@ -42,8 +43,8 @@ public:
 
 } // namespace
 
-// Verifies setState projects enabledness directly onto the concrete JUCE buttons.
-TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-controls]")
+// One reason dims both buttons and becomes both tooltips; an available transport has neither.
+TEST_CASE("TransportControls setState updates enabledness and tooltips", "[ui][transport-controls]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransportControlsListener listener;
@@ -52,23 +53,25 @@ TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-cont
 
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = true,
-            .stop_enabled = false,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
 
     CHECK(getPlayPauseButton(controls).isEnabled());
-    CHECK_FALSE(getStopButton(controls).isEnabled());
+    CHECK(getStopButton(controls).isEnabled());
+    CHECK(getPlayPauseButton(controls).getTooltip().isEmpty());
+    CHECK(getStopButton(controls).getTooltip().isEmpty());
 
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = false,
-            .stop_enabled = true,
+            .unavailable_reason = "Playback disabled: audio device closed.",
             .play_pause_shows_pause_icon = true,
         });
 
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
-    CHECK(getStopButton(controls).isEnabled());
+    CHECK_FALSE(getStopButton(controls).isEnabled());
+    CHECK(getPlayPauseButton(controls).getTooltip() == "Playback disabled: audio device closed.");
+    CHECK(getStopButton(controls).getTooltip() == "Playback disabled: audio device closed.");
 }
 
 // Verifies fixed transport buttons are centered and ordered Play/Pause, then Stop.
@@ -93,8 +96,7 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
 
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = true,
-            .stop_enabled = false,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
     auto& play_pause_button = getPlayPauseButton(controls);
@@ -103,8 +105,7 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
 
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = true,
-            .stop_enabled = false,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = true,
         });
 
@@ -120,8 +121,7 @@ TEST_CASE("TransportControls buttons do not take keyboard focus", "[ui][transpor
     TransportControls controls{listener};
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = true,
-            .stop_enabled = true,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
 
@@ -142,8 +142,7 @@ TEST_CASE("TransportControls play pause click calls listener", "[ui][transport-c
     controls.setBounds(0, 0, 120, 24);
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = true,
-            .stop_enabled = false,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
 
@@ -162,8 +161,7 @@ TEST_CASE("TransportControls stop click calls listener", "[ui][transport-control
     controls.setBounds(0, 0, 120, 24);
     controls.setState(
         TransportViewState{
-            .play_pause_enabled = false,
-            .stop_enabled = true,
+            .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
 

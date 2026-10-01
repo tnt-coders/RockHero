@@ -139,7 +139,7 @@ TEST_CASE(
 
     const auto* const gated_state = stateOrNull(view.last_state);
     REQUIRE(gated_state != nullptr);
-    CHECK(gated_state->transport.play_pause_enabled);
+    CHECK(gated_state->transport.unavailable_reason == std::nullopt);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(
         gated_state->signal_chain.input_calibration_status ==
@@ -160,7 +160,7 @@ TEST_CASE(
     const auto* const dismissed_state = stateOrNull(view.last_state);
     REQUIRE(dismissed_state != nullptr);
     CHECK_FALSE(dismissed_state->input_calibration_prompt.has_value());
-    CHECK(dismissed_state->transport.play_pause_enabled);
+    CHECK(dismissed_state->transport.unavailable_reason == std::nullopt);
     CHECK(dismissed_state->audio_device_settings_enabled);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
 }

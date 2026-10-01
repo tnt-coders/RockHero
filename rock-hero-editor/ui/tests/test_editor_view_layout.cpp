@@ -119,8 +119,8 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 
-// Verifies Stop-command state resets the horizontal viewport without treating pause as stop.
-TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-view]")
+// Stop's reveal snaps the viewport to the start; a pause, which is no reveal, leaves it.
+TEST_CASE("EditorView stop reveal snaps track viewport to start", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -131,7 +131,6 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     view.setBounds(0, 0, 1280, 800);
 
     auto state = makeLoadedEditorState(20.0);
-    state.transport.stop_enabled = true;
     state.transport.play_pause_shows_pause_icon = true;
     transport.current_position = common::core::TimePosition{5.0};
     view.setState(state);
@@ -147,9 +146,8 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     view.setState(state);
     CHECK(viewport.getViewPositionX() == 400);
 
-    state.transport.stop_enabled = false;
     transport.current_position = common::core::TimePosition{};
-    view.setState(state);
+    view.revealTimelineStart();
     CHECK(viewport.getViewPositionX() == 0);
 }
 

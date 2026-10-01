@@ -306,7 +306,6 @@ void TrackViewport::setProjectLoaded(bool project_loaded)
     {
         m_pixels_per_second = g_default_pixels_per_second;
         m_playback_active = false;
-        m_stop_enabled = false;
         m_cursor_focus_pending = false;
     }
 
@@ -356,15 +355,16 @@ void TrackViewport::setGrid(
     refreshTimelineGrid();
 }
 
-// Stores coarse transport state pushed by the controller and handles Stop-button reset.
-void TrackViewport::setTransportDisplayState(bool playback_active, bool stop_enabled)
+// Rationale lives on the declaration in track_viewport.h.
+void TrackViewport::setPlaybackActive(bool playback_active)
 {
-    const bool stopped_now = m_stop_enabled && !stop_enabled && !playback_active;
     m_playback_active = playback_active;
-    m_stop_enabled = stop_enabled;
+}
 
-    if (stopped_now && m_project_loaded && timelineDurationSeconds() > 0.0 &&
-        m_transport.position() == m_timeline_range.start)
+// Rationale lives on the declaration in track_viewport.h.
+void TrackViewport::revealTimelineStart()
+{
+    if (m_project_loaded && timelineDurationSeconds() > 0.0)
     {
         setViewportLeft(0);
     }

@@ -350,8 +350,7 @@ TEST_CASE("EditorController busy routing disables ordinary commands", "[core][ed
     CHECK(state->save_enabled == false);
     CHECK(state->save_as_enabled == false);
     CHECK(state->export_enabled == false);
-    CHECK(state->transport.play_pause_enabled == false);
-    CHECK(state->transport.stop_enabled == false);
+    CHECK(state->transport.unavailable_reason == "Playback disabled: busy.");
     CHECK(state->signal_chain.insert_plugin_enabled == false);
     CHECK(state->signal_chain.remove_plugins_enabled == false);
     CHECK(state->plugin_browser.scan_enabled == false);

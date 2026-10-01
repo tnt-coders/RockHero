@@ -46,6 +46,8 @@ target_sources(
             # every marker verb (tone regions, song sections, fret-hand positions) shares.
             src/controller/marker_model_commit.h
             src/controller/marker_model_edit.h
+            src/controller/playback_unavailable_text.cpp
+            src/controller/playback_unavailable_text.h
             src/input_calibration/input_calibration_controller.cpp
             src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_projection.cpp

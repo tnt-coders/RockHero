@@ -225,12 +225,13 @@ public:
         common::core::Fraction placement_quantum, bool grid_snap);
 
     /*!
-    \brief Stores coarse transport state pushed by the controller and handles Stop-button reset.
-
+    \brief Stores whether the transport is playing, which the playback follow reads.
     \param playback_active True while the transport is playing.
-    \param stop_enabled True while the Stop action can reset playback or the playhead.
     */
-    void setTransportDisplayState(bool playback_active, bool stop_enabled);
+    void setPlaybackActive(bool playback_active);
+
+    /*! \brief Scrolls the timeline start into view, after Stop returned the cursor there. */
+    void revealTimelineStart();
 
     /*!
     \brief Stores the tablature lane count so the waveform row can grow past six strings.
@@ -665,9 +666,6 @@ private:
         double start_seconds{};
     };
     std::optional<WindowShift> m_window_shift{};
-
-    // Previous stop-button enabled state, used to identify a Stop action reset.
-    bool m_stop_enabled{false};
 
     // Set while a project-load state is waiting for a sized viewport before centering the cursor.
     bool m_cursor_focus_pending{false};

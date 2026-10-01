@@ -67,9 +67,6 @@ struct ActionConditions
     */
     bool tone_designer_active{false};
 
-    /*! \brief True when Stop should reset playback or the playhead. */
-    bool can_stop_transport{false};
-
     /*! \brief True when an audio device is open, so the device callback can move the playhead. */
     bool audio_device_open{false};
 
@@ -126,7 +123,6 @@ enum class ActionUnavailableReason : std::uint8_t
     NoToneImportPrompt,
     HistoryUnavailable,
     TransportPlaying,
-    TransportAtStart,
     AudioDeviceClosed,
     LiveInputAuditionUnavailable,
     ToneDesignerInactive,

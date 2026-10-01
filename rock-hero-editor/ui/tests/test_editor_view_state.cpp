@@ -154,8 +154,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .save_requires_destination = false,
             .transport =
                 core::TransportViewState{
-                    .play_pause_enabled = true,
-                    .stop_enabled = false,
+                    .unavailable_reason = std::nullopt,
                     .play_pause_shows_pause_icon = false,
                 },
             .visible_timeline =
@@ -260,8 +259,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
             .save_requires_destination = false,
             .transport =
                 core::TransportViewState{
-                    .play_pause_enabled = true,
-                    .stop_enabled = true,
+                    .unavailable_reason = std::nullopt,
                     .play_pause_shows_pause_icon = true,
                 },
             .visible_timeline =

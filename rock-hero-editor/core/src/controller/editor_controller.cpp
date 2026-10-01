@@ -10,6 +10,7 @@
 #include "editor_controller_impl.h"
 #include "editor_undo_history.h"
 #include "input_calibration/input_calibration_projection.h"
+#include "playback_unavailable_text.h"
 #include "project/gp_song_importer.h"
 #include "project/project_io.h"
 #include "project/rock_song_importer.h"
@@ -1547,8 +1548,7 @@ void EditorController::Impl::onPlayPausePressed()
     runAction(EditorAction::PlayPause{});
 }
 
-// Mirrors the published transport.stop_enabled gate so the keyboard or alternate input paths
-// cannot stop a transport the view considers already reset.
+// Routes the Stop button as an action so it gates exactly like Play.
 void EditorController::Impl::onStopPressed()
 {
     runAction(EditorAction::Stop{});
@@ -2251,17 +2251,16 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
 
 void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
 {
-    const common::audio::TransportState transport_state = m_transport.state();
-    if (!canStopTransport(transport_state))
-    {
-        return;
-    }
     // Stop rests the marker passive wherever the transport resets to; a stopped-while-paused
     // armed caret dissolves because Stop is a transport action, not an editing one.
     m_transport.stop();
     disarmChartMarker();
     activateToneAtCursor();
     updateView();
+    if (m_view != nullptr)
+    {
+        m_view->revealTimelineStart();
+    }
 }
 
 // Clamps the requested position into the session timeline so out-of-range view intents cannot
@@ -2381,7 +2380,6 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .tone_designer_active = m_tone_designer.active,
-        .can_stop_transport = canStopTransport(transport_state),
         .audio_device_open = m_audio_devices.currentDeviceStatus().open,
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
@@ -2550,9 +2548,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.project_loaded = action_conditions.has_loaded_arrangement;
     state.project_load_id = m_project_load_id;
     state.save_requires_destination = m_save_requires_destination;
-    state.transport.play_pause_enabled =
-        isActionAvailable(EditorAction::Id::PlayPause, action_conditions);
-    state.transport.stop_enabled = isActionAvailable(EditorAction::Id::Stop, action_conditions);
+    // Play and Stop share one gate, so one reason dims and explains both buttons.
+    const std::optional<ActionUnavailableReason> transport_refusal =
+        whyUnavailable(EditorAction::Id::PlayPause, action_conditions);
+    state.transport.unavailable_reason =
+        transport_refusal.has_value()
+            ? std::optional<std::string>{playbackUnavailableText(*transport_refusal)}
+            : std::nullopt;
     state.transport.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
@@ -3118,15 +3120,6 @@ bool EditorController::Impl::hasUnsavedChanges() const noexcept
     const bool project_open = m_project.has_value() || m_project_write_in_flight;
     return project_open && (m_has_untracked_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
                             m_save_requires_destination);
-}
-
-// Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
-// the start of the loaded timeline.
-bool EditorController::Impl::canStopTransport(
-    const common::audio::TransportState& transport_state) const
-{
-    return hasLoadedArrangement() &&
-           (transport_state.playing || m_transport.position() != session().timeline().start);
 }
 
 } // namespace rock_hero::editor::core

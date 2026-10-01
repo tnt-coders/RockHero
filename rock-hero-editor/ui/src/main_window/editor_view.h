@@ -159,6 +159,9 @@ public:
     /*! \copydoc core::IEditorView::flashChartRefusal */
     void flashChartRefusal(core::ChartRefusalFlash flash) override;
 
+    /*! \copydoc core::IEditorView::revealTimelineStart */
+    void revealTimelineStart() override;
+
     /*!
     \brief Runs a callback after the busy overlay paints.
     \param callback Callback to run after the overlay paint fence is crossed.

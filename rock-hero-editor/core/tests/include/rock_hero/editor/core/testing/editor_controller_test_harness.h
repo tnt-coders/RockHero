@@ -129,6 +129,12 @@ public:
         refusal_flashes.push_back(std::move(flash));
     }
 
+    // Counts each request to scroll the timeline start into view.
+    void revealTimelineStart() override
+    {
+        timeline_start_reveal_count += 1;
+    }
+
     // Runs or stores a busy-overlay paint fence callback for controller tests.
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
@@ -201,6 +207,7 @@ public:
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartRefusalFlash> refusal_flashes{};
+    int timeline_start_reveal_count{0};
 
     // Durable state that was current when each one-shot error was shown.
     std::vector<std::optional<EditorViewState>> states_seen_at_errors{};
@@ -2215,22 +2222,6 @@ inline void addKnownPlugin(
 {
     controller.onPluginBrowserRequested();
     controller.onSelectedPluginInsertRequested(std::move(plugin_id));
-}
-
-/*!
-\brief Exposes stop enabledness as an optional value for combined presence/value assertions.
-\param view Fake view containing the last pushed editor state.
-\return Stop enabledness, or empty before any state has been pushed.
-*/
-[[nodiscard]] inline std::optional<bool> lastStopEnabled(const FakeEditorView& view)
-{
-    const EditorViewState* state = stateOrNull(view.last_state);
-    if (state == nullptr)
-    {
-        return std::nullopt;
-    }
-
-    return state->transport.stop_enabled;
 }
 
 // Task runner fake that lets tests defer completions to simulate async behavior. submit() runs

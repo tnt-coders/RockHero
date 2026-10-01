@@ -981,7 +981,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool hasLoadedChart() const;
     [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
-    [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
 
     // Transport port used for control intents and coarse listener delivery.
     common::audio::ITransport& m_transport;

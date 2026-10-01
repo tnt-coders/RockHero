@@ -113,7 +113,7 @@ private:
     // Button that renders either Play or Pause based on m_state.
     std::unique_ptr<juce::DrawableButton> m_play_pause_button;
 
-    // Button that sends Stop intent when playback or cursor state can be reset.
+    // Button that sends Stop intent: return to the start, playing or not.
     std::unique_ptr<juce::DrawableButton> m_stop_button;
 
     // Embedded Play icon retained because DrawableButton stores non-owning image pointers.
@@ -124,6 +124,10 @@ private:
 
     // Embedded Stop icon retained because DrawableButton stores non-owning image pointers.
     std::unique_ptr<juce::Drawable> m_stop_drawable;
+
+    // The application-wide tooltip window, held here so the buttons' reasons paint whatever else
+    // is alive; shared rather than owned, since two live TooltipWindows paint overlaid tips.
+    juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
 };
 
 } // namespace rock_hero::editor::ui

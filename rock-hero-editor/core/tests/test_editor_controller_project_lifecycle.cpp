@@ -278,7 +278,7 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
         CHECK(state.suggested_export_file.empty());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
-        CHECK(state.transport.play_pause_enabled == false);
+        CHECK(state.transport.unavailable_reason == "Playback disabled: no song open.");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
     }

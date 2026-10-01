@@ -2,6 +2,7 @@
 
 #include <BinaryData.h>
 #include <algorithm>
+#include <string>
 
 namespace rock_hero::editor::ui
 {
@@ -67,9 +68,16 @@ void TransportControls::setState(const core::TransportViewState& state)
     const juce::Drawable* const play_pause_drawable =
         m_state.play_pause_shows_pause_icon ? m_pause_drawable.get() : m_play_drawable.get();
 
-    m_play_pause_button->setEnabled(m_state.play_pause_enabled);
     m_play_pause_button->setImages(play_pause_drawable);
-    m_stop_button->setEnabled(m_state.stop_enabled);
+    // The pair shares one gate: both dim together, and only a dimmed button carries a tooltip,
+    // so a tooltip appearing at all says "here is why this is off".
+    const bool available = !m_state.unavailable_reason.has_value();
+    const juce::String tooltip{m_state.unavailable_reason.value_or(std::string{})};
+    for (juce::DrawableButton* const button : {m_play_pause_button.get(), m_stop_button.get()})
+    {
+        button->setEnabled(available);
+        button->setTooltip(tooltip);
+    }
 }
 
 // Keeps fixed-size Play/Pause and Stop buttons centered in the available strip.

@@ -461,8 +461,7 @@ template <class ComponentType>
         .save_requires_destination = false,
         .transport =
             core::TransportViewState{
-                .play_pause_enabled = true,
-                .stop_enabled = false,
+                .unavailable_reason = std::nullopt,
                 .play_pause_shows_pause_icon = false,
             },
         .visible_timeline =

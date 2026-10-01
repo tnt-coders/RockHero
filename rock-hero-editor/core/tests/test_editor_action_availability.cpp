@@ -26,7 +26,6 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
         .undo_available = true,
         .redo_available = true,
         .has_loaded_arrangement = true,
-        .can_stop_transport = true,
         .has_plugin_candidates = true,
         .has_plugin_insert_capacity = true,
         .has_loaded_plugins = true,
@@ -110,7 +109,7 @@ TEST_CASE("Prompt actions follow active prompt state", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::CancelSaveAsPrompt, conditions));
 }
 
-// Verifies that transport actions follow the loaded arrangement and stop conditions.
+// Verifies that Play and Stop share one gate: a loaded arrangement and an open device.
 TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-action]")
 {
     ActionConditions conditions;
@@ -122,8 +121,8 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
 
     conditions.has_loaded_arrangement = true;
 
-    // Without an open device only Play is off: nothing would move the playhead, while seeking
-    // and the grid work as ever.
+    // Without an open device the transport is off: nothing would move the playhead, while
+    // seeking and the grid work as ever.
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK(isActionAvailable(ActionId::SetGridNoteValue, conditions));
@@ -131,9 +130,6 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
 
     conditions.audio_device_open = true;
     CHECK(isActionAvailable(ActionId::PlayPause, conditions));
-
-    conditions.can_stop_transport = true;
-
     CHECK(isActionAvailable(ActionId::Stop, conditions));
 }
 
@@ -193,13 +189,13 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
         .undo_available = true,
         .redo_available = true,
         .has_loaded_arrangement = true,
-        .can_stop_transport = true,
         .has_plugin_candidates = true,
         .has_plugin_insert_capacity = true,
         .has_loaded_plugins = true,
     };
 
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Stop, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
@@ -213,7 +209,6 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
 
     CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK(isActionAvailable(ActionId::SetGridNoteValue, conditions));
-    CHECK(isActionAvailable(ActionId::Stop, conditions));
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
 }
 
@@ -228,7 +223,6 @@ TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
         .undo_available = true,
         .redo_available = true,
         .has_loaded_arrangement = true,
-        .can_stop_transport = true,
         .has_plugin_candidates = true,
         .has_plugin_insert_capacity = true,
         .has_loaded_plugins = true,
@@ -429,6 +423,28 @@ TEST_CASE("Unavailable reasons follow the availability stages", "[core][editor-a
     CHECK(whyUnavailable(ActionId::PlayPause, conditions) == ActionUnavailableReason::Busy);
 }
 
+// Stop shares Play's gate at every stage, so the transport pair is never half available and one
+// reason explains both buttons.
+TEST_CASE("Stop names Play's reason at every stage", "[core][editor-action]")
+{
+    const auto same_reason = [](const ActionConditions& conditions) {
+        return whyUnavailable(ActionId::Stop, conditions) ==
+               whyUnavailable(ActionId::PlayPause, conditions);
+    };
+
+    CHECK(same_reason(ActionConditions{}));
+    CHECK(same_reason(ActionConditions{.has_loaded_arrangement = true}));
+    CHECK(same_reason(ActionConditions{.has_loaded_arrangement = true, .audio_device_open = true}));
+    CHECK(same_reason(
+        ActionConditions{
+            .input_calibration_prompt_visible = true,
+            .has_loaded_arrangement = true,
+            .audio_device_open = true,
+        }));
+    CHECK(same_reason(ActionConditions{.session_faulted = true, .has_loaded_arrangement = true}));
+    CHECK(same_reason(ActionConditions{.busy = true, .has_loaded_arrangement = true}));
+}
+
 // Cancel names why there is nothing to cancel: no busy work, or busy work that cannot be cancelled.
 TEST_CASE("Cancel names why it cannot run", "[core][editor-action]")
 {
@@ -465,7 +481,6 @@ TEST_CASE("Availability is the absence of a reason", "[core][editor-action]")
     const ActionConditions conditions{
         .has_project = true,
         .has_loaded_arrangement = true,
-        .can_stop_transport = true,
         .has_chart = true,
     };
 

@@ -67,9 +67,10 @@ never *where*. The transport begins exactly where the cursor already was.
   a coarse `TransportState` snapshot plus listener. There is no count-in surface and no
   "about to start" state.
 - **`TransportViewState`**
-  (`rock-hero-editor/core/include/rock_hero/editor/core/transport/transport_view_state.h`) is three
-  booleans: `play_pause_enabled`, `stop_enabled`, `play_pause_shows_pause_icon`. Counting-in is a
-  fourth fact for this struct, not a new one somewhere else.
+  (`rock-hero-editor/core/include/rock_hero/editor/core/transport/transport_view_state.h`) holds
+  `unavailable_reason` (one gate for Play and Stop, absent while available) and
+  `play_pause_shows_pause_icon`. Counting-in is a further fact for this struct, not a new one
+  somewhere else.
 - **`TempoMap`** (`rock-hero-common/core/include/rock_hero/common/core/timeline/tempo_map.h`)
   already answers every question the schedule asks: `timeSignatureAtSeconds` (:126),
   `quarterNoteBpmAtSeconds` (:152), `beatPositionAtSeconds` (:138), `beatsPerMeasureAt` (:159),

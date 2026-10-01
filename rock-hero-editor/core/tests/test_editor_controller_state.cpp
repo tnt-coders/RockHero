@@ -27,8 +27,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
-    CHECK(empty_state.transport.play_pause_enabled == false);
-    CHECK(empty_state.transport.stop_enabled == false);
+    CHECK(empty_state.transport.unavailable_reason.has_value());
     CHECK(empty_state.transport.play_pause_shows_pause_icon == false);
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
@@ -66,8 +65,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .save_requires_destination = false,
         .transport =
             TransportViewState{
-                .play_pause_enabled = true,
-                .stop_enabled = true,
+                .unavailable_reason = std::nullopt,
                 .play_pause_shows_pause_icon = true,
             },
         .audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]",
@@ -319,8 +317,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK_FALSE(state.redo_label.has_value());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
-        CHECK(state.transport.play_pause_enabled == false);
-        CHECK(state.transport.stop_enabled == false);
+        CHECK(state.transport.unavailable_reason == "Playback disabled: no song open.");
         CHECK(state.transport.play_pause_shows_pause_icon == false);
         CHECK(state.audio_device_status_text == "[48000 Hz 24bit: 1/2ch 128spls ~4.5/7.5ms ASIO]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
@@ -402,7 +399,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     {
         const EditorViewState& playing_state = view.last_state.value();
         CHECK(playing_state.transport.play_pause_shows_pause_icon == true);
-        CHECK(playing_state.transport.stop_enabled == true);
+        CHECK(playing_state.transport.unavailable_reason == std::nullopt);
         CHECK(playing_state.visible_timeline == loadedTimelineRange());
     }
 
@@ -417,7 +414,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     {
         const EditorViewState& stopped_state = view.last_state.value();
         CHECK(stopped_state.transport.play_pause_shows_pause_icon == false);
-        CHECK(stopped_state.transport.stop_enabled == false);
+        CHECK(stopped_state.transport.unavailable_reason == std::nullopt);
     }
 }
 

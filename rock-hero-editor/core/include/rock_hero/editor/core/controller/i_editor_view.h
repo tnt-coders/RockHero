@@ -104,6 +104,14 @@ public:
     virtual void flashChartRefusal(ChartRefusalFlash flash) = 0;
 
     /*!
+    \brief Asks the view to scroll the timeline start into view, after Stop returned there.
+
+    A one-shot effect of the Stop action rather than view state: a cursor already at the start
+    in a view scrolled elsewhere still comes back, which no state comparison could tell.
+    */
+    virtual void revealTimelineStart() = 0;
+
+    /*!
     \brief Runs a callback after the busy overlay has painted once.
 
     Message-thread-only operations that would otherwise block repaint can use this fence after

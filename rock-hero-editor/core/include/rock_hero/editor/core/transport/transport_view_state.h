@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+
 namespace rock_hero::editor::core
 {
 
@@ -13,11 +16,14 @@ namespace rock_hero::editor::core
 */
 struct TransportViewState
 {
-    /*! \brief Enables or disables the play/pause command. */
-    bool play_pause_enabled{false};
+    /*!
+    \brief Why Play and Stop are unavailable, or empty while both are available.
 
-    /*! \brief Enables or disables the stop command. */
-    bool stop_enabled{false};
+    One datum for both buttons, because they share one gate: present means both are disabled,
+    and the text is the tooltip that says why. Disabled by default, like every other control
+    before the controller's first push, with no reason derived yet.
+    */
+    std::optional<std::string> unavailable_reason{std::string{}};
 
     /*! \brief Selects whether the play/pause control should render a pause icon. */
     bool play_pause_shows_pause_icon{false};

@@ -681,8 +681,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_command_manager.commandStatusChanged();
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
-    m_track_viewport->setTransportDisplayState(
-        m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
+    m_track_viewport->setPlaybackActive(m_state.transport.play_pause_shows_pause_icon);
     // The placement quantum is derived ONCE per push, here, and handed to every surface that
     // places; the two session facts go only where the grid itself is drawn or named. That is what
     // keeps the view from ever snapping by a different rule than the controller did.
@@ -1402,6 +1401,12 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
 void EditorView::flashChartRefusal(core::ChartRefusalFlash flash)
 {
     m_tab_view.flashRefusal(std::move(flash));
+}
+
+// Stop's return to the start brings the start into sight on the timeline that scrolls.
+void EditorView::revealTimelineStart()
+{
+    m_track_viewport->revealTimelineStart();
 }
 
 // The bend picker the bend verb asks for: every amount from rest to three whole steps, spelled as
