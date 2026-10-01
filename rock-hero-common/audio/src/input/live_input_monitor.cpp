@@ -51,6 +51,8 @@ LiveInputMonitor::LiveInputMonitor(
 
 LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext context)
 {
+    // A measurement still running here was ended by the gate, not by its own result.
+    m_measurement_interrupted = m_measurement.has_value();
     m_measurement.reset();
     logIfRefused(
         m_live_input.setCalibrationInputMonitoringEnabled(false), "gate calibration disable");
@@ -148,6 +150,7 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
         return backendRejectedError(std::move(calibration_monitoring.error()));
     }
 
+    m_measurement_interrupted = false;
     m_measurement.emplace(Measurement{.route = *route, .capture = InputCalibrationCapture{}});
     return {};
 }
@@ -157,7 +160,14 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
     const AudioMeterLevel raw_level = m_live_input.readRawInputMeterLevel();
     if (!m_measurement.has_value())
     {
-        return LiveInputSample{.raw_level = raw_level, .measurement = std::nullopt};
+        if (!std::exchange(m_measurement_interrupted, false))
+        {
+            return LiveInputSample{.raw_level = raw_level, .measurement = std::nullopt};
+        }
+        return LiveInputSample{
+            .raw_level = raw_level,
+            .measurement = InputCalibrationFailed{"Calibration was interrupted. Try again."},
+        };
     }
 
     InputCalibrationStep step = m_measurement->capture.pushSample(raw_level);
@@ -166,7 +176,9 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
         return LiveInputSample{.raw_level = raw_level, .measurement = *stage};
     }
 
+    // The measurement ends here by its own result, so it is reset before the gate takes the route.
     const InputDeviceIdentity measured_route = m_measurement->route;
+    m_measurement.reset();
     if (auto* const error = std::get_if<InputCalibrationError>(&step))
     {
         refresh(context);
@@ -195,6 +207,7 @@ void LiveInputMonitor::cancelMeasurement(LiveInputMonitoringContext context)
 {
     if (m_measurement.has_value())
     {
+        m_measurement.reset();
         refresh(context);
     }
 }

@@ -19,6 +19,7 @@
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <string>
 #include <system_error>
+#include <variant>
 
 namespace rock_hero::game::core
 {
@@ -158,8 +159,8 @@ struct SetupHarness
 };
 
 // Drives the metering loop to completion (or an error), feeding the steady strum level each sample.
-[[nodiscard]] std::expected<GainCalibrationProgress, NativeAudioSetupError> runGainCalibration(
-    SetupHarness& harness)
+[[nodiscard]] std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError>
+runGainCalibration(SetupHarness& harness)
 {
     harness.live_input.raw_input_meter_level = steadyStrumLevel();
     constexpr std::size_t longest_measurement =
@@ -169,7 +170,8 @@ struct SetupHarness
     for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         auto progress = harness.setup.sampleGainCalibration();
-        if (!progress.has_value() || *progress == GainCalibrationProgress::Committed)
+        if (!progress.has_value() ||
+            !std::holds_alternative<common::audio::InputCalibrationStage>(*progress))
         {
             return progress;
         }
@@ -205,7 +207,7 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     REQUIRE(harness.setup.beginGainCalibration().has_value());
     const auto calibrated = runGainCalibration(harness);
     REQUIRE(calibrated.has_value());
-    CHECK(*calibrated == GainCalibrationProgress::Committed);
+    CHECK(std::holds_alternative<common::audio::InputCalibrationCommitted>(*calibrated));
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::Ready);
 
     // The store now holds a calibration matching the active route — the armed state.
@@ -290,6 +292,30 @@ TEST_CASE(
     const auto stored_calibration = harness.store.inputCalibrationFor(guitarRoute());
     REQUIRE(stored_calibration.has_value());
     CHECK(!stored_calibration->has_value());
+}
+
+// A measurement a device change ended reports that as a failed measurement the player can retry,
+// never as a request the game should not have made.
+TEST_CASE("Native setup reports a measurement a device change ended", "[core][audio][setup]")
+{
+    const juce::ScopedJuceInitialiser_GUI juce_runtime;
+    const TemporarySettingsDirectory directory;
+    SetupHarness harness{directory.settingsFile()};
+    REQUIRE(harness.setup.applySelectedDevice().has_value());
+    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    harness.live_input.raw_input_meter_level = steadyStrumLevel();
+    REQUIRE(harness.setup.sampleGainCalibration().has_value());
+
+    // The device change re-runs the gate, which takes the route from the measurement.
+    harness.monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
+    const auto progress = harness.setup.sampleGainCalibration();
+
+    REQUIRE(progress.has_value());
+    if (progress.has_value())
+    {
+        CHECK(std::holds_alternative<common::audio::InputCalibrationFailed>(*progress));
+    }
+    CHECK(harness.setup.phase() == NativeAudioSetupPhase::CalibratingGain);
 }
 
 // Re-running the flow for a different device overwrites the route, player config, and calibration.

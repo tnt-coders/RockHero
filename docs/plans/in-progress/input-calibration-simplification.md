@@ -102,10 +102,10 @@ placement, emphasis and words.
     only by the settings window's apply: JUCE's startup open never wrote a route (it passes
     treatAsChosenDevice=false), but a settings Cancel did, through the editor's old listener
     persist.
-7. The game wizard with the hard gate. Large; its own plan. `GainCalibrationProgress` copies
-   `InputCalibrationStage` one-to-one: return the monitor's `InputCalibrationProgress` instead, and
-   report a measurement a gate run ended as ended rather than as an invalid request. (`--import-editor-audio` is already
-   deleted.)
+7. The game: song start hard-gated on live input (D1); the wizard UI waits for plan 26's
+   presentation. DONE already: the driver returns the monitor's `InputCalibrationProgress` (the
+   copied `GainCalibrationProgress` is gone), and the monitor reports a measurement a gate run
+   ended, so the game never calls that an invalid request; `--import-editor-audio` is deleted.
 8. A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
    could be better: what the strum measurement fallback measures and why it does not repeat, how
    documented interface gains reach the user (the window's "?" link to known devices today), and

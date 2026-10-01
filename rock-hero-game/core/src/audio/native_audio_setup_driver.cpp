@@ -118,10 +118,10 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibratio
     return {};
 }
 
-std::expected<GainCalibrationProgress, NativeAudioSetupError> NativeAudioSetup::
+std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError> NativeAudioSetup::
     sampleGainCalibration()
 {
-    const std::optional<common::audio::InputCalibrationProgress> progress =
+    std::optional<common::audio::InputCalibrationProgress> progress =
         m_machine.canCalibrate() ? m_live_input_monitor.sample(g_setup_menu_context).measurement
                                  : std::nullopt;
     if (!progress.has_value())
@@ -132,31 +132,11 @@ std::expected<GainCalibrationProgress, NativeAudioSetupError> NativeAudioSetup::
         }};
     }
 
-    if (const auto* const stage = std::get_if<common::audio::InputCalibrationStage>(&*progress))
-    {
-        switch (*stage)
-        {
-            case common::audio::InputCalibrationStage::Settling:
-                return GainCalibrationProgress::Settling;
-            case common::audio::InputCalibrationStage::WaitingForInput:
-                return GainCalibrationProgress::WaitingForStrum;
-            case common::audio::InputCalibrationStage::Measuring:
-                return GainCalibrationProgress::Measuring;
-        }
-    }
-
     if (std::holds_alternative<common::audio::InputCalibrationCommitted>(*progress))
     {
         m_machine.calibrationCommitted();
-        return GainCalibrationProgress::Committed;
     }
-
-    // A failed measurement is recoverable: the monitor already handed the route back, and the flow
-    // stays in CalibratingGain so the player can strum again.
-    return std::unexpected{NativeAudioSetupError{
-        NativeAudioSetupErrorCode::CalibrationFailed,
-        std::get<common::audio::InputCalibrationFailed>(*progress).message,
-    }};
+    return std::move(*progress);
 }
 
 void NativeAudioSetup::cancelGainCalibration()

@@ -174,23 +174,6 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
     CHECK(view.lastState().dismiss_button_text == "Dismiss");
 }
 
-// A measurement the editor ended on its own, such as on a device change, reads as interrupted.
-TEST_CASE(
-    "Input calibration controller reports an interrupted measurement", "[core][input-calibration]")
-{
-    RecordingInputCalibrationHost host;
-    RecordingInputCalibrationView view;
-    InputCalibrationController controller{host, prompt(2.0)};
-    controller.attachView(view);
-
-    controller.onMeasurementStartRequested();
-    host.sample = sampleWith(std::nullopt);
-    controller.onSampleTick();
-
-    CHECK(view.lastState().status_message == "Calibration was interrupted. Try again.");
-    CHECK_FALSE(view.lastState().measuring);
-}
-
 // Without a measurement the tick only shows the raw input through the previewed gain.
 TEST_CASE("Input calibration controller meters the input while idle", "[core][input-calibration]")
 {

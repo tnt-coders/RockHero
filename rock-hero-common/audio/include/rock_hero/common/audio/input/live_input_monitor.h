@@ -112,7 +112,9 @@ public:
     \brief Reads the raw input meter once and advances a measurement in progress by that reading.
 
     A measurement that finishes stores its gain for the route it measured and hands the route back
-    to the gate; one that fails hands the route back with nothing stored.
+    to the gate; one that fails hands the route back with nothing stored. A measurement a gate run
+    ended (a device change, a session closing) reports that as a failure at the next sample, once,
+    so a driver needs no memory of having started one.
     \param context Session facts the gate re-runs with when a measurement ends.
     \return The raw level read, and the measurement's progress if one was running.
     */
@@ -164,6 +166,10 @@ private:
 
     // The measurement holding the route; empty while the gate owns the route.
     std::optional<Measurement> m_measurement{};
+
+    // True once a gate run has ended a measurement that had not finished, until the next sample
+    // reports it: a measurement that began reports its end exactly once.
+    bool m_measurement_interrupted{false};
 };
 
 } // namespace rock_hero::common::audio

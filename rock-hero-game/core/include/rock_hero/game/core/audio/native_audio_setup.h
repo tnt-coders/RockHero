@@ -66,7 +66,7 @@ enum class NativeAudioSetupErrorCode : std::uint8_t
     StorePersistFailed,
 
     /*!
-    \brief The gain-calibration measurement or its commit failed; the applied device is intact.
+    \brief The measurement could not begin; the applied device is intact.
     */
     CalibrationFailed,
 };
@@ -92,22 +92,6 @@ struct [[nodiscard]] NativeAudioSetupError
     \param message_text User-facing or diagnostic error message.
     */
     NativeAudioSetupError(NativeAudioSetupErrorCode error_code, std::string message_text);
-};
-
-/*! \brief Progress reported while a gain-calibration measurement pass is running. */
-enum class GainCalibrationProgress : std::uint8_t
-{
-    /*! \brief Discarding the first samples after the route was reset. */
-    Settling,
-
-    /*! \brief Waiting for the player to strum a usable signal. */
-    WaitingForStrum,
-
-    /*! \brief Accumulating the active measurement window. */
-    Measuring,
-
-    /*! \brief The measurement completed and its gain was committed; the flow is now Ready. */
-    Committed,
 };
 
 /*!
@@ -263,9 +247,10 @@ public:
     A finished measurement has stored its gain in the shared store, and the flow advances to
     Ready. A failed one leaves the flow in CalibratingGain for another attempt.
 
-    \return The measurement's progress, or a typed calibration failure.
+    \return The measurement's progress (a failed measurement is a progress value, recoverable by
+            beginning another), or InvalidRequest when no measurement was begun.
     */
-    [[nodiscard]] std::expected<GainCalibrationProgress, NativeAudioSetupError>
+    [[nodiscard]] std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError>
     sampleGainCalibration();
 
     /*! \brief Cancels an active measurement, leaving the applied device intact and uncalibrated. */

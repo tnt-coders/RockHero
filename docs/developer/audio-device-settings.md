@@ -68,6 +68,14 @@ The three persisted property names for one input route (`backendName`, `inputDev
 settings file's JSON write them: a rename in one file alone would silently drop the user's saved
 input-device selection, since a missing property reads as absence rather than an error.
 
+# The shared measurement
+
+Both products run the strum measurement the same way: `LiveInputMonitor::beginMeasurement`, then
+`sample()` once per tick at `inputCalibrationSampleRateHz()`. Each sample returns the raw level and,
+while a measurement runs, an `InputCalibrationProgress`: a stage, a committed gain, or a failure. A
+measurement a gate run ended (a device change, a session closing) reports itself as a failure at
+the next sample, once, so neither driver keeps its own record of having started one.
+
 # The game's first-run setup
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine

@@ -242,6 +242,8 @@ TEST_CASE("LiveInputMonitor cancel restores the stored calibration", "[audio][li
     harness.monitor.cancelMeasurement(g_ready);
 
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    // A measurement its driver ended has nothing to report.
+    CHECK_FALSE(harness.monitor.sample(g_ready).measurement.has_value());
     CHECK(harness.live_input.live_input_monitoring_enabled);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
@@ -359,7 +361,13 @@ TEST_CASE("LiveInputMonitor session close ends monitoring and measurement", "[au
     harness.monitor.refresh(g_not_ready);
 
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
-    // A driver still sampling sees the measurement is gone.
+    // A driver still sampling hears once that the measurement was ended, then nothing.
+    const LiveInputSample ended = harness.monitor.sample(g_not_ready);
+    REQUIRE(ended.measurement.has_value());
+    if (ended.measurement.has_value())
+    {
+        CHECK(std::holds_alternative<InputCalibrationFailed>(*ended.measurement));
+    }
     CHECK_FALSE(harness.monitor.sample(g_not_ready).measurement.has_value());
     CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);

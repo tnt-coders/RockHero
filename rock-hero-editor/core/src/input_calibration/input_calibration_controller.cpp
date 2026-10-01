@@ -179,16 +179,10 @@ void InputCalibrationController::onSampleTick()
     const common::audio::LiveInputSample sample = m_host.sampleInputCalibration();
     m_last_raw_meter_level = sample.raw_level;
     m_state.input_meter_level = applyDisplayGain(sample.raw_level, m_state.input_gain_db);
-    if (!m_state.measuring)
+    // While measuring the monitor reports every end, so a sample without progress only meters.
+    if (!m_state.measuring || !sample.measurement.has_value())
     {
         publishState();
-        return;
-    }
-
-    // The editor ended the measurement itself, for example on a device change.
-    if (!sample.measurement.has_value())
-    {
-        finishMeasurementError("Calibration was interrupted. Try again.");
         return;
     }
 
