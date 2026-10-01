@@ -63,11 +63,6 @@ public:
         return std::nullopt;
     }
 
-    [[nodiscard]] bool deviceStateMatchesActive(const std::string&) const override
-    {
-        return false;
-    }
-
     [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override
     {
         return {};

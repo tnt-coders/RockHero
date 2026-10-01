@@ -284,22 +284,6 @@ std::optional<std::string> Engine::serializedDeviceState() const
     return xml->toString().toStdString();
 }
 
-// Reports whether restoring the given serialized route would be a no-op against the open device.
-// Shares the parse-and-compare helper the restore path uses, so the pre-check the editor makes to
-// choose an instant vs. behind-the-overlay toggle can never disagree with what the restore does.
-bool Engine::deviceStateMatchesActive(const std::string& serialized_state) const
-{
-    const std::unique_ptr<juce::XmlElement> xml =
-        juce::parseXML(juce::String{serialized_state.c_str()});
-    if (xml == nullptr)
-    {
-        return false;
-    }
-
-    return activeDeviceMatchesSerializedState(
-        m_impl->m_engine->getDeviceManager().deviceManager, *xml);
-}
-
 // Captures open-hardware timing and route details through the JUCE device manager. The silent
 // device reads as closed hardware, carrying the recorded unavailable reason so status consumers
 // can explain why the user's device is not running.
