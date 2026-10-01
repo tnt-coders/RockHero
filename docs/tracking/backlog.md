@@ -284,6 +284,17 @@ rest, each verified against the code, each a fix rather than a question unless m
 - Evaluate gating `audioMeterSnapshot()` on `m_audio_device_configuration_refresh_pending` the
   way `currentInputDeviceIdentity()` already is (H4 from the same investigation; largely
   mitigated by the stable structural meter plugins).
+- The audio settings window still runs the driver probe that the 07-14 reconnect removal deleted
+  from the engine. While the window is open, every device event reaches
+  `onAudioDeviceConfigurationChanged`, then `refreshState`, then
+  `refreshStagedDeviceIfRouteChanged` (`audio_device_settings.cpp`). That rebuilds the staged
+  preview device through `createDevice` whenever the staged names changed, or whenever the last
+  build left no device, which is exactly the case while the interface is unplugged. On ASIO,
+  `createDevice` loads the driver and runs its `init()` with no SEH guard
+  (`juce_ASIO_windows.cpp` `openDevice`/`initDriver`), at USB-enumeration time, which is the
+  crash mechanism suspected in July. Make the preview rebuild skip a type whose name list did not
+  change, or defer it until the user interacts; see `docs/plans/todo/safe-device-auto-reopen.md`
+  for the full backend analysis.
 - Move section names in the 3D view to the upper-left corner instead of inline with the
   scrolling tab.
 - Evaluate per-(project, arrangement) resume-marker records: the marker settings family is
