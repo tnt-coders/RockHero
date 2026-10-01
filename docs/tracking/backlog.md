@@ -31,7 +31,7 @@ the user picks which way the two surfaces reconcile.
 ## Raised while adopting the silent audio device (2026-10-01)
 
 - **Input-calibration review: DONE 2026-10-01**; its findings, the prompt-to-calibrate design and
-  the user's decisions D1-D6 are in `docs/plans/todo/input-calibration-simplification.md`.
+  the user's decisions D1-D6 are in `docs/plans/in-progress/input-calibration-simplification.md`.
 
 ## Found by the 2026-09-25 derived-width build
 

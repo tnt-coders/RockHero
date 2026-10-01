@@ -1,6 +1,7 @@
 # Input Calibration Simplification
 
-Status: ruled 2026-10-01 (user); steps 1-6 run next, step 7 is its own plan. Captured from a Fable
+Status: in progress, ruled 2026-10-01 (user); steps 1-6 run now, step 7 is its own plan, step 8
+follows once the restructuring lands. Captured from a Fable
 review on 2026-10-01 (at commit `15432e1d`). Re-verify every citation against the current code before
 acting on it.
 
@@ -88,9 +89,17 @@ placement, emphasis and words.
 5. Capture, meter read and policy inside the monitor (findings 2, 9, 10). Medium-large.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
    the UI expert.
-6a. The first-run audio-settings window (D7), sharing the auto-prompt's open-a-window mechanism.
+6a. The startup audio-settings window (D7, widened): open it at startup unless the saved route was
+    restored and opened, so no saved route, an unavailable device and an invalid route are one rule.
+    It shares the auto-prompt's open-a-window mechanism. Verify first whether the engine's startup
+    open of the OS default persists a route by itself; if it does, "Cancel writes nothing" needs it
+    not to.
 7. The game wizard with the hard gate. Large; its own plan. (`--import-editor-audio` is already
    deleted.)
+8. A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
+   could be better: what the strum measurement fallback measures and why it does not repeat, how
+   documented interface gains reach the user (the window's "?" link to known devices today), and
+   whether a known-device table should fill the gain in.
 
 ## Decisions for the user (ruled 2026-10-01)
 
@@ -105,12 +114,15 @@ placement, emphasis and words.
   measurement did not give consistent results, and many interfaces have a documented gain that
   sets the level exactly (the Neural DSP Quad Cortex: +3.1 dB); typing it dials the route in
   perfectly and repeatably. Step 5's capture move must not weaken it.
-- **D7 — YES:** on first run with no saved route, open the audio-device settings window over the
-  running OS default; Cancel writes nothing.
+- **D7 — YES, widened:** at startup, open the audio-device settings window unless the saved route
+  was restored and opened: no saved route (over the running OS default), a saved device that is
+  unavailable, or an invalid route. Cancel writes nothing.
 - **Scope — YES:** steps 1-6 now; step 7 (the game wizard) is its own plan.
-- **D8 — OPEN:** what calibration calibrates; see below.
+- **D8 — the INTERFACE:** players swap guitars without recalibrating, so the interface is the
+  closest stable thing to calibrate. The documented per-interface gain is the primary path; the strum
+  measurement is the fallback for interfaces with no published figure. See below and step 8.
 
-## D8: the interface, or the guitar?
+## D8: the interface, or the guitar? (ruled: the interface)
 
 A documented per-interface gain is a constant of the interface's input sensitivity: it maps a given
 instrument voltage to a fixed dBFS. A strum measurement instead folds in the guitar's pickup output
