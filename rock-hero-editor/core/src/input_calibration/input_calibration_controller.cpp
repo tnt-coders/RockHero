@@ -88,7 +88,7 @@ namespace
 
 } // namespace
 
-// Seeds popup state from the prompt produced by InputCalibrationWorkflow.
+// Seeds popup state from the prompt the editor controller projects.
 InputCalibrationController::InputCalibrationController(
     Host& host, const InputCalibrationPrompt& prompt, CaptureSettings capture_settings)
     : m_host(host)

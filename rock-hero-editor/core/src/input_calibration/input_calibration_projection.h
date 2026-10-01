@@ -1,6 +1,6 @@
 /*!
 \file input_calibration_projection.h
-\brief Editor projection of the shared input-calibration workflow into signal-chain view state.
+\brief Editor projection of the shared live-input monitor into signal-chain view state.
 */
 
 #pragma once
@@ -15,7 +15,7 @@
 namespace rock_hero::editor::core
 {
 
-/*! \brief Editor projection derived from the shared input-calibration workflow. */
+/*! \brief Editor projection derived from the shared live-input monitor. */
 struct InputCalibrationProjection
 {
     /*! \brief Calibration status shown by the signal-chain panel. */
@@ -35,26 +35,24 @@ struct InputCalibrationProjection
 };
 
 /*!
-\brief Maps a monitoring reason and backend availability to the signal-chain calibration status.
+\brief Reports the route's calibration status, every fact from the monitor's last gate run.
 
-Restores the backend-availability distinction the pure workflow drops: an active route reports
-\ref InputCalibrationStatus::Calibrated only when the backend accepted it, otherwise
-\ref InputCalibrationStatus::Unavailable.
-\param reason Monitoring reason reflecting the current route and stored calibration.
-\param backend_available True when the matching calibrated route is live-input available.
-\return Signal-chain calibration status for the supplied reason.
+Independent of whether the session allows monitoring right now, so the signal chain keeps
+showing a route's calibration while no project is open or the settings window is up.
+\param monitor Shared live-input monitoring service driven by the controller.
+\return Signal-chain calibration status for the current route.
 */
 [[nodiscard]] InputCalibrationStatus inputCalibrationStatusFor(
-    common::audio::LiveInputMonitoringDisabledReason reason, bool backend_available);
+    const common::audio::LiveInputMonitor& monitor);
 
 /*!
-\brief Builds the editor calibration projection from the shared live-input monitor's read surface.
+\brief Builds the editor calibration projection from the monitor and the editor's own windows.
 \param monitor Shared live-input monitoring service driven by the controller.
-\param context Current session facts used to project availability.
+\param prompt_open True while the calibration prompt is open.
+\param settings_open True while the audio-device settings window stages a route.
 \return Projection consumed by the signal-chain panel and action-condition gate.
 */
 [[nodiscard]] InputCalibrationProjection makeInputCalibrationProjection(
-    const common::audio::LiveInputMonitor& monitor,
-    common::audio::LiveInputMonitoringContext context);
+    const common::audio::LiveInputMonitor& monitor, bool prompt_open, bool settings_open);
 
 } // namespace rock_hero::editor::core

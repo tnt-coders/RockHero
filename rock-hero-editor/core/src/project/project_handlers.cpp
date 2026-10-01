@@ -161,7 +161,8 @@ void EditorController::Impl::openProject(
     const std::filesystem::path& file, bool clear_last_open_project_on_failure)
 {
     m_project_audio_ready = false;
-    m_live_input_monitor.disableMonitoring();
+    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
 
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
@@ -341,7 +342,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     {
         clearInterruptedRestoreMarker();
     }
-    static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
+    m_live_input_monitor.refresh(monitoringContext());
 
     // Marks a completed load so the view can recenter on the restored cursor; the transport has
     // already been seeked above, so the state pushed by finishBusyOperation() carries both.
@@ -385,7 +386,8 @@ void EditorController::Impl::reportProjectLoadNotices()
 void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     m_project_audio_ready = false;
-    m_live_input_monitor.disableMonitoring();
+    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
 
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
@@ -497,7 +499,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_audio_ready = true;
     resetUndoHistory("undo.reset.import_project");
     markUndoHistoryClean("undo.mark_clean.import_project");
-    static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
+    m_live_input_monitor.refresh(monitoringContext());
 
     // Imports have no persisted editor cursor, so establish an explicit start position before the
     // view observes the new project load id and recenters the timeline.
@@ -599,7 +601,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // instead of the backend default. A future tempo-editing flow must re-mirror
                 // after every tempo-map change alongside rebuildDerivedToneCurves().
                 m_song_audio.mirrorTempoMap(session().song().tempo_map);
-                static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
+                m_live_input_monitor.refresh(monitoringContext());
                 if (!report_progress)
                 {
                     captured_stage.finish({});
@@ -867,7 +869,8 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
 bool EditorController::Impl::closeProject(bool reenter_tone_designer)
 {
     m_project_audio_ready = false;
-    m_live_input_monitor.disableMonitoring();
+    // The rig is about to be replaced, so the gate is off whatever monitoringContext() says.
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
 
     // Close resets to the resting state: the designer flag drops before teardown so the tail can
     // re-enter with a fresh clean document and passthrough rig (skipped only on app exit). A

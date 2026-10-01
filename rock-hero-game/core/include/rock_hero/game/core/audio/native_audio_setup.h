@@ -297,10 +297,6 @@ public:
     void cancelGainCalibration();
 
 private:
-    // Builds the calibration monitoring context: only the live input path needs to be up, which an
-    // applied device provides.
-    [[nodiscard]] common::audio::LiveInputMonitoringContext calibrationContext() const noexcept;
-
     // Commits a measured gain through the monitor (persisting it) and advances to Ready.
     [[nodiscard]] std::expected<void, NativeAudioSetupError> commitMeasuredGain(double gain_db);
 
@@ -317,9 +313,6 @@ private:
 
     // Deterministic capture pass driven one raw meter sample at a time during CalibratingGain.
     common::audio::InputCalibrationCapture m_capture;
-
-    // Route identity resolved at the last successful apply; the expected identity for the commit.
-    std::optional<common::audio::InputDeviceIdentity> m_active_route_identity;
 };
 
 } // namespace rock_hero::game::core

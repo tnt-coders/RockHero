@@ -1319,7 +1319,7 @@ EditorController::Impl::Impl(
     // and refreshes the live-input monitor; a saved device that cannot open leaves the silent
     // device running, which the status text reports.
     restoreAudioDeviceState();
-    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+    m_live_input_monitor.refresh(monitoringContext());
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
         m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);
@@ -2328,8 +2328,7 @@ common::core::Fraction EditorController::Impl::placementQuantum() const noexcept
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
 ActionConditions EditorController::Impl::currentActionConditions() const
 {
-    const InputCalibrationProjection input_calibration =
-        makeInputCalibrationProjection(m_live_input_monitor, monitoringContext());
+    const InputCalibrationProjection input_calibration = inputCalibrationProjection();
 
     return currentActionConditions(input_calibration, m_transport.state());
 }
@@ -2487,8 +2486,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
-    const InputCalibrationProjection input_calibration =
-        makeInputCalibrationProjection(m_live_input_monitor, monitoringContext());
+    const InputCalibrationProjection input_calibration = inputCalibrationProjection();
     const ActionConditions action_conditions =
         currentActionConditions(input_calibration, transport_state);
 

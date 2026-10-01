@@ -3,121 +3,52 @@
 #include "input_calibration/input_calibration_text.h"
 
 #include <optional>
-#include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
 
-namespace
+InputCalibrationStatus inputCalibrationStatusFor(const common::audio::LiveInputMonitor& monitor)
 {
-
-[[nodiscard]] bool contextReadyForCalibration(
-    common::audio::LiveInputMonitoringContext context) noexcept
-{
-    // Calibration only needs the live input path up; an arrangement gates active processed
-    // monitoring, not the raw measurement. live_input_ready reports exactly that path — an open
-    // device with an input route — so calibration is available with no project loaded.
-    return context.live_input_ready;
-}
-
-// Reason reflecting only route identity and calibration match, deliberately ignoring the
-// settings-open and session-ready early-outs that the gate reports first. The signal-chain status
-// keeps showing a route's calibration while device settings are open, so it must be derived from
-// this identity/calibration-only reason rather than the ordered gate result.
-[[nodiscard]] common::audio::LiveInputMonitoringDisabledReason statusReasonFor(
-    const common::audio::LiveInputMonitor& monitor,
-    const std::optional<common::audio::InputDeviceIdentity>& identity)
-{
-    if (!identity.has_value())
+    if (!monitor.route().has_value())
     {
-        return common::audio::LiveInputMonitoringDisabledReason::NoInputDevice;
+        return InputCalibrationStatus::NoActiveInputDevice;
+    }
+    if (common::audio::isLiveInputFault(monitor.status()))
+    {
+        return InputCalibrationStatus::Unavailable;
     }
 
-    if (!monitor.calibrationMatchesCurrentRoute())
-    {
-        return common::audio::LiveInputMonitoringDisabledReason::MissingCalibration;
-    }
-
-    return common::audio::LiveInputMonitoringDisabledReason::None;
-}
-
-// Gain shown by the calibration prompt: the stored matching-route gain, else the neutral default.
-[[nodiscard]] double promptGainDb(const common::audio::LiveInputMonitor& monitor)
-{
-    const std::optional<common::audio::InputCalibrationState> calibration =
-        monitor.activeCalibrationState();
-    if (!monitor.calibrationMatchesCurrentRoute() || !calibration.has_value())
-    {
-        return common::audio::defaultGainDb();
-    }
-
-    return calibration->calibration_gain.db;
-}
-
-} // namespace
-
-InputCalibrationStatus inputCalibrationStatusFor(
-    common::audio::LiveInputMonitoringDisabledReason reason, bool backend_available)
-{
-    switch (reason)
-    {
-        case common::audio::LiveInputMonitoringDisabledReason::None:
-        {
-            return backend_available ? InputCalibrationStatus::Calibrated
-                                     : InputCalibrationStatus::Unavailable;
-        }
-        case common::audio::LiveInputMonitoringDisabledReason::MissingCalibration:
-        case common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch:
-        {
-            return InputCalibrationStatus::MissingCalibration;
-        }
-        case common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen:
-        case common::audio::LiveInputMonitoringDisabledReason::SessionNotReady:
-        case common::audio::LiveInputMonitoringDisabledReason::NoInputDevice:
-        {
-            return InputCalibrationStatus::NoActiveInputDevice;
-        }
-        case common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable:
-        case common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable:
-        {
-            // Post-I/O outcomes the downstream service reports; the editor treats them as a
-            // present-but-unusable calibration to match the backend-unavailable status.
-            return InputCalibrationStatus::Unavailable;
-        }
-    }
-
-    return InputCalibrationStatus::NoActiveInputDevice;
+    return monitor.calibration().has_value() ? InputCalibrationStatus::Calibrated
+                                             : InputCalibrationStatus::MissingCalibration;
 }
 
 InputCalibrationProjection makeInputCalibrationProjection(
-    const common::audio::LiveInputMonitor& monitor,
-    common::audio::LiveInputMonitoringContext context)
+    const common::audio::LiveInputMonitor& monitor, bool prompt_open, bool settings_open)
 {
-    const std::optional<common::audio::InputDeviceIdentity> identity =
-        monitor.currentInputDeviceIdentity();
-    const bool ready = contextReadyForCalibration(context);
-    const bool settings_open = monitor.audioDeviceSettingsOpen();
-    const bool prompt_visible = monitor.promptVisible();
-    const bool backend_available = monitor.backendAvailable();
-    const bool audition_available = ready && monitor.calibrationMatchesCurrentRoute() &&
-                                    backend_available && !prompt_visible && !settings_open;
-
-    const InputCalibrationStatus status =
-        inputCalibrationStatusFor(statusReasonFor(monitor, identity), backend_available);
-    const std::string disabled_message = inputCalibrationDisabledMessageFor(status);
+    const InputCalibrationStatus status = inputCalibrationStatusFor(monitor);
+    const bool audition_available =
+        status == InputCalibrationStatus::Calibrated && !prompt_open && !settings_open;
 
     InputCalibrationProjection projection{
         .status = status,
-        .calibrate_enabled = ready && !settings_open && identity.has_value(),
-        .audio_device_settings_enabled = !prompt_visible && !settings_open,
-        .disabled_message = audition_available ? std::string{} : disabled_message,
+        .calibrate_enabled = monitor.route().has_value() && !settings_open,
+        .audio_device_settings_enabled = !prompt_open && !settings_open,
+        .disabled_message =
+            audition_available ? std::string{} : inputCalibrationDisabledMessageFor(status),
         .prompt = std::nullopt,
     };
 
-    if (prompt_visible)
+    if (prompt_open)
     {
-        projection.prompt = InputCalibrationPrompt{.input_gain_db = promptGainDb(monitor)};
+        // The prompt opens on the route's stored gain, else the neutral default.
+        const std::optional<common::audio::InputCalibrationState>& calibration =
+            monitor.calibration();
+        projection.prompt = InputCalibrationPrompt{
+            .input_gain_db = calibration.has_value() ? calibration->calibration_gain.db
+                                                     : common::audio::defaultGainDb(),
+        };
     }
 
     return projection;

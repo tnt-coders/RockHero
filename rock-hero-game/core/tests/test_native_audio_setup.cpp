@@ -232,12 +232,9 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
 
     // Capstone: with the route and matching calibration persisted, the shared calibrate-first gate
     // arms to Active for a ready session — the live guitar is audible.
-    const common::audio::LiveInputMonitoringStatus status = harness.monitor.refresh(
-        common::audio::LiveInputMonitoringContext{
-            .live_input_ready = true, .arrangement_loaded = true
-        });
-    CHECK(status.state == common::audio::LiveInputMonitoringState::Active);
-    CHECK(status.reason == common::audio::LiveInputMonitoringDisabledReason::None);
+    const common::audio::LiveInputMonitoringStatus status =
+        harness.monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = true});
+    CHECK(status == common::audio::LiveInputMonitoringStatus::Active);
 }
 
 // A failed device apply is terminal and writes nothing to either store.

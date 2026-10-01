@@ -10,25 +10,25 @@
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
-#include <rock_hero/common/audio/input/input_calibration_workflow.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_monitoring_status.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
-#include <rock_hero/common/audio/shared/gain.h>
-#include <string_view>
 
 namespace rock_hero::common::audio
 {
 
 /*!
-\brief Owns the calibrate-first live-input monitoring gate and calibration orchestration.
+\brief Owns the calibrate-first live-input monitoring gate and calibration measurement.
 
-A plain adapter (no listener/observer): every state change is caused by a driver-invoked method,
-so each product drives the gate from its own lifecycle handler and repaints after the call returns.
-Holds the pure InputCalibrationWorkflow by value and performs its plans against the injected ports.
-The IAudioConfigStore is a single swappable dependency: each composition root injects the app's own
-store (or, for the editor, plan 48's effective-source facade) with no edit here.
+The invariant: processed live monitoring is on only while a one-channel input route is current, the
+audio-config store holds a calibration for that route, and the backend accepted its gain and the
+route. The store is the only authority for calibration. The monitor keeps no copy of it beyond what
+the last gate run found, so a calibration the other product saved is picked up at the next refresh,
+and every failure recovers by re-running the gate rather than rolling state back by hand.
+
+A plain adapter (no listener/observer): every state change is caused by a driver-invoked method, so
+each product drives the gate from its own lifecycle handler and repaints after the call returns.
 */
 class LiveInputMonitor final
 {
@@ -37,7 +37,7 @@ public:
     \brief Builds the service over the live-input port, device configuration, and calibration store.
     \param live_input Live-input port the gate drives.
     \param device_configuration Device-configuration port sampled for the current input route.
-    \param audio_config_store Calibration store this app owns; swappable per composition root.
+    \param audio_config_store Calibration store both products share.
     */
     LiveInputMonitor(
         ILiveInput& live_input, IAudioDeviceConfiguration& device_configuration,
@@ -65,155 +65,91 @@ public:
     ~LiveInputMonitor() = default;
 
     /*!
-    \brief Re-reads calibration for the current route, then re-runs the ordered gate.
+    \brief Reads the current route and its calibration from the store, then runs the ordered gate.
+
+    Ends any measurement in progress: the gate owns the route from here. A session that does not
+    allow monitoring (including one being torn down) turns both monitoring paths off.
     \param context Session facts the gate evaluates.
     \return Monitoring status after the gate ran.
     */
-    [[nodiscard]] LiveInputMonitoringStatus refresh(LiveInputMonitoringContext context);
+    LiveInputMonitoringStatus refresh(LiveInputMonitoringContext context);
 
     /*!
-    \brief Re-runs the ordered gate over the already-selected calibration.
-    \param context Session facts the gate evaluates.
-    \return Monitoring status after the gate ran.
-    */
-    [[nodiscard]] LiveInputMonitoringStatus applyGate(LiveInputMonitoringContext context);
-
-    /*! \brief Tears down both processed and calibration monitoring on a best-effort basis. */
-    void disableMonitoring();
-
-    /*!
-    \brief Returns the status cached by the last gate run.
-    \return Last monitoring status.
+    \brief Returns what the live input is doing now.
+    \return Measuring while a measurement holds the route, else the last gate run's status.
     */
     [[nodiscard]] LiveInputMonitoringStatus status() const noexcept;
 
     /*!
-    \brief Prepares the current input route for a raw calibration measurement.
-    \param context Session facts used to validate the measurement start.
+    \brief Returns the input route the last refresh saw.
+
+    Read together with calibration() and status(), so every fact a view shows comes from one gate
+    run even while a device change is still on its way.
+    \return Input route identity, or empty when there was none.
+    */
+    [[nodiscard]] const std::optional<InputDeviceIdentity>& route() const noexcept;
+
+    /*!
+    \brief Returns the stored calibration the last refresh found for route().
+    \return Calibration state, or empty when the route had none or there was no route.
+    */
+    [[nodiscard]] const std::optional<InputCalibrationState>& calibration() const noexcept;
+
+    /*!
+    \brief Hands the current input route to a raw calibration measurement at unity gain.
+    \param context Session facts the gate re-runs with if the backend refuses the measurement.
     \return Empty success, or a coarse monitoring failure.
     */
     [[nodiscard]] std::expected<void, LiveInputMonitorError> beginMeasurement(
         LiveInputMonitoringContext context);
 
     /*!
-    \brief Stops an active measurement and restores the prior route state.
-    \return Empty success, or a coarse monitoring failure.
-    */
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> cancelMeasurement();
-
-    /*!
-    \brief Commits a measured calibration gain and enables processed monitoring.
-    \param gain_db Measured gain in decibels.
-    \param expected_identity Input identity captured when the measurement started, if any.
-    \return Empty success, or a coarse monitoring failure.
-    */
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitCalibration(
-        double gain_db, const std::optional<InputDeviceIdentity>& expected_identity);
-
-    /*!
-    \brief Commits a manually entered calibration gain and enables processed monitoring.
-    \param gain_db Gain in decibels.
-    \return Empty success, or a coarse monitoring failure.
-    */
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> setManualCalibration(double gain_db);
-
-    /*!
-    \brief Opens the calibration prompt when the supplied context allows it.
-    \param context Session facts used to gate prompt visibility.
-    \return True when the prompt became or remained visible.
-    */
-    [[nodiscard]] bool requestPrompt(LiveInputMonitoringContext context);
-
-    /*! \brief Closes the calibration prompt without changing calibration validity. */
-    void closePrompt() noexcept;
-
-    /*! \brief Marks audio-device settings open and releases the calibrated route. */
-    void openAudioDeviceSettings();
-
-    /*!
-    \brief Re-selects calibration and re-runs the gate after the settings window closes.
+    \brief Ends a measurement without a result and gives the route back to the gate.
     \param context Session facts the gate evaluates.
-    \return Monitoring status after the gate ran.
     */
-    [[nodiscard]] LiveInputMonitoringStatus closeAudioDeviceSettings(
-        LiveInputMonitoringContext context);
+    void cancelMeasurement(LiveInputMonitoringContext context);
 
     /*!
-    \brief Returns the active calibration state for the current route.
-    \return Stored calibration state, or empty when no route is calibrated.
+    \brief Stores a measured gain for the route the measurement started on, then runs the gate.
+
+    Refused unless a measurement is in progress and its route is still the current one, so a
+    measurement can never calibrate a route it did not measure.
+    \param gain_db Measured calibration gain in decibels; clamped to the supported range.
+    \param context Session facts the gate evaluates.
+    \return Empty success, or a coarse monitoring failure.
     */
-    [[nodiscard]] std::optional<InputCalibrationState> activeCalibrationState() const;
+    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitMeasurement(
+        double gain_db, LiveInputMonitoringContext context);
 
     /*!
-    \brief Returns the current physical input route identity, if the backend can supply one.
-    \return Current input identity, or empty.
-    */
-    [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const;
+    \brief Stores a typed gain for the current route, then runs the gate.
 
-    /*!
-    \brief Reports whether stored calibration matches the current route.
-    \return True when stored calibration belongs to the current input route.
+    The manual path for an interface whose documented gain sets the level exactly.
+    \param gain_db Calibration gain in decibels; clamped to the supported range.
+    \param context Session facts the gate evaluates.
+    \return Empty success, or a coarse monitoring failure.
     */
-    [[nodiscard]] bool calibrationMatchesCurrentRoute() const;
-
-    /*!
-    \brief Reports whether the calibration prompt is visible.
-    \return True when the view should present the calibration prompt.
-    */
-    [[nodiscard]] bool promptVisible() const noexcept;
-
-    /*!
-    \brief Reports whether audio-device settings are currently open.
-    \return True while the audio-device settings window is open.
-    */
-    [[nodiscard]] bool audioDeviceSettingsOpen() const noexcept;
-
-    /*!
-    \brief Reports whether the matching calibrated route is available in the backend.
-    \return True when the last live-input arming attempt for the matching route succeeded.
-    */
-    [[nodiscard]] bool backendAvailable() const noexcept;
+    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitManualCalibration(
+        double gain_db, LiveInputMonitoringContext context);
 
 private:
-    // Backend routing snapshot used to roll back a failed calibration setup (was the editor's
-    // InputCalibrationRouteState -- a live-input port concern, not workflow state).
-    struct RouteState
-    {
-        Gain input_gain;
-        bool live_input_monitoring_enabled{false};
-        bool calibration_input_monitoring_enabled{false};
-    };
+    // Stores the gain for the route before the gate applies it: the gain is a fact about the
+    // route, true even if the backend then refuses the route.
+    [[nodiscard]] std::expected<void, LiveInputMonitorError> storeAndApply(
+        const InputDeviceIdentity& route, double gain_db, LiveInputMonitoringContext context);
+    LiveInputMonitoringStatus disable(LiveInputMonitoringStatus status);
 
-    // Samples currentInputDeviceIdentity() ONCE and builds the workflow context for one operation.
-    [[nodiscard]] InputCalibrationWorkflow::Context workflowContext(
-        LiveInputMonitoringContext context) const;
-    [[nodiscard]] LiveInputMonitoringStatus applyGateInternal(
-        const InputCalibrationWorkflow::Context& context);
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> reselectCalibration(
-        const InputCalibrationWorkflow::Context& context);
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitCalibrationInternal(
-        double gain_db, const std::optional<InputDeviceIdentity>& expected_identity);
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> restoreMeasurementState(
-        const InputCalibrationWorkflow::Context& context);
-    void saveActiveInputCalibration();
-    [[nodiscard]] RouteState currentRouteState() const;
-    void restoreRouteStateBestEffort(const RouteState& route_state);
-    void executeInputCalibrationEffects(const InputCalibrationWorkflow::Effects& effects);
-    bool setLiveInputMonitoringBestEffort(bool enabled, std::string_view reason);
-    bool setCalibrationInputMonitoringBestEffort(bool enabled, std::string_view reason);
-    bool setInputGainBestEffort(Gain gain, std::string_view reason);
-
-    InputCalibrationWorkflow m_workflow;
     ILiveInput& m_live_input;
     IAudioDeviceConfiguration& m_device_configuration;
-    IAudioConfigStore& m_audio_config_store; // the store both products share
-    LiveInputMonitoringStatus m_status{};
+    IAudioConfigStore& m_audio_config_store;
 
-    // Latest session facts supplied by a context-taking driver call. commitCalibration() and
-    // cancelMeasurement() take no context of their own -- they run inside an active prompt the
-    // driver established with refresh()/requestPrompt()/beginMeasurement() -- so they reuse the
-    // session flags captured here while re-sampling the input identity fresh per operation.
-    LiveInputMonitoringContext m_context{};
+    // What the last gate run saw and decided.
+    LiveInputMonitoringStatus m_status{LiveInputMonitoringStatus::SessionNotReady};
+    std::optional<InputDeviceIdentity> m_route{};
+    std::optional<InputCalibrationState> m_calibration{};
+
+    // The route a measurement in progress started on; empty while the gate owns the route.
+    std::optional<InputDeviceIdentity> m_measuring_route{};
 };
 
 } // namespace rock_hero::common::audio

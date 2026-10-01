@@ -489,8 +489,7 @@ multi-step async choreography and rejects stale completions via a monotonic toke
 ```
 
 Exemplar: `BusyOperationWorkflow` (`editor/core/src/busy/`). Siblings: `SignalChainWorkflow` and
-`PluginCatalogWorkflow` (`editor/core/src/signal_chain/`), and `InputCalibrationWorkflow` in
-common/audio. If your feature has "start, maybe supersede, complete later" shape, it wants a
+`PluginCatalogWorkflow` (`editor/core/src/signal_chain/`). If your feature has "start, maybe supersede, complete later" shape, it wants a
 workflow — not ad-hoc flags.
 
 ## Liveness guards — three variants, by owner kind

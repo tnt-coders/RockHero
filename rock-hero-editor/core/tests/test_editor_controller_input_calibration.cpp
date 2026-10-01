@@ -273,10 +273,16 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
 
-// Verifies calibration setup failure while resetting gain restores the previous input route.
+// A refused gain reset hands the route back to the gate, which re-arms the stored calibration.
 TEST_CASE("Input calibration start restores route on gain failure", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
+    requireSaveInputCalibration(
+        store,
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = makeInputDeviceIdentity(),
+        });
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -299,9 +305,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
 
-    transport.current_input_gain = common::audio::Gain{4.0};
-    transport.live_input_monitoring_enabled = true;
-    transport.calibration_input_monitoring_enabled = false;
+    REQUIRE(transport.live_input_monitoring_enabled);
     transport.next_set_input_gain_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::CouldNotSetInputGain,
         "gain reset failed",
@@ -318,10 +322,17 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
 
-// Verifies calibration setup failure while enabling monitor restores the previous input route.
+// A refused calibration path hands the route back to the gate, which re-arms the stored
+// calibration.
 TEST_CASE("Input calibration start restores route on monitor failure", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
+    requireSaveInputCalibration(
+        store,
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = makeInputDeviceIdentity(),
+        });
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -344,9 +355,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
 
-    transport.current_input_gain = common::audio::Gain{4.0};
-    transport.live_input_monitoring_enabled = true;
-    transport.calibration_input_monitoring_enabled = false;
+    REQUIRE(transport.live_input_monitoring_enabled);
     transport.next_set_calibration_input_monitoring_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::CouldNotSetMonitoring,
         "calibration monitoring failed",
@@ -1184,7 +1193,8 @@ TEST_CASE(
     }
 }
 
-// Verifies backend restore failure preserves calibration and reports the route as unavailable.
+// A cancel whose re-arm the backend refuses keeps the stored calibration and reports the route
+// as unavailable; the prompt stays open to show it.
 TEST_CASE(
     "Input recalibration cancel preserves calibration on backend failure",
     "[core][editor-controller]")
@@ -1231,7 +1241,7 @@ TEST_CASE(
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
@@ -1246,9 +1256,10 @@ TEST_CASE(
     }
 }
 
-// Verifies final arming failure after a completed recalibration does not delete the old value.
+// A recalibration is a fact about the route: it is stored even when the backend then refuses to
+// arm the route, and the refusal is reported.
 TEST_CASE(
-    "Input recalibration commit preserves calibration on backend failure",
+    "Input recalibration commit stores the new gain on backend failure",
     "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
@@ -1296,18 +1307,18 @@ TEST_CASE(
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto preserved_calibration = inputCalibrationFor(store, identity);
-    REQUIRE(preserved_calibration.has_value());
-    if (preserved_calibration.has_value())
+    const auto stored_calibration = inputCalibrationFor(store, identity);
+    REQUIRE(stored_calibration.has_value());
+    if (stored_calibration.has_value())
     {
-        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.0, 0));
     }
 }
 
@@ -1442,7 +1453,9 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
                                          });
 
     const std::vector<LiveInputSetterCall> golden_trace{
-        // onInputCalibrationRequested: no setters (prompt open only).
+        // onInputCalibrationRequested: the gate re-reads the store; the route is uncalibrated.
+        setCalibrationInputMonitoringCall(false),
+        setLiveInputMonitoringCall(false),
         // onInputCalibrationMeasurementStarted: disable live, reset
         // gain, enable calibration audition.
         setLiveInputMonitoringCall(false),
@@ -1530,8 +1543,8 @@ TEST_CASE("Live input gate arms matching route in order", "[core][editor-control
                                          });
 }
 
-// Pins the measurement-start rollback at arm site 1: the first live-monitoring disable fails, so no
-// prior mutation exists and no route restore runs.
+// A measurement start refused at its first step hands the uncalibrated route back to the gate,
+// which keeps it silent; the prompt stays open to show the error.
 TEST_CASE("Live input start rollback on disable failure", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1571,21 +1584,19 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     REQUIRE_FALSE(started.has_value());
     const std::vector<LiveInputSetterCall> trace{
         setLiveInputMonitoringCall(false),
+        setCalibrationInputMonitoringCall(false),
+        setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    // markBackendUnavailable() closes the prompt; with no matching calibration for this route the
-    // derived status stays MissingCalibration (the calibration-match check precedes the backend
-    // check), so the route-unavailable failure surfaces as the calibration-required message.
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::MissingCalibration,
                                              .disabled_message = "Input calibration required.",
-                                             .prompt_present = false,
+                                             .prompt_present = true,
                                          });
 }
 
-// Pins the measurement-start rollback at arm site 2: the gain reset fails, so the captured route is
-// restored (calibration audition, gain, live monitoring).
+// A measurement start refused at the gain reset hands the uncalibrated route back to the gate.
 TEST_CASE("Live input start rollback on gain failure", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1627,15 +1638,13 @@ TEST_CASE("Live input start rollback on gain failure", "[core][editor-controller
         setLiveInputMonitoringCall(false),
         setInputGainCall(0.0),
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(4.0),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
 }
 
-// Pins the measurement-start rollback at arm site 3: enabling calibration audition fails after the
-// disable and gain reset succeed, so the captured route is restored.
+// A measurement start refused at the calibration path hands the uncalibrated route back to the
+// gate.
 TEST_CASE("Live input start rollback on audition failure", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1678,15 +1687,12 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
         setInputGainCall(0.0),
         setCalibrationInputMonitoringCall(true),
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(4.0),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
 }
 
-// Pins the commit rollback when applying the gain fails with a route-unavailable error: the trace
-// disables calibration audition, attempts the gain, then disables monitoring.
+// A commit whose gain the backend refuses is stored, then the gate reports the refused route.
 TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
@@ -1737,17 +1743,15 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
     };
     CHECK(live_input.calls == trace);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::Unavailable,
-            .disabled_message = "Live input backend unavailable.",
-            // Backend-unavailable preservation closes the prompt (m_prompt_visible cleared).
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::Unavailable,
+                                             .disabled_message = "Live input backend unavailable.",
+                                             .prompt_present = true,
+                                         });
 }
 
-// Pins the commit rollback when enabling monitoring fails: the new gain is already applied, so the
-// preserved calibration's gain is restored before monitoring is disabled.
+// A commit whose route the backend refuses to monitor is stored at the new gain, with monitoring
+// left off.
 TEST_CASE("Live input commit rollback on enable failure", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
@@ -1795,19 +1799,16 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(6.0),
         setLiveInputMonitoringCall(true),
-        setInputGainCall(4.0),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
+    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(6.0, 0));
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::Unavailable,
-            .disabled_message = "Live input backend unavailable.",
-            // Backend-unavailable preservation closes the prompt (m_prompt_visible cleared).
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::Unavailable,
+                                             .disabled_message = "Live input backend unavailable.",
+                                             .prompt_present = true,
+                                         });
 }
 
 // Pins the cancel path: an active measurement over a matching calibrated route restores the prior
@@ -1905,11 +1906,8 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
     audio_devices.current_input_identity = std::nullopt;
     audio_devices.notifyChanged();
 
+    // One gate run: the calibration path off, then the no-device branch disable.
     const std::vector<LiveInputSetterCall> trace{
-        // selectInputCalibrationForCurrentRoute teardown for the lost identity.
-        setCalibrationInputMonitoringCall(false),
-        setLiveInputMonitoringCall(false),
-        // applyLiveInputGate: preamble disable, then the no-device branch disable.
         setCalibrationInputMonitoringCall(false),
         setLiveInputMonitoringCall(false),
     };
@@ -1964,8 +1962,6 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
     audio_devices.notifyChanged();
 
     const std::vector<LiveInputSetterCall> trace{
-        setCalibrationInputMonitoringCall(false),
-        setLiveInputMonitoringCall(false),
         setCalibrationInputMonitoringCall(false),
         setLiveInputMonitoringCall(false),
     };

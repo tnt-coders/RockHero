@@ -1329,3 +1329,10 @@ against the tree on the date above.
   player-to-route mapping through `IGameSettings::setGameAudioConfig`, but only tests call
   `gameAudioConfig()`. Either a startup consumer (the player-slot input plumbing) reads it, or the
   record waits until that consumer exists. Raised by the same review.
+- **The editor's live-input context says "ready" during a project load while the Tone Designer
+  is up.** `monitoringContext()` (`input_calibration_handlers.cpp`) is `(project audio ready and
+  an arrangement) or designer active`, and the designer stays active until the new project
+  commits, so the three project-load sites in `project_handlers.cpp` pass an explicit
+  `session_ready = false` to switch the gate off. A load-in-progress term in the one context would
+  make it honest and let those sites call `refresh(monitoringContext())`. Raised by the simplicity
+  review of the calibration monitor rewrite.

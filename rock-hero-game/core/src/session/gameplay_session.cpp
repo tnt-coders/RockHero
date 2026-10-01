@@ -371,7 +371,7 @@ void GameplaySession::close()
     // Tear down the live-input gate the Ready edge may have armed: monitoring must not outlive the
     // session, and disabling is best-effort by the monitor's contract. restart()/replay do no rig
     // work, so monitoring stays armed across pause/finish/restart -- only close() disables it.
-    m_live_input_monitor.disableMonitoring();
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = false});
 
     if (m_stage == GameplaySessionStage::Playing)
     {
@@ -497,14 +497,8 @@ void GameplaySession::onRigLoadCompleted(
     // marshals its continuations back via callAsync), so driving the message-thread-only live-input
     // port from here is contract-correct. The gate stays silent unless the shared store holds a
     // calibration matching the active input route; a disabled result is non-fatal and never blocks
-    // readiness. The status.reason is retained for a future SDL "monitoring off because X" surface
-    // (plan 26).
-    [[maybe_unused]] const common::audio::LiveInputMonitoringStatus monitoring_status =
-        m_live_input_monitor.refresh(
-            common::audio::LiveInputMonitoringContext{
-                .live_input_ready = true,
-                .arrangement_loaded = true,
-            });
+    // readiness. A future SDL "monitoring off because X" surface (plan 26) reads status().
+    m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = true});
 }
 
 } // namespace rock_hero::game::core

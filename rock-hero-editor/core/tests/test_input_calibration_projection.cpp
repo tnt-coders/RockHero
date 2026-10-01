@@ -1,6 +1,5 @@
 #include "input_calibration/input_calibration_projection.h"
 
-#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
@@ -18,89 +17,70 @@ namespace
 
 using common::audio::testing::makeInputDeviceIdentity;
 
-// Builds a saved calibration state for a physical route.
-[[nodiscard]] common::audio::InputCalibrationState calibrationFor(
-    const common::audio::InputDeviceIdentity& identity, double gain_db)
-{
-    return common::audio::InputCalibrationState{
-        .calibration_gain = common::audio::Gain{gain_db},
-        .input_device_identity = identity,
-    };
-}
+constexpr common::audio::LiveInputMonitoringContext g_ready{.session_ready = true};
 
-// Session context where arrangement audio is loaded and live input may be calibrated.
-constexpr common::audio::LiveInputMonitoringContext g_ready{
-    .live_input_ready = true, .arrangement_loaded = true
+// A monitor over fakes whose current route is optionally calibrated, refreshed once.
+struct Harness
+{
+    explicit Harness(std::optional<double> stored_gain_db)
+    {
+        devices.current_input_identity = route;
+        if (stored_gain_db.has_value())
+        {
+            store.input_calibrations.push_back(
+                common::audio::InputCalibrationState{
+                    .calibration_gain = common::audio::Gain{*stored_gain_db},
+                    .input_device_identity = route,
+                });
+        }
+        monitor.refresh(g_ready);
+    }
+
+    common::audio::InputDeviceIdentity route{makeInputDeviceIdentity()};
+    common::audio::testing::FakeLiveInput live_input;
+    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, devices, store};
 };
 
 } // namespace
 
-// Each monitoring reason projects to a fixed signal-chain status. This pins the enum mapping the
-// projection module owns after the calibration workflow moved to common/audio.
+// The status follows the route and its stored calibration, and a refused route reads as
+// unavailable.
 TEST_CASE(
-    "Input calibration projection maps each monitoring reason to status",
-    "[core][input-calibration]")
+    "Input calibration status follows the route and its calibration", "[core][input-calibration]")
 {
-    struct Case
-    {
-        common::audio::LiveInputMonitoringDisabledReason reason;
-        bool backend_available;
-        InputCalibrationStatus expected_status;
+    const Harness calibrated{5.0};
+    CHECK(inputCalibrationStatusFor(calibrated.monitor) == InputCalibrationStatus::Calibrated);
+
+    Harness uncalibrated{std::nullopt};
+    CHECK(
+        inputCalibrationStatusFor(uncalibrated.monitor) ==
+        InputCalibrationStatus::MissingCalibration);
+
+    uncalibrated.devices.current_input_identity.reset();
+    uncalibrated.monitor.refresh(g_ready);
+    CHECK(
+        inputCalibrationStatusFor(uncalibrated.monitor) ==
+        InputCalibrationStatus::NoActiveInputDevice);
+
+    Harness refused{5.0};
+    refused.live_input.next_set_input_gain_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::InputRouteUnavailable, "route gone"
     };
-
-    const std::array<Case, 9> cases = {{
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::None,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::Calibrated},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::None,
-         .backend_available = false,
-         .expected_status = InputCalibrationStatus::Unavailable},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::SessionNotReady,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::NoInputDevice,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::MissingCalibration,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::MissingCalibration},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::MissingCalibration},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::Unavailable},
-        {.reason = common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable,
-         .backend_available = true,
-         .expected_status = InputCalibrationStatus::Unavailable},
-    }};
-
-    for (const Case& test_case : cases)
-    {
-        CHECK(
-            inputCalibrationStatusFor(test_case.reason, test_case.backend_available) ==
-            test_case.expected_status);
-    }
+    refused.monitor.refresh(g_ready);
+    CHECK(inputCalibrationStatusFor(refused.monitor) == InputCalibrationStatus::Unavailable);
 }
 
-// A calibrated matching route on a ready session projects an auditionable, calibrated projection.
+// A calibrated route with no editor window open is auditionable.
 TEST_CASE(
     "Input calibration projection builds an active calibrated projection",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    common::audio::testing::FakeLiveInput live_input;
-    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
-    common::audio::LiveInputMonitor monitor{live_input, devices, store};
-    static_cast<void>(monitor.refresh(g_ready));
+    const Harness harness{5.0};
 
-    const InputCalibrationProjection projection = makeInputCalibrationProjection(monitor, g_ready);
+    const InputCalibrationProjection projection =
+        makeInputCalibrationProjection(harness.monitor, false, false);
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK(projection.calibrate_enabled);
@@ -109,54 +89,48 @@ TEST_CASE(
     CHECK_FALSE(projection.prompt.has_value());
 }
 
-// Opening audio-device settings still shows a matching route as calibrated, matching the status
-// projection that ignores the settings-open early-out the ordered gate reports first.
+// The settings window holds the route: the route still shows as calibrated, but neither window
+// may open over it.
 TEST_CASE(
     "Input calibration projection keeps calibrated status while settings are open",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    common::audio::testing::FakeLiveInput live_input;
-    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    common::audio::testing::InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
-    common::audio::LiveInputMonitor monitor{live_input, devices, store};
-    static_cast<void>(monitor.refresh(g_ready));
-    monitor.openAudioDeviceSettings();
+    const Harness harness{5.0};
 
-    const InputCalibrationProjection projection = makeInputCalibrationProjection(monitor, g_ready);
+    const InputCalibrationProjection projection =
+        makeInputCalibrationProjection(harness.monitor, false, true);
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK_FALSE(projection.audio_device_settings_enabled);
     CHECK_FALSE(projection.calibrate_enabled);
 }
 
-// A visible prompt carries the matching stored gain and the disabled message for the route.
+// An open prompt starts from the route's stored gain, else the neutral default.
 TEST_CASE(
     "Input calibration projection projects the prompt with the stored gain",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    common::audio::testing::FakeLiveInput live_input;
-    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    common::audio::testing::InMemoryAudioConfigStore store;
-    common::audio::LiveInputMonitor monitor{live_input, devices, store};
-    static_cast<void>(monitor.refresh(g_ready));
-    REQUIRE(monitor.requestPrompt(g_ready));
-
-    const InputCalibrationProjection projection = makeInputCalibrationProjection(monitor, g_ready);
-
-    REQUIRE(projection.prompt.has_value());
-    if (projection.prompt.has_value())
+    const Harness uncalibrated{std::nullopt};
+    const InputCalibrationProjection fresh =
+        makeInputCalibrationProjection(uncalibrated.monitor, true, false);
+    REQUIRE(fresh.prompt.has_value());
+    if (fresh.prompt.has_value())
     {
         CHECK_THAT(
-            projection.prompt->input_gain_db,
+            fresh.prompt->input_gain_db,
             Catch::Matchers::WithinULP(common::audio::defaultGainDb(), 0));
     }
-    CHECK(projection.status == InputCalibrationStatus::MissingCalibration);
-    CHECK_FALSE(projection.audio_device_settings_enabled);
+    CHECK(fresh.status == InputCalibrationStatus::MissingCalibration);
+    CHECK_FALSE(fresh.audio_device_settings_enabled);
+
+    const Harness calibrated{3.1};
+    const InputCalibrationProjection stored =
+        makeInputCalibrationProjection(calibrated.monitor, true, false);
+    REQUIRE(stored.prompt.has_value());
+    if (stored.prompt.has_value())
+    {
+        CHECK_THAT(stored.prompt->input_gain_db, Catch::Matchers::WithinULP(3.1, 0));
+    }
 }
 
 } // namespace rock_hero::editor::core

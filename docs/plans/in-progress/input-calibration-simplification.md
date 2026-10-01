@@ -86,7 +86,10 @@ placement, emphasis and words.
 2. Delete `live_input_ready` (finding 5). Small.
 3. Move the prompt and settings-open flags to the editor controller (finding 3). Medium.
 4. Store-derived calibration, deleting the rollback machinery (findings 1, 6). Large; the core.
-5. Capture, meter read and policy inside the monitor (findings 2, 9, 10). Medium-large.
+5. Capture, meter read and policy inside the monitor (findings 2, 9, 10). Medium-large. A gate
+   run ends a measurement without telling the driver (a device change, a rig-load refresh), so
+   the sampling call should report the measurement ended; and the game holds three records of
+   "measuring" (its machine phase, its capture, the monitor) that this step should reduce to one.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
    the UI expert.
 6a. The audio-settings window whenever the saved device is not running (D7, widened twice): at

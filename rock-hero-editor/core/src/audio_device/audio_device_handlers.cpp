@@ -16,7 +16,7 @@ namespace rock_hero::editor::core
 void EditorController::Impl::onAudioDeviceChangeRequested(
     std::function<void()> change_audio_device, std::function<void()> after_busy_cleared)
 {
-    if (!change_audio_device || m_live_input_monitor.promptVisible())
+    if (!change_audio_device || m_calibration_prompt_route.has_value())
     {
         if (after_busy_cleared)
         {
@@ -36,7 +36,11 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
     persistAudioDeviceState();
-    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+    m_live_input_monitor.refresh(monitoringContext());
+    if (m_live_input_monitor.route() != m_calibration_prompt_route)
+    {
+        m_calibration_prompt_route.reset();
+    }
     updateView();
 }
 
@@ -44,7 +48,7 @@ void EditorController::Impl::onAudioDeviceConfigurationChanged()
 // Refuses while the calibration prompt is up so the two modal flows never overlap.
 bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 {
-    if (m_live_input_monitor.promptVisible())
+    if (!inputCalibrationProjection().audio_device_settings_enabled)
     {
         return false;
     }
@@ -54,7 +58,8 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
         m_transport.pause();
     }
 
-    m_live_input_monitor.openAudioDeviceSettings();
+    m_audio_device_settings_open = true;
+    m_live_input_monitor.refresh(monitoringContext());
     updateView();
     return true;
 }
@@ -62,7 +67,8 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 // Re-applies the route gate after settings closes or restores its previous route.
 void EditorController::Impl::onAudioDeviceSettingsClosed()
 {
-    static_cast<void>(m_live_input_monitor.closeAudioDeviceSettings(monitoringContext()));
+    m_audio_device_settings_open = false;
+    m_live_input_monitor.refresh(monitoringContext());
     updateView();
 }
 

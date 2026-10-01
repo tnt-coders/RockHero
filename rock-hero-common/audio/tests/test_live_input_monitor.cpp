@@ -1,9 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <juce_audio_devices/juce_audio_devices.h>
 #include <optional>
-#include <rock_hero/common/audio/device/audio_device_status.h>
-#include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
@@ -14,7 +11,6 @@
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
-#include <string>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -32,7 +28,8 @@ using testing::setCalibrationInputMonitoringCall;
 using testing::setInputGainCall;
 using testing::setLiveInputMonitoringCall;
 
-constexpr LiveInputMonitoringContext g_ready{.live_input_ready = true, .arrangement_loaded = true};
+constexpr LiveInputMonitoringContext g_ready{.session_ready = true};
+constexpr LiveInputMonitoringContext g_not_ready{.session_ready = false};
 
 [[nodiscard]] InputCalibrationState makeCalibration(
     const InputDeviceIdentity& identity, double gain_db)
@@ -43,334 +40,290 @@ constexpr LiveInputMonitoringContext g_ready{.live_input_ready = true, .arrangem
     };
 }
 
-// Device-config fake that counts identity reads so a test can pin single-sample-per-operation.
-class CountingDeviceConfiguration final : public IAudioDeviceConfiguration
+[[nodiscard]] LiveInputError routeUnavailable()
 {
-public:
-    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
+    return LiveInputError{LiveInputErrorCode::InputRouteUnavailable, "route gone"};
+}
+
+// One monitor over fakes, with the current route optionally calibrated in the store.
+struct Harness
+{
+    explicit Harness(std::optional<double> stored_gain_db = std::nullopt)
     {
-        return device_manager;
+        devices.current_input_identity = route;
+        if (stored_gain_db.has_value())
+        {
+            store.input_calibrations.push_back(makeCalibration(route, *stored_gain_db));
+        }
     }
 
-    [[nodiscard]] std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>
-    restoreSerializedDeviceState(const std::string&) override
-    {
-        return DeviceRestoreOutcome::Opened;
-    }
-
-    [[nodiscard]] std::optional<std::string> serializedDeviceState() const override
-    {
-        return std::nullopt;
-    }
-
-    [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override
-    {
-        return {};
-    }
-
-    [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override
-    {
-        identity_read_count += 1;
-        return identity;
-    }
-
-    void addListener(Listener&) override
-    {}
-
-    void removeListener(Listener&) override
-    {}
-
-    juce::AudioDeviceManager device_manager{};
-    std::optional<InputDeviceIdentity> identity{};
-    mutable int identity_read_count{0};
+    InputDeviceIdentity route{makeInputDeviceIdentity()};
+    FakeLiveInput live_input;
+    ConfigurableAudioDeviceConfiguration devices;
+    InMemoryAudioConfigStore store;
+    LiveInputMonitor monitor{live_input, devices, store};
 };
 
 } // namespace
 
-// A ready session with no input route disables monitoring after the ordered preamble teardown.
+// With no input route the gate turns both monitoring paths off.
 TEST_CASE("LiveInputMonitor gate disables with no input device", "[audio][live-input]")
 {
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness;
+    harness.devices.current_input_identity.reset();
 
-    const LiveInputMonitoringStatus status = monitor.applyGate(g_ready);
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_ready);
 
-    CHECK(status.state == LiveInputMonitoringState::Disabled);
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::NoInputDevice);
+    CHECK(status == LiveInputMonitoringStatus::NoInputDevice);
     CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setLiveInputMonitoringCall(false),
-                            });
-    CHECK_FALSE(live_input.live_input_monitoring_enabled);
+        harness.live_input.calls == std::vector<LiveInputSetterCall>{
+                                        setCalibrationInputMonitoringCall(false),
+                                        setLiveInputMonitoringCall(false),
+                                    });
 }
 
-// An unready session reports SessionNotReady before the route or calibration is inspected.
-TEST_CASE("LiveInputMonitor gate disables when session not ready", "[audio][live-input]")
+// A session that does not allow monitoring stays off, but the route's calibration is still read
+// so the status can show it.
+TEST_CASE(
+    "LiveInputMonitor reads calibration while the session is not ready", "[audio][live-input]")
 {
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = makeInputDeviceIdentity();
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness{4.0};
 
-    const LiveInputMonitoringStatus status =
-        monitor.applyGate({.live_input_ready = false, .arrangement_loaded = true});
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_not_ready);
 
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::SessionNotReady);
+    CHECK(status == LiveInputMonitoringStatus::SessionNotReady);
+    CHECK(harness.monitor.calibration().has_value());
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
 }
 
-// A ready route with no stored calibration reports MissingCalibration and stays disabled.
-TEST_CASE("LiveInputMonitor gate disables without calibration", "[audio][live-input]")
+// An uncalibrated route never reaches the live output: the editor never plays the rig uncalibrated.
+TEST_CASE("LiveInputMonitor keeps an uncalibrated route silent", "[audio][live-input]")
 {
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = makeInputDeviceIdentity();
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness;
 
-    const LiveInputMonitoringStatus status = monitor.applyGate(g_ready);
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_ready);
 
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::MissingCalibration);
-    CHECK_FALSE(live_input.live_input_monitoring_enabled);
+    CHECK(status == LiveInputMonitoringStatus::MissingCalibration);
+    CHECK_FALSE(harness.monitor.calibration().has_value());
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
 }
 
-// refresh re-reads the store, finds the matching calibration, and arms in the pinned order.
-TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[audio][live-input]")
+// A calibrated route applies its stored gain, then turns monitoring on.
+TEST_CASE("LiveInputMonitor arms a calibrated route", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(makeCalibration(identity, 5.0)).has_value());
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness{3.1};
 
-    const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_ready);
 
-    CHECK(status.state == LiveInputMonitoringState::Active);
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::None);
+    CHECK(status == LiveInputMonitoringStatus::Active);
     CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setInputGainCall(5.0),
-                                setLiveInputMonitoringCall(true),
-                            });
-    CHECK(live_input.live_input_monitoring_enabled);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
-    CHECK(monitor.backendAvailable());
+        harness.live_input.calls == std::vector<LiveInputSetterCall>{
+                                        setCalibrationInputMonitoringCall(false),
+                                        setInputGainCall(3.1),
+                                        setLiveInputMonitoringCall(true),
+                                    });
 }
 
-// A corrupt store read surfaces CalibrationStoreUnavailable and does not arm any monitoring.
-TEST_CASE("LiveInputMonitor refresh surfaces corrupt store and does not arm", "[audio][live-input]")
+// The store is the authority: a calibration the other product saved is used at the next refresh.
+TEST_CASE("LiveInputMonitor picks up a calibration saved elsewhere", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(makeCalibration(identity, 5.0)).has_value());
-    store.next_input_calibration_for_error =
-        AudioConfigError{AudioConfigErrorCode::InvalidInputCalibrationHistory, "corrupt history"};
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness;
+    REQUIRE(harness.monitor.refresh(g_ready) == LiveInputMonitoringStatus::MissingCalibration);
 
-    const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
+    harness.store.input_calibrations.push_back(makeCalibration(harness.route, 2.0));
 
-    CHECK(status.state == LiveInputMonitoringState::Disabled);
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable);
+    CHECK(harness.monitor.refresh(g_ready) == LiveInputMonitoringStatus::Active);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(2.0, 0));
+}
+
+// An unreadable store reports itself and keeps monitoring off.
+TEST_CASE("LiveInputMonitor reports an unreadable calibration store", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.store.next_input_calibration_for_error =
+        AudioConfigError{AudioConfigErrorCode::InvalidInputCalibrationHistory, "corrupt"};
+
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_ready);
+
+    CHECK(status == LiveInputMonitoringStatus::CalibrationStoreUnavailable);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+}
+
+// A backend that refuses the calibrated gain leaves monitoring off and says so.
+TEST_CASE("LiveInputMonitor reports a backend that refuses the route", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.live_input.next_set_input_gain_error = routeUnavailable();
+
+    const LiveInputMonitoringStatus status = harness.monitor.refresh(g_ready);
+
+    CHECK(status == LiveInputMonitoringStatus::BackendUnavailable);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+}
+
+// A measurement hears the raw route: processed monitoring off, unity gain, calibration path on.
+TEST_CASE("LiveInputMonitor measures the raw route at unity gain", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    harness.live_input.calls.clear();
+
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
+
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Measuring);
     CHECK(
-        monitor.status().reason == LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable);
-    CHECK(live_input.calls.empty());
-    CHECK_FALSE(live_input.live_input_monitoring_enabled);
+        harness.live_input.calls == std::vector<LiveInputSetterCall>{
+                                        setLiveInputMonitoringCall(false),
+                                        setInputGainCall(defaultGainDb()),
+                                        setCalibrationInputMonitoringCall(true),
+                                    });
 }
 
-// A route-unavailable gain rejection during arming rolls the gate into BackendUnavailable.
-TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[audio][live-input]")
+// Without an input route there is nothing to measure.
+TEST_CASE("LiveInputMonitor refuses a measurement without a route", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(makeCalibration(identity, 5.0)).has_value());
-    live_input.next_set_input_gain_error =
-        LiveInputError{LiveInputErrorCode::InputRouteUnavailable, "route gone"};
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness;
+    harness.devices.current_input_identity.reset();
 
-    const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
+    const auto began = harness.monitor.beginMeasurement(g_ready);
 
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::BackendUnavailable);
-    CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setInputGainCall(5.0),
-                                setLiveInputMonitoringCall(false),
-                            });
-    CHECK_FALSE(live_input.live_input_monitoring_enabled);
-    CHECK_FALSE(monitor.backendAvailable());
+    REQUIRE_FALSE(began.has_value());
+    CHECK(began.error().code == LiveInputMonitorErrorCode::InvalidRequest);
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
 }
 
-// A route-unavailable monitoring rejection after gain succeeds still
-// disables and marks the backend.
-TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[audio][live-input]")
+// A refused measurement start hands the route back to the gate, which restores the stored gain.
+TEST_CASE("LiveInputMonitor recovers a refused measurement start", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    REQUIRE(store.saveInputCalibration(makeCalibration(identity, 5.0)).has_value());
-    live_input.next_set_live_input_monitoring_error =
-        LiveInputError{LiveInputErrorCode::InputRouteUnavailable, "route gone"};
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    harness.live_input.next_set_calibration_input_monitoring_error = routeUnavailable();
 
-    const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
+    const auto began = harness.monitor.beginMeasurement(g_ready);
 
-    CHECK(status.reason == LiveInputMonitoringDisabledReason::BackendUnavailable);
-    CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setInputGainCall(5.0),
-                                setLiveInputMonitoringCall(true),
-                                setLiveInputMonitoringCall(false),
-                            });
-    CHECK_FALSE(live_input.live_input_monitoring_enabled);
+    REQUIRE_FALSE(began.has_value());
+    CHECK(began.error().code == LiveInputMonitorErrorCode::BackendRejected);
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// disableMonitoring tears down both the calibration and processed monitoring paths.
-TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[audio][live-input]")
+// Cancelling a measurement restores the stored calibration with no rollback of its own.
+TEST_CASE("LiveInputMonitor cancel restores the stored calibration", "[audio][live-input]")
 {
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
 
-    monitor.disableMonitoring();
+    harness.monitor.cancelMeasurement(g_ready);
 
-    CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setLiveInputMonitoringCall(false),
-                            });
-    CHECK(monitor.status().state == LiveInputMonitoringState::Disabled);
-    CHECK(monitor.status().reason == LiveInputMonitoringDisabledReason::SessionNotReady);
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    CHECK(harness.live_input.live_input_monitoring_enabled);
+    CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// Measurement start rolls back the captured route when the neutral-gain reset is rejected.
-TEST_CASE("LiveInputMonitor measurement start rolls back on gain failure", "[audio][live-input]")
+// A measured gain is stored for the measured route and armed.
+TEST_CASE("LiveInputMonitor commits a measurement", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
-    REQUIRE(monitor.requestPrompt(g_ready));
+    Harness harness;
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
 
-    live_input.current_input_gain = Gain{4.0};
-    live_input.live_input_monitoring_enabled = false;
-    live_input.calibration_input_monitoring_enabled = false;
-    live_input.next_set_input_gain_error =
-        LiveInputError{LiveInputErrorCode::CouldNotSetInputGain, "gain reset failed"};
-    live_input.calls.clear();
+    REQUIRE(harness.monitor.commitMeasurement(6.5, g_ready).has_value());
 
-    const auto started = monitor.beginMeasurement(g_ready);
-
-    REQUIRE_FALSE(started.has_value());
-    CHECK(started.error().code == LiveInputMonitorErrorCode::BackendRejected);
-    CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setLiveInputMonitoringCall(false),
-                                setInputGainCall(0.0),
-                                setCalibrationInputMonitoringCall(false),
-                                setInputGainCall(4.0),
-                                setLiveInputMonitoringCall(false),
-                            });
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    REQUIRE(harness.store.input_calibrations.size() == 1);
+    CHECK(harness.store.input_calibrations.front().input_device_identity == harness.route);
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(6.5, 0));
 }
 
-// A completed measurement commit disables audition, applies the gain, enables monitoring, and
-// persists the calibration through the store.
-TEST_CASE("LiveInputMonitor commit applies gain and persists calibration", "[audio][live-input]")
+// A measurement can never calibrate a route it did not measure.
+TEST_CASE("LiveInputMonitor refuses a measurement whose route changed", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
-    REQUIRE(monitor.requestPrompt(g_ready));
-    REQUIRE(monitor.beginMeasurement(g_ready).has_value());
+    Harness harness;
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
+    harness.devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
 
-    live_input.calls.clear();
-    const auto committed = monitor.commitCalibration(7.5, std::nullopt);
+    const auto committed = harness.monitor.commitMeasurement(6.5, g_ready);
 
-    REQUIRE(committed.has_value());
-    CHECK(
-        live_input.calls == std::vector<LiveInputSetterCall>{
-                                setCalibrationInputMonitoringCall(false),
-                                setInputGainCall(7.5),
-                                setLiveInputMonitoringCall(true),
-                            });
-    CHECK(live_input.live_input_monitoring_enabled);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
-
-    const auto stored = store.inputCalibrationFor(identity);
-    REQUIRE(stored.has_value());
-    REQUIRE(stored->has_value());
-    if (stored.has_value() && stored->has_value())
-    {
-        CHECK_THAT((*stored)->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
-    }
+    REQUIRE_FALSE(committed.has_value());
+    CHECK(committed.error().code == LiveInputMonitorErrorCode::InvalidRequest);
+    CHECK(harness.store.input_calibrations.empty());
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
 }
 
-// A store write failure at commit surfaces the failure only through logging, not a hard error, and
-// the workflow keeps the committed calibration.
-TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[audio][live-input]")
+// A measured commit without a measurement in progress is refused, so it cannot fall back to
+// calibrating whatever route is current.
+TEST_CASE("LiveInputMonitor refuses a measured commit without a measurement", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = identity;
-    InMemoryAudioConfigStore store;
-    store.next_save_input_calibration_error =
+    Harness harness;
+
+    const auto committed = harness.monitor.commitMeasurement(6.5, g_ready);
+
+    REQUIRE_FALSE(committed.has_value());
+    CHECK(committed.error().code == LiveInputMonitorErrorCode::InvalidRequest);
+    CHECK(harness.store.input_calibrations.empty());
+}
+
+// A typed gain calibrates the current route.
+TEST_CASE("LiveInputMonitor commits a manual calibration", "[audio][live-input]")
+{
+    Harness harness;
+
+    REQUIRE(harness.monitor.commitManualCalibration(3.1, g_ready).has_value());
+
+    REQUIRE(harness.store.input_calibrations.size() == 1);
+    CHECK_THAT(
+        harness.store.input_calibrations.front().calibration_gain.db,
+        Catch::Matchers::WithinULP(3.1, 0));
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
+}
+
+// A failed store write keeps the old calibration in force.
+TEST_CASE("LiveInputMonitor keeps the stored calibration when a save fails", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    harness.store.next_save_input_calibration_error =
         AudioConfigError{AudioConfigErrorCode::CouldNotSave, "disk full"};
-    LiveInputMonitor monitor{live_input, devices, store};
-    REQUIRE(monitor.requestPrompt(g_ready));
-    REQUIRE(monitor.beginMeasurement(g_ready).has_value());
 
-    const auto committed = monitor.commitCalibration(7.5, std::nullopt);
+    const auto committed = harness.monitor.commitManualCalibration(8.0, g_ready);
 
-    REQUIRE(committed.has_value());
-    CHECK(live_input.live_input_monitoring_enabled);
-    const auto active = monitor.activeCalibrationState();
-    REQUIRE(active.has_value());
-    if (active.has_value())
-    {
-        CHECK_THAT(active->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
-    }
+    REQUIRE_FALSE(committed.has_value());
+    CHECK(committed.error().code == LiveInputMonitorErrorCode::CalibrationStoreUnavailable);
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// The input identity is sampled exactly once per commit operation, so a route that changes between
-// the expected-identity check and the plan build cannot be observed mid-operation.
-TEST_CASE("LiveInputMonitor samples the input identity once per operation", "[audio][live-input]")
+// The calibration is saved even when the backend then refuses the route: it is a fact about the
+// route, and the refusal is reported.
+TEST_CASE("LiveInputMonitor saves a calibration the backend refuses", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeInputDeviceIdentity();
-    FakeLiveInput live_input;
-    CountingDeviceConfiguration devices;
-    devices.identity = identity;
-    InMemoryAudioConfigStore store;
-    LiveInputMonitor monitor{live_input, devices, store};
-    REQUIRE(monitor.requestPrompt(g_ready));
-    REQUIRE(monitor.beginMeasurement(g_ready).has_value());
+    Harness harness;
+    harness.live_input.next_set_input_gain_error = routeUnavailable();
 
-    const int reads_before = devices.identity_read_count;
-    const auto committed = monitor.commitCalibration(7.5, identity);
+    const auto committed = harness.monitor.commitManualCalibration(4.0, g_ready);
 
-    REQUIRE(committed.has_value());
-    CHECK(devices.identity_read_count - reads_before == 1);
+    REQUIRE_FALSE(committed.has_value());
+    CHECK(committed.error().code == LiveInputMonitorErrorCode::BackendRejected);
+    CHECK(harness.store.input_calibrations.size() == 1);
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::BackendUnavailable);
+}
+
+// A session that stops allowing monitoring turns both paths off and ends a measurement.
+TEST_CASE("LiveInputMonitor session close ends monitoring and measurement", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
+
+    harness.monitor.refresh(g_not_ready);
+
+    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+    CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::SessionNotReady);
 }
 
 } // namespace rock_hero::common::audio

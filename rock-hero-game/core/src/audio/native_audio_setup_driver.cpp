@@ -8,6 +8,15 @@
 namespace rock_hero::game::core
 {
 
+namespace
+{
+
+// The setup menu has no song, so it never allows processed monitoring; calibration needs only the
+// input route the applied device provides.
+constexpr common::audio::LiveInputMonitoringContext g_setup_menu_context{.session_ready = false};
+
+} // namespace
+
 NativeAudioSetup::NativeAudioSetup(
     common::audio::IAudioDeviceSettings& device_settings,
     common::audio::IAudioDeviceConfiguration& device_configuration,
@@ -103,7 +112,6 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             })};
     }
 
-    m_active_route_identity = *identity;
     m_machine.deviceApplied();
     return {};
 }
@@ -118,16 +126,8 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibratio
         }};
     }
 
-    const common::audio::LiveInputMonitoringContext context = calibrationContext();
-    if (!m_live_input_monitor.requestPrompt(context))
-    {
-        return std::unexpected{NativeAudioSetupError{
-            NativeAudioSetupErrorCode::CalibrationFailed,
-            "No live input route is available to calibrate.",
-        }};
-    }
-
-    if (const auto began = m_live_input_monitor.beginMeasurement(context); !began.has_value())
+    if (const auto began = m_live_input_monitor.beginMeasurement(g_setup_menu_context);
+        !began.has_value())
     {
         return std::unexpected{NativeAudioSetupError{
             NativeAudioSetupErrorCode::CalibrationFailed, began.error().message
@@ -181,7 +181,7 @@ std::expected<GainCalibrationProgress, NativeAudioSetupError> NativeAudioSetup::
             // A signal-quality failure is recoverable: restore the route and stay in
             // CalibratingGain so the player can strum again. The applied device and
             // its persisted route are intact.
-            static_cast<void>(m_live_input_monitor.cancelMeasurement());
+            m_live_input_monitor.cancelMeasurement(g_setup_menu_context);
             std::string message = update.error.has_value()
                                       ? update.error->message
                                       : std::string{"Gain calibration failed."};
@@ -206,23 +206,14 @@ void NativeAudioSetup::cancelGainCalibration()
         return;
     }
 
-    static_cast<void>(m_live_input_monitor.cancelMeasurement());
+    m_live_input_monitor.cancelMeasurement(g_setup_menu_context);
     m_capture.reset();
-}
-
-common::audio::LiveInputMonitoringContext NativeAudioSetup::calibrationContext() const noexcept
-{
-    // Calibration only needs the live input path up, which an applied device provides. The setup
-    // menu has no arrangement, so arrangement_loaded stays false honestly -- it gates active
-    // processed monitoring, not the raw measurement calibration performs here.
-    return common::audio::LiveInputMonitoringContext{.live_input_ready = true};
 }
 
 std::expected<void, NativeAudioSetupError> NativeAudioSetup::commitMeasuredGain(double gain_db)
 {
-    // commitCalibration persists the InputCalibrationState for the active route through the store
-    // the monitor was composed with (the shared store).
-    const auto committed = m_live_input_monitor.commitCalibration(gain_db, m_active_route_identity);
+    // Stored for the route the measurement started on, in the store both products share.
+    const auto committed = m_live_input_monitor.commitMeasurement(gain_db, g_setup_menu_context);
     m_capture.reset();
     if (!committed.has_value())
     {

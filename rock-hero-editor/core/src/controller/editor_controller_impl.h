@@ -888,6 +888,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Builds the two-bool session context the shared live-input monitor gate evaluates; the monitor
     // samples the current input route identity itself.
     [[nodiscard]] common::audio::LiveInputMonitoringContext monitoringContext() const;
+    [[nodiscard]] InputCalibrationProjection inputCalibrationProjection() const;
     void clearActiveArrangementBestEffort(std::string_view context);
     void updateView();
     void reportError(const std::string& message);
@@ -1884,9 +1885,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool m_project_audio_ready{false};
 
     // Shared calibrate-first live-input monitoring service. The controller drives it at lifecycle
-    // edges (refresh/applyGate/disableMonitoring) and delegates calibration to it; the service owns
-    // the pure calibration workflow and the ILiveInput port that drives it.
+    // edges (refresh) and delegates calibration measurement and commits to it.
     common::audio::LiveInputMonitor& m_live_input_monitor;
+
+    // The input route the calibration prompt is open for; empty while it is closed. The prompt
+    // closes when the route changes under it, since the gain it shows belongs to that route.
+    std::optional<common::audio::InputDeviceIdentity> m_calibration_prompt_route{};
+
+    // True while the audio-device settings window stages a route. It holds the route, so the
+    // live-input gate stays off until the window closes.
+    bool m_audio_device_settings_open{false};
 
     // Browser catalog and selection state for adding known plugins.
     PluginCatalogWorkflow m_plugin_catalog;
