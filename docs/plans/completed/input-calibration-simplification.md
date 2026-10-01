@@ -1,9 +1,9 @@
 # Input Calibration Simplification
 
-Status: in progress, ruled 2026-10-01 (user); steps 1-6 run now, step 7 is its own plan, step 8
-follows once the restructuring lands. Captured from a Fable
-review on 2026-10-01 (at commit `15432e1d`). Re-verify every citation against the current code before
-acting on it.
+Status: COMPLETED 2026-10-01. Steps 1-7 landed (`bad52c5b` … `13e74c2d`); step 8's analysis and
+its companion research produced the six decisions that `docs/plans/todo/input-calibration-rework.md`
+carries forward. Ruled 2026-10-01 (user); captured from a Fable review on 2026-10-01 (at commit
+`15432e1d`). Citations below describe the code as it was at each step.
 
 ## What calibration is for
 
@@ -108,11 +108,12 @@ placement, emphasis and words.
    the monitor's `InputCalibrationProgress` (the copied `GainCalibrationProgress` is gone), and the
    monitor reports a measurement a gate run ended, so the game never calls that an invalid request;
    `--import-editor-audio` is deleted.
-8. WRITTEN, awaiting the user's decisions: `docs/tracking/2026-10-01-input-calibration-analysis.md`.
-   A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
-   could be better: what the strum measurement fallback measures and why it does not repeat, how
-   documented interface gains reach the user (the window's "?" link to known devices today), and
-   whether a known-device table should fill the gain in.
+8. DONE: the deep analysis, `docs/tracking/2026-10-01-input-calibration-analysis.md` (what the
+   strum fallback measures and why it does not repeat, the documented-gain path, every
+   status-to-text authority, `refresh()` idempotence), with its companion
+   `docs/tracking/2026-10-01-input-level-calibration-research.md` (what the rest of the world
+   does, with sources). The user took all six recommendations; the plan is
+   `docs/plans/todo/input-calibration-rework.md`.
 
 ## Decisions for the user (ruled 2026-10-01)
 

@@ -1,6 +1,6 @@
 # Input calibration — analysis snapshot of 2026-10-01
 
-A snapshot, not a registry: step 8 of `docs/plans/in-progress/input-calibration-simplification.md`,
+A snapshot, not a registry: step 8 of `docs/plans/completed/input-calibration-simplification.md`,
 written once steps 1–7 had landed (`8cd9c55d` … `13e74c2d`). Four read-only fact-gathering passes
 traced the measurement, the documented-gain path, every status-to-text authority in both products,
 and the repeatability evidence; every claim below was verified against the code before being
@@ -199,3 +199,9 @@ All three were fixed in the commit that added this file.
    **Recommend yes**; it corrects a wrong claim this plan's own step 7 recorded.
 5. **Target wording**: "-12 dBFS average/RMS" becomes "a 1 V peak sine reads -12 dBFS" in the
    header, the plan and the user doc. Part of 1; listed so the words change even if 1 is deferred.
+
+## Outcome (2026-10-01)
+
+The user took all five decisions plus the research snapshot's sixth (the reference stated as
+"+12 dBu reads 0 dBFS", `docs/tracking/2026-10-01-input-level-calibration-research.md`). The
+plan is `docs/plans/todo/input-calibration-rework.md`.
