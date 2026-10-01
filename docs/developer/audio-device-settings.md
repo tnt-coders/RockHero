@@ -41,9 +41,10 @@ Around the dialog sit two main-MVC pieces: `GameAudioRecommendationDialog` (the 
 suggestion to adopt the game's settings) and `audioDeviceStatusText` (the menu-bar status line).
 The editor never blocks itself without hardware: the engine runs its silent device
 (`null_audio_device.h`), so playback, the chain and every edit keep working with the audio going
-nowhere, and the status line reads `[audio device closed]`. Only live input needs the hardware. The
-settings window is the repair path; while it stages, it hands the engine to the silent device so
-the hardware is free, and every route it opens goes through the engine's no-fallback restore.
+nowhere, and the status line reads `[audio device closed - playback silent]`. Only live input
+needs the hardware. The settings window is the repair path; while it stages, it hands the engine to
+the silent device so the hardware is free, and every route it opens goes through the engine's
+no-fallback restore.
 
 # Persistence: two stores, one of them untouchable
 

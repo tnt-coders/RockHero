@@ -17,7 +17,9 @@ namespace rock_hero::editor::core
 
 Exposed so EditorViewState can use the same default without duplicating the literal.
 */
-inline constexpr std::string_view g_closed_audio_device_text{"[audio device closed]"};
+inline constexpr std::string_view g_closed_audio_device_text{
+    "[audio device closed - playback silent]"
+};
 
 /*!
 \brief Formats one sample rate as the Hz text every audio-device surface displays.

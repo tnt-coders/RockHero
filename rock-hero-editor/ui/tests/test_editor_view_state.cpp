@@ -816,14 +816,14 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     view.setState(core::EditorViewState{});
 
     CHECK(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "[audio device closed]");
+    CHECK(audio_button.getText() == "[audio device closed - playback silent]");
 
     core::EditorViewState state;
     state.audio_device_settings_enabled = false;
     view.setState(state);
 
     CHECK_FALSE(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "[audio device closed]");
+    CHECK(audio_button.getText() == "[audio device closed - playback silent]");
 
     state.audio_device_settings_enabled = true;
     state.audio_device_status_text = "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]";

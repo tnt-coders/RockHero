@@ -8,7 +8,9 @@ namespace rock_hero::editor::core
 // Closed, failed, and missing device routes share the compact REAPER-style closed text.
 TEST_CASE("Audio device status text maps closed device", "[core][audio-device-status]")
 {
-    CHECK(audioDeviceStatusText(common::audio::AudioDeviceStatus{}) == "[audio device closed]");
+    CHECK(
+        audioDeviceStatusText(common::audio::AudioDeviceStatus{}) ==
+        "[audio device closed - playback silent]");
 }
 
 // Open device text keeps the low-latency route details without REAPER's recording-format token.

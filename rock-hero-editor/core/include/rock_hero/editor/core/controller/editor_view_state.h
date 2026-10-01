@@ -1007,7 +1007,7 @@ struct EditorViewState
     TransportViewState transport{};
 
     /*! \brief Menu-bar status text for the current audio-device route. */
-    std::string audio_device_status_text{"[audio device closed]"};
+    std::string audio_device_status_text{"[audio device closed - playback silent]"};
 
     /*! \brief Enables or disables opening audio-device settings. */
     bool audio_device_settings_enabled{true};

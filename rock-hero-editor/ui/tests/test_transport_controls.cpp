@@ -64,14 +64,14 @@ TEST_CASE("TransportControls setState updates enabledness and tooltips", "[ui][t
 
     controls.setState(
         TransportViewState{
-            .unavailable_reason = "Playback disabled: audio device closed.",
+            .unavailable_reason = "Playback disabled: no song open.",
             .play_pause_shows_pause_icon = true,
         });
 
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
-    CHECK(getPlayPauseButton(controls).getTooltip() == "Playback disabled: audio device closed.");
-    CHECK(getStopButton(controls).getTooltip() == "Playback disabled: audio device closed.");
+    CHECK(getPlayPauseButton(controls).getTooltip() == "Playback disabled: no song open.");
+    CHECK(getStopButton(controls).getTooltip() == "Playback disabled: no song open.");
 }
 
 // Verifies fixed transport buttons are centered and ordered Play/Pause, then Stop.

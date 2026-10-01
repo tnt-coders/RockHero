@@ -561,8 +561,9 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
         // A staged device whose driver cannot initialize is the designed no-fallback outcome, not
         // an apply failure: the restore already stored the route as the user's choice, and the
-        // editor shows "[audio device closed]". Succeeding lets OK close the settings window
-        // instead of trapping the user behind an error the standing notice already explains.
+        // editor shows "[audio device closed - playback silent]". Succeeding lets OK close the
+        // settings window instead of trapping the user behind an error the standing notice already
+        // explains.
         if (opened.has_value() && stagedDeviceErrorDetail(m_staged_device.get()).has_value())
         {
             m_restore_pending = false;
