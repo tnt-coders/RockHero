@@ -17,10 +17,6 @@ namespace
         {
             return "Editor settings value is not valid.";
         }
-        case EditorSettingsErrorCode::InvalidInputCalibrationHistory:
-        {
-            return "Saved input calibration settings are invalid.";
-        }
         case EditorSettingsErrorCode::CouldNotSave:
         {
             return "Could not save editor settings.";

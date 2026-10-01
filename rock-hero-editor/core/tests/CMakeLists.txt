@@ -59,7 +59,6 @@ add_executable(
     test_gp_song_importer.cpp
     test_input_calibration_controller.cpp
     test_input_calibration_projection.cpp
-    test_input_calibration_text.cpp
     test_playback_unavailable_text.cpp
     test_plugin_catalog_workflow.cpp
     test_plugin_display_type.cpp

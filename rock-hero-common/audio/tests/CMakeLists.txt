@@ -29,6 +29,7 @@ add_executable(
     test_gain.cpp
     test_input_calibration.cpp
     test_live_input_monitor.cpp
+    test_live_input_monitoring_status.cpp
     test_live_rig_gain_plugin.cpp
     test_multi_tone_rack.cpp
     test_null_audio_device.cpp

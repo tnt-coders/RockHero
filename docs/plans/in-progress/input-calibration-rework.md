@@ -77,7 +77,7 @@ Nothing else states 12, 11.21 or -12. `inputCalibrationTargetRmsDb` is deleted.
 Each step is one commit. Docs and the developer guide ride the step that changes what they
 describe (`CLAUDE.md`: a change that touches what the guide names updates the guide).
 
-### 1. `refresh()` at play (D4). Small.
+### 1. DONE: `refresh()` at play (D4). Small.
 
 - `rock-hero-game/core/src/session/gameplay_session.cpp` `play()` and `restart()`: call
   `m_live_input_monitor.refresh(common::audio::LiveInputMonitoringContext{.session_ready = true})`
@@ -99,7 +99,11 @@ describe (`CLAUDE.md`: a change that touches what the guide names updates the gu
   D1 line: "the gate re-runs at every play".
 - CI: nothing new; no enum or struct changes.
 
-### 2. One status-to-text authority (D3). Small-medium.
+### 2. DONE: one status-to-text authority (D3). Small-medium.
+
+Rode with it: the game session's error defaults became sentences with periods, so that one
+function states one convention.
+
 
 - New `rock-hero-common/audio/src/input/live_input_monitoring_status.cpp` (add to the
   `common/audio` CMake source list beside `live_input_monitor_error.cpp`), declaring in

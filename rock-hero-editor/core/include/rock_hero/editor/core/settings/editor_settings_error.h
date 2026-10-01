@@ -17,9 +17,6 @@ enum class EditorSettingsErrorCode : std::uint8_t
     /*! \brief A settings value was not valid for persistence or lookup. */
     InvalidSettingValue,
 
-    /*! \brief Persisted input calibration history could not be parsed. */
-    InvalidInputCalibrationHistory,
-
     /*! \brief The settings file could not be saved. */
     CouldNotSave,
 };

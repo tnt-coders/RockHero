@@ -916,7 +916,7 @@ TEST_CASE("Gameplay session refuses to play while live input is off", "[core][se
     const auto played = harness.session.play();
     REQUIRE_FALSE(played.has_value());
     CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
-    CHECK(played.error().message == "Input calibration required");
+    CHECK(played.error().message == "Input calibration required.");
 
     const auto restarted = harness.session.restart();
     REQUIRE_FALSE(restarted.has_value());
@@ -936,7 +936,7 @@ TEST_CASE("Gameplay session refuses to play without an input device", "[core][se
     const auto played = harness.session.play();
     REQUIRE_FALSE(played.has_value());
     CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
-    CHECK(played.error().message == "No audio input device");
+    CHECK(played.error().message == "No audio input device.");
 }
 
 // Every play re-runs the live-input gate, so a calibration saved after Ready lets the song start.
@@ -969,6 +969,8 @@ TEST_CASE("Gameplay session refuses play once uncalibrated", "[core][session][li
     REQUIRE_FALSE(played.has_value());
     CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
     CHECK(harness.transport.play_call_count == 0);
+    // The re-run turned the armed monitoring off: no uncalibrated route keeps playing.
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
 }
 
 // A device lost mid-song pauses the song rather than finishing it: the engine pauses the

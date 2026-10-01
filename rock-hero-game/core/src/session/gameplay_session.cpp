@@ -21,41 +21,14 @@ namespace
 [[nodiscard]] std::optional<GameplaySessionError> liveInputOffError(
     common::audio::LiveInputMonitoringStatus status)
 {
-    const auto off = [](std::string message) {
-        return GameplaySessionError{GameplaySessionErrorCode::LiveInputOff, std::move(message)};
-    };
-    switch (status)
+    if (status == common::audio::LiveInputMonitoringStatus::Active)
     {
-        case common::audio::LiveInputMonitoringStatus::Active:
-        {
-            return std::nullopt;
-        }
-        case common::audio::LiveInputMonitoringStatus::Measuring:
-        {
-            return off("Input calibration is in progress");
-        }
-        case common::audio::LiveInputMonitoringStatus::CalibrationStoreUnavailable:
-        {
-            return off("Input calibration could not be read");
-        }
-        case common::audio::LiveInputMonitoringStatus::SessionNotReady:
-        {
-            return off("Live input is not ready");
-        }
-        case common::audio::LiveInputMonitoringStatus::NoInputDevice:
-        {
-            return off("No audio input device");
-        }
-        case common::audio::LiveInputMonitoringStatus::MissingCalibration:
-        {
-            return off("Input calibration required");
-        }
-        case common::audio::LiveInputMonitoringStatus::BackendUnavailable:
-        {
-            return off("Live input backend unavailable");
-        }
+        return std::nullopt;
     }
-    return GameplaySessionError{GameplaySessionErrorCode::LiveInputOff};
+    return GameplaySessionError{
+        GameplaySessionErrorCode::LiveInputOff,
+        std::string{common::audio::liveInputStatusText(status)},
+    };
 }
 
 // Composes the rig preload request exactly like the editor's project load does

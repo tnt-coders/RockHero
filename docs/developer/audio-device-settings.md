@@ -82,6 +82,10 @@ while a measurement runs, an `InputCalibrationProgress`: a stage, a committed ga
 measurement a gate run ended (a device change, a session closing) reports itself as a failure at
 the next sample, once, so neither driver keeps its own record of having started one.
 
+Why live input is off is worded once, by `liveInputStatusText` beside `LiveInputMonitoringStatus`
+(`common/audio` `input/live_input_monitoring_status.h`): the editor's signal-chain message and the
+game's `LiveInputOff` refusal both take their sentence from it, never their own copy.
+
 # The game's first-run setup
 
 `NativeAudioSetupMachine` (`game/core/src/audio/native_audio_setup.cpp`) is a pure state machine

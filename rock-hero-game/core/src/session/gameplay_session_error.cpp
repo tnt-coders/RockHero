@@ -15,51 +15,51 @@ namespace
     {
         case GameplaySessionErrorCode::WorkspaceUnavailable:
         {
-            return "Session workspace could not be created";
+            return "Session workspace could not be created.";
         }
         case GameplaySessionErrorCode::PackageUnreadable:
         {
-            return "Song package could not be read";
+            return "Song package could not be read.";
         }
         case GameplaySessionErrorCode::ArrangementNotFound:
         {
-            return "Requested arrangement is not in the song";
+            return "Requested arrangement is not in the song.";
         }
         case GameplaySessionErrorCode::PreparationFailed:
         {
-            return "Song audio preparation failed";
+            return "Song audio preparation failed.";
         }
         case GameplaySessionErrorCode::ActivationFailed:
         {
-            return "Arrangement could not be activated for playback";
+            return "Arrangement could not be activated for playback.";
         }
         case GameplaySessionErrorCode::RigLoadFailed:
         {
-            return "Tone rig failed to load";
+            return "Tone rig failed to load.";
         }
         case GameplaySessionErrorCode::MissingPlugins:
         {
-            return "Song tones reference plugins that are not installed";
+            return "Song tones reference plugins that are not installed.";
         }
         case GameplaySessionErrorCode::ToneTimelineFailed:
         {
-            return "Tone switch schedule could not be prepared";
+            return "Tone switch schedule could not be prepared.";
         }
         case GameplaySessionErrorCode::AudioDeviceClosed:
         {
-            return "No audio device is open";
+            return "No audio device is open.";
         }
         case GameplaySessionErrorCode::LiveInputOff:
         {
-            return "Live input is off";
+            return "Live input is off.";
         }
         case GameplaySessionErrorCode::OperationUnavailable:
         {
-            return "Operation is not available in the current session stage";
+            return "Operation is not available in the current session stage.";
         }
     }
 
-    return "Gameplay session operation failed";
+    return "Gameplay session operation failed.";
 }
 
 } // namespace

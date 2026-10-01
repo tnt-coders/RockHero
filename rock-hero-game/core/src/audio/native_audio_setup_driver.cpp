@@ -56,7 +56,7 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
     {
         return std::unexpected{NativeAudioSetupError{
             NativeAudioSetupErrorCode::InvalidRequest,
-            "Cannot apply a device while gain calibration is in progress.",
+            "Cannot apply a device while input calibration is in progress.",
         }};
     }
 
@@ -104,7 +104,7 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibratio
     {
         return std::unexpected{NativeAudioSetupError{
             NativeAudioSetupErrorCode::InvalidRequest,
-            "Gain calibration is only available after a device is applied.",
+            "Input calibration is only available after a device is applied.",
         }};
     }
 
@@ -128,7 +128,7 @@ std::expected<common::audio::InputCalibrationProgress, NativeAudioSetupError> Na
     {
         return std::unexpected{NativeAudioSetupError{
             NativeAudioSetupErrorCode::InvalidRequest,
-            "No gain-calibration measurement is in progress.",
+            "No input calibration measurement is in progress.",
         }};
     }
 

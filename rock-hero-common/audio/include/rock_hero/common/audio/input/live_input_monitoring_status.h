@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 namespace rock_hero::common::audio
 {
@@ -45,6 +46,14 @@ enum class LiveInputMonitoringStatus : std::uint8_t
     return status == LiveInputMonitoringStatus::CalibrationStoreUnavailable ||
            status == LiveInputMonitoringStatus::BackendUnavailable;
 }
+
+/*!
+\brief Returns the one sentence that says why live input is off, for every surface in both
+products.
+\param status Status the gate reported.
+\return A sentence ending in a period; empty for Active.
+*/
+[[nodiscard]] std::string_view liveInputStatusText(LiveInputMonitoringStatus status) noexcept;
 
 /*! \brief Session facts the live-input monitoring gate evaluates. */
 struct LiveInputMonitoringContext
