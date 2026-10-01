@@ -243,7 +243,10 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     // opened is recorded as the hardware whose loss pauses playback. First-run auto-detection is
     // unaffected: it runs through the bare initialise(1, 2) in the Engine constructor, and this
     // restore path is only reached when a non-empty saved route exists.
+    // The backend's diagnostic is recorded before the policy runs, so the policy's own
+    // "Disconnected" stands in only when no open attempt explained the closure.
     const juce::String error_text = openRouteWithoutFallback(device_manager, *xml);
+    m_impl->m_device_unavailable_reason = error_text.toStdString();
     m_impl->enforceDevicePolicy();
     if (error_text.isNotEmpty())
     {
@@ -254,11 +257,9 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
         // device-change message, which drives the same async monitoring teardown a mid-session
         // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
         // this branch.
-        m_impl->m_device_unavailable_reason = error_text.toStdString();
         return DeviceRestoreOutcome::DeviceUnavailable;
     }
 
-    m_impl->m_device_unavailable_reason.clear();
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {

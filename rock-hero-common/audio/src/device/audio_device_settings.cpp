@@ -691,14 +691,9 @@ private:
                 AudioDeviceSettingsErrorCode::RestoreFailed, opened.error().message
             }};
         }
-        if (*opened == DeviceRestoreOutcome::DeviceUnavailable)
-        {
-            return std::unexpected{AudioDeviceSettingsError{
-                AudioDeviceSettingsErrorCode::RestoreFailed,
-                m_audio_devices.currentDeviceStatus().unavailable_reason
-            }};
-        }
 
+        // A previous route whose device is now absent is restored as the choice all the same; the
+        // hardware staying closed is the designed no-fallback outcome, as it is for commit().
         return {};
     }
 

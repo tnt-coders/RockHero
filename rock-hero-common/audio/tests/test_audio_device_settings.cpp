@@ -982,6 +982,34 @@ TEST_CASE(
     CHECK(settings.state().staged_device_error.has_value());
 }
 
+// Cancel after a failed apply puts the previous choice back even when its device is still
+// missing: the hardware staying closed is the designed no-fallback outcome, not a cancel failure.
+TEST_CASE(
+    "AudioDeviceSettings cancel after a failed apply keeps a missing previous route",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
+    openInitialRoute(audio_devices, juce::StringArray{g_output_b});
+
+    juce::XmlElement saved{"DEVICESETUP"};
+    saved.setAttribute("deviceType", g_asio_type_name);
+    saved.setAttribute("audioInputDeviceName", "Input Z");
+    saved.setAttribute("audioOutputDeviceName", "Output Z");
+    REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
+
+    AudioDeviceSettings settings{audio_devices};
+    settings.selectOutputDevice(2);
+    REQUIRE_FALSE(settings.apply().has_value());
+
+    CHECK(settings.cancel().has_value());
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
+    const std::unique_ptr<juce::XmlElement> choice = audio_devices.device_manager.createStateXml();
+    REQUIRE(choice != nullptr);
+    CHECK(choice->getStringAttribute("audioOutputDeviceName") == "Output Z");
+}
+
 // After a failed no-fallback restore of a missing device, JUCE's live setup no longer names the
 // user's choice (the failure clears the setup's device names on its way out), so seeding the edit
 // from the live setup would snap it to the driver's default device. The user's actual choice
