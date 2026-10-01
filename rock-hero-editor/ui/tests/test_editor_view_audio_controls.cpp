@@ -1,6 +1,9 @@
+#include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <rock_hero/common/audio/input/known_interfaces.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <string_view>
 
 namespace rock_hero::editor::ui
 {
@@ -62,17 +65,15 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     // The reference reaches the player only as the formula behind the gain slider.
     CHECK(findDescendant(window, "input_calibration_target") == nullptr);
     CHECK(slider.getTooltip() == "Gain = your interface's dBu at 0 dBFS, minus 12.");
-    CHECK(
-        status.getText() ==
-        "Click \"Calibrate\" to run automatic calibration, or adjust gain manually and click "
-        "\"Apply\".");
+    CHECK(status.getText() == "Calibrated. Choose an interface or change the gain to recalibrate.");
     CHECK(status.isVisible());
-    CHECK(status.isColourSpecified(juce::Label::backgroundColourId));
+    // A message, not a field: the status draws no box.
+    CHECK_FALSE(status.isColourSpecified(juce::Label::backgroundColourId));
     CHECK_THAT(status.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
     CHECK_FALSE(status.getText().startsWith("Info:"));
     REQUIRE(help_button.onClick);
     CHECK(help_button.getTooltip() == "Open input calibration guide");
-    CHECK(start_button.getButtonText() == "Calibrate");
+    CHECK(start_button.getButtonText() == "Measure by playing");
     CHECK(manual_label.getText() == "Gain:");
     // The popup meter keeps the master meter's preferred 384px width. The live master meter can
     // flex narrower than that, because the window-centered playback transport has layout
@@ -83,12 +84,17 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
     CHECK(findDescendant(window, "input_calibration_recommendation") == nullptr);
     CHECK(findDescendant(window, "input_calibration_docs_link") == nullptr);
-    CHECK(help_button.getBounds().getBottom() <= status.getBounds().getY());
-    CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
-    CHECK(slider.getBounds().getY() >= meter.getBounds().getBottom());
+    // Top to bottom: the chooser with the guide at its end, the gain, the status, the meter, then
+    // the fallback at the leading edge.
+    auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_interface");
+    CHECK(chooser.getBounds().getRight() <= help_button.getBounds().getX());
+    CHECK(chooser.getBounds().getBottom() <= slider.getBounds().getY());
     CHECK(manual_label.getBounds().getY() == slider.getBounds().getY());
     CHECK(manual_label.getBounds().getRight() <= slider.getBounds().getX());
-    CHECK(start_button.getBounds().getY() >= slider.getBounds().getBottom());
+    CHECK(slider.getBounds().getBottom() <= status.getBounds().getY());
+    CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
+    CHECK(start_button.getBounds().getY() >= meter.getBounds().getBottom());
+    CHECK(start_button.getBounds().getX() < window.getContentComponent()->getWidth() / 2);
     CHECK(window.getContentComponent()->getHeight() < 235);
 }
 
@@ -160,7 +166,49 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     }
     CHECK(slider.isEnabled());
     CHECK(apply_button.isEnabled());
-    CHECK(status.getText() == "Manual calibration saved. Gain set to 3.5 dB.");
+    CHECK(status.getText() == "Saved: +3.5 dB.");
+    CHECK(slider.getTextFromValue(slider.getValue()) == "+3.5 dB");
+}
+
+// The chooser lists the known interfaces and opens on its placeholder; choosing one emits the
+// row's index, and the window shows the chosen row and the controller's sentence for it.
+TEST_CASE("Calibration chooser selects a known interface", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    showOnScreen(view);
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = std::nullopt,
+    };
+    view.setState(state);
+
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_interface");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
+    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
+    const auto rows = common::audio::knownInterfaces();
+
+    CHECK(chooser.getNumItems() == static_cast<int>(rows.size()));
+    CHECK(chooser.getSelectedId() == 0);
+    CHECK(chooser.getTextWhenNothingSelected() == "Choose your interface");
+
+    const auto quad_cortex = std::ranges::find(
+        rows, std::string_view{"Neural DSP Quad Cortex"}, &common::audio::KnownInterface::model);
+    REQUIRE(quad_cortex != rows.end());
+    const int quad_cortex_id = static_cast<int>(quad_cortex - rows.begin()) + 1;
+    chooser.setSelectedId(quad_cortex_id, juce::sendNotificationSync);
+
+    CHECK(chooser.getSelectedId() == quad_cortex_id);
+    CHECK(slider.getTextFromValue(slider.getValue()) == "+2.3 dB");
+    CHECK(
+        status.getText() == "Estimated figure. Set the interface to the instrument input, 1 MOhm, "
+                            "at 0.0 dB input level, then click Apply.");
 }
 
 // Verifies that moving the output gain slider emits a controller intent.

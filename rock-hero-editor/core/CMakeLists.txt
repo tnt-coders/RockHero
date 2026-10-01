@@ -50,6 +50,7 @@ target_sources(
             src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_projection.cpp
             src/input_calibration/input_calibration_projection.h
+            src/input_calibration/input_calibration_text.cpp
             src/project/gp_chart_builder.cpp
             src/project/gp_chart_builder.h
             src/project/gp_score.h

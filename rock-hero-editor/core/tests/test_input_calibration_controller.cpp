@@ -1,12 +1,16 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <expected>
 #include <optional>
+#include <rock_hero/common/audio/input/known_interfaces.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -100,6 +104,16 @@ public:
     };
 }
 
+// Index of the Quad Cortex in the known-interface table, the row the chooser tests pick.
+[[nodiscard]] std::size_t quadCortexIndex()
+{
+    const auto rows = common::audio::knownInterfaces();
+    const auto found = std::ranges::find(
+        rows, std::string_view{"Neural DSP Quad Cortex"}, &common::audio::KnownInterface::model);
+    REQUIRE(found != rows.end());
+    return static_cast<std::size_t>(found - rows.begin());
+}
+
 } // namespace
 
 // An uncalibrated route's prompt says what is off and starts from the neutral gain; a calibrated
@@ -119,7 +133,9 @@ TEST_CASE(
     uncalibrated.attachView(view);
 
     CHECK(
-        view.lastState().status_message == "Live input stays off until this input is calibrated.");
+        view.lastState().status_message ==
+        "Live input stays off until you calibrate. Choose your interface, or click Measure by "
+        "playing.");
     CHECK(view.lastState().input_gain_db == Catch::Approx(common::audio::defaultGainDb()));
     CHECK(view.lastState().dismiss_button_text == "Later");
 }
@@ -138,7 +154,7 @@ TEST_CASE("Input calibration controller applies manual gain", "[core][input-cali
     CHECK(host.manual_apply_count == 1);
     CHECK(host.last_manual_gain_db == std::optional{3.5});
     CHECK(view.lastState().input_gain_db == Catch::Approx(3.5));
-    CHECK(view.lastState().status_message == "Manual calibration saved. Gain set to 3.5 dB.");
+    CHECK(view.lastState().status_message == "Saved: +3.5 dB.");
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
 }
@@ -202,7 +218,7 @@ TEST_CASE("Input calibration controller completes a measurement", "[core][input-
     controller.onSampleTick();
 
     CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
-    CHECK(view.lastState().status_message == "Calibration complete. Gain set to 8.0 dB.");
+    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured from your playing.");
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
 }
@@ -270,6 +286,59 @@ TEST_CASE(
     controller.onDismissRequested();
 
     CHECK(host.dismiss_count == 1);
+}
+
+// The one gain formatter: signed, one decimal, and zero without a sign.
+TEST_CASE("Signed gain text prints sign and one decimal", "[core][input-calibration]")
+{
+    CHECK(signedGainText(2.3) == "+2.3");
+    CHECK(signedGainText(-0.5) == "-0.5");
+    CHECK(signedGainText(0.0) == "0.0");
+    CHECK(signedGainText(-0.04) == "0.0");
+}
+
+// Choosing an interface fills the gain with its derived figure and says how far to trust it and
+// how to set the interface up; Apply then saves it under the interface's name.
+TEST_CASE("Input calibration controller applies a chosen interface", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(0.0)};
+    controller.attachView(view);
+
+    controller.onInterfaceSelected(quadCortexIndex());
+
+    CHECK(view.lastState().selected_interface == std::optional{quadCortexIndex()});
+    CHECK(view.lastState().input_gain_db == Catch::Approx(2.3));
+    CHECK(
+        view.lastState().status_message ==
+        "Estimated figure. Set the interface to the instrument input, 1 MOhm, at 0.0 dB input "
+        "level, then click Apply.");
+
+    controller.onManualApplyRequested();
+
+    CHECK(host.last_manual_gain_db == std::optional{2.3});
+    CHECK(view.lastState().status_message == "Saved: +2.3 dB for the Neural DSP Quad Cortex.");
+}
+
+// A gain changed by hand is no longer the chosen row's, and a measurement replaces it too.
+TEST_CASE("Input calibration controller clears a stale choice", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(0.0)};
+    controller.attachView(view);
+
+    controller.onInterfaceSelected(quadCortexIndex());
+    controller.onManualGainChanged(4.0);
+
+    CHECK_FALSE(view.lastState().selected_interface.has_value());
+    CHECK(view.lastState().status_message == "Click Apply to save this gain.");
+
+    controller.onInterfaceSelected(quadCortexIndex());
+    controller.onMeasurementStartRequested();
+
+    CHECK_FALSE(view.lastState().selected_interface.has_value());
 }
 
 } // namespace rock_hero::editor::core

@@ -4,10 +4,15 @@
 #include "shared/editor_theme.h"
 
 #include <BinaryData.h>
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/known_interfaces.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -23,6 +28,13 @@ constexpr int g_input_calibration_content_margin{14};
 constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
+constexpr int g_row_height{28};
+// Wide enough that "Interface:" draws at full width rather than squeezed by the Label's scale.
+constexpr int g_label_width{74};
+constexpr int g_gap{8};
+constexpr int g_status_height{48};
+constexpr int g_status_to_meter_gap{10};
+constexpr int g_meter_height{26};
 
 // Resolves installed docs from the executable location and falls back to build-tree docs.
 [[nodiscard]] juce::File inputCalibrationDocumentationFile()
@@ -71,6 +83,11 @@ void configureManualInputGainSlider(juce::Slider& slider)
     slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
     slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
     slider.setTextValueSuffix(" dB");
+    // JUCE appends the suffix after this function (juce_Slider.cpp getTextFromValue), so it
+    // supplies only the number.
+    slider.textFromValueFunction = [](double value) {
+        return juce::String{core::signedGainText(value)};
+    };
     // The one place a player meets the reference: the player typing a gain needs the formula.
     slider.setTooltip(
         "Gain = your interface's dBu at 0 dBFS, minus " +
@@ -105,6 +122,29 @@ public:
         m_help_button.onClick = [this] { openDocumentation(); };
         addAndMakeVisible(m_help_button);
 
+        m_interface_label.setComponentID("input_calibration_interface_label");
+        m_interface_label.setText("Interface:", juce::dontSendNotification);
+        m_interface_label.setJustificationType(juce::Justification::centredLeft);
+        addAndMakeVisible(m_interface_label);
+
+        m_interface_chooser.setComponentID("input_calibration_interface");
+        m_interface_chooser.setTextWhenNothingSelected("Choose your interface");
+        int interface_id = 1;
+        for (const common::audio::KnownInterface& row : common::audio::knownInterfaces())
+        {
+            m_interface_chooser.addItem(juce::String{std::string{row.model}}, interface_id);
+            ++interface_id;
+        }
+        m_interface_chooser.onChange = [this] {
+            const int chosen_id = m_interface_chooser.getSelectedId();
+            if (chosen_id > 0)
+            {
+                m_calibration_controller.onInterfaceSelected(
+                    static_cast<std::size_t>(chosen_id - 1));
+            }
+        };
+        addAndMakeVisible(m_interface_chooser);
+
         m_input_meter.setComponentID("input_calibration_meter");
         addAndMakeVisible(m_input_meter);
 
@@ -127,17 +167,16 @@ public:
         addAndMakeVisible(m_manual_apply_button);
 
         m_status.setComponentID("input_calibration_status");
-        m_status.setJustificationType(juce::Justification::centredLeft);
-        m_status.setColour(
-            juce::Label::backgroundColourId, juce::Colour::fromRGB(31, 39, 47).withAlpha(0.92f));
-        m_status.setColour(juce::Label::outlineColourId, juce::Colours::black.withAlpha(0.45f));
-        m_status.setColour(juce::Label::textColourId, juce::Colours::whitesmoke);
-        m_status.setBorderSize(juce::BorderSize<int>{6, 8, 6, 8});
+        // A message, not a control: no box (a dark inset would read as a second field), the
+        // labels' own border so the text lines up with them, and top-aligned so a one-line message
+        // sits under the gain row it reports on.
+        m_status.setJustificationType(juce::Justification::topLeft);
+        m_status.setColour(juce::Label::textColourId, editorTheme().primary_text);
         m_status.setMinimumHorizontalScale(1.0f);
         addAndMakeVisible(m_status);
 
         m_calibrate_button.setComponentID("input_calibration_start_button");
-        m_calibrate_button.setButtonText("Calibrate");
+        m_calibrate_button.setButtonText("Measure by playing");
         m_calibrate_button.onClick = [this] {
             m_calibration_controller.onMeasurementStartRequested();
         };
@@ -167,23 +206,24 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced(g_input_calibration_content_margin);
-        auto help_row = area.removeFromTop(28);
-        m_help_button.setBounds(help_row.removeFromRight(28).reduced(2));
-        area.removeFromTop(8);
-        m_status.setBounds(area.removeFromTop(48));
-        area.removeFromTop(10);
-        m_input_meter.setBounds(area.removeFromTop(26));
-        area.removeFromTop(8);
-        auto manual_area = area.removeFromTop(28);
-        m_manual_label.setBounds(manual_area.removeFromLeft(60));
-        m_manual_apply_button.setBounds(manual_area.removeFromRight(72));
-        manual_area.removeFromRight(8);
-        m_manual_gain_slider.setBounds(manual_area);
-        area.removeFromTop(8);
-        auto buttons = area.removeFromBottom(28);
+        auto interface_row = area.removeFromTop(g_row_height);
+        m_interface_label.setBounds(interface_row.removeFromLeft(g_label_width));
+        m_help_button.setBounds(interface_row.removeFromRight(g_row_height).reduced(2));
+        interface_row.removeFromRight(g_gap);
+        m_interface_chooser.setBounds(interface_row);
+        area.removeFromTop(g_gap);
+        auto gain_row = area.removeFromTop(g_row_height);
+        m_manual_label.setBounds(gain_row.removeFromLeft(g_label_width));
+        m_manual_apply_button.setBounds(gain_row.removeFromRight(72));
+        gain_row.removeFromRight(g_gap);
+        m_manual_gain_slider.setBounds(gain_row);
+        area.removeFromTop(g_gap);
+        m_status.setBounds(area.removeFromTop(g_status_height));
+        area.removeFromTop(g_status_to_meter_gap);
+        m_input_meter.setBounds(area.removeFromTop(g_meter_height));
+        auto buttons = area.removeFromBottom(g_row_height);
+        m_calibrate_button.setBounds(buttons.removeFromLeft(150));
         m_cancel_button.setBounds(buttons.removeFromRight(96));
-        buttons.removeFromRight(8);
-        m_calibrate_button.setBounds(buttons.removeFromRight(96));
     }
 
     void requestDismissal()
@@ -192,21 +232,11 @@ public:
     }
 
 private:
-    [[nodiscard]] int preferredHeight() const
+    [[nodiscard]] static int preferredHeight()
     {
-        constexpr int outer_margin{g_input_calibration_content_margin * 2};
-        constexpr int gap_height{8};
-        constexpr int target_row_height{28};
-        constexpr int target_to_status_gap_height{8};
-        constexpr int status_height{48};
-        constexpr int status_to_meter_gap_height{10};
-        constexpr int meter_height{26};
-        constexpr int manual_controls_height{28};
-        constexpr int buttons_height{28};
-
-        return outer_margin + target_row_height + target_to_status_gap_height + status_height +
-               status_to_meter_gap_height + meter_height + gap_height + manual_controls_height +
-               gap_height + buttons_height;
+        return (g_input_calibration_content_margin * 2) + g_row_height + g_gap + g_row_height +
+               g_gap + g_status_height + g_status_to_meter_gap + g_meter_height + g_gap +
+               g_row_height;
     }
 
     void syncPreferredSize()
@@ -221,6 +251,10 @@ private:
         m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
         m_manual_gain_slider.updateText();
         m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
+        const std::optional<std::size_t> selected = state.selected_interface;
+        m_interface_chooser.setSelectedId(
+            selected.has_value() ? static_cast<int>(*selected) + 1 : 0, juce::dontSendNotification);
+        m_interface_chooser.setEnabled(!state.measuring);
         m_calibrate_button.setEnabled(!state.measuring);
         m_manual_gain_slider.setEnabled(!state.measuring);
         m_manual_apply_button.setEnabled(!state.measuring);
@@ -272,6 +306,8 @@ private:
     AudioLevelMeter m_input_meter;
     std::unique_ptr<juce::Drawable> m_help_icon;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
+    juce::Label m_interface_label;
+    juce::ComboBox m_interface_chooser;
     juce::Label m_manual_label;
     juce::Slider m_manual_gain_slider;
     juce::TextButton m_manual_apply_button;

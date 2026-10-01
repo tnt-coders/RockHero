@@ -307,7 +307,18 @@ table stays until step 5, which lands the chooser it would otherwise point at.
   (`std::uint8_t` above). A `constexpr std::array` of rows with `std::string_view` members is
   the shape; `std::span` over it is the interface.
 
-### 5. The Interface chooser in the editor popup (D2 Phase 1). Medium.
+### 5. DONE: the Interface chooser in the editor popup (D2 Phase 1). Medium.
+
+As built: JUCE appends a slider's text suffix after its `textFromValueFunction`
+(`juce_Slider.cpp` `getTextFromValue`), so the function returns `signedGainText` alone and the
+existing " dB" suffix supplies the unit.
+The UI expert's verification of the built window (1:1 renders) changed three things: the label
+column widened to 74 px so "Interface:" draws unsqueezed; the status box lost its fill and border
+(no theme role is visible against the window, and a dark inset reads as a second field), keeping
+the labels' border and aligning top-left; and a hand-changed gain says "Click Apply to save this
+gain." instead of the idle text, since the idle text never named the action left. The SSL row's
+model became "SSL 2 / SSL 2+ MKII", the maker's own brand, so the narrower chooser still shows it
+whole. Clear-on-nudge stays: the placeholder is true, and the new sentence supplies the next step.
 
 The popup's look and words follow the UI expert's rulings of 2026-10-01 (the player calibrates
 once and reads carefully; every sentence says what to do next). Each ruling below is adopted as

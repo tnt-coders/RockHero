@@ -6,6 +6,8 @@
 #pragma once
 
 #include <compare>
+#include <cstddef>
+#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <string>
 
@@ -34,6 +36,12 @@ struct InputCalibrationViewState
     std::string dismiss_button_text;
 
     /*!
+    \brief The chosen row of common::audio::knownInterfaces(), or empty while none is chosen: on
+    opening, after the gain is changed by hand, and during and after a measurement.
+    */
+    std::optional<std::size_t> selected_interface;
+
+    /*!
     \brief Compares two popup view states by their stored values.
 
     Hand-written, not defaulted: input_gain_db is a double of this struct's own, and a defaulted
@@ -50,7 +58,8 @@ struct InputCalibrationViewState
         return lhs.input_meter_level == rhs.input_meter_level &&
                std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
                lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
-               lhs.dismiss_button_text == rhs.dismiss_button_text;
+               lhs.dismiss_button_text == rhs.dismiss_button_text &&
+               lhs.selected_interface == rhs.selected_interface;
     }
 };
 

@@ -115,7 +115,7 @@ constexpr std::array g_known_interfaces{
                   "2777700403.html",
     },
     KnownInterface{
-        .model = "Solid State Logic SSL 2 / SSL 2+ MKII",
+        .model = "SSL 2 / SSL 2+ MKII",
         .unity_input = "the instrument input at minimum gain",
         .level_at_0dbfs_dbu = 15.0,
         .basis = KnownInterfaceBasis::ManufacturerSpec,

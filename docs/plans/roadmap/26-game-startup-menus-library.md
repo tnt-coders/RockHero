@@ -500,7 +500,10 @@ forward and record it in both plans).
   docs/plans/roadmap/22-note-detection.md's first shippable consumer. Suggested song per open question 5.
 - **Live input (input-calibration plan, 2026-10-01)**: a session refuses `play()` with
   `LiveInputOff` until live input is on. This phase owns the surface: show the refusal's message
-  and dim Play while it holds, and offer calibration from it and from the pause menu. The gate
+  and dim Play while it holds, and offer calibration from it and from the pause menu. The wizard
+  renders `knownInterfaces()` with the same basis-plus-unity sentence as the editor's popup
+  (`knownInterfaceBasisText`), the game's only manual path; "Measure by playing" is its fallback.
+  The gate
   re-runs at every play, so the refusal is never stale; a live status display that must follow a
   device change before the next press would still want a device listener, the gate does not.
 - **Files**: `rock-hero-game/core/.../onboarding/` state machine; wizard/tuner hosting in

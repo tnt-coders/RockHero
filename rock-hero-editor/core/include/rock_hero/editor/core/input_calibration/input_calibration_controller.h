@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
@@ -121,6 +122,13 @@ public:
     \param gain_db Gain in decibels selected by the user.
     */
     void onManualGainChanged(double gain_db);
+
+    /*!
+    \brief Chooses a known interface: its derived gain fills the slider, and the status says how
+    far to trust the figure and how to set the interface up for it.
+    \param index Row of common::audio::knownInterfaces().
+    */
+    void onInterfaceSelected(std::size_t index);
 
     /*! \brief Applies the current manual gain through the host. */
     void onManualApplyRequested();

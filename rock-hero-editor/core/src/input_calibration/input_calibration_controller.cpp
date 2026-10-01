@@ -1,9 +1,11 @@
 #include "input_calibration/input_calibration_controller.h"
 
 #include <algorithm>
-#include <cmath>
-#include <compare>
 #include <cstddef>
+#include <optional>
+#include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/known_interfaces.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_text.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -13,13 +15,6 @@ namespace rock_hero::editor::core
 
 namespace
 {
-
-// Keeps tiny negative values that display at one decimal from showing up as "-0.0 dB".
-[[nodiscard]] double canonicalInputGainDb(double gain_db)
-{
-    const double rounded_tenths = std::round(gain_db * 10.0);
-    return std::is_eq(rounded_tenths <=> 0.0) ? 0.0 : gain_db;
-}
 
 // Applies the preview gain to raw meter samples so the popup reflects the candidate calibration.
 [[nodiscard]] common::audio::AudioMeterLevel applyDisplayGain(
@@ -35,17 +30,27 @@ namespace
     return level;
 }
 
-// Status text for the idle popup state, shared by startup and retry paths.
-[[nodiscard]] std::string inputCalibrationReadyText()
+// Status text for an idle popup: what to do next, and for an uncalibrated input what stays off
+// until then. Both paths are named, so a player with no listed interface finds the second.
+[[nodiscard]] std::string inputCalibrationIdleText(bool calibrated)
 {
-    return "Click \"Calibrate\" to run automatic calibration, or adjust gain manually and click "
-           "\"Apply\".";
+    return calibrated ? "Calibrated. Choose an interface or change the gain to recalibrate."
+                      : "Live input stays off until you calibrate. Choose your interface, or "
+                        "click Measure by playing.";
 }
 
-// Status text for an uncalibrated route's prompt, which says what stays off until it is calibrated.
-[[nodiscard]] std::string inputCalibrationUncalibratedText()
+// Status text after the gain is changed by hand: the one thing left to do.
+[[nodiscard]] std::string inputCalibrationEditedText()
 {
-    return "Live input stays off until this input is calibrated.";
+    return "Click Apply to save this gain.";
+}
+
+// Status text for a chosen interface: how far to trust its figure and the setting it holds for.
+// The model and the gain are left out; the chooser and the slider already show them.
+[[nodiscard]] std::string interfaceSelectedText(const common::audio::KnownInterface& row)
+{
+    return std::string{common::audio::knownInterfaceBasisText(row.basis)} +
+           " Set the interface to " + std::string{row.unity_input} + ", then click Apply.";
 }
 
 // Status text shown while the capture waits for the player to start.
@@ -64,38 +69,17 @@ namespace
     return "Keep playing that hard. " + std::to_string(seconds_left) + " s left.";
 }
 
-// Formats a one-decimal gain value without depending on JUCE formatting in editor core. Rounds to
-// the displayed tenth (matching juce::String{value, 1}) before truncating the fractional tail, so
-// values such as 2.06 dB show as "2.1" rather than "2.0".
-[[nodiscard]] std::string gainText(double gain_db)
+// Status text for a saved calibration, one shape for every path: the source is named when there
+// is one, so a measured figure does not read as authoritative as a published one.
+[[nodiscard]] std::string savedText(double gain_db, const std::string& source)
 {
-    const double rounded_gain_db = canonicalInputGainDb(std::round(gain_db * 10.0) / 10.0);
-    const std::string text = std::to_string(rounded_gain_db);
-    const std::size_t dot = text.find('.');
-    if (dot == std::string::npos)
-    {
-        return text + ".0";
-    }
-
-    return text.substr(0, dot + 2);
-}
-
-// Status text shown after automatic calibration has been committed by the host.
-[[nodiscard]] std::string inputCalibrationCompleteText(double gain_db)
-{
-    return "Calibration complete. Gain set to " + gainText(gain_db) + " dB.";
-}
-
-// Status text shown after manual calibration has been committed by the host.
-[[nodiscard]] std::string inputManualCalibrationCompleteText(double gain_db)
-{
-    return "Manual calibration saved. Gain set to " + gainText(gain_db) + " dB.";
+    return "Saved: " + signedGainText(gain_db) + " dB" + source + ".";
 }
 
 // Status text shown when docs are unavailable from both install and build-tree locations.
 [[nodiscard]] std::string inputCalibrationDocumentationUnavailableText()
 {
-    return "Input calibration guide is unavailable. Build the docs target and try again.";
+    return "The calibration guide is not installed.";
 }
 
 } // namespace
@@ -106,9 +90,7 @@ InputCalibrationController::InputCalibrationController(
     : m_host(host)
     , m_committed_input_gain_db(prompt.stored_gain_db)
 {
-    m_state.status_message = m_committed_input_gain_db.has_value()
-                                 ? inputCalibrationReadyText()
-                                 : inputCalibrationUncalibratedText();
+    m_state.status_message = inputCalibrationIdleText(m_committed_input_gain_db.has_value());
     setDisplayedInputGain(m_committed_input_gain_db.value_or(common::audio::defaultGainDb()));
 }
 
@@ -137,6 +119,24 @@ void InputCalibrationController::onManualGainChanged(double gain_db)
     }
 
     setDisplayedInputGain(gain_db);
+    m_state.selected_interface.reset();
+    m_state.status_message = inputCalibrationEditedText();
+    publishState();
+}
+
+// Fills the slider with a known interface's derived gain; Apply then commits it as any gain.
+void InputCalibrationController::onInterfaceSelected(std::size_t index)
+{
+    const auto rows = common::audio::knownInterfaces();
+    if (m_state.measuring || index >= rows.size())
+    {
+        return;
+    }
+
+    const common::audio::KnownInterface& row = rows[index];
+    setDisplayedInputGain(common::audio::knownInterfaceGain(row).db);
+    m_state.selected_interface = index;
+    m_state.status_message = interfaceSelectedText(row);
     publishState();
 }
 
@@ -156,7 +156,12 @@ void InputCalibrationController::onManualApplyRequested()
         return;
     }
 
-    m_state.status_message = inputManualCalibrationCompleteText(m_state.input_gain_db);
+    const std::optional<std::size_t> selected = m_state.selected_interface;
+    m_state.status_message = savedText(
+        m_state.input_gain_db,
+        selected.has_value()
+            ? " for the " + std::string{common::audio::knownInterfaces()[*selected].model}
+            : std::string{});
     m_committed_input_gain_db = m_state.input_gain_db;
     publishState();
 }
@@ -178,6 +183,7 @@ void InputCalibrationController::onMeasurementStartRequested()
     }
 
     setDisplayedInputGain(common::audio::defaultGainDb());
+    m_state.selected_interface.reset();
     m_state.measuring = true;
     m_state.status_message = inputCalibrationWaitingText();
     publishState();
@@ -231,7 +237,7 @@ void InputCalibrationController::onDismissRequested()
 // Updates the gain preview and recomputes the display meter from the last sampled raw level.
 void InputCalibrationController::setDisplayedInputGain(double gain_db)
 {
-    m_state.input_gain_db = canonicalInputGainDb(gain_db);
+    m_state.input_gain_db = common::audio::quantizeInputCalibrationGainDb(gain_db);
     m_state.input_meter_level = applyDisplayGain(m_last_raw_meter_level, m_state.input_gain_db);
 }
 
@@ -239,7 +245,7 @@ void InputCalibrationController::setDisplayedInputGain(double gain_db)
 void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 {
     setDisplayedInputGain(gain_db);
-    m_state.status_message = inputCalibrationCompleteText(m_state.input_gain_db);
+    m_state.status_message = savedText(m_state.input_gain_db, ", measured from your playing");
     m_committed_input_gain_db = m_state.input_gain_db;
     m_state.measuring = false;
     publishState();
