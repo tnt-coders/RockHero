@@ -24,11 +24,11 @@ struct InputCalibrationViewState
     /*! \brief Status text shown in the calibration popup. */
     std::string status_message;
 
-    /*! \brief True when the automatic calibration button may start a capture pass. */
-    bool start_measurement_enabled{true};
-
-    /*! \brief True when manual gain slider and apply button should accept input. */
-    bool manual_gain_controls_enabled{true};
+    /*!
+    \brief True while a measurement holds the route; the calibrate and manual-gain controls are
+    locked until it ends.
+    */
+    bool measuring{false};
 
     /*! \brief Text shown by the popup dismissal button. */
     std::string dismiss_button_text{"Dismiss"};
@@ -49,9 +49,7 @@ struct InputCalibrationViewState
     {
         return lhs.input_meter_level == rhs.input_meter_level &&
                std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
-               lhs.status_message == rhs.status_message &&
-               lhs.start_measurement_enabled == rhs.start_measurement_enabled &&
-               lhs.manual_gain_controls_enabled == rhs.manual_gain_controls_enabled &&
+               lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
                lhs.dismiss_button_text == rhs.dismiss_button_text;
     }
 };

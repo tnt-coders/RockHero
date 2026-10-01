@@ -18,7 +18,6 @@ namespace rock_hero::common::audio
 class IAudioConfigStore;
 class IAudioDeviceConfiguration;
 class IAudioMeterSource;
-class ILiveInput;
 class ILiveRig;
 class IPluginHost;
 class ISongAudio;
@@ -79,9 +78,6 @@ public:
 
         /*! \brief Tone parameter automation port used to read and edit tone-chain plugin curves. */
         common::audio::IToneAutomation& tone_automation;
-
-        /*! \brief Live-input port used for monitoring and calibration. */
-        common::audio::ILiveInput& live_input;
 
         /*! \brief Meter source sampled by the view for continuous level display. */
         const common::audio::IAudioMeterSource& meter_source;

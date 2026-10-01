@@ -390,7 +390,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     : m_controller(controller)
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_meters(audio_ports.meter_source)
-    , m_live_input(audio_ports.live_input)
     , m_transport(audio_ports.transport)
     , m_playback_clock(audio_ports.playback_clock)
     , m_menu_bar(this)
@@ -3093,7 +3092,7 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
     }
 
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
-        m_controller, &m_live_input, *prompt, isShowing() ? this : nullptr);
+        m_controller, *prompt, isShowing() ? this : nullptr);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.

@@ -64,7 +64,6 @@ Editor::Editor(
                                 .thumbnail_factory = audio_ports.thumbnail_factory,
                                 .audio_devices = audio_ports.audio_devices,
                                 .meter_source = audio_ports.meter_source,
-                                .live_input = audio_ports.live_input,
                                 .tone_automation = audio_ports.tone_automation,
                             }))
 {

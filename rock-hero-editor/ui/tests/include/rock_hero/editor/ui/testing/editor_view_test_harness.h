@@ -21,7 +21,6 @@
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
-#include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
@@ -200,51 +199,6 @@ public:
     mutable int snapshot_read_count{0};
 };
 
-// Minimal live-input fake used by the calibration popup boundary.
-class FakeLiveInput final : public common::audio::ILiveInput
-{
-public:
-    [[nodiscard]] common::audio::Gain inputGain() const override
-    {
-        return {};
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setInputGain(
-        common::audio::Gain) override
-    {
-        return {};
-    }
-
-    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
-    {
-        return raw_input_meter_level;
-    }
-
-    [[nodiscard]] bool liveInputMonitoringEnabled() const override
-    {
-        return false;
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setLiveInputMonitoringEnabled(
-        bool) override
-    {
-        return {};
-    }
-
-    [[nodiscard]] bool calibrationInputMonitoringEnabled() const override
-    {
-        return false;
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
-    setCalibrationInputMonitoringEnabled(bool) override
-    {
-        return {};
-    }
-
-    common::audio::AudioMeterLevel raw_input_meter_level{};
-};
-
 /*!
 \brief Supplies a default audio-device port for editor-view tests.
 \return Process-lifetime configurable audio-device fake.
@@ -264,16 +218,6 @@ defaultAudioDevices() noexcept
 {
     static FakeAudioMeterSource g_meter_source;
     return g_meter_source;
-}
-
-/*!
-\brief Supplies a default live-input port for editor-view tests.
-\return Process-lifetime fake live-input port.
-*/
-[[nodiscard]] inline FakeLiveInput& defaultLiveInput() noexcept
-{
-    static FakeLiveInput g_live_input;
-    return g_live_input;
 }
 
 /*! \brief Playback clock that never publishes; the preview surface is untested-by-unit. */
@@ -367,7 +311,6 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
         .meter_source = defaultAudioMeterSource(),
-        .live_input = defaultLiveInput(),
         .tone_automation = defaultToneAutomation(),
     };
 }
@@ -389,7 +332,6 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
         .meter_source = meter_source,
-        .live_input = defaultLiveInput(),
         .tone_automation = defaultToneAutomation(),
     };
 }

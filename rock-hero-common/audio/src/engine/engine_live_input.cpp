@@ -291,7 +291,7 @@ std::expected<void, LiveInputError> Engine::Impl::setMonitoringChannelEnabled(
     return {};
 }
 
-AudioMeterLevel Engine::Impl::rawInputMeterLevel() const
+AudioMeterLevel Engine::Impl::readRawInputMeterLevel()
 {
     if (m_audio_device_configuration_refresh_pending)
     {
@@ -336,9 +336,9 @@ std::expected<void, LiveInputError> Engine::setInputGain(Gain gain)
 }
 
 // Reads the live input meter used by the calibration window.
-AudioMeterLevel Engine::rawInputMeterLevel() const
+AudioMeterLevel Engine::readRawInputMeterLevel()
 {
-    return m_impl->rawInputMeterLevel();
+    return m_impl->readRawInputMeterLevel();
 }
 
 // Reports whether calibrated live input is currently routed through the chain.

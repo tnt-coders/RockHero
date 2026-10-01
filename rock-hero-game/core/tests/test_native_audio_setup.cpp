@@ -136,26 +136,13 @@ private:
     return common::audio::AudioMeterLevel{.peak_db = -12.0, .clipping = false};
 }
 
-// Capture window sizes small enough to complete quickly but at or above the minimum active-sample
-// count the calibration math requires.
-[[nodiscard]] NativeAudioSetup::CaptureSettings testCaptureSettings()
-{
-    return NativeAudioSetup::CaptureSettings{
-        .settle_sample_count = 0,
-        .wait_sample_count = 4,
-        .measurement_sample_count = 16,
-    };
-}
-
 // Wires the shared fakes and the driver over one in-memory store shared by the driver and monitor.
 struct SetupHarness
 {
     explicit SetupHarness(const std::filesystem::path& settings_file)
         : game_settings(settings_file)
         , monitor(live_input, device_configuration, store)
-        , setup(
-              device_settings, device_configuration, monitor, live_input, store, game_settings,
-              testCaptureSettings())
+        , setup(device_settings, device_configuration, monitor, store, game_settings)
     {
         // After a successful apply the fake device resolves this route and blob.
         device_configuration.current_input_identity = guitarRoute();
@@ -176,7 +163,11 @@ struct SetupHarness
     SetupHarness& harness)
 {
     harness.live_input.raw_input_meter_level = steadyStrumLevel();
-    for (std::size_t sample = 0; sample < 64; ++sample)
+    constexpr std::size_t longest_measurement =
+        common::audio::inputCalibrationSettleSampleCount() +
+        common::audio::inputCalibrationWaitSampleCount() +
+        common::audio::inputCalibrationMeasurementSampleCount();
+    for (std::size_t sample = 0; sample < longest_measurement; ++sample)
     {
         auto progress = harness.setup.sampleGainCalibration();
         if (!progress.has_value() || *progress == GainCalibrationProgress::Committed)

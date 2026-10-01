@@ -45,10 +45,12 @@ public:
     [[nodiscard]] virtual std::expected<void, LiveInputError> setInputGain(Gain gain) = 0;
 
     /*!
-    \brief Returns the raw input peak meter used by calibration.
-    \return Latest raw input meter level.
+    \brief Reads the raw input peak since the previous read, and starts the next meter window.
+
+    Not const: each read consumes the window it returns.
+    \return Raw input peak level over the window since the previous read.
     */
-    [[nodiscard]] virtual AudioMeterLevel rawInputMeterLevel() const = 0;
+    [[nodiscard]] virtual AudioMeterLevel readRawInputMeterLevel() = 0;
 
     /*!
     \brief Reports whether processed live guitar monitoring is currently enabled.

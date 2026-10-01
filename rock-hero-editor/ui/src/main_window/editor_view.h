@@ -30,7 +30,6 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
-#include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -101,9 +100,6 @@ public:
 
         /*! \brief Meter source sampled for continuous level display. */
         const common::audio::IAudioMeterSource& meter_source;
-
-        /*! \brief Live-input source sampled by the calibration popup. */
-        const common::audio::ILiveInput& live_input;
 
         /*! \brief Automation port polled read-only for each automation lane's anchor value. */
         const common::audio::IToneAutomation& tone_automation;
@@ -627,9 +623,6 @@ private:
 
     // Read-only meter source sampled at display cadence.
     const common::audio::IAudioMeterSource& m_audio_meters;
-
-    // Live-input source sampled by the calibration popup.
-    const common::audio::ILiveInput& m_live_input;
 
     // Read-only transport sampled at display cadence for the transport-strip time readout.
     const common::audio::ITransport& m_transport;

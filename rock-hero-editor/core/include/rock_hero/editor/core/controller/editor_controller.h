@@ -664,16 +664,11 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted() override;
 
-    /*! \brief Stops an active calibration measurement while leaving the prompt open. */
-    void onInputCalibrationMeasurementCancelled() override;
-
     /*!
-    \brief Applies and stores a completed input calibration gain.
-    \param gain_db Calibrated input gain in decibels.
-    \return Empty success, or a typed monitoring failure.
+    \brief Reads the raw input once for the calibration prompt, advancing a measurement.
+    \return The raw level, and the measurement's progress if one was running.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationSucceeded(double gain_db) override;
+    [[nodiscard]] common::audio::LiveInputSample onInputCalibrationSampled() override;
 
     /*!
     \brief Applies and stores a manually entered input calibration gain.

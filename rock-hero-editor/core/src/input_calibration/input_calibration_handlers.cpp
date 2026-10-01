@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <optional>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -51,20 +52,17 @@ std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl
     return started;
 }
 
-// Stops an in-progress measurement without closing the calibration prompt.
-void EditorController::Impl::onInputCalibrationMeasurementCancelled()
+// Reads the raw input for the prompt. A measurement that ended here changed what the gate did,
+// so the view is re-derived; a running one changed nothing outside the prompt.
+common::audio::LiveInputSample EditorController::Impl::onInputCalibrationSampled()
 {
-    m_live_input_monitor.cancelMeasurement(monitoringContext());
-    updateView();
-}
-
-// Stores a measured calibration gain for the measured route.
-std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl::
-    onInputCalibrationSucceeded(double gain_db)
-{
-    auto committed = m_live_input_monitor.commitMeasurement(gain_db, monitoringContext());
-    updateView();
-    return committed;
+    common::audio::LiveInputSample sample = m_live_input_monitor.sample(monitoringContext());
+    if (sample.measurement.has_value() &&
+        !std::holds_alternative<common::audio::InputCalibrationStage>(*sample.measurement))
+    {
+        updateView();
+    }
+    return sample;
 }
 
 // Stores a typed calibration gain for the current route.

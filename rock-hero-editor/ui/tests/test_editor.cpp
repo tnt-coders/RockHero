@@ -439,7 +439,7 @@ public:
         return {};
     }
 
-    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
+    [[nodiscard]] common::audio::AudioMeterLevel readRawInputMeterLevel() override
     {
         return {};
     }
@@ -503,7 +503,6 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
             .live_rig = audio_ports,
             .tone_timeline = audio_ports,
             .tone_automation = audio_ports,
-            .live_input = audio_ports,
             .meter_source = audio_ports,
             .playback_clock = audio_ports,
         },

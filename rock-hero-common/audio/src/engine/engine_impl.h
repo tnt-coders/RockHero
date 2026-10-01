@@ -193,7 +193,7 @@ private:
     mutable MeterReader m_input_meter_reader;
     mutable MeterReader m_output_meter_reader;
     mutable MeterReader m_master_meter_reader;
-    mutable MeterReader m_raw_input_meter_reader;
+    MeterReader m_raw_input_meter_reader;
 
     // RockHero-owned wait-free storage backing the IPlaybackClock port. Message-thread transport
     // operations publish boundary values through publishClockBoundary(); consumer threads only
@@ -783,8 +783,8 @@ private:
     // and the read never re-registers a client onto a measurer a plugin reconfigure is mid-rebuild.
     [[nodiscard]] AudioMeterSnapshot audioMeterSnapshot() const;
 
-    // Reads the hardware input meter before the live-rig monitoring gate.
-    [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const;
+    // Reads and restarts the hardware input meter before the live-rig monitoring gate.
+    [[nodiscard]] AudioMeterLevel readRawInputMeterLevel();
 };
 
 } // namespace rock_hero::common::audio

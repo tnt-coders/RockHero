@@ -9,11 +9,14 @@
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_monitoring_status.h>
+#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
+#include <rock_hero/common/audio/shared/gain.h>
 
 namespace rock_hero::common::audio
 {
@@ -97,6 +100,8 @@ public:
 
     /*!
     \brief Hands the current input route to a raw calibration measurement at unity gain.
+
+    The driver then calls sample() at inputCalibrationSampleRateHz() until the measurement ends.
     \param context Session facts the gate re-runs with if the backend refuses the measurement.
     \return Empty success, or a coarse monitoring failure.
     */
@@ -104,22 +109,20 @@ public:
         LiveInputMonitoringContext context);
 
     /*!
+    \brief Reads the raw input meter once and advances a measurement in progress by that reading.
+
+    A measurement that finishes stores its gain for the route it measured and hands the route back
+    to the gate; one that fails hands the route back with nothing stored.
+    \param context Session facts the gate re-runs with when a measurement ends.
+    \return The raw level read, and the measurement's progress if one was running.
+    */
+    [[nodiscard]] LiveInputSample sample(LiveInputMonitoringContext context);
+
+    /*!
     \brief Ends a measurement without a result and gives the route back to the gate.
     \param context Session facts the gate evaluates.
     */
     void cancelMeasurement(LiveInputMonitoringContext context);
-
-    /*!
-    \brief Stores a measured gain for the route the measurement started on, then runs the gate.
-
-    Refused unless a measurement is in progress and its route is still the current one, so a
-    measurement can never calibrate a route it did not measure.
-    \param gain_db Measured calibration gain in decibels; clamped to the supported range.
-    \param context Session facts the gate evaluates.
-    \return Empty success, or a coarse monitoring failure.
-    */
-    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitMeasurement(
-        double gain_db, LiveInputMonitoringContext context);
 
     /*!
     \brief Stores a typed gain for the current route, then runs the gate.
@@ -133,6 +136,17 @@ public:
         double gain_db, LiveInputMonitoringContext context);
 
 private:
+    // A measurement in progress: the route it started on and its capture.
+    struct Measurement
+    {
+        InputDeviceIdentity route;
+        InputCalibrationCapture capture;
+    };
+
+    // Stores a measured gain, refused if the route changed under the measurement.
+    [[nodiscard]] std::expected<void, LiveInputMonitorError> commitMeasurement(
+        const InputDeviceIdentity& measured_route, Gain gain, LiveInputMonitoringContext context);
+
     // Stores the gain for the route before the gate applies it: the gain is a fact about the
     // route, true even if the backend then refuses the route.
     [[nodiscard]] std::expected<void, LiveInputMonitorError> storeAndApply(
@@ -148,8 +162,8 @@ private:
     std::optional<InputDeviceIdentity> m_route{};
     std::optional<InputCalibrationState> m_calibration{};
 
-    // The route a measurement in progress started on; empty while the gate owns the route.
-    std::optional<InputDeviceIdentity> m_measuring_route{};
+    // The measurement holding the route; empty while the gate owns the route.
+    std::optional<Measurement> m_measurement{};
 };
 
 } // namespace rock_hero::common::audio

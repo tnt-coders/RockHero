@@ -91,15 +91,20 @@ placement, emphasis and words.
    the sampling call should report the measurement ended; and the game holds three records of
    "measuring" (its machine phase, its capture, the monitor) that this step should reduce to one.
 6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
-   the UI expert.
+   the UI expert. The popup seeds its committed gain once from the prompt, so the auto-prompt must
+   build a fresh popup for each route (or read the gain from `monitor.calibration()`).
 6a. The audio-settings window whenever the saved device is not running (D7, widened twice): at
     startup unless the saved route was restored and opened (no saved route, an unavailable device, an
     invalid route), and mid-session on the hardware-loss edge after the pause -- the window shows the
     device as not found, and OK reopens it once it is back.
-    It shares the auto-prompt's open-a-window mechanism. Verify first whether the engine's startup
+    It shares the auto-prompt's open-a-window mechanism. Decide which window wins when the device
+    drops while the calibration prompt is open: `onAudioDeviceChangeRequested` refuses device work
+    while the prompt is up, measuring included. Verify first whether the engine's startup
     open of the OS default persists a route by itself; if it does, "Cancel writes nothing" needs it
     not to.
-7. The game wizard with the hard gate. Large; its own plan. (`--import-editor-audio` is already
+7. The game wizard with the hard gate. Large; its own plan. `GainCalibrationProgress` copies
+   `InputCalibrationStage` one-to-one: return the monitor's `InputCalibrationProgress` instead, and
+   report a measurement a gate run ended as ended rather than as an invalid request. (`--import-editor-audio` is already
    deleted.)
 8. A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
    could be better: what the strum measurement fallback measures and why it does not repeat, how

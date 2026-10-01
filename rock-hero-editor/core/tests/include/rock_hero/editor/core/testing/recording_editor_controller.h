@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
+#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
@@ -720,23 +721,14 @@ public:
         return {};
     }
 
-    /*! \brief Records calibration measurement cancellation through the controller contract. */
-    void onInputCalibrationMeasurementCancelled() override
-    {
-        input_calibration_measurement_cancel_count += 1;
-    }
-
     /*!
-    \brief Records automatic calibration completion through the controller contract.
-    \param gain_db Calibration gain selected by automatic measurement.
-    \return Always empty success.
+    \brief Counts calibration samples and returns the configured one.
+    \return The configured sample.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationSucceeded(double gain_db) override
+    [[nodiscard]] common::audio::LiveInputSample onInputCalibrationSampled() override
     {
-        last_input_calibration_gain_db = gain_db;
-        input_calibration_success_count += 1;
-        return {};
+        input_calibration_sample_count += 1;
+        return input_calibration_sample;
     }
 
     /*!
@@ -1249,11 +1241,11 @@ public:
     /*! \brief Number of calibration measurement start intents received. */
     int input_calibration_measurement_start_count{0};
 
-    /*! \brief Number of calibration measurement cancellation intents received. */
-    int input_calibration_measurement_cancel_count{0};
+    /*! \brief Number of calibration samples taken. */
+    int input_calibration_sample_count{0};
 
-    /*! \brief Number of successful automatic calibration intents received. */
-    int input_calibration_success_count{0};
+    /*! \brief Sample returned by onInputCalibrationSampled(). */
+    common::audio::LiveInputSample input_calibration_sample{};
 
     /*! \brief Number of successful manual calibration intents received. */
     int input_calibration_manual_set_count{0};

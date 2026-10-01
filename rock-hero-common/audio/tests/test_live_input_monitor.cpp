@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
@@ -11,6 +12,7 @@
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -63,6 +65,28 @@ struct Harness
     InMemoryAudioConfigStore store;
     LiveInputMonitor monitor{live_input, devices, store};
 };
+
+// Samples a measurement at a steady raw level until it ends, as a driver's timer would.
+[[nodiscard]] InputCalibrationProgress runMeasurement(Harness& harness, double peak_db)
+{
+    harness.live_input.raw_input_meter_level = AudioMeterLevel{.peak_db = peak_db};
+    constexpr std::size_t longest_measurement = inputCalibrationSettleSampleCount() +
+                                                inputCalibrationWaitSampleCount() +
+                                                inputCalibrationMeasurementSampleCount();
+    for (std::size_t sample = 0; sample < longest_measurement; ++sample)
+    {
+        const LiveInputSample reading = harness.monitor.sample(g_ready);
+        if (!reading.measurement.has_value())
+        {
+            return InputCalibrationFailed{"The measurement was not running."};
+        }
+        if (!std::holds_alternative<InputCalibrationStage>(*reading.measurement))
+        {
+            return *reading.measurement;
+        }
+    }
+    return InputCalibrationFailed{"The measurement did not finish."};
+}
 
 } // namespace
 
@@ -223,19 +247,21 @@ TEST_CASE("LiveInputMonitor cancel restores the stored calibration", "[audio][li
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// A measured gain is stored for the measured route and armed.
-TEST_CASE("LiveInputMonitor commits a measurement", "[audio][live-input]")
+// A finished measurement stores its gain for the measured route and arms it.
+TEST_CASE("LiveInputMonitor commits a finished measurement", "[audio][live-input]")
 {
     Harness harness;
     REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
 
-    REQUIRE(harness.monitor.commitMeasurement(6.5, g_ready).has_value());
+    const InputCalibrationProgress progress = runMeasurement(harness, -19.5);
 
-    CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    const auto* const committed = std::get_if<InputCalibrationCommitted>(&progress);
+    REQUIRE(committed != nullptr);
+    CHECK_THAT(committed->gain.db, Catch::Matchers::WithinULP(7.5, 0));
     REQUIRE(harness.store.input_calibrations.size() == 1);
     CHECK(harness.store.input_calibrations.front().input_device_identity == harness.route);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
-    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(6.5, 0));
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
 }
 
 // A measurement can never calibrate a route it did not measure.
@@ -245,24 +271,38 @@ TEST_CASE("LiveInputMonitor refuses a measurement whose route changed", "[audio]
     REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
     harness.devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
 
-    const auto committed = harness.monitor.commitMeasurement(6.5, g_ready);
+    const InputCalibrationProgress progress = runMeasurement(harness, -19.5);
 
-    REQUIRE_FALSE(committed.has_value());
-    CHECK(committed.error().code == LiveInputMonitorErrorCode::InvalidRequest);
+    CHECK(std::holds_alternative<InputCalibrationFailed>(progress));
     CHECK(harness.store.input_calibrations.empty());
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
 }
 
-// A measured commit without a measurement in progress is refused, so it cannot fall back to
-// calibrating whatever route is current.
-TEST_CASE("LiveInputMonitor refuses a measured commit without a measurement", "[audio][live-input]")
+// A measurement that hears nothing usable fails and hands the route back to the stored
+// calibration.
+TEST_CASE("LiveInputMonitor hands the route back after a failed measurement", "[audio][live-input]")
+{
+    Harness harness{3.0};
+    harness.monitor.refresh(g_ready);
+    REQUIRE(harness.monitor.beginMeasurement(g_ready).has_value());
+
+    const InputCalibrationProgress progress = runMeasurement(harness, minimumAudioMeterDb());
+
+    CHECK(std::holds_alternative<InputCalibrationFailed>(progress));
+    CHECK(harness.monitor.status() == LiveInputMonitoringStatus::Active);
+    CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
+}
+
+// With no measurement running, a sample is only a meter reading.
+TEST_CASE("LiveInputMonitor samples the meter without a measurement", "[audio][live-input]")
 {
     Harness harness;
+    harness.live_input.raw_input_meter_level = AudioMeterLevel{.peak_db = -18.0};
 
-    const auto committed = harness.monitor.commitMeasurement(6.5, g_ready);
+    const LiveInputSample sample = harness.monitor.sample(g_ready);
 
-    REQUIRE_FALSE(committed.has_value());
-    CHECK(committed.error().code == LiveInputMonitorErrorCode::InvalidRequest);
+    CHECK_THAT(sample.raw_level.peak_db, Catch::Matchers::WithinULP(-18.0, 0));
+    CHECK_FALSE(sample.measurement.has_value());
     CHECK(harness.store.input_calibrations.empty());
 }
 
@@ -296,17 +336,15 @@ TEST_CASE("LiveInputMonitor keeps the stored calibration when a save fails", "[a
     CHECK_THAT(harness.live_input.current_input_gain.db, Catch::Matchers::WithinULP(3.0, 0));
 }
 
-// The calibration is saved even when the backend then refuses the route: it is a fact about the
-// route, and the refusal is reported.
-TEST_CASE("LiveInputMonitor saves a calibration the backend refuses", "[audio][live-input]")
+// A saved calibration is committed even when the backend then refuses the route: it is a fact
+// about the route, and the refusal is gate state that status() reports.
+TEST_CASE("LiveInputMonitor commits a calibration the backend refuses", "[audio][live-input]")
 {
     Harness harness;
     harness.live_input.next_set_input_gain_error = routeUnavailable();
 
-    const auto committed = harness.monitor.commitManualCalibration(4.0, g_ready);
+    REQUIRE(harness.monitor.commitManualCalibration(4.0, g_ready).has_value());
 
-    REQUIRE_FALSE(committed.has_value());
-    CHECK(committed.error().code == LiveInputMonitorErrorCode::BackendRejected);
     CHECK(harness.store.input_calibrations.size() == 1);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::BackendUnavailable);
 }
@@ -321,6 +359,8 @@ TEST_CASE("LiveInputMonitor session close ends monitoring and measurement", "[au
     harness.monitor.refresh(g_not_ready);
 
     CHECK(harness.monitor.status() != LiveInputMonitoringStatus::Measuring);
+    // A driver still sampling sees the measurement is gone.
+    CHECK_FALSE(harness.monitor.sample(g_not_ready).measurement.has_value());
     CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
     CHECK_FALSE(harness.live_input.calibration_input_monitoring_enabled);
     CHECK(harness.monitor.status() == LiveInputMonitoringStatus::SessionNotReady);

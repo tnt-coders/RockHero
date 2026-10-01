@@ -5,7 +5,6 @@
 
 #include <BinaryData.h>
 #include <memory>
-#include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
@@ -17,17 +16,6 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-constexpr int g_input_calibration_meter_hz{30};
-constexpr int g_input_calibration_measurement_seconds{8};
-constexpr int g_input_calibration_wait_seconds{10};
-constexpr int g_input_calibration_sample_count{
-    g_input_calibration_meter_hz * g_input_calibration_measurement_seconds
-};
-constexpr int g_input_calibration_wait_sample_count{
-    g_input_calibration_meter_hz * g_input_calibration_wait_seconds
-};
-// Discard the first half-second so backend gain resets and meter windows settle before capture.
-constexpr int g_input_calibration_settle_sample_count{g_input_calibration_meter_hz / 2};
 // Match the transport-bar master meter's preferred width so the popup stays visually compact;
 // the live master meter can flex narrower when the window-centered transport needs the room.
 constexpr int g_input_calibration_meter_width{384};
@@ -103,17 +91,10 @@ class InputCalibrationWindow::Content final : public juce::Component,
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
-        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt)
+        const core::InputCalibrationPrompt& prompt)
         : m_owner(owner)
         , m_editor_controller(controller)
-        , m_live_input(live_input)
-        , m_calibration_controller(
-              *this, prompt,
-              core::InputCalibrationController::CaptureSettings{
-                  .settle_sample_count = g_input_calibration_settle_sample_count,
-                  .wait_sample_count = g_input_calibration_wait_sample_count,
-                  .measurement_sample_count = g_input_calibration_sample_count,
-              })
+        , m_calibration_controller(*this, prompt)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
         m_target_label.setComponentID("input_calibration_target");
@@ -165,7 +146,9 @@ public:
 
         m_calibrate_button.setComponentID("input_calibration_start_button");
         m_calibrate_button.setButtonText("Calibrate");
-        m_calibrate_button.onClick = [this] { startMeasurement(); };
+        m_calibrate_button.onClick = [this] {
+            m_calibration_controller.onMeasurementStartRequested();
+        };
         addAndMakeVisible(m_calibrate_button);
 
         m_cancel_button.setComponentID("input_calibration_cancel_button");
@@ -175,7 +158,7 @@ public:
 
         setSize(g_input_calibration_preferred_width, preferredHeight());
         m_calibration_controller.attachView(*this);
-        startTimerHz(g_input_calibration_meter_hz);
+        startTimerHz(common::audio::inputCalibrationSampleRateHz());
     }
 
     Content(const Content&) = delete;
@@ -248,9 +231,9 @@ private:
         m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
         m_manual_gain_slider.updateText();
         m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
-        m_calibrate_button.setEnabled(state.start_measurement_enabled);
-        m_manual_gain_slider.setEnabled(state.manual_gain_controls_enabled);
-        m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
+        m_calibrate_button.setEnabled(!state.measuring);
+        m_manual_gain_slider.setEnabled(!state.measuring);
+        m_manual_apply_button.setEnabled(!state.measuring);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
         syncPreferredSize();
     }
@@ -261,15 +244,9 @@ private:
         return m_editor_controller.onInputCalibrationMeasurementStarted();
     }
 
-    void cancelInputCalibrationMeasurement() override
+    [[nodiscard]] common::audio::LiveInputSample sampleInputCalibration() override
     {
-        m_editor_controller.onInputCalibrationMeasurementCancelled();
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    applyAutomaticInputCalibration(double gain_db) override
-    {
-        return m_editor_controller.onInputCalibrationSucceeded(gain_db);
+        return m_editor_controller.onInputCalibrationSampled();
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -294,38 +271,13 @@ private:
         m_calibration_controller.onDocumentationUnavailable();
     }
 
-    void startMeasurement()
-    {
-        if (m_live_input == nullptr)
-        {
-            m_calibration_controller.onMeterSourceUnavailable();
-            return;
-        }
-
-        if (!m_calibration_controller.onMeasurementStartRequested())
-        {
-            return;
-        }
-
-        // rawInputMeterLevel() clears the Tracktion meter reader, so this primes retry runs
-        // after the controller has reset input gain and rebuilt the calibration route.
-        [[maybe_unused]] const common::audio::AudioMeterLevel primed_level =
-            m_live_input->rawInputMeterLevel();
-    }
-
     void timerCallback() override
     {
-        common::audio::AudioMeterLevel level{};
-        if (m_live_input != nullptr)
-        {
-            level = m_live_input->rawInputMeterLevel();
-        }
-        m_calibration_controller.onMeterSampled(level);
+        m_calibration_controller.onSampleTick();
     }
 
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_editor_controller;
-    const common::audio::ILiveInput* m_live_input{};
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
     juce::Label m_target_label;
@@ -347,8 +299,8 @@ private:
 };
 
 InputCalibrationWindow::InputCalibrationWindow(
-    core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component)
+    core::IEditorController& controller, const core::InputCalibrationPrompt& prompt,
+    juce::Component* centering_component)
     : juce::DocumentWindow(
           "Input Calibration", editorTheme().bar_background, juce::DocumentWindow::closeButton)
 {
@@ -356,7 +308,7 @@ InputCalibrationWindow::InputCalibrationWindow(
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    auto content = std::make_unique<Content>(*this, controller, live_input, prompt);
+    auto content = std::make_unique<Content>(*this, controller, prompt);
     m_content = content.get();
     setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());

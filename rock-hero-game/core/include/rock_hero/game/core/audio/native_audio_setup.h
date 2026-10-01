@@ -10,8 +10,6 @@
 #include <optional>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/input/i_live_input.h>
-#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/input/live_input_monitoring_status.h>
@@ -180,41 +178,25 @@ LiveInputMonitor to measure and persist the route's input gain. Reaching Ready i
 GameplaySession Ready transition (plan 14 Phase 4) needs to arm live-input monitoring.
 
 All operations are message-thread operations, matching the ports they drive. The store injected
-here must be the same instance the LiveInputMonitor writes calibration through, and the live-input
-port the same one that monitor wraps, so the persisted route and calibration land in one store.
+here must be the same instance the LiveInputMonitor writes calibration through, so the persisted
+route and calibration land in one store.
 */
 class NativeAudioSetup final
 {
 public:
-    /*! \brief Meter-window counts used by one automatic gain-calibration capture pass. */
-    struct CaptureSettings
-    {
-        /*! \brief Number of initial samples discarded after the route is reset. */
-        std::size_t settle_sample_count{0};
-
-        /*! \brief Number of quiet samples accepted while waiting for a usable strum. */
-        std::size_t wait_sample_count{0};
-
-        /*! \brief Number of active samples used for the measurement window. */
-        std::size_t measurement_sample_count{1};
-    };
-
     /*!
     \brief Creates an idle native audio-setup driver over the composed ports.
     \param device_settings Shared staged device-settings workflow the picker drives.
     \param device_configuration Device-configuration port sampled for the applied blob and identity.
-    \param live_input_monitor Shared calibrate-first monitor driven to measure and persist gain.
-    \param live_input Live-input port sampled for the raw calibration meter level.
+    \param live_input_monitor Shared calibrate-first monitor that measures and stores the gain.
     \param audio_config_store The shared store the applied device route is written to.
     \param game_settings The game's persistence port the slot-0 player config is written to.
-    \param capture_settings Fixed meter-window counts for automatic gain capture.
     */
     NativeAudioSetup(
         common::audio::IAudioDeviceSettings& device_settings,
         common::audio::IAudioDeviceConfiguration& device_configuration,
-        common::audio::LiveInputMonitor& live_input_monitor, common::audio::ILiveInput& live_input,
-        common::audio::IAudioConfigStore& audio_config_store, IGameSettings& game_settings,
-        CaptureSettings capture_settings);
+        common::audio::LiveInputMonitor& live_input_monitor,
+        common::audio::IAudioConfigStore& audio_config_store, IGameSettings& game_settings);
 
     /*! \brief Copying is disabled because the driver holds injected port references. */
     NativeAudioSetup(const NativeAudioSetup&) = delete;
@@ -225,7 +207,7 @@ public:
     */
     NativeAudioSetup& operator=(const NativeAudioSetup&) = delete;
 
-    /*! \brief Moving is disabled so the driver keeps a stable address for its capture pass. */
+    /*! \brief Moving is disabled so the driver keeps a stable address. */
     NativeAudioSetup(NativeAudioSetup&&) = delete;
 
     /*!
@@ -273,22 +255,21 @@ public:
     /*!
     \brief Begins a gain-calibration measurement on the applied route.
 
-    Drives the shared monitor to open a calibration prompt and start metering the raw input while
-    the player strums. Legal only in CalibratingGain.
+    Hands the route to the shared monitor's measurement; the caller then samples it at
+    common::audio::inputCalibrationSampleRateHz() while the player strums. Legal only in
+    CalibratingGain.
 
     \return Empty success, or a typed calibration failure (the applied device stays intact).
     */
     [[nodiscard]] std::expected<void, NativeAudioSetupError> beginGainCalibration();
 
     /*!
-    \brief Feeds one raw input meter sample into the active measurement.
+    \brief Samples the measurement once.
 
-    Reads the live-input port's raw meter level and advances the capture. On completion it commits
-    the measured gain through the monitor — which persists the calibration to the game's store — and
-    advances to Ready. A signal-quality failure restores the route and stays in CalibratingGain for
-    another attempt.
+    A finished measurement has stored its gain in the shared store, and the flow advances to
+    Ready. A failed one leaves the flow in CalibratingGain for another attempt.
 
-    \return The capture progress, or a typed calibration failure.
+    \return The measurement's progress, or a typed calibration failure.
     */
     [[nodiscard]] std::expected<GainCalibrationProgress, NativeAudioSetupError>
     sampleGainCalibration();
@@ -297,9 +278,6 @@ public:
     void cancelGainCalibration();
 
 private:
-    // Commits a measured gain through the monitor (persisting it) and advances to Ready.
-    [[nodiscard]] std::expected<void, NativeAudioSetupError> commitMeasuredGain(double gain_db);
-
     // Records a terminal failure on the machine and returns the same error for propagation.
     [[nodiscard]] NativeAudioSetupError failAndRecord(NativeAudioSetupError error);
 
@@ -307,12 +285,8 @@ private:
     common::audio::IAudioDeviceSettings& m_device_settings;
     common::audio::IAudioDeviceConfiguration& m_device_configuration;
     common::audio::LiveInputMonitor& m_live_input_monitor;
-    common::audio::ILiveInput& m_live_input;
     common::audio::IAudioConfigStore& m_audio_config_store;
     IGameSettings& m_game_settings;
-
-    // Deterministic capture pass driven one raw meter sample at a time during CalibratingGain.
-    common::audio::InputCalibrationCapture m_capture;
 };
 
 } // namespace rock_hero::game::core

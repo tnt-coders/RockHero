@@ -5,6 +5,7 @@
 #include <compare>
 #include <string>
 #include <utility>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -90,17 +91,12 @@ namespace
 
 // Seeds popup state from the prompt the editor controller projects.
 InputCalibrationController::InputCalibrationController(
-    Host& host, const InputCalibrationPrompt& prompt, CaptureSettings capture_settings)
+    Host& host, const InputCalibrationPrompt& prompt)
     : m_host(host)
-    , m_capture(
-          capture_settings.settle_sample_count, capture_settings.wait_sample_count,
-          capture_settings.measurement_sample_count)
 {
     const double initial_gain_db = canonicalInputGainDb(prompt.input_gain_db);
-    m_state.input_gain_db = initial_gain_db;
     m_state.status_message = inputCalibrationReadyText();
     m_committed_input_gain_db = initial_gain_db;
-    m_measurement_restore_gain_db = initial_gain_db;
     setDisplayedInputGain(initial_gain_db);
 }
 
@@ -120,10 +116,10 @@ void InputCalibrationController::detachView(IInputCalibrationView& view) noexcep
     }
 }
 
-// Updates the preview gain while no automatic capture owns the route.
+// Updates the preview gain while no measurement holds the route.
 void InputCalibrationController::onManualGainChanged(double gain_db)
 {
-    if (m_capture.active())
+    if (m_state.measuring)
     {
         return;
     }
@@ -135,7 +131,7 @@ void InputCalibrationController::onManualGainChanged(double gain_db)
 // Applies the currently displayed manual gain through the editor-runtime host.
 void InputCalibrationController::onManualApplyRequested()
 {
-    if (m_capture.active())
+    if (m_state.measuring)
     {
         return;
     }
@@ -144,99 +140,74 @@ void InputCalibrationController::onManualApplyRequested()
     if (!applied.has_value())
     {
         m_state.status_message = applied.error().message;
-        m_state.start_measurement_enabled = true;
-        m_state.manual_gain_controls_enabled = true;
         publishState();
         return;
     }
 
     m_state.status_message = inputManualCalibrationCompleteText(m_state.input_gain_db);
     m_committed_input_gain_db = m_state.input_gain_db;
-    m_measurement_restore_gain_db = m_state.input_gain_db;
-    m_state.start_measurement_enabled = true;
-    m_state.manual_gain_controls_enabled = true;
     m_state.dismiss_button_text = "Close";
     publishState();
 }
 
-// Starts automatic capture only after the editor host has rebuilt the live-input route.
-bool InputCalibrationController::onMeasurementStartRequested()
+// Starts an automatic measurement once the host has handed over the route.
+void InputCalibrationController::onMeasurementStartRequested()
 {
-    if (m_capture.active())
+    if (m_state.measuring)
     {
-        return false;
+        return;
     }
 
     const auto started = m_host.startInputCalibrationMeasurement();
     if (!started.has_value())
     {
         m_state.status_message = started.error().message;
-        m_state.start_measurement_enabled = true;
-        m_state.manual_gain_controls_enabled = true;
         publishState();
-        return false;
+        return;
     }
 
-    m_measurement_restore_gain_db = m_committed_input_gain_db;
     setDisplayedInputGain(common::audio::defaultGainDb());
-    m_capture.start();
-    m_last_capture_phase = m_capture.phase();
-    m_state.start_measurement_enabled = false;
-    m_state.manual_gain_controls_enabled = false;
+    m_state.measuring = true;
     m_state.dismiss_button_text = "Dismiss";
     m_state.status_message = inputCalibrationWaitingText();
     publishState();
-    return true;
 }
 
-// Updates display metering and feeds samples to the capture state machine when active.
-void InputCalibrationController::onMeterSampled(common::audio::AudioMeterLevel raw_level)
+// Shows the raw input through the previewed gain, and follows a measurement in progress.
+void InputCalibrationController::onSampleTick()
 {
-    m_last_raw_meter_level = raw_level;
-    m_state.input_meter_level = applyDisplayGain(raw_level, m_state.input_gain_db);
-
-    if (!m_capture.active())
+    const common::audio::LiveInputSample sample = m_host.sampleInputCalibration();
+    m_last_raw_meter_level = sample.raw_level;
+    m_state.input_meter_level = applyDisplayGain(sample.raw_level, m_state.input_gain_db);
+    if (!m_state.measuring)
     {
         publishState();
         return;
     }
 
-    const common::audio::InputCalibrationCaptureUpdate update = m_capture.pushSample(raw_level);
-    if (update.phase == common::audio::InputCalibrationCapturePhase::Measuring &&
-        m_last_capture_phase != common::audio::InputCalibrationCapturePhase::Measuring)
+    // The editor ended the measurement itself, for example on a device change.
+    if (!sample.measurement.has_value())
     {
-        m_state.status_message = inputCalibrationMeasuringText();
-    }
-    m_last_capture_phase = update.phase;
-
-    if (update.error.has_value())
-    {
-        finishMeasurementError(update.error->message);
+        finishMeasurementError("Calibration was interrupted. Try again.");
         return;
     }
 
-    if (update.result.has_value())
+    const common::audio::InputCalibrationProgress& progress = *sample.measurement;
+    if (const auto* const stage = std::get_if<common::audio::InputCalibrationStage>(&progress))
     {
-        finishMeasurementSuccess(*update.result, raw_level);
+        m_state.status_message = *stage == common::audio::InputCalibrationStage::Measuring
+                                     ? inputCalibrationMeasuringText()
+                                     : inputCalibrationWaitingText();
+        publishState();
         return;
     }
-
-    publishState();
-}
-
-// Keeps missing meter-source failure text in the popup state rather than in JUCE code.
-void InputCalibrationController::onMeterSourceUnavailable()
-{
-    if (m_capture.active())
+    if (const auto* const committed =
+            std::get_if<common::audio::InputCalibrationCommitted>(&progress))
     {
-        finishMeasurementError("Live input is unavailable.");
+        finishMeasurementSuccess(committed->gain.db);
         return;
     }
-
-    m_state.status_message = "Live input is unavailable.";
-    m_state.start_measurement_enabled = true;
-    m_state.manual_gain_controls_enabled = true;
-    publishState();
+    finishMeasurementError(std::get<common::audio::InputCalibrationFailed>(progress).message);
 }
 
 // Reports a failed help request without coupling the core controller to filesystem lookup.
@@ -246,11 +217,9 @@ void InputCalibrationController::onDocumentationUnavailable()
     publishState();
 }
 
-// Forwards dismissal to the host, which owns any active measurement restoration.
+// Forwards dismissal to the host, which ends any measurement in progress.
 void InputCalibrationController::onDismissRequested()
 {
-    m_capture.reset();
-    m_last_capture_phase = m_capture.phase();
     m_host.dismissInputCalibration();
 }
 
@@ -261,41 +230,23 @@ void InputCalibrationController::setDisplayedInputGain(double gain_db)
     m_state.input_meter_level = applyDisplayGain(m_last_raw_meter_level, m_state.input_gain_db);
 }
 
-// Commits an automatic capture through the host and moves the popup into its completed state.
-void InputCalibrationController::finishMeasurementSuccess(
-    const common::audio::InputCalibrationResult& result, common::audio::AudioMeterLevel raw_level)
+// Moves the popup into its completed state once the monitor has stored the measured gain.
+void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 {
-    m_last_raw_meter_level = raw_level;
-    setDisplayedInputGain(result.calibration_gain.db);
-
-    const auto applied = m_host.applyAutomaticInputCalibration(m_state.input_gain_db);
-    if (!applied.has_value())
-    {
-        finishMeasurementError(applied.error().message);
-        return;
-    }
-
-    m_capture.reset();
-    m_last_capture_phase = m_capture.phase();
+    setDisplayedInputGain(gain_db);
     m_state.status_message = inputCalibrationCompleteText(m_state.input_gain_db);
     m_committed_input_gain_db = m_state.input_gain_db;
-    m_measurement_restore_gain_db = m_state.input_gain_db;
-    m_state.start_measurement_enabled = true;
-    m_state.manual_gain_controls_enabled = true;
+    m_state.measuring = false;
     m_state.dismiss_button_text = "Close";
     publishState();
 }
 
-// Cancels backend measurement state and restores the popup to the last committed display gain.
+// Returns the popup to the last committed gain; the monitor already handed the route back.
 void InputCalibrationController::finishMeasurementError(std::string message)
 {
-    m_host.cancelInputCalibrationMeasurement();
-    m_capture.reset();
-    m_last_capture_phase = m_capture.phase();
-    setDisplayedInputGain(m_measurement_restore_gain_db);
+    setDisplayedInputGain(m_committed_input_gain_db);
     m_state.status_message = std::move(message);
-    m_state.start_measurement_enabled = true;
-    m_state.manual_gain_controls_enabled = true;
+    m_state.measuring = false;
     m_state.dismiss_button_text = "Dismiss";
     publishState();
 }

@@ -686,7 +686,7 @@ public:
         return {};
     }
 
-    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
+    [[nodiscard]] common::audio::AudioMeterLevel readRawInputMeterLevel() override
     {
         return raw_input_meter_level;
     }

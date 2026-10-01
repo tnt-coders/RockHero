@@ -496,10 +496,10 @@ public:
     [[nodiscard]] std::expected<void, LiveInputError> setInputGain(Gain gain) override;
 
     /*!
-    \brief Returns the raw input peak meter used for input calibration.
-    \return Most recent raw input peak level, or silence when no meter is active.
+    \brief Reads the raw input peak since the previous read, and starts the next meter window.
+    \return Raw input peak level over that window, or silence when no meter is active.
     */
-    [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const override;
+    [[nodiscard]] AudioMeterLevel readRawInputMeterLevel() override;
 
     /*!
     \brief Reports whether processed live input monitoring is currently enabled.

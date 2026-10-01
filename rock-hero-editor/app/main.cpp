@@ -55,7 +55,6 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
         .live_rig = engine,
         .tone_timeline = engine,
         .tone_automation = engine,
-        .live_input = engine,
         .meter_source = engine,
         .playback_clock = engine,
     };

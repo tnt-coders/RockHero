@@ -30,7 +30,7 @@ TEST_CASE("InputCalibrationWindow shows the calibrate action", "[ui][input-calib
     RecordingEditorController controller;
     const core::InputCalibrationPrompt prompt = calibrationPrompt();
 
-    InputCalibrationWindow window{controller, nullptr, prompt, nullptr};
+    InputCalibrationWindow window{controller, prompt, nullptr};
 
     const auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");

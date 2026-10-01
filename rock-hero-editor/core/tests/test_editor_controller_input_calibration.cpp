@@ -1,7 +1,10 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
+#include <optional>
 #include <ostream>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -28,6 +31,32 @@ void requireSaveInputCalibration(
     // bugprone-use-after-move reads as a use of the moved-from calibration.
     const auto saved = store.saveInputCalibration(std::move(calibration));
     REQUIRE(saved.has_value());
+}
+
+// Samples the calibration prompt at a steady raw level until its measurement ends, as the prompt's
+// timer would. A steady level L calibrates to -12 - L dB, the RMS target less the level.
+template <typename LiveInput>
+[[nodiscard]] common::audio::InputCalibrationProgress runCalibrationMeasurement(
+    EditorController& controller, LiveInput& live_input, double peak_db)
+{
+    live_input.raw_input_meter_level = common::audio::AudioMeterLevel{.peak_db = peak_db};
+    constexpr std::size_t longest_measurement =
+        common::audio::inputCalibrationSettleSampleCount() +
+        common::audio::inputCalibrationWaitSampleCount() +
+        common::audio::inputCalibrationMeasurementSampleCount();
+    for (std::size_t sample = 0; sample < longest_measurement; ++sample)
+    {
+        const common::audio::LiveInputSample reading = controller.onInputCalibrationSampled();
+        if (!reading.measurement.has_value())
+        {
+            return common::audio::InputCalibrationFailed{"The measurement was not running."};
+        }
+        if (!std::holds_alternative<common::audio::InputCalibrationStage>(*reading.measurement))
+        {
+            return *reading.measurement;
+        }
+    }
+    return common::audio::InputCalibrationFailed{"The measurement did not finish."};
 }
 
 } // namespace
@@ -196,8 +225,9 @@ TEST_CASE(
     CHECK(transport.calibration_input_monitoring_enabled);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
-    const auto calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
-    REQUIRE(calibration_succeeded.has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, transport, -19.5)));
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -251,8 +281,9 @@ TEST_CASE(
     REQUIRE(first_measurement_started.has_value());
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
-    const auto first_calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
-    REQUIRE(first_calibration_succeeded.has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, transport, -19.5)));
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -266,7 +297,7 @@ TEST_CASE(
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
 
-    controller.onInputCalibrationMeasurementCancelled();
+    controller.onInputCalibrationDismissed();
 
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
     CHECK(transport.live_input_monitoring_enabled);
@@ -1137,10 +1168,9 @@ TEST_CASE(
     }
 }
 
-// Verifies that a failed manual recalibration attempt restores monitoring without closing retry UI.
+// Dismissing a recalibration in progress restores the stored calibration and its monitoring.
 TEST_CASE(
-    "Manual input recalibration cancellation restores previous calibration",
-    "[core][editor-controller]")
+    "Input recalibration dismissal restores previous calibration", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
@@ -1176,11 +1206,11 @@ TEST_CASE(
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
 
-    controller.onInputCalibrationMeasurementCancelled();
+    controller.onInputCalibrationDismissed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
@@ -1193,10 +1223,10 @@ TEST_CASE(
     }
 }
 
-// A cancel whose re-arm the backend refuses keeps the stored calibration and reports the route
-// as unavailable; the prompt stays open to show it.
+// A dismissal whose re-arm the backend refuses keeps the stored calibration and reports the route
+// as unavailable.
 TEST_CASE(
-    "Input recalibration cancel preserves calibration on backend failure",
+    "Input recalibration dismissal preserves calibration on backend failure",
     "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
@@ -1237,11 +1267,11 @@ TEST_CASE(
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
-    controller.onInputCalibrationMeasurementCancelled();
+    controller.onInputCalibrationDismissed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
@@ -1300,14 +1330,15 @@ TEST_CASE(
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
         "live input route could not be armed",
     };
-    const auto calibration_applied = controller.onInputCalibrationSucceeded(6.0);
-    REQUIRE_FALSE(calibration_applied.has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, transport, -18.0)));
 
-    controller.onInputCalibrationMeasurementCancelled();
+    controller.onInputCalibrationDismissed();
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
@@ -1436,7 +1467,9 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
                                          });
 
     REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
-    REQUIRE(controller.onInputCalibrationSucceeded(7.5).has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, live_input, -19.5)));
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Calibrated,
@@ -1461,7 +1494,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         setLiveInputMonitoringCall(false),
         setInputGainCall(0.0),
         setCalibrationInputMonitoringCall(true),
-        // onInputCalibrationSucceeded: disable calibration audition, apply gain, enable monitoring.
+        // The measurement finishing: disable calibration audition, apply gain, enable monitoring.
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(7.5),
         setLiveInputMonitoringCall(true),
@@ -1693,7 +1726,7 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
 }
 
 // A commit whose gain the backend refuses is stored, then the gate reports the refused route.
-TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controller]")
+TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
@@ -1733,9 +1766,9 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
     };
     live_input.calls.clear();
 
-    const auto committed = controller.onInputCalibrationSucceeded(6.0);
-
-    REQUIRE_FALSE(committed.has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(6.0),
@@ -1752,7 +1785,7 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
 
 // A commit whose route the backend refuses to monitor is stored at the new gain, with monitoring
 // left off.
-TEST_CASE("Live input commit rollback on enable failure", "[core][editor-controller]")
+TEST_CASE("Live input commit reports refused monitoring", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
@@ -1792,9 +1825,9 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
     };
     live_input.calls.clear();
 
-    const auto committed = controller.onInputCalibrationSucceeded(6.0);
-
-    REQUIRE_FALSE(committed.has_value());
+    REQUIRE(
+        std::holds_alternative<common::audio::InputCalibrationCommitted>(
+            runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
         setInputGainCall(6.0),
@@ -1811,9 +1844,9 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
                                          });
 }
 
-// Pins the cancel path: an active measurement over a matching calibrated route restores the prior
-// calibration (audition off, gain, monitoring on) and keeps the prompt open.
-TEST_CASE("Live input cancel restores previous calibration", "[core][editor-controller]")
+// Pins the dismissal path: an active measurement over a matching calibrated route restores the
+// prior calibration (audition off, gain, monitoring on) and closes the prompt.
+TEST_CASE("Live input dismissal restores previous calibration", "[core][editor-controller]")
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
@@ -1848,7 +1881,7 @@ TEST_CASE("Live input cancel restores previous calibration", "[core][editor-cont
     REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
 
     live_input.calls.clear();
-    controller.onInputCalibrationMeasurementCancelled();
+    controller.onInputCalibrationDismissed();
 
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
@@ -1862,7 +1895,7 @@ TEST_CASE("Live input cancel restores previous calibration", "[core][editor-cont
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Calibrated,
                                              .disabled_message = {},
-                                             .prompt_present = true,
+                                             .prompt_present = false,
                                          });
 }
 

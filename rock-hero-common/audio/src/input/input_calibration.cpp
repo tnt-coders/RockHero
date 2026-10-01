@@ -7,14 +7,6 @@
 namespace rock_hero::common::audio
 {
 
-// Clears measurement state so one accumulator can be reused across retry passes.
-void InputCalibrationAccumulator::reset()
-{
-    m_measurement = {};
-    m_active_square_sum = 0.0;
-    m_active_peak_db.clear();
-}
-
 // Records raw input level and maintains the active-window RMS incrementally.
 void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
 {
@@ -123,156 +115,74 @@ double InputCalibrationAccumulator::rmsDbForSortedRange(
     return linearAmplitudeToDecibels(std::sqrt(mean_square));
 }
 
-// Stores the window sizes used by an automatic capture pass.
-InputCalibrationCapture::InputCalibrationCapture(
-    std::size_t settle_sample_count, std::size_t wait_sample_count,
-    std::size_t measurement_sample_count)
-    : m_settle_sample_count(settle_sample_count)
-    , m_wait_sample_count(wait_sample_count)
-    , m_measurement_sample_count(std::max<std::size_t>(1, measurement_sample_count))
-{}
-
-// Starts a fresh pass, including the post-route-reset settle window.
-void InputCalibrationCapture::start()
-{
-    m_accumulator.reset();
-    m_settle_samples_remaining = m_settle_sample_count;
-    m_wait_samples_remaining = m_wait_sample_count;
-    m_measurement_samples_remaining = 0;
-    m_phase = m_settle_samples_remaining > 0 ? InputCalibrationCapturePhase::Settling
-                                             : InputCalibrationCapturePhase::WaitingForInput;
-}
-
-// Returns to an inactive state without retaining partial measurement data.
-void InputCalibrationCapture::reset()
-{
-    m_accumulator.reset();
-    m_settle_samples_remaining = 0;
-    m_wait_samples_remaining = 0;
-    m_measurement_samples_remaining = 0;
-    m_phase = InputCalibrationCapturePhase::Idle;
-}
+// Every window must hold a sample, or a stage would end before it began.
+static_assert(inputCalibrationSettleSampleCount() > 0);
+static_assert(inputCalibrationWaitSampleCount() > 0);
+static_assert(inputCalibrationMeasurementSampleCount() > 0);
 
 // Advances the deterministic capture state machine by one raw meter sample.
-InputCalibrationCaptureUpdate InputCalibrationCapture::pushSample(AudioMeterLevel level)
+InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 {
-    switch (m_phase)
+    switch (m_stage)
     {
-        case InputCalibrationCapturePhase::Idle:
-        case InputCalibrationCapturePhase::Complete:
-        case InputCalibrationCapturePhase::Failed:
+        case InputCalibrationStage::Settling:
         {
-            return currentUpdate();
-        }
-        case InputCalibrationCapturePhase::Settling:
-        {
-            if (m_settle_samples_remaining > 0)
+            if (--m_settle_samples_remaining == 0)
             {
-                --m_settle_samples_remaining;
+                m_stage = InputCalibrationStage::WaitingForInput;
             }
-            if (m_settle_samples_remaining == 0)
-            {
-                m_phase = InputCalibrationCapturePhase::WaitingForInput;
-            }
-            return currentUpdate();
+            return m_stage;
         }
-        case InputCalibrationCapturePhase::WaitingForInput:
+        case InputCalibrationStage::WaitingForInput:
         {
             if (level.clipping || level.peak_db >= clippingAudioMeterDb())
             {
-                return fail(
-                    InputCalibrationError{
-                        .code = InputCalibrationErrorCode::InputClipped,
-                        .message = "Input clipped. Lower the interface input gain and try again.",
-                    });
+                return InputCalibrationError{
+                    .code = InputCalibrationErrorCode::InputClipped,
+                    .message = "Input clipped. Lower the interface input gain and try again.",
+                };
             }
 
             if (level.peak_db >= minimumInputCalibrationSignalDb())
             {
-                m_accumulator.reset();
-                m_measurement_samples_remaining = m_measurement_sample_count;
-                m_phase = InputCalibrationCapturePhase::Measuring;
+                m_stage = InputCalibrationStage::Measuring;
                 return pushMeasurementSample(level);
             }
 
-            if (m_wait_samples_remaining > 0)
+            if (--m_wait_samples_remaining == 0)
             {
-                --m_wait_samples_remaining;
+                return InputCalibrationError{
+                    .code = InputCalibrationErrorCode::NoUsableSignal,
+                    .message =
+                        "No usable input signal was detected. Check the input and try again.",
+                };
             }
-            if (m_wait_samples_remaining == 0)
-            {
-                return fail(
-                    InputCalibrationError{
-                        .code = InputCalibrationErrorCode::NoUsableSignal,
-                        .message =
-                            "No usable input signal was detected. Check the input and try again.",
-                    });
-            }
-            return currentUpdate();
+            return m_stage;
         }
-        case InputCalibrationCapturePhase::Measuring:
+        case InputCalibrationStage::Measuring:
         {
             return pushMeasurementSample(level);
         }
     }
 
-    return currentUpdate();
-}
-
-// Returns the current phase for UI status transitions.
-InputCalibrationCapturePhase InputCalibrationCapture::phase() const noexcept
-{
-    return m_phase;
-}
-
-// Reports whether the capture should consume incoming meter samples.
-bool InputCalibrationCapture::active() const noexcept
-{
-    return m_phase == InputCalibrationCapturePhase::Settling ||
-           m_phase == InputCalibrationCapturePhase::WaitingForInput ||
-           m_phase == InputCalibrationCapturePhase::Measuring;
-}
-
-// Builds a neutral update for phases that have no terminal result.
-InputCalibrationCaptureUpdate InputCalibrationCapture::currentUpdate() const
-{
-    return InputCalibrationCaptureUpdate{
-        .phase = m_phase, .result = std::nullopt, .error = std::nullopt
-    };
-}
-
-// Records a terminal calibration error and returns it to the caller in one step.
-InputCalibrationCaptureUpdate InputCalibrationCapture::fail(InputCalibrationError error)
-{
-    m_phase = InputCalibrationCapturePhase::Failed;
-    return InputCalibrationCaptureUpdate{
-        .phase = m_phase, .result = std::nullopt, .error = std::move(error)
-    };
+    return m_stage;
 }
 
 // Adds one sample to the fixed measurement window and finalizes it when the window ends.
-InputCalibrationCaptureUpdate InputCalibrationCapture::pushMeasurementSample(AudioMeterLevel level)
+InputCalibrationStep InputCalibrationCapture::pushMeasurementSample(AudioMeterLevel level)
 {
     m_accumulator.pushSample(level);
-    if (m_measurement_samples_remaining > 0)
+    if (--m_measurement_samples_remaining > 0)
     {
-        --m_measurement_samples_remaining;
-    }
-    if (m_measurement_samples_remaining > 0)
-    {
-        return currentUpdate();
+        return m_stage;
     }
 
-    const auto result = calculateInputCalibration(m_accumulator.measurement());
+    auto result = calculateInputCalibration(m_accumulator.measurement());
     if (!result.has_value())
     {
-        return fail(result.error());
+        return std::move(result.error());
     }
-
-    m_phase = InputCalibrationCapturePhase::Complete;
-    return InputCalibrationCaptureUpdate{
-        .phase = m_phase, .result = *result, .error = std::nullopt
-    };
+    return *result;
 }
 
 // Calculates the gain that moves the measured input toward the project calibration targets.

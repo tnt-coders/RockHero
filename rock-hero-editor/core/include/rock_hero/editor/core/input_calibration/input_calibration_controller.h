@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <cstddef>
 #include <expected>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
-#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
+#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
@@ -21,9 +20,9 @@ namespace rock_hero::editor::core
 /*!
 \brief Owns popup-local input calibration state without depending on JUCE widgets.
 
-The controller consumes raw meter samples supplied by the UI boundary, runs the deterministic
-capture state machine, projects popup controls into InputCalibrationViewState, and emits
-calibration intents through a narrow host boundary.
+The shared live-input monitor runs the measurement; this controller samples it through a narrow host
+boundary once per UI tick, projects the readings into InputCalibrationViewState, and emits the
+popup's intents through the same host.
 */
 class InputCalibrationController final
 {
@@ -36,22 +35,17 @@ public:
         virtual ~Host() = default;
 
         /*!
-        \brief Prepares the current live-input route for automatic measurement.
+        \brief Hands the current live-input route to an automatic measurement.
         \return Empty success, or a typed live-input failure.
         */
         [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
         startInputCalibrationMeasurement() = 0;
 
-        /*! \brief Cancels a measurement and restores editor-owned live-input state. */
-        virtual void cancelInputCalibrationMeasurement() = 0;
-
         /*!
-        \brief Applies the gain produced by a successful automatic measurement.
-        \param gain_db Gain in decibels.
-        \return Empty success, or a typed live-input failure.
+        \brief Reads the raw input once, advancing a measurement in progress.
+        \return The raw level, and the measurement's progress if one was running.
         */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-        applyAutomaticInputCalibration(double gain_db) = 0;
+        [[nodiscard]] virtual common::audio::LiveInputSample sampleInputCalibration() = 0;
 
         /*!
         \brief Applies a manually selected calibration gain.
@@ -61,7 +55,7 @@ public:
         [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
         applyManualInputCalibration(double gain_db) = 0;
 
-        /*! \brief Dismisses the input calibration popup. */
+        /*! \brief Dismisses the input calibration popup, ending any measurement. */
         virtual void dismissInputCalibration() = 0;
 
     protected:
@@ -87,27 +81,12 @@ public:
         Host& operator=(Host&&) = default;
     };
 
-    /*! \brief Meter-window counts used by one automatic calibration capture pass. */
-    struct CaptureSettings
-    {
-        /*! \brief Number of initial samples discarded after route reset. */
-        std::size_t settle_sample_count{0};
-
-        /*! \brief Number of quiet samples accepted while waiting for usable input. */
-        std::size_t wait_sample_count{0};
-
-        /*! \brief Number of active samples used for measurement. */
-        std::size_t measurement_sample_count{1};
-    };
-
     /*!
     \brief Creates a popup-local controller.
     \param host Boundary used for editor-runtime side effects.
     \param prompt Initial prompt state supplied by the editor workflow.
-    \param capture_settings Fixed meter-window counts for automatic capture.
     */
-    InputCalibrationController(
-        Host& host, const InputCalibrationPrompt& prompt, CaptureSettings capture_settings);
+    InputCalibrationController(Host& host, const InputCalibrationPrompt& prompt);
 
     /*! \brief Copies are disabled because the controller stores popup view attachment state. */
     InputCalibrationController(const InputCalibrationController&) = delete;
@@ -145,20 +124,15 @@ public:
     /*! \brief Applies the current manual gain through the host. */
     void onManualApplyRequested();
 
-    /*!
-    \brief Starts automatic measurement when the host can prepare the route.
-    \return True when the UI should prime the raw meter reader after route reset.
-    */
-    [[nodiscard]] bool onMeasurementStartRequested();
+    /*! \brief Starts an automatic measurement when the host can hand over the route. */
+    void onMeasurementStartRequested();
 
     /*!
-    \brief Advances popup state from one raw input meter sample.
-    \param raw_level Raw input meter level sampled by the UI boundary.
-    */
-    void onMeterSampled(common::audio::AudioMeterLevel raw_level);
+    \brief Samples the raw input once.
 
-    /*! \brief Reports that the UI boundary cannot supply raw input samples. */
-    void onMeterSourceUnavailable();
+    The UI calls it at common::audio::inputCalibrationSampleRateHz() while the popup is open.
+    */
+    void onSampleTick();
 
     /*! \brief Reports that local input calibration documentation could not be opened. */
     void onDocumentationUnavailable();
@@ -168,22 +142,15 @@ public:
 
 private:
     void setDisplayedInputGain(double gain_db);
-    void finishMeasurementSuccess(
-        const common::audio::InputCalibrationResult& result,
-        common::audio::AudioMeterLevel raw_level);
+    void finishMeasurementSuccess(double gain_db);
     void finishMeasurementError(std::string message);
     void publishState();
 
     Host& m_host;
-    common::audio::InputCalibrationCapture m_capture;
     IInputCalibrationView* m_view{};
     InputCalibrationViewState m_state;
-    common::audio::InputCalibrationCapturePhase m_last_capture_phase{
-        common::audio::InputCalibrationCapturePhase::Idle,
-    };
     common::audio::AudioMeterLevel m_last_raw_meter_level;
     double m_committed_input_gain_db{0.0};
-    double m_measurement_restore_gain_db{0.0};
 };
 
 } // namespace rock_hero::editor::core

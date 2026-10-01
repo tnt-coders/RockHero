@@ -4,6 +4,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace rock_hero::common::audio
 {
@@ -50,7 +51,7 @@ LiveInputMonitor::LiveInputMonitor(
 
 LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext context)
 {
-    m_measuring_route.reset();
+    m_measurement.reset();
     logIfRefused(
         m_live_input.setCalibrationInputMonitoringEnabled(false), "gate calibration disable");
 
@@ -103,7 +104,7 @@ LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext c
 
 LiveInputMonitoringStatus LiveInputMonitor::status() const noexcept
 {
-    return m_measuring_route.has_value() ? LiveInputMonitoringStatus::Measuring : m_status;
+    return m_measurement.has_value() ? LiveInputMonitoringStatus::Measuring : m_status;
 }
 
 const std::optional<InputDeviceIdentity>& LiveInputMonitor::route() const noexcept
@@ -119,7 +120,8 @@ const std::optional<InputCalibrationState>& LiveInputMonitor::calibration() cons
 std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
     LiveInputMonitoringContext context)
 {
-    std::optional<InputDeviceIdentity> route = m_device_configuration.currentInputDeviceIdentity();
+    const std::optional<InputDeviceIdentity> route =
+        m_device_configuration.currentInputDeviceIdentity();
     if (!route.has_value())
     {
         return noRouteError();
@@ -146,30 +148,61 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
         return backendRejectedError(std::move(calibration_monitoring.error()));
     }
 
-    m_measuring_route = std::move(route);
+    m_measurement.emplace(Measurement{.route = *route, .capture = InputCalibrationCapture{}});
     return {};
+}
+
+LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
+{
+    const AudioMeterLevel raw_level = m_live_input.readRawInputMeterLevel();
+    if (!m_measurement.has_value())
+    {
+        return LiveInputSample{.raw_level = raw_level, .measurement = std::nullopt};
+    }
+
+    InputCalibrationStep step = m_measurement->capture.pushSample(raw_level);
+    if (const auto* const stage = std::get_if<InputCalibrationStage>(&step))
+    {
+        return LiveInputSample{.raw_level = raw_level, .measurement = *stage};
+    }
+
+    const InputDeviceIdentity measured_route = m_measurement->route;
+    if (auto* const error = std::get_if<InputCalibrationError>(&step))
+    {
+        refresh(context);
+        return LiveInputSample{
+            .raw_level = raw_level,
+            .measurement = InputCalibrationFailed{std::move(error->message)},
+        };
+    }
+
+    const Gain gain = std::get<InputCalibrationResult>(step).calibration_gain;
+    auto committed = commitMeasurement(measured_route, gain, context);
+    if (!committed.has_value())
+    {
+        return LiveInputSample{
+            .raw_level = raw_level,
+            .measurement = InputCalibrationFailed{std::move(committed.error().message)},
+        };
+    }
+    return LiveInputSample{
+        .raw_level = raw_level,
+        .measurement = InputCalibrationCommitted{.gain = gain},
+    };
 }
 
 void LiveInputMonitor::cancelMeasurement(LiveInputMonitoringContext context)
 {
-    if (m_measuring_route.has_value())
+    if (m_measurement.has_value())
     {
         refresh(context);
     }
 }
 
 std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitMeasurement(
-    double gain_db, LiveInputMonitoringContext context)
+    const InputDeviceIdentity& measured_route, Gain gain, LiveInputMonitoringContext context)
 {
-    if (!m_measuring_route.has_value())
-    {
-        return std::unexpected{LiveInputMonitorError{
-            LiveInputMonitorErrorCode::InvalidRequest, "Calibration measurement is not active."
-        }};
-    }
-
     // Read live, not from the last refresh: a device change may still be on its way.
-    const InputDeviceIdentity measured_route = *m_measuring_route;
     if (m_device_configuration.currentInputDeviceIdentity() != measured_route)
     {
         refresh(context);
@@ -178,7 +211,7 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitMeasurement(
         }};
     }
 
-    return storeAndApply(measured_route, gain_db, context);
+    return storeAndApply(measured_route, gain.db, context);
 }
 
 std::expected<void, LiveInputMonitorError> LiveInputMonitor::commitManualCalibration(
@@ -210,22 +243,9 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::storeAndApply(
         }};
     }
 
-    const LiveInputMonitoringStatus status = refresh(context);
-    if (status == LiveInputMonitoringStatus::BackendUnavailable)
-    {
-        return std::unexpected{LiveInputMonitorError{
-            LiveInputMonitorErrorCode::BackendRejected,
-            "The calibration was saved, but live input refused the input route."
-        }};
-    }
-    if (status == LiveInputMonitoringStatus::CalibrationStoreUnavailable)
-    {
-        return std::unexpected{LiveInputMonitorError{
-            LiveInputMonitorErrorCode::CalibrationStoreUnavailable,
-            "The calibration was saved, but the audio settings could not be read back."
-        }};
-    }
-
+    // Saved is committed. Whether the gate can then arm the route is gate state, which status()
+    // and the Input cue report, not a failure of the calibration.
+    refresh(context);
     return {};
 }
 

@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <optional>
+#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <string>
 #include <utility>
@@ -31,7 +32,7 @@ public:
     std::vector<InputCalibrationViewState> states;
 };
 
-// Records host intents and lets tests inject typed live-input failures.
+// Records host intents and returns the scripted sample the monitor would produce.
 class RecordingInputCalibrationHost final : public InputCalibrationController::Host
 {
 public:
@@ -42,17 +43,10 @@ public:
         return start_result;
     }
 
-    void cancelInputCalibrationMeasurement() override
+    [[nodiscard]] common::audio::LiveInputSample sampleInputCalibration() override
     {
-        cancel_count += 1;
-    }
-
-    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    applyAutomaticInputCalibration(double gain_db) override
-    {
-        automatic_apply_count += 1;
-        last_automatic_gain_db = gain_db;
-        return automatic_apply_result;
+        sample_count += 1;
+        return sample;
     }
 
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
@@ -69,13 +63,11 @@ public:
     }
 
     std::expected<void, common::audio::LiveInputMonitorError> start_result{};
-    std::expected<void, common::audio::LiveInputMonitorError> automatic_apply_result{};
     std::expected<void, common::audio::LiveInputMonitorError> manual_apply_result{};
-    std::optional<double> last_automatic_gain_db{};
+    common::audio::LiveInputSample sample{};
     std::optional<double> last_manual_gain_db{};
     int start_count{0};
-    int cancel_count{0};
-    int automatic_apply_count{0};
+    int sample_count{0};
     int manual_apply_count{0};
     int dismiss_count{0};
 };
@@ -87,20 +79,13 @@ public:
     };
 }
 
-[[nodiscard]] InputCalibrationController::CaptureSettings fastCaptureSettings()
+// A sample at a steady level carrying the given measurement progress.
+[[nodiscard]] common::audio::LiveInputSample sampleWith(
+    std::optional<common::audio::InputCalibrationProgress> measurement)
 {
-    return InputCalibrationController::CaptureSettings{
-        .settle_sample_count = 0,
-        .wait_sample_count = 2,
-        .measurement_sample_count = common::audio::minimumInputCalibrationActiveSampleCount(),
-    };
-}
-
-[[nodiscard]] common::audio::AudioMeterLevel meterSample(double peak_db)
-{
-    return common::audio::AudioMeterLevel{
-        .peak_db = peak_db,
-        .clipping = false,
+    return common::audio::LiveInputSample{
+        .raw_level = common::audio::AudioMeterLevel{.peak_db = -20.0, .clipping = false},
+        .measurement = std::move(measurement),
     };
 }
 
@@ -114,12 +99,12 @@ public:
 
 } // namespace
 
-// Verifies manual calibration is committed through the narrow host contract.
+// Manual calibration is committed through the narrow host contract.
 TEST_CASE("Input calibration controller applies manual gain", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{host, prompt(-0.04), fastCaptureSettings()};
+    InputCalibrationController controller{host, prompt(-0.04)};
     controller.attachView(view);
 
     controller.onManualGainChanged(3.5);
@@ -129,105 +114,128 @@ TEST_CASE("Input calibration controller applies manual gain", "[core][input-cali
     CHECK(host.last_manual_gain_db == std::optional{3.5});
     CHECK(view.lastState().input_gain_db == Catch::Approx(3.5));
     CHECK(view.lastState().status_message == "Manual calibration saved. Gain set to 3.5 dB.");
-    CHECK(view.lastState().manual_gain_controls_enabled);
+    CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
 }
 
-// Verifies automatic capture owns sampling policy and commits the calculated gain.
-TEST_CASE("Input calibration controller completes automatic capture", "[core][input-calibration]")
+// A running measurement locks the controls and reports its stage.
+TEST_CASE("Input calibration controller follows a running measurement", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{host, prompt(2.0), fastCaptureSettings()};
+    InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
 
-    REQUIRE(controller.onMeasurementStartRequested());
-    for (std::size_t index = 0; index < common::audio::minimumInputCalibrationActiveSampleCount();
-         ++index)
-    {
-        controller.onMeterSampled(meterSample(-20.0));
-    }
+    controller.onMeasurementStartRequested();
+    host.sample = sampleWith(common::audio::InputCalibrationStage::Measuring);
+    controller.onSampleTick();
 
     CHECK(host.start_count == 1);
-    CHECK(host.automatic_apply_count == 1);
-    CHECK(host.last_automatic_gain_db == std::optional{8.0});
-    CHECK(host.cancel_count == 0);
-    CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
-    CHECK(view.lastState().status_message == "Calibration complete. Gain set to 8.0 dB.");
-    CHECK(view.lastState().start_measurement_enabled);
-    CHECK(view.lastState().manual_gain_controls_enabled);
-    CHECK(view.lastState().dismiss_button_text == "Close");
+    CHECK(view.lastState().measuring);
+    CHECK(
+        view.lastState().status_message ==
+        "Keep strumming all open strings at a steady, moderate volume.");
 }
 
-// Verifies failed captures ask the host to restore measurement state and leave the popup open.
-TEST_CASE("Input calibration controller cancels failed capture", "[core][input-calibration]")
+// A measurement the monitor committed moves the popup into its completed state.
+TEST_CASE("Input calibration controller completes a measurement", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{
-        host,
-        prompt(2.0),
-        InputCalibrationController::CaptureSettings{
-            .settle_sample_count = 0,
-            .wait_sample_count = 1,
-            .measurement_sample_count = common::audio::minimumInputCalibrationActiveSampleCount(),
-        }
-    };
+    InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
 
-    REQUIRE(controller.onMeasurementStartRequested());
-    controller.onMeterSampled(meterSample(common::audio::minimumAudioMeterDb()));
+    controller.onMeasurementStartRequested();
+    host.sample =
+        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{8.0}});
+    controller.onSampleTick();
 
-    CHECK(host.cancel_count == 1);
-    CHECK(host.automatic_apply_count == 0);
+    CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
+    CHECK(view.lastState().status_message == "Calibration complete. Gain set to 8.0 dB.");
+    CHECK_FALSE(view.lastState().measuring);
+    CHECK(view.lastState().dismiss_button_text == "Close");
+}
+
+// A failed measurement shows why and returns the popup to the last committed gain.
+TEST_CASE("Input calibration controller reports a failed measurement", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(2.0)};
+    controller.attachView(view);
+
+    controller.onMeasurementStartRequested();
+    host.sample = sampleWith(common::audio::InputCalibrationFailed{"No usable input signal."});
+    controller.onSampleTick();
+
     CHECK(view.lastState().input_gain_db == Catch::Approx(2.0));
-    CHECK(
-        view.lastState().status_message == "No usable input signal was detected. Check the "
-                                           "input and try again.");
-    CHECK(view.lastState().start_measurement_enabled);
-    CHECK(view.lastState().manual_gain_controls_enabled);
+    CHECK(view.lastState().status_message == "No usable input signal.");
+    CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Dismiss");
 }
 
-// Verifies route setup failures stay in popup state and do not start capture.
+// A measurement the editor ended on its own, such as on a device change, reads as interrupted.
+TEST_CASE(
+    "Input calibration controller reports an interrupted measurement", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(2.0)};
+    controller.attachView(view);
+
+    controller.onMeasurementStartRequested();
+    host.sample = sampleWith(std::nullopt);
+    controller.onSampleTick();
+
+    CHECK(view.lastState().status_message == "Calibration was interrupted. Try again.");
+    CHECK_FALSE(view.lastState().measuring);
+}
+
+// Without a measurement the tick only shows the raw input through the previewed gain.
+TEST_CASE("Input calibration controller meters the input while idle", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(2.0)};
+    controller.attachView(view);
+
+    host.sample = sampleWith(std::nullopt);
+    controller.onSampleTick();
+
+    CHECK(host.sample_count == 1);
+    CHECK(view.lastState().input_meter_level.peak_db == Catch::Approx(-18.0));
+    CHECK_FALSE(view.lastState().measuring);
+}
+
+// A refused start stays in popup state and does not lock the controls.
 TEST_CASE("Input calibration controller reports start failure", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     host.start_result = std::unexpected{routeError("Input route changed during calibration")};
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{host, prompt(2.0), fastCaptureSettings()};
+    InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
 
-    CHECK_FALSE(controller.onMeasurementStartRequested());
-    controller.onMeterSampled(meterSample(-20.0));
+    controller.onMeasurementStartRequested();
 
     CHECK(host.start_count == 1);
-    CHECK(host.automatic_apply_count == 0);
-    CHECK(host.cancel_count == 0);
     CHECK(view.lastState().status_message == "Input route changed during calibration");
-    CHECK(view.lastState().start_measurement_enabled);
-    CHECK(view.lastState().manual_gain_controls_enabled);
+    CHECK_FALSE(view.lastState().measuring);
 }
 
-// Verifies dismissal delegates restoration to the host and stops local capture processing.
-TEST_CASE("Input calibration controller dismisses active capture", "[core][input-calibration]")
+// Dismissing hands the measurement's end to the host.
+TEST_CASE(
+    "Input calibration controller dismisses a running measurement", "[core][input-calibration]")
 {
     RecordingInputCalibrationHost host;
     RecordingInputCalibrationView view;
-    InputCalibrationController controller{host, prompt(2.0), fastCaptureSettings()};
+    InputCalibrationController controller{host, prompt(2.0)};
     controller.attachView(view);
 
-    REQUIRE(controller.onMeasurementStartRequested());
+    controller.onMeasurementStartRequested();
     controller.onDismissRequested();
-    for (std::size_t index = 0; index < common::audio::minimumInputCalibrationActiveSampleCount();
-         ++index)
-    {
-        controller.onMeterSampled(meterSample(-20.0));
-    }
 
     CHECK(host.dismiss_count == 1);
-    CHECK(host.automatic_apply_count == 0);
-    CHECK(host.cancel_count == 0);
 }
 
 } // namespace rock_hero::editor::core

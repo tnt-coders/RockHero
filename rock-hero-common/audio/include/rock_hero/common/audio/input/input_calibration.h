@@ -9,10 +9,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
-#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -125,9 +125,6 @@ struct [[nodiscard]] InputCalibrationResult
 class InputCalibrationAccumulator final
 {
 public:
-    /*! \brief Clears the accumulated peak and clip state. */
-    void reset();
-
     /*!
     \brief Adds one raw input meter sample to the measurement window.
     \param level Meter level sampled from the raw input route.
@@ -136,7 +133,7 @@ public:
 
     /*!
     \brief Returns the accumulated calibration measurement.
-    \return Peak, RMS, robust reference, and consistency data observed since reset().
+    \return Peak, RMS, robust reference, and consistency data observed so far.
     */
     [[nodiscard]] InputCalibrationMeasurement measurement() const;
 
@@ -161,97 +158,85 @@ private:
     std::vector<double> m_active_peak_db;
 };
 
-/*! \brief State of the raw-input capture pass used by automatic calibration. */
-enum class InputCalibrationCapturePhase : std::uint8_t
+/*!
+\brief Returns how often a driver samples the raw input meter during a measurement.
+\return Meter samples per second; the sample counts below are stated at this rate.
+*/
+[[nodiscard]] constexpr int inputCalibrationSampleRateHz() noexcept
 {
-    /*! \brief No automatic calibration capture is active. */
-    Idle,
+    return 30;
+}
 
-    /*! \brief Recently reset backend route samples are being discarded. */
+/*!
+\brief Returns the samples discarded first, so gain resets and meter windows settle.
+\return Half a second of samples.
+*/
+[[nodiscard]] constexpr std::size_t inputCalibrationSettleSampleCount() noexcept
+{
+    return static_cast<std::size_t>(inputCalibrationSampleRateHz()) / 2;
+}
+
+/*!
+\brief Returns how many quiet samples a measurement waits for the first strum.
+\return Ten seconds of samples.
+*/
+[[nodiscard]] constexpr std::size_t inputCalibrationWaitSampleCount() noexcept
+{
+    return static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 10;
+}
+
+/*!
+\brief Returns the length of the measurement window once the player strums.
+\return Eight seconds of samples.
+*/
+[[nodiscard]] constexpr std::size_t inputCalibrationMeasurementSampleCount() noexcept
+{
+    return static_cast<std::size_t>(inputCalibrationSampleRateHz()) * 8;
+}
+
+/*! \brief Stage of a running calibration capture. */
+enum class InputCalibrationStage : std::uint8_t
+{
+    /*! \brief Samples taken right after the route reset are being discarded. */
     Settling,
 
-    /*! \brief Capture is waiting for the player to produce a usable signal. */
+    /*! \brief The capture is waiting for the player to produce a usable signal. */
     WaitingForInput,
 
-    /*! \brief Capture is accumulating the fixed active measurement window. */
+    /*! \brief The capture is accumulating the fixed active measurement window. */
     Measuring,
-
-    /*! \brief Capture completed and produced a calibration result. */
-    Complete,
-
-    /*! \brief Capture stopped because a recoverable calibration error occurred. */
-    Failed,
 };
 
 /*!
-\brief Result of advancing an automatic calibration capture by one meter sample.
-
-The phase field is the status discriminant; result and error carry the payload for terminal phases.
+\brief Outcome of one capture sample: still running at a stage, finished with a result, or failed.
 */
-struct [[nodiscard]] InputCalibrationCaptureUpdate
-{
-    /*! \brief Capture phase after the sample was processed. */
-    InputCalibrationCapturePhase phase{InputCalibrationCapturePhase::Idle};
+using InputCalibrationStep =
+    std::variant<InputCalibrationStage, InputCalibrationResult, InputCalibrationError>;
 
-    /*! \brief Calibration result when phase is Complete. */
-    std::optional<InputCalibrationResult> result;
+/*!
+\brief Deterministic state machine for one automatic input calibration capture.
 
-    /*! \brief Recoverable calibration error when phase is Failed. */
-    std::optional<InputCalibrationError> error;
-};
-
-/*! \brief Deterministic state machine for automatic input calibration capture. */
+A capture starts at its settle window on construction, runs to the policy above, and is discarded
+once a sample returns a result or an error.
+*/
 class InputCalibrationCapture final
 {
 public:
     /*!
-    \brief Creates a capture pass with fixed meter-window counts.
-    \param settle_sample_count Number of initial samples to discard after route reset.
-    \param wait_sample_count Number of quiet samples accepted while waiting for input.
-    \param measurement_sample_count Number of samples in the active measurement window.
-    */
-    InputCalibrationCapture(
-        std::size_t settle_sample_count, std::size_t wait_sample_count,
-        std::size_t measurement_sample_count);
-
-    /*! \brief Starts a new automatic capture pass and clears any previous measurement. */
-    void start();
-
-    /*! \brief Returns the capture to its inactive state and clears the measurement. */
-    void reset();
-
-    /*!
     \brief Advances the capture by one raw input meter sample.
     \param level Raw input meter level sampled from the calibration route.
-    \return Current phase plus a result or error when capture has ended.
+    \return The stage the capture is now at, or its result or error once it has finished.
     */
-    [[nodiscard]] InputCalibrationCaptureUpdate pushSample(AudioMeterLevel level);
-
-    /*!
-    \brief Returns the current capture phase.
-    \return Current phase.
-    */
-    [[nodiscard]] InputCalibrationCapturePhase phase() const noexcept;
-
-    /*!
-    \brief Reports whether the capture is currently consuming measurement samples.
-    \return True while settling, waiting for input, or measuring.
-    */
-    [[nodiscard]] bool active() const noexcept;
+    [[nodiscard]] InputCalibrationStep pushSample(AudioMeterLevel level);
 
 private:
-    [[nodiscard]] InputCalibrationCaptureUpdate currentUpdate() const;
-    [[nodiscard]] InputCalibrationCaptureUpdate fail(InputCalibrationError error);
-    [[nodiscard]] InputCalibrationCaptureUpdate pushMeasurementSample(AudioMeterLevel level);
+    [[nodiscard]] InputCalibrationStep pushMeasurementSample(AudioMeterLevel level);
 
     InputCalibrationAccumulator m_accumulator;
-    std::size_t m_settle_samples_remaining{0};
-    std::size_t m_wait_samples_remaining{0};
-    std::size_t m_measurement_samples_remaining{0};
-    std::size_t m_settle_sample_count{0};
-    std::size_t m_wait_sample_count{0};
-    std::size_t m_measurement_sample_count{1};
-    InputCalibrationCapturePhase m_phase{InputCalibrationCapturePhase::Idle};
+    std::size_t m_settle_samples_remaining{inputCalibrationSettleSampleCount()};
+    std::size_t m_wait_samples_remaining{inputCalibrationWaitSampleCount()};
+    std::size_t m_measurement_samples_remaining{inputCalibrationMeasurementSampleCount()};
+    InputCalibrationStage m_stage{InputCalibrationStage::Settling};
 };
 
 /*!

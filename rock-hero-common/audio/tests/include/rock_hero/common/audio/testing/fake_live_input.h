@@ -165,7 +165,7 @@ public:
     \brief Returns the configured raw input meter level.
     \return Latest raw input meter level.
     */
-    [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const override
+    [[nodiscard]] AudioMeterLevel readRawInputMeterLevel() override
     {
         return raw_input_meter_level;
     }
@@ -240,7 +240,7 @@ public:
     /*! \brief Current input gain returned by inputGain(). */
     Gain current_input_gain{};
 
-    /*! \brief Raw input meter level returned by rawInputMeterLevel(). */
+    /*! \brief Raw input meter level returned by readRawInputMeterLevel(). */
     AudioMeterLevel raw_input_meter_level{};
 
     /*! \brief Current processed-monitoring flag returned by liveInputMonitoringEnabled(). */

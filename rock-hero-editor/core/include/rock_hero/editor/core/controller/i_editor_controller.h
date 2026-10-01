@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
+#include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -1006,16 +1007,13 @@ public:
     [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted() = 0;
 
-    /*! \brief Stops an active calibration measurement while leaving the prompt open. */
-    virtual void onInputCalibrationMeasurementCancelled() = 0;
-
     /*!
-    \brief Applies and stores a completed input calibration gain.
-    \param gain_db Calibrated input gain in decibels.
-    \return Empty success, or a typed live-input failure.
+    \brief Reads the raw input once for the calibration prompt, advancing a measurement.
+
+    A measurement that finishes here has stored its gain for the route it measured.
+    \return The raw level, and the measurement's progress if one was running.
     */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationSucceeded(double gain_db) = 0;
+    [[nodiscard]] virtual common::audio::LiveInputSample onInputCalibrationSampled() = 0;
 
     /*!
     \brief Applies and stores a manually entered input calibration gain.
