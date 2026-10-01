@@ -1,7 +1,13 @@
 # Plan 48 — Editor Audio Setup: toggle-aware device + calibration surfaces
 
-Status: In progress — amended 2026-07-13 (final startup ruleset below), 2026-07-14 (device-failure
-popup) | baseline `refactor @ 75cc26dd`
+Status: **Superseded 2026-10-01** — amended 2026-07-13 (final startup ruleset below), 2026-07-14
+(device-failure popup) | baseline `refactor @ 75cc26dd`
+
+**Superseded 2026-10-01** (`docs/plans/completed/shared-audio-settings.md`): the editor and the
+game share one audio store, so there is nothing to mirror. Deleted: `EditorAudioConfigStore`, the
+"use game audio settings" toggle, `GameAudioSourceState`/`GameAudioSourceError`, the startup
+recommendation dialog, the game-audio-unavailable prompt, and the calibration window's read-only
+mode. The body below is the historical record.
 
 ## Amendment (2026-07-14) — closed-device failure popup replaces silent closure and auto-reopen
 

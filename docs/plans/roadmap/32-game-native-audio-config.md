@@ -2,6 +2,12 @@
 
 Status: Ready | 2026-07-12 | baseline `refactor @ 75cc26dd`
 
+**Amended 2026-10-01 — one shared audio store** (`docs/plans/completed/shared-audio-settings.md`). The game no longer owns its own store file: device route and calibration live
+in the store both products share. `ActiveDeviceRoute`, its mirrored identity and
+`primaryPlayerRoute` are deleted — apply writes the device blob to the shared store and the
+resolved identity only as the slot-0 `GameAudioConfig` mapping. The `--import-editor-audio` dev
+path is deleted. Where the body below says per-app or the game's own store, this note wins.
+
 ## Goal
 
 Give the game its own native, headless audio-configuration path so a player can plug in a guitar,

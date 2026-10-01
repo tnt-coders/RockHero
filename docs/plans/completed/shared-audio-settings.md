@@ -1,6 +1,7 @@
 # Shared Audio Settings
 
-Status: in progress (user, 2026-10-01). Reverses plan 13's per-app audio stores and the related
+Status: complete 2026-10-01 (`58eab3b8`, `59e82740`, `a4792b7e`, and the documentation commit).
+Ruled by the user 2026-10-01. Reverses plan 13's per-app audio stores and the related
 roadmap decision (RM-4's storage half and 13-Q3): the editor and the game share ONE audio-settings
 file. RM-4's runtime half stands unchanged: one active ASIO client at a time, and the second app
 runs the silent device.

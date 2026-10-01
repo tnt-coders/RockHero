@@ -2,6 +2,9 @@
 
 Status: Ready | 2026-07-12 | baseline `refactor @ 75cc26dd`
 
+**Amended 2026-10-01 — one shared audio store** (`docs/plans/completed/shared-audio-settings.md`). The gate reads its calibration from the one store both products share, not from
+each app's own store; the gate logic itself is unchanged.
+
 ## Goal
 
 One shared code path routes the player's real guitar through the loaded arrangement's tone rig for

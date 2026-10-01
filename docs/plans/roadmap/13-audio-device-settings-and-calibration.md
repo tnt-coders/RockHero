@@ -2,6 +2,13 @@
 
 Status: Ready | 2026-07-12 | baseline `refactor @ 75cc26dd`
 
+**Amended 2026-10-01 — one shared audio store** (`docs/plans/completed/shared-audio-settings.md`). The per-app premise below is reversed: the editor and the game read and write one file,
+`Rock Hero/Rock Hero Audio.settings`, and every write holds an `InterProcessLock` across its
+read-modify-write. `ActiveDeviceRoute` is deleted — the route is the opaque device blob alone
+(`std::optional<std::string>`), since the live input identity always comes from the hardware port.
+`Access::ReadOnly`, the identity-tag format and the per-app file names are gone. Where the body
+below says per-app, one writer, or no `InterProcessLock`, this note wins.
+
 ## Goal
 
 A shared per-app audio-config store **type** in `common/audio/settings/` that **each product

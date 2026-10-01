@@ -2,6 +2,10 @@
 
 Status: Deferred (someday) | 2026-07-12 | baseline `refactor @ 75cc26dd`
 
+**Amended 2026-10-01 — one shared audio store** (`docs/plans/completed/shared-audio-settings.md`). Audio settings are no longer per-app: both products share one store, so a
+handoff carries no settings across — only device ownership. Read "per-app audio" below as
+"shared audio settings".
+
 Revisit only when ALL of: (1) the game is audible on the per-app audio foundation
 (docs/plans/roadmap/14-shared-live-input-monitoring.md plus the game's native device + calibration
 setup); (2) a distribution/installer story exists for the two apps; (3) the integrated workflow is

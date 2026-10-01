@@ -35,10 +35,8 @@ settings UI; the shared audio engine owns the routing so the Game can use it lat
    as the OBS source's Sync Offset.
 5. **Expose and persist the choice.** Add an optional Recording Output selector and status to the
    Editor audio settings. Persist the selection as its own field on `IAudioConfigStore`, separate
-   from the primary device route, so each app's store holds one; the editor's
-   `EditorAudioConfigStore` routes it through `active()` exactly like the primary route, so it
-   follows the game settings whenever those are in use. Never silently substitute another output if
-   the saved recording device is unavailable.
+   from the primary device route, so the one store both products share holds it. Never silently
+   substitute another output if the saved recording device is unavailable.
 6. **Verify.** Test that backing audio and monitored guitar both reach the secondary output, master
    gain affects both routes, and disabling or losing the secondary device leaves ASIO playback
    intact. Exercise sample-rate mismatch, callback-size variation, underrun/overflow, and sustained
