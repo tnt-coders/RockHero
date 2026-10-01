@@ -7,6 +7,42 @@
 namespace rock_hero::common::audio
 {
 
+namespace
+{
+
+// The one wording per capture failure, so every site that reports a code says the same thing.
+[[nodiscard]] InputCalibrationError inputCalibrationError(InputCalibrationErrorCode code)
+{
+    switch (code)
+    {
+        case InputCalibrationErrorCode::NoUsableSignal:
+        {
+            return InputCalibrationError{
+                .code = code,
+                .message = "No usable input signal was detected. Check the input, strum steadily "
+                           "and try again.",
+            };
+        }
+        case InputCalibrationErrorCode::InputClipped:
+        {
+            return InputCalibrationError{
+                .code = code,
+                .message = "Input clipped. Lower the interface input gain and try again.",
+            };
+        }
+        case InputCalibrationErrorCode::InputInconsistent:
+        {
+            return InputCalibrationError{
+                .code = code,
+                .message = "Input level varied too much. Use steady moderate strums and try again.",
+            };
+        }
+    }
+    return InputCalibrationError{.code = code, .message = "Input calibration failed."};
+}
+
+} // namespace
+
 // Records raw input level and maintains the active-window RMS incrementally.
 void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
 {
@@ -137,10 +173,7 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
         {
             if (level.clipping || level.peak_db >= clippingAudioMeterDb())
             {
-                return InputCalibrationError{
-                    .code = InputCalibrationErrorCode::InputClipped,
-                    .message = "Input clipped. Lower the interface input gain and try again.",
-                };
+                return inputCalibrationError(InputCalibrationErrorCode::InputClipped);
             }
 
             if (level.peak_db >= minimumInputCalibrationSignalDb())
@@ -151,11 +184,7 @@ InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 
             if (--m_wait_samples_remaining == 0)
             {
-                return InputCalibrationError{
-                    .code = InputCalibrationErrorCode::NoUsableSignal,
-                    .message =
-                        "No usable input signal was detected. Check the input and try again.",
-                };
+                return inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal);
             }
             return m_stage;
         }
@@ -192,28 +221,19 @@ std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalib
     if (measurement.loudest_level.clipping ||
         measurement.loudest_level.peak_db >= clippingAudioMeterDb())
     {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::InputClipped,
-            .message = "Input clipped. Lower the interface input gain and try again.",
-        }};
+        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::InputClipped)};
     }
 
     if (measurement.active_sample_count == 0 ||
         measurement.active_sample_count < minimumInputCalibrationActiveSampleCount() ||
         measurement.loudest_level.peak_db < minimumInputCalibrationSignalDb())
     {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::NoUsableSignal,
-            .message = "Not enough steady input was detected. Strum steadily and try again.",
-        }};
+        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::NoUsableSignal)};
     }
 
     if (measurement.active_peak_spread_db > maximumInputCalibrationActivePeakSpreadDb())
     {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::InputInconsistent,
-            .message = "Input level varied too much. Use steady moderate strums and try again.",
-        }};
+        return std::unexpected{inputCalibrationError(InputCalibrationErrorCode::InputInconsistent)};
     }
 
     const double reference_peak_db =

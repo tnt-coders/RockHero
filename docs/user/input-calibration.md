@@ -29,6 +29,13 @@ A 1 V peak sine wave is 0.707 V RMS, which is `-0.79 dBu`, so a 1 V peak sine wa
 `-12 dBFS` means the equivalent `0 dBFS` input calibration level is `+11.21 dBu`. The manual
 Rock Hero gain is therefore:
 
+```text
+Rock Hero gain = device level at 0 dBFS (dBu) - 11.21 dB
+```
+
+The Quad Cortex, for example, reaches `0 dBFS` at `+14.3 dBu`, so its gain is
+`14.3 - 11.21 = +3.1 dB`.
+
 Use the exact model and generation. Interface families reuse names, but their instrument input
 headroom can change between generations. Rows based on manufacturer maximum-input specifications
 are higher confidence than rows inferred from measured dBFS behavior.

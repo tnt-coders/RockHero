@@ -108,7 +108,8 @@ placement, emphasis and words.
    the monitor's `InputCalibrationProgress` (the copied `GainCalibrationProgress` is gone), and the
    monitor reports a measurement a gate run ended, so the game never calls that an invalid request;
    `--import-editor-audio` is deleted.
-8. A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
+8. WRITTEN, awaiting the user's decisions: `docs/tracking/2026-10-01-input-calibration-analysis.md`.
+   A deep analysis, once steps 1-6 land, of whether the calibration algorithm or the whole process
    could be better: what the strum measurement fallback measures and why it does not repeat, how
    documented interface gains reach the user (the window's "?" link to known devices today), and
    whether a known-device table should fill the gain in.
