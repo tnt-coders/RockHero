@@ -38,10 +38,11 @@ public:
 
         /*!
         \brief Hands the current live-input route to an automatic measurement.
+        \param pickups The pickups the player measures with.
         \return Empty success, or a typed live-input failure.
         */
         [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-        startInputCalibrationMeasurement() = 0;
+        startInputCalibrationMeasurement(common::audio::PickupClass pickups) = 0;
 
         /*!
         \brief Reads the raw input once, advancing a measurement in progress.
@@ -129,6 +130,12 @@ public:
     \param index Row of common::audio::knownInterfaces().
     */
     void onInterfaceSelected(std::size_t index);
+
+    /*!
+    \brief Chooses the pickups the automatic measurement assumes.
+    \param pickups The pickups the player will measure with.
+    */
+    void onPickupsSelected(common::audio::PickupClass pickups);
 
     /*! \brief Applies the current manual gain through the host. */
     void onManualApplyRequested();

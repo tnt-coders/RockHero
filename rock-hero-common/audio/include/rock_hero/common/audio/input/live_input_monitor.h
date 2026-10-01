@@ -102,11 +102,13 @@ public:
     \brief Hands the current input route to a raw calibration measurement at unity gain.
 
     The driver then calls sample() at inputCalibrationSampleRateHz() until the measurement ends.
+    \param pickups The pickups the player measures with, which set how loud a hard strum is taken
+           to be.
     \param context Session facts the gate re-runs with if the backend refuses the measurement.
     \return Empty success, or a coarse monitoring failure.
     */
     [[nodiscard]] std::expected<void, LiveInputMonitorError> beginMeasurement(
-        LiveInputMonitoringContext context);
+        PickupClass pickups, LiveInputMonitoringContext context);
 
     /*!
     \brief Reads the raw input meter once and advances a measurement in progress by that reading.
@@ -138,10 +140,11 @@ public:
         double gain_db, LiveInputMonitoringContext context);
 
 private:
-    // A measurement in progress: the route it started on and its capture.
+    // A measurement in progress: the route it started on, the pickups it assumes and its capture.
     struct Measurement
     {
         InputDeviceIdentity route;
+        PickupClass pickups;
         InputCalibrationCapture capture;
     };
 

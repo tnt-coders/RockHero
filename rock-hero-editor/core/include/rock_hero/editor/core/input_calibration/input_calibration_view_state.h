@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -42,6 +43,12 @@ struct InputCalibrationViewState
     std::optional<std::size_t> selected_interface;
 
     /*!
+    \brief The pickups "Measure by playing" assumes; humbuckers until the player says otherwise,
+    since three of the four pickup kinds peak like them.
+    */
+    common::audio::PickupClass pickups{common::audio::PickupClass::Humbucker};
+
+    /*!
     \brief Compares two popup view states by their stored values.
 
     Hand-written, not defaulted: input_gain_db is a double of this struct's own, and a defaulted
@@ -59,7 +66,7 @@ struct InputCalibrationViewState
                std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
                lhs.status_message == rhs.status_message && lhs.measuring == rhs.measuring &&
                lhs.dismiss_button_text == rhs.dismiss_button_text &&
-               lhs.selected_interface == rhs.selected_interface;
+               lhs.selected_interface == rhs.selected_interface && lhs.pickups == rhs.pickups;
     }
 };
 

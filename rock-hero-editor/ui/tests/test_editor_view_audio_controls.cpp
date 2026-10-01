@@ -95,7 +95,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
     CHECK(start_button.getBounds().getY() >= meter.getBounds().getBottom());
     CHECK(start_button.getBounds().getX() < window.getContentComponent()->getWidth() / 2);
-    CHECK(window.getContentComponent()->getHeight() < 235);
+    CHECK(window.getContentComponent()->getHeight() < 275);
 }
 
 // Verifies calibration gain controls do not expose negative zero after one-decimal rounding.
@@ -342,6 +342,44 @@ TEST_CASE("Audio settings window opens from state once on screen", "[ui][editor-
     CHECK(
         findRequiredTopLevelComponent<juce::DocumentWindow>("audio_device_settings_window")
             .isVisible());
+}
+
+// The pickup chooser opens on humbuckers with its note; choosing single coils changes the note,
+// and "Measure by playing" then measures the chosen pickups.
+TEST_CASE("Calibration pickup chooser reaches the measurement", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    showOnScreen(view);
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = std::nullopt,
+    };
+    view.setState(state);
+
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    auto& chooser = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
+    auto& note = findRequiredDescendant<juce::Label>(window, "input_calibration_pickup_note");
+    auto& start_button =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
+
+    CHECK(chooser.getText() == "Humbucker");
+    CHECK(note.getText() == "Also P-90 and active.");
+
+    chooser.setSelectedItemIndex(1, juce::sendNotificationSync);
+    CHECK(chooser.getText() == "Single-coil");
+    CHECK(note.getText() == "Passive, except P-90.");
+
+    REQUIRE(start_button.onClick);
+    start_button.onClick();
+    CHECK(
+        controller.last_input_calibration_pickups ==
+        std::optional{common::audio::PickupClass::SingleCoil});
 }
 
 } // namespace rock_hero::editor::ui

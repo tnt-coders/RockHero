@@ -712,12 +712,14 @@ public:
 
     /*!
     \brief Records calibration measurement setup through the controller contract.
+    \param pickups The pickups the measurement was started with.
     \return Always empty success.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationMeasurementStarted() override
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups) override
     {
         input_calibration_measurement_start_count += 1;
+        last_input_calibration_pickups = pickups;
         return {};
     }
 
@@ -1104,6 +1106,9 @@ public:
 
     /*! \brief Last interrupted-restore decision emitted by the view. */
     std::optional<RestoreInterruptedDecision> last_restore_interrupted_decision{};
+
+    /*! \brief Pickups the last calibration measurement was started with. */
+    std::optional<common::audio::PickupClass> last_input_calibration_pickups{};
 
     /*! \brief Last device-lost notice decision emitted by the view. */
     std::optional<AudioDeviceLostDecision> last_audio_device_lost_decision{};

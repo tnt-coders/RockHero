@@ -120,7 +120,7 @@ const std::optional<InputCalibrationState>& LiveInputMonitor::calibration() cons
 }
 
 std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
-    LiveInputMonitoringContext context)
+    PickupClass pickups, LiveInputMonitoringContext context)
 {
     const std::optional<InputDeviceIdentity> route =
         m_device_configuration.currentInputDeviceIdentity();
@@ -151,7 +151,12 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::beginMeasurement(
     }
 
     m_measurement_interrupted = false;
-    m_measurement.emplace(Measurement{.route = *route, .capture = InputCalibrationCapture{}});
+    m_measurement.emplace(
+        Measurement{
+            .route = *route,
+            .pickups = pickups,
+            .capture = InputCalibrationCapture{inputCalibrationTargetPeakDb(pickups)},
+        });
     return {};
 }
 
@@ -178,6 +183,7 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
 
     // The measurement ends here by its own result, so it is reset before the gate takes the route.
     const InputDeviceIdentity measured_route = m_measurement->route;
+    const PickupClass measured_pickups = m_measurement->pickups;
     m_measurement.reset();
     if (auto* const error = std::get_if<InputCalibrationError>(&step))
     {
@@ -188,7 +194,16 @@ LiveInputSample LiveInputMonitor::sample(LiveInputMonitoringContext context)
         };
     }
 
-    const Gain gain = std::get<InputCalibrationResult>(step).calibration_gain;
+    const InputCalibrationResult& result = std::get<InputCalibrationResult>(step);
+    const Gain gain = result.calibration_gain;
+    // The measured facts, so runs on an interface with a known figure can re-centre the
+    // assumption: volts = that interface's full-scale peak volts x 10^(ceiling_peak_db / 20).
+    RH_LOG_INFO(
+        "audio.live_input_monitor",
+        "Input calibration measured pickups={} ceiling_peak_db={:.1f} gain_db={:+.1f}",
+        pickupClassText(measured_pickups),
+        result.ceiling_peak_db,
+        gain.db);
     auto committed = commitMeasurement(measured_route, gain, context);
     if (!committed.has_value())
     {

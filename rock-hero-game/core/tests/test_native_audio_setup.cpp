@@ -203,7 +203,7 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     CHECK(persisted.players.front().route == guitarRoute());
 
     // Gain calibration: metering the steady strum completes and commits.
-    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
     const auto calibrated = runGainCalibration(harness);
     REQUIRE(calibrated.has_value());
     CHECK(std::holds_alternative<common::audio::InputCalibrationCommitted>(*calibrated));
@@ -277,7 +277,7 @@ TEST_CASE(
     SetupHarness harness{directory.settingsFile()};
 
     REQUIRE(harness.setup.applySelectedDevice().has_value());
-    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
 
     // Feed a couple of samples, then abort before the measurement window completes.
     harness.live_input.raw_input_meter_level = steadyStrumLevel();
@@ -301,7 +301,7 @@ TEST_CASE("Native setup reports a measurement a device change ended", "[core][au
     const TemporarySettingsDirectory directory;
     SetupHarness harness{directory.settingsFile()};
     REQUIRE(harness.setup.applySelectedDevice().has_value());
-    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
     harness.live_input.raw_input_meter_level = steadyStrumLevel();
     REQUIRE(harness.setup.sampleGainCalibration().has_value());
 
@@ -326,7 +326,7 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
 
     // First device reaches Ready.
     REQUIRE(harness.setup.applySelectedDevice().has_value());
-    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
     REQUIRE(runGainCalibration(harness).has_value());
     REQUIRE(harness.setup.phase() == NativeAudioSetupPhase::Ready);
 
@@ -343,7 +343,7 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
     REQUIRE(persisted.players.size() == 1);
     CHECK(persisted.players.front().route == second_route);
 
-    REQUIRE(harness.setup.beginGainCalibration().has_value());
+    REQUIRE(harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker).has_value());
     REQUIRE(runGainCalibration(harness).has_value());
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::Ready);
 
@@ -364,7 +364,7 @@ TEST_CASE("Native setup rejects calibration before a device is applied", "[core]
     const TemporarySettingsDirectory directory;
     SetupHarness harness{directory.settingsFile()};
 
-    const auto began = harness.setup.beginGainCalibration();
+    const auto began = harness.setup.beginGainCalibration(common::audio::PickupClass::Humbucker);
     REQUIRE(!began.has_value());
     CHECK(began.error().code == NativeAudioSetupErrorCode::InvalidRequest);
     CHECK(harness.setup.phase() == NativeAudioSetupPhase::Idle);

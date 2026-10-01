@@ -659,10 +659,11 @@ public:
 
     /*!
     \brief Prepares the live input route for raw input calibration measurement.
+    \param pickups The pickups the player measures with.
     \return Empty success, or a typed live-input failure.
     */
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationMeasurementStarted() override;
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups) override;
 
     /*!
     \brief Reads the raw input once for the calibration prompt, advancing a measurement.

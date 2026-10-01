@@ -502,7 +502,9 @@ forward and record it in both plans).
   `LiveInputOff` until live input is on. This phase owns the surface: show the refusal's message
   and dim Play while it holds, and offer calibration from it and from the pause menu. The wizard
   renders `knownInterfaces()` with the same basis-plus-unity sentence as the editor's popup
-  (`knownInterfaceBasisText`), the game's only manual path; "Measure by playing" is its fallback.
+  (`knownInterfaceBasisText`), the game's only manual path; "Measure by playing" is its fallback,
+  and asks the pickup question first (`NativeAudioSetup::beginGainCalibration(PickupClass)`, with
+  `pickupClassText` and `pickupClassNote` for the words).
   The gate
   re-runs at every play, so the refusal is never stale; a live status display that must follow a
   device change before the next press would still want a device listener, the gate does not.

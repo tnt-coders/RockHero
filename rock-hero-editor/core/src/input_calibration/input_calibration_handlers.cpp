@@ -73,9 +73,9 @@ void EditorController::Impl::onInputCalibrationRequested()
 
 // Hands the current input route to a raw calibration measurement.
 std::expected<void, common::audio::LiveInputMonitorError> EditorController::Impl::
-    onInputCalibrationMeasurementStarted()
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups)
 {
-    auto started = m_live_input_monitor.beginMeasurement(monitoringContext());
+    auto started = m_live_input_monitor.beginMeasurement(pickups, monitoringContext());
     updateView();
     return started;
 }

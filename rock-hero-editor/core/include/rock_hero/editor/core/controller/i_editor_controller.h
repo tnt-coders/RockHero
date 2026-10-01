@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/audio/input/input_calibration.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -1002,10 +1003,11 @@ public:
 
     /*!
     \brief Prepares the live input route for raw input calibration measurement.
+    \param pickups The pickups the player measures with.
     \return Empty success, or a typed live-input failure.
     */
     [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationMeasurementStarted() = 0;
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups) = 0;
 
     /*!
     \brief Reads the raw input once for the calibration prompt, advancing a measurement.

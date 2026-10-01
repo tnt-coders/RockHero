@@ -35,6 +35,38 @@ namespace
 
 } // namespace
 
+std::string_view pickupClassText(PickupClass pickups) noexcept
+{
+    switch (pickups)
+    {
+        case PickupClass::Humbucker:
+        {
+            return "humbucker";
+        }
+        case PickupClass::SingleCoil:
+        {
+            return "single-coil";
+        }
+    }
+    return "humbucker";
+}
+
+std::string_view pickupClassNote(PickupClass pickups) noexcept
+{
+    switch (pickups)
+    {
+        case PickupClass::Humbucker:
+        {
+            return "Also P-90 and active.";
+        }
+        case PickupClass::SingleCoil:
+        {
+            return "Passive, except P-90.";
+        }
+    }
+    return "Also P-90 and active.";
+}
+
 // Records the loudest level and keeps every window loud enough to count as playing.
 void InputCalibrationAccumulator::pushSample(AudioMeterLevel level)
 {
@@ -89,6 +121,10 @@ static_assert(inputCalibrationSettleSampleCount() > 0);
 static_assert(inputCalibrationWaitSampleCount() > 0);
 static_assert(inputCalibrationListenSampleCount() > 0);
 
+InputCalibrationCapture::InputCalibrationCapture(double target_peak_db) noexcept
+    : m_target_peak_db{target_peak_db}
+{}
+
 // Advances the deterministic capture state machine by one raw meter sample.
 InputCalibrationStep InputCalibrationCapture::pushSample(AudioMeterLevel level)
 {
@@ -140,7 +176,7 @@ InputCalibrationStep InputCalibrationCapture::pushListenSample(AudioMeterLevel l
         return progress();
     }
 
-    auto result = calculateInputCalibration(m_accumulator.measurement());
+    auto result = calculateInputCalibration(m_accumulator.measurement(), m_target_peak_db);
     if (!result.has_value())
     {
         return std::move(result.error());
@@ -172,7 +208,7 @@ InputCalibrationStageProgress InputCalibrationCapture::progress() const noexcept
 
 // Sets the gain that puts the playing's ceiling on the target peak.
 std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalibration(
-    const InputCalibrationMeasurement& measurement)
+    const InputCalibrationMeasurement& measurement, double target_peak_db)
 {
     if (measurement.loudest_level.clipping ||
         measurement.loudest_level.peak_db >= clippingAudioMeterDb())
@@ -187,8 +223,8 @@ std::expected<InputCalibrationResult, InputCalibrationError> calculateInputCalib
 
     return InputCalibrationResult{
         .calibration_gain = clampGain(
-            Gain{quantizeInputCalibrationGainDb(
-                inputCalibrationTargetPeakDb() - measurement.ceiling_peak_db)}),
+            Gain{quantizeInputCalibrationGainDb(target_peak_db - measurement.ceiling_peak_db)}),
+        .ceiling_peak_db = measurement.ceiling_peak_db,
     };
 }
 

@@ -12,6 +12,9 @@ namespace rock_hero::common::audio
 namespace
 {
 
+// The single-coil target, -12.79 dBFS, the target the expected gains below were worked out for.
+const double g_single_coil_target = inputCalibrationTargetPeakDb(PickupClass::SingleCoil);
+
 // Adds enough identical active meter windows to satisfy the minimum window count.
 void pushSteadySamples(InputCalibrationAccumulator& accumulator, double peak_db)
 {
@@ -49,11 +52,24 @@ void pushSteadySamples(InputCalibrationAccumulator& accumulator, double peak_db)
 
 } // namespace
 
-// The reference is stated once in dBu; the measurement's target is what a 1 V peak source reaches
-// against it.
-TEST_CASE("Input calibration target derives from the dBu reference", "[audio][input-calibration]")
+// The target is where a hard strum on the stated pickups lands against the +12 dBu reference:
+// 2 V for humbuckers, 1 V for single coils, a humbucker's two coils 6 dB apart from one.
+TEST_CASE("Input calibration target derives from the pickups", "[audio][input-calibration]")
 {
-    CHECK_THAT(inputCalibrationTargetPeakDb(), Catch::Matchers::WithinAbs(-12.79, 1e-9));
+    const double humbucker = inputCalibrationTargetPeakDb(PickupClass::Humbucker);
+    const double single_coil = inputCalibrationTargetPeakDb(PickupClass::SingleCoil);
+    CHECK_THAT(humbucker, Catch::Matchers::WithinAbs(-6.77, 0.01));
+    CHECK_THAT(single_coil, Catch::Matchers::WithinAbs(-12.79, 0.01));
+    CHECK_THAT(humbucker - single_coil, Catch::Matchers::WithinAbs(6.02, 0.01));
+}
+
+// Each pickup class has one name and one note, so every surface words it the same.
+TEST_CASE("Pickup class words every class once", "[audio][input-calibration]")
+{
+    CHECK(pickupClassText(PickupClass::Humbucker) == "humbucker");
+    CHECK(pickupClassText(PickupClass::SingleCoil) == "single-coil");
+    CHECK(pickupClassNote(PickupClass::Humbucker) == "Also P-90 and active.");
+    CHECK(pickupClassNote(PickupClass::SingleCoil) == "Passive, except P-90.");
 }
 
 // A gain that rounds to zero is stored and shown as zero, never as negative zero.
@@ -71,7 +87,7 @@ TEST_CASE("Input calibration sets the ceiling on the target", "[audio][input-cal
     pushSteadySamples(accumulator, -24.0);
 
     const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE(result.has_value());
     CHECK(measurement.active_sample_count == minimumInputCalibrationActiveSampleCount());
@@ -87,7 +103,7 @@ TEST_CASE("Input calibration ignores quiet windows", "[audio][input-calibration]
     pushSteadySamples(accumulator, -30.0);
 
     const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE(result.has_value());
     CHECK(measurement.active_sample_count == minimumInputCalibrationActiveSampleCount());
@@ -105,7 +121,7 @@ TEST_CASE("Input calibration ignores an isolated spike", "[audio][input-calibrat
     accumulator.pushSample(AudioMeterLevel{.peak_db = -6.0});
 
     const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE(result.has_value());
     CHECK(measurement.loudest_level.peak_db == Catch::Approx(-6.0));
@@ -138,7 +154,7 @@ TEST_CASE("Input calibration rejects sparse active input", "[audio][input-calibr
     accumulator.pushSample(AudioMeterLevel{.peak_db = -24.0});
 
     const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE_FALSE(result.has_value());
     CHECK(measurement.active_sample_count == 1);
@@ -152,7 +168,7 @@ TEST_CASE("Input calibration rejects missing usable signal", "[audio][input-cali
     accumulator.pushSample(AudioMeterLevel{.peak_db = -42.0});
 
     const InputCalibrationMeasurement measurement = accumulator.measurement();
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE_FALSE(result.has_value());
     CHECK(measurement.active_sample_count == 0);
@@ -168,7 +184,7 @@ TEST_CASE("Input calibration rejects clipped input", "[audio][input-calibration]
         .active_sample_count = minimumInputCalibrationActiveSampleCount(),
     };
 
-    const auto result = calculateInputCalibration(measurement);
+    const auto result = calculateInputCalibration(measurement, g_single_coil_target);
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == InputCalibrationErrorCode::InputClipped);
@@ -178,7 +194,7 @@ TEST_CASE("Input calibration rejects clipped input", "[audio][input-calibration]
 // its own.
 TEST_CASE("Input capture reports the windows each stage has left", "[audio][input-calibration]")
 {
-    InputCalibrationCapture capture;
+    InputCalibrationCapture capture{g_single_coil_target};
     CHECK(atProgress(
         capture.pushSample(AudioMeterLevel{.peak_db = -24.0}),
         InputCalibrationStage::Settling,
@@ -189,7 +205,7 @@ TEST_CASE("Input capture reports the windows each stage has left", "[audio][inpu
 // from the first window it hears.
 TEST_CASE("Input capture listens a fixed span from the first strum", "[audio][input-calibration]")
 {
-    InputCalibrationCapture capture;
+    InputCalibrationCapture capture{g_single_coil_target};
     REQUIRE(atProgress(
         settle(capture),
         InputCalibrationStage::WaitingForInput,
@@ -215,7 +231,7 @@ TEST_CASE("Input capture listens a fixed span from the first strum", "[audio][in
 // A capture that hears nothing usable times out before listening.
 TEST_CASE("Input capture times out waiting for input", "[audio][input-calibration]")
 {
-    InputCalibrationCapture capture;
+    InputCalibrationCapture capture{g_single_coil_target};
     InputCalibrationStep step = settle(capture);
     REQUIRE(atProgress(
         step, InputCalibrationStage::WaitingForInput, inputCalibrationWaitSampleCount()));
@@ -233,7 +249,7 @@ TEST_CASE("Input capture times out waiting for input", "[audio][input-calibratio
 // Clipped input stops the capture before it starts listening.
 TEST_CASE("Input capture rejects clipped waiting input", "[audio][input-calibration]")
 {
-    InputCalibrationCapture capture;
+    InputCalibrationCapture capture{g_single_coil_target};
     REQUIRE(atProgress(
         settle(capture),
         InputCalibrationStage::WaitingForInput,

@@ -43,9 +43,10 @@ class RecordingInputCalibrationHost final : public InputCalibrationController::H
 {
 public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    startInputCalibrationMeasurement() override
+    startInputCalibrationMeasurement(common::audio::PickupClass pickups) override
     {
         start_count += 1;
+        last_start_pickups = pickups;
         return start_result;
     }
 
@@ -72,6 +73,7 @@ public:
     std::expected<void, common::audio::LiveInputMonitorError> manual_apply_result{};
     common::audio::LiveInputSample sample{};
     std::optional<double> last_manual_gain_db{};
+    std::optional<common::audio::PickupClass> last_start_pickups{};
     int start_count{0};
     int sample_count{0};
     int manual_apply_count{0};
@@ -218,7 +220,7 @@ TEST_CASE("Input calibration controller completes a measurement", "[core][input-
     controller.onSampleTick();
 
     CHECK(view.lastState().input_gain_db == Catch::Approx(8.0));
-    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured from your playing.");
+    CHECK(view.lastState().status_message == "Saved: +8.0 dB, measured on a humbucker.");
     CHECK_FALSE(view.lastState().measuring);
     CHECK(view.lastState().dismiss_button_text == "Close");
 }
@@ -339,6 +341,29 @@ TEST_CASE("Input calibration controller clears a stale choice", "[core][input-ca
     controller.onMeasurementStartRequested();
 
     CHECK_FALSE(view.lastState().selected_interface.has_value());
+}
+
+// The measurement assumes humbuckers until the player says otherwise; the chosen pickups reach
+// the start, and a running measurement keeps the pickups it began with.
+TEST_CASE("Input calibration controller measures the chosen pickups", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController controller{host, prompt(0.0)};
+    controller.attachView(view);
+    CHECK(view.lastState().pickups == common::audio::PickupClass::Humbucker);
+
+    controller.onPickupsSelected(common::audio::PickupClass::SingleCoil);
+    controller.onMeasurementStartRequested();
+    CHECK(host.last_start_pickups == std::optional{common::audio::PickupClass::SingleCoil});
+
+    controller.onPickupsSelected(common::audio::PickupClass::Humbucker);
+    CHECK(view.lastState().pickups == common::audio::PickupClass::SingleCoil);
+
+    host.sample =
+        sampleWith(common::audio::InputCalibrationCommitted{.gain = common::audio::Gain{4.1}});
+    controller.onSampleTick();
+    CHECK(view.lastState().status_message == "Saved: +4.1 dB, measured on a single-coil.");
 }
 
 } // namespace rock_hero::editor::core

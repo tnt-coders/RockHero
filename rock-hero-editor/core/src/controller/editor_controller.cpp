@@ -1164,9 +1164,9 @@ void EditorController::onInputCalibrationRequested()
 }
 
 std::expected<void, common::audio::LiveInputMonitorError> EditorController::
-    onInputCalibrationMeasurementStarted()
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups)
 {
-    return m_impl->onInputCalibrationMeasurementStarted();
+    return m_impl->onInputCalibrationMeasurementStarted(pickups);
 }
 
 common::audio::LiveInputSample EditorController::onInputCalibrationSampled()

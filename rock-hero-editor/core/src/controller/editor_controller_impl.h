@@ -642,7 +642,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
-    onInputCalibrationMeasurementStarted();
+    onInputCalibrationMeasurementStarted(common::audio::PickupClass pickups);
     [[nodiscard]] common::audio::LiveInputSample onInputCalibrationSampled();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationManuallySet(double gain_db);

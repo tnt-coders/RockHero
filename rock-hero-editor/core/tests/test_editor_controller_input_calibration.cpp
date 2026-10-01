@@ -272,7 +272,8 @@ TEST_CASE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
 
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
     CHECK(transport.set_live_input_monitoring_call_count >= 1);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
@@ -288,7 +289,7 @@ TEST_CASE(
     CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
@@ -298,7 +299,7 @@ TEST_CASE(
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.7, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(12.7, 0));
         CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
     }
 }
@@ -331,21 +332,23 @@ TEST_CASE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
 
-    const auto first_measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto first_measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(first_measurement_started.has_value());
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     REQUIRE(
         std::holds_alternative<common::audio::InputCalibrationCommitted>(
             runCalibrationMeasurement(controller, transport, -19.5)));
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const prompt_state = stateOrNull(view.last_state);
     REQUIRE(prompt_state != nullptr);
     CHECK(prompt_state->input_calibration_prompt.has_value());
 
-    const auto retry_measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto retry_measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(retry_measurement_started.has_value());
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
@@ -353,7 +356,7 @@ TEST_CASE(
 
     controller.onInputCalibrationDismissed();
 
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(6.7, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(12.7, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
@@ -396,7 +399,8 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
         "gain reset failed",
     };
 
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
 
     REQUIRE_FALSE(measurement_started.has_value());
     CHECK(
@@ -446,7 +450,8 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
         "calibration monitoring failed",
     };
 
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
 
     REQUIRE_FALSE(measurement_started.has_value());
     CHECK(
@@ -1134,7 +1139,8 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     REQUIRE(prompt_state != nullptr);
     REQUIRE(prompt_state->input_calibration_prompt.has_value());
 
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
     CHECK(transport.calibration_input_monitoring_enabled);
 
@@ -1205,7 +1211,8 @@ TEST_CASE(
     REQUIRE(prompt_state != nullptr);
     CHECK(prompt_state->input_calibration_prompt.has_value());
 
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
@@ -1263,7 +1270,8 @@ TEST_CASE(
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
 
     controller.onInputCalibrationDismissed();
@@ -1320,7 +1328,8 @@ TEST_CASE(
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
 
     transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
@@ -1383,7 +1392,8 @@ TEST_CASE(
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    const auto measurement_started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
     REQUIRE(measurement_started.has_value());
 
     transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
@@ -1402,14 +1412,14 @@ TEST_CASE(
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
-    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.2, 0));
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(11.2, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto stored_calibration = inputCalibrationFor(store, identity);
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(5.2, 0));
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(11.2, 0));
     }
 }
 
@@ -1528,7 +1538,8 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
                                              .prompt_present = true,
                                          });
 
-    REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
+    REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
+                .has_value());
     REQUIRE(
         std::holds_alternative<common::audio::InputCalibrationCommitted>(
             runCalibrationMeasurement(controller, live_input, -19.5)));
@@ -1558,7 +1569,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         setCalibrationInputMonitoringCall(true),
         // The measurement finishing: disable calibration audition, apply gain, enable monitoring.
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(6.7),
+        setInputGainCall(12.7),
         setLiveInputMonitoringCall(true),
         // onInputCalibrationDismissed: no setters (commit cleared the active measurement).
     };
@@ -1674,7 +1685,8 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     };
     live_input.calls.clear();
 
-    const auto started = controller.onInputCalibrationMeasurementStarted();
+    const auto started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
 
     REQUIRE_FALSE(started.has_value());
     const std::vector<LiveInputSetterCall> trace{
@@ -1726,7 +1738,8 @@ TEST_CASE("Live input start rollback on gain failure", "[core][editor-controller
     };
     live_input.calls.clear();
 
-    const auto started = controller.onInputCalibrationMeasurementStarted();
+    const auto started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
 
     REQUIRE_FALSE(started.has_value());
     const std::vector<LiveInputSetterCall> trace{
@@ -1774,7 +1787,8 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
     };
     live_input.calls.clear();
 
-    const auto started = controller.onInputCalibrationMeasurementStarted();
+    const auto started =
+        controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker);
 
     REQUIRE_FALSE(started.has_value());
     const std::vector<LiveInputSetterCall> trace{
@@ -1820,7 +1834,8 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
+    REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
+                .has_value());
 
     live_input.next_set_input_gain_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
@@ -1833,7 +1848,7 @@ TEST_CASE("Live input commit reports a refused gain", "[core][editor-controller]
             runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(5.2),
+        setInputGainCall(11.2),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
@@ -1879,7 +1894,8 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
+    REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
+                .has_value());
 
     live_input.next_set_live_input_monitoring_error = common::audio::LiveInputError{
         common::audio::LiveInputErrorCode::InputRouteUnavailable,
@@ -1892,12 +1908,12 @@ TEST_CASE("Live input commit reports refused monitoring", "[core][editor-control
             runCalibrationMeasurement(controller, live_input, -18.0)));
     const std::vector<LiveInputSetterCall> trace{
         setCalibrationInputMonitoringCall(false),
-        setInputGainCall(5.2),
+        setInputGainCall(11.2),
         setLiveInputMonitoringCall(true),
         setLiveInputMonitoringCall(false),
     };
     CHECK(live_input.calls == trace);
-    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(5.2, 0));
+    CHECK_THAT(live_input.current_input_gain.db, Catch::Matchers::WithinULP(11.2, 0));
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::Unavailable,
@@ -1940,7 +1956,8 @@ TEST_CASE("Live input dismissal restores previous calibration", "[core][editor-c
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
+    REQUIRE(controller.onInputCalibrationMeasurementStarted(common::audio::PickupClass::Humbucker)
+                .has_value());
 
     live_input.calls.clear();
     controller.onInputCalibrationDismissed();

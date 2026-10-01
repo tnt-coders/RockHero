@@ -98,7 +98,8 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
     return {};
 }
 
-std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibration()
+std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibration(
+    common::audio::PickupClass pickups)
 {
     if (!m_machine.canCalibrate())
     {
@@ -108,7 +109,7 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::beginGainCalibratio
         }};
     }
 
-    if (const auto began = m_live_input_monitor.beginMeasurement(g_setup_menu_context);
+    if (const auto began = m_live_input_monitor.beginMeasurement(pickups, g_setup_menu_context);
         !began.has_value())
     {
         return std::unexpected{NativeAudioSetupError{

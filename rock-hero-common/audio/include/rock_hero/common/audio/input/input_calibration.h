@@ -9,9 +9,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <numbers>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -32,23 +34,80 @@ source reaches against it.
 }
 
 /*!
-\brief Returns a 1 V peak sine in dBu: 0.707 V RMS against the 0.775 V RMS of 0 dBu.
-\return Level in dBu; physics, not policy.
+\brief The guitar's pickups, as far as the peak of a hard strum cares.
+
+A humbucker is two coils in series, so it reads about 6 dB hotter than a single coil. P-90s sit
+with humbuckers by output, and actives within half a decibel of them, capped by their own preamp.
 */
-[[nodiscard]] constexpr double oneVoltPeakSineDbu() noexcept
+enum class PickupClass : std::uint8_t
 {
-    return -0.79;
+    /*! \brief Humbuckers, and the P-90s and active pickups that peak like them. */
+    Humbucker,
+
+    /*! \brief Single-coil pickups. */
+    SingleCoil,
+};
+
+/*!
+\brief Returns the true sample peak a hard strum on these pickups typically reaches.
+
+The authored datum behind the automatic measurement, taken from calibrated measurements of hard
+strumming (docs/tracking/2026-10-01-hard-strum-peak-research.md); every guitar sits within about
+6 dB of it.
+\param pickups The pickups the player measures with.
+\return Peak voltage, as the peak of the equivalent sine.
+*/
+[[nodiscard]] constexpr double hardStrumPeakVolts(PickupClass pickups) noexcept
+{
+    switch (pickups)
+    {
+        case PickupClass::Humbucker:
+        {
+            return 2.0;
+        }
+        case PickupClass::SingleCoil:
+        {
+            return 1.0;
+        }
+    }
+    return 2.0;
 }
 
 /*!
-\brief Returns where the player's hardest playing, taken as a 1 V peak source, lands after the
-gain.
-\return Target peak in decibels full scale.
+\brief Converts the peak voltage of a sine to dBu, against the 0.7746 V RMS of 0 dBu.
+\param volts_peak Peak voltage of the sine.
+\return Level in dBu; physics, not policy.
 */
-[[nodiscard]] constexpr double inputCalibrationTargetPeakDb() noexcept
+[[nodiscard]] inline double peakVoltsToDbu(double volts_peak) noexcept
 {
-    return oneVoltPeakSineDbu() - inputLevelReferenceDbu();
+    constexpr double volts_rms_at_0_dbu{0.7746};
+    return 20.0 * std::log10(volts_peak / std::numbers::sqrt2 / volts_rms_at_0_dbu);
 }
+
+/*!
+\brief Returns where a hard strum on these pickups lands after the gain: what the automatic
+measurement puts the playing's ceiling on.
+\param pickups The pickups the player measures with.
+\return Target peak in decibels full scale: -6.8 for humbuckers, -12.8 for single coils.
+*/
+[[nodiscard]] inline double inputCalibrationTargetPeakDb(PickupClass pickups) noexcept
+{
+    return peakVoltsToDbu(hardStrumPeakVolts(pickups)) - inputLevelReferenceDbu();
+}
+
+/*!
+\brief Returns the one name of a pickup class, for logs and every surface in both products.
+\param pickups The pickup class.
+\return "humbucker" or "single-coil", lower-case so it reads inside a sentence.
+*/
+[[nodiscard]] std::string_view pickupClassText(PickupClass pickups) noexcept;
+
+/*!
+\brief Returns the note that says what else a pickup class covers, shown beside the choice.
+\param pickups The pickup class.
+\return A short sentence: "Also P-90 and active." or "Passive, except P-90."
+*/
+[[nodiscard]] std::string_view pickupClassNote(PickupClass pickups) noexcept;
 
 /*! \brief Stable failure reasons for input calibration measurement. */
 enum class InputCalibrationErrorCode : std::uint8_t
@@ -91,6 +150,9 @@ struct [[nodiscard]] InputCalibrationResult
 {
     /*! \brief Calibration gain to apply before the live guitar chain. */
     Gain calibration_gain;
+
+    /*! \brief The playing's measured ceiling the gain was set from, raw, in dBFS. */
+    double ceiling_peak_db{};
 };
 
 /*!
@@ -250,12 +312,19 @@ using InputCalibrationStep =
 
 The player plays as hard as they will play in a song. The capture discards a settle window, waits
 for the first window above the listening threshold, then listens for a fixed span from it and sets
-the gain so the playing's ceiling lands on inputCalibrationTargetPeakDb(). A capture starts at its
-settle window on construction and is discarded once a sample returns a result or an error.
+the gain so the playing's ceiling lands on the target it was given. A capture starts at its settle
+window on construction and is discarded once a sample returns a result or an error.
 */
 class InputCalibrationCapture final
 {
 public:
+    /*!
+    \brief Starts a capture that will put the playing's ceiling on a target.
+    \param target_peak_db Where the ceiling should land after the gain, normally
+           inputCalibrationTargetPeakDb() for the player's pickups.
+    */
+    explicit InputCalibrationCapture(double target_peak_db) noexcept;
+
     /*!
     \brief Advances the capture by one raw input meter sample.
     \param level Raw input meter level sampled from the calibration route.
@@ -272,14 +341,16 @@ private:
     std::size_t m_wait_samples_remaining{inputCalibrationWaitSampleCount()};
     std::size_t m_listen_samples_remaining{inputCalibrationListenSampleCount()};
     InputCalibrationStage m_stage{InputCalibrationStage::Settling};
+    double m_target_peak_db;
 };
 
 /*!
-\brief Calculates the gain that puts the playing's ceiling on inputCalibrationTargetPeakDb().
+\brief Calculates the gain that puts the playing's ceiling on a target.
 \param measurement The measurement the capture accumulated.
-\return Calibration gain, or a typed measurement failure.
+\param target_peak_db Where the ceiling should land after the gain.
+\return Calibration gain with the ceiling it was set from, or a typed measurement failure.
 */
 [[nodiscard]] std::expected<InputCalibrationResult, InputCalibrationError>
-calculateInputCalibration(const InputCalibrationMeasurement& measurement);
+calculateInputCalibration(const InputCalibrationMeasurement& measurement, double target_peak_db);
 
 } // namespace rock_hero::common::audio

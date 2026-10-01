@@ -237,9 +237,12 @@ public:
     common::audio::inputCalibrationSampleRateHz() while the player strums. Legal only in
     CalibratingGain.
 
+    \param pickups The pickups the player measures with; there is no default, since the wizard
+           must ask.
     \return Empty success, or a typed calibration failure (the applied device stays intact).
     */
-    [[nodiscard]] std::expected<void, NativeAudioSetupError> beginGainCalibration();
+    [[nodiscard]] std::expected<void, NativeAudioSetupError> beginGainCalibration(
+        common::audio::PickupClass pickups);
 
     /*!
     \brief Samples the measurement once.

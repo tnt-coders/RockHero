@@ -53,10 +53,13 @@ namespace
            " Set the interface to " + std::string{row.unity_input} + ", then click Apply.";
 }
 
-// Status text shown while the capture waits for the player to start.
+// Status text shown while the capture waits for the player to start: the guitar's free levers
+// pinned, then the playing the measurement assumes.
 [[nodiscard]] std::string inputCalibrationWaitingText()
 {
-    return "Play as hard as you play in a song, on all strings.";
+    return "Volume and tone all the way up, one pickup selected, then play as hard as you play in "
+           "a "
+           "song, on all strings.";
 }
 
 // Status text shown while the capture listens, counting down the whole seconds it has left.
@@ -124,6 +127,19 @@ void InputCalibrationController::onManualGainChanged(double gain_db)
     publishState();
 }
 
+// Chooses the pickups the next measurement assumes; a running measurement keeps the ones it began
+// with.
+void InputCalibrationController::onPickupsSelected(common::audio::PickupClass pickups)
+{
+    if (m_state.measuring)
+    {
+        return;
+    }
+
+    m_state.pickups = pickups;
+    publishState();
+}
+
 // Fills the slider with a known interface's derived gain; Apply then commits it as any gain.
 void InputCalibrationController::onInterfaceSelected(std::size_t index)
 {
@@ -174,7 +190,7 @@ void InputCalibrationController::onMeasurementStartRequested()
         return;
     }
 
-    const auto started = m_host.startInputCalibrationMeasurement();
+    const auto started = m_host.startInputCalibrationMeasurement(m_state.pickups);
     if (!started.has_value())
     {
         m_state.status_message = started.error().message;
@@ -245,7 +261,10 @@ void InputCalibrationController::setDisplayedInputGain(double gain_db)
 void InputCalibrationController::finishMeasurementSuccess(double gain_db)
 {
     setDisplayedInputGain(gain_db);
-    m_state.status_message = savedText(m_state.input_gain_db, ", measured from your playing");
+    // The class is named so a single-coil player who left the default sees what was assumed.
+    m_state.status_message = savedText(
+        m_state.input_gain_db,
+        ", measured on a " + std::string{common::audio::pickupClassText(m_state.pickups)});
     m_committed_input_gain_db = m_state.input_gain_db;
     m_state.measuring = false;
     publishState();
