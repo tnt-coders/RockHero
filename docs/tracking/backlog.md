@@ -1319,3 +1319,13 @@ against the tree on the date above.
   fret, the keyframe bend and the hand position's `"endFret"` each write "absent is nullopt, else
   `std::optional{Json::readOptionalInt(...)}`". A `readOptionalIntKey(json, key)` helper would own
   it.
+- **A corrupt shared audio file reads as empty, and the next write replaces it.**
+  `AudioConfigStore` (`audio_config_store.cpp`) never checks `juce::PropertiesFile::isValidFile()`,
+  so a file that fails to parse yields no route and no calibrations. The next write then saves over
+  it, which silently drops every calibration in it. The store's strict-parse rule treats a corrupt
+  *value* as absence, but a corrupt *file* should surface as a typed `AudioConfigError` and never be
+  overwritten. Raised by the simplicity review of the shared audio store.
+- **`GameAudioConfig` is written but never read in production.** The native setup writes the slot-0
+  player-to-route mapping through `IGameSettings::setGameAudioConfig`, but only tests call
+  `gameAudioConfig()`. Either a startup consumer (the player-slot input plumbing) reads it, or the
+  record waits until that consumer exists. Raised by the same review.
