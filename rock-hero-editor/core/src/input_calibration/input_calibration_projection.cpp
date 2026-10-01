@@ -110,7 +110,6 @@ InputCalibrationProjection makeInputCalibrationProjection(
     InputCalibrationProjection projection{
         .status = status,
         .calibrate_enabled = ready && !settings_open && identity.has_value(),
-        .live_input_audition_available = audition_available,
         .audio_device_settings_enabled = !prompt_visible && !settings_open,
         .disabled_message = audition_available ? std::string{} : disabled_message,
         .prompt = std::nullopt,

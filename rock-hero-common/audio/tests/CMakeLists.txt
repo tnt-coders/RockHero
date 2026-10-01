@@ -32,6 +32,7 @@ add_executable(
     test_live_input_monitor.cpp
     test_live_rig_gain_plugin.cpp
     test_multi_tone_rack.cpp
+    test_null_audio_device.cpp
     test_playback_clock.cpp
     test_playback_clock_extrapolator.cpp
     test_plugin_state_hygiene.cpp

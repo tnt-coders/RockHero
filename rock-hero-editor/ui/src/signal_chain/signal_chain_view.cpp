@@ -50,12 +50,9 @@ const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12
 // visibly not touchable — the alpha the menu bar's disabled text uses.
 constexpr float g_inert_chain_alpha{0.5f};
 
-// The live-input message's plate over the dimmed chain: padding around the text and the plate's
-// surface-coloured fill (paintOverChildren).
-constexpr int g_disabled_message_padding_x{16};
-constexpr int g_disabled_message_padding_y{10};
-constexpr float g_disabled_message_plate_alpha{0.9f};
-constexpr float g_disabled_message_plate_radius{4.0f};
+// Space between the header title and the live-input status after it: several word gaps, so the
+// status reads as its own sentence rather than part of the title.
+constexpr int g_header_message_gap{24};
 
 // Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
 // "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
@@ -420,7 +417,7 @@ void SignalChainView::paint(juce::Graphics& g)
     // Input label above the left meter.
     const auto input_label_area =
         area.removeFromLeft(g_input_control_width).removeFromTop(g_header_height);
-    g.setColour(juce::Colours::white);
+    g.setColour(editorTheme().primary_text);
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
 
@@ -437,8 +434,7 @@ void SignalChainView::paint(juce::Graphics& g)
 
     g.setColour(editorTheme().panel_header);
     g.fillRect(header);
-    g.setColour(juce::Colours::white);
-    g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
+    g.setColour(editorTheme().primary_text);
     // The designer header names the file-backed tone document (with its dirty marker) instead of
     // a project catalog tone; the file strip occupies the header's right side while active.
     const juce::String header_title =
@@ -447,37 +443,24 @@ void SignalChainView::paint(juce::Graphics& g)
                   juce::String{m_tone_designer.dirty ? "*" : ""}
             : (m_tone_name.empty() ? juce::String{"Signal Chain"}
                                    : juce::String{"Signal Chain - "} + juce::String{m_tone_name});
-    g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
+    const juce::Font title_font{juce::FontOptions{16.0f, juce::Font::bold}};
+    g.setFont(title_font);
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
-}
 
-// Why live input is off, centred over the dimmed chain where the eye goes for the content, on a
-// plate the colour of the surface around it, sized to the text. No scrim, border or buttons —
-// those are the busy overlay's marks of "blocked", and the rest of the panel stays live.
-void SignalChainView::paintOverChildren(juce::Graphics& g)
-{
-    if (m_state.disabled_message.empty())
+    // Why live input is off, as one plain line after the title on the header row -- the panel's
+    // one free text band, beside the Input caption it is about. Never over the chain, whose tiles
+    // stay clickable without live input. Elided, never squashed, and never under the buttons.
+    if (!m_state.disabled_message.empty())
     {
-        return;
+        const int message_left =
+            header.getX() + 8 + textWidth(title_font, header_title) + g_header_message_gap;
+        g.setFont(juce::FontOptions{14.0f});
+        g.drawText(
+            juce::String{m_state.disabled_message},
+            m_header_message_area.withLeft(std::max(message_left, m_header_message_area.getX())),
+            juce::Justification::centredLeft,
+            true);
     }
-
-    const juce::String message{m_state.disabled_message};
-    const juce::Font font{juce::FontOptions{16.0f, juce::Font::bold}};
-    const juce::Rectangle<int> well = m_chain_viewport.getBounds();
-    const int plate_width =
-        std::min(textWidth(font, message) + (2 * g_disabled_message_padding_x), well.getWidth());
-    const juce::Rectangle<int> plate = well.withSizeKeepingCentre(
-        plate_width, juce::roundToInt(font.getHeight()) + (2 * g_disabled_message_padding_y));
-
-    g.setColour(editorTheme().panel_header.withAlpha(g_disabled_message_plate_alpha));
-    g.fillRoundedRectangle(plate.toFloat(), g_disabled_message_plate_radius);
-    g.setColour(editorTheme().primary_text);
-    g.setFont(font);
-    g.drawText(
-        message,
-        plate.reduced(g_disabled_message_padding_x, 0),
-        juce::Justification::centred,
-        true);
 }
 
 // Keeps gain sliders on the sides and plugin tiles in the center.
@@ -535,6 +518,7 @@ void SignalChainView::resized()
     };
     place_project_button(m_tone_export_button, 100);
     place_project_button(m_tone_import_button, 100);
+    m_header_message_area = m_tone_designer.active ? strip : project_strip;
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);

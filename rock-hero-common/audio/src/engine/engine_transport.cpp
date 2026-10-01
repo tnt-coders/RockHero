@@ -150,15 +150,10 @@ void Engine::removeListener(ITransport::Listener& listener)
     m_impl->m_transport_listeners.remove(&listener);
 }
 
-// Starts Tracktion transport playback from the current edit position. With no open device nothing
-// would advance the playhead, yet Tracktion would still flag the transport playing, so it is left
-// stopped and the state tells the truth; callers gate Play on the device status.
+// Starts Tracktion transport playback from the current edit position. A device always runs -- the
+// silent one when the hardware is not open -- so playback always advances.
 void Engine::play()
 {
-    if (!m_impl->audioDeviceOpen())
-    {
-        return;
-    }
     auto& transport = m_impl->m_edit->getTransport();
     if (m_impl->m_loaded_length_seconds > 0.0 &&
         transport.getPosition().inSeconds() >= m_impl->m_loaded_length_seconds)

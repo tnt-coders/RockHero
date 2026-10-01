@@ -254,6 +254,10 @@ private:
     // name the real cause.
     std::string m_device_unavailable_reason;
 
+    // Whether the user's saved hardware ran at the last device-policy pass, so the pass that finds
+    // it gone can pause playback once, on the loss itself.
+    bool m_hardware_open{false};
+
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
@@ -425,15 +429,10 @@ private:
     // Repairs Tracktion's device cache and notifies editor listeners after JUCE has changed routes.
     void handleAudioDeviceConfigurationRefresh();
 
-    // Undoes JUCE's disconnect fallback by closing the substitute device, so the open device is
-    // only ever the user's choice. It never reopens one: a replugged device stays closed until the
-    // user applies the saved route again.
-    void enforceNoFallbackDevicePolicy();
-
-    // THE one predicate for "the device callback can move the playhead": a current device that is
-    // open at a real sample rate. play(), the configuration refresh and currentDeviceStatus() all
-    // ask it, so "playing implies an open device" is stated once.
-    [[nodiscard]] bool audioDeviceOpen() const noexcept;
+    // Keeps a device running: the user's saved hardware, else the silent device in place of
+    // nothing or of JUCE's audible disconnect fallback. Pauses playback when the hardware is lost.
+    // It never reopens hardware: a replugged device waits for an explicit application of the route.
+    void enforceDevicePolicy();
 
     // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
     // surface ignores ordinary movement, but this hook still detects automatic end-of-file stops.
@@ -725,8 +724,8 @@ private:
     // Pauses Rock Hero playback without resetting the transport position.
     void pauseTransport();
 
-    // Pauses and publishes the stop: the shared body of Engine::pause() and the pause the
-    // configuration refresh makes when the device closes mid-play.
+    // Pauses and publishes the stop: the shared body of Engine::pause() and the pause the device
+    // policy makes when the hardware is lost mid-play.
     void pausePlayback();
 
     // Stops Tracktion and tears down the active playback graph for graph mutation or shutdown.

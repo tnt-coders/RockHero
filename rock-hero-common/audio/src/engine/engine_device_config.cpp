@@ -1,3 +1,4 @@
+#include "device/null_audio_device.h"
 #include "engine_impl.h"
 #include "shared/device_state_xml.h"
 
@@ -19,8 +20,9 @@ namespace
 }
 
 // Reports whether restoring the serialized state would reproduce the device that is already open,
-// so the restore's re-open and monitoring-graph rebuild would be pure cost. A closed or absent
-// device is never a match, so callers only ever skip work against an equal, already-live route.
+// so the restore's re-open and monitoring-graph rebuild would be pure cost. Only open HARDWARE can
+// match: createStateXml() names the saved choice whatever runs, so while the silent device runs a
+// restore of that same choice must still open it.
 //
 // The current state is taken from the device manager's own createStateXml() rather than
 // getAudioDeviceSetup(), and both XMLs are reconstructed the same way before comparing. This keeps
@@ -34,8 +36,7 @@ namespace
 [[nodiscard]] bool activeDeviceMatchesSerializedState(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
 {
-    juce::AudioIODevice* const current_device = device_manager.getCurrentAudioDevice();
-    if (current_device == nullptr || !current_device->isOpen())
+    if (!hardwareDeviceOpen(device_manager))
     {
         return false;
     }
@@ -62,17 +63,10 @@ namespace
 // identity is exactly a fallback. Identity is compared on device type + input/output names only,
 // not the full setup, to avoid the default-channel-mask asymmetry that
 // activeDeviceMatchesSerializedState() documents.
+// Callers ask it only while hardware is open.
 [[nodiscard]] bool juceFellBackFromExplicitChoice(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
 {
-    juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
-    if (live_device == nullptr || !live_device->isOpen())
-    {
-        // Nothing open to undo. Also covers a settings edit (device deliberately closed while
-        // staging) and a fallback that itself found no openable device (already closed).
-        return false;
-    }
-
     const juce::AudioDeviceManager::AudioDeviceSetup saved_setup =
         reconstructDeviceSetupFromXml(saved);
     const juce::AudioDeviceManager::AudioDeviceSetup live_setup =
@@ -122,15 +116,7 @@ void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
 
 void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 {
-    enforceNoFallbackDevicePolicy();
-    // Tracktion keeps the transport flagged playing through a device loss, and would resume it on
-    // the next device start (DeviceManager::prepareToStart restarts every playback context), so
-    // pause here, before the listeners hear of the change: the playhead has stopped moving, and
-    // the state must say so.
-    if (!audioDeviceOpen() && m_edit->getTransport().isPlaying())
-    {
-        pausePlayback();
-    }
+    enforceDevicePolicy();
     m_live_input_monitoring_enabled = false;
     m_calibration_input_monitoring_enabled = false;
     detachInstrumentMonitoringRoute();
@@ -139,53 +125,51 @@ void Engine::Impl::handleAudioDeviceConfigurationRefresh()
         &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
 }
 
-// Applies the no-fallback device policy after any JUCE device-configuration change. JUCE's own
-// disconnect handler falls back to a default device (hard-coded, not suppressible in-band), so a
-// detected fallback is undone here by closing the substitute -- the saved choice survives in
-// lastExplicitSettings, matching the startup restore's behavior.
+// THE device policy, run at construction and after every JUCE device-configuration change: a device
+// always runs, and the only audible one it may be is the user's saved choice. Anything else --
+// nothing at all, or the default JUCE's own disconnect handler opened (hard-coded, not
+// suppressible in-band) -- is replaced by the silent device, so the playhead, the plugins and their
+// editors keep working with the audio going nowhere. The saved choice survives in
+// lastExplicitSettings either way.
 //
-// Nothing here (or anywhere else in the engine) reopens a device automatically: automatic
-// reopening required a speculative driver probe and a reopen inside the policy pass, both of
-// which crashed flaky ASIO drivers mid-enumeration. Every reopen is an explicit user-driven
-// application of the saved route (the products surface a closed device through their status text
-// and a disabled Play). While the route is closed this policy keeps m_device_unavailable_reason
-// populated so the status snapshot can explain why.
-void Engine::Impl::enforceNoFallbackDevicePolicy()
+// Losing the hardware pauses playback in both products: an immediate, unmistakable sign that the
+// device just went (user, 2026-10-01), and the game's stop, since it detects notes. It is an edge,
+// not a level -- playback the user starts on the silent device keeps playing.
+//
+// It never reopens hardware: automatic reopening required a speculative driver probe that crashed
+// flaky ASIO drivers (docs/plans/todo/safe-device-auto-reopen.md). Every reopen is an explicit
+// application of the saved route.
+void Engine::Impl::enforceDevicePolicy()
 {
     juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
     const std::unique_ptr<juce::XmlElement> saved = device_manager.createStateXml();
-    if (saved == nullptr)
-    {
-        // No explicit device choice exists (first run), so default auto-detection stands.
-        return;
-    }
+    const bool on_saved_hardware =
+        hardwareDeviceOpen(device_manager) &&
+        (saved == nullptr || !juceFellBackFromExplicitChoice(device_manager, *saved));
 
-    if (juceFellBackFromExplicitChoice(device_manager, *saved))
+    // Paused before the silent device starts: Tracktion restarts every playing context on a device
+    // start (DeviceManager::prepareToStart), so a transport still flagged playing would resume.
+    if (m_hardware_open && !on_saved_hardware && m_edit->getTransport().isPlaying())
     {
-        // The saved device just vanished and JUCE opened a substitute; close it. This refresh pass
-        // notifies listeners of the closed state, and the saved route stays persistable.
-        RH_LOG_WARNING(
-            "audio.device_policy",
-            "Saved audio device vanished; closing JUCE's fallback substitute and keeping the "
-            "saved choice");
-        device_manager.closeAudioDevice();
-        m_device_unavailable_reason = g_disconnected_reason;
-        return;
+        pausePlayback();
     }
+    m_hardware_open = on_saved_hardware;
 
-    juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
-    if (live_device != nullptr && live_device->isOpen())
+    if (on_saved_hardware)
     {
-        // The open device is the saved device (a fallback was ruled out above).
         m_device_unavailable_reason.clear();
         return;
     }
 
-    if (m_device_unavailable_reason.empty())
+    if (saved != nullptr && m_device_unavailable_reason.empty())
     {
-        // Closed without a recorded open failure -- the saved device vanished with nothing to
-        // fall back to, so JUCE closed it without an error string to keep.
+        // No open attempt recorded a backend diagnostic, so the saved device simply went.
         m_device_unavailable_reason = g_disconnected_reason;
+    }
+
+    if (!isNullAudioDevice(device_manager.getCurrentAudioDevice()))
+    {
+        openNullAudioDevice(device_manager);
     }
 }
 
@@ -254,16 +238,16 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
         return DeviceRestoreOutcome::Opened;
     }
 
-    // No fallback: a missing or unopenable saved device must close, never silently switch the user
-    // to a different device. The false suppresses JUCE's select-default-on-failure, so the saved
-    // route stays in lastExplicitSettings and serializedDeviceState() still returns the user's
-    // choice on the next launch. First-run auto-detection is unaffected: it runs through the bare
-    // initialise(1, 2) in the Engine constructor, and this restore path is only reached when a
-    // non-empty saved route exists.
-    const juce::String error_text = device_manager.initialise(1, 2, xml.get(), false);
+    // The route becomes the saved choice whether or not it opens; the device policy then runs,
+    // so a route that stayed closed leaves the silent device running at once and a route that
+    // opened is recorded as the hardware whose loss pauses playback. First-run auto-detection is
+    // unaffected: it runs through the bare initialise(1, 2) in the Engine constructor, and this
+    // restore path is only reached when a non-empty saved route exists.
+    const juce::String error_text = openRouteWithoutFallback(device_manager, *xml);
+    m_impl->enforceDevicePolicy();
     if (error_text.isNotEmpty())
     {
-        // The route was applied but the device stayed closed -- the designed no-fallback outcome,
+        // The route was applied but the hardware stayed closed -- the designed no-fallback outcome,
         // reported in the value channel rather than as an error so callers keep the saved choice.
         // The backend's own diagnostic is recorded for the status snapshot, so the status text
         // can name the real cause. The failed initialise() already posted a
@@ -315,19 +299,12 @@ bool Engine::deviceStateMatchesActive(const std::string& serialized_state) const
         m_impl->m_engine->getDeviceManager().deviceManager, *xml);
 }
 
-// Rationale lives on the declaration in engine_impl.h.
-bool Engine::Impl::audioDeviceOpen() const noexcept
-{
-    // Not a pointer to const: JUCE's device getters are not const-qualified.
-    auto* const device = m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();
-    return device != nullptr && device->isOpen() && device->getCurrentSampleRate() > 0.0;
-}
-
-// Captures open-device timing and route details through the JUCE device manager. A closed
-// snapshot carries the recorded unavailable reason so status consumers can explain the closure.
+// Captures open-hardware timing and route details through the JUCE device manager. The silent
+// device reads as closed hardware, carrying the recorded unavailable reason so status consumers
+// can explain why the user's device is not running.
 AudioDeviceStatus Engine::currentDeviceStatus() const
 {
-    if (!m_impl->audioDeviceOpen())
+    if (!hardwareDeviceOpen(m_impl->m_engine->getDeviceManager().deviceManager))
     {
         AudioDeviceStatus closed_status;
         closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;

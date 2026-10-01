@@ -79,8 +79,8 @@ public:
     /*!
     \brief Starts playback from the current transport position.
 
-    With no open audio device the transport stays stopped, since nothing could advance the
-    playhead; callers gate Play on IAudioDeviceConfiguration::currentDeviceStatus().
+    Playback always advances: without the user's audio hardware a silent device keeps time, and
+    the audio goes nowhere.
     */
     virtual void play() = 0;
 

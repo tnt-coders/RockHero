@@ -28,6 +28,14 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Raised while adopting the silent audio device (2026-10-01)
+
+- **Give the input-calibration process a deep Fable review** (user, 2026-10-01: it predates Fable
+  and Opus 5.5). Live input must stay off until both an input device and a matching calibration
+  exist, which `makeInputCalibrationProjection` and the live-input monitor enforce today; the
+  review should judge the whole workflow (prompt, store, identity matching, the editor and game
+  gates) for simplicity and correctness, not just that rule.
+
 ## Found by the 2026-09-25 derived-width build
 
 - **The lone-open census row drifted 132 → 67 between 2026-09-20 and 09-24, unexplained.** The

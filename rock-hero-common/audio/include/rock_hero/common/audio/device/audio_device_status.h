@@ -19,7 +19,12 @@ represents a closed, failed, stopped, or unavailable device.
 */
 struct AudioDeviceStatus
 {
-    /*! \brief True when the backend currently has an open audio device. */
+    /*!
+    \brief True when the user's audio hardware is open.
+
+    The silent device the engine runs without hardware does not count: it keeps the playhead
+    moving, but nothing is heard and no input exists.
+    */
     bool open{false};
 
     /*! \brief Human-readable device name reported by the backend. */

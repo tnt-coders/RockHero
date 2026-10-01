@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
@@ -49,6 +50,11 @@ public:
                 std::move(*next_restore_serialized_device_state_error);
             next_restore_serialized_device_state_error.reset();
             return std::unexpected{std::move(error)};
+        }
+
+        if (restore_route)
+        {
+            return restore_route(serialized_state);
         }
 
         if (!restore_serialized_device_state_result)
@@ -147,6 +153,15 @@ public:
 
     /*! \brief Optional typed error returned by the next restoreSerializedDeviceState() call. */
     std::optional<AudioDeviceConfigurationError> next_restore_serialized_device_state_error{};
+
+    /*!
+    \brief When set, restoreSerializedDeviceState() applies the route through this instead of
+    returning the configured outcome: tests that watch the device manager install the engine's own
+    no-fallback open here.
+    */
+    std::function<std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>(
+        const std::string&)>
+        restore_route{};
 
     /*! \brief Current serialized state returned by serializedDeviceState(). */
     std::optional<std::string> serialized_device_state{};

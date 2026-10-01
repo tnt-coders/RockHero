@@ -1,5 +1,6 @@
 #include "device/audio_device_settings.h"
 
+#include "device/null_audio_device.h"
 #include "shared/device_state_xml.h"
 
 #include <algorithm>
@@ -122,14 +123,18 @@ constexpr double g_sample_rate_match_tolerance{0.001};
     return 50;
 }
 
-// Collects JUCE device type names so shared settings policy can order by stable names.
+// Collects JUCE device type names so shared settings policy can order by stable names. The silent
+// device's type is left out: it is the engine's stand-in for missing hardware, never a choice.
 [[nodiscard]] juce::StringArray availableDeviceTypeNames(
     const juce::OwnedArray<juce::AudioIODeviceType>& device_types)
 {
     juce::StringArray type_names;
     for (const auto* device_type : device_types)
     {
-        type_names.add(device_type->getTypeName());
+        if (!isNullAudioDeviceType(*device_type))
+        {
+            type_names.add(device_type->getTypeName());
+        }
     }
 
     return type_names;
@@ -335,7 +340,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         , m_device_manager(audio_devices.deviceManager())
         , m_configuration_listener(audio_devices, *this)
     {
-        captureInitialRouteAndCloseDevice();
+        captureInitialRouteAndReleaseHardware();
     }
 
     // Reopens the previous route only if construction saw an actually-open device. The controller
@@ -360,40 +365,32 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     Impl(Impl&&) = delete;
     Impl& operator=(Impl&&) = delete;
 
-    // Captures the active route as the "previous" snapshot, then closes the audio device so the
-    // user can edit hardware settings without holding it. Subsequent apply() opens the staged
-    // route; cancel() reopens this captured snapshot when the route was actually open.
+    // Captures the user's route as the "previous" snapshot, then hands the engine to the silent
+    // device so the hardware is free while the user edits it (ASIO probes need the driver to
+    // themselves). Apply opens the staged route; cancel reopens this snapshot.
     //
-    // m_restore_pending records whether there is something meaningful to restore. JUCE preserves
-    // currentSetup and currentDeviceType across closeAudioDevice(), so without the explicit flag
-    // we cannot tell "device was open before editing" from "device was already closed and
-    // we should leave it that way."
-    void captureInitialRouteAndCloseDevice()
+    // The previous route is always the user's CHOICE, never merely what runs: the live setup while
+    // their hardware is open, else the saved choice. Seeding from the live setup while the silent
+    // device runs would offer the stand-in as the route; seeding from a closed manager's setup
+    // would snap the edit to the driver's default device, since a failed no-fallback restore
+    // clears the setup's device names on its way out (juce_AudioDeviceManager.cpp
+    // deleteCurrentDevice). The window then opens on the chosen device, with the standing
+    // not-found notice when it is disconnected.
+    //
+    // m_restore_pending records whether cancel has hardware to give back: it reopens only what was
+    // running, so cancel never starts audio that was not playing before the edit.
+    void captureInitialRouteAndReleaseHardware()
     {
-        m_previous_setup = m_device_manager.getAudioDeviceSetup();
-        m_previous_device_type = m_device_manager.getCurrentAudioDeviceType();
-        m_restore_pending = m_device_manager.getCurrentAudioDevice() != nullptr;
-
-        // With the device closed, the manager's live setup no longer names the user's choice: a
-        // failed no-fallback restore of a missing device clears the setup's device names on its
-        // way out (verified in juce_AudioDeviceManager.cpp -- setAudioDeviceSetup fails through
-        // deleteCurrentDevice(), which clears both names, before the currentSetup assignment).
-        // Seeding from that would snap the edit to the driver's default device. The user's actual
-        // choice survives in the saved state XML, so seed the edit from it and the window opens
-        // on the chosen device -- with the standing not-found notice when it is disconnected. An
-        // open device needs no override: the engine's no-fallback policy guarantees an open
-        // device is the saved choice.
-        if (!m_restore_pending)
+        m_restore_pending = hardwareDeviceOpen(m_device_manager);
+        if (m_restore_pending)
         {
-            if (const std::unique_ptr<juce::XmlElement> saved = m_device_manager.createStateXml())
-            {
-                m_previous_setup = reconstructDeviceSetupFromXml(*saved);
-                if (const juce::String saved_type = saved->getStringAttribute("deviceType");
-                    saved_type.isNotEmpty())
-                {
-                    m_previous_device_type = saved_type;
-                }
-            }
+            m_previous_setup = m_device_manager.getAudioDeviceSetup();
+            m_previous_device_type = m_device_manager.getCurrentAudioDeviceType();
+        }
+        else if (const std::unique_ptr<juce::XmlElement> saved = m_device_manager.createStateXml())
+        {
+            m_previous_setup = reconstructDeviceSetupFromXml(*saved);
+            m_previous_device_type = saved->getStringAttribute("deviceType");
         }
 
         m_staged_setup = m_previous_setup;
@@ -401,7 +398,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
         if (m_restore_pending)
         {
-            m_device_manager.closeAudioDevice();
+            openNullAudioDevice(m_device_manager);
         }
 
         refreshState({});
@@ -534,9 +531,8 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         refreshState({});
     }
 
-    // Opens the staged route. If the open fails, leaves the backend closed. With the device
-    // closed during the settings edit, setCurrentAudioDeviceType() does not incur JUCE's 1.5
-    // second open-device release sleep.
+    // Opens the staged route through openRoute(). If the hardware stays closed, the silent device
+    // keeps running.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply()
     {
         if (m_staged_device_type.isEmpty())
@@ -553,13 +549,8 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return std::unexpected{std::move(error)};
         }
 
-        if (m_staged_device_type != m_device_manager.getCurrentAudioDeviceType())
-        {
-            m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
-        }
-
-        const juce::String error_text = m_device_manager.setAudioDeviceSetup(m_staged_setup, true);
-        if (error_text.isEmpty())
+        const auto opened = openRoute(m_staged_device_type, m_staged_setup);
+        if (opened.has_value() && *opened == DeviceRestoreOutcome::Opened)
         {
             // Staged route is now the active route. The captured previous route is no longer
             // meaningful, so destruction should not try to restore it.
@@ -568,45 +559,32 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return {};
         }
 
-        m_device_manager.closeAudioDevice();
-        m_restore_pending = false;
         // A staged device whose driver cannot initialize is the designed no-fallback outcome, not
-        // an apply failure: the route stays the user's explicit choice and the editor simply shows
-        // "[audio device closed]", mirroring the engine's DeviceRestoreOutcome::DeviceUnavailable.
-        // Succeeding here lets OK close the settings window instead of trapping the user behind an
-        // error the standing notice already explains. Every other apply failure keeps JUCE's raw
-        // setup diagnostic and leaves the window open.
-        const std::optional<std::string> staged_device_error =
-            stagedDeviceErrorDetail(m_staged_device.get());
-        if (staged_device_error.has_value())
+        // an apply failure: the restore already stored the route as the user's choice, and the
+        // editor shows "[audio device closed]". Succeeding lets OK close the settings window
+        // instead of trapping the user behind an error the standing notice already explains.
+        if (opened.has_value() && stagedDeviceErrorDetail(m_staged_device.get()).has_value())
         {
-            // "The route stays the user's explicit choice" needs help here: a failed
-            // setAudioDeviceSetup never reaches updateXml(), so JUCE's saved state still names the
-            // PREVIOUS route -- the closed-device status would report the old device instead of
-            // the one just chosen. Re-applying through the port's no-fallback restore (the same
-            // path startup uses) stores the serialized route regardless of the open outcome AND
-            // records the backend's own diagnostic for the status text -- a direct initialise()
-            // would cement the route but drop the reason, leaving the composed disconnect notice
-            // where the driver's own text belongs. The repeated open attempt fails the same way,
-            // or wins the race if the driver recovered.
-            const std::unique_ptr<juce::XmlElement> staged_xml =
-                serializeDeviceSetupToXml(m_staged_device_type, m_staged_setup);
-            static_cast<void>(
-                m_audio_devices.restoreSerializedDeviceState(staged_xml->toString().toStdString()));
+            m_restore_pending = false;
             refreshState({});
             return {};
         }
 
+        // Every other failure leaves the window open with the backend's diagnostic. The restore
+        // stored the failed route as the choice, so cancel must now put the previous one back.
+        m_restore_pending = true;
         AudioDeviceSettingsError error{
-            AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
+            AudioDeviceSettingsErrorCode::ApplyFailed,
+            opened.has_value() ? m_audio_devices.currentDeviceStatus().unavailable_reason
+                               : opened.error().message,
         };
         refreshState(error.message);
         return std::unexpected{std::move(error)};
     }
 
-    // Reopens the captured audio device when there was one to reopen. No-op when settings were
-    // opened from an [audio device closed] state, so cancel cannot accidentally start audio that
-    // was not running before the settings edit.
+    // Reopens the captured route when there is one to give back: the hardware that ran when the
+    // edit began, or the choice a failed apply replaced. A no-op otherwise, so cancel cannot start
+    // audio that was not running before the settings edit.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> cancel()
     {
         auto restored = restorePreviousRoute();
@@ -623,16 +601,16 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
     // Keeps the live route as final. A route opened out of band while the window was open (for
     // example by the editor's live "use game audio settings" toggle) is already the one the user
-    // is keeping and survives untouched. When nothing is open, OK is an explicit confirmation of
-    // the shown route, so commit reopens the captured one -- whether construction closed it for
-    // staging or the edit began on an unavailable device whose hardware has since returned. This
-    // deliberately ignores the m_restore_pending gate, which exists for cancel's "don't start
+    // is keeping and survives untouched. When no hardware is open, OK is an explicit confirmation
+    // of the shown route, so commit reopens the captured one -- whether construction released it
+    // for staging or the edit began on an unavailable device whose hardware has since returned.
+    // This deliberately ignores the m_restore_pending gate, which exists for cancel's "don't start
     // audio that was not running before the edit"; a reopen failure is the designed no-fallback
     // outcome (the route stays chosen, the device stays closed behind the standing notice) and
     // therefore does not fail the commit.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit()
     {
-        if (m_device_manager.getCurrentAudioDevice() == nullptr)
+        if (!hardwareDeviceOpen(m_device_manager))
         {
             openPreviousRouteBestEffort();
         }
@@ -706,28 +684,40 @@ private:
             return {};
         }
 
-        if (m_previous_device_type != m_device_manager.getCurrentAudioDeviceType())
+        const auto opened = openRoute(m_previous_device_type, m_previous_setup);
+        if (!opened.has_value())
         {
-            m_device_manager.setCurrentAudioDeviceType(m_previous_device_type, true);
+            return std::unexpected{AudioDeviceSettingsError{
+                AudioDeviceSettingsErrorCode::RestoreFailed, opened.error().message
+            }};
+        }
+        if (*opened == DeviceRestoreOutcome::DeviceUnavailable)
+        {
+            return std::unexpected{AudioDeviceSettingsError{
+                AudioDeviceSettingsErrorCode::RestoreFailed,
+                m_audio_devices.currentDeviceStatus().unavailable_reason
+            }};
         }
 
-        const juce::String error_text =
-            m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
-        if (error_text.isEmpty())
-        {
-            return {};
-        }
+        return {};
+    }
 
-        return std::unexpected{AudioDeviceSettingsError{
-            AudioDeviceSettingsErrorCode::RestoreFailed, error_text.toStdString()
-        }};
+    // THE way this window opens a route: the engine's no-fallback restore, which records the route
+    // as the user's choice, opens it or leaves the silent device running with the backend's reason,
+    // and switches the device type directly -- never through setCurrentAudioDeviceType(), which
+    // would first open that type's default device and wait a 1.5 s settle delay
+    // (juce_AudioDeviceManager.cpp setCurrentAudioDeviceType).
+    [[nodiscard]] std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> openRoute(
+        const juce::String& device_type, const juce::AudioDeviceManager::AudioDeviceSetup& setup)
+    {
+        return m_audio_devices.restoreSerializedDeviceState(
+            serializeDeviceSetupToXml(device_type, setup)->toString().toStdString());
     }
 
     // Best-effort reopen of the captured route for commit(). Unlike restorePreviousRoute() this
     // ignores the m_restore_pending gate, and a failure -- the chosen device is still unavailable
-    // -- is swallowed as the designed no-fallback outcome: the route stays the user's explicit
-    // choice (a failed setAudioDeviceSetup never reaches updateXml, so the saved state keeps it)
-    // and the device stays closed behind the standing notice.
+    // -- is swallowed as the designed no-fallback outcome: the restore keeps the route as the
+    // user's explicit choice, and the silent device runs behind the standing notice.
     void openPreviousRouteBestEffort()
     {
         if (m_previous_device_type.isEmpty() || (m_previous_setup.inputDeviceName.isEmpty() &&
@@ -736,13 +726,7 @@ private:
             return;
         }
 
-        if (m_previous_device_type != m_device_manager.getCurrentAudioDeviceType())
-        {
-            m_device_manager.setCurrentAudioDeviceType(m_previous_device_type, true);
-        }
-
-        [[maybe_unused]] const juce::String reopen_error =
-            m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
+        static_cast<void>(openRoute(m_previous_device_type, m_previous_setup));
     }
 
     // Destructor cleanup has no caller-visible channel, so restore failure is intentionally

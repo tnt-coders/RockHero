@@ -24,9 +24,6 @@ struct InputCalibrationProjection
     /*! \brief True when the user may open the calibration prompt. */
     bool calibrate_enabled{false};
 
-    /*! \brief True when the current route may be auditioned through the live chain. */
-    bool live_input_audition_available{false};
-
     /*! \brief True when audio-device settings may be opened. */
     bool audio_device_settings_enabled{true};
 

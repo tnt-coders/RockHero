@@ -222,7 +222,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         return Reason::InputCalibrationPrompt;
     }
 
-    // Signal-chain verbs need a live chain: a loaded arrangement or the Tone Designer's.
+    // Signal-chain verbs need only a live chain -- a loaded arrangement or the Tone Designer's --
+    // never live input: the chain is edited with or without hearing the guitar through it.
     const bool live_chain = conditions.has_loaded_arrangement || conditions.tone_designer_active;
 
     switch (action)
@@ -270,18 +271,11 @@ using Verdict = std::optional<ActionUnavailableReason>;
                 require(conditions.redo_available, Reason::HistoryUnavailable),
             });
         }
-        // Play needs an open device, since only its callback moves the playhead; seeking, the grid
-        // and the arrangement verbs do not, so they keep working without one. Stop shares Play's
-        // gate exactly: the pair reads as one transport, so it is never half available, and while
-        // Play is refused nothing plays for Stop to stop.
+        // A device always runs -- the silent one without hardware -- so the transport needs only a
+        // song. Stop shares Play's gate exactly: the pair reads as one transport, so it is never
+        // half available.
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
-        {
-            return firstFailure({
-                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
-                require(conditions.audio_device_open, Reason::AudioDeviceClosed),
-            });
-        }
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ToggleGridSnap:
@@ -317,25 +311,17 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return firstFailure({
                 require(live_chain, Reason::NoLoadedArrangement),
-                require(
-                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
                 require(conditions.has_plugin_insert_capacity, Reason::PluginChainFull),
             });
         }
         case EditorAction::Id::ScanPluginCatalog:
         {
-            return firstFailure({
-                require(live_chain, Reason::NoLoadedArrangement),
-                require(
-                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
-            });
+            return require(live_chain, Reason::NoLoadedArrangement);
         }
         case EditorAction::Id::InsertSelectedPlugin:
         {
             return firstFailure({
                 require(live_chain, Reason::NoLoadedArrangement),
-                require(
-                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
                 require(conditions.has_plugin_candidates, Reason::NoPluginCandidates),
                 require(conditions.has_plugin_insert_capacity, Reason::PluginChainFull),
             });
@@ -348,8 +334,6 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return firstFailure({
                 require(live_chain, Reason::NoLoadedArrangement),
-                require(
-                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
                 require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
             });
         }
@@ -360,18 +344,11 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return require(conditions.tone_designer_active, Reason::ToneDesignerInactive);
         }
+        // Import replaces the project tone's chain and export reads it, so both need the song whose
+        // tone it is.
         case EditorAction::Id::ImportToneFile:
-        {
-            // Import replaces the live monitored chain, so it shares the chain-mutation gates.
-            return firstFailure({
-                require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
-                require(
-                    conditions.live_input_audition_available, Reason::LiveInputAuditionUnavailable),
-            });
-        }
         case EditorAction::Id::ExportToneFile:
         {
-            // Export is a pure read of the active tone's rig.
             return require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement);
         }
         case EditorAction::Id::ResolveToneImportPrompt:
@@ -626,14 +603,6 @@ std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noex
         case Reason::TransportPlaying:
         {
             return "transport-playing";
-        }
-        case Reason::AudioDeviceClosed:
-        {
-            return "audio-device-closed";
-        }
-        case Reason::LiveInputAuditionUnavailable:
-        {
-            return "live-input-audition-unavailable";
         }
         case Reason::ToneDesignerInactive:
         {

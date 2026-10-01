@@ -319,7 +319,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.project_loaded == false);
         CHECK(state.transport.unavailable_reason == "Playback disabled: no song open.");
         CHECK(state.transport.play_pause_shows_pause_icon == false);
-        CHECK(state.audio_device_status_text == "[48000 Hz 24bit: 1/2ch 128spls ~4.5/7.5ms ASIO]");
+        CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.signal_chain.insert_plugin_enabled);

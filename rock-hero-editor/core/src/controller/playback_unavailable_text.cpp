@@ -23,10 +23,6 @@ std::string playbackUnavailableText(ActionUnavailableReason reason)
         {
             return "Playback disabled: no song open.";
         }
-        case ActionUnavailableReason::AudioDeviceClosed:
-        {
-            return "Playback disabled: audio device closed.";
-        }
         // The transport's gate never names these; the switch lists them so a new reason is a
         // compile-time decision here.
         case ActionUnavailableReason::BusyCancelUnavailable:
@@ -40,7 +36,6 @@ std::string playbackUnavailableText(ActionUnavailableReason reason)
         case ActionUnavailableReason::NoToneImportPrompt:
         case ActionUnavailableReason::HistoryUnavailable:
         case ActionUnavailableReason::TransportPlaying:
-        case ActionUnavailableReason::LiveInputAuditionUnavailable:
         case ActionUnavailableReason::ToneDesignerInactive:
         case ActionUnavailableReason::PluginChainFull:
         case ActionUnavailableReason::NoPluginCandidates:

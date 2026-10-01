@@ -1,5 +1,6 @@
 #include "engine/engine.h"
 
+#include "device/null_audio_device.h"
 #include "engine_impl.h"
 #include "shared/audio_path_util.h"
 #include "tracktion/engine_behaviors.h"
@@ -100,12 +101,19 @@ Engine::Engine()
     // createSingleTrackEdit already provides one AudioTrack ready for media.
     m_impl->createEdit();
 
+    // JUCE builds the platform backends only while its type list is empty, so they are created
+    // first and the silent type joins LAST: hardware is always preferred, and the silent device
+    // is the default only on a machine with no audio hardware at all.
+    auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
+    static_cast<void>(device_manager.getAvailableDeviceTypes());
+    device_manager.addAudioDeviceType(createNullAudioDeviceType());
+
     // Start with one instrument input and stereo output; the dialog can reconfigure either at
     // runtime.
     m_impl->m_engine->getDeviceManager().initialise(1, 2);
+    m_impl->enforceDevicePolicy();
     m_impl->rebuildInstrumentMonitoringGraphBestEffort("initial monitoring route setup failed");
 
-    auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
     device_manager.addChangeListener(m_impl.get());
 
     // TransportControl derives from juce::ChangeBroadcaster and notifies on any transport

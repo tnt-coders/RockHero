@@ -14,9 +14,9 @@ Re-verify every citation below against the current code before acting on it. The
 - Until 2026-07-14 the engine reopened the saved device on its own (`savedDeviceIsPresent` and
   `enforceNoFallbackDevicePolicy`, last seen at `2f9fce7d`, deleted by `74f43fa5`). Users saw
   crashes with flaky ASIO drivers. There is no crash dump, so the cause was never proven.
-- Today `enforceNoFallbackDevicePolicy` (`engine_device_config.cpp`) only closes a substitute
-  device. It never opens one. A closed device pauses the transport, Play is unavailable in the
-  editor, and a game session reports `AudioDeviceClosed`.
+- Since 2026-10-01 `enforceDevicePolicy` (`engine_device_config.cpp`) keeps a device running:
+  the saved hardware, else a silent device. It never reopens hardware. Losing the hardware pauses
+  playback once, and a game session reports `AudioDeviceClosed`.
 
 ## Why the old reopen was unsafe
 
@@ -95,10 +95,9 @@ The patch set, in order:
 1. **P0 (JUCE, upstreamable).** Make the reset path honest. When `loadDriver` or `init` fails,
    release the driver and return the error, and in `timerCallback` start only after a successful
    reopen. Bound the channel counts `reloadChannelNames` trusts.
-2. **RockHero: close a dead device.** In `enforceNoFallbackDevicePolicy`, call `closeAudioDevice()`
-   when the current device is not open. That destroys the stale object and its driver instance
-   before any later open. Doing this inside `AudioDeviceManager` instead would trigger its built-in
-   fallback, which is the very probe being removed.
+2. **RockHero: close a dead device.** Done 2026-10-01 as a side effect of the silent device:
+   `enforceDevicePolicy` replaces any device that is not the saved hardware with the silent one,
+   which destroys the stale object and its driver instance before any later open.
 3. **P1 (JUCE).** SEH-guard `IASIO::init` and the first calls `openDevice` makes into the driver,
    through a helper beside `tryCreatingDriver`. On a caught fault, set an error and treat that
    driver as poisoned until restart. SEH only contains a fault on the calling thread. It cannot

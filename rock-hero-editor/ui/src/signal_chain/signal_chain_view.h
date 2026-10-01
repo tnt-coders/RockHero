@@ -201,12 +201,6 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*!
-    \brief Paints why live input is off, centred over the dimmed chain, when it is.
-    \param g Graphics context used for drawing.
-    */
-    void paintOverChildren(juce::Graphics& g) override;
-
     /*! \brief Lays out the signal-chain controls. */
     void resized() override;
 
@@ -304,6 +298,10 @@ private:
 
     // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;
+
+    // The header band left of the visible buttons, laid out by resized(): where paint() writes why
+    // live input is off, after the title.
+    juce::Rectangle<int> m_header_message_area;
 
     // Scrollable viewport that keeps long plugin chains reachable in a compact view.
     juce::Viewport m_chain_viewport;

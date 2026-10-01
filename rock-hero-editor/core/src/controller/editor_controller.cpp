@@ -2368,7 +2368,6 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .busy_cancel_available = busy.has_value() && busy->cancel_enabled,
         .input_calibration_prompt_visible = input_calibration.prompt.has_value(),
         .session_faulted = m_session_faulted,
-        .live_input_audition_available = input_calibration.live_input_audition_available,
         .has_project = m_project.has_value(),
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
@@ -2380,7 +2379,6 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .tone_designer_active = m_tone_designer.active,
-        .audio_device_open = m_audio_devices.currentDeviceStatus().open,
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
         .has_loaded_plugins = m_signal_chain.hasPlugins(),

@@ -104,7 +104,6 @@ TEST_CASE(
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK(projection.calibrate_enabled);
-    CHECK(projection.live_input_audition_available);
     CHECK(projection.audio_device_settings_enabled);
     CHECK(projection.disabled_message.empty());
     CHECK_FALSE(projection.prompt.has_value());
@@ -129,7 +128,6 @@ TEST_CASE(
     const InputCalibrationProjection projection = makeInputCalibrationProjection(monitor, g_ready);
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
-    CHECK_FALSE(projection.live_input_audition_available);
     CHECK_FALSE(projection.audio_device_settings_enabled);
     CHECK_FALSE(projection.calibrate_enabled);
 }

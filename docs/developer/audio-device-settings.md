@@ -11,10 +11,12 @@ anything device-shaped.
 
 `AudioDeviceSettings` (`src/device/audio_device_settings.cpp`) wraps the hardware port
 (`IAudioDeviceConfiguration`) as a **staged-edit transaction**: constructing it captures the
-currently-open route and *closes the device* so the user edits routing without holding hardware;
-a staged preview device probes capabilities; then exactly one of `apply()` (open the staged
-route), `cancel()` (reopen the captured route), or `commit()` (keep whatever is live) ends the
-transaction — with a destructor backstop restore for native window closes. Its listener chain
+user's route (the live hardware setup, else the saved choice) and *hands the engine to the silent
+device* so the user edits routing without holding hardware; a staged preview device probes
+capabilities; then exactly one of `apply()` (open the staged route), `cancel()` (reopen the
+captured route), or `commit()` (keep whatever is live) ends the transaction — with a destructor
+backstop restore for native window closes. Every route it opens goes through the port's
+no-fallback `restoreSerializedDeviceState`, never `setCurrentAudioDeviceType()`. Its listener chain
 re-broadcasts hardware-port changes upward: port → `AudioDeviceSettings` → the settings
 controller → `updateView()`.
 
@@ -37,10 +39,11 @@ multi-step transaction of its own; reach for the ordinary action pipeline otherw
 
 Around the dialog sit two main-MVC pieces: `GameAudioRecommendationDialog` (the startup
 suggestion to adopt the game's settings) and `audioDeviceStatusText` (the menu-bar status line).
-The editor never blocks itself on a closed device: while it is closed the status line reads
-`[audio device closed]`, Play is unavailable through action availability
-(`ActionConditions::audio_device_open`), and everything else — editing, saving, scrubbing — keeps
-working. The settings window is the repair path.
+The editor never blocks itself without hardware: the engine runs its silent device
+(`null_audio_device.h`), so playback, the chain and every edit keep working with the audio going
+nowhere, and the status line reads `[audio device closed]`. Only live input needs the hardware. The
+settings window is the repair path; while it stages, it hands the engine to the silent device so
+the hardware is free, and every route it opens goes through the engine's no-fallback restore.
 
 # Persistence: two stores, one of them untouchable
 

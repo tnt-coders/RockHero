@@ -14,6 +14,8 @@ target_sources(
             src/clock/playback_clock_extrapolator.cpp
             src/device/audio_device_configuration_error.cpp
             src/device/audio_device_settings.cpp
+            src/device/null_audio_device.cpp
+            src/device/null_audio_device.h
             src/engine/engine.cpp
             src/engine/engine_clock.cpp
             src/engine/engine_device_config.cpp

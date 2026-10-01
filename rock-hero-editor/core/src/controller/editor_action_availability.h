@@ -35,9 +35,6 @@ struct ActionConditions
     /*! \brief True when the live backend is untrusted after a rollback-contract violation. */
     bool session_faulted{false};
 
-    /*! \brief True when live input can be auditioned through the current route. */
-    bool live_input_audition_available{false};
-
     /*! \brief True when an editor project is open. */
     bool has_project{false};
 
@@ -66,9 +63,6 @@ struct ActionConditions
     live chain exists to edit. Tone-document actions require the designer specifically.
     */
     bool tone_designer_active{false};
-
-    /*! \brief True when an audio device is open, so the device callback can move the playhead. */
-    bool audio_device_open{false};
 
     /*! \brief True when the plugin catalog has candidates that can be inserted. */
     bool has_plugin_candidates{false};
@@ -123,8 +117,6 @@ enum class ActionUnavailableReason : std::uint8_t
     NoToneImportPrompt,
     HistoryUnavailable,
     TransportPlaying,
-    AudioDeviceClosed,
-    LiveInputAuditionUnavailable,
     ToneDesignerInactive,
     PluginChainFull,
     NoPluginCandidates,

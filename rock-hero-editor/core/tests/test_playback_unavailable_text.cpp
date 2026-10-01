@@ -12,9 +12,6 @@ TEST_CASE("Playback text names each transport refusal", "[core][editor-action]")
         playbackUnavailableText(ActionUnavailableReason::NoLoadedArrangement) ==
         "Playback disabled: no song open.");
     CHECK(
-        playbackUnavailableText(ActionUnavailableReason::AudioDeviceClosed) ==
-        "Playback disabled: audio device closed.");
-    CHECK(
         playbackUnavailableText(ActionUnavailableReason::InputCalibrationPrompt) ==
         "Playback disabled: input calibration in progress.");
     CHECK(

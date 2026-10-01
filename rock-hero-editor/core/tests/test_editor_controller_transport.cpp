@@ -72,10 +72,10 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
     CHECK(transport.pause_call_count == 0);
 }
 
-// Without an open audio device nothing could move the playhead, so Play and Stop are unavailable —
-// the view is told why and both intents are no-ops — while the loaded song stays editable.
+// Without the user's audio hardware the engine runs its silent device, so the transport works as
+// ever: Play and Stop are available and both intents reach the transport.
 TEST_CASE(
-    "EditorController refuses transport intents while the audio device is closed",
+    "EditorController keeps the transport available without audio hardware",
     "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -94,19 +94,18 @@ TEST_CASE(
     controller.attachView(view);
     REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
 
-    controller.onPlayPausePressed();
-    controller.onStopPressed();
-
-    CHECK(transport.play_call_count == 0);
-    CHECK(transport.stop_call_count == 0);
-    CHECK(view.timeline_start_reveal_count == 0);
+    REQUIRE_FALSE(audio_devices.currentDeviceStatus().open);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
-        CHECK(
-            view.last_state->transport.unavailable_reason ==
-            "Playback disabled: audio device closed.");
+        CHECK(view.last_state->transport.unavailable_reason == std::nullopt);
     }
+
+    controller.onPlayPausePressed();
+    controller.onStopPressed();
+
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.stop_call_count == 1);
 }
 
 // Stop runs wherever the transport is, the start included: it shares Play's gate, not a cursor

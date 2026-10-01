@@ -19,7 +19,6 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
     const ActionConditions conditions{
         .busy = true,
         .busy_cancel_available = true,
-        .live_input_audition_available = true,
         .has_project = true,
         .has_unsaved_changes_prompt = true,
         .has_save_as_prompt = true,
@@ -109,7 +108,8 @@ TEST_CASE("Prompt actions follow active prompt state", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::CancelSaveAsPrompt, conditions));
 }
 
-// Verifies that Play and Stop share one gate: a loaded arrangement and an open device.
+// Verifies that Play and Stop share one gate: a loaded arrangement. A device always runs -- the
+// silent one without hardware -- so no device condition exists.
 TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-action]")
 {
     ActionConditions conditions;
@@ -121,33 +121,21 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
 
     conditions.has_loaded_arrangement = true;
 
-    // Without an open device the transport is off: nothing would move the playhead, while
-    // seeking and the grid work as ever.
-    CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
+    CHECK(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK(isActionAvailable(ActionId::SetGridNoteValue, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::Stop, conditions));
-
-    conditions.audio_device_open = true;
-    CHECK(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK(isActionAvailable(ActionId::Stop, conditions));
 }
 
-// Verifies plugin actions require arrangement, auditionable input, and insert capacity.
+// Verifies plugin actions require a live chain and insert capacity -- never live input: the chain
+// is edited with or without hearing the guitar through it.
 TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action]")
 {
-    ActionConditions conditions{.has_loaded_arrangement = true};
+    ActionConditions conditions{};
 
-    CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
-    conditions.live_input_audition_available = true;
+    conditions.has_loaded_arrangement = true;
 
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
@@ -184,7 +172,6 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
 {
     const ActionConditions conditions{
         .input_calibration_prompt_visible = true,
-        .live_input_audition_available = true,
         .has_project = true,
         .undo_available = true,
         .redo_available = true,
@@ -217,7 +204,6 @@ TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
 {
     ActionConditions conditions{
         .session_faulted = true,
-        .live_input_audition_available = true,
         .has_project = true,
         .has_unsaved_changes_prompt = true,
         .undo_available = true,
@@ -338,10 +324,8 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
 {
     ActionConditions conditions{
-        .live_input_audition_available = true,
         .has_project = true,
         .has_loaded_arrangement = true,
-        .audio_device_open = true,
         .has_loaded_plugins = true,
         .has_armed_caret = true,
     };
@@ -394,16 +378,8 @@ TEST_CASE("Marker selection and edits are paused-only", "[core][editor-action]")
 // faulted session, then the calibration prompt, then the action's own conditions in their order.
 TEST_CASE("Unavailable reasons follow the availability stages", "[core][editor-action]")
 {
-    ActionConditions conditions{
-        .has_loaded_arrangement = true,
-        .audio_device_open = true,
-    };
+    ActionConditions conditions{.has_loaded_arrangement = true};
     CHECK(whyUnavailable(ActionId::PlayPause, conditions) == std::nullopt);
-
-    conditions.audio_device_open = false;
-    CHECK(
-        whyUnavailable(ActionId::PlayPause, conditions) ==
-        ActionUnavailableReason::AudioDeviceClosed);
 
     conditions.has_loaded_arrangement = false;
     CHECK(
@@ -434,12 +410,9 @@ TEST_CASE("Stop names Play's reason at every stage", "[core][editor-action]")
 
     CHECK(same_reason(ActionConditions{}));
     CHECK(same_reason(ActionConditions{.has_loaded_arrangement = true}));
-    CHECK(same_reason(ActionConditions{.has_loaded_arrangement = true, .audio_device_open = true}));
     CHECK(same_reason(
         ActionConditions{
-            .input_calibration_prompt_visible = true,
-            .has_loaded_arrangement = true,
-            .audio_device_open = true,
+            .input_calibration_prompt_visible = true, .has_loaded_arrangement = true
         }));
     CHECK(same_reason(ActionConditions{.session_faulted = true, .has_loaded_arrangement = true}));
     CHECK(same_reason(ActionConditions{.busy = true, .has_loaded_arrangement = true}));
@@ -470,9 +443,10 @@ TEST_CASE("Tone Designer refusals name the designer's condition", "[core][editor
 
     CHECK(
         whyUnavailable(ActionId::Undo, conditions) == ActionUnavailableReason::HistoryUnavailable);
+    CHECK(whyUnavailable(ActionId::ScanPluginCatalog, conditions) == std::nullopt);
     CHECK(
-        whyUnavailable(ActionId::ScanPluginCatalog, conditions) ==
-        ActionUnavailableReason::LiveInputAuditionUnavailable);
+        whyUnavailable(ActionId::OpenPlugin, conditions) ==
+        ActionUnavailableReason::NoLoadedPlugins);
 }
 
 // Every action's availability is exactly the absence of a reason.

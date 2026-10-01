@@ -110,7 +110,6 @@ TEST_CASE(
     transport.current_state.playing = true;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
-    audio_devices.current_status = openAudioDeviceStatus();
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;

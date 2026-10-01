@@ -1,3 +1,4 @@
+#include "device/null_audio_device.h"
 #include "live_rig/tone_document.h"
 #include "live_rig/tone_file.h"
 #include "tracktion/tone_branch_gain_plugin.h"
@@ -209,6 +210,8 @@ void installOnlyRejectingAudioDeviceType(juce::AudioDeviceManager& manager)
     }
 
     manager.addAudioDeviceType(std::make_unique<RejectingAudioDeviceType>());
+    // The engine's silent stand-in rides last, as in production.
+    manager.addAudioDeviceType(createNullAudioDeviceType());
 }
 
 // Minimal openable audio device so fallback and replug tests can genuinely open fake hardware.
@@ -416,6 +419,8 @@ private:
     auto fake_type = std::make_unique<FakeAudioDeviceType>(std::move(device_names));
     FakeAudioDeviceType& fake_type_ref = *fake_type;
     manager.addAudioDeviceType(std::move(fake_type));
+    // The engine's silent stand-in rides last, as in production.
+    manager.addAudioDeviceType(createNullAudioDeviceType());
     return fake_type_ref;
 }
 
@@ -905,11 +910,12 @@ TEST_CASE(
     CHECK(saved.value_or(std::string{}).find("Rejected Output") != std::string::npos);
 }
 
-// Unplugging the saved device makes JUCE's audioDeviceListChanged fall back to another device
-// (hard-coded in vendored JUCE); the engine's no-fallback policy must close that substitute while
-// the saved choice survives for the next launch.
+// Unplugging the saved device makes JUCE's audioDeviceListChanged fall back to a default device
+// (hard-coded in vendored JUCE). The engine names the silent device as that default, so the
+// fallback lands on it -- never on another audible device -- while the saved choice survives for
+// the next launch.
 TEST_CASE(
-    "Engine closes JUCE's disconnect fallback and keeps the saved device choice",
+    "Engine falls back to the silent device and keeps the saved device choice",
     "[audio][engine][integration]")
 {
     EngineTestHarness harness;
@@ -926,17 +932,17 @@ TEST_CASE(
     runMessageThreadSteps({
         [&] {
             // Unplug device A. JUCE's own handler runs synchronously inside this call: it closes A
-            // and falls back to device B because selectDefaultDeviceOnFailure is hard-coded true.
+            // and falls back to its preferred default -- the silent device, not device B.
             fake_type.simulateDeviceListChange({g_fake_device_b_name});
-            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_b_name);
+            CHECK(isNullAudioDevice(device_manager.getCurrentAudioDevice()));
             // Deliver the manager's broadcast so the engine schedules its configuration refresh.
             device_manager.dispatchPendingMessages();
         },
         [&] {
-            // The refresh ran between steps: the policy closed the fallback device, and the saved
-            // route still names device A for the next launch. The closed status snapshot reports
-            // the plain disconnect reason so the status text can explain the closure in the same
-            // shape as a failed open.
+            // The refresh ran between steps: the silent device still runs, and the saved route
+            // still names device A for the next launch. The status reads closed hardware with the
+            // plain disconnect reason, in the same shape as a failed open.
+            CHECK(isNullAudioDevice(device_manager.getCurrentAudioDevice()));
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
             CHECK(audio_devices.currentDeviceStatus().unavailable_reason == "Disconnected");
             const std::optional<std::string> saved = audio_devices.serializedDeviceState();
@@ -946,11 +952,10 @@ TEST_CASE(
     });
 }
 
-// A device lost mid-song pauses playback. Tracktion alone would keep the transport flagged playing
-// on a frozen playhead and resume it on the next device start, so the engine pauses in its
-// configuration refresh, through Engine::pause()'s own path: the state and the clock both say
-// stopped. Played on an empty edit, since the fake device's callbacks are not a wave clip's
-// rendering host — the flags are what is under test, not the audio.
+// A device lost mid-song pauses playback, an immediate sign that the hardware went, through
+// Engine::pause()'s own path: the state and the clock both say stopped. Played on an empty edit,
+// since the fake device's callbacks are not a wave clip's rendering host — the flags are what is
+// under test, not the audio.
 TEST_CASE("Engine pauses playback when the open device disconnects", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
@@ -978,6 +983,39 @@ TEST_CASE("Engine pauses playback when the open device disconnects", "[audio][en
     });
 }
 
+// The pause is an edge on the hardware's loss, so it holds however the hardware came back: a second
+// unplug after an explicit reopen pauses again, even though JUCE's own fallback now lands straight
+// on the silent device rather than leaving nothing open.
+TEST_CASE("Engine pauses on every hardware loss", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    FakeAudioDeviceType& fake_type =
+        installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {g_fake_device_a_name});
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+
+    for (int unplug = 0; unplug < 2; ++unplug)
+    {
+        fake_type.simulateDeviceListChange({g_fake_device_a_name});
+        const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+        REQUIRE(restored.has_value());
+        REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+        harness.engine.play();
+        REQUIRE(harness.engine.state().playing);
+
+        runMessageThreadSteps({
+            [&] {
+                fake_type.simulateDeviceListChange({});
+                device_manager.dispatchPendingMessages();
+            },
+            [&] {
+                CHECK(isNullAudioDevice(device_manager.getCurrentAudioDevice()));
+                CHECK_FALSE(harness.engine.state().playing);
+            },
+        });
+    }
+}
+
 // Nothing reopens a device automatically: after a disconnect close, the saved device returning
 // produces no reopen (the automatic path crashed flaky ASIO drivers mid-enumeration and was
 // removed), and the closed status snapshot explains why the route is closed. The only reopen path
@@ -999,7 +1037,7 @@ TEST_CASE(
     juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
     runMessageThreadSteps({
         [&] {
-            // Unplug device A with nothing to fall back to; JUCE closes and stays closed.
+            // Unplug device A with no other device listed; the silent device takes over.
             fake_type.simulateDeviceListChange({});
             device_manager.dispatchPendingMessages();
         },
@@ -2785,26 +2823,27 @@ TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][en
     }
 }
 
-// With no open device nothing can advance the playhead, so play() leaves the transport stopped:
-// Tracktion would otherwise flag it playing on a frozen playhead, and the clock would claim a song
-// that never moves. The device is closed explicitly, since the harness opens the machine's real
-// default device where there is one. The clock's playing flag agrees with the coarse state after
-// every verb.
-TEST_CASE(
-    "Engine play with no open audio device leaves the transport stopped", "[audio][engine][clock]")
+// Without hardware the silent device runs, so playback still advances and the transport plays;
+// only the audio goes nowhere. A saved route whose device is absent leaves the silent device
+// running. Played on an empty edit, since the flags are what is under test, not a wave clip's
+// rendering. The clock's playing flag agrees with the coarse state after every verb.
+TEST_CASE("Engine plays on the silent device without hardware", "[audio][engine][clock]")
 {
     EngineTestHarness harness;
     IAudioDeviceConfiguration& audio_devices = harness.engine;
     (void)installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {});
-    audio_devices.deviceManager().closeAudioDevice();
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::DeviceUnavailable);
+    REQUIRE(isNullAudioDevice(audio_devices.deviceManager().getCurrentAudioDevice()));
     REQUIRE_FALSE(audio_devices.currentDeviceStatus().open);
-    (void)requireLoadedFixtureAudio(harness.engine);
 
     harness.engine.play();
-    REQUIRE_FALSE(harness.engine.state().playing);
-    CHECK_FALSE(harness.engine.snapshot().playing);
+    CHECK(harness.engine.state().playing);
+    CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
 
     harness.engine.pause();
+    CHECK_FALSE(harness.engine.state().playing);
     CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
 
     harness.engine.stop();

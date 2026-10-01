@@ -17,6 +17,11 @@ no-auto-reopen engine policy, the recorded `unavailable_reason`, the single
 `applyAudioSourceAndRoute` path and the bullets after the first stand; the first bullet is
 withdrawn.
 
+**Superseded again 2026-10-01 (user):** a device always runs. Without the hardware the engine runs
+a silent device, so Play, the signal chain and every edit work with the audio going nowhere; Play
+no longer depends on the device, and only live input does. Losing the hardware pauses playback
+once. JUCE's own disconnect fallback lands on the silent device, never on other audible hardware.
+
 - **Any closed-audio-device state raises an editor-wide blocking overlay** (not a JUCE modal): it
   shares the busy overlay's presentation language — a dim layer over the whole editor with a
   centered surface — but is its own standing state, driven directly by

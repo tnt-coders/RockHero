@@ -441,7 +441,8 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
   open — the game runs its menus and library without one, but a session needs a device to play and
   to hear the guitar. A device lost mid-song PAUSES the session (the engine pauses the transport),
   it does not finish it. Plan 26's onboarding owns the repair path; until then the UI logs the
-  refusal.
+  refusal. *2026-10-01:* the engine always runs a device — a silent one without hardware — but
+  `AudioDeviceStatus::open` still means the user's hardware, so this rule stands unchanged.
 - `Loading`: extract the `.rock` via `readRockSongPackage` into a **per-session scratch
   workspace under per-user app data** (never next to the package; deleted on session close),
   select the arrangement, run `ISongAudio::prepareSong` + `setActiveArrangement`. The package

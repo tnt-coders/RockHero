@@ -1,5 +1,9 @@
+#include "device/null_audio_device.h"
+#include "shared/device_state_xml.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <expected>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <memory>
 #include <optional>
@@ -342,7 +346,41 @@ MockAudioDeviceType& addMockAudioType(
         std::move(driver_init_failing_outputs));
     auto& result = *device_type;
     manager.addAudioDeviceType(std::move(device_type));
+
+    // The engine's silent stand-in stays the LAST type, as in production, so hardware is always
+    // the manager's first choice.
+    for (juce::AudioIODeviceType* const type : manager.getAvailableDeviceTypes())
+    {
+        if (isNullAudioDeviceType(*type))
+        {
+            manager.removeAudioDeviceType(type);
+            break;
+        }
+    }
+    manager.addAudioDeviceType(createNullAudioDeviceType());
     return result;
+}
+
+// Makes the fake port's restore do to the device manager what the engine's does: apply the route
+// without fallback, record the backend's reason, and leave the silent device running when the
+// hardware stayed closed.
+void restoreLikeTheEngine(testing::ConfigurableAudioDeviceConfiguration& audio_devices)
+{
+    audio_devices.restore_route = [&audio_devices](const std::string& serialized_state)
+        -> std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> {
+        const std::unique_ptr<juce::XmlElement> route =
+            juce::parseXML(juce::String{serialized_state});
+        REQUIRE(route != nullptr);
+        juce::AudioDeviceManager& manager = audio_devices.device_manager;
+        const juce::String error = openRouteWithoutFallback(manager, *route);
+        audio_devices.current_status.unavailable_reason = error.toStdString();
+        if (!hardwareDeviceOpen(manager))
+        {
+            openNullAudioDevice(manager);
+        }
+        return error.isEmpty() ? DeviceRestoreOutcome::Opened
+                               : DeviceRestoreOutcome::DeviceUnavailable;
+    };
 }
 
 void openInitialRoute(
@@ -363,6 +401,7 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     addMockAudioType(audio_devices.device_manager, "DirectSound");
     addMockAudioType(audio_devices.device_manager, "WaveOut");
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
@@ -385,14 +424,15 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
 }
 
 // Initial state derives route, channel, sample-rate, and buffer-size IDs from the active backend
-// and immediately closes the audio device so the user can edit hardware settings without holding
-// it.
+// and immediately hands the engine to the silent device so the user can edit hardware settings
+// without holding it.
 TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    REQUIRE(hardwareDeviceOpen(audio_devices.device_manager));
 
     const AudioDeviceSettings settings{audio_devices};
     const AudioDeviceSettingsState state = settings.state();
@@ -409,7 +449,7 @@ TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-d
     CHECK(state.stereo_output_pairs[1].label == "Output 3 + Output 4");
     CHECK(state.selected_sample_rate_id == 2);
     CHECK(state.selected_buffer_size_id == 1);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // Selection changes update staged state only; the active device manager changes on apply().
@@ -417,14 +457,15 @@ TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-sett
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
-    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     AudioDeviceSettings settings{audio_devices};
+    const auto staging_setup = audio_devices.device_manager.getAudioDeviceSetup();
     settings.selectOutputDevice(2);
 
     CHECK(settings.state().selected_output_device_id == 2);
-    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == staging_setup);
 }
 
 // OK/apply commits the staged route through the public settings service. The device should be
@@ -433,6 +474,7 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
     AudioDeviceSettings settings{audio_devices};
@@ -443,7 +485,7 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
     CHECK(result.has_value());
     CHECK(applied_setup.inputDeviceName == g_input_a);
     CHECK(applied_setup.outputDeviceName == g_output_b);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // Switching audio systems should avoid JUCE's fixed 1.5 second type-switch sleep.
@@ -451,6 +493,7 @@ TEST_CASE("AudioDeviceSettings avoids JUCE type-switch delay", "[audio][audio-de
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
@@ -476,6 +519,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
     AudioDeviceSettings settings{audio_devices};
@@ -494,6 +538,7 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     const AudioDeviceSettings settings{audio_devices};
@@ -505,11 +550,15 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     CHECK(audio_type.scanCallCount() == initial_scan_count + 1);
 }
 
-// Apply failures return a typed error and leave the backend closed.
-TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-device-settings]")
+// An apply failure returns a typed error and leaves the hardware closed with the window open; the
+// failed route was recorded as the choice, so cancel puts the pre-edit route back and reopens it.
+TEST_CASE(
+    "AudioDeviceSettings failed apply leaves cancel restoring the previous route",
+    "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
     AudioDeviceSettings settings{audio_devices};
@@ -520,11 +569,14 @@ TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-devic
     CHECK(result.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
     CHECK(result.error().message == g_open_output_b_error);
     CHECK(settings.state().error_message == g_open_output_b_error);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 
     REQUIRE(settings.cancel().has_value());
 
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
+    CHECK(
+        audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
+        juce::String{g_output_a});
 }
 
 // Cancel reopens the device that was open when settings construction began, regardless of staged
@@ -533,36 +585,38 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     settings.selectOutputDevice(2);
 
     REQUIRE(settings.cancel().has_value());
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
-// Cancel leaves audio closed when the settings edit was opened from an already-closed route.
+// Cancel leaves the hardware closed when the settings edit was opened without it running.
 TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     audio_devices.device_manager.closeAudioDevice();
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     settings.selectOutputDevice(2);
 
     REQUIRE(settings.cancel().has_value());
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // Destruction without an explicit cancel restores the device that was open at construction.
@@ -571,25 +625,27 @@ TEST_CASE("AudioDeviceSettings restores device on destruction", "[audio][audio-d
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     {
         AudioDeviceSettings settings{audio_devices};
         settings.selectOutputDevice(2);
-        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+        REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     }
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
-// Destruction also leaves audio closed when there was no open route to restore.
+// Destruction also leaves the hardware closed when there was no open route to restore.
 TEST_CASE(
     "AudioDeviceSettings destruction preserves closed route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     audio_devices.device_manager.closeAudioDevice();
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
@@ -597,11 +653,11 @@ TEST_CASE(
     {
         AudioDeviceSettings settings{audio_devices};
         settings.selectOutputDevice(2);
-        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+        REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     }
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // A closed preview device with no selected sample rate still defaults through the public state.
@@ -609,6 +665,7 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     const AudioDeviceSettings settings{audio_devices};
@@ -628,6 +685,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     const auto& audio_type = addMockAudioType(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, true, false);
 
@@ -650,6 +708,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     const auto& audio_type = addMockAudioType(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, false);
 
@@ -675,6 +734,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     const auto& audio_type = addMockAudioType(
         audio_devices.device_manager,
         g_asio_type_name,
@@ -708,6 +768,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     addMockAudioType(
         audio_devices.device_manager,
         g_asio_type_name,
@@ -726,7 +787,7 @@ TEST_CASE(
     // (staged_device_error) already explains the condition, so no operation error is raised.
     CHECK(applied.has_value());
     CHECK(settings.state().error_message.empty());
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // OK onto a device whose driver cannot initialize re-applies THAT route through the port's
@@ -741,6 +802,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     addMockAudioType(
         audio_devices.device_manager,
         g_asio_type_name,
@@ -758,7 +820,7 @@ TEST_CASE(
     const auto applied = settings.apply();
 
     REQUIRE(applied.has_value());
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     // The staged route -- not the pre-edit one -- went through the port's restore.
     CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
     const std::string restored_blob =
@@ -776,6 +838,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     auto& audio_type = addMockAudioType(
         audio_devices.device_manager,
         g_asio_type_name,
@@ -800,29 +863,30 @@ TEST_CASE(
     CHECK(settings.state().error_message.empty());
 }
 
-// commit() finishes the edit on whichever route is live at commit time. When nothing opened a
-// device while the window was open, that is the captured pre-edit route construction closed for
+// commit() finishes the edit on whichever route is live at commit time. When no hardware opened
+// while the window was open, that is the captured pre-edit route construction released for
 // staging, so commit reopens it: a plain OK on an untouched window must never leave audio dead.
 TEST_CASE("AudioDeviceSettings commit reopens the captured route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     {
         AudioDeviceSettings settings{audio_devices};
-        // Construction closes the active device for editing.
-        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+        // Construction releases the hardware for editing.
+        REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 
         const auto committed = settings.commit();
         REQUIRE(committed.has_value());
-        CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+        CHECK(hardwareDeviceOpen(audio_devices.device_manager));
         CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
     }
 
     // The reopen belongs to commit(); destruction must not run a second restore or close.
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
 }
 
 // commit() keeps a route opened out of band during the edit -- the editor's live "use game audio
@@ -833,19 +897,23 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 
     juce::AudioDeviceManager::AudioDeviceSetup adopted = initialRouteSetup();
     adopted.inputDeviceName = g_input_b;
     adopted.outputDeviceName = g_output_b;
-    REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(adopted, true).isEmpty());
+    const auto adopted_opened = audio_devices.restoreSerializedDeviceState(
+        serializeDeviceSetupToXml(g_asio_type_name, adopted)->toString().toStdString());
+    REQUIRE(adopted_opened.has_value());
+    REQUIRE(*adopted_opened == DeviceRestoreOutcome::Opened);
 
     const auto committed = settings.commit();
     REQUIRE(committed.has_value());
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
     CHECK(
         audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
         juce::String{g_output_b});
@@ -861,6 +929,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     MockAudioDeviceType& audio_type =
         addMockAudioType(audio_devices.device_manager, g_asio_type_name);
     REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
@@ -872,7 +941,7 @@ TEST_CASE(
     REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
 
     audio_type.setDeviceNames(
         {g_input_a, g_input_b, "Input Z"}, {g_output_a, g_output_b, "Output Z"});
@@ -881,7 +950,7 @@ TEST_CASE(
 
     const auto committed = settings.commit();
     REQUIRE(committed.has_value());
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(hardwareDeviceOpen(audio_devices.device_manager));
     CHECK(
         audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
         juce::String{"Output Z"});
@@ -896,6 +965,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
     juce::XmlElement saved{"DEVICESETUP"};
@@ -908,7 +978,7 @@ TEST_CASE(
 
     const auto committed = settings.commit();
     REQUIRE(committed.has_value());
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     CHECK(settings.state().staged_device_error.has_value());
 }
 
@@ -924,6 +994,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
     // Restore a saved route whose device is not attached, exactly as startup does: the open fails
@@ -934,7 +1005,7 @@ TEST_CASE(
     saved.setAttribute("audioOutputDeviceName", "Output Z");
     const juce::String restore_error = audio_devices.device_manager.initialise(1, 2, &saved, false);
     REQUIRE(restore_error.isNotEmpty());
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
     REQUIRE(audio_devices.device_manager.getAudioDeviceSetup().inputDeviceName.isEmpty());
 
     const AudioDeviceSettings settings{audio_devices};
@@ -959,6 +1030,7 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     MockAudioDeviceType& audio_type =
         addMockAudioType(audio_devices.device_manager, g_asio_type_name);
     REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
@@ -990,6 +1062,7 @@ TEST_CASE("AudioDeviceSettings resets format on system change", "[audio][audio-d
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
@@ -1012,6 +1085,7 @@ TEST_CASE("AudioDeviceSettings forwards backend refresh", "[audio][audio-device-
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    restoreLikeTheEngine(audio_devices);
     openInitialRoute(audio_devices);
 
     AudioDeviceSettings settings{audio_devices};

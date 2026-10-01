@@ -463,7 +463,12 @@ Each executable runs its own set of threads. The threading rules are identical i
 **Audio thread** (Tracktion Engine / JUCE): Highest priority. Runs the ASIO callback, processes the
 VST plugin chain, plays back the backing track, evaluates automation curves. Copies raw guitar input
 samples (pre-effects) into a lock-free ring buffer for the analysis thread. Never touches UI, never
-allocates memory, never blocks.
+allocates memory, never blocks. Without the user's audio hardware the engine runs a silent device
+instead (`rock-hero-common/audio/src/device/null_audio_device.h`): its own realtime thread takes
+this role, paces blocks to wall-clock time and renders into a buffer nobody hears, so playback,
+plugins and automation run exactly as on hardware. It has no inputs, so live input stays off. A
+device therefore always runs; losing the hardware pauses playback once, and the user reopens it
+explicitly.
 
 **Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer.
 Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86

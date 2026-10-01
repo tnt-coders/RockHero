@@ -1380,9 +1380,9 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"amp"});
 }
 
-// While no chain verb is available — live input cannot be auditioned, so nothing done to the
-// chain could be heard — the chain still SHOWS: hiding it read as a lost tone. Its tiles stay,
-// dimmed as one layer, and a click opens nothing; the reason is centred over the chain.
+// While no chain verb is available — the calibration prompt owns the chain, say — the chain still
+// SHOWS: hiding it read as a lost tone. Its tiles stay, dimmed as one layer, and a click opens
+// nothing.
 TEST_CASE(
     "Signal-chain shows its tiles inert while no chain verb is available", "[ui][editor-view]")
 {
