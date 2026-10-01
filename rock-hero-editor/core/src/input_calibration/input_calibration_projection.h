@@ -48,11 +48,12 @@ showing a route's calibration while no project is open or the settings window is
 /*!
 \brief Builds the editor calibration projection from the monitor and the editor's own windows.
 \param monitor Shared live-input monitoring service driven by the controller.
-\param prompt_open True while the calibration prompt is open.
+\param prompt_route The route the calibration prompt is open for, or empty while it is closed.
 \param settings_open True while the audio-device settings window stages a route.
 \return Projection consumed by the signal-chain panel and action-condition gate.
 */
 [[nodiscard]] InputCalibrationProjection makeInputCalibrationProjection(
-    const common::audio::LiveInputMonitor& monitor, bool prompt_open, bool settings_open);
+    const common::audio::LiveInputMonitor& monitor,
+    const std::optional<common::audio::InputDeviceIdentity>& prompt_route, bool settings_open);
 
 } // namespace rock_hero::editor::core

@@ -342,7 +342,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     {
         clearInterruptedRestoreMarker();
     }
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
 
     // Marks a completed load so the view can recenter on the restored cursor; the transport has
     // already been seeked above, so the state pushed by finishBusyOperation() carries both.
@@ -499,7 +499,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_audio_ready = true;
     resetUndoHistory("undo.reset.import_project");
     markUndoHistoryClean("undo.mark_clean.import_project");
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
 
     // Imports have no persisted editor cursor, so establish an explicit start position before the
     // view observes the new project load id and recenters the timeline.
@@ -601,7 +601,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // instead of the backend default. A future tempo-editing flow must re-mirror
                 // after every tempo-map change alongside rebuildDerivedToneCurves().
                 m_song_audio.mirrorTempoMap(session().song().tempo_map);
-                m_live_input_monitor.refresh(monitoringContext());
+                refreshLiveInput();
                 if (!report_progress)
                 {
                     captured_stage.finish({});

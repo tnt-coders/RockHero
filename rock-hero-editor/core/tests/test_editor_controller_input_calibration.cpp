@@ -128,10 +128,9 @@ TEST_CASE("Input calibration is available without a loaded project", "[core][edi
     CHECK(prompt_state->input_calibration_prompt.has_value());
 }
 
-// Verifies that missing calibration disables the signal chain until calibration is requested.
-TEST_CASE(
-    "Missing input calibration disables live input until manually requested",
-    "[core][editor-controller]")
+// An uncalibrated route is offered calibration by itself, once: the prompt opens at startup and
+// pauses playback, "Later" keeps it closed for that route, and the user can still ask for it.
+TEST_CASE("Missing input calibration offers the prompt once per route", "[core][editor-controller]")
 {
     FakeTransport transport;
     transport.current_state.playing = true;
@@ -154,39 +153,94 @@ TEST_CASE(
     };
     controller.attachView(view);
 
-    const auto* const initial_state = stateOrNull(view.last_state);
-    REQUIRE(initial_state != nullptr);
-    CHECK(transport.pause_call_count == 0);
-    CHECK_FALSE(initial_state->input_calibration_prompt.has_value());
-    CHECK(initial_state->audio_device_settings_enabled);
+    const auto* const offered_state = stateOrNull(view.last_state);
+    REQUIRE(offered_state != nullptr);
+    CHECK(offered_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(offered_state->audio_device_settings_enabled);
+    CHECK(transport.pause_call_count == 1);
 
+    controller.onInputCalibrationDismissed();
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
+    // Later holds across the project load: the same route is not offered again.
     const auto* const gated_state = stateOrNull(view.last_state);
     REQUIRE(gated_state != nullptr);
+    CHECK_FALSE(gated_state->input_calibration_prompt.has_value());
     CHECK(gated_state->transport.unavailable_reason == std::nullopt);
+    CHECK(gated_state->audio_device_settings_enabled);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(
-        gated_state->signal_chain.input_calibration_status ==
-        InputCalibrationStatus::MissingCalibration);
     CHECK(gated_state->signal_chain.disabled_message == "Input calibration required.");
 
     controller.onInputCalibrationRequested();
-    CHECK(transport.pause_call_count == 1);
+    CHECK(transport.pause_call_count == 2);
     const auto* const prompt_state = stateOrNull(view.last_state);
     REQUIRE(prompt_state != nullptr);
     CHECK(prompt_state->input_calibration_prompt.has_value());
-    CHECK_FALSE(prompt_state->audio_device_settings_enabled);
+}
 
+// A route change offers the new route calibration even after "Later" on the old one.
+TEST_CASE("Missing input calibration offers a new route again", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+    };
+    controller.attachView(view);
     controller.onInputCalibrationDismissed();
 
-    const auto* const dismissed_state = stateOrNull(view.last_state);
-    REQUIRE(dismissed_state != nullptr);
-    CHECK_FALSE(dismissed_state->input_calibration_prompt.has_value());
-    CHECK(dismissed_state->transport.unavailable_reason == std::nullopt);
-    CHECK(dismissed_state->audio_device_settings_enabled);
-    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    audio_devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
+    audio_devices.notifyChanged();
+
+    const auto* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->input_calibration_prompt.has_value());
+    if (state->input_calibration_prompt.has_value())
+    {
+        CHECK(
+            state->input_calibration_prompt->route ==
+            makeInputDeviceIdentity("ASIO", "Interface B"));
+    }
+}
+
+// A calibrated route is never offered.
+TEST_CASE("Calibrated input route is not offered calibration", "[core][editor-controller]")
+{
+    common::audio::testing::InMemoryAudioConfigStore store;
+    requireSaveInputCalibration(
+        store,
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{3.1},
+            .input_device_identity = makeInputDeviceIdentity(),
+        });
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+    };
+    controller.attachView(view);
+
+    const auto* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->input_calibration_prompt.has_value());
 }
 
 // Verifies that a successful calibration is stored in app-local settings and enables live input.
@@ -839,7 +893,8 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
         CHECK_FALSE(inputCalibrationFor(store, *audio_devices.current_input_identity).has_value());
     }
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    // The new, uncalibrated route is offered calibration.
+    CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
@@ -1088,7 +1143,12 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    // The old route's prompt closed; the new, uncalibrated route is offered its own.
+    REQUIRE(final_state->input_calibration_prompt.has_value());
+    if (final_state->input_calibration_prompt.has_value())
+    {
+        CHECK(final_state->input_calibration_prompt->route == audio_devices.current_input_identity);
+    }
     REQUIRE(audio_devices.current_input_identity.has_value());
     if (audio_devices.current_input_identity.has_value())
     {
@@ -1445,6 +1505,7 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
         }
     };
     controller.attachView(view);
+    controller.onInputCalibrationDismissed();
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     CHECK(
@@ -1456,9 +1517,10 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
 
     // Begin the arc; the trace is captured from the prompt-open request onward.
     live_input.calls.clear();
+    const int pauses_before = transport.pause_call_count;
 
     controller.onInputCalibrationRequested();
-    CHECK(transport.pause_call_count == 1);
+    CHECK(transport.pause_call_count == pauses_before + 1);
     CHECK(
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::MissingCalibration,
@@ -2004,7 +2066,7 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
         settledCalibrationState(view) == SettledCalibrationState{
                                              .status = InputCalibrationStatus::MissingCalibration,
                                              .disabled_message = "Input calibration required.",
-                                             .prompt_present = false,
+                                             .prompt_present = true,
                                          });
 }
 
@@ -2060,6 +2122,39 @@ TEST_CASE("Live input gate disables while settings open", "[core][editor-control
                                              .disabled_message = {},
                                              .prompt_present = false,
                                          });
+}
+
+// The settings window holds the route, so a route it stages is not offered calibration until the
+// window closes; closing on an uncalibrated route then offers it.
+TEST_CASE(
+    "Settings window holds the calibration offer until it closes", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+    };
+    controller.attachView(view);
+    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    audio_devices.notifyChanged();
+    const auto* const staging_state = stateOrNull(view.last_state);
+    REQUIRE(staging_state != nullptr);
+    CHECK_FALSE(staging_state->input_calibration_prompt.has_value());
+
+    controller.onAudioDeviceSettingsClosed();
+    const auto* const closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK(closed_state->input_calibration_prompt.has_value());
 }
 
 } // namespace rock_hero::editor::core

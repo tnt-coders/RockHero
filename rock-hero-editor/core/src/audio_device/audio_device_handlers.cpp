@@ -35,11 +35,7 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
 // mid-session disconnect included: the status text and Play's availability follow the device.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
-    m_live_input_monitor.refresh(monitoringContext());
-    if (m_live_input_monitor.route() != m_calibration_prompt_route)
-    {
-        m_calibration_prompt_route.reset();
-    }
+    refreshLiveInput();
     updateView();
 }
 
@@ -58,7 +54,7 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
     }
 
     m_audio_device_settings_open = true;
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
     updateView();
     return true;
 }
@@ -67,7 +63,7 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 void EditorController::Impl::onAudioDeviceSettingsClosed()
 {
     m_audio_device_settings_open = false;
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
     updateView();
 }
 

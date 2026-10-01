@@ -152,7 +152,7 @@ public:
         addAndMakeVisible(m_calibrate_button);
 
         m_cancel_button.setComponentID("input_calibration_cancel_button");
-        m_cancel_button.setButtonText("Dismiss");
+        m_cancel_button.setButtonText("Later");
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 

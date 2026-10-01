@@ -721,8 +721,11 @@ private:
     // Optional top-level plugin browser window.
     std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
 
-    // Optional top-level input calibration window.
+    // Optional top-level input calibration window, and the prompt it was opened for: a popup
+    // seeds its gain once, so a prompt for another route needs a fresh window.
     std::unique_ptr<InputCalibrationWindow> m_input_calibration_window;
+    std::optional<core::InputCalibrationPrompt> m_presented_input_calibration_prompt;
+    bool m_input_calibration_window_reset_pending{false};
 
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;

@@ -80,7 +80,7 @@ TEST_CASE(
     const Harness harness{5.0};
 
     const InputCalibrationProjection projection =
-        makeInputCalibrationProjection(harness.monitor, false, false);
+        makeInputCalibrationProjection(harness.monitor, std::nullopt, false);
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK(projection.calibrate_enabled);
@@ -98,38 +98,37 @@ TEST_CASE(
     const Harness harness{5.0};
 
     const InputCalibrationProjection projection =
-        makeInputCalibrationProjection(harness.monitor, false, true);
+        makeInputCalibrationProjection(harness.monitor, std::nullopt, true);
 
     CHECK(projection.status == InputCalibrationStatus::Calibrated);
     CHECK_FALSE(projection.audio_device_settings_enabled);
     CHECK_FALSE(projection.calibrate_enabled);
 }
 
-// An open prompt starts from the route's stored gain, else the neutral default.
+// An open prompt names its route and carries the route's stored gain, absent while uncalibrated.
 TEST_CASE(
     "Input calibration projection projects the prompt with the stored gain",
     "[core][input-calibration]")
 {
     const Harness uncalibrated{std::nullopt};
     const InputCalibrationProjection fresh =
-        makeInputCalibrationProjection(uncalibrated.monitor, true, false);
+        makeInputCalibrationProjection(uncalibrated.monitor, uncalibrated.route, false);
     REQUIRE(fresh.prompt.has_value());
     if (fresh.prompt.has_value())
     {
-        CHECK_THAT(
-            fresh.prompt->input_gain_db,
-            Catch::Matchers::WithinULP(common::audio::defaultGainDb(), 0));
+        CHECK(fresh.prompt->route == uncalibrated.route);
+        CHECK_FALSE(fresh.prompt->stored_gain_db.has_value());
     }
     CHECK(fresh.status == InputCalibrationStatus::MissingCalibration);
     CHECK_FALSE(fresh.audio_device_settings_enabled);
 
     const Harness calibrated{3.1};
     const InputCalibrationProjection stored =
-        makeInputCalibrationProjection(calibrated.monitor, true, false);
+        makeInputCalibrationProjection(calibrated.monitor, calibrated.route, false);
     REQUIRE(stored.prompt.has_value());
     if (stored.prompt.has_value())
     {
-        CHECK_THAT(stored.prompt->input_gain_db, Catch::Matchers::WithinULP(3.1, 0));
+        CHECK(stored.prompt->stored_gain_db == std::optional{3.1});
     }
 }
 

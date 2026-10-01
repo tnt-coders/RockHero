@@ -3,6 +3,11 @@
 Input calibration sets the pre-effects guitar input gain used by Rock Hero. The calibration target
 is **-12 dBFS average** with peaks no higher than **-6 dBFS**.
 
+Live input stays off until the selected input is calibrated, so every player hears their guitar at
+the same level. The editor opens input calibration by itself the first time it sees an input
+without a calibration. **Later** closes it for that input until the input changes or the editor
+restarts; the Calibrate button under the input meter opens it again at any time.
+
 # Recommended Method
 
 Use manual calibration when the exact specifications for the device are known. Set the input gain

@@ -80,7 +80,7 @@ void EditorController::Impl::enterToneDesignerIfNoProject(std::string_view conte
                 m_output_gain_db = result->output_gain.db;
                 m_output_gain_preview_before.reset();
             }));
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
     updateView();
 }
 

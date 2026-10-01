@@ -1313,7 +1313,7 @@ EditorController::Impl::Impl(
     // and refreshes the live-input monitor; a saved device that cannot open leaves the silent
     // device running, which the status text reports.
     restoreAudioDeviceState();
-    m_live_input_monitor.refresh(monitoringContext());
+    refreshLiveInput();
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
         m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);

@@ -41,6 +41,12 @@ namespace
            "\"Apply\".";
 }
 
+// Status text for an uncalibrated route's prompt, which says what stays off until it is calibrated.
+[[nodiscard]] std::string inputCalibrationUncalibratedText()
+{
+    return "Live input stays off until this input is calibrated.";
+}
+
 // Status text shown while the capture is waiting for the first usable signal.
 [[nodiscard]] std::string inputCalibrationWaitingText()
 {
@@ -93,11 +99,12 @@ namespace
 InputCalibrationController::InputCalibrationController(
     Host& host, const InputCalibrationPrompt& prompt)
     : m_host(host)
+    , m_committed_input_gain_db(prompt.stored_gain_db)
 {
-    const double initial_gain_db = canonicalInputGainDb(prompt.input_gain_db);
-    m_state.status_message = inputCalibrationReadyText();
-    m_committed_input_gain_db = initial_gain_db;
-    setDisplayedInputGain(initial_gain_db);
+    m_state.status_message = m_committed_input_gain_db.has_value()
+                                 ? inputCalibrationReadyText()
+                                 : inputCalibrationUncalibratedText();
+    setDisplayedInputGain(m_committed_input_gain_db.value_or(common::audio::defaultGainDb()));
 }
 
 // Attaches a view after construction or replacement and synchronizes it immediately.
@@ -146,7 +153,6 @@ void InputCalibrationController::onManualApplyRequested()
 
     m_state.status_message = inputManualCalibrationCompleteText(m_state.input_gain_db);
     m_committed_input_gain_db = m_state.input_gain_db;
-    m_state.dismiss_button_text = "Close";
     publishState();
 }
 
@@ -168,7 +174,6 @@ void InputCalibrationController::onMeasurementStartRequested()
 
     setDisplayedInputGain(common::audio::defaultGainDb());
     m_state.measuring = true;
-    m_state.dismiss_button_text = "Dismiss";
     m_state.status_message = inputCalibrationWaitingText();
     publishState();
 }
@@ -231,23 +236,23 @@ void InputCalibrationController::finishMeasurementSuccess(double gain_db)
     m_state.status_message = inputCalibrationCompleteText(m_state.input_gain_db);
     m_committed_input_gain_db = m_state.input_gain_db;
     m_state.measuring = false;
-    m_state.dismiss_button_text = "Close";
     publishState();
 }
 
 // Returns the popup to the last committed gain; the monitor already handed the route back.
 void InputCalibrationController::finishMeasurementError(std::string message)
 {
-    setDisplayedInputGain(m_committed_input_gain_db);
+    setDisplayedInputGain(m_committed_input_gain_db.value_or(common::audio::defaultGainDb()));
     m_state.status_message = std::move(message);
     m_state.measuring = false;
-    m_state.dismiss_button_text = "Dismiss";
     publishState();
 }
 
-// Pushes the cached state to the attached view if one is present.
+// Pushes the cached state to the attached view if one is present. The dismissal words follow the
+// committed gain alone: an uncalibrated input is put off until later, a calibrated one closed.
 void InputCalibrationController::publishState()
 {
+    m_state.dismiss_button_text = m_committed_input_gain_db.has_value() ? "Close" : "Later";
     if (m_view != nullptr)
     {
         m_view->setState(m_state);

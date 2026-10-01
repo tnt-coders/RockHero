@@ -1,6 +1,7 @@
 #include "input_calibration/input_calibration_window.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -17,7 +18,8 @@ using testing::findRequiredDescendant;
 [[nodiscard]] core::InputCalibrationPrompt calibrationPrompt()
 {
     return core::InputCalibrationPrompt{
-        .input_gain_db = -6.0,
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = -6.0,
     };
 }
 

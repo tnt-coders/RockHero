@@ -3062,14 +3062,26 @@ void EditorView::presentGridSnapWarningIfNeeded(bool prompt_requested)
         });
 }
 
-// Opens or closes the input calibration prompt from controller-derived state.
+// Opens, keeps, or replaces the input calibration window from controller-derived state. A prompt
+// for another route, or none, retires the open window; the replacement is presented from the state
+// current once the old window is gone.
 void EditorView::presentInputCalibrationPromptIfNeeded(
     const std::optional<core::InputCalibrationPrompt>& prompt)
 {
-    if (!prompt.has_value())
+    if (m_input_calibration_window != nullptr)
     {
-        if (m_input_calibration_window != nullptr)
+        if (prompt == m_presented_input_calibration_prompt)
         {
+            if (prompt.has_value() && !m_input_calibration_window_reset_pending)
+            {
+                m_input_calibration_window->toFront(true);
+            }
+            return;
+        }
+
+        if (!m_input_calibration_window_reset_pending)
+        {
+            m_input_calibration_window_reset_pending = true;
             m_input_calibration_window->setVisible(false);
 
             const juce::Component::SafePointer<EditorView> safe_this{this};
@@ -3077,21 +3089,25 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
                 EditorView* const view = safe_this.getComponent();
                 // The calibration window can request this from its own timer or close callback.
                 // Hide now, but defer destruction until that event stack has unwound.
-                if (view != nullptr && !view->m_state.input_calibration_prompt.has_value())
+                if (view == nullptr)
                 {
-                    view->m_input_calibration_window.reset();
+                    return;
                 }
+                view->m_input_calibration_window_reset_pending = false;
+                view->m_input_calibration_window.reset();
+                view->m_presented_input_calibration_prompt.reset();
+                view->presentInputCalibrationPromptIfNeeded(view->m_state.input_calibration_prompt);
             });
         }
         return;
     }
 
-    if (m_input_calibration_window != nullptr)
+    if (!prompt.has_value())
     {
-        m_input_calibration_window->toFront(true);
         return;
     }
 
+    m_presented_input_calibration_prompt = prompt;
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
         m_controller, *prompt, isShowing() ? this : nullptr);
 }

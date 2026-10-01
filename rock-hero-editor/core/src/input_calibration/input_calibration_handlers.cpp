@@ -24,21 +24,49 @@ common::audio::LiveInputMonitoringContext EditorController::Impl::monitoringCont
 InputCalibrationProjection EditorController::Impl::inputCalibrationProjection() const
 {
     return makeInputCalibrationProjection(
-        m_live_input_monitor, m_calibration_prompt_route.has_value(), m_audio_device_settings_open);
+        m_live_input_monitor, m_calibration_prompt_route, m_audio_device_settings_open);
 }
 
-// Opens the calibration prompt for the current route on explicit user request. The gate re-reads
-// the store first, so the prompt opens on a gain the other product may have saved since.
-void EditorController::Impl::onInputCalibrationRequested()
+// The one live-input edge: re-runs the gate, closes a prompt whose route is gone, and offers
+// calibration once per uncalibrated route. Every refresh that can change the route or its
+// calibration goes through here.
+void EditorController::Impl::refreshLiveInput()
 {
     m_live_input_monitor.refresh(monitoringContext());
+    const std::optional<common::audio::InputDeviceIdentity>& route = m_live_input_monitor.route();
+    if (m_calibration_prompt_route != route)
+    {
+        m_calibration_prompt_route.reset();
+    }
+
+    const InputCalibrationProjection projection = inputCalibrationProjection();
+    if (projection.status == InputCalibrationStatus::MissingCalibration &&
+        projection.calibrate_enabled && m_calibration_offered_route != route)
+    {
+        m_calibration_offered_route = route;
+        openCalibrationPrompt();
+    }
+}
+
+// Opens the calibration prompt for the current route, pausing playback under it.
+void EditorController::Impl::openCalibrationPrompt()
+{
+    m_calibration_prompt_route = m_live_input_monitor.route();
+    if (m_transport.state().playing)
+    {
+        m_transport.pause();
+    }
+}
+
+// Opens the calibration prompt for the current route on explicit user request, after a
+// "Later" too. The gate re-reads the store first, so the prompt opens on a gain the other
+// product may have saved since.
+void EditorController::Impl::onInputCalibrationRequested()
+{
+    refreshLiveInput();
     if (inputCalibrationProjection().calibrate_enabled)
     {
-        m_calibration_prompt_route = m_live_input_monitor.route();
-        if (m_transport.state().playing)
-        {
-            m_transport.pause();
-        }
+        openCalibrationPrompt();
     }
     updateView();
 }

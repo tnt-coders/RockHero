@@ -886,6 +886,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // samples the current input route identity itself.
     [[nodiscard]] common::audio::LiveInputMonitoringContext monitoringContext() const;
     [[nodiscard]] InputCalibrationProjection inputCalibrationProjection() const;
+    void refreshLiveInput();
+    void openCalibrationPrompt();
     void clearActiveArrangementBestEffort(std::string_view context);
     void updateView();
     void reportError(const std::string& message);
@@ -1888,6 +1890,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The input route the calibration prompt is open for; empty while it is closed. The prompt
     // closes when the route changes under it, since the gain it shows belongs to that route.
     std::optional<common::audio::InputDeviceIdentity> m_calibration_prompt_route{};
+
+    // The uncalibrated route this run already offered calibration for. It is the whole of
+    // "Later": a dismissed prompt stays closed for its route until the route changes or the
+    // editor restarts.
+    std::optional<common::audio::InputDeviceIdentity> m_calibration_offered_route{};
 
     // True while the audio-device settings window stages a route. It holds the route, so the
     // live-input gate stays off until the window closes.

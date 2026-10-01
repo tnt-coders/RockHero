@@ -3,6 +3,7 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_sample.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <string>
 #include <utility>
@@ -75,7 +76,8 @@ public:
 [[nodiscard]] InputCalibrationPrompt prompt(double input_gain_db = 2.0)
 {
     return InputCalibrationPrompt{
-        .input_gain_db = input_gain_db,
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = input_gain_db,
     };
 }
 
@@ -98,6 +100,28 @@ public:
 }
 
 } // namespace
+
+// An uncalibrated route's prompt says what is off and starts from the neutral gain; a calibrated
+// one starts from its stored gain.
+TEST_CASE(
+    "Input calibration controller words the prompt for its route", "[core][input-calibration]")
+{
+    RecordingInputCalibrationHost host;
+    RecordingInputCalibrationView view;
+    InputCalibrationController uncalibrated{
+        host,
+        InputCalibrationPrompt{
+            .route = common::audio::testing::makeInputDeviceIdentity(),
+            .stored_gain_db = std::nullopt,
+        },
+    };
+    uncalibrated.attachView(view);
+
+    CHECK(
+        view.lastState().status_message == "Live input stays off until this input is calibrated.");
+    CHECK(view.lastState().input_gain_db == Catch::Approx(common::audio::defaultGainDb()));
+    CHECK(view.lastState().dismiss_button_text == "Later");
+}
 
 // Manual calibration is committed through the narrow host contract.
 TEST_CASE("Input calibration controller applies manual gain", "[core][input-calibration]")
@@ -171,7 +195,7 @@ TEST_CASE("Input calibration controller reports a failed measurement", "[core][i
     CHECK(view.lastState().input_gain_db == Catch::Approx(2.0));
     CHECK(view.lastState().status_message == "No usable input signal.");
     CHECK_FALSE(view.lastState().measuring);
-    CHECK(view.lastState().dismiss_button_text == "Dismiss");
+    CHECK(view.lastState().dismiss_button_text == "Close");
 }
 
 // Without a measurement the tick only shows the raw input through the previewed gain.

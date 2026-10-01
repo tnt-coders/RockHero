@@ -1,4 +1,5 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
@@ -39,7 +40,8 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .input_gain_db = 2.0,
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = 2.0,
     };
     view.setState(state);
 
@@ -101,7 +103,8 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .input_gain_db = -0.04,
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = -0.04,
     };
     view.setState(state);
 
@@ -129,7 +132,8 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
-        .input_gain_db = 2.0,
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = 2.0,
     };
     view.setState(state);
 
@@ -230,6 +234,35 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
     {
         CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
     }
+}
+
+// A prompt for another route retires the open window, so the new route gets a fresh popup seeded
+// from its own gain; the replacement is presented once the old window is gone.
+TEST_CASE("Calibration prompt for another route retires the open window", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .route = common::audio::testing::makeInputDeviceIdentity(),
+        .stored_gain_db = 2.0,
+    };
+    view.setState(state);
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    REQUIRE(window.isVisible());
+
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .route = common::audio::testing::makeInputDeviceIdentity("ASIO", "Interface B"),
+        .stored_gain_db = std::nullopt,
+    };
+    view.setState(state);
+
+    CHECK_FALSE(window.isVisible());
 }
 
 } // namespace rock_hero::editor::ui

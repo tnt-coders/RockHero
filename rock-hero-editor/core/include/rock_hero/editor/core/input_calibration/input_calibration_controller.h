@@ -6,6 +6,7 @@
 #pragma once
 
 #include <expected>
+#include <optional>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
@@ -150,7 +151,8 @@ private:
     IInputCalibrationView* m_view{};
     InputCalibrationViewState m_state;
     common::audio::AudioMeterLevel m_last_raw_meter_level;
-    double m_committed_input_gain_db{0.0};
+    // The route's committed gain, absent until this input is calibrated.
+    std::optional<double> m_committed_input_gain_db;
 };
 
 } // namespace rock_hero::editor::core

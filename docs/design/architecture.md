@@ -470,6 +470,15 @@ plugins and automation run exactly as on hardware. It has no inputs, so live inp
 device therefore always runs; losing the hardware pauses playback once, and the user reopens it
 explicitly.
 
+**Live input** (ruled 2026-10-01): the live rig is never output without a calibration. Processed
+monitoring runs only while a one-channel input route is current, the shared audio-config store
+holds a calibration for that route, and the backend accepted its gain and the route. The store is
+the only authority for calibration: the shared `LiveInputMonitor` reads it at each gate run and
+keeps no copy, and every failure recovers by running the gate again. Calibration targets the
+interface, not the guitar, because players swap guitars without recalibrating: an interface's
+documented gain is the primary path, and the strum measurement the fallback for interfaces with
+no published figure.
+
 **Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer.
 Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86
 detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) to a lock-free

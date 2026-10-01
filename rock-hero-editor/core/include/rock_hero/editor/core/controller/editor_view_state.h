@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -203,23 +204,25 @@ struct RestoreInterruptedPrompt
 /*! \brief Describes an active input calibration prompt requested by the controller. */
 struct InputCalibrationPrompt
 {
-    /*! \brief Input gain currently displayed by the calibration prompt. */
-    double input_gain_db{0.0};
+    /*! \brief The input route the prompt calibrates; a new route is a new prompt. */
+    common::audio::InputDeviceIdentity route;
+
+    /*! \brief The route's stored calibration gain, or empty while it is uncalibrated. */
+    std::optional<double> stored_gain_db;
 
     /*!
-    \brief Compares two input calibration prompt requests by their stored values.
+    \brief Compares two prompt requests by the route they calibrate, their identity.
 
-    Hand-written, not defaulted: input_gain_db is a double of this struct's own, and a defaulted
-    comparison trips -Wfloat-equal on the strict compilers once odr-used. Exact equality is
-    intended — the prompt re-presents only when something actually changed.
+    The stored gain is excluded on purpose: the open popup owns its own gain once it opens, and
+    only a new route re-presents it.
 
     \param lhs Left-hand prompt request.
     \param rhs Right-hand prompt request.
-    \return True when both prompt requests store equal values.
+    \return True when both prompt requests calibrate the same route.
     */
     friend bool operator==(const InputCalibrationPrompt& lhs, const InputCalibrationPrompt& rhs)
     {
-        return std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db);
+        return lhs.route == rhs.route;
     }
 };
 

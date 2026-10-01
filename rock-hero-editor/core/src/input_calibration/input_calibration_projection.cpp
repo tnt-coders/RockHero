@@ -25,29 +25,31 @@ InputCalibrationStatus inputCalibrationStatusFor(const common::audio::LiveInputM
 }
 
 InputCalibrationProjection makeInputCalibrationProjection(
-    const common::audio::LiveInputMonitor& monitor, bool prompt_open, bool settings_open)
+    const common::audio::LiveInputMonitor& monitor,
+    const std::optional<common::audio::InputDeviceIdentity>& prompt_route, bool settings_open)
 {
     const InputCalibrationStatus status = inputCalibrationStatusFor(monitor);
     const bool audition_available =
-        status == InputCalibrationStatus::Calibrated && !prompt_open && !settings_open;
+        status == InputCalibrationStatus::Calibrated && !prompt_route.has_value() && !settings_open;
 
     InputCalibrationProjection projection{
         .status = status,
         .calibrate_enabled = monitor.route().has_value() && !settings_open,
-        .audio_device_settings_enabled = !prompt_open && !settings_open,
+        .audio_device_settings_enabled = !prompt_route.has_value() && !settings_open,
         .disabled_message =
             audition_available ? std::string{} : inputCalibrationDisabledMessageFor(status),
         .prompt = std::nullopt,
     };
 
-    if (prompt_open)
+    if (prompt_route.has_value())
     {
-        // The prompt opens on the route's stored gain, else the neutral default.
         const std::optional<common::audio::InputCalibrationState>& calibration =
             monitor.calibration();
         projection.prompt = InputCalibrationPrompt{
-            .input_gain_db = calibration.has_value() ? calibration->calibration_gain.db
-                                                     : common::audio::defaultGainDb(),
+            .route = *prompt_route,
+            .stored_gain_db = calibration.has_value()
+                                  ? std::optional{calibration->calibration_gain.db}
+                                  : std::nullopt,
         };
     }
 

@@ -22,7 +22,10 @@ the world may have changed while the dialog sat open.
 1. **Prompt struct + decision enum** in `editor_view_state.h` (exemplars: `ToneImportPrompt` +
    `ToneImportDecision`; `UnsavedChangesPrompt` + `UnsavedChangesDecision`). If the prompt
    should present once per distinct cause rather than per derivation, hand-write `operator==`
-   over the identity fields only, which is what makes present-once tracking work.
+   over the identity fields only, which is what makes present-once tracking work. A prompt that
+   opens a whole window follows the same law: `InputCalibrationPrompt` compares its route only,
+   and `EditorView` retires the open calibration window and presents a fresh one when the route
+   changes, because the window seeds its state once.
 2. **`std::optional<Prompt>` field on `EditorViewState`**, populated in `deriveViewState()` —
    a forgotten derivation means the prompt silently never appears.
 3. **Pending state on the controller** (`editor_controller_impl.h`): stash whatever the resolve

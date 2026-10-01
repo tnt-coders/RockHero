@@ -31,7 +31,7 @@ struct InputCalibrationViewState
     bool measuring{false};
 
     /*! \brief Text shown by the popup dismissal button. */
-    std::string dismiss_button_text{"Dismiss"};
+    std::string dismiss_button_text;
 
     /*!
     \brief Compares two popup view states by their stored values.

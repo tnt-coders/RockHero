@@ -90,9 +90,9 @@ placement, emphasis and words.
    run ends a measurement without telling the driver (a device change, a rig-load refresh), so
    the sampling call should report the measurement ended; and the game holds three records of
    "measuring" (its machine phase, its capture, the monitor) that this step should reduce to one.
-6. Editor auto-prompt, Input-column cue, shared wording, the architecture paragraph. Medium, after
-   the UI expert. The popup seeds its committed gain once from the prompt, so the auto-prompt must
-   build a fresh popup for each route (or read the gain from `monitor.calibration()`).
+6. DONE: editor auto-prompt (`refreshLiveInput`, offered once per route, "Later"), the prompt's
+   words, the architecture paragraph; the Input-column cue landed earlier.
+   The view presents a fresh popup per route, since the popup seeds its gain once.
 6a. When the saved device is not running (D7, revised): a notice with Audio Settings and Close
     buttons on the mid-session hardware-loss edge (after the pause) and at a startup whose saved
     route did not open; a true first run with no saved route opens the settings window directly.
