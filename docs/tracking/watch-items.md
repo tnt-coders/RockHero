@@ -1130,6 +1130,17 @@ choose to proceed with default tones instead of being blocked — a PINNED opt-i
 never an automatic substitution. (Referenced from `docs/tracking/backlog.md`'s standard-tones item
 and `docs/plans/roadmap/00-roadmap.md`'s 21-Q1 answer.)
 
+### The game's live-input status goes stale after Ready — trigger: plan 26 Phase 8 starts
+
+`GameplaySession` refuses `play()` with `LiveInputOff` by reading `LiveInputMonitor::status()`, and
+the game runs the gate only at the session's Ready edge. A device closed later is still caught (the
+device check reads the live status), but an input route swapped to an uncalibrated one after Ready
+is not: the stale `Active` lets the song start with the guitar silent. Accepted (2026-10-01) because
+the game has no device settings surface yet, so nothing in the shipped game can swap the route
+mid-session. **Remedy:** a game-composition device listener that re-runs the gate on every device
+change, recorded in plan 26 Phase 8's scope. Not a `refresh()` at play: a refresh disables and
+re-enables monitoring, which would churn the backend on every press.
+
 ### Plugin-state idle churn — trigger: repeating no-intent settle log lines at idle
 
 Suspected but **never observed**: an amp-sim VST3 (Archetype Cory Wong X) re-serializing a

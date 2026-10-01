@@ -49,6 +49,10 @@ namespace
         {
             return "No audio device is open";
         }
+        case GameplaySessionErrorCode::LiveInputOff:
+        {
+            return "Live input is off";
+        }
         case GameplaySessionErrorCode::OperationUnavailable:
         {
             return "Operation is not available in the current session stage";

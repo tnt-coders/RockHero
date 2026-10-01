@@ -49,6 +49,14 @@ enum class GameplaySessionErrorCode : std::uint8_t
     */
     AudioDeviceClosed,
 
+    /*!
+    \brief Live input is off, so the guitar would be silent: the input is uncalibrated, absent,
+    or refused by the backend.
+
+    The message says which.
+    */
+    LiveInputOff,
+
     /*! \brief The requested operation is not legal in the session's current stage. */
     OperationUnavailable,
 };

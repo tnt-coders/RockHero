@@ -673,7 +673,8 @@ struct SessionHarness
     };
 
     // Points the device configuration at a fixed route and seeds a matching calibration, so
-    // reaching Ready arms monitoring for that route.
+    // reaching Ready arms monitoring for that route. A song plays only then, so every test that
+    // reaches Playing seeds one.
     void seedMatchingCalibration(double gain_db)
     {
         const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
@@ -839,6 +840,7 @@ TEST_CASE("Gameplay session fails when the tone timeline fails", "[core][session
 TEST_CASE("Gameplay session drives playback transitions", "[core][session]")
 {
     SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
     REQUIRE(harness.startFixture().has_value());
     harness.live_rig.completeSuccessfully();
     REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
@@ -877,6 +879,7 @@ TEST_CASE("Gameplay session drives playback transitions", "[core][session]")
 TEST_CASE("Gameplay session refuses to play while the audio device is closed", "[core][session]")
 {
     SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
     REQUIRE(harness.startFixture().has_value());
     harness.live_rig.completeSuccessfully();
     REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
@@ -900,12 +903,49 @@ TEST_CASE("Gameplay session refuses to play while the audio device is closed", "
     CHECK(harness.session.stage() == GameplaySessionStage::Playing);
 }
 
+// A song never starts with the guitar silent: while live input is off, play() and restart()
+// refuse with LiveInputOff saying why, never touch the transport, and leave the session Ready.
+TEST_CASE("Gameplay session refuses to play while live input is off", "[core][session]")
+{
+    SessionHarness harness;
+    harness.devices.current_input_identity = makeInputDeviceIdentity();
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+
+    const auto played = harness.session.play();
+    REQUIRE_FALSE(played.has_value());
+    CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
+    CHECK(played.error().message == "Input calibration required");
+
+    const auto restarted = harness.session.restart();
+    REQUIRE_FALSE(restarted.has_value());
+    CHECK(restarted.error().code == GameplaySessionErrorCode::LiveInputOff);
+
+    CHECK(harness.transport.play_call_count == 0);
+    CHECK(harness.session.stage() == GameplaySessionStage::Ready);
+}
+
+// Without an input route the refusal says there is no input to hear.
+TEST_CASE("Gameplay session refuses to play without an input device", "[core][session]")
+{
+    SessionHarness harness;
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+
+    const auto played = harness.session.play();
+    REQUIRE_FALSE(played.has_value());
+    CHECK(played.error().code == GameplaySessionErrorCode::LiveInputOff);
+    CHECK(played.error().message == "No audio input device");
+}
+
 // A device lost mid-song pauses the song rather than finishing it: the engine pauses the
 // transport, and the session reads that stop by the device, so the player resumes from where the
 // song stood once a device is back.
 TEST_CASE("Gameplay session pauses rather than finishes when the device closes", "[core][session]")
 {
     SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
     REQUIRE(harness.startFixture().has_value());
     harness.live_rig.completeSuccessfully();
     REQUIRE(harness.session.play().has_value());

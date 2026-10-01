@@ -145,10 +145,10 @@ public:
     \brief Starts or resumes playback.
 
     Legal from Ready, Paused, and Finished (Finished restarts from the top), and only while an
-    audio device is open: nothing else drives playback or captures the guitar.
+    audio device is open and live input is on: a song never starts with the guitar silent.
 
-    \return Nothing on success, OperationUnavailable outside those stages, or AudioDeviceClosed
-    while no audio device is open.
+    \return Nothing on success, OperationUnavailable outside those stages, AudioDeviceClosed while
+    no audio device is open, or LiveInputOff while live input is off.
     */
     [[nodiscard]] std::expected<void, GameplaySessionError> play();
 
@@ -168,8 +168,8 @@ public:
 
     /*!
     \brief Instant restart: seek to the top and play, with no rig teardown or re-preload.
-    \return Nothing on success, OperationUnavailable before the rig is ready, or AudioDeviceClosed
-    while no audio device is open.
+    \return Nothing on success, OperationUnavailable before the rig is ready, AudioDeviceClosed
+    while no audio device is open, or LiveInputOff while live input is off.
     */
     [[nodiscard]] std::expected<void, GameplaySessionError> restart();
 
@@ -270,9 +270,10 @@ private:
     // the song, and its pause on a device loss, which only pauses it.
     void onTransportStateChanged(common::audio::TransportState state) override;
 
-    // The refusal play() and restart() return while no audio device is open, carrying the
-    // backend's reason when known; empty while a device is open.
-    [[nodiscard]] std::optional<GameplaySessionError> audioDeviceClosedError() const;
+    // The refusal play() and restart() return when a song cannot start: AudioDeviceClosed with the
+    // backend's reason while no device is open, else LiveInputOff saying why the guitar would be
+    // silent. Empty when the song may start. It reads the gate's last run, made at the Ready edge.
+    [[nodiscard]] std::optional<GameplaySessionError> playRefusal() const;
 
     // Fails the load pipeline: records the error, transitions to Failed, and returns the same
     // error so start() can propagate it.

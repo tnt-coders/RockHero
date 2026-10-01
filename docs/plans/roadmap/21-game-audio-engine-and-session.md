@@ -443,6 +443,9 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
   it does not finish it. Plan 26's onboarding owns the repair path; until then the UI logs the
   refusal. *2026-10-01:* the engine always runs a device — a silent one without hardware — but
   `AudioDeviceStatus::open` still means the user's hardware, so this rule stands unchanged.
+  *2026-10-01 (D1):* with a device open, `play()` / `restart()` also refuse with `LiveInputOff`
+  while the live-input gate is off for any reason, the message saying which: a song never starts
+  with the guitar silent. Both refusals come from the session's one `playRefusal()`.
 - `Loading`: extract the `.rock` via `readRockSongPackage` into a **per-session scratch
   workspace under per-user app data** (never next to the package; deleted on session close),
   select the arrangement, run `ISongAudio::prepareSong` + `setActiveArrangement`. The package

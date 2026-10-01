@@ -5,7 +5,9 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
+#include <rock_hero/common/audio/input/live_input_monitoring_status.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
+#include <string>
 #include <system_error>
 #include <utility>
 
@@ -14,6 +16,47 @@ namespace rock_hero::game::core
 
 namespace
 {
+
+// Empty while live input is on; otherwise the refusal saying why the guitar would be silent.
+[[nodiscard]] std::optional<GameplaySessionError> liveInputOffError(
+    common::audio::LiveInputMonitoringStatus status)
+{
+    const auto off = [](std::string message) {
+        return GameplaySessionError{GameplaySessionErrorCode::LiveInputOff, std::move(message)};
+    };
+    switch (status)
+    {
+        case common::audio::LiveInputMonitoringStatus::Active:
+        {
+            return std::nullopt;
+        }
+        case common::audio::LiveInputMonitoringStatus::Measuring:
+        {
+            return off("Input calibration is in progress");
+        }
+        case common::audio::LiveInputMonitoringStatus::CalibrationStoreUnavailable:
+        {
+            return off("Input calibration could not be read");
+        }
+        case common::audio::LiveInputMonitoringStatus::SessionNotReady:
+        {
+            return off("Live input is not ready");
+        }
+        case common::audio::LiveInputMonitoringStatus::NoInputDevice:
+        {
+            return off("No audio input device");
+        }
+        case common::audio::LiveInputMonitoringStatus::MissingCalibration:
+        {
+            return off("Input calibration required");
+        }
+        case common::audio::LiveInputMonitoringStatus::BackendUnavailable:
+        {
+            return off("Live input backend unavailable");
+        }
+    }
+    return GameplaySessionError{GameplaySessionErrorCode::LiveInputOff};
+}
 
 // Composes the rig preload request exactly like the editor's project load does
 // (rock-hero-editor/core/src/project/project_handlers.cpp): every tone the arrangement's regions
@@ -213,9 +256,9 @@ std::expected<void, GameplaySessionError> GameplaySession::play()
             GameplaySessionError{GameplaySessionErrorCode::OperationUnavailable}
         };
     }
-    if (std::optional<GameplaySessionError> closed = audioDeviceClosedError(); closed.has_value())
+    if (std::optional<GameplaySessionError> refused = playRefusal(); refused.has_value())
     {
-        return std::unexpected{std::move(*closed)};
+        return std::unexpected{std::move(*refused)};
     }
 
     // Stage moves first so the listener attributes the resulting transport transition to the
@@ -268,9 +311,9 @@ std::expected<void, GameplaySessionError> GameplaySession::restart()
             GameplaySessionError{GameplaySessionErrorCode::OperationUnavailable}
         };
     }
-    if (std::optional<GameplaySessionError> closed = audioDeviceClosedError(); closed.has_value())
+    if (std::optional<GameplaySessionError> refused = playRefusal(); refused.has_value())
     {
-        return std::unexpected{std::move(*closed)};
+        return std::unexpected{std::move(*refused)};
     }
 
     // Instant restart is a seek plus play: no rig teardown, no re-preload (the pre-song preload
@@ -416,20 +459,20 @@ void GameplaySession::onTransportStateChanged(common::audio::TransportState stat
 }
 
 // Rationale lives on the declaration in gameplay_session.h.
-std::optional<GameplaySessionError> GameplaySession::audioDeviceClosedError() const
+std::optional<GameplaySessionError> GameplaySession::playRefusal() const
 {
     common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
-    if (status.open)
+    if (!status.open)
     {
-        return std::nullopt;
+        if (status.unavailable_reason.empty())
+        {
+            return GameplaySessionError{GameplaySessionErrorCode::AudioDeviceClosed};
+        }
+        return GameplaySessionError{
+            GameplaySessionErrorCode::AudioDeviceClosed, std::move(status.unavailable_reason)
+        };
     }
-    if (status.unavailable_reason.empty())
-    {
-        return GameplaySessionError{GameplaySessionErrorCode::AudioDeviceClosed};
-    }
-    return GameplaySessionError{
-        GameplaySessionErrorCode::AudioDeviceClosed, std::move(status.unavailable_reason)
-    };
+    return liveInputOffError(m_live_input_monitor.status());
 }
 
 std::expected<void, GameplaySessionError> GameplaySession::failLoad(GameplaySessionError error)

@@ -498,6 +498,13 @@ forward and record it in both plans).
   here consuming docs/plans/roadmap/13-audio-device-settings-and-calibration.md's architecture (that plan
   states the game-side wizard UI lands with this plan); the tuner screen comes from
   docs/plans/roadmap/22-note-detection.md's first shippable consumer. Suggested song per open question 5.
+- **Live input (input-calibration plan, 2026-10-01)**: a session refuses `play()` with
+  `LiveInputOff` until live input is on. This phase owns the surface: show the refusal's message
+  and dim Play while it holds, and offer calibration from it and from the pause menu.
+- **Device listener**: the game composition re-runs the live-input gate on a device change, as
+  the editor does. Today the gate runs only at the session's Ready edge, so a route swapped after
+  Ready leaves `LiveInputMonitor::status()` stale (watch item "The game's live-input status goes
+  stale after Ready").
 - **Files**: `rock-hero-game/core/.../onboarding/` state machine; wizard/tuner hosting in
   game/ui.
 - **Public-header impact**: game-scope only.
