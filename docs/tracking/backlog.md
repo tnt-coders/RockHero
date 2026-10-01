@@ -30,11 +30,8 @@ the user picks which way the two surfaces reconcile.
 
 ## Raised while adopting the silent audio device (2026-10-01)
 
-- **Give the input-calibration process a deep Fable review** (user, 2026-10-01: it predates Fable
-  and Opus 5.5). Live input must stay off until both an input device and a matching calibration
-  exist, which `makeInputCalibrationProjection` and the live-input monitor enforce today; the
-  review should judge the whole workflow (prompt, store, identity matching, the editor and game
-  gates) for simplicity and correctness, not just that rule.
+- **Input-calibration review: DONE 2026-10-01**; its findings, the prompt-to-calibrate design and
+  the user's decisions D1-D6 are in `docs/plans/todo/input-calibration-simplification.md`.
 
 ## Found by the 2026-09-25 derived-width build
 
