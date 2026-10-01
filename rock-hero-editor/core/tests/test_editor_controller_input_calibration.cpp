@@ -64,9 +64,7 @@ TEST_CASE(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::NoActiveInputDevice);
     CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: no audio input device.");
+    CHECK(final_state->signal_chain.disabled_message == "No audio input device.");
 }
 
 // Calibration is device-level, not project-level: with an input route up it is available with no
@@ -143,9 +141,7 @@ TEST_CASE(
     CHECK(
         gated_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        gated_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(gated_state->signal_chain.disabled_message == "Input calibration required.");
 
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
@@ -689,9 +685,7 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
     CHECK(inputCalibrationFor(store, identity).has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: live input backend unavailable.");
+    CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
 }
 
 // Verifies temporary input route loss keeps calibration for a matching reconnect.
@@ -810,9 +804,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(final_state->signal_chain.disabled_message == "Input calibration required.");
 }
 
 // Verifies a saved calibration for the new physical route is applied after a route switch.
@@ -1121,9 +1113,7 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: input calibration required.");
+    CHECK(final_state->signal_chain.disabled_message == "Input calibration required.");
 }
 
 // Verifies that dismissing manual recalibration restores the previous matching calibration.
@@ -1298,9 +1288,7 @@ TEST_CASE(
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: live input backend unavailable.");
+    CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -1365,9 +1353,7 @@ TEST_CASE(
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
-    CHECK(
-        final_state->signal_chain.disabled_message ==
-        "Live input disabled: live input backend unavailable.");
+    CHECK(final_state->signal_chain.disabled_message == "Live input backend unavailable.");
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -1474,12 +1460,11 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = "Input calibration required.",
+                                             .prompt_present = false,
+                                         });
 
     // Begin the arc; the trace is captured from the prompt-open request onward.
     live_input.calls.clear();
@@ -1487,12 +1472,11 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = true,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = "Input calibration required.",
+                                             .prompt_present = true,
+                                         });
 
     REQUIRE(controller.onInputCalibrationMeasurementStarted().has_value());
     REQUIRE(controller.onInputCalibrationSucceeded(7.5).has_value());
@@ -1647,12 +1631,11 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     // derived status stays MissingCalibration (the calibration-match check precedes the backend
     // check), so the route-unavailable failure surfaces as the calibration-required message.
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = "Input calibration required.",
+                                             .prompt_present = false,
+                                         });
 }
 
 // Pins the measurement-start rollback at arm site 2: the gain reset fails, so the captured route is
@@ -1811,7 +1794,7 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::Unavailable,
-            .disabled_message = "Live input disabled: live input backend unavailable.",
+            .disabled_message = "Live input backend unavailable.",
             // Backend-unavailable preservation closes the prompt (m_prompt_visible cleared).
             .prompt_present = false,
         });
@@ -1875,7 +1858,7 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
         settledCalibrationState(view) ==
         SettledCalibrationState{
             .status = InputCalibrationStatus::Unavailable,
-            .disabled_message = "Live input disabled: live input backend unavailable.",
+            .disabled_message = "Live input backend unavailable.",
             // Backend-unavailable preservation closes the prompt (m_prompt_visible cleared).
             .prompt_present = false,
         });
@@ -1988,12 +1971,11 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
     CHECK(view.set_state_call_count > pushes_before);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::NoActiveInputDevice,
-            .disabled_message = "Live input disabled: no audio input device.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::NoActiveInputDevice,
+                                             .disabled_message = "No audio input device.",
+                                             .prompt_present = false,
+                                         });
 }
 
 // Pins the device-change re-gate onto an uncalibrated route: same disable trace as the no-device
@@ -2044,12 +2026,11 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
     CHECK(live_input.calls == trace);
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
     CHECK(
-        settledCalibrationState(view) ==
-        SettledCalibrationState{
-            .status = InputCalibrationStatus::MissingCalibration,
-            .disabled_message = "Live input disabled: input calibration required.",
-            .prompt_present = false,
-        });
+        settledCalibrationState(view) == SettledCalibrationState{
+                                             .status = InputCalibrationStatus::MissingCalibration,
+                                             .disabled_message = "Input calibration required.",
+                                             .prompt_present = false,
+                                         });
 }
 
 // Pins the gate's audio-device-settings-open branch: a configuration change while the settings

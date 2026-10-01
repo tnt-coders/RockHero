@@ -14,13 +14,13 @@ TEST_CASE(
     CHECK(inputCalibrationDisabledMessageFor(InputCalibrationStatus::Calibrated).empty());
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::NoActiveInputDevice) ==
-        "Live input disabled: no audio input device.");
+        "No audio input device.");
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::MissingCalibration) ==
-        "Live input disabled: input calibration required.");
+        "Input calibration required.");
     CHECK(
         inputCalibrationDisabledMessageFor(InputCalibrationStatus::Unavailable) ==
-        "Live input disabled: live input backend unavailable.");
+        "Live input backend unavailable.");
 }
 
 } // namespace rock_hero::editor::core

@@ -23,7 +23,7 @@ enum class AudioLevelMeterOrientation : std::uint8_t
 };
 
 /*! \brief Lightweight peak meter with a clipping indicator. */
-class AudioLevelMeter final : public juce::Component
+class AudioLevelMeter final : public juce::Component, public juce::SettableTooltipClient
 {
 public:
     /*!

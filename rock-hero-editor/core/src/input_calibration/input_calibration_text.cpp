@@ -9,11 +9,11 @@ std::string inputCalibrationDisabledMessageFor(InputCalibrationStatus status)
     {
         case InputCalibrationStatus::NoActiveInputDevice:
         {
-            return "Live input disabled: no audio input device.";
+            return "No audio input device.";
         }
         case InputCalibrationStatus::MissingCalibration:
         {
-            return "Live input disabled: input calibration required.";
+            return "Input calibration required.";
         }
         case InputCalibrationStatus::Calibrated:
         {
@@ -21,7 +21,7 @@ std::string inputCalibrationDisabledMessageFor(InputCalibrationStatus status)
         }
         case InputCalibrationStatus::Unavailable:
         {
-            return "Live input disabled: live input backend unavailable.";
+            return "Live input backend unavailable.";
         }
     }
 

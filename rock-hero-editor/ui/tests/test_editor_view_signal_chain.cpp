@@ -1396,7 +1396,7 @@ TEST_CASE(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .plugins = {makePlugin("amp", 0)},
-                .disabled_message = "Live input disabled: no audio input device.",
+                .disabled_message = "No audio input device.",
             },
         });
 
@@ -1421,6 +1421,37 @@ TEST_CASE(
     auto& live_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
     REQUIRE(live_tile.getParentComponent() != nullptr);
     CHECK(live_tile.getParentComponent()->getAlpha() >= 1.0f);
+}
+
+// Why live input is off lives on the controls it is about, as their tooltip; it clears with the
+// cause.
+TEST_CASE("Signal-chain explains disabled live input on the input controls", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .input_calibrate_enabled = true,
+                .disabled_message = "Input calibration required.",
+            },
+        });
+
+    auto& calibrate = findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    CHECK(calibrate.getTooltip() == "Input calibration required.");
+    CHECK(meter.getTooltip() == "Input calibration required.");
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{.input_calibrate_enabled = true},
+        });
+    CHECK(calibrate.getTooltip().isEmpty());
+    CHECK(meter.getTooltip().isEmpty());
 }
 
 } // namespace rock_hero::editor::ui

@@ -1,7 +1,6 @@
 #include "signal_chain_view.h"
 
 #include "shared/editor_theme.h"
-#include "shared/text_metrics.h"
 #include "signal_chain/insert_slot_view.h"
 #include "signal_chain/plugin_drag.h"
 #include "signal_chain/plugin_tile_view.h"
@@ -49,10 +48,6 @@ const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12
 // The chain's opacity while no chain verb is available: still the user's tone, readable, but
 // visibly not touchable — the alpha the menu bar's disabled text uses.
 constexpr float g_inert_chain_alpha{0.5f};
-
-// Space between the header title and the live-input status after it: several word gaps, so the
-// status reads as its own sentence rather than part of the title.
-constexpr int g_header_message_gap{24};
 
 // Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
 // "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
@@ -380,6 +375,9 @@ void SignalChainView::applyState()
     m_tone_import_button.setVisible(m_state.tone_import_enabled);
     m_tone_export_button.setVisible(m_state.tone_export_enabled);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
+    // Why live input is off, on the controls it is about; the caption only says that it is.
+    m_input_calibrate_button.setTooltip(juce::String{m_state.disabled_message});
+    m_input_meter.setTooltip(juce::String{m_state.disabled_message});
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
     // The chain always shows — hiding it would read as a lost tone — and dims as ONE layer while
@@ -414,12 +412,26 @@ void SignalChainView::paint(juce::Graphics& g)
 
     auto area = bounds.reduced(g_panel_inset);
 
-    // Input label above the left meter.
-    const auto input_label_area =
+    // Input label above the left meter, with a muted "disabled" under it while live input is off.
+    // The cause is the Calibrate button's state and the tooltip, so the word is the same for all.
+    auto input_label_area =
         area.removeFromLeft(g_input_control_width).removeFromTop(g_header_height);
-    g.setColour(editorTheme().primary_text);
     g.setFont(juce::FontOptions{12.0f});
-    g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
+    if (!m_state.disabled_message.empty())
+    {
+        const auto disabled_area =
+            input_label_area.removeFromBottom(input_label_area.getHeight() / 2);
+        g.setColour(editorTheme().muted_text);
+        g.drawFittedText("disabled", disabled_area, juce::Justification::centredTop, 1);
+        input_label_area.removeFromTop(2);
+    }
+    g.setColour(editorTheme().primary_text);
+    g.drawFittedText(
+        "Input",
+        input_label_area,
+        m_state.disabled_message.empty() ? juce::Justification::centred
+                                         : juce::Justification::centredBottom,
+        1);
 
     // The tone's output level, above the slider and post-fader meter group it labels. This is the
     // tone's own output level, stored in the chart, not the player's listening volume.
@@ -446,21 +458,6 @@ void SignalChainView::paint(juce::Graphics& g)
     const juce::Font title_font{juce::FontOptions{16.0f, juce::Font::bold}};
     g.setFont(title_font);
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
-
-    // Why live input is off, as one plain line after the title on the header row -- the panel's
-    // one free text band, beside the Input caption it is about. Never over the chain, whose tiles
-    // stay clickable without live input. Elided, never squashed, and never under the buttons.
-    if (!m_state.disabled_message.empty())
-    {
-        const int message_left =
-            header.getX() + 8 + textWidth(title_font, header_title) + g_header_message_gap;
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawText(
-            juce::String{m_state.disabled_message},
-            m_header_message_area.withLeft(std::max(message_left, m_header_message_area.getX())),
-            juce::Justification::centredLeft,
-            true);
-    }
 }
 
 // Keeps gain sliders on the sides and plugin tiles in the center.
@@ -518,7 +515,6 @@ void SignalChainView::resized()
     };
     place_project_button(m_tone_export_button, 100);
     place_project_button(m_tone_import_button, 100);
-    m_header_message_area = m_tone_designer.active ? strip : project_strip;
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);

@@ -57,10 +57,18 @@ placement, emphasis and words.
   matching calibration (startup restore, a settings Apply, a device change). "Later" suppresses it
   for that route until the route changes or the app restarts. Today it opens only from the
   Calibrate button.
-- **Standing cue:** on the Input column, not the header. The Calibrate button carries the accent
-  while uncalibrated; the header line shrinks to the consequence.
-- **Proposed words** (short, same in both products): standing "Guitar muted - calibrate input";
-  prompt "Calibrate so your guitar plays at the same level as everyone else's."
+- **Standing cue (BUILT 2026-10-01, UI expert):** the header line is gone. The Input caption
+  carries a muted "disabled" line while live input is off, the same word for every cause; the
+  Calibrate button's own enablement tells the causes apart, and the reason ("No audio input
+  device." / "Input calibration required.") is the tooltip on the Calibrate button and the input
+  meter. No accent on Calibrate: the theme's accent means selection and drop targets, and the
+  auto-prompt makes it redundant.
+- **Prompt words** (UI expert): "Live input stays off until this input is calibrated." The prompt's
+  own Calibrate button is the fix, so the sentence carries no fix clause.
+- **First run** (UI expert): with no saved route in the shared store, open the audio-device settings
+  window at startup over the running OS default. Cancel writes nothing, so it reopens next launch
+  while no route is saved. Closing on an uncalibrated input route then fires the editor prompt
+  above, so device-then-calibrate needs no first-run wizard.
 - **Game:** a hard gate. The first-run wizard (plan 26 P8 over plan 32 P2) is required before the
   first song, and song start stays unavailable while the route has no matching calibration. The
   game has no calibration UI today, so with the silent device a song would play with the guitar
@@ -87,5 +95,5 @@ placement, emphasis and words.
   (recommended: yes).
 - **D4:** whether note detection taps the input before or after the calibration gain (plan 22);
   this decides how much scoring depends on calibration.
-- **D5:** cue placement and wording (UI expert).
+- **D5:** cue placement and wording — RESOLVED 2026-10-01 by the UI expert (above).
 - **D6:** keep the manual-gain path (recommended: yes; the user doc relies on it).

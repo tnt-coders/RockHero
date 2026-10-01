@@ -299,10 +299,6 @@ private:
     // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;
 
-    // The header band left of the visible buttons, laid out by resized(): where paint() writes why
-    // live input is off, after the title.
-    juce::Rectangle<int> m_header_message_area;
-
     // Scrollable viewport that keeps long plugin chains reachable in a compact view.
     juce::Viewport m_chain_viewport;
 
