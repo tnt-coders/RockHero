@@ -93,7 +93,7 @@ placement, emphasis and words.
 6. DONE: editor auto-prompt (`refreshLiveInput`, offered once per route, "Later"), the prompt's
    words, the architecture paragraph; the Input-column cue landed earlier.
    The view presents a fresh popup per route, since the popup seeds its gain once.
-6a. When the saved device is not running (D7, revised): a notice with Audio Settings and Close
+6a. DONE: when the saved device is not running (D7, revised): a notice with Audio Settings and Close
     buttons on the mid-session hardware-loss edge (after the pause) and at a startup whose saved
     route did not open; a true first run with no saved route opens the settings window directly.
     Windows open from view state, the one mechanism the auto-prompt also uses. When the device

@@ -1207,6 +1207,11 @@ void EditorController::onAudioDeviceSettingsOpenRequested()
     m_impl->onAudioDeviceSettingsOpenRequested();
 }
 
+void EditorController::onAudioDeviceLostDecision(AudioDeviceLostDecision decision)
+{
+    m_impl->onAudioDeviceLostDecision(decision);
+}
+
 void EditorController::onAudioDeviceSettingsClosed()
 {
     m_impl->onAudioDeviceSettingsClosed();
@@ -1311,14 +1316,21 @@ EditorController::Impl::Impl(
         });
     // Startup route application: applies the saved route inline (no busy presentation exists yet)
     // and refreshes the live-input monitor; a saved device that cannot open leaves the silent
-    // device running, which the status text reports. With no usable saved route the settings
-    // window opens for the user to choose one.
-    if (!restoreAudioDeviceState().has_value())
+    // device running, which the status text reports and the device-lost notice announces. With
+    // no usable saved route the settings window opens for the user to choose one.
+    const std::optional<common::audio::DeviceRestoreOutcome> restored = restoreAudioDeviceState();
+    const common::audio::AudioDeviceStatus device_status = m_audio_devices.currentDeviceStatus();
+    m_audio_device_open = device_status.open;
+    if (!restored.has_value())
     {
         openAudioDeviceSettings();
     }
     else
     {
+        if (*restored == common::audio::DeviceRestoreOutcome::DeviceUnavailable)
+        {
+            openAudioDeviceLostPrompt(device_status);
+        }
         refreshLiveInput();
     }
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
@@ -2899,6 +2911,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
 
     state.input_calibration_prompt = input_calibration.prompt;
+    state.audio_device_lost_prompt = m_audio_device_lost_prompt;
 
     state.busy = m_busy.viewState();
 

@@ -1042,6 +1042,7 @@ void EditorView::parentHierarchyChanged()
 // window showed is opened once the editor is on screen to own it.
 void EditorView::presentTopLevelWindowsFromState()
 {
+    presentAudioDeviceLostPromptIfNeeded(m_state.audio_device_lost_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentAudioDeviceSettingsIfNeeded(m_state.audio_device_settings_open);
 }
@@ -3054,6 +3055,36 @@ void EditorView::presentRestoreInterruptedPromptIfNeeded(
                 button_index == 0 ? core::RestoreInterruptedDecision::Retry
                                   : core::RestoreInterruptedDecision::Cancel;
             m_controller.onRestoreInterruptedDecision(decision);
+        });
+}
+
+// Presents the notice that the audio device is not running once per notice, and routes its
+// decision back: Return opens the audio settings, Escape closes.
+void EditorView::presentAudioDeviceLostPromptIfNeeded(
+    const std::optional<core::AudioDeviceLostPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_audio_device_lost_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_audio_device_lost_prompt == prompt || !canOwnTopLevelWindows())
+    {
+        return;
+    }
+
+    m_last_presented_audio_device_lost_prompt = prompt;
+    showThemedQuestionBox(
+        this,
+        "Audio device not running",
+        juce::String{prompt->reason},
+        {"Audio Settings", "Close"},
+        [this](int button_index) {
+            const core::AudioDeviceLostDecision decision =
+                button_index == 0 ? core::AudioDeviceLostDecision::OpenSettings
+                                  : core::AudioDeviceLostDecision::Close;
+            m_controller.onAudioDeviceLostDecision(decision);
         });
 }
 

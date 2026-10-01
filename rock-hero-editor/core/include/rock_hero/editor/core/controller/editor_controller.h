@@ -708,6 +708,12 @@ public:
     /*! \brief Handles the audio-device settings window closing. */
     void onAudioDeviceSettingsClosed() override;
 
+    /*!
+    \brief Handles a decision from the notice that the audio device is not running.
+    \param decision Decision selected by the user.
+    */
+    void onAudioDeviceLostDecision(AudioDeviceLostDecision decision) override;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;

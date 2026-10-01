@@ -654,6 +654,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onAudioDeviceSettingsOpenRequested();
     void openAudioDeviceSettings();
     void onAudioDeviceSettingsClosed();
+    void openAudioDeviceLostPrompt(const common::audio::AudioDeviceStatus& status);
+    void onAudioDeviceLostDecision(AudioDeviceLostDecision decision);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -1900,6 +1902,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True while the audio-device settings window stages a route. It holds the route, so the
     // live-input gate stays off until the window closes.
     bool m_audio_device_settings_open{false};
+
+    // The device's open state as last observed, so a configuration change can tell a device
+    // that was lost from one that was never running.
+    bool m_audio_device_open{false};
+
+    // The notice that the audio device is not running, while it awaits the user's decision.
+    std::optional<AudioDeviceLostPrompt> m_audio_device_lost_prompt{};
 
     // Browser catalog and selection state for adding known plugins.
     PluginCatalogWorkflow m_plugin_catalog;

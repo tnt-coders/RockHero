@@ -16,7 +16,7 @@ namespace rock_hero::editor::core
 void EditorController::Impl::onAudioDeviceChangeRequested(
     std::function<void()> change_audio_device, std::function<void()> after_busy_cleared)
 {
-    if (!change_audio_device || m_calibration_prompt_route.has_value())
+    if (!change_audio_device)
     {
         if (after_busy_cleared)
         {
@@ -32,10 +32,38 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
 }
 
 // Re-runs the live-input gate and re-derives view state after a configuration change, a
-// mid-session disconnect included: the status text and Play's availability follow the device.
+// mid-session disconnect included: the status text and Play's availability follow the device. A
+// device lost outside the settings window raises the notice; inside it, the user is already
+// choosing one.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
+    const common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
+    if (m_audio_device_open && !status.open && !m_audio_device_settings_open)
+    {
+        openAudioDeviceLostPrompt(status);
+    }
+    m_audio_device_open = status.open;
     refreshLiveInput();
+    updateView();
+}
+
+// Raises the notice that the user's audio device is not running, carrying the reason observed
+// with the closure it reports.
+void EditorController::Impl::openAudioDeviceLostPrompt(
+    const common::audio::AudioDeviceStatus& status)
+{
+    m_audio_device_lost_prompt = AudioDeviceLostPrompt{.reason = status.unavailable_reason};
+}
+
+// Closes the device-lost notice; its Audio Settings button opens settings as the menu button does.
+void EditorController::Impl::onAudioDeviceLostDecision(AudioDeviceLostDecision decision)
+{
+    m_audio_device_lost_prompt.reset();
+    if (decision == AudioDeviceLostDecision::OpenSettings)
+    {
+        onAudioDeviceSettingsOpenRequested();
+        return;
+    }
     updateView();
 }
 

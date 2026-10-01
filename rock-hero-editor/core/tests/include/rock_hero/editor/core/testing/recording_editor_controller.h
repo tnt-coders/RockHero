@@ -784,6 +784,15 @@ public:
         audio_device_change_request_count += 1;
     }
 
+    /*!
+    \brief Captures device-lost notice decisions emitted by a view.
+    \param decision User-selected device-lost decision.
+    */
+    void onAudioDeviceLostDecision(AudioDeviceLostDecision decision) override
+    {
+        last_audio_device_lost_decision = decision;
+    }
+
     /*! \brief Counts audio-device settings open requests. */
     void onAudioDeviceSettingsOpenRequested() override
     {
@@ -1095,6 +1104,9 @@ public:
 
     /*! \brief Last interrupted-restore decision emitted by the view. */
     std::optional<RestoreInterruptedDecision> last_restore_interrupted_decision{};
+
+    /*! \brief Last device-lost notice decision emitted by the view. */
+    std::optional<AudioDeviceLostDecision> last_audio_device_lost_decision{};
 
     /*! \brief Number of open intents received. */
     int open_request_count{0};

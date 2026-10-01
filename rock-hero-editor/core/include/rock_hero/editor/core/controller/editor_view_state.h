@@ -69,6 +69,16 @@ enum class RestoreInterruptedDecision : std::uint8_t
     Cancel,
 };
 
+/*! \brief User choice returned from the notice that the audio device is not running. */
+enum class AudioDeviceLostDecision : std::uint8_t
+{
+    /*! \brief Open the audio settings window to choose or reopen a device. */
+    OpenSettings,
+
+    /*! \brief Close the notice and keep working on the silent device. */
+    Close,
+};
+
 /*!
 \brief User choice returned from the warning shown before grid snap turns off.
 
@@ -199,6 +209,25 @@ struct RestoreInterruptedPrompt
     */
     friend bool operator==(
         const RestoreInterruptedPrompt& lhs, const RestoreInterruptedPrompt& rhs) = default;
+};
+
+/*!
+\brief Describes the notice that the user's audio device is not running: the saved device did not
+open at startup, or the open device was lost.
+*/
+struct AudioDeviceLostPrompt
+{
+    /*! \brief The engine's reason, such as the backend's open failure or "Disconnected". */
+    std::string reason;
+
+    /*!
+    \brief Compares two device-lost notices by their reasons.
+    \param lhs Left-hand notice.
+    \param rhs Right-hand notice.
+    \return True when both notices carry the same reason.
+    */
+    friend bool operator==(const AudioDeviceLostPrompt& lhs, const AudioDeviceLostPrompt& rhs) =
+        default;
 };
 
 /*! \brief Describes an active input calibration prompt requested by the controller. */
@@ -1189,6 +1218,9 @@ struct EditorViewState
 
     /*! \brief Input calibration prompt to present, if live input setup is required. */
     std::optional<InputCalibrationPrompt> input_calibration_prompt{};
+
+    /*! \brief Notice to present when the user's audio device is not running. */
+    std::optional<AudioDeviceLostPrompt> audio_device_lost_prompt{};
 
     /*!
     \brief Active editor-wide busy state, if any.

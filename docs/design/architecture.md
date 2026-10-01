@@ -468,7 +468,8 @@ instead (`rock-hero-common/audio/src/device/null_audio_device.h`): its own realt
 this role, paces blocks to wall-clock time and renders into a buffer nobody hears, so playback,
 plugins and automation run exactly as on hardware. It has no inputs, so live input stays off. A
 device therefore always runs; losing the hardware pauses playback once, and the user reopens it
-explicitly.
+explicitly: the editor says so in a notice that offers the audio settings, as it does at a startup
+whose saved device did not open.
 
 **Live input** (ruled 2026-10-01): the live rig is never output without a calibration. Processed
 monitoring runs only while a one-channel input route is current, the shared audio-config store

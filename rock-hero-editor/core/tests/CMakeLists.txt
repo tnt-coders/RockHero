@@ -41,6 +41,7 @@ add_executable(
     test_corpus_census.cpp
     test_deferred_project_action_state.cpp
     test_editor_action_availability.cpp
+    test_editor_controller_audio_device.cpp
     test_editor_controller_busy.cpp
     test_editor_controller_input_calibration.cpp
     test_editor_controller_marker_rows.cpp

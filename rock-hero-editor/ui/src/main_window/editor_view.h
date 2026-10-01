@@ -356,6 +356,10 @@ private:
     // Opens or releases the warning that precedes turning grid snap off, from controller state.
     void presentGridSnapWarningIfNeeded(bool prompt_requested);
 
+    // Presents the notice that the audio device is not running, once per notice.
+    void presentAudioDeviceLostPromptIfNeeded(
+        const std::optional<core::AudioDeviceLostPrompt>& prompt);
+
     // Presents or closes the input calibration prompt from controller state.
     void presentInputCalibrationPromptIfNeeded(
         const std::optional<core::InputCalibrationPrompt>& prompt);
@@ -775,6 +779,9 @@ private:
 
     // Last restore-interrupted prompt shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::RestoreInterruptedPrompt> m_last_presented_restore_interrupted_prompt{};
+
+    // Last device-lost notice presented, so a re-derivation does not reopen it.
+    std::optional<core::AudioDeviceLostPrompt> m_last_presented_audio_device_lost_prompt{};
 
     // Same dedup flag for the controller's current grid-snap warning request.
     bool m_grid_snap_warning_presented{false};

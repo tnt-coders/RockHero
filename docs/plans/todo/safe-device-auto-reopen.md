@@ -127,6 +127,15 @@ a faulting driver leaves locks that make the process unusable after a caught fau
 first WASAPI open fails on real interfaces; and whether an endpoint keeps its name in a different
 USB port.
 
+## The editor's device-lost notice
+
+Since 2026-10-01 the editor raises `AudioDeviceLostPrompt` ("Audio device not running", with Audio
+Settings and Close) when a running device is lost, and at a startup whose saved device did not open.
+A reopen must retire it: the controller clears the prompt on its closed-to-open observation
+(`onAudioDeviceConfigurationChanged`), and the view, which today can only present a themed question
+box, needs a way to close one whose prompt is gone. The user asked for this (2026-10-01): a notice
+that clears when the device returns, provided the reopen itself is not buggy or a workaround.
+
 ## Manual hardware checklist (for whichever version ships)
 
 1. WASAPI shared, exclusive and low-latency, each with a USB interface. Unplug during playback: the

@@ -1066,6 +1066,12 @@ public:
     /*! \brief Handles the audio-device settings window closing. */
     virtual void onAudioDeviceSettingsClosed() = 0;
 
+    /*!
+    \brief Handles the user's response to the notice that the audio device is not running.
+    \param decision Decision selected by the user.
+    */
+    virtual void onAudioDeviceLostDecision(AudioDeviceLostDecision decision) = 0;
+
 protected:
     /*! \brief Creates the editor-controller interface. */
     IEditorController() = default;
