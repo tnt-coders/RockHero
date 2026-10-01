@@ -11,7 +11,7 @@ TEST_CASE("MenuBarButton preferred width grows with label text", "[ui][menu-bar-
     constexpr int menu_strip_height{24};
 
     MenuBarButton button;
-    button.setText("[audio device closed - playback silent]");
+    button.setText("[audio device closed]");
     const int narrow_width = button.preferredWidthForHeight(menu_strip_height);
 
     button.setText("[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");

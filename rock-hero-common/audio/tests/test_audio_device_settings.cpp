@@ -783,9 +783,8 @@ TEST_CASE(
     const auto applied = settings.apply();
 
     // The designed no-fallback outcome: the route is adopted with the device closed, OK closes the
-    // settings window, and the editor status shows [audio device closed - playback silent]. The
-    // standing notice (staged_device_error) already explains the condition, so no operation error
-    // is raised.
+    // settings window, and the editor status shows [audio device closed]. The standing notice
+    // (staged_device_error) already explains the condition, so no operation error is raised.
     CHECK(applied.has_value());
     CHECK(settings.state().error_message.empty());
     CHECK_FALSE(hardwareDeviceOpen(audio_devices.device_manager));
